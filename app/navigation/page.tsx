@@ -1,4 +1,5 @@
 // app/navigation/page.tsx
+import NaverMap from "../components/NaverMap";
 
 export default function NavigationPage() {
   return (
@@ -13,6 +14,9 @@ export default function NavigationPage() {
         <li>분양가 히트맵</li>
         <li>모델하우스 네비 연동</li>
       </ul>
+
+      {/* 🔽 여기서부터 실제 지도 */}
+      <NaverMap />
     </section>
   );
 }

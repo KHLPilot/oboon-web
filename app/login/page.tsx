@@ -71,7 +71,7 @@ export default function LoginPage() {
 
     try {
       const { error } = await supabase.auth.signInWithOAuth({
-        provider,
+        provider : provider as any,
         // 로그인 후 돌아올 주소 (개발 중에는 localhost, 나중엔 실제 도메인으로 바꾸면 됨)
         options: {
           redirectTo: typeof window !== "undefined"
@@ -195,12 +195,11 @@ export default function LoginPage() {
 
             <button
               type="button"
-              onClick={() => handleOAuthLogin("naver")}
-              className="w-full rounded-lg border border-emerald-500/40 bg-emerald-500/10 py-2 text-xs text-emerald-100 hover:border-emerald-400"
-              disabled={loading}
+              onClick={() => window.location.href = "/api/auth/naver/login"}
+              className="w-full rounded-lg ..."
             >
               🟢 네이버로 계속하기
-            </button>
+            </button>     
 
             <button
               type="button"
