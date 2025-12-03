@@ -22,7 +22,7 @@ export default function RootLayout({
           <header className="mb-6 flex items-center justify-between gap-4">
             <nav>
               <Link href="/">
-                <div className="text-xl font-bold">오분: 테스트</div>
+                <div className="text-xl font-bold">오분: 오늘의 분양</div>
                 <div className="text-xs text-slate-400">
                   어려운 분양 정보도 오분이면 돼~
                 </div>
