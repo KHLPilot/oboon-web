@@ -1,0 +1,22 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL") // Supabase Connection String
+}
+
+model Property {
+  id          Int      @id @default(autoincrement())
+  title       String   // 예: 더샵 강남 센트럴시티
+  type        String   // 예: 아파트, 오피스텔
+  status      String   // 예: 청약예정, 선착순
+  location    String   // 예: 서울시 강남구 역삼동
+  priceMin    String   // 예: 11.5억 (숫자로 저장하고 포맷팅하는 것이 좋으나 편의상 String)
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

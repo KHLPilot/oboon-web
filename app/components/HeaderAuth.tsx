@@ -56,8 +56,7 @@ export function HeaderAuth() {
     router.push("/login");
   }
 
-  if (loading)
-    return <div className="text-[10px] text-slate-400">…</div>;
+  if (loading) return <div className="text-[10px] text-slate-400">…</div>;
 
   if (!displayName) {
     return (
