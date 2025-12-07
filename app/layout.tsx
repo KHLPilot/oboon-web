@@ -15,7 +15,6 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-
   // 로그인 유저 profile 자동 생성
   await ensureProfile();
 
@@ -23,7 +22,6 @@ export default async function RootLayout({
     <html lang="ko">
       <body className="bg-slate-950 text-slate-50">
         <div className="mx-auto max-w-5xl px-4 py-4">
-
           {/* 공통 헤더 */}
           <header className="mb-6 flex items-center justify-between gap-4">
             <nav>
@@ -42,7 +40,6 @@ export default async function RootLayout({
 
           {/* 페이지 내용 */}
           <main>{children}</main>
-
         </div>
       </body>
     </html>

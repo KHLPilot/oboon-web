@@ -3,11 +3,12 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
+import { createSupabaseClient } from "@/lib/supabaseClient";
 
 type Mode = "login" | "signup";
 
 export default function LoginPage() {
+  const supabase = createSupabaseClient();
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("login"); // login / signup 모드
   const [email, setEmail] = useState("");
@@ -62,21 +63,20 @@ export default function LoginPage() {
   }
 
   // 🔹 구글/네이버/카카오 소셜 로그인 공통 함수
-  async function handleOAuthLogin(
-    provider: "google" | "naver" | "kakao"
-  ) {
+  async function handleOAuthLogin(provider: "google" | "naver" | "kakao") {
     setError(null);
     setMessage(null);
     setLoading(true);
 
     try {
       const { error } = await supabase.auth.signInWithOAuth({
-        provider : provider as any,
+        provider: provider as any,
         // 로그인 후 돌아올 주소 (개발 중에는 localhost, 나중엔 실제 도메인으로 바꾸면 됨)
         options: {
-          redirectTo: typeof window !== "undefined"
-            ? `${window.location.origin}/offerings`
-            : undefined,
+          redirectTo:
+            typeof window !== "undefined"
+              ? `${window.location.origin}/offerings`
+              : undefined,
         },
       });
 
@@ -99,7 +99,8 @@ export default function LoginPage() {
           {mode === "login" ? "로그인" : "회원가입"}
         </h1>
         <p className="mb-6 text-xs text-center text-slate-400">
-          OBOON 분양 플랫폼에 {mode === "login" ? "로그인" : "회원 등록"} 해주세요.
+          OBOON 분양 플랫폼에 {mode === "login" ? "로그인" : "회원 등록"}{" "}
+          해주세요.
         </p>
 
         {/* 모드 전환 버튼 */}
@@ -143,7 +144,9 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="mb-1 block text-xs text-slate-300">비밀번호</label>
+            <label className="mb-1 block text-xs text-slate-300">
+              비밀번호
+            </label>
             <input
               type="password"
               required
@@ -160,11 +163,7 @@ export default function LoginPage() {
             disabled={loading}
             className="mt-2 w-full rounded-lg bg-emerald-500 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:opacity-60"
           >
-            {loading
-              ? "처리 중..."
-              : mode === "login"
-              ? "로그인"
-              : "회원가입"}
+            {loading ? "처리 중..." : mode === "login" ? "로그인" : "회원가입"}
           </button>
         </form>
 
@@ -195,11 +194,11 @@ export default function LoginPage() {
 
             <button
               type="button"
-              onClick={() => window.location.href = "/api/auth/naver/login"}
+              onClick={() => (window.location.href = "/api/auth/naver/login")}
               className="w-full rounded-lg ..."
             >
               🟢 네이버로 계속하기
-            </button>     
+            </button>
 
             <button
               type="button"

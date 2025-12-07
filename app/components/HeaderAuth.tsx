@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
+import { createSupabaseClient } from "@/lib/supabaseClient";
 import Link from "next/link";
 
 export function HeaderAuth() {
   const router = useRouter();
+  const supabase = createSupabaseClient();
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
