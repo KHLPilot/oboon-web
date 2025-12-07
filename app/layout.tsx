@@ -36,34 +36,6 @@ export default async function RootLayout({
             </nav>
 
             <div className="flex items-center gap-3">
-              <nav className="flex flex-wrap gap-2 text-xs md:text-sm">
-                <Link href="/offerings"
-                  className="rounded-full border border-slate-100 text-slate-100 bg-slate-900 px-3 py-1 hover:border-emerald-400 hover:text-emerald-400"
-                >
-                  O · Offerings
-                </Link>
-                <Link href="/briefing"
-                  className="rounded-full border border-slate-100 text-slate-100 bg-slate-900 px-3 py-1 hover:border-emerald-400 hover:text-emerald-400"
-                >
-                  B · Briefing
-                </Link>
-                <Link href="/overview"
-                  className="rounded-full border border-slate-100 text-slate-100 bg-slate-900 px-3 py-1 hover:border-emerald-400 hover:text-emerald-400"
-                >
-                  O · Overview
-                </Link>
-                <Link href="/options"
-                  className="rounded-full border border-slate-100 text-slate-100 bg-slate-900 px-3 py-1 hover:border-emerald-400 hover:text-emerald-400"
-                >
-                  O · Options
-                </Link>
-                <Link href="/navigation"
-                  className="rounded-full border border-slate-100 text-slate-100 bg-slate-900 px-3 py-1 hover:border-emerald-400 hover:text-emerald-400"
-                >
-                  N · Navigation
-                </Link>
-              </nav>
-
               <HeaderAuth />
             </div>
           </header>
