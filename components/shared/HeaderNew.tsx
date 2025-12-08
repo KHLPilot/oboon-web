@@ -1,5 +1,4 @@
 //app/components/shared/HeaderNew.tsx
-
 "use client";
 
 import Link from "next/link";
@@ -7,14 +6,14 @@ import { usePathname } from "next/navigation";
 import { Search, Calendar } from "lucide-react";
 import { useEffect, useState } from "react";
 import { User } from "@supabase/supabase-js";
-import { createSupabaseClient } from "@/lib/supabaseClient"; // 1. Supabase 클라이언트 임포트
+import { createSupabaseClient } from "@/lib/supabaseClient";
 
 export default function Header() {
   const pathname = usePathname();
-  const [user, setUser] = useState<User | null>(null); // 2. 유저 상태 관리
+  const [user, setUser] = useState<User | null>(null);
   const supabase = createSupabaseClient();
 
-  // 3. 로그인 상태 확인 및 실시간 감지
+  // 로그인 / 로그아웃 감지
   useEffect(() => {
     const getUser = async () => {
       const {
@@ -26,7 +25,7 @@ export default function Header() {
     getUser();
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      (_event, session) => {
         setUser(session?.user ?? null);
       }
     );
@@ -45,20 +44,60 @@ export default function Header() {
   ];
 
   return (
-    <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-100 h-16">
-      <div className="container mx-auto px-4 md:px-8 h-full flex items-center justify-between">
-        {/* 로고 */}
-        <div className="flex items-center">
+    <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-100">
+      {/* 모바일: flex-col, PC(md 이상): flex-row */}
+      <div className="container mx-auto px-4 md:px-8 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+        
+        {/* 왼쪽: 로고 */}
+        <div className="flex items-center justify-between md:justify-start w-full md:w-auto">
           <Link
             href="/"
             className="text-2xl font-black text-slate-900 tracking-tighter"
           >
             OBOON<span className="text-teal-400">.</span>
           </Link>
+
+          {/* 오른쪽 버튼 - 모바일에서는 1줄 안에 포함 */}
+          <div className="flex items-center gap-3 md:hidden">
+            <button className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+              <Search className="w-5 h-5 text-slate-400" />
+            </button>
+
+            {user ? (
+              <Link
+                href="/profile"
+                className="relative w-9 h-9 rounded-full overflow-hidden border border-slate-200 hover:border-teal-400 transition-colors"
+              >
+                {user.user_metadata.avatar_url ? (
+                  <img
+                    src={user.user_metadata.avatar_url}
+                    alt="Profile"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600">
+                    {user.email?.slice(0, 2).toUpperCase()}
+                  </div>
+                )}
+              </Link>
+            ) : (
+              <Link
+                href="/login"
+                className="text-sm font-medium text-slate-500 hover:text-slate-900 px-2 transition-colors"
+              >
+                로그인
+              </Link>
+            )}
+
+            <button className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-800 transition-colors flex items-center gap-2">
+              <Calendar className="w-4 h-4" />
+              <span>상담 예약</span>
+            </button>
+          </div>
         </div>
 
-        {/* 네비게이션 메뉴 */}
-        <nav className="flex gap-6 overflow-x-auto whitespace-nowrap text-sm font-medium md:gap-8">
+        {/* 탭 메뉴: 모바일에서는 2번째 줄 */}
+        <nav className="flex gap-6 overflow-x-auto whitespace-nowrap text-sm font-medium md:gap-8 w-full md:w-auto">
           {NAV_ITEMS.map((item) => {
             const isActive = pathname.startsWith(item.href);
             return (
@@ -77,16 +116,13 @@ export default function Header() {
           })}
         </nav>
 
-        {/* 우측 아이콘 및 버튼 영역 */}
-        <div className="flex items-center gap-3">
-          {/* 검색 버튼 */}
+        {/* 오른쪽 버튼 - PC(md 이상)에서만 보임 */}
+        <div className="hidden md:flex items-center gap-3">
           <button className="p-2 hover:bg-slate-100 rounded-full transition-colors">
             <Search className="w-5 h-5 text-slate-400" />
           </button>
 
-          {/* 4. 로그인 로직 적용 영역 */}
           {user ? (
-            // [로그인 상태]: 프로필 이미지 표시 (클릭 시 /profile 이동)
             <Link
               href="/profile"
               className="relative w-9 h-9 rounded-full overflow-hidden border border-slate-200 hover:border-teal-400 transition-colors"
@@ -104,7 +140,6 @@ export default function Header() {
               )}
             </Link>
           ) : (
-            // [비로그인 상태]: 로그인 버튼 표시
             <Link
               href="/login"
               className="text-sm font-medium text-slate-500 hover:text-slate-900 px-2 transition-colors"
@@ -113,13 +148,14 @@ export default function Header() {
             </Link>
           )}
 
-          {/* 상담 예약 버튼 (기존 유지) */}
           <button className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-800 transition-colors flex items-center gap-2">
             <Calendar className="w-4 h-4" />
             <span>상담 예약</span>
           </button>
         </div>
+
       </div>
     </header>
   );
 }
+
