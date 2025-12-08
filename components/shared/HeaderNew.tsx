@@ -1,3 +1,5 @@
+//app/components/shared/HeaderNew.tsx
+
 "use client";
 
 import Link from "next/link";
@@ -56,7 +58,7 @@ export default function Header() {
         </div>
 
         {/* 네비게이션 메뉴 */}
-        <nav className="hidden md:flex gap-8 text-sm font-medium">
+        <nav className="flex gap-6 overflow-x-auto whitespace-nowrap text-sm font-medium md:gap-8">
           {NAV_ITEMS.map((item) => {
             const isActive = pathname.startsWith(item.href);
             return (
