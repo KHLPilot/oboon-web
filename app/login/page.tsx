@@ -64,7 +64,11 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: redirectUrl,
+        redirectTo:
+          typeof window !== "undefined"
+            ? `${window.location.origin}/auth/callback`
+            : undefined,
+
       },
     });
 
@@ -76,9 +80,7 @@ export default function LoginPage() {
 
   /** 🔹 Naver 로그인 (커스텀 API 사용) */
   function handleNaverLogin() {
-    window.location.href = `/api/auth/naver/login?redirect=${encodeURIComponent(
-      "/api/auth/ensure-profile"
-    )}`;
+    window.location.href = `/api/auth/naver/login?redirect=/auth/callback`;
   }
 
   return (
