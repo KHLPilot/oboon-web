@@ -1,9 +1,9 @@
 // lib/supabaseServer.ts
 import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 
-export async function createSupabaseServer() {
-  const cookieStore = await cookies();
+export function createSupabaseServer() {
+  const cookieStore = cookies();
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -11,7 +11,16 @@ export async function createSupabaseServer() {
     {
       cookies: {
         get(name: string) {
-          return (cookieStore.get(name) as { value: string } | undefined)?.value;
+          const cookie = cookieStore.get(name);
+          return cookie?.value;  // 타입 문제 없음
+        },
+
+        set(name: string, value: string, options: CookieOptions) {
+          cookieStore.set({ name, value, ...options });
+        },
+
+        remove(name: string, options: CookieOptions) {
+          cookieStore.set({ name, value: "", ...options });
         },
       },
     }
