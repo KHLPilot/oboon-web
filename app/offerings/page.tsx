@@ -1,6 +1,6 @@
 // app/offerings/page.tsxx
 
-import Header from "@/components/shared/HeaderNew";
+import Header from "@/components/shared/Header";
 import PropertyCard from "@/features/property/PropertyCard";
 import FilterBar from "@/features/offerings/FilterBar";
 import { Property } from "@/types";

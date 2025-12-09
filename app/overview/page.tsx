@@ -1,5 +1,5 @@
 // app/overview/page.tsx
-import Header from "@/components/shared/HeaderNew";
+import Header from "@/components/shared/Header";
 import BookingSidebar from "@/features/overview/BookingSidebar";
 import {
   MapPin,

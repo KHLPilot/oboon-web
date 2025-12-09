@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import Header from "@/components/shared/HeaderNew";
+import Header from "@/components/shared/Header";
 import LayerControl from "@/features/navigation/LayerControl";
 import { Plus, Minus, Navigation as NavIcon } from "lucide-react";
 import NaverMap from "../components/NaverMap";

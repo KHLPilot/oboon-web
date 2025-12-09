@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import Header from "@/components/shared/HeaderNew";
+import Header from "@/components/shared/Header";
 import { Home, TrendingUp, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 

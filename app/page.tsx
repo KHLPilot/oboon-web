@@ -1,10 +1,9 @@
 // app/page.tsx
-import Header from "@/components/shared/HeaderNew";
+import Header from "@/components/shared/Header";
 import PropertyCard from "@/features/property/PropertyCard";
 import { Property } from "@/types";
 import { ChevronRight, MapPin } from "lucide-react";
 
-// 더미 데이터 (나중에 Prisma DB 연동 시 교체될 부분)
 const DUMMY_DATA: Property[] = [
   {
     id: 1,

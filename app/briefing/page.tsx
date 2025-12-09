@@ -16,7 +16,7 @@
 //   );
 // }
 
-import Header from "@/components/shared/HeaderNew";
+import Header from "@/components/shared/Header";
 import UploadBox from "@/features/briefing/UploadBox";
 import { BarChart3 } from "lucide-react";
 
