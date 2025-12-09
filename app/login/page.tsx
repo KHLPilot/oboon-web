@@ -1,3 +1,4 @@
+//app/login/page.tsx
 "use client";
 
 import { FormEvent, useState } from "react";
@@ -14,16 +15,20 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
-  // ⭐ 모든 로그인은 ensure-profile 로 redirect
+  /** ---------------------------------------------------------
+   *  🔥 모든 SNS/Password 로그인 후 이동할 콜백 주소
+   * --------------------------------------------------------- */
   const redirectUrl =
     typeof window !== "undefined"
-      ? `${window.location.origin}/api/auth/ensure-profile`
+      ? `${window.location.origin}/api/auth/callback`
       : undefined;
 
-  /** 🔹 이메일 로그인 / 회원가입 */
+  /** ---------------------------------------------------------
+   *  ✉️ 이메일 로그인 & 회원가입
+   * --------------------------------------------------------- */
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -32,21 +37,20 @@ export default function LoginPage() {
 
     try {
       if (mode === "signup") {
-        const { error: signUpError } = await supabase.auth.signUp({
+        const { error } = await supabase.auth.signUp({
           email,
           password,
         });
 
-        if (signUpError) setError(signUpError.message);
-        else
-          setMessage("확인 이메일이 발송되었을 수 있습니다. 메일함을 확인해주세요.");
+        if (error) setError(error.message);
+        else setMessage("확인 이메일이 발송되었습니다.");
       } else {
-        const { error: signInError } = await supabase.auth.signInWithPassword({
+        const { error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
 
-        if (signInError) setError(signInError.message);
+        if (error) setError(error.message);
         else router.push("/api/auth/ensure-profile");
       }
     } catch (err: any) {
@@ -56,7 +60,9 @@ export default function LoginPage() {
     }
   }
 
-  /** 🔹 Google / Kakao OAuth */
+  /** ---------------------------------------------------------
+   *  🔵 Google / 🟡 Kakao OAuth 로그인
+   * --------------------------------------------------------- */
   async function handleOAuthLogin(provider: "google" | "kakao") {
     setLoading(true);
     setError(null);
@@ -64,11 +70,7 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo:
-          typeof window !== "undefined"
-            ? `${window.location.origin}/auth/callback`
-            : undefined,
-
+        redirectTo: redirectUrl, // 반드시 callback API로!
       },
     });
 
@@ -78,9 +80,11 @@ export default function LoginPage() {
     }
   }
 
-  /** 🔹 Naver 로그인 (커스텀 API 사용) */
+  /** ---------------------------------------------------------
+   *  🟢 Naver 로그인 (커스텀 API → Supabase)
+   * --------------------------------------------------------- */
   function handleNaverLogin() {
-    window.location.href = `/api/auth/naver/login?redirect=/auth/callback`;
+    window.location.href = `/api/auth/naver/login?redirect=/api/auth/callback`;
   }
 
   return (
@@ -89,11 +93,15 @@ export default function LoginPage() {
         <h1 className="mb-2 text-xl font-bold text-center">
           {mode === "login" ? "로그인" : "회원가입"}
         </h1>
+
         <p className="mb-6 text-xs text-center text-slate-400">
-          OBOON 분양 플랫폼에 {mode === "login" ? "로그인" : "회원 등록"} 해주세요.
+          OBOON 분양 플랫폼에{" "}
+          {mode === "login" ? "로그인" : "회원 등록"} 해주세요.
         </p>
 
-        {/* 모드 전환 */}
+        {/* ------------------------------------------------------
+            로그인 / 회원가입 모드 버튼
+        ------------------------------------------------------- */}
         <div className="mb-4 flex justify-center gap-2 text-xs">
           <button
             className={`rounded-full px-3 py-1 border ${
@@ -118,7 +126,9 @@ export default function LoginPage() {
           </button>
         </div>
 
-        {/* 이메일 로그인 */}
+        {/* ------------------------------------------------------
+            이메일 / 비밀번호 입력폼
+        ------------------------------------------------------- */}
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
             <label className="text-xs text-slate-300">이메일</label>
@@ -155,18 +165,22 @@ export default function LoginPage() {
         {error && <p className="mt-3 text-xs text-red-400">{error}</p>}
         {message && <p className="mt-3 text-xs text-emerald-300">{message}</p>}
 
-        {/* 소셜 로그인 */}
+        {/* ------------------------------------------------------
+            SNS 로그인 버튼들
+        ------------------------------------------------------- */}
         <div className="mt-6 border-t border-slate-800 pt-4 text-center space-y-2">
           <p className="text-xs text-slate-400 mb-2">소셜 계정으로 계속하기</p>
 
           <div className="flex flex-col gap-2">
+            {/* Google */}
             <button
               onClick={() => handleOAuthLogin("google")}
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 py-2 text-xs text-slate-50 hover:border-emerald-400"
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 py-2 text-xs hover:border-emerald-400"
             >
               🔵 Google로 계속하기
             </button>
 
+            {/* Naver */}
             <button
               onClick={handleNaverLogin}
               className="w-full rounded-lg border border-green-500/30 bg-green-500/10 py-2 text-xs text-green-200 hover:border-green-400"
@@ -174,6 +188,7 @@ export default function LoginPage() {
               🟢 네이버로 계속하기
             </button>
 
+            {/* Kakao */}
             <button
               onClick={() => handleOAuthLogin("kakao")}
               className="w-full rounded-lg border border-yellow-500/60 bg-yellow-500/10 py-2 text-xs text-yellow-100 hover:border-yellow-400"
