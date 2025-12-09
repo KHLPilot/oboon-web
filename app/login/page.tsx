@@ -23,7 +23,7 @@ export default function LoginPage() {
    * --------------------------------------------------------- */
   const redirectUrl =
     typeof window !== "undefined"
-      ? `${window.location.origin}/api/auth/callback`
+      ? `${window.location.origin}/auth/callback`
       : undefined;
 
   /** ---------------------------------------------------------
