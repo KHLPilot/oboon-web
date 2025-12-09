@@ -1,4 +1,3 @@
-//app/login/page.tsx
 "use client";
 
 import { FormEvent, useState } from "react";
@@ -10,6 +9,7 @@ type Mode = "login" | "signup";
 export default function LoginPage() {
   const supabase = createSupabaseClient();
   const router = useRouter();
+
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -17,7 +17,13 @@ export default function LoginPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // 🔹 이메일 로그인/회원가입
+  // ⭐ 모든 로그인은 ensure-profile 로 redirect
+  const redirectUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/api/auth/ensure-profile`
+      : undefined;
+
+  /** 🔹 이메일 로그인 / 회원가입 */
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -32,13 +38,13 @@ export default function LoginPage() {
         });
 
         if (signUpError) setError(signUpError.message);
-        else setMessage("확인 이메일이 발송되었을 수 있습니다.");
+        else
+          setMessage("확인 이메일이 발송되었을 수 있습니다. 메일함을 확인해주세요.");
       } else {
-        const { data, error: signInError } =
-          await supabase.auth.signInWithPassword({
-            email,
-            password,
-          });
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
 
         if (signInError) setError(signInError.message);
         else router.push("/api/auth/ensure-profile");
@@ -50,37 +56,30 @@ export default function LoginPage() {
     }
   }
 
-  // 🔹 소셜 로그인 버튼
+  /** 🔹 Google / Kakao OAuth */
   async function handleOAuthLogin(provider: "google" | "kakao") {
-    setError(null);
-    setMessage(null);
     setLoading(true);
+    setError(null);
 
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: {
-          redirectTo:
-            typeof window !== "undefined"
-              ? `${window.location.origin}/api/auth/ensure-profile`
-              : undefined,
-        },
-      });
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: redirectUrl,
+      },
+    });
 
-      if (error) {
-        setError(error.message);
-        setLoading(false);
-      }
-    } catch (err: any) {
-      setError(err.message);
+    if (error) {
+      setError(error.message);
       setLoading(false);
     }
   }
 
-  // 🔹 네이버 로그인은 우리의 API 라우트로 연결
-  const handleNaverLogin = () => {
-    window.location.href = "/api/auth/naver/login";
-  };
+  /** 🔹 Naver 로그인 (커스텀 API 사용) */
+  function handleNaverLogin() {
+    window.location.href = `/api/auth/naver/login?redirect=${encodeURIComponent(
+      "/api/auth/ensure-profile"
+    )}`;
+  }
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-50 flex items-center justify-center">
@@ -104,6 +103,7 @@ export default function LoginPage() {
           >
             로그인
           </button>
+
           <button
             className={`rounded-full px-3 py-1 border ${
               mode === "signup"
@@ -116,7 +116,7 @@ export default function LoginPage() {
           </button>
         </div>
 
-        {/* 이메일/비번 입력 */}
+        {/* 이메일 로그인 */}
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
             <label className="text-xs text-slate-300">이메일</label>
@@ -150,12 +150,8 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {error && (
-          <p className="mt-3 text-xs text-red-400 whitespace-pre-line">{error}</p>
-        )}
-        {message && (
-          <p className="mt-3 text-xs text-emerald-300 whitespace-pre-line">{message}</p>
-        )}
+        {error && <p className="mt-3 text-xs text-red-400">{error}</p>}
+        {message && <p className="mt-3 text-xs text-emerald-300">{message}</p>}
 
         {/* 소셜 로그인 */}
         <div className="mt-6 border-t border-slate-800 pt-4 text-center space-y-2">
@@ -165,7 +161,6 @@ export default function LoginPage() {
             <button
               onClick={() => handleOAuthLogin("google")}
               className="w-full rounded-lg border border-slate-700 bg-slate-900 py-2 text-xs text-slate-50 hover:border-emerald-400"
-              disabled={loading}
             >
               🔵 Google로 계속하기
             </button>
@@ -180,7 +175,6 @@ export default function LoginPage() {
             <button
               onClick={() => handleOAuthLogin("kakao")}
               className="w-full rounded-lg border border-yellow-500/60 bg-yellow-500/10 py-2 text-xs text-yellow-100 hover:border-yellow-400"
-              disabled={loading}
             >
               🟡 카카오톡으로 계속하기
             </button>

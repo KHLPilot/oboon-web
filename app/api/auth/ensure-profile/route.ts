@@ -1,9 +1,11 @@
+// app/api/auth/ensure-profile/route.ts
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
 export async function GET() {
   const cookieStore = await cookies();
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -16,44 +18,37 @@ export async function GET() {
     }
   );
 
-  // 현재 로그인된 유저 가져오기
+  // 🔍 1) 유저 확인
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return NextResponse.json({ message: "no user" }, { status: 401 });
+    return NextResponse.json({ message: "no user" });
   }
 
-  // 프로필 존재하는지 확인
-  const { data: existing } = await supabase
+  // 🔍 2) profiles 테이블에 이미 있는지 확인
+  const { data: exist } = await supabase
     .from("profiles")
-    .select("*")
+    .select("id")
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
 
-  if (existing) {
-    return NextResponse.json({ message: "profile exists" });
+  // 🔍 3) 없으면 새로 생성
+  if (!exist) {
+    await supabase.from("profiles").insert({
+      id: user.id,
+      email: user.email,
+      name:
+        user.user_metadata.full_name ||
+        user.user_metadata.name ||
+        user.email?.split("@")[0],
+      role: "user",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
   }
 
-  // 없으면 생성
-  const { error } = await supabase.from("profiles").insert({
-    id: user.id,
-    email: user.email,
-    name:
-      user.user_metadata.full_name ||
-      user.user_metadata.name ||
-      user.email?.split("@")[0],
-    role: "user",
-    phone_number: user.user_metadata.phone_number || "",
-    region: "",
-    avatar_url: user.user_metadata.avatar_url || "",
-  });
-
-  if (error) {
-    console.error("profile insert error", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ message: "profile created" });
+  // 🔍 4) 생성 후 리다이렉트
+  return NextResponse.redirect(new URL("/", process.env.NEXT_PUBLIC_SITE_URL!));
 }
