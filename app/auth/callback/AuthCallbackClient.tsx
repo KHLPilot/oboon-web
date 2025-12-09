@@ -1,33 +1,29 @@
+// app/auth/callback/AuthCallbackClient.tsx
 "use client";
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 
-export default function AuthCallback() {
-  const supabase = createSupabaseClient();
+export default function AuthCallbackClient() {
   const router = useRouter();
+  const supabase = createSupabaseClient();
 
   useEffect(() => {
     async function run() {
-      // 1️⃣ 세션 자동 저장됐는지 확인
-      let { data } = await supabase.auth.getUser();
+      // 1) Supabase가 URL hash(code/token) 자동 파싱 → 세션 저장하기 때문에
+      // 여기서는 getUser()만 확인하면 됨
+      const { data } = await supabase.auth.getUser();
 
       if (!data.user) {
-        // 🔥 300ms 기다린 뒤 다시 한 번 체크 (Google/Naver 모두 해결되는 패턴)
-        await new Promise((r) => setTimeout(r, 300));
-        const retry = await supabase.auth.getUser();
-
-        if (!retry.data.user) {
-          router.replace("/login");
-          return;
-        }
-
-        data = retry.data;
+        router.replace("/login");
+        return;
       }
 
-      // 2️⃣ 프로필 존재 여부 확인
-      const res = await fetch("/api/auth/ensure-profile", { cache: "no-store" });
+      // 2) 온보딩 필요 여부 확인
+      const res = await fetch("/api/auth/ensure-profile", {
+        cache: "no-store",
+      });
       const result = await res.json();
 
       if (result.needOnboarding) router.replace("/onboarding");

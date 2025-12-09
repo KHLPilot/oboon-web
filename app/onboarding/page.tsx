@@ -1,4 +1,4 @@
-//app/onboarding/page.tsx
+// app/onboarding/page.tsx
 "use client";
 
 import { useState } from "react";
@@ -7,61 +7,55 @@ import { createSupabaseClient } from "@/lib/supabaseClient";
 
 export default function OnboardingPage() {
   const router = useRouter();
-
   const [name, setName] = useState("");
   const [region, setRegion] = useState("");
   const [phone, setPhone] = useState("");
 
   async function handleSubmit(e: any) {
     e.preventDefault();
-
-    const supabase = createSupabaseClient(); // ⚠ 함수 안에서 생성해야 안전!
+    const supabase = createSupabaseClient();
 
     // 1) 사용자 확인
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       alert("로그인이 필요합니다.");
       router.replace("/login");
       return;
     }
 
-    // 2) 중복 계정 확인
-    const { data: existing, error: findError } = await supabase
+    // 2) 전화번호 중복 확인
+    const { data: existing } = await supabase
       .from("profiles")
       .select("id")
       .eq("phone_number", phone)
       .maybeSingle();
 
-    if (findError) {
-      console.error(findError);
-      alert("오류가 발생했습니다. 다시 시도해주세요.");
-      return;
-    }
-
     if (existing && existing.id !== user.id) {
-      alert("이미 같은 전화번호로 가입된 계정이 있습니다.\n로그인해주세요.");
+      alert("이미 가입된 전화번호입니다.\n로그인해주세요.");
       router.replace("/login");
       return;
     }
 
-    // 3) 프로필 업데이트
-    const { data: updated, error } = await supabase
+    // 3) 프로필 생성 또는 업데이트 (UPSERT)
+    const { data: saved, error } = await supabase
       .from("profiles")
-      .update({
-        name,
-        region,
-        phone_number: phone,
-      })
-      .eq("id", user.id)
+      .upsert(
+        {
+          id: user.id,          // 🔥 auth.users.id와 동일해야 FK 오류 없음
+          email: user.email,
+          name,
+          region,
+          phone_number: phone,
+          role: "user",
+        },
+        { onConflict: "id" }
+      )
       .select()
-      .single(); // 🔥 업데이트 반환값 강제 확인
+      .single();
 
-    if (error || !updated) {
-      alert("저장 중 오류가 발생했습니다.");
+    if (error) {
       console.error(error);
+      alert("저장 중 오류가 발생했습니다.");
       return;
     }
 
@@ -79,7 +73,6 @@ export default function OnboardingPage() {
         <div>
           <label className="text-sm text-slate-300">이름</label>
           <input
-            type="text"
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -90,7 +83,6 @@ export default function OnboardingPage() {
         <div>
           <label className="text-sm text-slate-300">지역</label>
           <input
-            type="text"
             required
             value={region}
             onChange={(e) => setRegion(e.target.value)}
@@ -101,7 +93,6 @@ export default function OnboardingPage() {
         <div>
           <label className="text-sm text-slate-300">전화번호</label>
           <input
-            type="tel"
             required
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
