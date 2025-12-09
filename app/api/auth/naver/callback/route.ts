@@ -75,6 +75,9 @@ export async function GET(req: Request) {
   const { data: link, error } = await supabase.auth.admin.generateLink({
     type: "magiclink",
     email,
+    options: {
+     redirectTo: "https://oboon-web.vercel.app/auth/callback",
+   },
   });
 
   if (error) {
