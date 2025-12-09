@@ -1,3 +1,5 @@
+//app/api/auth/ensure-profile/route.ts
+
 import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabaseServer";
 

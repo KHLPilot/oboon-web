@@ -1,3 +1,4 @@
+//app/onboarding/page.tsx
 "use client";
 
 import { useState } from "react";
@@ -6,7 +7,6 @@ import { createSupabaseClient } from "@/lib/supabaseClient";
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const supabase = createSupabaseClient();
 
   const [name, setName] = useState("");
   const [region, setRegion] = useState("");
@@ -15,17 +15,23 @@ export default function OnboardingPage() {
   async function handleSubmit(e: any) {
     e.preventDefault();
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const supabase = createSupabaseClient(); // ⚠ 함수 안에서 생성해야 안전!
+
+    // 1) 사용자 확인
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
     if (!user) {
       alert("로그인이 필요합니다.");
       router.replace("/login");
       return;
     }
 
-    // 🔥 (1) 중복 계정 검사
+    // 2) 중복 계정 확인
     const { data: existing, error: findError } = await supabase
       .from("profiles")
-      .select("*")
+      .select("id")
       .eq("phone_number", phone)
       .maybeSingle();
 
@@ -41,17 +47,19 @@ export default function OnboardingPage() {
       return;
     }
 
-    // 🔥 (2) 프로필 업데이트
-    const { error } = await supabase
+    // 3) 프로필 업데이트
+    const { data: updated, error } = await supabase
       .from("profiles")
       .update({
         name,
         region,
         phone_number: phone,
       })
-      .eq("id", user.id);
+      .eq("id", user.id)
+      .select()
+      .single(); // 🔥 업데이트 반환값 강제 확인
 
-    if (error) {
+    if (error || !updated) {
       alert("저장 중 오류가 발생했습니다.");
       console.error(error);
       return;
