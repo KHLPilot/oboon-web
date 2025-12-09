@@ -12,7 +12,7 @@ export async function GET() {
   // 프로필 조회
   const { data: existing } = await supabase
     .from("profiles")
-    .select("*")
+    .select("*") 
     .eq("id", user.id)
     .single();
 
