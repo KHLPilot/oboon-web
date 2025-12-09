@@ -70,7 +70,7 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: redirectUrl, // 반드시 callback API로!
+        redirectTo: `${window.location.origin}/auth/callback`, // 반드시 callback API로!
       },
     });
 
