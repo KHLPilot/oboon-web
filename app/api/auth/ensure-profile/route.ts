@@ -1,37 +1,28 @@
-// app/api/auth/ensure-profile/route.ts
 import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabaseServer";
 
 export async function GET() {
   const supabase = createSupabaseServer();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ needOnboarding: false });
 
-  if (!user) return NextResponse.redirect("/login");
-
-  // DB에서 사용자 존재 여부 확인
+  // 프로필 조회
   const { data: existing } = await supabase
     .from("profiles")
-    .select("id")
+    .select("*")
     .eq("id", user.id)
-    .maybeSingle();
+    .single();
 
+  // 프로필 자체가 없으면 온보딩 필요
   if (!existing) {
-    const meta = user.user_metadata || {};
-    await supabase.from("profiles").insert({
-      id: user.id,
-      email: user.email,
-      name:
-        meta.full_name ||
-        meta.name ||
-        user.email?.split("@")[0] ||
-        "회원",
-      avatar_url: meta.avatar_url || meta.picture || null,
-      role: "user",
-    });
+    return NextResponse.json({ needOnboarding: true });
   }
 
-  return NextResponse.redirect("/");
+  // 이름 / 지역 / 전화번호 중 하나라도 없으면 온보딩
+  if (!existing.name || !existing.region || !existing.phone_number) {
+    return NextResponse.json({ needOnboarding: true });
+  }
+
+  return NextResponse.json({ needOnboarding: false });
 }
