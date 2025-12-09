@@ -1,3 +1,4 @@
+//app/auth/callback/page.tsx
 export const dynamic = "force-dynamic";
 
 import AuthCallbackClient from "./AuthCallbackClient";

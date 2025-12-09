@@ -1,47 +1,41 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 
-export default function AuthCallbackClient() {
-  const router = useRouter();
+export default function AuthCallback() {
   const supabase = createSupabaseClient();
-  const params = useSearchParams();
+  const router = useRouter();
 
   useEffect(() => {
     async function run() {
-      const code = params.get("code");
+      // 1️⃣ 세션 자동 저장됐는지 확인
+      let { data } = await supabase.auth.getUser();
 
-      if (code) {
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
-        if (error) {
-          console.error("세션 저장 실패:", error);
+      if (!data.user) {
+        // 🔥 300ms 기다린 뒤 다시 한 번 체크 (Google/Naver 모두 해결되는 패턴)
+        await new Promise((r) => setTimeout(r, 300));
+        const retry = await supabase.auth.getUser();
+
+        if (!retry.data.user) {
           router.replace("/login");
           return;
         }
+
+        data = retry.data;
       }
 
-      const { data } = await supabase.auth.getUser();
-      if (!data.user) {
-        router.replace("/login");
-        return;
-      }
-
-      const res = await fetch("/api/auth/ensure-profile", {
-        cache: "no-store",
-      });
+      // 2️⃣ 프로필 존재 여부 확인
+      const res = await fetch("/api/auth/ensure-profile", { cache: "no-store" });
       const result = await res.json();
 
-      if (result.needOnboarding) {
-        router.replace("/onboarding");
-      } else {
-        router.replace("/");
-      }
+      if (result.needOnboarding) router.replace("/onboarding");
+      else router.replace("/");
     }
 
     run();
-  }, [params, router, supabase]);
+  }, []);
 
-  return <p style={{ color: "white" }}>로그인 처리 중...</p>;
+  return <p className="text-white">로그인 처리 중...</p>;
 }
