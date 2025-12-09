@@ -1,4 +1,3 @@
-// app/auth/callback/AuthCallbackClient.tsx
 "use client";
 
 import { useEffect } from "react";
@@ -11,23 +10,51 @@ export default function AuthCallbackClient() {
 
   useEffect(() => {
     async function run() {
-      // 1) Supabase가 URL hash(code/token) 자동 파싱 → 세션 저장하기 때문에
-      // 여기서는 getUser()만 확인하면 됨
-      const { data } = await supabase.auth.getUser();
+      // ============================================
+      // 1) NAVER magic link (#access_token) 처리
+      // ============================================
+      const hash = window.location.hash;
 
-      if (!data.user) {
+      if (hash.includes("access_token")) {
+        const params = new URLSearchParams(hash.substring(1)); // '#' 제거
+        const access_token = params.get("access_token");
+        const refresh_token = params.get("refresh_token");
+
+        if (access_token && refresh_token) {
+          await supabase.auth.setSession({
+            access_token,
+            refresh_token,
+          });
+
+          // URL에서 해시 제거
+          window.history.replaceState(null, "", "/auth/callback");
+        }
+      }
+
+      // ============================================
+      // 2) 세션 확인
+      // ============================================
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) {
         router.replace("/login");
         return;
       }
 
-      // 2) 온보딩 필요 여부 확인
+      // ============================================
+      // 3) 프로필 확인 (온보딩 여부 체크)
+      // ============================================
       const res = await fetch("/api/auth/ensure-profile", {
         cache: "no-store",
       });
+
       const result = await res.json();
 
-      if (result.needOnboarding) router.replace("/onboarding");
-      else router.replace("/");
+      if (result.needOnboarding) {
+        router.replace("/onboarding");
+      } else {
+        router.replace("/");
+      }
     }
 
     run();
