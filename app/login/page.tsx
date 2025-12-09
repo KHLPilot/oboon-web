@@ -84,7 +84,7 @@ export default function LoginPage() {
    *  🟢 Naver 로그인 (커스텀 API → Supabase)
    * --------------------------------------------------------- */
   function handleNaverLogin() {
-    window.location.href = `/api/auth/naver/login?redirect=/api/auth/callback`;
+    window.location.href = `/api/auth/naver/login?redirect=/auth/callback`;
   }
 
   return (
