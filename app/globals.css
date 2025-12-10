@@ -1,26 +1,125 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --font-h1: 32px;
+  --font-h2: 24px;
+  --font-h3: 18px;
+  --font-h4: 15px;
+
+  --font-body: 16px;
+  --font-body2: 14px;
+  --font-caption: 12px;
+
+  --line-height-tight: 120%;
+  --line-height-normal: 150%;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* Secondary Button Tokens */
+:root {
+  --btn-secondary-bg: #f1f5f9;
+  --btn-secondary-bg-hover: #e2e8f0;
+  --btn-secondary-text: #475569;
+  --btn-secondary-border: #cbd5e1;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root[data-theme="dark"] {
+  --btn-secondary-bg: #1f2937;
+  --btn-secondary-bg-hover: #374151;
+  --btn-secondary-text: #d1d5db;
+  --btn-secondary-border: #4b5563;
+}
+
+/* -----------------------------
+   기본: 라이트 모드
+----------------------------- */
+:root {
+  /* OBOON Base Tokens - Light */
+  --oboon-bg-page: #f8fafc;
+  --oboon-bg-surface: #ffffff;
+  --oboon-bg-subtle: #f1f5f9;
+
+  --oboon-text-title: #0f172a;
+  --oboon-text-body: #334155;
+  --oboon-text-muted: #64748b;
+
+  --oboon-primary: #2360ff;
+  --oboon-primary-hover: #1d4fe0;
+
+  --oboon-border-default: #e2e8f0;
+  --oboon-shadow-card: 0 12px 32px rgba(15, 23, 42, 0.12);
+
+  --background: var(--oboon-bg-page);
+  --foreground: var(--oboon-text-body);
+
+  color-scheme: light;
+
+  /* Card Tokens - Light */
+  --card-bg-surface: #ffffff;
+  --card-bg-gradient-from: #f1f5f9;
+  --card-bg-gradient-to: #e2e8f0;
+
+  --card-text-title: #0f172a;
+  --card-text-body: #334155;
+  --card-text-muted: #64748b;
+
+  --card-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
+
+  /* Briefing Tokens - Light */
+  --briefing-bg-surface: #ffffff;
+  --briefing-text-title: #0f172a;
+  --briefing-text-body: #4b5563;
+  --briefing-text-muted: #9ca3af;
+  --briefing-border: #e5e7eb;
+  --briefing-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+  --briefing-highlight-bg: #f9fafb;
+}
+
+/* -----------------------------
+   다크 모드일 때 오버라이드
+----------------------------- */
+:root[data-theme="dark"] {
+  /* OBOON Base Tokens - Dark */
+  --oboon-bg-page: #0b0f19;
+  --oboon-bg-surface: #111827;
+  --oboon-bg-subtle: #1f2937;
+
+  --oboon-text-title: #f8fafc;
+  --oboon-text-body: #cbd5e1;
+  --oboon-text-muted: #94a3b8;
+
+  --oboon-primary: #3b82f6;
+  --oboon-primary-hover: #2563eb;
+
+  --oboon-border-default: #1f2937;
+  --oboon-shadow-card: 0 18px 40px rgba(0, 0, 0, 0.55);
+
+  --background: var(--oboon-bg-page);
+  --foreground: var(--oboon-text-body);
+
+  color-scheme: dark;
+
+  /* Card Tokens - Dark */
+  --card-bg-surface: rgba(15, 23, 42, 0.98);
+  --card-bg-gradient-from: #dbeafe;
+  --card-bg-gradient-to: #9ca3af;
+
+  --card-text-title: #f8fafc;
+  --card-text-body: #cbd5e1;
+  --card-text-muted: #94a3b8;
+
+  --card-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
+
+  /* Briefing Tokens - Dark */
+  --briefing-bg-surface: #020617;
+  --briefing-text-title: #e5e7eb;
+  --briefing-text-body: #9ca3af;
+  --briefing-text-muted: #6b7280;
+  --briefing-border: #020617;
+  --briefing-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
+  --briefing-highlight-bg: #020617;
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
 }

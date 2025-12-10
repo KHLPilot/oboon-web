@@ -1,17 +1,26 @@
 // app/layout.tsx
-import type { Metadata } from "next";
+
 import "./globals.css";
+import type { Metadata } from "next";
+import Header from "@/components/shared/Header";
+import Footer from "@/components/shared/Footer";
 
 export const metadata: Metadata = {
-  title: "OBOON 분양 플랫폼",
-  description: "Offerings · Briefing · Overview · Options · Navigation",
+  title: "OBOON – 오늘의 분양",
+  description: "분양 정보를 가장 쉽게 정리해주는 서비스",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="ko">
-      <body className="bg-slate-950 text-slate-50">
-        {children}
+      <body className="bg-(--oboon-bg-page) text-(--oboon-text-body)">
+        <Header />
+        <main className="min-h-screen pt-16">{children}</main>
+        <Footer />
       </body>
     </html>
   );
