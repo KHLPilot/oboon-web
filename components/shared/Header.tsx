@@ -15,7 +15,7 @@ export default function Header() {
   const supabase = createSupabaseClient();
   const dropdownRef = useRef<HTMLDivElement | null>(null);
 
-  // 드롭다운 외부 클릭
+  // 드롭다운 외부 클릭 감지
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -32,23 +32,24 @@ export default function Header() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
+
       if (session?.user) {
         setUser(session.user);
         return;
       }
+
       const {
         data: { user },
       } = await supabase.auth.getUser();
+
       setUser(user ?? null);
     };
 
     loadUser();
 
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setUser(session?.user ?? null);
-      }
-    );
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
 
     return () => listener.subscription.unsubscribe();
   }, [supabase]);
@@ -73,18 +74,17 @@ export default function Header() {
     { label: "Navigation", href: "/navigation" },
   ];
 
-  // 🔴 로그아웃 확실하게
+  // 로그아웃
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) {
       console.error("로그아웃 오류:", error.message);
       return;
     }
-
     setDropdownOpen(false);
     setUser(null);
-    router.push("/");     // 메인으로 이동
-    router.refresh();     // 화면 새로고침해서 상태 싹 맞추기
+    router.push("/");
+    router.refresh();
   };
 
   return (
@@ -120,10 +120,12 @@ export default function Header() {
 
         {/* 우측 버튼 영역 */}
         <div className="flex items-center gap-4">
+          {/* 검색 아이콘 */}
           <button className="p-2 hover:bg-slate-100 rounded-full transition-colors">
             <Search className="w-5 h-5 text-slate-400" />
           </button>
 
+          {/* 로그인 상태 */}
           {user ? (
             <div className="relative" ref={dropdownRef}>
               <button
@@ -175,10 +177,19 @@ export default function Header() {
             </Link>
           )}
 
+          {/* 상담 예약 버튼 */}
           <button className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-800 transition-colors flex items-center gap-2">
             <Calendar className="w-4 h-4" />
             <span>상담 예약</span>
           </button>
+
+          {/* ⭐ 현장 등록하기 버튼 (누구나 보이도록 기본 버전) */}
+          <Link
+            href="/properties/new"
+            className="bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-teal-500 transition-colors"
+          >
+            현장 등록하기
+          </Link>
         </div>
       </div>
     </header>

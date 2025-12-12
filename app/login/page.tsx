@@ -197,6 +197,16 @@ export default function LoginPage() {
             </button>
           </div>
         </div>
+                {/* 기업 로그인 버튼 */}
+        <div className="mt-4 text-center">
+          <button
+            onClick={() => router.push("/company/login")}
+            className="text-xs text-slate-400 underline hover:text-slate-200"
+          >
+            기업 로그인하기
+          </button>
+        </div>
+
       </div>
     </main>
   );
