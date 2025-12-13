@@ -92,8 +92,16 @@ export default function PropertyListPage() {
     <div className="p-6 max-w-5xl mx-auto">
       {/* 헤더 */}
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-xl font-bold">현장 목록</h1>
+        {/* 왼쪽: 홈 + 제목 */}
+        <div className="flex items-center gap-4">
+          <Link href="/" className="text-sm text-gray-400 hover:text-white">
+            ← 홈으로
+          </Link>
 
+          <h1 className="text-xl font-bold">현장 목록</h1>
+        </div>
+
+        {/* 오른쪽: 새 현장 */}
         <Link href="/company/properties/new" className="btn-primary">
           + 새 현장 등록
         </Link>
