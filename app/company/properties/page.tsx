@@ -143,7 +143,15 @@ export default function PropertyListPage() {
           return (
             <div
               key={row.id}
-              className="border border-gray-700 rounded p-4 bg-black space-y-3 hover:border-gray-500 transition"
+              className="
+    border border-gray-200 dark:border-gray-700
+    rounded p-4
+    bg-white dark:bg-black
+    text-gray-900 dark:text-white
+    space-y-3
+    hover:border-gray-400 dark:hover:border-gray-500
+    transition
+  "
             >
               {/* 상단 */}
               <div className="flex justify-between items-start">
@@ -166,10 +174,7 @@ export default function PropertyListPage() {
               {/* 상태 뱃지 */}
               <div className="flex gap-2 flex-wrap">
                 <StatusBadge label="현장 위치" completed={siteLocationDone} />
-                <StatusBadge
-                  label="모델하우스/홍보관"
-                  completed={facilityDone}
-                />
+                <StatusBadge label="홍보시설" completed={facilityDone} />
                 <StatusBadge label="건물 스펙" completed={specsDone} />
                 <StatusBadge label="일정" completed={timelineDone} />
                 <StatusBadge label="평면 타입" completed={unitDone} />

@@ -384,7 +384,7 @@ export default function PropertyDetailPage() {
           href={`/company/properties/${id}/location`}
         />
         <SectionCard
-          title="모델하우스 / 홍보관"
+          title="홍보시설"
           completed={c.facilityDone}
           href={`/company/properties/${id}/facilities`}
         />
