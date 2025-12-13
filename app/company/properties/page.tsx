@@ -32,9 +32,14 @@ function StatusBadge({
 }) {
   return (
     <span
-      className={`px-2 py-0.5 rounded text-xs font-semibold
-        ${completed ? "bg-green-500 text-black" : "bg-red-500 text-black"}
-      `}
+      className={`
+    px-2 py-0.5 rounded text-xs font-semibold
+    ${
+      completed
+        ? "bg-green-100 text-green-800 dark:bg-green-500 dark:text-black"
+        : "bg-red-100 text-red-800 dark:bg-red-500 dark:text-black"
+    }
+  `}
     >
       {label} · {completed ? "완료" : "미입력"}
     </span>
