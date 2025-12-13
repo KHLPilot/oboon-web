@@ -1,10 +1,14 @@
 @import "tailwindcss";
 
+/* --------------------------------------------------
+   1) 컬러 토큰 정의
+-------------------------------------------------- */
 :root {
   --background: #ffffff;
   --foreground: #171717;
 }
 
+/* Tailwind 테마 속성과 연동 */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -12,6 +16,7 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* 시스템 다크모드 자동 감지 */
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
@@ -19,8 +24,75 @@
   }
 }
 
+/* --------------------------------------------------
+   2) 글로벌 스타일
+-------------------------------------------------- */
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* --------------------------------------------------
+   3) 공통 컴포넌트 스타일
+-------------------------------------------------- */
+
+/* Input Base 스타일 */
+.input-basic {
+  @apply w-full p-2 mb-2 rounded-lg 
+         bg-white text-slate-900 border border-slate-300
+         dark:bg-slate-800 dark:text-white dark:border-slate-700;
+}
+
+/* 버튼 기본 스타일 */
+.btn-primary {
+  @apply px-4 py-2 rounded-lg text-white bg-teal-500
+         hover:bg-teal-600 dark:hover:bg-teal-400;
+}
+
+/* 제출 버튼 */
+.btn-submit {
+  @apply w-full p-3 rounded font-bold
+         bg-emerald-500 text-black
+         hover:bg-emerald-600;
+}
+/* 삭제 버튼 */
+.btn-danger {
+  @apply px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700;
+}
+
+/* Select 기본 스타일 */
+.select-basic {
+  @apply w-full p-2 mb-2 rounded-lg
+         bg-white text-slate-900 border border-slate-300
+         dark:bg-slate-800 dark:text-white dark:border-slate-700;
+}
+
+/* Textarea 기본 */
+.textarea-basic {
+  @apply w-full p-2 mb-2 rounded-lg
+         bg-white text-slate-900 border border-slate-300
+         dark:bg-slate-800 dark:text-white dark:border-slate-700;
+}
+
+/* 보조 버튼 */
+.btn-secondary {
+  @apply px-4 py-2 rounded-lg
+         bg-slate-200 text-slate-900
+         hover:bg-slate-300
+         dark:bg-slate-700 dark:text-white dark:hover:bg-slate-600;
+}
+
+/* 저장 (확정) 버튼 – w-full 없음 */
+.btn-save {
+  @apply px-4 py-2 rounded-md font-semibold
+         bg-emerald-500 text-black
+         hover:bg-emerald-600 transition;
+}
+
+/* date input 달력 아이콘 흰색 */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.8;
+  cursor: pointer;
 }

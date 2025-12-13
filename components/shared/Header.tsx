@@ -18,7 +18,10 @@ export default function Header() {
   // 드롭다운 외부 클릭 감지
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
         setDropdownOpen(false);
       }
     }
@@ -47,9 +50,11 @@ export default function Header() {
 
     loadUser();
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setUser(session?.user ?? null);
+      }
+    );
 
     return () => listener.subscription.unsubscribe();
   }, [supabase]);
@@ -90,10 +95,12 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-100">
       <div className="container mx-auto px-4 md:px-8 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-
         {/* 로고 */}
         <div className="flex items-center justify-between md:justify-start w-full md:w-auto">
-          <Link href="/" className="text-2xl font-black text-slate-900 tracking-tighter">
+          <Link
+            href="/"
+            className="text-2xl font-black text-slate-900 tracking-tighter"
+          >
             OBOON<span className="text-teal-400">.</span>
           </Link>
         </div>
@@ -185,7 +192,7 @@ export default function Header() {
 
           {/* ⭐ 현장 등록하기 버튼 (누구나 보이도록 기본 버전) */}
           <Link
-            href="/properties/new"
+            href="/company/properties"
             className="bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-teal-500 transition-colors"
           >
             현장 등록하기
