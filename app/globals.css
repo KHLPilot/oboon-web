@@ -39,9 +39,13 @@ body {
 
 /* Input Base 스타일 */
 .input-basic {
-  @apply w-full p-2 mb-2 rounded-lg 
-         bg-white text-slate-900 border border-slate-300
-         dark:bg-slate-800 dark:text-white dark:border-slate-700;
+  @apply w-full px-4 py-3 rounded-xl
+    border
+    bg-white text-slate-900 border-slate-300
+    placeholder:text-slate-400
+    focus:outline-none focus:ring-2 focus:ring-emerald-500
+    dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700
+    dark:placeholder:text-slate-400;
 }
 
 /* 버튼 기본 스타일 */

@@ -185,10 +185,13 @@ function DateField({
 }) {
   return (
     <div className="space-y-1">
-      <label className="text-sm text-gray-300">{label}</label>
+      <label className="text-sm font-medium text-slate-800 dark:text-slate-200">
+        {label}
+      </label>
       <input
         type="date"
-        className="input-basic"
+        className="
+          w-full px-4 py-3 rounded-xl bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 "
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value || null)}
       />

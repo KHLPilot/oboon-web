@@ -140,28 +140,48 @@ export default function PropertyLocationPage() {
    UI
   ================================================== */
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6">
+    <div
+      className="p-6 max-w-3xl mx-auto space-y-6
+    bg-slate-50 dark:bg-black"
+    >
       {/* 헤더 */}
       <div className="flex items-center gap-3">
         <button
           onClick={() => router.push(`/company/properties/${propertyId}`)}
-          className="text-sm text-gray-400 hover:text-white"
+          className="
+          text-sm
+          text-slate-500
+          dark:text-slate-400
+          hover:underline
+        "
         >
           ← 뒤로가기
         </button>
-        <h1 className="text-xl font-bold">📍 현장 위치</h1>
+
+        <h1 className="text-xl font-bold text-slate-900 dark:text-white">
+          📍 현장 위치
+        </h1>
       </div>
 
       {/* ================= 현장 위치 ================= */}
       <section
-        className={`space-y-4 border rounded p-4 transition
-        ${isEditing ? "border-teal-500 bg-gray-900" : "border-gray-700"}
+        className={`
+        space-y-4 rounded p-4 transition
+        bg-white dark:bg-slate-900
+        border
+        ${
+          isEditing
+            ? "border-teal-500"
+            : "border-slate-200 dark:border-slate-700"
+        }
       `}
       >
-        <h2 className="font-semibold">현장 위치 (필수)</h2>
+        <h2 className="font-semibold text-slate-900 dark:text-white">
+          현장 위치 (필수)
+        </h2>
 
         {/* 주소 표시 */}
-        <div className="text-sm text-gray-300">
+        <div className="text-sm text-slate-600 dark:text-slate-300">
           {site.road_address || "주소가 입력되지 않았습니다"}
         </div>
 

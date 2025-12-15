@@ -176,13 +176,21 @@ export default function PropertyCreatePage() {
         {/* 에러 메시지 */}
         {error && <div className="text-red-400 text-sm">❗ {error}</div>}
 
-        {/* 등록 버튼 */}
         <button
           className="btn-primary w-full"
           onClick={handleSubmit}
           disabled={loading}
         >
           {loading ? "등록 중..." : "등록하기"}
+        </button>
+
+        <button
+          type="button"
+          className="btn-secondary w-full"
+          onClick={() => router.push("/company/properties")}
+          disabled={loading}
+        >
+          취소
         </button>
       </div>
     </div>

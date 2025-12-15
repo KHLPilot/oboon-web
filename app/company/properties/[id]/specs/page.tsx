@@ -213,25 +213,39 @@ export default function PropertySpecsPage() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-6 pt-8 pb-40">
+    <div
+      className="
+  max-w-5xl mx-auto px-6 pt-8 pb-40
+  bg-slate-50 text-slate-900
+  dark:bg-black dark:text-slate-100
+"
+    >
       <div className="flex justify-between items-center mb-8">
         <div className="flex items-center gap-3">
           <button
             onClick={() => router.push(`/company/properties/${propertyId}`)}
-            className="text-sm text-gray-400 hover:text-white"
+            className="
+  text-sm text-slate-500
+  dark:text-slate-400
+  hover:underline
+"
           >
             ← 뒤로가기
           </button>
-          <h1 className="text-xl font-bold text-slate-100">🏗 건물 스펙</h1>
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white">
+            🏗 건물 스펙
+          </h1>
           {loading ? (
-            <span className="text-slate-400 text-sm">불러오는 중…</span>
+            <span className="text-slate-500 dark:text-slate-400 text-sm">
+              불러오는 중…
+            </span>
           ) : null}
         </div>
       </div>
 
       {/* 분양 / 사업 */}
       <section className="mb-10">
-        <h2 className="text-lg font-semibold text-slate-100 mb-4">
+        <h2 className="text-lg font-semibold mb-4 text-slate-900 dark:text-white">
           분양 · 사업 정보
         </h2>
 
@@ -280,7 +294,7 @@ export default function PropertySpecsPage() {
 
       {/* 대지 */}
       <section className="mb-10">
-        <h2 className="text-lg font-semibold text-slate-100 mb-4">
+        <h2 className="text-lg font-semibold mb-4 text-slate-900 dark:text-white">
           대지 · 규제
         </h2>
 
@@ -303,7 +317,7 @@ export default function PropertySpecsPage() {
 
       {/* 면적 */}
       <section className="mb-10">
-        <h2 className="text-lg font-semibold text-slate-100 mb-4">
+        <h2 className="text-lg font-semibold mb-4 text-slate-900 dark:text-white">
           면적 · 비율
         </h2>
 
@@ -347,7 +361,9 @@ export default function PropertySpecsPage() {
 
       {/* 규모 */}
       <section className="mb-10">
-        <h2 className="text-lg font-semibold text-slate-100 mb-4">규모</h2>
+        <h2 className="text-lg font-semibold mb-4text-slate-900 dark:text-white">
+          규모
+        </h2>
 
         <Grid>
           <NumberField
@@ -387,7 +403,7 @@ export default function PropertySpecsPage() {
 
       {/* 주차/난방 */}
       <section className="mb-10">
-        <h2 className="text-lg font-semibold text-slate-100 mb-4">
+        <h2 className="text-lg font-semibold mb-4text-slate-900 dark:text-white">
           주차 · 난방 · 기타
         </h2>
 
@@ -458,13 +474,13 @@ export default function PropertySpecsPage() {
 /* ---------- UI Helpers ---------- */
 
 const inputClass =
-  "w-full px-4 py-3 rounded-xl bg-slate-800 text-slate-100 placeholder:text-slate-500 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60";
+  "w-full px-4 py-3 rounded-xl  bg-white text-slate-900  dark:bg-slate-800 dark:text-slate-100  placeholder:text-slate-500 dark:placeholder:text-slate-500  border border-slate-300 dark:border-slate-700  focus:outline-none focus:ring-2 focus:ring-emerald-500  disabled:opacity-60";
 
 const selectClass =
-  "w-full px-4 py-3 rounded-xl bg-slate-800 text-slate-100 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60";
+  "w-full px-4 py-3 rounded-xl  bg-white text-slate-900  dark:bg-slate-800 dark:text-slate-100  border border-slate-300 dark:border-slate-700  focus:outline-none focus:ring-2 focus:ring-emerald-500  disabled:opacity-60";
 
-const labelClass = "text-slate-200 font-medium";
-const hintClass = "text-slate-400 text-sm";
+const labelClass = "text-slate-800 dark:text-slate-200 font-medium";
+const hintClass = "text-slate-600 dark:text-slate-400 text-sm";
 
 const Field = ({
   label,
@@ -477,8 +493,8 @@ const Field = ({
 }) => (
   <div className="space-y-2">
     <p className={labelClass}>
-      {label}{" "}
-      {example ? <span className={hintClass}>(예: {example})</span> : null}
+      {label}
+      {example && <span className={`ml-1 ${hintClass}`}>(예: {example})</span>}
     </p>
     {children}
   </div>
