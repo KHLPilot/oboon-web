@@ -1,28 +1,58 @@
-//app/api/auth/ensure-profile/route.ts
-
 import { NextResponse } from "next/server";
-import { createSupabaseServer } from "@/lib/supabaseServer";
+import { createClient } from "@supabase/supabase-js";
 
-export async function GET() {
-  const supabase = createSupabaseServer();
+const adminSupabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ needOnboarding: false });
+export async function GET(req: Request) {
+  // 1. 현재 로그인 유저 확인 (쿠키 기반)
+  const authHeader = req.headers.get("authorization");
 
-  // 프로필 조회
-  const { data: existing } = await supabase
+  if (!authHeader) {
+    return NextResponse.json({ needOnboarding: false });
+  }
+
+  const accessToken = authHeader.replace("Bearer ", "");
+
+  const {
+    data: { user },
+    error: userError,
+  } = await adminSupabase.auth.getUser(accessToken);
+
+  if (!user || userError) {
+    return NextResponse.json({ needOnboarding: false });
+  }
+
+  // 2. profiles 조회
+  const { data: profile, error } = await adminSupabase
     .from("profiles")
-    .select("*") 
+    .select("*")
     .eq("id", user.id)
     .single();
 
-  // 프로필 자체가 없으면 온보딩 필요
-  if (!existing) {
+  // 3. profiles 없으면 생성
+  if (!profile) {
+    const { error: insertError } = await adminSupabase.from("profiles").insert({
+      id: user.id,
+      email: user.email,
+      name: "",
+      phone_number: "",
+      user_type: "personal",
+      role: "user",
+    });
+
+    if (insertError) {
+      console.error("profiles insert error:", insertError);
+      return NextResponse.json({ needOnboarding: true });
+    }
+
     return NextResponse.json({ needOnboarding: true });
   }
 
-  // 이름 / 지역 / 전화번호 중 하나라도 없으면 온보딩
-  if (!existing.name || !existing.region || !existing.phone_number) {
+  // 4. 필수값 체크
+  if (!profile.name || !profile.phone_number) {
     return NextResponse.json({ needOnboarding: true });
   }
 

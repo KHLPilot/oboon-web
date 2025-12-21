@@ -177,7 +177,7 @@ export default function Header() {
             </div>
           ) : (
             <Link
-              href="/login"
+              href="/auth/login"
               className="text-sm font-medium text-slate-500 hover:text-slate-900 px-2"
             >
               로그인

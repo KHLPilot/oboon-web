@@ -54,7 +54,7 @@ export function HeaderAuth() {
     // 로그아웃 직후 상태 갱신
     setDisplayName(null);
 
-    router.push("/login");
+    router.push("/auth/login");
   }
 
   if (loading) return <div className="text-[10px] text-slate-400">…</div>;
@@ -62,7 +62,7 @@ export function HeaderAuth() {
   if (!displayName) {
     return (
       <Link
-        href="/login"
+        href="/auth/login"
         className="text-xs rounded-full border border-slate-600 px-3 py-1 text-slate-200 hover:border-emerald-400"
       >
         로그인

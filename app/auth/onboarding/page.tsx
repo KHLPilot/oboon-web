@@ -1,4 +1,4 @@
-// app/onboarding/page.tsx
+// app/auth/onboarding/page.tsx
 "use client";
 
 import { useState } from "react";
@@ -16,7 +16,9 @@ export default function OnboardingPage() {
     const supabase = createSupabaseClient();
 
     // 1) 사용자 확인
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) {
       alert("로그인이 필요합니다.");
       router.replace("/login");
@@ -41,7 +43,7 @@ export default function OnboardingPage() {
       .from("profiles")
       .upsert(
         {
-          id: user.id,          // 🔥 auth.users.id와 동일해야 FK 오류 없음
+          id: user.id, // 🔥 auth.users.id와 동일해야 FK 오류 없음
           email: user.email,
           name,
           region,
