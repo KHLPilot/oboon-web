@@ -243,8 +243,27 @@ export default function PropertySpecsPage() {
         </div>
       </div>
 
+      <div className="flex items-center gap-2">
+        {!editing ? (
+          <button
+            onClick={() => setEditing(true)}
+            className="px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-500"
+            disabled={loading}
+          >
+            수정
+          </button>
+        ) : (
+          <button
+            onClick={save}
+            className="px-3 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50"
+            disabled={loading || saving}
+          >
+            {saving ? "저장 중…" : "저장"}
+          </button>
+        )}
+      </div>
       {/* 분양 / 사업 */}
-      <section className="mb-10">
+      <section className="py-2 mb-10">
         <h2 className="text-lg font-semibold mb-4 text-slate-900 dark:text-white">
           분양 · 사업 정보
         </h2>
@@ -447,26 +466,6 @@ export default function PropertySpecsPage() {
           </Field>
         </Grid>
       </section>
-
-      <div className="flex items-center gap-2">
-        {!editing ? (
-          <button
-            onClick={() => setEditing(true)}
-            className="px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-500"
-            disabled={loading}
-          >
-            수정
-          </button>
-        ) : (
-          <button
-            onClick={save}
-            className="px-3 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50"
-            disabled={loading || saving}
-          >
-            {saving ? "저장 중…" : "저장"}
-          </button>
-        )}
-      </div>
     </div>
   );
 }
@@ -521,11 +520,21 @@ const NumberField = ({
   editing: boolean;
   step?: string;
 }) => {
+  const [raw, setRaw] = useState<string>("");
+
+  useEffect(() => {
+    if (value === null || value === undefined) {
+      setRaw("");
+    } else {
+      setRaw(value.toString());
+    }
+  }, [value]);
+
   return (
     <div className="space-y-2">
       <p className={labelClass}>
-        {label}{" "}
-        {example ? <span className={hintClass}>(예: {example})</span> : null}
+        {label}
+        {example && <span className={hintClass}>(예: {example})</span>}
       </p>
 
       <div className="relative">
@@ -533,14 +542,27 @@ const NumberField = ({
           className={inputClass + " pr-14"}
           type="text"
           inputMode="decimal"
-          value={formatNumberInput(value)}
-          onChange={(e) => set(parseNumberInput(e.target.value))}
+          step={step}
+          value={raw}
           disabled={!editing}
-          placeholder={example ? example : ""}
+          placeholder={example}
+          onChange={(e) => {
+            const v = e.target.value;
+
+            // 숫자 + 소수점만 허용
+            if (!/^[0-9]*\.?[0-9]*$/.test(v)) return;
+
+            setRaw(v);
+
+            if (v === "" || v === ".") {
+              set(null);
+            } else {
+              set(Number(v));
+            }
+          }}
         />
 
-        {/* 단위 가독성 강화 */}
-        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 border-slate-600">
+        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300">
           {unit}
         </span>
       </div>
