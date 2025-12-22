@@ -377,21 +377,21 @@ export default function PropertyDetailPage() {
                   accept="image/*"
                   className="hidden"
                   onChange={async (e) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
+                    const file = e.target.files?.[0];
+                    if (!file) return;
 
-  try {
-    const url = await uploadPropertyImage(file, id);
-    setForm((prev) => ({ ...prev!, image_url: url }));
-  } catch (err: any) {
-    alert("이미지 업로드 실패: " + err.message);
-  } finally {
-    // ✅ React 이벤트 안 건드림
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  }
-}}
+                    try {
+                      const url = await uploadPropertyImage(file, id);
+                      setForm((prev) => ({ ...prev!, image_url: url }));
+                    } catch (err: any) {
+                      alert("이미지 업로드 실패: " + err.message);
+                    } finally {
+                      // ✅ React 이벤트 안 건드림
+                      if (fileInputRef.current) {
+                        fileInputRef.current.value = "";
+                      }
+                    }
+                  }}
 
                 />
 
@@ -417,6 +417,9 @@ export default function PropertyDetailPage() {
                       🗑 이미지 삭제
                     </button>
                   )}
+                  <span className="text-xs text-gray-400">
+                    이미지는 5MB 이하만 가능합니다.
+                  </span>
                 </div>
 
                 {/* 미리보기 */}
