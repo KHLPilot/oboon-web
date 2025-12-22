@@ -11,7 +11,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "No code provided" }, { status: 400 });
   }
 
-  // 🔹 1) ACCESS TOKEN 요청
+  //  1) ACCESS TOKEN 요청
   const tokenRes = await fetch(
     `https://nid.naver.com/oauth2.0/token?grant_type=authorization_code&client_id=${process.env.NAVER_CLIENT_ID}&client_secret=${process.env.NAVER_CLIENT_SECRET}&code=${code}&state=${state}`,
     { method: "GET" }
@@ -26,7 +26,7 @@ export async function GET(req: Request) {
     );
   }
 
-  // 🔹 2) 프로필 조회
+  //  2) 프로필 조회
   const profile = await fetch("https://openapi.naver.com/v1/nid/me", {
     headers: { Authorization: `Bearer ${accessToken}` },
   }).then((res) => res.json());
@@ -41,18 +41,18 @@ export async function GET(req: Request) {
   const user = profile.response;
   const email = user.email;
 
-  // 🔹 3) Supabase 서버 클라이언트 생성
+  //  3) Supabase 서버 클라이언트 생성
   const supabase = createClient(
     process.env.SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  // 🔹 4) 유저 존재 여부 확인 (auth.users 기준)
+  //  4) 유저 존재 여부 확인 (auth.users 기준)
   const { data: allUsers } = await supabase.auth.admin.listUsers();
   const existedUser = allUsers.users.find(u => u.email === email);
 
   if (existedUser) {
-    // 🔥 기존 유저 → metadata 업데이트
+    //  기존 유저 → metadata 업데이트
     await supabase.auth.admin.updateUserById(existedUser.id, {
       user_metadata: {
         provider: "naver",
@@ -60,7 +60,7 @@ export async function GET(req: Request) {
       },
     });
   } else {
-    // 🔥 신규 유저 생성
+    //  신규 유저 생성
     await supabase.auth.admin.createUser({
       email,
       email_confirm: true,
@@ -71,7 +71,7 @@ export async function GET(req: Request) {
     });
   }
 
-  // 🔹 5) 세션(magic link) 생성
+  //  5) 세션(magic link) 생성
   const { data: link, error } = await supabase.auth.admin.generateLink({
     type: "magiclink",
     email,
@@ -88,6 +88,6 @@ export async function GET(req: Request) {
     );
   }
 
-  // 🔹 6) magic link redirect → 자동 로그인
+  //  6) magic link redirect → 자동 로그인
   return NextResponse.redirect(link.properties.action_link);
 }

@@ -1,15 +1,32 @@
 "use client";
 
-import { useEffect, useState, forwardRef } from "react";
+import { useEffect, useState, useRef, forwardRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 
 // DatePicker 관련 임포트
 import DatePicker, { registerLocale } from "react-datepicker";
-import { ko } from "date-fns/locale"; // 최신 버전은 중괄호 { ko }를 사용합니다.
+import { ko } from "date-fns/locale";
 import "react-datepicker/dist/react-datepicker.css";
 
-// 한국어 로케일 등록
+// 아이콘
+const CalendarIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    fill="none"
+    viewBox="0 0 24 24"
+    strokeWidth={1.5}
+    stroke="currentColor"
+    className="w-5 h-5 text-slate-500 hover:text-emerald-600 transition-colors"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"
+    />
+  </svg>
+);
+
 registerLocale("ko", ko);
 
 const supabase = createSupabaseClient();
@@ -24,27 +41,21 @@ type TimelineForm = {
   move_in_date: string | null;
 };
 
-// 1. 커스텀 입력창 (외부 정의로 렌더링 최적화)
-const CustomInput = forwardRef<HTMLInputElement, any>(
-  ({ value, onClick, placeholder }, ref) => (
-    <input
+// 달력 버튼
+const CalendarButton = forwardRef<HTMLButtonElement, any>(
+  ({ onClick }, ref) => (
+    <button
+      type="button"
       ref={ref}
-      value={value ?? ""}
-      readOnly
       onClick={onClick}
-      placeholder={placeholder}
-      className="
-        w-full px-4 py-3 rounded-xl
-        bg-white text-slate-900
-        dark:bg-slate-800 dark:text-slate-100
-        border border-slate-300 dark:border-slate-700
-        cursor-pointer transition-all
-        focus:outline-none focus:ring-2 focus:ring-emerald-500
-      "
-    />
+      className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors z-10"
+      tabIndex={-1}
+    >
+      <CalendarIcon />
+    </button>
   )
 );
-CustomInput.displayName = "CustomInput";
+CalendarButton.displayName = "CalendarButton";
 
 export default function PropertyTimelinePage() {
   const params = useParams<{ id: string }>();
@@ -62,10 +73,11 @@ export default function PropertyTimelinePage() {
   };
 
   const [form, setForm] = useState<TimelineForm>(EMPTY_FORM);
-  const [openIndex, setOpenIndex] = useState<number | null>(null);
-  const [exists, setExists] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [exists, setExists] = useState(false);
+
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const fields = [
     { key: "announcement_date", label: "입주자 모집공고일" },
@@ -104,45 +116,99 @@ export default function PropertyTimelinePage() {
     load();
   }, [propertyId]);
 
-  // 날짜 변경 로직 (KST 보정 적용)
-  const handleDateChange = (
+  // 날짜 유효성 검사 로직
+  const isValidPartialDate = (raw: string) => {
+    if (raw.length >= 6) {
+      const monthStr = raw.slice(4, 6);
+      const month = parseInt(monthStr, 10);
+      if (month === 0 || month > 12) return false;
+    }
+
+    if (raw.length >= 8) {
+      const year = parseInt(raw.slice(0, 4), 10);
+      const month = parseInt(raw.slice(4, 6), 10);
+      const day = parseInt(raw.slice(6, 8), 10);
+      const lastDayOfMonth = new Date(year, month, 0).getDate();
+      if (day === 0 || day > lastDayOfMonth) return false;
+    }
+    return true;
+  };
+
+  // 다음 빈 칸으로 이동
+  const moveToNextField = (currentIndex: number) => {
+    const nextIndex = currentIndex + 1;
+    // 다음 칸이 있고, ref가 연결되어 있다면 포커스 이동
+    if (nextIndex < fields.length && inputRefs.current[nextIndex]) {
+      inputRefs.current[nextIndex]?.focus();
+    }
+  };
+
+  const handleRawInputChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    key: keyof TimelineForm,
+    index: number
+  ) => {
+    let val = e.target.value.replace(/[^0-9]/g, ""); // 숫자만 남김
+
+    if (val.length > 8) val = val.slice(0, 8);
+
+    // 유효하지 않은 날짜면 입력 차단
+    if (!isValidPartialDate(val)) {
+      return;
+    }
+
+    // 포맷팅
+    let formatted = val;
+    if (val.length > 4) {
+      formatted = `${val.slice(0, 4)}-${val.slice(4)}`;
+    }
+    if (val.length > 6) {
+      formatted = `${formatted.slice(0, 7)}-${val.slice(6)}`;
+    }
+
+    setForm((prev) => ({ ...prev, [key]: formatted }));
+
+    // ★ 날짜 완성(10자리) 시 자동으로 다음 칸 이동 (setTimeout으로 타이밍 조절)
+    if (formatted.length === 10) {
+      setTimeout(() => {
+        moveToNextField(index);
+      }, 0); 
+    }
+  };
+
+  const handleDateSelect = (
     key: keyof TimelineForm,
     date: Date | null,
     index: number
   ) => {
-    let dateStr: string | null = null;
+    if (!date) return;
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    const dateStr = `${y}-${m}-${d}`;
 
-    if (date) {
-      const y = date.getFullYear();
-      const m = String(date.getMonth() + 1).padStart(2, "0");
-      const d = String(date.getDate()).padStart(2, "0");
-      dateStr = `${y}-${m}-${d}`;
-    }
-
-    setForm((prev) => {
-      const next = { ...prev, [key]: dateStr };
-
-      // 다음 빈 칸 자동 오픈
-      const nextIndex = fields.findIndex((f, i) => i > index && !next[f.key]);
-      if (nextIndex !== -1 && dateStr) {
-        setTimeout(() => setOpenIndex(nextIndex), 10);
-      } else {
-        setOpenIndex(null);
-      }
-      return next;
-    });
+    setForm((prev) => ({ ...prev, [key]: dateStr }));
+    
+    // 달력 선택 시에도 다음 칸으로 이동
+    setTimeout(() => {
+      moveToNextField(index);
+    }, 0);
   };
 
   async function handleSave() {
     setSaving(true);
+    const cleanForm = Object.fromEntries(
+      Object.entries(form).map(([k, v]) => [k, v === "" ? null : v])
+    );
+
     const { error } = exists
       ? await supabase
           .from("property_timeline")
-          .update(form)
+          .update(cleanForm)
           .eq("properties_id", propertyId)
       : await supabase
           .from("property_timeline")
-          .insert({ properties_id: propertyId, ...form });
+          .insert({ properties_id: propertyId, ...cleanForm });
 
     setSaving(false);
     if (!error) {
@@ -152,17 +218,23 @@ export default function PropertyTimelinePage() {
   }
 
   async function handleClear() {
-    if (!confirm("일정 정보를 모두 삭제할까요?\n(되돌릴 수 없습니다)")) return;
+    if (!confirm("일정 정보를 모두 삭제할까요?")) return;
     const { error } = await supabase
       .from("property_timeline")
       .delete()
       .eq("properties_id", propertyId);
     if (!error) {
       setForm(EMPTY_FORM);
-      alert("일정이 완전히 삭제되었습니다");
+      alert("삭제되었습니다");
       window.location.reload();
     }
   }
+
+  const getValidDate = (dateStr: string | null) => {
+    if (!dateStr || dateStr.length !== 10) return null;
+    const date = new Date(dateStr);
+    return isNaN(date.getTime()) ? null : date;
+  };
 
   if (loading) return <div className="p-6">불러오는 중...</div>;
 
@@ -171,7 +243,7 @@ export default function PropertyTimelinePage() {
       <div className="flex items-center gap-3">
         <button
           onClick={() => router.back()}
-          className="text-sm text-slate-400 hover:text-slate-200"
+          className="text-slate-400 hover:text-slate-200"
         >
           ← 뒤로가기
         </button>
@@ -187,23 +259,37 @@ export default function PropertyTimelinePage() {
               {field.label}
             </label>
             <div className="relative w-full">
-              <DatePicker
-                locale="ko"
-                selected={form[field.key] ? new Date(form[field.key]!) : null}
-                open={openIndex === index}
-                onInputClick={() => setOpenIndex(index)}
-                onClickOutside={() => setOpenIndex(null)}
-                dateFormat="yyyy-MM-dd"
-                placeholderText="날짜 선택"
-                customInput={<CustomInput />}
-                // 년도/월 선택 편의 기능
-                showMonthDropdown
-                showYearDropdown
-                dropdownMode="select"
-                onChange={(date: Date | null) =>
-                  handleDateChange(field.key, date, index)
-                }
+              <input
+                ref={(el) => {
+                  inputRefs.current[index] = el;
+                }}
+                type="text"
+                value={form[field.key] ?? ""}
+                onChange={(e) => handleRawInputChange(e, field.key, index)}
+                placeholder="YYYY-MM-DD"
+                maxLength={10}
+                className="
+                  w-full px-4 py-3 rounded-xl pr-12
+                  bg-white text-slate-900
+                  dark:bg-slate-800 dark:text-slate-100
+                  border border-slate-300 dark:border-slate-700
+                  focus:outline-none focus:ring-2 focus:ring-emerald-500
+                "
               />
+              <div className="absolute right-0 top-0 h-full flex items-center">
+                <DatePicker
+                  selected={getValidDate(form[field.key])}
+                  // ★ 타입 에러 해결: (date: Date | null) 타입 명시
+                  onChange={(date: Date | null) => handleDateSelect(field.key, date, index)}
+                  locale="ko"
+                  customInput={<CalendarButton />}
+                  dateFormat="yyyy-MM-dd"
+                  showMonthDropdown
+                  showYearDropdown
+                  dropdownMode="select"
+                  popperPlacement="bottom-end"
+                />
+              </div>
             </div>
           </div>
         ))}
@@ -213,38 +299,33 @@ export default function PropertyTimelinePage() {
         <button
           onClick={handleSave}
           disabled={saving}
-          className="w-full bg-emerald-600 text-white py-4 rounded-xl font-bold hover:bg-emerald-500 transition-colors disabled:opacity-50"
+          className="w-full bg-emerald-600 text-white py-4 rounded-xl font-bold hover:bg-emerald-500 disabled:opacity-50"
         >
           {saving ? "저장 중..." : "저장"}
         </button>
         <button
           onClick={handleClear}
-          className="w-full border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 py-3 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          className="w-full border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 py-3 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800"
         >
           일정 초기화
         </button>
       </div>
 
       <style jsx global>{`
-        .react-datepicker-wrapper {
-          width: 100% !important;
+        .react-datepicker-popper {
+          z-index: 50 !important;
         }
-        .react-datepicker__input-container {
-          width: 100% !important;
-        }
-        /* 드롭다운 스타일 보정 */
         .react-datepicker__header__dropdown {
-          padding: 10px 0;
           display: flex;
           justify-content: center;
           gap: 8px;
+          padding: 10px 0;
         }
         .react-datepicker__year-select,
         .react-datepicker__month-select {
           padding: 2px 4px;
           border-radius: 4px;
           border: 1px solid #ccc;
-          outline: none;
         }
       `}</style>
     </div>
