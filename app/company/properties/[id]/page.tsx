@@ -28,6 +28,9 @@ type PropertyRow = {
   status: string | null;
   description: string | null;
   image_url: string | null;
+  confirmed_comment: string | null;
+  estimated_comment: string | null;
+  pending_comment: string | null;
 };
 
 type RelationRow = { id: number };
@@ -111,6 +114,9 @@ export default function PropertyDetailPage() {
         status,
         description,
         image_url,
+        confirmed_comment,
+        estimated_comment,
+        pending_comment,
         property_locations(id),
         property_facilities(id),
         property_specs!properties_id(id),
@@ -131,6 +137,9 @@ export default function PropertyDetailPage() {
         status: data.status,
         description: data.description,
         image_url: data.image_url,
+        confirmed_comment: data.confirmed_comment,
+        estimated_comment: data.estimated_comment,
+        pending_comment: data.pending_comment,
       });
     }
 
@@ -145,30 +154,20 @@ export default function PropertyDetailPage() {
   const completion = useMemo(() => {
     if (!data) return null;
 
-    // 1:N 관계 체크 (일반적인 배열 관계는 이 함수를 사용)
     const hasMany = (v?: RelationRow[] | null) =>
       Array.isArray(v) && v.length > 0;
 
-    // 1:1 관계 체크를 위한 특별 함수:
-    // TypeScript 컴파일러를 위해 배열 타입을 유지하면서도,
-    // 실제 런타임 값이 null이 아닌 객체라면 true를 반환하도록 처리합니다.
     const hasSpecs = (v?: RelationRow[] | null) => {
-      // 1. 배열이라면 (1:N처럼 온 경우) 길이가 0보다 커야 합니다.
       if (Array.isArray(v)) {
         return v.length > 0;
       }
-      // 2. 배열이 아니라면 (1:1 객체나 null이 온 경우), 값이 존재하는지 (null이 아닌지) 확인합니다.
-      // 이 로직은 TypeScript 오류를 피하면서 런타임 값을 정확하게 검사합니다.
       return !!v;
     };
 
     return {
       siteLocationDone: hasMany(data.property_locations),
       facilityDone: hasMany(data.property_facilities),
-
-      // 건물 스펙에 1:1 체크 로직 적용
       specsDone: hasSpecs(data.property_specs),
-
       timelineDone: hasMany(data.property_timeline),
       unitDone: hasMany(data.property_unit_types),
     };
@@ -188,6 +187,9 @@ export default function PropertyDetailPage() {
         status: form.status || null,
         description: form.description || null,
         image_url: form.image_url || null,
+        confirmed_comment: form.confirmed_comment || null,
+        estimated_comment: form.estimated_comment || null,
+        pending_comment: form.pending_comment || null,
       })
       .eq("id", id);
 
@@ -264,6 +266,9 @@ export default function PropertyDetailPage() {
                     status: data.status,
                     description: data.description,
                     image_url: data.image_url,
+                    confirmed_comment: data.confirmed_comment,
+                    estimated_comment: data.estimated_comment,
+                    pending_comment: data.pending_comment,
                   });
                   setEditMode(false);
                 }}
@@ -371,6 +376,58 @@ export default function PropertyDetailPage() {
               />
             ) : (
               <div className="input-readonly">{data.image_url ?? "-"}</div>
+            )}
+          </FormField>
+        </div>
+        {/* ===== 감정평가사 메모 ===== */}
+        <div className="col-span-2 border-t border-gray-600 pt-4 space-y-4">
+          <h2 className="font-semibold text-lg">감정평가사 메모</h2>
+
+          <FormField label="확정 내용">
+            {editMode ? (
+              <textarea
+                className="input-basic min-h-[80px]"
+                value={form.confirmed_comment ?? ""}
+                onChange={(e) =>
+                  setForm({ ...form, confirmed_comment: e.target.value })
+                }
+              />
+            ) : (
+              <div className="input-readonly whitespace-pre-wrap">
+                {data.confirmed_comment || "-"}
+              </div>
+            )}
+          </FormField>
+
+          <FormField label="추정 내용">
+            {editMode ? (
+              <textarea
+                className="input-basic min-h-[80px]"
+                value={form.estimated_comment ?? ""}
+                onChange={(e) =>
+                  setForm({ ...form, estimated_comment: e.target.value })
+                }
+              />
+            ) : (
+              <div className="input-readonly whitespace-pre-wrap">
+                {data.estimated_comment || "-"}
+              </div>
+            )}
+          </FormField>
+
+          <FormField label="미정 내용">
+            {editMode ? (
+              <textarea
+                className="input-basic min-h-[80px]"
+                value={form.pending_comment ?? ""}
+                onChange={(e) =>
+                  setForm({ ...form, pending_comment: e.target.value })
+                }
+              />
+            ) : (
+              <div className="input-readonly whitespace-pre-wrap">
+                {data.pending_comment || "-"}
+              </div>
             )}
           </FormField>
         </div>

@@ -279,7 +279,6 @@ export default function PropertyTimelinePage() {
               <div className="absolute right-0 top-0 h-full flex items-center">
                 <DatePicker
                   selected={getValidDate(form[field.key])}
-                  // ★ 타입 에러 해결: (date: Date | null) 타입 명시
                   onChange={(date: Date | null) => handleDateSelect(field.key, date, index)}
                   locale="ko"
                   customInput={<CalendarButton />}
