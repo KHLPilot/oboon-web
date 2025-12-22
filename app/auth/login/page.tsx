@@ -140,13 +140,6 @@ export default function LoginPage() {
             >
               🟢 네이버로 계속하기
             </button>
-
-            <button
-              onClick={() => handleOAuthLogin("kakao")}
-              className="w-full rounded-lg border border-yellow-500/60 bg-yellow-500/10 py-2 text-xs text-yellow-100 hover:border-yellow-400"
-            >
-              🟡 카카오톡으로 계속하기
-            </button>
           </div>
         </div>
 

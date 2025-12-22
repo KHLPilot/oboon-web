@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { FormField } from "@/app/components/FormField";
+import { uploadPropertyImage } from "@/lib/uploadPropertyImage";
 
 /* ==================================================
    상수
@@ -86,7 +87,6 @@ function SectionCard({
 /* ==================================================
    페이지
 ================================================== */
-
 export default function PropertyDetailPage() {
   const supabase = createSupabaseClient();
   const params = useParams();
@@ -98,6 +98,8 @@ export default function PropertyDetailPage() {
   const [editMode, setEditMode] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   /* ---------- 데이터 로드 ---------- */
   async function load() {
@@ -337,7 +339,7 @@ export default function PropertyDetailPage() {
                 <option value="">선택</option>
                 {STATUS_OPTIONS.map((s) => (
                   <option key={s.value} value={s.value}>
-                    ㅌ{s.label}
+                    {s.label}
                   </option>
                 ))}
               </select>
@@ -365,19 +367,61 @@ export default function PropertyDetailPage() {
             )}
           </FormField>
 
-          <FormField label="대표 이미지 URL" className="col-span-2">
+          <FormField label="대표 이미지" className="col-span-2">
             {editMode ? (
-              <input
-                className="input-basic"
-                value={form.image_url ?? ""}
-                onChange={(e) =>
-                  setForm({ ...form, image_url: e.target.value })
-                }
-              />
+              <div className="space-y-3">
+                {/* 실제 파일 input (숨김) */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+
+                    try {
+                      console.log("file picked", file.name, file.size);
+                      const url = await uploadPropertyImage(file, id);
+                      setForm((prev) => ({ ...prev!, image_url: url }));
+                    } catch (err: any) {
+                      alert("이미지 업로드 실패: " + err.message);
+                    } finally {
+            if (fileInputRef.current) {
+              fileInputRef.current.value = "";
+            }
+          }
+                  }}
+                />
+
+                {/* 버튼 */}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-4 py-2 rounded bg-slate-700 text-white hover:bg-slate-600"
+                >
+                  📷 이미지 업로드
+                </button>
+
+                {/* 미리보기: 없으면 빈칸 */}
+                {form.image_url ? (
+                  <img
+                    src={form.image_url}
+                    alt="대표 이미지 미리보기"
+                    className="w-full max-h-64 object-contain rounded border bg-gray-50"
+                  />
+                ) : (
+                  <div className="h-48 border rounded" />
+                )}
+              </div>
+            ) : data.image_url ? (
+              <img src={data.image_url} alt="대표 이미지" className="w-full max-h-64 object-contain rounded border " />
             ) : (
-              <div className="input-readonly">{data.image_url ?? "-"}</div>
+              <div className="input-readonly">-</div>
             )}
           </FormField>
+
+
         </div>
         {/* ===== 감정평가사 메모 ===== */}
         <div className="col-span-2 border-t border-gray-600 pt-4 space-y-4">
