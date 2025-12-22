@@ -7,13 +7,17 @@ export async function uploadPropertyImage(
   const supabase = createSupabaseClient();
 
   const ext = file.name.split(".").pop();
-  const filePath = `properties/${propertyId}/main.${ext}`;
 
-  const { error } = await supabase.storage
+  const filePath = `properties/${propertyId}/${crypto.randomUUID()}.${ext}`;
+
+  const { error: uploadError } = await supabase.storage
     .from("property-images")
-    .upload(filePath, file, { upsert: true });
+    .upload(filePath, file, {
+      upsert: false,
+      cacheControl: "3600",
+    });
 
-  if (error) throw error;
+  if (uploadError) throw uploadError;
 
   const { data } = supabase.storage
     .from("property-images")

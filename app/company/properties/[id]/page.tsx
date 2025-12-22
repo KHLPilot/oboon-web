@@ -370,58 +370,78 @@ export default function PropertyDetailPage() {
           <FormField label="대표 이미지" className="col-span-2">
             {editMode ? (
               <div className="space-y-3">
-                {/* 실제 파일 input (숨김) */}
+                {/* 숨겨진 파일 input */}
                 <input
                   ref={fileInputRef}
                   type="file"
                   accept="image/*"
                   className="hidden"
                   onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
+  const file = e.target.files?.[0];
+  if (!file) return;
 
-                    try {
-                      console.log("file picked", file.name, file.size);
-                      const url = await uploadPropertyImage(file, id);
-                      setForm((prev) => ({ ...prev!, image_url: url }));
-                    } catch (err: any) {
-                      alert("이미지 업로드 실패: " + err.message);
-                    } finally {
-            if (fileInputRef.current) {
-              fileInputRef.current.value = "";
-            }
-          }
-                  }}
+  try {
+    const url = await uploadPropertyImage(file, id);
+    setForm((prev) => ({ ...prev!, image_url: url }));
+  } catch (err: any) {
+    alert("이미지 업로드 실패: " + err.message);
+  } finally {
+    // ✅ React 이벤트 안 건드림
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
+}}
+
                 />
 
-                {/* 버튼 */}
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="px-4 py-2 rounded bg-slate-700 text-white hover:bg-slate-600"
-                >
-                  📷 이미지 업로드
-                </button>
+                {/* 버튼 영역 */}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-4 py-2 rounded bg-slate-700 text-white hover:bg-slate-600"
+                  >
+                    📷 이미지 업로드
+                  </button>
 
-                {/* 미리보기: 없으면 빈칸 */}
+                  {form.image_url && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!confirm("대표 이미지를 삭제하시겠습니까?")) return;
+                        setForm((prev) => ({ ...prev!, image_url: null }));
+                      }}
+                      className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-500"
+                    >
+                      🗑 이미지 삭제
+                    </button>
+                  )}
+                </div>
+
+                {/* 미리보기 */}
                 {form.image_url ? (
                   <img
                     src={form.image_url}
                     alt="대표 이미지 미리보기"
-                    className="w-full max-h-64 object-contain rounded border bg-gray-50"
+                    className="w-full max-h-[320px] object-cover rounded border"
                   />
                 ) : (
-                  <div className="h-48 border rounded" />
+                  <div className="w-full h-[320px] border rounded bg-gray-100 flex items-center justify-center text-gray-400 text-sm">
+                    이미지 없음
+                  </div>
                 )}
               </div>
             ) : data.image_url ? (
-              <img src={data.image_url} alt="대표 이미지" className="w-full max-h-64 object-contain rounded border " />
+              <img
+                src={data.image_url}
+                alt="대표 이미지"
+                className="w-full max-h-[320px] object-cover rounded border"
+              />
             ) : (
               <div className="input-readonly">-</div>
             )}
           </FormField>
-
-
         </div>
         {/* ===== 감정평가사 메모 ===== */}
         <div className="col-span-2 border-t border-gray-600 pt-4 space-y-4">
