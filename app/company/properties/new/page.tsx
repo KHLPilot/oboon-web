@@ -15,7 +15,6 @@ type PropertyForm = {
   phone_number: string;
   status: PropertyStatus;
   description: string;
-  image_url: string;
 };
 
 export default function PropertyCreatePage() {
@@ -28,18 +27,16 @@ export default function PropertyCreatePage() {
     phone_number: "",
     status: "READY",
     description: "",
-    image_url: "",
   });
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit() {
-    if (loading) return; // ✅ 중복 클릭 방지
+    if (loading) return;
 
     setError(null);
 
-    // ✅ 필수값 체크
     if (!form.name.trim()) {
       setError("현장명은 필수 입력 항목입니다.");
       return;
@@ -53,10 +50,8 @@ export default function PropertyCreatePage() {
       phone_number: form.phone_number.trim() || null,
       status: form.status || null,
       description: form.description.trim() || null,
-      image_url: form.image_url.trim() || null,
     };
 
-    // ✅ insert 후 id 받아오기 (중요!)
     const { data, error } = await supabase
       .from("properties")
       .insert(payload)
@@ -75,7 +70,6 @@ export default function PropertyCreatePage() {
       return;
     }
 
-    // ✅ 성공 → 방금 만든 현장 상세로 이동
     router.push(`/company/properties/${data.id}`);
   }
 
@@ -158,19 +152,10 @@ export default function PropertyCreatePage() {
               placeholder="현장에 대한 간단한 설명"
             />
           </div>
+          <p className="text-gray-500">
+            ※ 대표 이미지는 현장 등록 후 상세 페이지에서 업로드할 수 있습니다.
+          </p>
 
-          {/* 이미지 URL */}
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">
-              대표 이미지 URL
-            </label>
-            <input
-              className="input-basic w-full"
-              value={form.image_url}
-              onChange={(e) => setForm({ ...form, image_url: e.target.value })}
-              placeholder="https://example.com/image.jpg"
-            />
-          </div>
         </div>
 
         {/* 에러 메시지 */}

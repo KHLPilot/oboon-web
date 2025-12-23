@@ -5,7 +5,6 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { FormField } from "@/app/components/FormField";
-import { uploadPropertyImage } from "@/lib/uploadPropertyImage";
 
 /* ==================================================
    상수
@@ -16,6 +15,7 @@ const STATUS_OPTIONS = [
   { value: "READY", label: "분양 예정" },
   { value: "CLOSED", label: "분양 마감" },
 ];
+
 
 /* ==================================================
    타입
@@ -98,6 +98,7 @@ export default function PropertyDetailPage() {
   const [editMode, setEditMode] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [localPreview, setLocalPreview] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -195,15 +196,17 @@ export default function PropertyDetailPage() {
       })
       .eq("id", id);
 
-    setSaving(false);
-
     if (error) {
       alert("저장 실패: " + error.message);
+      setSaving(false);
       return;
     }
 
-    setEditMode(false);
+    setLocalPreview(null);
     await load();
+
+    setEditMode(false);
+    setSaving(false);
   }
 
   /* ---------- 삭제 ---------- */
@@ -272,6 +275,7 @@ export default function PropertyDetailPage() {
                     estimated_comment: data.estimated_comment,
                     pending_comment: data.pending_comment,
                   });
+                  setLocalPreview(null);
                   setEditMode(false);
                 }}
               >
@@ -380,18 +384,45 @@ export default function PropertyDetailPage() {
                     const file = e.target.files?.[0];
                     if (!file) return;
 
+                    const previewUrl = URL.createObjectURL(file);
+                    setLocalPreview(previewUrl);
+
+
+                    if (file.size > 5 * 1024 * 1024) {
+                      alert("이미지는 5MB 이하만 가능합니다.");
+                      if (fileInputRef.current) {
+                        fileInputRef.current.value = "";
+                      }
+                      return;
+                    }
+
                     try {
-                      const url = await uploadPropertyImage(file, id);
-                      setForm((prev) => ({ ...prev!, image_url: url }));
+                      const formData = new FormData();
+                      formData.append("file", file);
+                      formData.append("propertyId", String(id));
+
+                      const res = await fetch("/api/r2/upload", {
+                        method: "POST",
+                        body: formData,
+                      });
+
+                      if (!res.ok) {
+                        const err = await res.json();
+                        throw new Error(err?.error || "upload failed");
+                      }
+
+                      const data = await res.json();
+                      setForm((prev) => ({ ...prev!, image_url: data.url }));
                     } catch (err: any) {
                       alert("이미지 업로드 실패: " + err.message);
                     } finally {
-                      // ✅ React 이벤트 안 건드림
                       if (fileInputRef.current) {
                         fileInputRef.current.value = "";
                       }
                     }
                   }}
+
+
 
                 />
 
@@ -423,10 +454,16 @@ export default function PropertyDetailPage() {
                 </div>
 
                 {/* 미리보기 */}
-                {form.image_url ? (
+                {localPreview ? (
+                  <img
+                    src={localPreview}
+                    alt="대표 이미지 미리보기"
+                    className="w-full max-h-[320px] object-cover rounded border"
+                  />
+                ) : form.image_url ? (
                   <img
                     src={form.image_url}
-                    alt="대표 이미지 미리보기"
+                    alt="대표 이미지"
                     className="w-full max-h-[320px] object-cover rounded border"
                   />
                 ) : (
@@ -434,16 +471,18 @@ export default function PropertyDetailPage() {
                     이미지 없음
                   </div>
                 )}
+
               </div>
-            ) : data.image_url ? (
+            ) : form.image_url ? (
               <img
-                src={data.image_url}
+                src={form.image_url}
                 alt="대표 이미지"
                 className="w-full max-h-[320px] object-cover rounded border"
               />
             ) : (
               <div className="input-readonly">-</div>
-            )}
+            )
+            }
           </FormField>
         </div>
         {/* ===== 감정평가사 메모 ===== */}
