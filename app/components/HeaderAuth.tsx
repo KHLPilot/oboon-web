@@ -1,13 +1,15 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Button from "@/components/ui/Button";
 import { createSupabaseClient } from "@/lib/supabaseClient";
-import Link from "next/link";
 
 export default function HeaderAuth() {
   const router = useRouter();
   const supabase = createSupabaseClient();
+
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -40,6 +42,7 @@ export default function HeaderAuth() {
     return () => {
       listener.subscription.unsubscribe();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleLogout() {
@@ -49,31 +52,44 @@ export default function HeaderAuth() {
   }
 
   if (loading) {
-    return <div className="text-[10px] text-(--oboon-text-muted)">…</div>;
+    return (
+      <Button
+        variant="secondary"
+        size="sm"
+        shape="pill"
+        disabled
+        loading
+        aria-label="loading"
+        className="w-[88px]"
+      >
+        로딩중
+      </Button>
+    );
   }
 
   if (!displayName) {
     return (
-      <Link
-        href="/login"
-        className="rounded-full border border-(--oboon-border-default) px-3 py-1 text-xs text-(--oboon-text-body) hover:border-(--oboon-primary)"
-      >
-        로그인
+      <Link href="/login">
+        <Button variant="secondary" size="sm" shape="pill">
+          로그인
+        </Button>
       </Link>
     );
   }
 
   return (
-    <div className="flex items-center gap-2 text-xs">
-      <span className="hidden sm:inline text-(--oboon-text-muted)">
+    <div className="flex items-center gap-2">
+      <span className="hidden max-w-[180px] truncate text-[13px] text-(--oboon-text-muted) sm:inline">
         {displayName}
       </span>
-      <button
+      <Button
+        variant="secondary"
+        size="sm"
+        shape="pill"
         onClick={handleLogout}
-        className="rounded-full border border-(--oboon-border-default) px-3 py-1 text-(--oboon-text-body) hover:border-(--oboon-primary)"
       >
         로그아웃
-      </button>
+      </Button>
     </div>
   );
 }

@@ -1,4 +1,3 @@
-///app/auth/callback/AuthCallbackClient.tsx
 "use client";
 
 import { useEffect } from "react";
@@ -11,14 +10,11 @@ export default function AuthCallbackClient() {
 
   useEffect(() => {
     async function run() {
-
-      // ================================
-      // 1) NAVER magic link hash 처리
-      // ================================
+      // 1. 해시 토큰 처리 (네이버 포함)
       const hash = window.location.hash;
 
       if (hash.includes("access_token")) {
-        const params = new URLSearchParams(hash.substring(1)); // '#' 제거
+        const params = new URLSearchParams(hash.substring(1));
         const access_token = params.get("access_token");
         const refresh_token = params.get("refresh_token");
 
@@ -28,32 +24,35 @@ export default function AuthCallbackClient() {
             refresh_token,
           });
 
-          // URL 해시 제거
           window.history.replaceState(null, "", "/auth/callback");
         }
       }
 
-      // ================================
-      // 2) 세션 확인
-      // ================================
-      const { data: { user } } = await supabase.auth.getUser();
+      // 2. 세션 확인
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-      if (!user) {
-        router.replace("/login");
+      if (!session) {
+        router.replace("/auth/login");
         return;
       }
 
-      // ================================
-      // 3) 온보딩 필요 여부
-      // ================================
+      // 3. ensure-profile 호출 (Bearer 토큰 전달)
       const res = await fetch("/api/auth/ensure-profile", {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
         cache: "no-store",
       });
 
       const result = await res.json();
 
-      if (result.needOnboarding) router.replace("/onboarding");
-      else router.replace("/");
+      if (result.needOnboarding) {
+        router.replace("/auth/onboarding");
+      } else {
+        router.replace("/");
+      }
     }
 
     run();

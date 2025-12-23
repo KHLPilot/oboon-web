@@ -1,5 +1,70 @@
 @import "tailwindcss";
 
+@layer components {
+  /* =========================
+     OBOON Button System
+     ========================= */
+  .ob-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    transition: background-color 150ms ease, color 150ms ease,
+      border-color 150ms ease, opacity 150ms ease;
+    border: 1px solid var(--oboon-border-default);
+    white-space: nowrap;
+    user-select: none;
+  }
+
+  /* Sizes */
+  .ob-btn-sm {
+    height: 36px; /* h-9 */
+    padding: 0 16px; /* px-4 */
+    font-size: 14px;
+    line-height: 20px;
+  }
+
+  .ob-btn-md {
+    height: 44px; /* h-11 */
+    padding: 0 16px; /* px-4 */
+    font-size: 14px;
+    line-height: 20px;
+  }
+
+  /* Shapes */
+  .ob-btn-round {
+    border-radius: 10px;
+  }
+
+  .ob-btn-pill {
+    border-radius: 9999px; /* rounded-full */
+  }
+
+  /* Variants (token-based) */
+  .ob-btn-secondary {
+    background: var(--oboon-bg-surface);
+    color: var(--oboon-text-body);
+  }
+  .ob-btn-secondary:hover {
+    background: var(--oboon-bg-subtle);
+  }
+
+  .ob-btn-primary {
+    background: var(--oboon-primary);
+    color: #ffffff;
+    border-color: transparent;
+  }
+  .ob-btn-primary:hover {
+    opacity: 0.9;
+  }
+
+  .ob-btn:disabled,
+  .ob-btn[aria-disabled="true"] {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
 :root {
   --font-h1: 32px;
   --font-h2: 24px;
@@ -64,6 +129,12 @@
 
   --card-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
 
+  /* Badge Tokens - Light */
+  --badge-status-bg: #2360ff;
+  --badge-status-text: #ffffff;
+  --badge-type-bg: rgba(15, 23, 42, 0.08);
+  --badge-type-text: #0f172a;
+
   /* Briefing Tokens - Light */
   --briefing-bg-surface: #ffffff;
   --briefing-text-title: #0f172a;
@@ -108,6 +179,12 @@
   --card-text-muted: #94a3b8;
 
   --card-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
+
+  /* Badge Tokens - Dark */
+  --badge-status-bg: #3b82f6;
+  --badge-status-text: #0b0f19;
+  --badge-type-bg: rgba(148, 163, 184, 0.16);
+  --badge-type-text: #e2e8f0;
 
   /* Briefing Tokens - Dark */
   --briefing-bg-surface: #020617;

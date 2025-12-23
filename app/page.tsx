@@ -1,4 +1,15 @@
 // app/page.tsx
+import Image from "next/image";
+import Link from "next/link";
+
+import HomeBriefingCompactCard from "@/features/home/HomeBriefingCompactCard";
+import HomeBriefingCompactSeriesCard from "@/features/home/HomeBriefingCompactSeriesCard";
+import {
+  POSTS,
+  SERIES,
+  type BriefingPost,
+  type BriefingSeries,
+} from "@/app/briefing/_data";
 
 type ProjectCardProps = {
   badge: string;
@@ -7,13 +18,7 @@ type ProjectCardProps = {
   priceRange: string;
   statusLabel: string;
   hasLabelChip?: boolean;
-};
-
-type BriefingCardProps = {
-  category: string;
-  title: string;
-  description: string;
-  highlight?: boolean;
+  imageUrl?: string | null;
 };
 
 export default function HomePage() {
@@ -22,11 +27,12 @@ export default function HomePage() {
       {/* 가운데 정렬된 메인 컨테이너 */}
       <main className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 pb-20 pt-16">
         <HeroSection />
+
         {/* 마감 임박 현장 */}
         <section className="mt-10 flex flex-col gap-2">
           <SectionHeader
-            title="마감 임박 현장"
-            caption="오늘 마감 또는 D-3 이내 단지"
+            title="감정평가사 한줄평"
+            caption="전문가들이 직접 남긴 솔직한 평가를 확인해보세요. 쓰레기 현장은 없습니다."
           />
           <ProjectRow>
             <ProjectCard
@@ -50,6 +56,7 @@ export default function HomePage() {
               location="인천 연수구 송도동"
               priceRange="8억 ~ 15억"
               statusLabel="분양중"
+              imageUrl="https://images.unsplash.com/photo-1501594907352-04cda38ebc29?auto=format&fit=crop&w=800&q=60"
             />
             <ProjectCard
               badge="분양중"
@@ -57,6 +64,7 @@ export default function HomePage() {
               location="경기 성남시 분당구"
               priceRange="12억 ~ 22억"
               statusLabel="분양중"
+              imageUrl="https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=800&q=60"
             />
           </ProjectRow>
         </section>
@@ -101,10 +109,10 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* 오분 브리핑 */}
+        {/* ✅ 오분 브리핑 (브리핑 페이지 카드로 교체) */}
         <section className="flex flex-col gap-2">
           <SectionHeader title="오분 브리핑" />
-          <BriefingSection />
+          <HomeBriefingSection />
         </section>
       </main>
     </div>
@@ -116,14 +124,12 @@ function HeroSection() {
   return (
     <section className="flex flex-col items-center gap-7 text-center">
       <div className="space-y-5">
-        {/* 메인 타이틀: 4xl / 5xl */}
         <h1 className="text-4xl font-bold leading-tight text-(--oboon-text-title) md:text-5xl">
           오늘의 분양
           <br />
           데이터를 투명하게
         </h1>
 
-        {/* 서브 설명: base / lg */}
         <p className="text-base leading-relaxed text-(--oboon-text-body) md:text-lg">
           복잡한 공고문 대신 핵심만 간단하게 정리해 드립니다.
           <br />
@@ -167,7 +173,6 @@ function SectionHeader({
   return (
     <div className="mb-4 flex items-baseline justify-between">
       <div className="flex flex-col gap-1">
-        {/* 섹션 타이틀: xl / 2xl */}
         <h2 className="text-xl font-semibold tracking-tight text-(--oboon-text-title) md:text-2xl">
           {title}
         </h2>
@@ -177,9 +182,12 @@ function SectionHeader({
           </p>
         )}
       </div>
-      <button className="text-sm font-medium text-(--oboon-text-muted) hover:text-(--oboon-primary) md:text-base">
+      <Link
+        href="/briefing"
+        className="text-sm font-medium text-(--oboon-text-muted) hover:text-(--oboon-primary)"
+      >
         전체보기
-      </button>
+      </Link>
     </div>
   );
 }
@@ -201,53 +209,79 @@ function ProjectCard({
   priceRange,
   statusLabel,
   hasLabelChip,
+  imageUrl,
 }: ProjectCardProps) {
   return (
-    <article className="flex h-full flex-col rounded-2xl border border-(--oboon-border-default) bg-(--card-bg-surface) p-6 shadow-none transition-transform transition-shadow hover:-translate-y-[2px] hover:shadow-[var(--card-shadow)]">
-      {/* 상단: 배지 + 메뉴 버튼 */}
-      <div className="mb-5 flex items-center justify-between">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="rounded-full bg-(--oboon-bg-subtle) px-3 py-0.5 text-[11px] font-semibold text-(--card-text-muted)">
+    <article
+      className="
+        group relative overflow-hidden rounded-2xl
+        border border-(--oboon-border-default)
+        bg-(--oboon-bg-surface)
+        shadow-sm transition
+        hover:shadow-md
+      "
+    >
+      <div className="relative w-full aspect-[16/9] bg-(--oboon-bg-subtle)">
+        {imageUrl ? (
+          <Image
+            src={imageUrl}
+            alt={title}
+            fill
+            sizes="(max-width: 768px) 100vw, 25vw"
+            className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+            priority={false}
+          />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="h-full w-full bg-linear-to-br from-(--oboon-bg-subtle) to-(--oboon-border-default)" />
+            <span className="absolute text-sm text-(--oboon-text-muted)">
+              이미지 준비중
+            </span>
+          </div>
+        )}
+
+        <div className="absolute left-3 top-3">
+          <span
+            className="
+              inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium
+              bg-(--oboon-bg-surface)/80 text-(--oboon-text-body)
+              border border-(--oboon-border-default) backdrop-blur
+            "
+          >
             {badge}
           </span>
-          {hasLabelChip && (
-            <span className="rounded-full bg-(--oboon-bg-subtle) px-3 py-0.5 text-[11px] text-(--card-text-muted)">
-              사전 보기
-            </span>
-          )}
         </div>
 
-        <button className="flex h-8 w-8 items-center justify-center rounded-full bg-(--oboon-bg-subtle) text-sm text-(--card-text-muted)">
+        <button
+          type="button"
+          className="
+            absolute right-3 top-3 grid size-9 place-items-center rounded-full
+            bg-(--oboon-bg-surface)/80 border border-(--oboon-border-default)
+            text-(--oboon-text-muted) backdrop-blur
+            hover:bg-(--oboon-bg-subtle)
+          "
+          aria-label="more"
+        >
           ···
         </button>
       </div>
 
-      {/* 본문: 단지명 + 위치 */}
-      <div className="mb-6 space-y-2">
-        {/* 카드 타이틀: base / lg */}
-        <h3 className="line-clamp-2 text-base font-semibold leading-snug text-(--card-text-title) md:text-lg">
+      <div className="p-4">
+        <h3 className="text-base font-semibold text-(--oboon-text-title)">
           {title}
         </h3>
-        {/* 위치: sm / base */}
-        <p className="text-sm text-(--card-text-muted) md:text-base">
-          {location}
-        </p>
-      </div>
+        <p className="mt-1 text-sm text-(--oboon-text-muted)">{location}</p>
 
-      {/* 하단: 가격 + 상태 */}
-      <div className="mt-auto flex items-end justify-between gap-2 pt-2">
-        <div className="flex flex-col gap-0.5">
-          {/* 가격: lg / xl 느낌 */}
-          <span className="text-base font-semibold text-(--card-text-title) md:text-lg">
-            {priceRange}
-          </span>
-          <span className="text-xs text-(--card-text-muted) md:text-sm">
-            분양가 기준
-          </span>
+        <div className="mt-4 flex items-end justify-between">
+          <div>
+            <p className="text-base font-semibold text-(--oboon-text-title)">
+              {priceRange}
+            </p>
+            <p className="mt-0.5 text-xs text-(--oboon-text-muted)">
+              분양가 기준
+            </p>
+          </div>
         </div>
-        <span className="rounded-full bg-(--oboon-bg-subtle) px-3 py-1 text-xs text-(--card-text-muted) md:text-sm">
-          {statusLabel}
-        </span>
       </div>
     </article>
   );
@@ -289,101 +323,44 @@ function RegionFilterRow() {
   );
 }
 
-/* ---------- Briefing Section ---------- */
-function BriefingSection() {
+/* ---------- ✅ Home Briefing (브리핑 페이지 카드 재사용) ---------- */
+function HomeBriefingSection() {
+  const latestPosts: BriefingPost[] = POSTS.slice(0, 3);
+  const topSeries: BriefingSeries[] = SERIES.slice(0, 3);
+
+  const countBySeriesId = POSTS.reduce<Record<string, number>>((acc, p) => {
+    if (p.seriesId) acc[p.seriesId] = (acc[p.seriesId] ?? 0) + 1;
+    return acc;
+  }, {});
+
   return (
-    <div className="rounded-2xl border border-(--briefing-border) bg-(--briefing-bg-surface) p-7 shadow-[var(--briefing-shadow)] md:p-8">
-      {/* 상단 라벨 영역 + 우측 전체보기 */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full bg-(--oboon-bg-subtle) px-3.5 py-1 text-sm font-semibold text-(--oboon-primary) md:text-base">
-            오늘의 오분 브리핑
-          </span>
-          <span className="text-sm text-(--briefing-text-muted) md:text-base">
-            오늘 분양 시장의 흐름을 한 번에 정리해 드립니다.
-          </span>
-        </div>
-        <button className="text-sm font-medium text-(--briefing-text-muted) hover:text-(--oboon-primary) md:text-base">
-          브리핑 전체 보기
-        </button>
-      </div>
-
-      <div className="mt-5 grid gap-4 md:grid-cols-4 md:gap-5">
-        <div className="md:col-span-2">
-          <BriefingCard
-            featured
-            category="오늘의 공시"
-            title="2025년 분양 대책 종합"
-            description="정부의 신규 분양 공급 계획과 주요 규제 완화 내용을 오분 만에 훑어볼 수 있도록 핵심만 정리했습니다."
-          />
-        </div>
-
-        <BriefingCard
-          category="청약 전략"
-          title="당첨확률은?"
-          description="나의 가점으로 어떤 지역을 노려야 유리한지, AI가 당첨 가능성을 분석해 드립니다."
-        />
-        <BriefingCard
-          category="분양 리포트"
-          title="GTX 노선 특집"
-          description="GTX 노선별로 향후 5년간 분양 예정 단지와 유망 생활권을 한 번에 볼 수 있습니다."
-        />
-        <BriefingCard
-          category="시장 한 줄"
-          title="오늘의 한 줄 요약"
-          description="전세가율·매매가 지표를 기반으로 오늘 시장 분위기를 한 문장으로 요약합니다."
-        />
-      </div>
-    </div>
-  );
-}
-
-type BriefingCardVariant = {
-  featured?: boolean;
-};
-
-/*----------- Briefing Card ---------- */
-function BriefingCard({
-  category,
-  title,
-  description,
-  featured,
-}: BriefingCardProps & BriefingCardVariant) {
-  return (
-    <article
+    <div
       className={[
-        "flex h-full flex-col justify-between rounded-2xl border bg-(--briefing-bg-surface) p-5 md:p-6",
-        "transition-transform transition-shadow",
-        "hover:-translate-y-[2px] hover:shadow-[var(--briefing-shadow)] hover:border-(--oboon-primary)/35",
-        "border-(--briefing-border)",
+        "rounded-2xl border border-(--oboon-border-default)",
+        "bg-(--oboon-bg-subtle)",
+        "p-3 md:p-3",
       ].join(" ")}
     >
-      <div className="flex flex-col gap-2">
-        <span className="text-xs font-semibold text-(--oboon-primary) md:text-sm">
-          {category}
-        </span>
-
-        <h3
-          className={
-            featured
-              ? "text-lg font-semibold text-(--briefing-text-title) md:text-2xl"
-              : "text-base font-semibold text-(--briefing-text-title) md:text-xl"
-          }
-        >
-          {title}
-        </h3>
-
-        <p className="mt-1 text-sm leading-relaxed text-(--briefing-text-body) md:text-base">
-          {description}
-        </p>
+      <div className="grid gap-4 lg:grid-cols-3">
+        {latestPosts.map((post) => (
+          <HomeBriefingCompactCard key={post.id} post={post} />
+        ))}
       </div>
 
-      {featured && (
-        <div className="mt-3 flex items-center gap-2 text-xs text-(--briefing-text-muted) md:text-sm">
-          <span className="h-1 w-1 rounded-full bg-(--oboon-primary)" />
-          <span>주요 포인트 3개로 요약된 브리핑</span>
+      <div className="mt-6">
+        <div className="mb-3 flex items-center justify-between text-base font-semibold text-(--oboon-text-title)">
+          OBOON 시리즈
+        </div>{" "}
+        <div className="grid gap-4 lg:grid-cols-3">
+          {topSeries.map((s) => (
+            <HomeBriefingCompactSeriesCard
+              key={s.id}
+              series={s}
+              count={countBySeriesId[s.id] ?? 0}
+            />
+          ))}
         </div>
-      )}
-    </article>
+      </div>
+    </div>
   );
 }

@@ -1,14 +1,7 @@
 // app/layout.tsx
-
 import "./globals.css";
-import type { Metadata } from "next";
 import Header from "@/components/shared/Header";
 import Footer from "@/components/shared/Footer";
-
-export const metadata: Metadata = {
-  title: "OBOON – 오늘의 분양",
-  description: "분양 정보를 가장 쉽게 정리해주는 서비스",
-};
 
 export default function RootLayout({
   children,
@@ -17,9 +10,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ko">
-      <body className="bg-(--oboon-bg-page) text-(--oboon-text-body)">
+      <body className="min-h-dvh flex flex-col">
         <Header />
-        <main className="min-h-screen pt-16">{children}</main>
+        <main className="flex-1 relative">{children}</main>
         <Footer />
       </body>
     </html>
