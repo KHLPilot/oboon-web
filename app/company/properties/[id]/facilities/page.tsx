@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createSupabaseClient } from "@/lib/supabaseClient";
+import AddressBox from "app/components/AddressBox";
 
 declare global {
   interface Window {
@@ -256,23 +257,10 @@ export default function PropertyFacilitiesPage() {
           </select>
 
           {f.road_address && (
-            <div
-              className="rounded-lg p-3 space-y-1
-              bg-slate-100 dark:bg-slate-800
-              border border-slate-200 dark:border-slate-700"
-            >
-              <div className="text-sm text-slate-500 dark:text-slate-400">
-                도로명주소
-              </div>
-              <div className="font-semibold text-slate-900 dark:text-white">
-                {f.road_address}
-              </div>
-              {f.jibun_address && (
-                <div className="text-sm text-slate-600 dark:text-slate-300">
-                  {f.jibun_address}
-                </div>
-              )}
-            </div>
+            <AddressBox
+              roadAddress={f.road_address}
+              jibunAddress={f.jibun_address}
+            />
           )}
 
           <button

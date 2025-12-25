@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createSupabaseClient } from "@/lib/supabaseClient";
+import AddressBox from "app/components/AddressBox";
 
 declare global {
   interface Window {
@@ -177,13 +178,27 @@ export default function PropertyLocationPage() {
       `}
       >
         <h2 className="font-semibold text-slate-900 dark:text-white">
-          현장 위치 (필수)
+          현장 위치
         </h2>
 
         {/* 주소 표시 */}
-        <div className="text-sm text-slate-600 dark:text-slate-300">
-          {site.road_address || "주소가 입력되지 않았습니다"}
-        </div>
+        {site.road_address ? (
+          <AddressBox
+            roadAddress={site.road_address}
+            jibunAddress={site.jibun_address}
+          />
+        ) : (
+          <div
+            className="
+      rounded-lg p-3
+      bg-slate-100 dark:bg-slate-800
+      border border-dashed border-slate-300 dark:border-slate-600
+      text-sm text-slate-500 dark:text-slate-400
+    "
+          >
+            도로명주소가 입력되지 않았습니다
+          </div>
+        )}
 
         {/* 편집 모드에서만 주소 검색 */}
         {isEditing && (
