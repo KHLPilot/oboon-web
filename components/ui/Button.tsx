@@ -2,7 +2,12 @@
 
 import * as React from "react";
 
-export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+export type ButtonVariant =
+  | "primary"
+  | "secondary"
+  | "ghost"
+  | "danger"
+  | "warning";
 export type ButtonSize = "sm" | "md" | "lg";
 export type ButtonShape = "default" | "pill";
 
@@ -32,10 +37,19 @@ function getVariantClass(variant: ButtonVariant) {
       );
     case "danger":
       return cn(
-        "bg-red-500 text-white",
-        "hover:bg-red-600",
-        "border border-red-500"
+        "bg-[var(--oboon-danger)] text-white",
+        "hover:bg-[var(--oboon-danger-hover)]",
+        "border border-[var(--oboon-danger)]"
       );
+
+    case "warning":
+      return cn(
+        "bg-[var(--oboon-warning-bg)]",
+        "text-[var(--oboon-warning-text)]",
+        "border border-[var(--oboon-warning-border)]",
+        "hover:bg-[var(--oboon-warning-bg-subtle)]"
+      );
+
     default:
       return "";
   }

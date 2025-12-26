@@ -398,9 +398,16 @@ export default function PropertyDetailPage() {
     c.unitStatus,
     c.facilityStatus,
   ];
-  const completedCount = statusList.filter((s) => s !== "none").length;
   const totalSections = statusList.length;
-  const progressPercent = Math.round((completedCount / totalSections) * 100);
+
+  const completedCount = statusList.filter((s) => s === "full").length;
+  const partialCount = statusList.filter((s) => s === "partial").length;
+  const noneCount = statusList.filter((s) => s === "none").length;
+
+  // ✅ 진행도: full=1, partial=0.5, none=0
+  const progressScore = completedCount + partialCount * 0.5;
+  const progressPercent =
+    totalSections === 0 ? 0 : Math.round((progressScore / totalSections) * 100);
 
   return (
     <div className="bg-(--oboon-bg-page) px-4 py-6 md:px-6 md:py-10">
@@ -478,8 +485,10 @@ export default function PropertyDetailPage() {
         <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-2">
           <div className="flex items-center justify-between text-xs text-(--oboon-text-muted)">
             <span>
-              입력 완료 {completedCount} / {totalSections}
+              완료 {completedCount} / {totalSections}
+              {partialCount > 0 ? ` · 입력중 ${partialCount}` : ""}
             </span>
+
             <span className="text-(--oboon-text-title)">
               {progressPercent}%
             </span>

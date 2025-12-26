@@ -21,6 +21,11 @@ type PropertyForm = {
   status: PropertyStatus;
   description: string;
   image_url: string;
+
+  // ✅ (1) 감정평가사 메모 3종 추가
+  confirmed_note: string; // 확정 내용
+  estimated_note: string; // 추정 내용
+  undecided_note: string; // 미정 내용
 };
 
 export default function PropertyCreatePage() {
@@ -34,6 +39,10 @@ export default function PropertyCreatePage() {
     status: "READY",
     description: "",
     image_url: "",
+
+    confirmed_note: "",
+    estimated_note: "",
+    undecided_note: "",
   });
 
   const [loading, setLoading] = useState(false);
@@ -60,6 +69,12 @@ export default function PropertyCreatePage() {
       status: form.status || null,
       description: form.description.trim() || null,
       image_url: form.image_url.trim() || null,
+
+      // ✅ (1) DB 컬럼명은 아래 3개를 권장합니다.
+      // properties.confirmed_note / estimated_note / undecided_note
+      confirmed_note: form.confirmed_note.trim() || null,
+      estimated_note: form.estimated_note.trim() || null,
+      undecided_note: form.undecided_note.trim() || null,
     };
 
     const { data, error } = await supabase
@@ -167,6 +182,42 @@ export default function PropertyCreatePage() {
             />
           </Field>
 
+          {/* ✅ (1) 감정평가사 메모 */}
+          <div className="pt-2">
+            <div className="text-sm font-semibold text-(--oboon-text-title)">
+              감정평가사 메모
+            </div>
+            <div className="mt-3 space-y-4">
+              <Field label="확정 내용">
+                <textarea
+                  className={[inputClass, "min-h-[90px]"].join(" ")}
+                  value={form.confirmed_note}
+                  onChange={(e) =>
+                    setForm({ ...form, confirmed_note: e.target.value })
+                  }
+                />
+              </Field>
+              <Field label="추정 내용">
+                <textarea
+                  className={[inputClass, "min-h-[90px]"].join(" ")}
+                  value={form.estimated_note}
+                  onChange={(e) =>
+                    setForm({ ...form, estimated_note: e.target.value })
+                  }
+                />
+              </Field>
+              <Field label="미정 내용">
+                <textarea
+                  className={[inputClass, "min-h-[90px]"].join(" ")}
+                  value={form.undecided_note}
+                  onChange={(e) =>
+                    setForm({ ...form, undecided_note: e.target.value })
+                  }
+                />
+              </Field>
+            </div>
+          </div>
+
           {error && (
             <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
               ⚠ {error}
@@ -223,6 +274,7 @@ function Field({
     </div>
   );
 }
+
 function StatusSelect({
   value,
   onChange,

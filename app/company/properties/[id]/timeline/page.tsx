@@ -1,18 +1,13 @@
-// /app/company/properties/%5Bid%5D/timeline/page.tsx
-
 "use client";
 
 import { forwardRef, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import Button from "@/components/ui/Button";
-import { createSupabaseClient } from "@/lib/supabaseClient";
-import DatePicker, { registerLocale } from "react-datepicker";
-import { ko } from "date-fns/locale";
-import "react-datepicker/dist/react-datepicker.css";
 import { CalendarDays } from "lucide-react";
 
-registerLocale("ko", ko);
+import Button from "@/components/ui/Button";
+import { createSupabaseClient } from "@/lib/supabaseClient";
+import OboonDatePicker from "@/components/ui/DatePicker";
+import PrecisionDateInput from "@/components/ui/PercisionDateInput";
 
 type TimelineForm = {
   announcement_date: string | null;
@@ -64,24 +59,52 @@ const FIELDS: {
   { key: "move_in_date", label: "입주 예정일", placeholder: "예) 2026-03-01" },
 ];
 
-const CalendarButton = forwardRef<HTMLButtonElement, any>(
-  ({ value, onClick, disabled }, ref) => (
+// YYYY-MM-DD <-> Date (로컬 기준) 유틸: timezone로 하루 밀림 방지
+function parseYmdToLocalDate(ymd: string | null | undefined): Date | null {
+  if (!ymd) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  if (!y || !mo || !d) return null;
+  return new Date(y, mo - 1, d);
+}
+
+function formatLocalDateToYmd(date: Date | null): string | null {
+  if (!date) return null;
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * 이 페이지용 정사각 달력 버튼 (w=h)
+ * - OboonDatePicker의 trigger 슬롯으로 주입됨
+ */
+const TimelineDateTrigger = forwardRef<HTMLButtonElement, any>(
+  ({ onClick, className = "", disabled, ...rest }, ref) => (
     <Button
       ref={ref as any}
       type="button"
       variant="secondary"
       size="sm"
       shape="pill"
-      className="whitespace-nowrap px-3"
       onClick={onClick}
       disabled={disabled}
+      className={[
+        "p-0 h-10 w-10 inline-flex items-center justify-center shrink-0",
+        className,
+      ].join(" ")}
+      {...rest}
     >
       <CalendarDays className="h-4 w-4" />
-      <span className="sr-only">달력 열기</span>
+      <span className="sr-only">날짜 선택</span>
     </Button>
   )
 );
-CalendarButton.displayName = "CalendarButton";
+TimelineDateTrigger.displayName = "TimelineDateTrigger";
 
 export default function PropertyTimelinePage() {
   const supabase = createSupabaseClient();
@@ -91,16 +114,23 @@ export default function PropertyTimelinePage() {
 
   const [form, setForm] = useState<TimelineForm>(EMPTY_FORM);
   const [baseForm, setBaseForm] = useState<TimelineForm | null>(null);
+
+  // (유지) 다음 필드 자동 오픈용 인덱스: 현재 OboonDatePicker가 외부 open 제어를 지원하지 않으면 시각적 오픈까지는 못하지만,
+  // 값 설정 후 다음 필드로 UX 확장 시 쓰기 좋습니다.
   const [openIndex, setOpenIndex] = useState<number | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
 
   useEffect(() => {
     let alive = true;
+
     async function load() {
       if (!Number.isFinite(propertyId)) return;
+
       setLoading(true);
+
       const { data, error } = await supabase
         .from("property_timeline")
         .select("*")
@@ -135,49 +165,6 @@ export default function PropertyTimelinePage() {
     };
   }, [propertyId, supabase]);
 
-  const handleInputChange = (key: keyof TimelineForm, value: string) => {
-    const formatted = formatDateInput(value);
-    setForm((prev) => ({ ...prev, [key]: formatted || null }));
-  };
-
-  const handleDateChange = (
-    key: keyof TimelineForm,
-    date: Date | null,
-    index: number
-  ) => {
-    let dateStr: string | null = null;
-    if (date) {
-      const y = date.getFullYear();
-      const m = String(date.getMonth() + 1).padStart(2, "0");
-      const d = String(date.getDate()).padStart(2, "0");
-      dateStr = `${y}-${m}-${d}`;
-    }
-
-    setForm((prev) => {
-      const next = { ...prev, [key]: dateStr };
-      const nextIndex = FIELDS.findIndex((f, i) => i > index && !next[f.key]);
-      if (nextIndex !== -1 && dateStr) {
-        setTimeout(() => setOpenIndex(nextIndex), 10);
-      } else {
-        setOpenIndex(null);
-      }
-      return next;
-    });
-  };
-
-  const safeDate = (value: string | null | undefined) => {
-    if (!value) return null;
-    const d = new Date(value);
-    return Number.isNaN(d.getTime()) ? null : d;
-  };
-
-  const formatDateInput = (value: string) => {
-    const digits = value.replace(/\D/g, "").slice(0, 8);
-    if (digits.length <= 4) return digits;
-    if (digits.length <= 6) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
-    return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`;
-  };
-
   const hasDirty = useMemo(() => {
     if (!baseForm) return false;
     return FIELDS.some(({ key }) => form[key] !== baseForm[key]);
@@ -185,6 +172,7 @@ export default function PropertyTimelinePage() {
 
   async function handleSave() {
     setSaving(true);
+
     const { error } = await supabase
       .from("property_timeline")
       .upsert(
@@ -193,6 +181,7 @@ export default function PropertyTimelinePage() {
       );
 
     setSaving(false);
+
     if (!error) {
       setBaseForm(form);
       setEditing(false);
@@ -202,17 +191,33 @@ export default function PropertyTimelinePage() {
     }
   }
 
-  const handleCancel = () => {
-    if (baseForm) setForm(baseForm);
-    setEditing(false);
-    setOpenIndex(null);
-  };
-
   const handleClear = () => {
     if (!confirm("일정 정보를 모두 삭제할까요? (되돌릴 수 없습니다)")) return;
     setForm(EMPTY_FORM);
     setEditing(true);
     setOpenIndex(null);
+  };
+
+  const handleDateChange = (
+    key: keyof TimelineForm,
+    date: Date | null,
+    index: number
+  ) => {
+    const dateStr = formatLocalDateToYmd(date);
+
+    setForm((prev) => {
+      const next = { ...prev, [key]: dateStr };
+
+      // 다음 빈 필드 인덱스 계산(필요 시 확장)
+      const nextIndex = FIELDS.findIndex((f, i) => i > index && !next[f.key]);
+      if (nextIndex !== -1 && dateStr) {
+        setTimeout(() => setOpenIndex(nextIndex), 10);
+      } else {
+        setOpenIndex(null);
+      }
+
+      return next;
+    });
   };
 
   if (loading) {
@@ -223,20 +228,28 @@ export default function PropertyTimelinePage() {
     );
   }
 
+  // ✅ 입력 스타일: 버튼이 줄어든 만큼 input이 길어지도록 flex 관련 클래스 포함
+  const inputClassName = [
+    "input-basic rounded-md border border-(--oboon-border-default)",
+    "bg-(--oboon-bg-subtle)/70 px-3 py-2 transition",
+    "focus:border-(--oboon-accent) focus:outline-none focus:ring-2 focus:ring-(--oboon-accent)/50",
+    // 핵심: flex 레이아웃에서 input이 남는 폭을 다 먹도록
+    "w-full flex-1 min-w-0",
+  ].join(" ");
+
   return (
     <div className="bg-(--oboon-bg-page) px-4 py-8 md:px-6 md:py-10">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
         <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-col gap-2">
-            <div className="space-y-1 pt-1">
-              <p className="text-2xl font-bold text-(--oboon-text-title)">
-                분양 일정
-              </p>
-              <p className="text-sm text-(--oboon-text-muted)">
-                청약·계약·입주 주요 일정을 입력하거나 달력에서 바로 선택하세요.
-              </p>
-            </div>
+          <div className="space-y-1 pt-1">
+            <p className="text-2xl font-bold text-(--oboon-text-title)">
+              분양 일정
+            </p>
+            <p className="text-sm text-(--oboon-text-muted)">
+              청약·계약·입주 주요 일정을 입력하거나 달력에서 바로 선택하세요.
+            </p>
           </div>
+
           <div className="flex items-center gap-2">
             <Button
               variant="secondary"
@@ -258,50 +271,55 @@ export default function PropertyTimelinePage() {
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {FIELDS.map((field, index) => (
-              <div key={field.key} className="space-y-2">
-                <label className="text-sm font-medium text-(--oboon-text-title)">
-                  {field.label}
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    className="input-basic flex-1 rounded-md border border-(--oboon-border-default) bg-(--oboon-bg-subtle)/70 px-3 py-2 transition focus:border-(--oboon-accent) focus:outline-none focus:ring-2 focus:ring-(--oboon-accent)/50"
-                    value={form[field.key] ?? ""}
-                    onChange={(e) =>
-                      handleInputChange(field.key, e.target.value)
-                    }
-                    placeholder={field.placeholder}
-                    disabled={!editing}
-                  />
-                  <DatePicker
-                    locale="ko"
-                    selected={safeDate(form[field.key])}
-                    open={editing && openIndex === index}
-                    onClickOutside={() => setOpenIndex(null)}
-                    dateFormat="yyyy-MM-dd"
-                    customInput={<CalendarButton disabled={!editing} />}
-                    showMonthDropdown
-                    showYearDropdown
-                    dropdownMode="select"
-                    calendarClassName="oboon-datepicker"
-                    popperClassName="oboon-datepicker-popper"
-                    onChange={(date: Date | null) =>
-                      handleDateChange(field.key, date, index)
-                    }
-                    onInputClick={() => editing && setOpenIndex(index)}
-                    popperPlacement="bottom-start"
-                  />
+            {FIELDS.map((field, index) => {
+              const isMoveIn = field.key === "move_in_date";
+
+              return (
+                <div key={field.key} className="space-y-2">
+                  <label className="text-sm font-medium text-(--oboon-text-title)">
+                    {field.label}
+                  </label>
+
+                  <div className="flex w-full items-center gap-2">
+                    <div className="flex-1 min-w-0">
+                      {isMoveIn ? (
+                        <PrecisionDateInput
+                          value={form.move_in_date}
+                          onChange={(next) =>
+                            setForm((prev) => ({ ...prev, move_in_date: next }))
+                          }
+                          disabled={!editing}
+                          policy="both" // ✅ YYYY-MM / YYYY-MM-DD 모두 허용
+                          defaultPrecision="day" // ✅ 기본은 일(원하면 "month"로)
+                          inputClassName={inputClassName}
+                          placeholder="예) 2026-03 또는 2026-03-01"
+                        />
+                      ) : (
+                        <OboonDatePicker
+                          selected={parseYmdToLocalDate(form[field.key])}
+                          onChange={(date: Date | null) =>
+                            handleDateChange(field.key, date, index)
+                          }
+                          disabled={!editing}
+                          dateFormat="yyyy-MM-dd"
+                          textFormat="yyyy-MM-dd"
+                          inputClassName={inputClassName}
+                          placeholder={field.placeholder}
+                        />
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs text-(--oboon-text-muted)">
-              YYYY-MM-DD 형식으로 직접 입력하거나 달력 버튼을 눌러 선택할 수
-              있습니다.
+              대부분의 일정은 YYYY-MM-DD 형식으로 입력합니다. 단, 입주 예정일은
+              YYYY-MM 또는 YYYY-MM-DD 둘 다 입력 가능합니다.
             </p>
+
             <div className="flex gap-2">
               {!editing ? (
                 <Button
@@ -339,57 +357,6 @@ export default function PropertyTimelinePage() {
           </div>
         </section>
       </div>
-
-      <style jsx global>{`
-        .react-datepicker-wrapper {
-          width: auto !important;
-        }
-        .react-datepicker__input-container {
-          width: auto !important;
-        }
-        .oboon-datepicker {
-          background: var(--oboon-bg-surface);
-          border: 1px solid var(--oboon-border-default);
-          box-shadow: var(--card-shadow, 0 12px 24px rgba(15, 23, 42, 0.12));
-          border-radius: 16px;
-          color: var(--oboon-text-body);
-          padding: 8px;
-        }
-        .oboon-datepicker .react-datepicker__header {
-          background: var(--oboon-bg-surface);
-          border-bottom: 1px solid var(--oboon-border-default);
-        }
-        .oboon-datepicker .react-datepicker__current-month,
-        .oboon-datepicker .react-datepicker-year-header {
-          color: var(--oboon-text-title);
-          font-weight: 600;
-        }
-        .oboon-datepicker .react-datepicker__day-name,
-        .oboon-datepicker .react-datepicker__day,
-        .oboon-datepicker .react-datepicker__time-name {
-          color: var(--oboon-text-body);
-        }
-        .oboon-datepicker .react-datepicker__day:hover {
-          background: var(--oboon-bg-subtle);
-          border-radius: 8px;
-        }
-        .oboon-datepicker .react-datepicker__day--selected,
-        .oboon-datepicker .react-datepicker__day--keyboard-selected {
-          background: var(--oboon-primary);
-          color: #fff;
-          border-radius: 8px;
-        }
-        .oboon-datepicker .react-datepicker__day--today {
-          border: 1px solid var(--oboon-primary);
-          border-radius: 8px;
-        }
-        .oboon-datepicker .react-datepicker__triangle {
-          display: none;
-        }
-        .oboon-datepicker-popper {
-          z-index: 50;
-        }
-      `}</style>
     </div>
   );
 }

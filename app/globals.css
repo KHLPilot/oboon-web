@@ -63,6 +63,26 @@
     opacity: 0.6;
     cursor: not-allowed;
   }
+
+  .ob-alert {
+    border-radius: 12px;
+    border: 1px solid var(--oboon-border-default);
+    padding: 12px 14px;
+    font-size: 13px;
+    line-height: 18px;
+  }
+
+  .ob-alert-warning {
+    background: var(--oboon-warning-bg);
+    border-color: var(--oboon-warning-border);
+    color: var(--oboon-warning-text);
+  }
+
+  .ob-alert-danger {
+    background: var(--oboon-danger-bg);
+    border-color: var(--oboon-danger-border);
+    color: var(--oboon-danger-text);
+  }
 }
 
 :root {
@@ -143,6 +163,22 @@
   --briefing-border: #e5e7eb;
   --briefing-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
   --briefing-highlight-bg: #f9fafb;
+
+  /* Danger (error/destructive) */
+  --oboon-danger: #ef4444; /* red-500 */
+  --oboon-danger-hover: #dc2626; /* red-600 */
+  --oboon-danger-bg: #fef2f2; /* red-50 */
+  --oboon-danger-bg-subtle: #fee2e2; /* red-100 */
+  --oboon-danger-text: #991b1b; /* red-800 */
+  --oboon-danger-border: #fca5a5; /* red-300 */
+
+  /* Warning (caution) */
+  --oboon-warning: #f59e0b; /* amber-500 */
+  --oboon-warning-hover: #d97706; /* amber-600 */
+  --oboon-warning-bg: #fffbeb; /* amber-50 */
+  --oboon-warning-bg-subtle: #fef3c7; /* amber-100 */
+  --oboon-warning-text: #92400e; /* amber-800 */
+  --oboon-warning-border: #fcd34d; /* amber-300 */
 }
 
 /* -----------------------------
@@ -194,6 +230,22 @@
   --briefing-border: #020617;
   --briefing-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
   --briefing-highlight-bg: #020617;
+
+  /* Danger */
+  --oboon-danger: #f87171; /* red-400 */
+  --oboon-danger-hover: #ef4444; /* red-500 */
+  --oboon-danger-bg: rgba(248, 113, 113, 0.12);
+  --oboon-danger-bg-subtle: rgba(248, 113, 113, 0.2);
+  --oboon-danger-text: #fecaca; /* red-200 */
+  --oboon-danger-border: rgba(248, 113, 113, 0.4);
+
+  /* Warning */
+  --oboon-warning: #fbbf24; /* amber-400 */
+  --oboon-warning-hover: #f59e0b; /* amber-500 */
+  --oboon-warning-bg: rgba(251, 191, 36, 0.12);
+  --oboon-warning-bg-subtle: rgba(251, 191, 36, 0.2);
+  --oboon-warning-text: #fde68a; /* amber-200 */
+  --oboon-warning-border: rgba(251, 191, 36, 0.4);
 }
 
 body {

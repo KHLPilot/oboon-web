@@ -1,12 +1,19 @@
 // /app/company/properties/[id]/facilities/page.tsx
-
 "use client";
 
-import { useEffect, useState } from "react";
+import { Trash2 } from "lucide-react";
+import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { createSupabaseClient } from "@/lib/supabaseClient";
+import { FormField } from "@/app/components/FormField";
+import PrecisionDateInput from "@/components/ui/PercisionDateInput";
+
+const inputBase =
+  "input-basic rounded-md border border-(--oboon-border-default) bg-(--oboon-bg-subtle)/70 px-3 py-2 transition focus:border-(--oboon-accent) focus:outline-none focus:ring-2 focus:ring-(--oboon-accent)/50 w-full";
+
+const labelStrong = "text-sm font-medium text-(--oboon-text-title)";
 
 declare global {
   interface Window {
@@ -28,8 +35,11 @@ type FacilityForm = {
   region_1depth: string | null;
   region_2depth: string | null;
   region_3depth: string | null;
+
+  /** ✅ YYYY-MM 로 저장 (월 단위) */
   open_start: string | null;
   open_end: string | null;
+
   is_active: boolean;
   isEditing: boolean;
 };
@@ -38,17 +48,17 @@ export default function PropertyFacilitiesPage() {
   const supabase = createSupabaseClient();
   const params = useParams();
   const router = useRouter();
-  const propertyId = Number(params.id);
+  const propertyId = Number((params as any).id);
 
   const [facilities, setFacilities] = useState<FacilityForm[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!params?.id) return;
-    const id = Number(params.id);
+    if (!(params as any)?.id) return;
+    const id = Number((params as any).id);
     if (Number.isNaN(id)) return;
     fetchFacilities(id);
-  }, [params?.id]);
+  }, [(params as any)?.id]);
 
   async function fetchFacilities(id: number) {
     const { data, error } = await supabase
@@ -75,8 +85,8 @@ export default function PropertyFacilitiesPage() {
         region_1depth: f.region_1depth,
         region_2depth: f.region_2depth,
         region_3depth: f.region_3depth,
-        open_start: f.open_start,
-        open_end: f.open_end,
+        open_start: f.open_start, // ✅ YYYY-MM 기대
+        open_end: f.open_end, // ✅ YYYY-MM 기대
         is_active: f.is_active ?? true,
         isEditing: false,
       }))
@@ -200,16 +210,35 @@ export default function PropertyFacilitiesPage() {
   return (
     <div className="bg-(--oboon-bg-page) px-4 py-8">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => router.push(`/company/properties/${propertyId}`)}
-            className="text-sm text-(--oboon-text-muted) hover:underline"
-          >
-            ← 뒤로가기
-          </button>
-          <h1 className="text-xl font-bold text-(--oboon-text-title)">
-            홍보시설
-          </h1>
+        <div className="flex items-center justify-between">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-semibold text-(--oboon-text-title)">
+              홍보시설
+            </h1>
+            <p className="mt-1 text-sm text-(--oboon-text-muted)">
+              모델하우스·홍보관·팝업 등 홍보시설 정보를 입력하세요.
+            </p>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2">
+            <Button
+              variant="primary"
+              size="sm"
+              shape="pill"
+              onClick={() => addFacility()}
+            >
+              시설 추가
+            </Button>
+
+            <Button
+              variant="secondary"
+              size="sm"
+              shape="pill"
+              onClick={() => router.push(`/company/properties/${propertyId}`)}
+            >
+              취소
+            </Button>
+          </div>
         </div>
 
         {facilities.map((f, idx) => (
@@ -235,39 +264,31 @@ export default function PropertyFacilitiesPage() {
                   {f.is_active ? "운영 중" : "미운영"}
                 </span>
               </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  shape="pill"
-                  onClick={() => deleteFacility(f)}
-                  disabled={loading}
-                >
-                  삭제
-                </Button>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  shape="pill"
-                  onClick={() => updateField(idx, "isEditing", !f.isEditing)}
-                >
-                  {f.isEditing ? "수정 중" : "수정"}
-                </Button>
-              </div>
+
+              <button
+                type="button"
+                aria-label="삭제"
+                onClick={() => deleteFacility(f)}
+                disabled={loading}
+                className="ml-auto shrink-0 rounded-full p-1.5 text-red-500 hover:bg-red-500/10 focus:outline-none focus:ring-2 focus:ring-red-500/30 disabled:opacity-50"
+              >
+                <Trash2 size={16} />
+              </button>
             </div>
 
-            <Field label="시설명">
+            <FormField label="시설명" labelClassName={labelStrong}>
               <input
-                className="input-basic"
+                className={inputBase}
+                placeholder="시설명"
                 disabled={!f.isEditing}
                 value={f.name}
                 onChange={(e) => updateField(idx, "name", e.target.value)}
               />
-            </Field>
+            </FormField>
 
-            <Field label="시설 유형">
+            <FormField label="시설 유형" labelClassName={labelStrong}>
               <select
-                className="input-basic"
+                className={inputBase}
                 disabled={!f.isEditing}
                 value={f.type}
                 onChange={(e) =>
@@ -278,7 +299,7 @@ export default function PropertyFacilitiesPage() {
                 <option value="PROMOTION">홍보관</option>
                 <option value="POPUP">팝업</option>
               </select>
-            </Field>
+            </FormField>
 
             {f.road_address && (
               <div className="space-y-1 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-2">
@@ -308,7 +329,7 @@ export default function PropertyFacilitiesPage() {
             </Button>
 
             <input
-              className="input-basic"
+              className={inputBase}
               placeholder="상세 주소"
               disabled={!f.isEditing}
               value={f.address_detail}
@@ -317,21 +338,29 @@ export default function PropertyFacilitiesPage() {
               }
             />
 
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <input
-                type="date"
-                className="input-basic"
-                disabled={!f.isEditing}
-                value={f.open_start ?? ""}
-                onChange={(e) => updateField(idx, "open_start", e.target.value)}
-              />
-              <input
-                type="date"
-                className="input-basic"
-                disabled={!f.isEditing}
-                value={f.open_end ?? ""}
-                onChange={(e) => updateField(idx, "open_end", e.target.value)}
-              />
+            {/* ✅ 운영 시작/종료: PrecisionDateInput (월 단위 문자열 YYYY-MM 저장) */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <FormField label="운영 시작월" labelClassName={labelStrong}>
+                <PrecisionDateInput
+                  value={f.open_start}
+                  onChange={(next) => updateField(idx, "open_start", next)}
+                  disabled={!f.isEditing}
+                  policy="monthOnly"
+                  inputClassName={inputBase}
+                  placeholder="예) 2026-01"
+                />
+              </FormField>
+
+              <FormField label="운영 종료월" labelClassName={labelStrong}>
+                <PrecisionDateInput
+                  value={f.open_end}
+                  onChange={(next) => updateField(idx, "open_end", next)}
+                  disabled={!f.isEditing}
+                  policy="monthOnly"
+                  inputClassName={inputBase}
+                  placeholder="예) 2026-03"
+                />
+              </FormField>
             </div>
 
             <label className="flex items-center gap-2 text-sm text-(--oboon-text-body)">
@@ -353,11 +382,12 @@ export default function PropertyFacilitiesPage() {
                     variant="secondary"
                     size="sm"
                     shape="pill"
-                    onClick={() => deleteFacility(f)}
+                    onClick={() => updateField(idx, "isEditing", false)}
                     disabled={loading}
                   >
-                    삭제
+                    취소
                   </Button>
+
                   <Button
                     variant="primary"
                     size="sm"
@@ -369,57 +399,20 @@ export default function PropertyFacilitiesPage() {
                   </Button>
                 </>
               ) : (
-                <>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    shape="pill"
-                    onClick={() => deleteFacility(f)}
-                    disabled={loading}
-                  >
-                    삭제
-                  </Button>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    shape="pill"
-                    onClick={() => updateField(idx, "isEditing", true)}
-                  >
-                    수정
-                  </Button>
-                </>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  shape="pill"
+                  onClick={() => updateField(idx, "isEditing", true)}
+                  disabled={loading}
+                >
+                  수정
+                </Button>
               )}
             </div>
           </section>
         ))}
-
-        <Button
-          variant="primary"
-          size="md"
-          shape="pill"
-          className="w-full justify-center"
-          onClick={addFacility}
-        >
-          + 시설 추가
-        </Button>
       </div>
-    </div>
-  );
-}
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-1">
-      <div className="text-sm font-medium text-(--oboon-text-title)">
-        {label}
-      </div>
-      {children}
     </div>
   );
 }

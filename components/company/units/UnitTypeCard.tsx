@@ -21,6 +21,7 @@ import {
   summarizeRoomsBaths,
   numberWithCommas,
   toNumberOrNull,
+  toIntOrNull,
   formatPriceRange,
 } from "@/app/company/properties/[id]/units/utils";
 
@@ -206,9 +207,9 @@ export default function UnitTypeCard({
                 className={inputClass}
                 value={draft.exclusive_area ?? ""}
                 onChange={(e) =>
-                  onChange("exclusive_area", toNumberOrNull(e.target.value))
+                  onChange("exclusive_area", toIntOrNull(e.target.value))
                 }
-                inputMode="decimal"
+                inputMode="numeric"
               />
             </FormField>
 
@@ -217,9 +218,9 @@ export default function UnitTypeCard({
                 className={inputClass}
                 value={draft.supply_area ?? ""}
                 onChange={(e) =>
-                  onChange("supply_area", toNumberOrNull(e.target.value))
+                  onChange("supply_area", toIntOrNull(e.target.value))
                 }
-                inputMode="decimal"
+                inputMode="numeric"
               />
             </FormField>
 

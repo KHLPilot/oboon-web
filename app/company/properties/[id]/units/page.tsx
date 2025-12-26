@@ -283,7 +283,7 @@ export default function UnitTypesPage() {
                 ? ""
                 : String(createDraft.exclusive_area)
             }
-            inputMode="decimal"
+            inputMode="numeric"
             onChange={(v) =>
               setCreateDraft((d) => ({
                 ...d,
@@ -300,7 +300,7 @@ export default function UnitTypesPage() {
                 ? ""
                 : String(createDraft.supply_area)
             }
-            inputMode="decimal"
+            inputMode="numeric"
             onChange={(v) =>
               setCreateDraft((d) => ({ ...d, supply_area: toNumberOrNull(v) }))
             }

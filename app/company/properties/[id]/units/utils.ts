@@ -1,14 +1,30 @@
 import type { UnitRow, UnitStatus } from "./types";
 
-export function cn(...v: Array<string | false | null | undefined>) {
-  return v.filter(Boolean).join(" ");
+export function cn(...classes: Array<string | undefined | null | false>) {
+  return classes.filter(Boolean).join(" ");
 }
 
 export function toNumberOrNull(v: string): number | null {
-  const cleaned = v.replace(/,/g, "").trim();
-  if (!cleaned) return null;
-  const n = Number(cleaned);
+  if (v == null) return null;
+  const s = v.trim();
+  if (!s) return null;
+  const n = Number(s.replaceAll(",", ""));
   return Number.isFinite(n) ? n : null;
+}
+
+export function toIntOrNull(v: string): number | null {
+  if (v == null) return null;
+  const s = v.trim();
+  if (!s) return null;
+
+  // 콤마 제거 후, "정수" 문자열만 허용
+  const normalized = s.replaceAll(",", "");
+  if (!/^-?\d+$/.test(normalized)) return null;
+
+  const n = Number(normalized);
+  if (!Number.isFinite(n)) return null;
+
+  return Math.trunc(n);
 }
 
 export function numberWithCommas(n: number) {
