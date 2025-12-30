@@ -240,25 +240,24 @@ export default function PropertyDetailPage() {
   const c = completion!;
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
+    <div className="max-w-5xl mx-auto px-6 pt-8 pb-40 bg-slate-50 space-y-6">
       {/* ================= 기본 정보 ================= */}
-      <section className="border border-gray-700 rounded p-4 space-y-4">
+      <section className="bg-white border border-slate-200 rounded-2xl p-6 space-y-6">
         <div className="flex justify-between items-center">
           <h1 className="text-xl font-bold">기본 정보</h1>
 
           {!editMode ? (
             <div className="flex gap-2">
-              <button className="btn-primary" onClick={() => setEditMode(true)}>
+              <button className="px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-500" onClick={() => setEditMode(true)}>
                 수정
               </button>
-              <button className="btn-danger" onClick={handleDelete}>
+              <button className="px-4 py-2 rounded-xl bg-red-100 text-red-600 hover:bg-red-200" onClick={handleDelete}>
                 삭제
               </button>
             </div>
           ) : (
             <div className="flex gap-2">
-              <button
-                className="btn-secondary"
+              <button className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200"
                 onClick={() => {
                   setForm({
                     id: data.id,

@@ -32,6 +32,11 @@ export default function PropertyCreatePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const inputClass =
+    "w-full px-4 py-3 rounded-xl bg-white text-slate-900 " +
+    "border border-slate-300 " +
+    "focus:outline-none focus:ring-2 focus:ring-emerald-500";
+
   async function handleSubmit() {
     if (loading) return;
 
@@ -74,19 +79,18 @@ export default function PropertyCreatePage() {
   }
 
   return (
-    <div className="p-6 flex justify-center">
-      <div className="w-full max-w-2xl space-y-6">
-        <h1 className="text-xl font-bold">현장 등록</h1>
-
+    <div className="max-w-5xl mx-auto px-6 pt-8 pb-40 bg-slate-50">
+      <div className="space-y-6">
         {/* 카드 */}
-        <div className="border border-gray-700 rounded-lg p-5 space-y-4">
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
+          <h1 className="text-xl font-bold">현장 등록</h1>
           {/* 현장명 */}
           <div>
-            <label className="block text-sm text-gray-400 mb-1">
+            <label className="block text-sm font-medium text-slate-700 mb-1">
               현장명 <span className="text-red-400">*</span>
             </label>
             <input
-              className="input-basic w-full"
+              className={inputClass}
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="예: ○○자이, ○○힐스테이트"
@@ -96,11 +100,11 @@ export default function PropertyCreatePage() {
 
           {/* 분양 유형 */}
           <div>
-            <label className="block text-sm text-gray-400 mb-1">
+            <label className="block text-sm font-medium text-slate-700 mb-1">
               분양 유형
             </label>
             <input
-              className="input-basic w-full"
+              className={inputClass}
               value={form.property_type}
               onChange={(e) =>
                 setForm({ ...form, property_type: e.target.value })
@@ -111,11 +115,11 @@ export default function PropertyCreatePage() {
 
           {/* 연락처 */}
           <div>
-            <label className="block text-sm text-gray-400 mb-1">
+            <label className="block text-sm font-medium text-slate-700 mb-1">
               대표 연락처
             </label>
             <input
-              className="input-basic w-full"
+              className={inputClass}
               value={form.phone_number}
               onChange={(e) =>
                 setForm({ ...form, phone_number: e.target.value })
@@ -126,9 +130,10 @@ export default function PropertyCreatePage() {
 
           {/* 상태 (자유입력 → select로 고정) */}
           <div>
-            <label className="block text-sm text-gray-400 mb-1">상태</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              상태</label>
             <select
-              className="input-basic w-full"
+              className={inputClass}
               value={form.status}
               onChange={(e) =>
                 setForm({ ...form, status: e.target.value as PropertyStatus })
@@ -142,9 +147,10 @@ export default function PropertyCreatePage() {
 
           {/* 설명 */}
           <div>
-            <label className="block text-sm text-gray-400 mb-1">설명</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              설명</label>
             <textarea
-              className="input-basic w-full min-h-[100px]"
+              className={`${inputClass} min-h-[120px]`}
               value={form.description}
               onChange={(e) =>
                 setForm({ ...form, description: e.target.value })
@@ -162,7 +168,7 @@ export default function PropertyCreatePage() {
         {error && <div className="text-red-400 text-sm">❗ {error}</div>}
 
         <button
-          className="btn-primary w-full"
+          className="w-full py-3 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-500"
           onClick={handleSubmit}
           disabled={loading}
         >
@@ -171,7 +177,7 @@ export default function PropertyCreatePage() {
 
         <button
           type="button"
-          className="btn-secondary w-full"
+          className="w-full py-3 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200"
           onClick={() => router.push("/company/properties")}
           disabled={loading}
         >

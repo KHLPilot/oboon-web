@@ -16,6 +16,11 @@ export interface MapMarker {
   type: MarkerType;
 }
 
+type NaverMapProps = {
+  markers?: MapMarker[];
+  onSelectPosition?: (lat: number, lng: number) => void;
+};
+
 /* ==================================================
    전역 선언
 ================================================== */
@@ -30,13 +35,17 @@ declare global {
    컴포넌트
 ================================================== */
 
-export default function NaverMap({ markers }: { markers: MapMarker[] }) {
+export default function NaverMap({
+  markers = [],
+  onSelectPosition,
+}: NaverMapProps) {
   const mapRef = useRef<HTMLDivElement | null>(null);
   const mapInstance = useRef<any>(null);
   const markerInstances = useRef<any[]>([]);
 
-  // 🚨 수정: 환경 변수를 컴포넌트 내부에서 읽습니다. (클라이언트 컴포넌트이므로 안전)
   const clientId = process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID;
+
+  const selectedMarkerRef = useRef<any>(null);
 
   /* ---------- 네이버 지도 스크립트 로드 ---------- */
   useEffect(() => {
@@ -64,19 +73,48 @@ export default function NaverMap({ markers }: { markers: MapMarker[] }) {
 
     // 스크립트 생성 및 로드
     const script = document.createElement("script");
-    // 🚨 3. clientId 변수를 사용하여 스크립트 URL 생성
     script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${clientId}`;
     script.async = true;
     script.onload = initMap;
     document.head.appendChild(script);
 
-    // 컴포넌트 언마운트 시 스크립트 제거 (선택적)
-    // return () => {
-    //   document.head.removeChild(script);
-    // };
-
-    // 🚨 의존성 배열에 clientId를 추가하여, clientId가 변경되면(이 경우 초기 로드시) useEffect를 실행합니다.
   }, [clientId]);
+
+  //직접등록 마커 클릭 이벤트
+  useEffect(() => {
+    if (!mapInstance.current || !window.naver?.maps) return;
+
+    const { naver } = window;
+
+    const listener = naver.maps.Event.addListener(
+      mapInstance.current,
+      "click",
+      (e: any) => {
+        const latlng = e.latlng;
+        if (!latlng) return;
+
+        const lat = latlng.lat();
+        const lng = latlng.lng();
+
+        // ✅ 마커가 없으면 생성
+        if (!selectedMarkerRef.current) {
+          selectedMarkerRef.current = new naver.maps.Marker({
+            position: latlng,
+            map: mapInstance.current,
+          });
+        } else {
+          // ✅ 있으면 위치만 이동
+          selectedMarkerRef.current.setPosition(latlng);
+        }
+
+        onSelectPosition?.(lat, lng);
+      }
+    );
+
+    return () => {
+      naver.maps.Event.removeListener(listener);
+    };
+  }, [onSelectPosition]);
 
   /* ---------- 마커 렌더링 ---------- */
   useEffect(() => {
