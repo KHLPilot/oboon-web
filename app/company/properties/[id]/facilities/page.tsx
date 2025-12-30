@@ -11,6 +11,8 @@ declare global {
   }
 }
 
+const supabase = createSupabaseClient();
+
 type FacilityType = "MODELHOUSE" | "PROMOTION" | "POPUP";
 
 type FacilityForm = {
@@ -25,16 +27,36 @@ type FacilityForm = {
   region_1depth: string | null;
   region_2depth: string | null;
   region_3depth: string | null;
-  open_start: string | null;
-  open_end: string | null;
+  open_start: string | null; // yyyy-mm
+  open_end: string | null;   // yyyy-mm
   is_active: boolean;
   isEditing: boolean;
 };
 
+/* yyyy-mm formatter */
+function formatYearMonth(raw: string) {
+  let v = raw.replace(/\D/g, "");
+  if (v.length > 6) v = v.slice(0, 6);
+  if (v.length <= 4) return v;
+
+  const year = v.slice(0, 4);
+  let month = v.slice(4, 6);
+
+  if (month.length === 1 && Number(month) > 1) {
+    month = `0${month}`;
+  }
+  if (month.length === 2) {
+    const m = Number(month);
+    if (m < 1) month = "01";
+    if (m > 12) month = "12";
+  }
+
+  return `${year}-${month}`;
+}
+
 export default function PropertyFacilitiesPage() {
-  const supabase = createSupabaseClient();
-  const params = useParams();
   const router = useRouter();
+  const params = useParams();
   const propertyId = Number(params.id);
 
   const [facilities, setFacilities] = useState<FacilityForm[]>([]);
@@ -44,11 +66,9 @@ export default function PropertyFacilitiesPage() {
      초기 로드
   =============================== */
   useEffect(() => {
-    if (!params?.id) return;
-    const id = Number(params.id);
-    if (Number.isNaN(id)) return;
-    fetchFacilities(id);
-  }, [params?.id]);
+    if (!Number.isFinite(propertyId)) return;
+    fetchFacilities(propertyId);
+  }, [propertyId]);
 
   async function fetchFacilities(id: number) {
     const { data, error } = await supabase
@@ -57,10 +77,7 @@ export default function PropertyFacilitiesPage() {
       .eq("properties_id", id)
       .order("created_at", { ascending: true });
 
-    if (error) {
-      console.error(error);
-      return;
-    }
+    if (error) return console.error(error);
 
     setFacilities(
       data.map((f) => ({
@@ -99,15 +116,15 @@ export default function PropertyFacilitiesPage() {
           prev.map((f, i) =>
             i === index
               ? {
-                  ...f,
-                  road_address: data.roadAddress,
-                  jibun_address: data.jibunAddress,
-                  lat: geo.lat,
-                  lng: geo.lng,
-                  region_1depth: geo.region_1depth,
-                  region_2depth: geo.region_2depth,
-                  region_3depth: geo.region_3depth,
-                }
+                ...f,
+                road_address: data.roadAddress,
+                jibun_address: data.jibunAddress,
+                lat: geo.lat,
+                lng: geo.lng,
+                region_1depth: geo.region_1depth,
+                region_2depth: geo.region_2depth,
+                region_3depth: geo.region_3depth,
+              }
               : f
           )
         );
@@ -116,7 +133,7 @@ export default function PropertyFacilitiesPage() {
   }
 
   /* ===============================
-     시설 추가
+     CRUD
   =============================== */
   function addFacility() {
     setFacilities((prev) => [
@@ -140,20 +157,10 @@ export default function PropertyFacilitiesPage() {
     ]);
   }
 
-  /* ===============================
-     저장
-  =============================== */
   async function saveFacility(f: FacilityForm) {
     if (loading) return;
-
-    if (!f.name.trim()) {
-      alert("시설명을 입력해주세요.");
-      return;
-    }
-    if (!f.road_address) {
-      alert("주소를 입력해주세요.");
-      return;
-    }
+    if (!f.name.trim()) return alert("시설명을 입력해주세요.");
+    if (!f.road_address) return alert("주소를 입력해주세요.");
 
     setLoading(true);
     try {
@@ -175,17 +182,10 @@ export default function PropertyFacilitiesPage() {
       };
 
       const { error } = f.id
-        ? await supabase
-            .from("property_facilities")
-            .update(payload)
-            .eq("id", f.id)
+        ? await supabase.from("property_facilities").update(payload).eq("id", f.id)
         : await supabase.from("property_facilities").insert(payload);
 
-      if (error) {
-        alert(error.message);
-        return;
-      }
-
+      if (error) throw error;
       await fetchFacilities(propertyId);
       alert("저장되었습니다.");
     } finally {
@@ -210,51 +210,45 @@ export default function PropertyFacilitiesPage() {
      UI
   =============================== */
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6 bg-slate-50 dark:bg-black">
-      <div className="flex items-center gap-3">
+    <div className="max-w-3xl mx-auto px-6 pt-8 pb-40 bg-slate-50">
+      <div className="flex items-center gap-3 mb-6">
         <button
           onClick={() => router.push(`/company/properties/${propertyId}`)}
-          className="text-sm text-slate-500 dark:text-slate-400 hover:underline"
+          className="text-sm text-slate-500 hover:underline"
         >
           ← 뒤로가기
         </button>
-        <h1 className="text-xl font-bold text-slate-900 dark:text-white">
-          🏠 홍보시설
-        </h1>
+        <h1 className="text-xl font-bold text-slate-900">🏠 홍보시설</h1>
       </div>
 
       {facilities.map((f, idx) => (
         <section
           key={idx}
-          className="rounded-lg border p-4 space-y-3
-            bg-white dark:bg-slate-900
-            border-slate-200 dark:border-slate-700"
+          className="bg-white border border-slate-200 rounded-xl p-5 space-y-4"
         >
-          <label className="text-sm text-slate-500 dark:text-slate-400">
-            홍보시설 이름
-          </label>
-          <input
-            className="input-basic"
-            disabled={!f.isEditing}
-            value={f.name}
-            onChange={(e) => updateField(idx, "name", e.target.value)}
-          />
+          <Field label="홍보시설 이름">
+            <input
+              className={inputClass}
+              disabled={!f.isEditing}
+              value={f.name}
+              onChange={(e) => updateField(idx, "name", e.target.value)}
+            />
+          </Field>
 
-          <label className="text-sm text-slate-500 dark:text-slate-400">
-            홍보시설 유형
-          </label>
-          <select
-            className="input-basic"
-            disabled={!f.isEditing}
-            value={f.type}
-            onChange={(e) =>
-              updateField(idx, "type", e.target.value as FacilityType)
-            }
-          >
-            <option value="MODELHOUSE">모델하우스</option>
-            <option value="PROMOTION">홍보관</option>
-            <option value="POPUP">팝업</option>
-          </select>
+          <Field label="홍보시설 유형">
+            <select
+              className={selectClass}
+              disabled={!f.isEditing}
+              value={f.type}
+              onChange={(e) =>
+                updateField(idx, "type", e.target.value as FacilityType)
+              }
+            >
+              <option value="MODELHOUSE">모델하우스</option>
+              <option value="PROMOTION">홍보관</option>
+              <option value="POPUP">팝업</option>
+            </select>
+          </Field>
 
           {f.road_address && (
             <AddressBox
@@ -264,48 +258,59 @@ export default function PropertyFacilitiesPage() {
           )}
 
           <button
-            className={`w-full py-2 rounded-lg transition ${
-              f.road_address
-                ? "bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200"
-                : "bg-teal-500 text-white"
-            }`}
+            className={`w-full py-2 rounded-lg text-sm font-medium ${f.road_address
+                ? "bg-slate-200 text-slate-700"
+                : "bg-emerald-600 text-white"
+              }`}
             disabled={!f.isEditing}
             onClick={() => openPostcode(idx)}
           >
             주소 검색
           </button>
 
-          <input
-            className="input-basic"
-            placeholder="상세 주소"
-            disabled={!f.isEditing}
-            value={f.address_detail}
-            onChange={(e) => updateField(idx, "address_detail", e.target.value)}
-          />
-
-          <div className="flex gap-2">
+          <Field label="상세 주소">
             <input
-              type="date"
-              className="input-basic"
+              className={inputClass}
+              disabled={!f.isEditing}
+              value={f.address_detail}
+              onChange={(e) =>
+                updateField(idx, "address_detail", e.target.value)
+              }
+            />
+          </Field>
+
+          {/* yyyy-mm 직접 입력 */}
+          <div className="grid grid-cols-2 gap-3">
+            <input
+              type="text"
+              className={inputClass}
+              placeholder="yyyy-mm"
               disabled={!f.isEditing}
               value={f.open_start ?? ""}
-              onChange={(e) => updateField(idx, "open_start", e.target.value)}
+              onChange={(e) =>
+                updateField(idx, "open_start", formatYearMonth(e.target.value))
+              }
             />
             <input
-              type="date"
-              className="input-basic"
+              type="text"
+              className={inputClass}
+              placeholder="yyyy-mm"
               disabled={!f.isEditing}
               value={f.open_end ?? ""}
-              onChange={(e) => updateField(idx, "open_end", e.target.value)}
+              onChange={(e) =>
+                updateField(idx, "open_end", formatYearMonth(e.target.value))
+              }
             />
           </div>
 
-          <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+          <label className="flex items-center gap-2 text-sm text-slate-600">
             <input
               type="checkbox"
               disabled={!f.isEditing}
               checked={f.is_active}
-              onChange={(e) => updateField(idx, "is_active", e.target.checked)}
+              onChange={(e) =>
+                updateField(idx, "is_active", e.target.checked)
+              }
             />
             운영 중
           </label>
@@ -313,10 +318,7 @@ export default function PropertyFacilitiesPage() {
           <div className="flex justify-end gap-2 pt-2">
             {f.isEditing ? (
               <>
-                <button
-                  className="btn-danger"
-                  onClick={() => deleteFacility(f)}
-                >
+                <button className="btn-danger" onClick={() => deleteFacility(f)}>
                   삭제
                 </button>
                 <button className="btn-save" onClick={() => saveFacility(f)}>
@@ -325,10 +327,7 @@ export default function PropertyFacilitiesPage() {
               </>
             ) : (
               <>
-                <button
-                  className="btn-danger"
-                  onClick={() => deleteFacility(f)}
-                >
+                <button className="btn-danger" onClick={() => deleteFacility(f)}>
                   삭제
                 </button>
                 <button
@@ -343,9 +342,33 @@ export default function PropertyFacilitiesPage() {
         </section>
       ))}
 
-      <button className="btn-primary w-full" onClick={addFacility}>
+      <button className="btn-primary w-full mt-6" onClick={addFacility}>
         + 시설 추가
       </button>
     </div>
   );
 }
+
+/* ===============================
+   UI Helpers
+=============================== */
+
+const inputClass =
+  "w-full px-4 py-3 rounded-xl bg-white text-slate-900 " +
+  "border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 " +
+  "disabled:bg-slate-100 disabled:text-slate-500";
+
+const selectClass = inputClass;
+
+const Field = ({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) => (
+  <div className="space-y-2">
+    <p className="text-sm font-medium text-slate-700">{label}</p>
+    {children}
+  </div>
+);

@@ -6,41 +6,6 @@ import { createSupabaseClient } from "@/lib/supabaseClient";
 
 const supabase = createSupabaseClient();
 
-const LAND_USES = [
-  // 주거지역
-  "제1종전용주거지역",
-  "제2종전용주거지역",
-  "제1종일반주거지역",
-  "제2종일반주거지역",
-  "제3종일반주거지역",
-  "준주거지역",
-
-  // 상업지역
-  "중심상업지역",
-  "일반상업지역",
-  "근린상업지역",
-  "유통상업지역",
-
-  // 공업지역
-  "전용공업지역",
-  "일반공업지역",
-  "준공업지역",
-
-  // 녹지지역
-  "보전녹지지역",
-  "생산녹지지역",
-  "자연녹지지역",
-
-  // 관리지역
-  "보전관리지역",
-  "생산관리지역",
-  "계획관리지역",
-
-  // 농림지역 / 자연환경보전지역
-  "농림지역",
-  "자연환경보전지역",
-] as const;
-
 type PropertySpecsForm = {
   id?: number; // table PK(있다면)
   properties_id: number;
@@ -49,8 +14,6 @@ type PropertySpecsForm = {
   trust_company?: string | null;
   developer?: string | null;
   builder?: string | null;
-
-  land_use_zone?: string | null;
 
   site_area?: number | null;
   building_area?: number | null;
@@ -103,6 +66,37 @@ export default function PropertySpecsPage() {
   const [form, setForm] = useState<PropertySpecsForm>({
     properties_id: propertyId,
   });
+
+  // ✅ 평면 타입 세대수 목록
+  const [unitTypes, setUnitTypes] = useState<
+    { unit_count: number | null }[]
+  >([]);
+
+  useEffect(() => {
+    if (!Number.isFinite(propertyId)) return;
+
+    const fetchUnitTypes = async () => {
+      const { data, error } = await supabase
+        .from("property_unit_types")
+        .select("unit_count")
+        .eq("properties_id", propertyId);
+
+      if (error) {
+        console.error("unit types error", error);
+        return;
+      }
+
+      setUnitTypes(data ?? []);
+    };
+
+    fetchUnitTypes();
+  }, [propertyId]);
+
+  const calculatedHouseholdTotal = unitTypes.reduce(
+    (sum, u) => sum + (u.unit_count ?? 0),
+    0
+  );
+
 
   useEffect(() => {
     let alive = true;
@@ -164,7 +158,6 @@ export default function PropertySpecsPage() {
       trust_company: form.trust_company ?? null,
       developer: form.developer ?? null,
       builder: form.builder ?? null,
-      land_use_zone: form.land_use_zone ?? null,
 
       site_area: form.site_area ?? null,
       building_area: form.building_area ?? null,
@@ -190,10 +183,8 @@ export default function PropertySpecsPage() {
     setSaving(false);
 
     if (error) {
-      console.error("Supabase Save Error:", error); // ✅ error 객체를 명시적으로 로깅
-      // alert("저장에 실패했습니다. 콘솔을 확인해주세요.");
+      console.error("Supabase Save Error:", error);
 
-      // alert 메시지를 좀 더 구체적으로 변경하여 사용자에게 오류 메시지를 전달
       const errorMessage = error.message || "알 수 없는 오류가 발생했습니다.";
       alert(`저장 실패: ${errorMessage}\n(자세한 내용은 콘솔을 확인해주세요)`);
       return;
@@ -205,11 +196,11 @@ export default function PropertySpecsPage() {
   };
 
   const goToList = () => {
-    router.push("/company/properties"); // ✅ 현장 목록으로
+    router.push("/company/properties");
   };
 
   const goBack = () => {
-    router.back(); // 상단 뒤로가기
+    router.back();
   };
 
   return (
@@ -311,29 +302,6 @@ export default function PropertySpecsPage() {
         </div>
       </section>
 
-      {/* 대지 */}
-      <section className="mb-10">
-        <h2 className="text-lg font-semibold mb-4 text-slate-900 dark:text-white">
-          대지 · 규제
-        </h2>
-
-        <Field label="대지 용도(용도지역)" example="제2종일반주거지역">
-          <select
-            className={selectClass}
-            value={form.land_use_zone ?? ""}
-            onChange={(e) => update("land_use_zone", e.target.value)}
-            disabled={!editing}
-          >
-            <option value="">대지 용도 선택</option>
-            {LAND_USES.map((u) => (
-              <option key={u} value={u}>
-                {u}
-              </option>
-            ))}
-          </select>
-        </Field>
-      </section>
-
       {/* 면적 */}
       <section className="mb-10">
         <h2 className="text-lg font-semibold mb-4 text-slate-900 dark:text-white">
@@ -409,14 +377,23 @@ export default function PropertySpecsPage() {
             set={(v) => update("building_count", v)}
             editing={editing}
           />
-          <NumberField
-            label="총 세대수"
-            unit="세대"
-            example="420"
-            value={form.household_total}
-            set={(v) => update("household_total", v)}
-            editing={editing}
-          />
+          <Field
+            label={
+              <span className="flex items-center gap-2">
+                총 세대수
+                <span className="text-sm text-slate-500">
+                  (※ 평면타입 입력 시 자동 합계)
+                </span>
+              </span>
+            }
+          >
+            <input
+              className={inputClass}
+              value={`${calculatedHouseholdTotal.toLocaleString()} 세대`}
+              disabled
+            />
+          </Field>
+
         </Grid>
       </section>
 
@@ -486,7 +463,7 @@ const Field = ({
   example,
   children,
 }: {
-  label: string;
+  label: ReactNode;
   example?: string;
   children: ReactNode;
 }) => (

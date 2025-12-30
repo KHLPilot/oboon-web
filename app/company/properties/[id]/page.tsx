@@ -37,11 +37,11 @@ type PropertyRow = {
 type RelationRow = { id: number };
 
 type PropertyDetail = PropertyRow & {
-  property_locations?: RelationRow[] | null;
-  property_facilities?: RelationRow[] | null;
-  property_specs?: RelationRow[] | null;
-  property_timeline?: RelationRow[] | null;
-  property_unit_types?: RelationRow[] | null;
+  property_locations?: RelationRow | RelationRow[] | null;
+  property_facilities?: RelationRow | RelationRow[] | null;
+  property_specs?: RelationRow | RelationRow[] | null;
+  property_timeline?: RelationRow | RelationRow[] | null;
+  property_unit_types?: RelationRow | RelationRow[] | null;
 };
 
 /* ==================================================
@@ -159,10 +159,9 @@ export default function PropertyDetailPage() {
 
     const hasData = (v: any) => {
       if (!v) return false;
-      if (Array.isArray(v)) {
-        return v.length > 0;
-      }
-      return Object.keys(v).length > 0;
+      if (Array.isArray(v)) return v.length > 0;
+      if (typeof v === "object") return v.id !== undefined;
+      return false;
     };
 
     return {
