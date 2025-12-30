@@ -172,7 +172,7 @@ export default function PropertyTimelinePage() {
     if (formatted.length === 10) {
       setTimeout(() => {
         moveToNextField(index);
-      }, 0); 
+      }, 0);
     }
   };
 
@@ -188,7 +188,7 @@ export default function PropertyTimelinePage() {
     const dateStr = `${y}-${m}-${d}`;
 
     setForm((prev) => ({ ...prev, [key]: dateStr }));
-    
+
     // 달력 선택 시에도 다음 칸으로 이동
     setTimeout(() => {
       moveToNextField(index);
@@ -203,17 +203,18 @@ export default function PropertyTimelinePage() {
 
     const { error } = exists
       ? await supabase
-          .from("property_timeline")
-          .update(cleanForm)
-          .eq("properties_id", propertyId)
+        .from("property_timeline")
+        .update(cleanForm)
+        .eq("properties_id", propertyId)
       : await supabase
-          .from("property_timeline")
-          .insert({ properties_id: propertyId, ...cleanForm });
+        .from("property_timeline")
+        .insert({ properties_id: propertyId, ...cleanForm });
 
     setSaving(false);
     if (!error) {
       alert("저장되었습니다");
-      router.back();
+      router.push(`/company/properties/${propertyId}`);
+      router.refresh();
     }
   }
 

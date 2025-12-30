@@ -123,7 +123,7 @@ export default function PropertyDetailPage() {
         property_locations(id),
         property_facilities(id),
         property_specs!properties_id(id),
-        property_timeline(id),
+        property_timeline!properties_id(id),
         property_unit_types(id)
       `
       )
@@ -157,22 +157,20 @@ export default function PropertyDetailPage() {
   const completion = useMemo(() => {
     if (!data) return null;
 
-    const hasMany = (v?: RelationRow[] | null) =>
-      Array.isArray(v) && v.length > 0;
-
-    const hasSpecs = (v?: RelationRow[] | null) => {
+    const hasData = (v: any) => {
+      if (!v) return false;
       if (Array.isArray(v)) {
         return v.length > 0;
       }
-      return !!v;
+      return Object.keys(v).length > 0;
     };
 
     return {
-      siteLocationDone: hasMany(data.property_locations),
-      facilityDone: hasMany(data.property_facilities),
-      specsDone: hasSpecs(data.property_specs),
-      timelineDone: hasMany(data.property_timeline),
-      unitDone: hasMany(data.property_unit_types),
+      siteLocationDone: hasData(data.property_locations),
+      facilityDone: hasData(data.property_facilities),
+      specsDone: hasData(data.property_specs),
+      timelineDone: hasData(data.property_timeline),
+      unitDone: hasData(data.property_unit_types),
     };
   }, [data]);
 
