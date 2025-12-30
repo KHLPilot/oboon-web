@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import AddressBox from "app/components/AddressBox";
+import NaverMap from "app/components/NaverMap";
 
 declare global {
   interface Window {
@@ -31,6 +32,8 @@ type FacilityForm = {
   open_end: string | null;   // yyyy-mm
   is_active: boolean;
   isEditing: boolean;
+  manualMode: boolean;
+  hasSelectedPosition?: boolean;
 };
 
 /* yyyy-mm formatter */
@@ -96,6 +99,8 @@ export default function PropertyFacilitiesPage() {
         open_end: f.open_end,
         is_active: f.is_active ?? true,
         isEditing: false,
+        manualMode: false,
+        hasSelectedPosition: Boolean(f.lat && f.lng),
       }))
     );
   }
@@ -153,16 +158,32 @@ export default function PropertyFacilitiesPage() {
         open_end: null,
         is_active: true,
         isEditing: true,
+        manualMode: false,
+        hasSelectedPosition: false,
       },
     ]);
   }
 
   async function saveFacility(f: FacilityForm) {
     if (loading) return;
-    if (!f.name.trim()) return alert("시설명을 입력해주세요.");
-    if (!f.road_address) return alert("주소를 입력해주세요.");
+
+    if (!f.name.trim()) {
+      alert("시설명을 입력해주세요.");
+      return;
+    }
+
+    if (!f.lat || !f.lng) {
+      alert("지도에서 위치를 선택해주세요.");
+      return;
+    }
+
+    if (!f.region_1depth || !f.region_2depth) {
+      alert("행정구역 정보가 없습니다.");
+      return;
+    }
 
     setLoading(true);
+
     try {
       const payload = {
         properties_id: propertyId,
@@ -171,23 +192,32 @@ export default function PropertyFacilitiesPage() {
         road_address: f.road_address,
         jibun_address: f.jibun_address,
         address_detail: f.address_detail,
+
         lat: f.lat,
         lng: f.lng,
+
         region_1depth: f.region_1depth,
         region_2depth: f.region_2depth,
         region_3depth: f.region_3depth,
+
         open_start: f.open_start,
         open_end: f.open_end,
         is_active: f.is_active,
       };
 
       const { error } = f.id
-        ? await supabase.from("property_facilities").update(payload).eq("id", f.id)
+        ? await supabase
+          .from("property_facilities")
+          .update(payload)
+          .eq("id", f.id)
         : await supabase.from("property_facilities").insert(payload);
 
       if (error) throw error;
+
       await fetchFacilities(propertyId);
       alert("저장되었습니다.");
+    } catch (err: any) {
+      alert("저장 실패: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -257,16 +287,109 @@ export default function PropertyFacilitiesPage() {
             />
           )}
 
-          <button
-            className={`w-full py-2 rounded-lg text-sm font-medium ${f.road_address
-                ? "bg-slate-200 text-slate-700"
-                : "bg-emerald-600 text-white"
-              }`}
-            disabled={!f.isEditing}
-            onClick={() => openPostcode(idx)}
-          >
-            주소 검색
-          </button>
+          {f.isEditing && !f.manualMode && (
+            <>
+              <button
+                className="btn-primary w-full"
+                onClick={() => openPostcode(idx)}
+              >
+                주소 검색
+              </button>
+
+              <button
+                className="btn-secondary w-full"
+                onClick={() =>
+                  setFacilities((prev) =>
+                    prev.map((x, i) =>
+                      i === idx ? { ...x, manualMode: true } : x
+                    )
+                  )
+                }
+              >
+                직접 위치 등록
+              </button>
+            </>
+          )}
+
+
+          {f.manualMode && (
+            <button
+              className="btn-secondary w-full"
+              onClick={() => updateField(idx, "manualMode", false)}
+            >
+              돌아가기
+            </button>
+          )}
+
+          {f.isEditing && f.manualMode && (
+            <div className="space-y-2">
+              {/* 지도 */}
+              <div className="h-64 relative rounded-xl overflow-hidden border">
+                {!f.hasSelectedPosition && (
+                  <div
+                    className="
+            absolute inset-0 z-10
+            flex items-center justify-center
+            text-sm font-medium text-slate-600
+            bg-white/50 backdrop-blur
+            pointer-events-none
+          "
+                  >
+                    지도에 위치를 찍어주세요.
+                  </div>
+                )}
+
+                <NaverMap
+                  onSelectPosition={async (lat, lng) => {
+                    const res = await fetch(`/api/geo/reverse?lat=${lat}&lng=${lng}`);
+                    const geo = await res.json();
+
+                    const composedRoadAddress = [
+                      geo.region_1depth,
+                      geo.region_2depth,
+                      geo.region_3depth,
+                    ]
+                      .filter(Boolean)
+                      .join(" ");
+
+                    setFacilities((prev) =>
+                      prev.map((x, i) =>
+                        i === idx
+                          ? {
+                            ...x,
+                            lat,
+                            lng,
+                            road_address: composedRoadAddress,
+                            jibun_address: "",
+                            region_1depth: geo.region_1depth,
+                            region_2depth: geo.region_2depth,
+                            region_3depth: geo.region_3depth,
+                            hasSelectedPosition: true,
+                          }
+                          : x
+                      )
+                    );
+                  }}
+                />
+              </div>
+
+              {/* 행정구역 표시 */}
+              <Field label="행정구역">
+                <input
+                  className={inputClass}
+                  readOnly
+                  value={[
+                    f.region_1depth,
+                    f.region_2depth,
+                    f.region_3depth,
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  placeholder="지도에서 위치를 선택하세요"
+                />
+              </Field>
+            </div>
+          )}
 
           <Field label="상세 주소">
             <input

@@ -81,6 +81,7 @@ export default function AddressBox({ roadAddress, jibunAddress }: Props) {
           </div>
         </div>
       )}
+
     </div>
   );
 }
