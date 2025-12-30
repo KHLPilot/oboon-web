@@ -37,15 +37,20 @@ body {
    3) 공통 컴포넌트 스타일
 -------------------------------------------------- */
 
-/* Input Base 스타일 */
+/* Input Base */
 .input-basic {
-  @apply w-full px-4 py-3 rounded-xl
-    border
-    bg-white text-slate-900 border-slate-300
-    placeholder:text-slate-400
-    focus:outline-none focus:ring-2 focus:ring-emerald-500
-    dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700
-    dark:placeholder:text-slate-400;
+  @apply w-full px-4 py-3 rounded-lg
+    border border-slate-600
+    bg-slate-950 text-slate-100
+    placeholder:text-slate-500
+    focus:outline-none
+    focus:ring-2 focus:ring-emerald-500
+    focus:border-emerald-500;
+}
+
+/* Label */
+.input-label {
+  @apply text-xs text-slate-400;
 }
 
 /* 버튼 기본 스타일 */
