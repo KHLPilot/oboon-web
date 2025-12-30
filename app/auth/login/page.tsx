@@ -18,58 +18,63 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
 
-    const { data, error: loginError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      // 1. Supabase Auth 로그인 시도
+      const { data, error: loginError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    if (loginError || !data.session) {
-      setLoading(false);
-      if (loginError?.message === "Invalid login credentials") {
-        setError("이메일 또는 비밀번호가 올바르지 않습니다.");
-      } else if (
-        loginError?.message?.toLowerCase().includes("email not confirmed")
-      ) {
-        setError("이메일 인증을 완료해주세요.");
-      } else {
-        setError("로그인 중 오류가 발생했습니다.");
+      if (loginError) {
+        if (loginError.message === "Invalid login credentials") {
+          throw new Error("이메일 또는 비밀번호가 올바르지 않습니다.");
+        } else if (loginError.message.toLowerCase().includes("confirm")) {
+          throw new Error("이메일 인증을 완료해주세요.");
+        } else {
+          throw loginError;
+        }
       }
-      return;
-    }
 
-    // 로그인 성공 → 프로필 확인/생성
-    const res = await fetch("/api/auth/ensure-profile", {
-      method: "POST",
-    });
+      if (!data.session) throw new Error("로그인 세션 생성에 실패했습니다.");
 
-    if (!res.ok) {
+      // 2. [완벽 포인트] API 대신 직접 profiles 테이블 확인
+      // 이렇게 하면 서버 API의 500 에러나 Method 에러로부터 자유롭습니다.
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("name, phone_number")
+        .eq("id", data.user.id)
+        .single();
+
       setLoading(false);
-      setError("프로필 확인 중 오류가 발생했습니다.");
-      return;
-    }
 
-    const result: { needOnboarding: boolean } = await res.json();
+      /**
+       * 3. 온보딩(추가정보입력) 여부 판단
+       * 이름이 없거나, 임시값인 'temp'이거나, 번호가 없으면 정보 입력창으로 보냅니다.
+       */
+      const isMissingInfo = !profile || !profile.name || profile.name === "temp" || !profile.phone_number;
 
-    setLoading(false);
+      if (isMissingInfo) {
+        // 회원가입 페이지에서 아직 정보를 다 안 채웠다면 다시 가입 페이지(정보입력단계)로 보냄
+        router.replace("/auth/signup");
+      } else {
+        // 정보가 완벽하면 홈으로 이동
+        router.push("/");
+        router.refresh(); // 헤더 갱신
+      }
 
-    if (result.needOnboarding) {
-      router.replace("/auth/onboarding");
-    } else {
-      router.replace("/");
+    } catch (err: any) {
+      setLoading(false);
+      setError(err.message || "로그인 중 오류가 발생했습니다.");
     }
   }
 
+  // 소셜 로그인 로직 (기존과 동일)
   async function handleOAuthLogin(provider: "google" | "kakao") {
     setLoading(true);
-    setError(null);
-
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
     });
-
     if (error) {
       setError("소셜 로그인 중 오류가 발생했습니다.");
       setLoading(false);
@@ -81,80 +86,92 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-50 flex items-center justify-center">
-      <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl shadow-black/40">
-        <h1 className="mb-2 text-xl font-bold text-center">로그인</h1>
-
-        <p className="mb-6 text-xs text-center text-slate-400">
+    <main className="min-h-screen bg-slate-950 text-slate-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900/80 p-8 shadow-xl shadow-black/40">
+        <h1 className="mb-2 text-2xl font-bold text-center">로그인</h1>
+        <p className="mb-8 text-xs text-center text-slate-400">
           OBOON 분양 플랫폼에 로그인해주세요.
         </p>
 
-        <form onSubmit={handleLogin} className="space-y-3">
-          <div>
-            <label className="text-xs text-slate-300">이메일</label>
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div className="space-y-1">
+            <label className="text-xs text-slate-300 ml-1">이메일</label>
             <input
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm"
+              placeholder="example@email.com"
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm outline-none focus:border-emerald-500 transition-all"
             />
           </div>
 
-          <div>
-            <label className="text-xs text-slate-300">비밀번호</label>
+          <div className="space-y-1">
+            <label className="text-xs text-slate-300 ml-1">비밀번호</label>
             <input
               type="password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm"
+              placeholder="••••••••"
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm outline-none focus:border-emerald-500 transition-all"
             />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="mt-2 w-full rounded-lg bg-emerald-500 py-2 text-sm font-semibold text-slate-950"
+            className="w-full rounded-xl bg-emerald-500 py-3 text-sm font-bold text-slate-950 hover:bg-emerald-400 disabled:opacity-50 transition-all active:scale-95 mt-2"
           >
             {loading ? "로그인 중..." : "로그인"}
           </button>
         </form>
 
-        {error && <p className="mt-3 text-xs text-red-400">{error}</p>}
+        {error && (
+          <div className="mt-4 p-3 bg-red-500/10 border border-red-500/50 rounded-lg text-center text-xs text-red-400">
+            {error}
+          </div>
+        )}
 
-        <div className="mt-6 border-t border-slate-800 pt-4 text-center space-y-2">
-          <p className="text-xs text-slate-400 mb-2">소셜 계정으로 계속하기</p>
-
-          <div className="flex flex-col gap-2">
-            <button
-              onClick={() => handleOAuthLogin("google")}
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 py-2 text-xs hover:border-emerald-400"
-            >
-              🔵 Google로 계속하기
-            </button>
-
-            <button
-              onClick={handleNaverLogin}
-              className="w-full rounded-lg border border-green-500/30 bg-green-500/10 py-2 text-xs text-green-200 hover:border-green-400"
-            >
-              🟢 네이버로 계속하기
-            </button>
+        {/* 구분선 */}
+        <div className="relative my-8">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-slate-800"></div>
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-slate-900 px-2 text-slate-500">Social Login</span>
           </div>
         </div>
 
-        <div className="mt-6 text-center text-xs text-slate-400 space-y-2">
-          <div>
+        <div className="space-y-2">
+          <button
+            onClick={() => handleOAuthLogin("google")}
+            className="w-full rounded-lg border border-slate-700 bg-slate-900 py-2.5 text-xs font-medium hover:bg-slate-800 transition-all flex items-center justify-center gap-2"
+          >
+            Google로 계속하기
+          </button>
+          <button
+            onClick={handleNaverLogin}
+            className="w-full rounded-lg border border-green-500/30 bg-green-500/10 py-2.5 text-xs font-medium text-green-200 hover:bg-green-500/20 transition-all flex items-center justify-center gap-2"
+          >
+            네이버로 계속하기
+          </button>
+        </div>
+
+        <div className="mt-8 text-center text-xs text-slate-400 space-y-3">
+          <p>
             아직 계정이 없으신가요?{" "}
             <button
               onClick={() => router.push("/auth/signup")}
-              className="text-emerald-400 hover:underline"
+              className="text-emerald-400 hover:text-emerald-300 font-bold ml-1 underline-offset-4 hover:underline"
             >
               회원가입
             </button>
-          </div>
-
-          <button onClick={() => router.push("/")} className="hover:underline">
+          </p>
+          <button
+            onClick={() => router.push("/")}
+            className="text-slate-500 hover:text-slate-300 transition-colors"
+          >
             ← 홈으로 돌아가기
           </button>
         </div>

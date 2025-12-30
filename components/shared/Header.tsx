@@ -11,6 +11,7 @@ export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
+  const [profileName, setProfileName] = useState<string>(""); // DB에서 가져온 실명 저장용
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const supabase = createSupabaseClient();
   const dropdownRef = useRef<HTMLDivElement | null>(null);
@@ -29,37 +30,53 @@ export default function Header() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // 로그인 상태 가져오기
-  useEffect(() => {
-    const loadUser = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+  /**
+   * 유저 세션과 DB 프로필 이름을 함께 로드하는 함수
+   */
+  const loadUserData = async (currentUser: User | null) => {
+    setUser(currentUser);
+    if (currentUser) {
+      // 내 DB(profiles)에서 실제 이름 가져오기
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("name")
+        .eq("id", currentUser.id)
+        .single();
 
-      if (session?.user) {
-        setUser(session.user);
-        return;
+      if (profile?.name) {
+        setProfileName(profile.name);
+      } else {
+        setProfileName(""); // 프로필 정보가 아직 없으면 초기화
       }
+    } else {
+      setProfileName("");
+    }
+  };
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      setUser(user ?? null);
+  // 초기 로드 및 인증 상태 변경 감지
+  useEffect(() => {
+    const initAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      loadUserData(session?.user ?? null);
     };
 
-    loadUser();
+    initAuth();
 
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setUser(session?.user ?? null);
-      }
-    );
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      loadUserData(session?.user ?? null);
+    });
 
     return () => listener.subscription.unsubscribe();
   }, [supabase]);
 
-  const getDisplayName = (user: User | null): string => {
+  /**
+   * 표시할 이름 결정 로직
+   * 1순위: profiles 테이블의 실명
+   * 2순위: 소셜 로그인 등의 metadata name
+   * 3순위: 이메일 아이디 부분
+   */
+  const getDisplayName = (): string => {
+    if (profileName) return profileName; // DB 실명이 있으면 최우선 적용
     if (!user) return "";
     const meta = user.user_metadata || {};
     return (
@@ -79,7 +96,6 @@ export default function Header() {
     { label: "Navigation", href: "/navigation" },
   ];
 
-  // 로그아웃
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) {
@@ -88,6 +104,7 @@ export default function Header() {
     }
     setDropdownOpen(false);
     setUser(null);
+    setProfileName(""); // 이름 상태 초기화
     router.push("/");
     router.refresh();
   };
@@ -113,11 +130,10 @@ export default function Header() {
               <Link
                 key={item.label}
                 href={item.href}
-                className={`transition-colors ${
-                  isActive
+                className={`transition-colors ${isActive
                     ? "text-teal-600 font-bold border-b-2 border-teal-600 pb-0.5"
                     : "text-slate-500 hover:text-slate-900"
-                }`}
+                  }`}
               >
                 {item.label}
               </Link>
@@ -127,7 +143,6 @@ export default function Header() {
 
         {/* 우측 버튼 영역 */}
         <div className="flex items-center gap-4">
-          {/* 검색 아이콘 */}
           <button className="p-2 hover:bg-slate-100 rounded-full transition-colors">
             <Search className="w-5 h-5 text-slate-400" />
           </button>
@@ -148,12 +163,12 @@ export default function Header() {
                     />
                   ) : (
                     <span className="text-sm font-semibold text-slate-600">
-                      {getDisplayName(user).slice(0, 1)}
+                      {getDisplayName().slice(0, 1)}
                     </span>
                   )}
                 </div>
                 <span className="text-sm font-medium text-slate-700">
-                  {getDisplayName(user)}님
+                  {getDisplayName()}님
                 </span>
               </button>
 
@@ -184,13 +199,11 @@ export default function Header() {
             </Link>
           )}
 
-          {/* 상담 예약 버튼 */}
           <button className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-800 transition-colors flex items-center gap-2">
             <Calendar className="w-4 h-4" />
             <span>상담 예약</span>
           </button>
 
-          {/* ⭐ 현장 등록하기 버튼 (누구나 보이도록 기본 버전) */}
           <Link
             href="/company/properties"
             className="bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-teal-500 transition-colors"
