@@ -3,21 +3,44 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createSupabaseClient } from "@/lib/supabaseClient";
+import { useRouter } from "next/navigation";
+
+const ALLOWED_ROLES = ["builder", "developer", "admin"];
 
 /* --------------------------------------------------
-   타입 (안정성을 위해 RelationRow를 유연하게 정의)
+   타입
 -------------------------------------------------- */
 type RelationRow = { id: number } | { id: number }[] | null;
+
+type ProfileRow = {
+  id: string;
+  name: string;
+  role: string;
+};
 
 type PropertyRow = {
   id: number;
   name: string;
+  created_by: string;
+  profiles?: ProfileRow | ProfileRow[] | null;
   property_locations?: RelationRow;
   property_facilities?: RelationRow;
   property_specs?: RelationRow;
   property_timeline?: RelationRow;
   property_unit_types?: RelationRow;
 };
+
+/* --------------------------------------------------
+   Role 한글 변환
+-------------------------------------------------- */
+function getRoleLabel(role: string): string {
+  const roleMap: Record<string, string> = {
+    admin: "오분",
+    developer: "시행사",
+    builder: "시공사",
+  };
+  return roleMap[role] || role;
+}
 
 /* --------------------------------------------------
    상태 뱃지
@@ -31,13 +54,10 @@ function StatusBadge({
 }) {
   return (
     <span
-      className={`
-        px-2 py-0.5 rounded text-xs font-semibold
-        ${completed
+      className={`px-2 py-0.5 rounded text-xs font-semibold ${completed
           ? "bg-green-100 text-green-800 dark:bg-green-500 dark:text-black"
           : "bg-red-100 text-red-800 dark:bg-red-500 dark:text-black"
-        }
-      `}
+        }`}
     >
       {label} · {completed ? "완료" : "미입력"}
     </span>
@@ -45,26 +65,57 @@ function StatusBadge({
 }
 
 export default function PropertyListPage() {
-  const supabase = createSupabaseClient();
+  const router = useRouter();
   const [rows, setRows] = useState<PropertyRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
-  /* ---------- 데이터 로드 ---------- */
   useEffect(() => {
-    async function load() {
-      setLoading(true);
+    const supabase = createSupabaseClient();
 
+    async function load() {
+      // 1️⃣ 로그인 체크
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        router.replace("/");
+        return;
+      }
+
+      setCurrentUserId(user.id);
+
+      // 2️⃣ 권한 체크
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+
+      if (!profile || !ALLOWED_ROLES.includes(profile.role)) {
+        router.replace("/");
+        return;
+      }
+
+      setCurrentUserRole(profile.role);
+
+      // 3️⃣ 데이터 로드
       const { data, error } = await supabase
         .from("properties")
-        .select(`
+        .select(
+          `
           id,
           name,
+          created_by,
+          profiles (id, name, role),
           property_locations(id),
           property_facilities(id),
           property_specs!properties_id(id),
           property_timeline!properties_id(id),
           property_unit_types(id)
-        `)
+        `
+        )
         .order("id", { ascending: false });
 
       if (error) {
@@ -77,7 +128,7 @@ export default function PropertyListPage() {
     }
 
     load();
-  }, [supabase]);
+  }, [router]);
 
   if (loading) {
     return <div className="p-6 text-gray-400">불러오는 중...</div>;
@@ -103,11 +154,6 @@ export default function PropertyListPage() {
 
       <div className="space-y-4">
         {rows.map((row) => {
-          /**
-           * 데이터 존재 여부를 확인하는 가장 안전한 함수
-           * 1. 배열인 경우: 길이가 0보다 커야 함
-           * 2. 단일 객체인 경우: id 속성이 있어야 함
-           */
           const hasData = (v: any) => {
             if (!v) return false;
             if (Array.isArray(v)) return v.length > 0;
@@ -128,20 +174,53 @@ export default function PropertyListPage() {
             timelineDone &&
             unitDone;
 
+          // profiles가 배열일 수도 있으니 처리
+          const profile = row.profiles
+            ? Array.isArray(row.profiles)
+              ? row.profiles[0]
+              : row.profiles
+            : null;
+
+          // 권한 체크: admin은 모든 현장 수정 가능, 나머지는 본인 것만
+          const canEdit =
+            currentUserRole === "admin" || row.created_by === currentUserId;
+
           return (
             <div
               key={row.id}
               className="border border-gray-200 dark:border-gray-700 rounded p-4 bg-white dark:bg-black text-gray-900 dark:text-white space-y-3 hover:border-gray-400 dark:hover:border-gray-500 transition"
             >
               <div className="flex justify-between items-start">
-                <h2 className="font-semibold text-lg">{row.name}</h2>
+                <div>
+                  <h2 className="font-semibold text-lg">{row.name}</h2>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                    작성자:{" "}
+                    <span className="font-medium">
+                      {profile?.name ?? "알 수 없음"}
+                    </span>
+                    {profile?.role && ` · ${getRoleLabel(profile.role)}`}
+                  </div>
+                </div>
                 <Link
-                  href={`/company/properties/${row.id}`}
-                  className={`px-3 py-1 rounded text-sm font-semibold
-                    ${allCompleted ? "bg-green-600 text-black" : "bg-yellow-400 text-black"}
-                  `}
+                  href={canEdit ? `/company/properties/${row.id}` : "#"}
+                  className={`px-3 py-1 rounded text-sm font-semibold ${canEdit
+                      ? allCompleted
+                        ? "bg-green-600 text-black"
+                        : "bg-yellow-400 text-black"
+                      : "bg-gray-400 text-white cursor-not-allowed"
+                    }`}
+                  onClick={(e) => {
+                    if (!canEdit) {
+                      e.preventDefault();
+                      alert("본인이 작성한 현장만 조회 및 수정할 수 있습니다.");
+                    }
+                  }}
                 >
-                  {allCompleted ? "상세 보기" : "추가 입력 필요"}
+                  {canEdit
+                    ? allCompleted
+                      ? "상세 보기"
+                      : "추가 입력 필요"
+                    : "수정 불가"}
                 </Link>
               </div>
 

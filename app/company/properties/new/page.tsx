@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 
@@ -31,11 +31,26 @@ export default function PropertyCreatePage() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
 
   const inputClass =
     "w-full px-4 py-3 rounded-xl bg-white text-slate-900 " +
     "border border-slate-300 " +
     "focus:outline-none focus:ring-2 focus:ring-emerald-500";
+
+  // 로그인 유저 확인
+  useEffect(() => {
+    async function checkUser() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        alert("로그인이 필요합니다.");
+        router.replace("/");
+        return;
+      }
+      setUserId(user.id);
+    }
+    checkUser();
+  }, []);
 
   async function handleSubmit() {
     if (loading) return;
@@ -47,6 +62,11 @@ export default function PropertyCreatePage() {
       return;
     }
 
+    if (!userId) {
+      setError("사용자 정보를 확인할 수 없습니다. 다시 로그인해주세요.");
+      return;
+    }
+
     setLoading(true);
 
     const payload = {
@@ -55,6 +75,7 @@ export default function PropertyCreatePage() {
       phone_number: form.phone_number.trim() || null,
       status: form.status || null,
       description: form.description.trim() || null,
+      created_by: userId, // 🔥 이게 핵심!
     };
 
     const { data, error } = await supabase
@@ -76,6 +97,11 @@ export default function PropertyCreatePage() {
     }
 
     router.push(`/company/properties/${data.id}`);
+  }
+
+  // 유저 확인 중
+  if (userId === null) {
+    return <div className="p-6 text-gray-400">불러오는 중...</div>;
   }
 
   return (
@@ -131,7 +157,8 @@ export default function PropertyCreatePage() {
           {/* 상태 (자유입력 → select로 고정) */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
-              상태</label>
+              상태
+            </label>
             <select
               className={inputClass}
               value={form.status}
@@ -148,7 +175,8 @@ export default function PropertyCreatePage() {
           {/* 설명 */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
-              설명</label>
+              설명
+            </label>
             <textarea
               className={`${inputClass} min-h-[120px]`}
               value={form.description}
@@ -161,7 +189,6 @@ export default function PropertyCreatePage() {
           <p className="text-gray-500">
             ※ 대표 이미지는 현장 등록 후 상세 페이지에서 업로드할 수 있습니다.
           </p>
-
         </div>
 
         {/* 에러 메시지 */}

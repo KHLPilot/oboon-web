@@ -19,7 +19,6 @@ export default function LoginPage() {
     setError(null);
 
     try {
-      // 1. Supabase Auth 로그인 시도
       const { data, error: loginError } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -37,30 +36,58 @@ export default function LoginPage() {
 
       if (!data.session) throw new Error("로그인 세션 생성에 실패했습니다.");
 
-      // 2. [완벽 포인트] API 대신 직접 profiles 테이블 확인
-      // 이렇게 하면 서버 API의 500 에러나 Method 에러로부터 자유롭습니다.
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
-        .select("name, phone_number")
+        .select("name, phone_number, role")
         .eq("id", data.user.id)
         .single();
 
       setLoading(false);
 
-      /**
-       * 3. 온보딩(추가정보입력) 여부 판단
-       * 이름이 없거나, 임시값인 'temp'이거나, 번호가 없으면 정보 입력창으로 보냅니다.
-       */
-      const isMissingInfo = !profile || !profile.name || profile.name === "temp" || !profile.phone_number;
+      // 1️⃣ 프로필 조회 에러 대응
+      if (profileError) {
+        console.error("Profile Error Detail:", profileError);
+        // 프로필이 진짜 없는 경우(PGRST116)만 온보딩으로. 
+        // 권한 문제(42501)면 에러 메시지를 띄워야 함.
+        if (profileError.code === 'PGRST116') {
+          router.replace("/auth/onboarding");
+        } else {
+          setError(`권한 오류: ${profileError.message} (관리자에게 문의하세요)`);
+        }
+        setLoading(false);
+        return;
+      }
+
+      setLoading(false);
+
+      // 2️⃣ 관리자: 관리자 페이지로 즉시 이동
+      if (profile.role === "admin") {
+        router.replace("/admin");
+        // refresh를 통해 미들웨어 세션을 갱신합니다.
+        setTimeout(() => router.refresh(), 100);
+        return;
+      }
+
+      // 3️⃣ 대행사 직원 대기 → 홈
+      if (profile.role === "agent_pending") {
+        router.replace("/");
+        router.refresh();
+        return;
+      }
+
+      // 4️⃣ 일반 유저: 필수 정보 누락 체크
+      const isMissingInfo =
+        !profile.name ||
+        profile.name === "temp" ||
+        !profile.phone_number;
 
       if (isMissingInfo) {
-        // 회원가입 페이지에서 아직 정보를 다 안 채웠다면 다시 가입 페이지(정보입력단계)로 보냄
-        router.replace("/auth/signup");
+        router.replace("/auth/onboarding");
       } else {
-        // 정보가 완벽하면 홈으로 이동
-        router.push("/");
-        router.refresh(); // 헤더 갱신
+        router.replace("/");
+        router.refresh();
       }
+
 
     } catch (err: any) {
       setLoading(false);
@@ -68,7 +95,6 @@ export default function LoginPage() {
     }
   }
 
-  // 소셜 로그인 로직 (기존과 동일)
   async function handleOAuthLogin(provider: "google" | "kakao") {
     setLoading(true);
     const { error } = await supabase.auth.signInWithOAuth({

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Search, Calendar } from "lucide-react";
+import { Search, Calendar, LayoutDashboard, PlusCircle, UserPlus } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { User } from "@supabase/supabase-js";
 import { createSupabaseClient } from "@/lib/supabaseClient";
@@ -11,18 +11,16 @@ export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
-  const [profileName, setProfileName] = useState<string>(""); // DB에서 가져온 실명 저장용
+  const [profileName, setProfileName] = useState<string>("");
+  const [userRole, setUserRole] = useState<string | null>(null); // 권한 상태 추가
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const supabase = createSupabaseClient();
   const dropdownRef = useRef<HTMLDivElement | null>(null);
 
-  // 드롭다운 외부 클릭 감지
+  // 1. 드롭다운 외부 클릭 감지 (기존 유지)
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(e.target as Node)
-      ) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setDropdownOpen(false);
       }
     }
@@ -30,36 +28,32 @@ export default function Header() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  /**
-   * 유저 세션과 DB 프로필 이름을 함께 로드하는 함수
-   */
+  // 2. 유저 데이터 및 Role 로드 (수정 및 보완)
   const loadUserData = async (currentUser: User | null) => {
     setUser(currentUser);
     if (currentUser) {
-      // 내 DB(profiles)에서 실제 이름 가져오기
       const { data: profile } = await supabase
         .from("profiles")
-        .select("name")
+        .select("name, role")
         .eq("id", currentUser.id)
         .single();
 
-      if (profile?.name) {
-        setProfileName(profile.name);
-      } else {
-        setProfileName(""); // 프로필 정보가 아직 없으면 초기화
+      if (profile) {
+        setProfileName(profile.name || "");
+        setUserRole(profile.role || "user"); // Role 저장
       }
     } else {
       setProfileName("");
+      setUserRole(null);
     }
   };
 
-  // 초기 로드 및 인증 상태 변경 감지
+  // 3. 초기 인증 상태 감지 (기존 유지)
   useEffect(() => {
     const initAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       loadUserData(session?.user ?? null);
     };
-
     initAuth();
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -69,14 +63,9 @@ export default function Header() {
     return () => listener.subscription.unsubscribe();
   }, [supabase]);
 
-  /**
-   * 표시할 이름 결정 로직
-   * 1순위: profiles 테이블의 실명
-   * 2순위: 소셜 로그인 등의 metadata name
-   * 3순위: 이메일 아이디 부분
-   */
+  // 4. 표시 이름 결정 로직 (기존 1, 2, 3순위 유지)
   const getDisplayName = (): string => {
-    if (profileName) return profileName; // DB 실명이 있으면 최우선 적용
+    if (profileName) return profileName;
     if (!user) return "";
     const meta = user.user_metadata || {};
     return (
@@ -104,7 +93,8 @@ export default function Header() {
     }
     setDropdownOpen(false);
     setUser(null);
-    setProfileName(""); // 이름 상태 초기화
+    setProfileName("");
+    setUserRole(null);
     router.push("/");
     router.refresh();
   };
@@ -114,15 +104,12 @@ export default function Header() {
       <div className="container mx-auto px-4 md:px-8 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         {/* 로고 */}
         <div className="flex items-center justify-between md:justify-start w-full md:w-auto">
-          <Link
-            href="/"
-            className="text-2xl font-black text-slate-900 tracking-tighter"
-          >
+          <Link href="/" className="text-2xl font-black text-slate-900 tracking-tighter">
             OBOON<span className="text-teal-400">.</span>
           </Link>
         </div>
 
-        {/* 네비게이션 */}
+        {/* 네비게이션 (기존 유지) */}
         <nav className="flex gap-6 overflow-x-auto whitespace-nowrap text-sm font-medium md:gap-8 w-full md:w-auto">
           {NAV_ITEMS.map((item) => {
             const isActive = pathname.startsWith(item.href);
@@ -131,8 +118,8 @@ export default function Header() {
                 key={item.label}
                 href={item.href}
                 className={`transition-colors ${isActive
-                    ? "text-teal-600 font-bold border-b-2 border-teal-600 pb-0.5"
-                    : "text-slate-500 hover:text-slate-900"
+                  ? "text-teal-600 font-bold border-b-2 border-teal-600 pb-0.5"
+                  : "text-slate-500 hover:text-slate-900"
                   }`}
               >
                 {item.label}
@@ -141,13 +128,54 @@ export default function Header() {
           })}
         </nav>
 
-        {/* 우측 버튼 영역 */}
+        {/* 우측 버튼 영역 (권한 로직 집중 적용) */}
         <div className="flex items-center gap-4">
           <button className="p-2 hover:bg-slate-100 rounded-full transition-colors">
             <Search className="w-5 h-5 text-slate-400" />
           </button>
 
-          {/* 로그인 상태 */}
+          {/* [추가] 관리자 전용: 관리자 대시보드 버튼 */}
+          {userRole === "admin" && (
+            <Link
+              href="/admin"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+            >
+              <LayoutDashboard className="w-4 h-4" />
+              <span className="hidden sm:inline">관리자</span>
+            </Link>
+          )}
+
+          {/* [추가] agent 전용: 소속 등록 신청 버튼 */}
+          {userRole === "agent" && (
+            <Link
+              href="/agent/register"
+              className="bg-amber-500 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-amber-400 transition-colors flex items-center gap-2"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>소속 등록 신청</span>
+            </Link>
+          )}
+
+          {/* [수정] 상담 예약: user, agent_pending, 또는 비로그인 시에만 노출 */}
+          {(userRole === "user" || userRole === "agent_pending" || !userRole) && (
+            <button className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-800 transition-colors flex items-center gap-2">
+              <Calendar className="w-4 h-4" />
+              <span>상담 예약</span>
+            </button>
+          )}
+
+          {/* [수정] 현장 등록하기: builder, developer, admin만 노출 */}
+          {["admin", "builder", "developer"].includes(userRole || "") && (
+            <Link
+              href="/company/properties"
+              className="bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-teal-500 transition-colors flex items-center gap-2"
+            >
+              <PlusCircle className="w-4 h-4" />
+              <span className="hidden sm:inline">현장 등록하기</span>
+            </Link>
+          )}
+
+          {/* 로그인 상태 유저 드롭다운 (기존 유지) */}
           {user ? (
             <div className="relative" ref={dropdownRef}>
               <button
@@ -167,7 +195,7 @@ export default function Header() {
                     </span>
                   )}
                 </div>
-                <span className="text-sm font-medium text-slate-700">
+                <span className="hidden sm:inline text-sm font-medium text-slate-700">
                   {getDisplayName()}님
                 </span>
               </button>
@@ -198,18 +226,6 @@ export default function Header() {
               로그인
             </Link>
           )}
-
-          <button className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-800 transition-colors flex items-center gap-2">
-            <Calendar className="w-4 h-4" />
-            <span>상담 예약</span>
-          </button>
-
-          <Link
-            href="/company/properties"
-            className="bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-teal-500 transition-colors"
-          >
-            현장 등록하기
-          </Link>
         </div>
       </div>
     </header>
