@@ -1,13 +1,23 @@
+// app/company/properties/new/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+
+import Button from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
+import Card from "@/components/ui/Card";
+import Input from "@/components/ui/Input";
+import Label from "@/components/ui/Label";
+import PageContainer from "@/components/shared/PageContainer";
+
 import { createSupabaseClient } from "@/lib/supabaseClient";
 
-/* --------------------------------------------------
-   타입 (properties 테이블 전용)
--------------------------------------------------- */
-type PropertyStatus = "READY" | "ONGOING" | "CLOSED";
+import PropertyStatusSelect from "@/app/company/properties/PropertyStatusSelect";
+import {
+  PROPERTY_STATUS_OPTIONS,
+  type PropertyStatus,
+} from "@/app/company/properties/propertyStatus";
 
 type PropertyForm = {
   name: string;
@@ -15,33 +25,55 @@ type PropertyForm = {
   phone_number: string;
   status: PropertyStatus;
   description: string;
+  image_url: string;
+
+  confirmed_comment: string;
+  estimated_comment: string;
+  pending_comment: string;
 };
+
+function cn(...classes: Array<string | undefined | false | null>) {
+  return classes.filter(Boolean).join(" ");
+}
 
 export default function PropertyCreatePage() {
   const supabase = createSupabaseClient();
   const router = useRouter();
+  const defaultStatus = PROPERTY_STATUS_OPTIONS[0]?.value;
 
   const [form, setForm] = useState<PropertyForm>({
     name: "",
     property_type: "",
     phone_number: "",
-    status: "READY",
+    status: defaultStatus ?? PROPERTY_STATUS_OPTIONS[0].value,
     description: "",
+    image_url: "",
+    confirmed_comment: "",
+    estimated_comment: "",
+    pending_comment: "",
   });
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
 
-  const inputClass =
-    "w-full px-4 py-3 rounded-xl bg-white text-slate-900 " +
-    "border border-slate-300 " +
-    "focus:outline-none focus:ring-2 focus:ring-emerald-500";
+  const textareaClass = useMemo(
+    () =>
+      cn(
+        "w-full rounded-xl border border-(--oboon-border-default)",
+        "bg-(--oboon-bg-surface) px-4 py-3 text-sm",
+        "placeholder:text-(--oboon-text-muted)",
+        "focus:outline-none focus:ring-2 focus:ring-(--oboon-primary)/25"
+      ),
+    []
+  );
 
   // 로그인 유저 확인
   useEffect(() => {
     async function checkUser() {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
         alert("로그인이 필요합니다.");
         router.replace("/");
@@ -50,11 +82,10 @@ export default function PropertyCreatePage() {
       setUserId(user.id);
     }
     checkUser();
-  }, []);
+  }, [supabase, router]);
 
   async function handleSubmit() {
     if (loading) return;
-
     setError(null);
 
     if (!form.name.trim()) {
@@ -75,7 +106,13 @@ export default function PropertyCreatePage() {
       phone_number: form.phone_number.trim() || null,
       status: form.status || null,
       description: form.description.trim() || null,
-      created_by: userId, // 🔥 이게 핵심!
+      image_url: form.image_url.trim() || null,
+
+      confirmed_comment: form.confirmed_comment.trim() || null,
+      estimated_comment: form.estimated_comment.trim() || null,
+      pending_comment: form.pending_comment.trim() || null,
+
+      created_by: userId, // 🔥 핵심!
     };
 
     const { data, error } = await supabase
@@ -92,7 +129,9 @@ export default function PropertyCreatePage() {
     }
 
     if (!data?.id) {
-      setError("등록은 되었지만 id를 가져오지 못했습니다. 다시 시도해주세요.");
+      setError(
+        "등록은 되었지만 id가 돌아오지 않았습니다. 잠시 뒤 다시 시도해주세요."
+      );
       return;
     }
 
@@ -101,116 +140,206 @@ export default function PropertyCreatePage() {
 
   // 유저 확인 중
   if (userId === null) {
-    return <div className="p-6 text-gray-400">불러오는 중...</div>;
+    return (
+      <div className="p-6" style={{ color: "var(--oboon-text-muted)" }}>
+        불러오는 중...
+      </div>
+    );
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-6 pt-8 pb-40 bg-slate-50">
-      <div className="space-y-6">
-        {/* 카드 */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
-          <h1 className="text-xl font-bold">현장 등록</h1>
-          {/* 현장명 */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              현장명 <span className="text-red-400">*</span>
-            </label>
-            <input
-              className={inputClass}
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="예: ○○자이, ○○힐스테이트"
-              autoFocus
-            />
+    <main style={{ backgroundColor: "var(--oboon-bg-page)" }}>
+      <PageContainer className="pt-10 pb-10">
+        <div className="mx-auto w-full max-w-3xl space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <h1
+                className="text-2xl font-bold"
+                style={{ color: "var(--oboon-text-title)" }}
+              >
+                새 현장 등록
+              </h1>
+              <p
+                className="text-sm"
+                style={{ color: "var(--oboon-text-muted)" }}
+              >
+                기본 정보만 입력하면 나머지 세부 정보는 단계별로 채울 수
+                있습니다.
+              </p>
+            </div>
+
+            <Badge variant="status" className="text-[12px]">
+              기본 정보
+            </Badge>
           </div>
 
-          {/* 분양 유형 */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              분양 유형
-            </label>
-            <input
-              className={inputClass}
-              value={form.property_type}
-              onChange={(e) =>
-                setForm({ ...form, property_type: e.target.value })
-              }
-              placeholder="예: 아파트 / 오피스텔 / 도시형"
-            />
-          </div>
-
-          {/* 연락처 */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              대표 연락처
-            </label>
-            <input
-              className={inputClass}
-              value={form.phone_number}
-              onChange={(e) =>
-                setForm({ ...form, phone_number: e.target.value })
-              }
-              placeholder="예: 1661-0000"
-            />
-          </div>
-
-          {/* 상태 (자유입력 → select로 고정) */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              상태
-            </label>
-            <select
-              className={inputClass}
-              value={form.status}
-              onChange={(e) =>
-                setForm({ ...form, status: e.target.value as PropertyStatus })
-              }
+          <Card className="space-y-4">
+            <Field
+              label="현장명"
+              required
+              helper="예) 더샵 아르테 미사, 힐스테이트 광안"
             >
-              <option value="READY">분양 예정</option>
-              <option value="ONGOING">분양 중</option>
-              <option value="CLOSED">분양 종료</option>
-            </select>
-          </div>
+              <Input
+                className="h-11"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                autoFocus
+              />
+            </Field>
 
-          {/* 설명 */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              설명
-            </label>
-            <textarea
-              className={`${inputClass} min-h-[120px]`}
-              value={form.description}
-              onChange={(e) =>
-                setForm({ ...form, description: e.target.value })
-              }
-              placeholder="현장에 대한 간단한 설명"
-            />
-          </div>
-          <p className="text-gray-500">
-            ※ 대표 이미지는 현장 등록 후 상세 페이지에서 업로드할 수 있습니다.
-          </p>
+            <Field label="분양 유형" helper="예) 아파트 / 오피스텔 / 상업시설">
+              <Input
+                className="h-11"
+                value={form.property_type}
+                onChange={(e) =>
+                  setForm({ ...form, property_type: e.target.value })
+                }
+              />
+            </Field>
+
+            <Field label="대표 연락처" helper="예) 1661-0000">
+              <Input
+                className="h-11"
+                value={form.phone_number}
+                onChange={(e) =>
+                  setForm({ ...form, phone_number: e.target.value })
+                }
+              />
+            </Field>
+
+            <Field label="상태">
+              <PropertyStatusSelect
+                value={form.status}
+                onChange={(v) => setForm({ ...form, status: v })}
+                disabled={loading}
+              />
+            </Field>
+
+            <Field label="설명" helper="현장의 주요 특장점과 간단 설명">
+              <textarea
+                className={cn(textareaClass, "min-h-[100px]")}
+                value={form.description}
+                onChange={(e) =>
+                  setForm({ ...form, description: e.target.value })
+                }
+              />
+            </Field>
+
+            <Field
+              label="대표 이미지 URL"
+              helper="https://example.com/image.jpg"
+            >
+              <Input
+                className="h-11"
+                value={form.image_url}
+                onChange={(e) =>
+                  setForm({ ...form, image_url: e.target.value })
+                }
+              />
+            </Field>
+
+            <div className="pt-2">
+              <div
+                className="text-sm font-semibold"
+                style={{ color: "var(--oboon-text-title)" }}
+              >
+                감정평가사 메모
+              </div>
+
+              <div className="mt-3 space-y-4">
+                <Field label="확정 내용">
+                  <textarea
+                    className={cn(textareaClass, "min-h-[90px]")}
+                    value={form.confirmed_comment}
+                    onChange={(e) =>
+                      setForm({ ...form, confirmed_comment: e.target.value })
+                    }
+                  />
+                </Field>
+
+                <Field label="추정 내용">
+                  <textarea
+                    className={cn(textareaClass, "min-h-[90px]")}
+                    value={form.estimated_comment}
+                    onChange={(e) =>
+                      setForm({ ...form, estimated_comment: e.target.value })
+                    }
+                  />
+                </Field>
+
+                <Field label="미정 내용">
+                  <textarea
+                    className={cn(textareaClass, "min-h-[90px]")}
+                    value={form.pending_comment}
+                    onChange={(e) =>
+                      setForm({ ...form, pending_comment: e.target.value })
+                    }
+                  />
+                </Field>
+              </div>
+            </div>
+
+            {error && (
+              <div className="rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-500">
+                {error}
+              </div>
+            )}
+
+            <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:justify-end">
+              <Button
+                variant="secondary"
+                size="md"
+                shape="pill"
+                onClick={() => router.push("/company/properties")}
+                disabled={loading}
+                className="w-full justify-center sm:w-auto"
+              >
+                취소
+              </Button>
+
+              <Button
+                variant="primary"
+                size="md"
+                shape="pill"
+                onClick={handleSubmit}
+                loading={loading}
+                className="w-full justify-center sm:w-auto"
+              >
+                등록하기
+              </Button>
+            </div>
+          </Card>
         </div>
+      </PageContainer>
+    </main>
+  );
+}
 
-        {/* 에러 메시지 */}
-        {error && <div className="text-red-400 text-sm">❗ {error}</div>}
-
-        <button
-          className="w-full py-3 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-500"
-          onClick={handleSubmit}
-          disabled={loading}
-        >
-          {loading ? "등록 중..." : "등록하기"}
-        </button>
-
-        <button
-          type="button"
-          className="w-full py-3 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200"
-          onClick={() => router.push("/company/properties")}
-          disabled={loading}
-        >
-          취소
-        </button>
+function Field({
+  label,
+  required,
+  helper,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  helper?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <Label>{label}</Label>
+        {required && (
+          <span style={{ color: "var(--oboon-primary)" }}>*</span>
+        )}
       </div>
+      {children}
+      {helper && (
+        <p className="text-xs" style={{ color: "var(--oboon-text-muted)" }}>
+          {helper}
+        </p>
+      )}
     </div>
   );
 }

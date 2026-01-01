@@ -1,3 +1,5 @@
+// app/auth/login/page.tsx
+
 "use client";
 
 import { FormEvent, useState } from "react";
@@ -19,10 +21,11 @@ export default function LoginPage() {
     setError(null);
 
     try {
-      const { data, error: loginError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { data, error: loginError } =
+        await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
 
       if (loginError) {
         if (loginError.message === "Invalid login credentials") {
@@ -34,7 +37,8 @@ export default function LoginPage() {
         }
       }
 
-      if (!data.session) throw new Error("로그인 세션 생성에 실패했습니다.");
+      if (!data.session)
+        throw new Error("로그인 세션 생성에 실패했습니다.");
 
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
@@ -42,17 +46,16 @@ export default function LoginPage() {
         .eq("id", data.user.id)
         .single();
 
-      setLoading(false);
-
-      // 1️⃣ 프로필 조회 에러 대응
+      // 1. 프로필 조회 에러 대응
       if (profileError) {
         console.error("Profile Error Detail:", profileError);
-        // 프로필이 진짜 없는 경우(PGRST116)만 온보딩으로. 
-        // 권한 문제(42501)면 에러 메시지를 띄워야 함.
-        if (profileError.code === 'PGRST116') {
+        // 프로필이 진짜 없는 경우(PGRST116)만 온보딩으로
+        if (profileError.code === "PGRST116") {
           router.replace("/auth/onboarding");
         } else {
-          setError(`권한 오류: ${profileError.message} (관리자에게 문의하세요)`);
+          setError(
+            `권한 오류: ${profileError.message} (관리자에게 문의하세요)`
+          );
         }
         setLoading(false);
         return;
@@ -60,26 +63,23 @@ export default function LoginPage() {
 
       setLoading(false);
 
-      // 2️⃣ 관리자: 관리자 페이지로 즉시 이동
+      // 2. 관리자: 관리자 페이지로 즉시 이동
       if (profile.role === "admin") {
         router.replace("/admin");
-        // refresh를 통해 미들웨어 세션을 갱신합니다.
         setTimeout(() => router.refresh(), 100);
         return;
       }
 
-      // 3️⃣ 대행사 직원 대기 → 홈
+      // 3. 대행사 직원 대기 → 홈
       if (profile.role === "agent_pending") {
         router.replace("/");
         router.refresh();
         return;
       }
 
-      // 4️⃣ 일반 유저: 필수 정보 누락 체크
+      // 4. 일반 유저: 필수 정보 누락 체크
       const isMissingInfo =
-        !profile.name ||
-        profile.name === "temp" ||
-        !profile.phone_number;
+        !profile.name || profile.name === "temp" || !profile.phone_number;
 
       if (isMissingInfo) {
         router.replace("/auth/onboarding");
@@ -87,20 +87,23 @@ export default function LoginPage() {
         router.replace("/");
         router.refresh();
       }
-
-
     } catch (err: any) {
       setLoading(false);
       setError(err.message || "로그인 중 오류가 발생했습니다.");
     }
   }
 
-  async function handleOAuthLogin(provider: "google" | "kakao") {
+  async function handleOAuthLogin(provider: "google") {
     setLoading(true);
+    setError(null);
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
     });
+
     if (error) {
       setError("소셜 로그인 중 오류가 발생했습니다.");
       setLoading(false);
@@ -112,49 +115,86 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900/80 p-8 shadow-xl shadow-black/40">
-        <h1 className="mb-2 text-2xl font-bold text-center">로그인</h1>
-        <p className="mb-8 text-xs text-center text-slate-400">
+    <main
+      className="min-h-screen flex items-center justify-center p-4"
+      style={{ backgroundColor: "var(--oboon-bg-page)" }}
+    >
+      <div
+        className="w-full max-w-md rounded-2xl border p-8 shadow-card"
+        style={{
+          backgroundColor: "var(--oboon-bg-surface)",
+          borderColor: "var(--oboon-border-default)",
+        }}
+      >
+        <h1
+          className="mb-2 text-2xl font-bold text-center"
+          style={{ color: "var(--oboon-text-title)" }}
+        >
+          로그인
+        </h1>
+        <p
+          className="mb-8 text-xs text-center"
+          style={{ color: "var(--oboon-text-muted)" }}
+        >
           OBOON 분양 플랫폼에 로그인해주세요.
         </p>
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div className="space-y-1">
-            <label className="text-xs text-slate-300 ml-1">이메일</label>
+            <label
+              className="text-xs ml-1"
+              style={{ color: "var(--oboon-text-body)" }}
+            >
+              이메일
+            </label>
             <input
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="example@email.com"
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm outline-none focus:border-emerald-500 transition-all"
+              className="w-full rounded-lg border px-4 py-2.5 text-sm outline-none transition-all"
+              style={{
+                backgroundColor: "var(--oboon-bg-subtle)",
+                borderColor: "var(--oboon-border-default)",
+                color: "var(--oboon-text-body)",
+              }}
             />
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs text-slate-300 ml-1">비밀번호</label>
+            <label
+              className="text-xs ml-1"
+              style={{ color: "var(--oboon-text-body)" }}
+            >
+              비밀번호
+            </label>
             <input
               type="password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm outline-none focus:border-emerald-500 transition-all"
+              className="w-full rounded-lg border px-4 py-2.5 text-sm outline-none transition-all"
+              style={{
+                backgroundColor: "var(--oboon-bg-subtle)",
+                borderColor: "var(--oboon-border-default)",
+                color: "var(--oboon-text-body)",
+              }}
             />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-xl bg-emerald-500 py-3 text-sm font-bold text-slate-950 hover:bg-emerald-400 disabled:opacity-50 transition-all active:scale-95 mt-2"
+            className="w-full ob-btn ob-btn-md ob-btn-round ob-btn-primary mt-2"
           >
             {loading ? "로그인 중..." : "로그인"}
           </button>
         </form>
 
         {error && (
-          <div className="mt-4 p-3 bg-red-500/10 border border-red-500/50 rounded-lg text-center text-xs text-red-400">
+          <div className="mt-4 p-3 rounded-lg text-center text-xs ob-alert ob-alert-danger">
             {error}
           </div>
         )}
@@ -162,41 +202,65 @@ export default function LoginPage() {
         {/* 구분선 */}
         <div className="relative my-8">
           <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-slate-800"></div>
+            <div
+              className="w-full border-t"
+              style={{ borderColor: "var(--oboon-border-default)" }}
+            ></div>
           </div>
           <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-slate-900 px-2 text-slate-500">Social Login</span>
+            <span
+              className="px-2"
+              style={{
+                backgroundColor: "var(--oboon-bg-surface)",
+                color: "var(--oboon-text-muted)",
+              }}
+            >
+              Social Login
+            </span>
           </div>
         </div>
 
         <div className="space-y-2">
           <button
             onClick={() => handleOAuthLogin("google")}
-            className="w-full rounded-lg border border-slate-700 bg-slate-900 py-2.5 text-xs font-medium hover:bg-slate-800 transition-all flex items-center justify-center gap-2"
+            disabled={loading}
+            className="w-full rounded-lg border py-2.5 text-xs font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            style={{
+              backgroundColor: "var(--oboon-bg-subtle)",
+              borderColor: "var(--oboon-border-default)",
+              color: "var(--oboon-text-body)",
+            }}
           >
-            Google로 계속하기
+            🔵 Google로 계속하기
           </button>
+
           <button
             onClick={handleNaverLogin}
-            className="w-full rounded-lg border border-green-500/30 bg-green-500/10 py-2.5 text-xs font-medium text-green-200 hover:bg-green-500/20 transition-all flex items-center justify-center gap-2"
+            disabled={loading}
+            className="w-full rounded-lg border border-green-500/30 bg-green-500/10 py-2.5 text-xs font-medium text-green-200 hover:bg-green-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
           >
-            네이버로 계속하기
+            🟢 네이버로 계속하기
           </button>
         </div>
 
-        <div className="mt-8 text-center text-xs text-slate-400 space-y-3">
+        <div
+          className="mt-8 text-center text-xs space-y-3"
+          style={{ color: "var(--oboon-text-muted)" }}
+        >
           <p>
             아직 계정이 없으신가요?{" "}
             <button
               onClick={() => router.push("/auth/signup")}
-              className="text-emerald-400 hover:text-emerald-300 font-bold ml-1 underline-offset-4 hover:underline"
+              className="font-bold ml-1 underline-offset-4 hover:underline"
+              style={{ color: "var(--oboon-primary)" }}
             >
               회원가입
             </button>
           </p>
           <button
             onClick={() => router.push("/")}
-            className="text-slate-500 hover:text-slate-300 transition-colors"
+            className="transition-colors"
+            style={{ color: "var(--oboon-text-muted)" }}
           >
             ← 홈으로 돌아가기
           </button>

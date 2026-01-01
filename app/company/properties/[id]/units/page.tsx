@@ -1,389 +1,538 @@
+// app/company/properties/[id]/units/page.tsx
+
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { createSupabaseClient } from "@/lib/supabaseClient";
 
-const supabase = createSupabaseClient();
+import Button from "@/components/ui/Button";
+import UnitTypeCard from "@/components/company/units/UnitTypeCard";
 
-/* ---------- utils ---------- */
-const formatNumber = (v: number | null | undefined) =>
-  v === null || v === undefined ? "" : v.toLocaleString("ko-KR");
+import type { UnitDraft, UnitRow } from "./types";
+import { useUnitTypes } from "./useUnitTypes";
+import {
+  cn,
+  formatPriceRange,
+  getUnitStatus,
+  toNumberOrNull,
+  toPyeong,
+  formatKoreanMoney
+} from "./utils";
+import { validateUnitDraft } from "./validation";
+import { mapSupabaseErrorToKorean } from "./errors";
 
-const parseNumber = (raw: string): number | null => {
-  if (raw === "" || raw === ".") return null;
-  const n = Number(raw.replace(/,/g, ""));
-  if (!Number.isFinite(n)) return null;
-  return n < 0 ? 0 : n;
-};
+import PageContainer from "@/components/shared/PageContainer";
+import Card from "@/components/ui/Card";
+import Input from "@/components/ui/Input";
+import Label from "@/components/ui/Label";
 
-const formatKoreanMoney = (value: number | null | undefined) => {
-  if (!value || value <= 0) return "";
-  const units = [
-    { value: 1_0000_0000, label: "억" },
-    { value: 1_0000, label: "만" },
-  ];
-  let remain = value;
-  let result = "";
-  for (const u of units) {
-    if (remain >= u.value) {
-      result += `${Math.floor(remain / u.value)}${u.label} `;
-      remain %= u.value;
-    }
-  }
-  return result.trim() + "원";
-};
-
-const toPyeong = (m2: number | null | undefined) => {
-  if (!m2 || m2 <= 0) return "";
-  return (m2 / 3.305785).toFixed(2);
-};
-
-/* ---------- types ---------- */
-type UnitType = {
-  id: number;
-  properties_id: number;
-  type_name: string;
-  exclusive_area: number | null;
-  supply_area: number | null;
-  rooms: number | null;
-  bathrooms: number | null;
-  price_min: number | null;
-  price_max: number | null;
-  unit_count: number | null;
-  supply_count: number | null;
-  floor_plan_url: string | null;
-  image_url: string | null;
-};
-
-export default function PropertyUnitTypesPage() {
-  const router = useRouter();
-  const params = useParams<{ id: string }>();
-  const propertyId = Number(params.id);
-
-  const [list, setList] = useState<UnitType[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [editingId, setEditingId] = useState<number | null>(null);
-
-  const [form, setForm] = useState<Partial<UnitType>>({
-    properties_id: propertyId,
-    type_name: "",
-  });
-
-  const load = async () => {
-    setLoading(true);
-    const { data } = await supabase
-      .from("property_unit_types")
-      .select("*")
-      .eq("properties_id", propertyId)
-      .order("id");
-    setList((data ?? []) as UnitType[]);
-    setLoading(false);
+function buildDraftFromRow(row: UnitRow): UnitDraft {
+  return {
+    properties_id: row.properties_id,
+    type_name: row.type_name ?? "",
+    exclusive_area: row.exclusive_area ?? null,
+    supply_area: row.supply_area ?? null,
+    rooms: row.rooms ?? null,
+    bathrooms: row.bathrooms ?? null,
+    building_layout: row.building_layout ?? null,
+    orientation: row.orientation ?? null,
+    price_min: row.price_min ?? null,
+    price_max: row.price_max ?? null,
+    unit_count: row.unit_count ?? null,
+    supply_count: row.supply_count ?? null, // ✅ 추가
+    floor_plan_url: row.floor_plan_url ?? null,
+    image_url: row.image_url ?? null,
   };
+}
 
-  useEffect(() => {
-    if (Number.isFinite(propertyId)) load();
-  }, [propertyId]);
-
-  const save = async () => {
-    if (!form.type_name?.trim()) {
-      alert("평면 타입명은 필수입니다");
-      return;
-    }
-
-    const payload = { ...form, properties_id: propertyId };
-
-    const { error } =
-      editingId === null
-        ? await supabase.from("property_unit_types").insert(payload)
-        : await supabase
-          .from("property_unit_types")
-          .update(payload)
-          .eq("id", editingId);
-
-    if (error) {
-      alert("저장 실패: " + error.message);
-      return;
-    }
-
-    setForm({ properties_id: propertyId, type_name: "" });
-    setEditingId(null);
-    load();
-  };
-
-  const edit = (row: UnitType) => {
-    setEditingId(row.id);
-    setForm(row);
-    window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
-  };
-
-  const remove = async (id: number) => {
-    if (!confirm("이 평면 타입을 삭제할까요?")) return;
-    await supabase.from("property_unit_types").delete().eq("id", id);
-    load();
-  };
-
-  if (loading)
-    return (
-      <div className="p-10 text-center text-slate-400">불러오는 중…</div>
-    );
-
+function Field({
+  label,
+  placeholder,
+  value,
+  onChange,
+  inputMode,
+  className,
+  hint,
+}: {
+  label: string;
+  placeholder?: string;
+  value: string;
+  onChange: (v: string) => void;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
+  className?: string;
+  hint?: string;
+}) {
   return (
-    <div className="max-w-5xl mx-auto px-6 pt-8 pb-40 bg-slate-50 text-slate-900">
-      {/* 헤더 */}
-      <div className="flex items-center gap-3 mb-8">
-        <button
-          onClick={() => router.push(`/company/properties/${propertyId}`)}
-          className="text-sm text-slate-500 hover:underline"
-        >
-          ← 뒤로가기
-        </button>
-        <h1 className="text-xl font-bold">🏠 평면 타입</h1>
-      </div>
-
-      {/* 리스트 */}
-      <section className="mb-10">
-        <h2 className="text-lg font-semibold mb-4">등록된 평면</h2>
-
-        {list.length === 0 ? (
-          <p className="text-slate-400">등록된 평면이 없습니다.</p>
-        ) : (
-          <div className="space-y-2">
-            {list.map((u) => (
-              <div
-                key={u.id}
-                className="flex justify-between items-center bg-white border rounded-xl px-4 py-3"
-              >
-                <div>
-                  <p className="font-semibold">{u.type_name}</p>
-                  <p className="text-sm text-slate-500">
-                    전용 {u.exclusive_area ?? "-"}㎡ · 공급{" "}
-                    {u.supply_area ?? "-"}㎡
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => edit(u)}
-                    className="px-3 py-1 rounded bg-slate-100 text-sm"
-                  >
-                    수정
-                  </button>
-                  <button
-                    onClick={() => remove(u.id)}
-                    className="px-3 py-1 rounded bg-red-50 text-red-600 text-sm"
-                  >
-                    삭제
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* 입력 폼 */}
-      <section>
-        <h2 className="text-lg font-semibold mb-4">
-          {editingId ? "평면 수정" : "새 평면 추가"}
-        </h2>
-
-        <Grid>
-          <Field label="평면 타입명">
-            <input
-              className={inputClass}
-              value={form.type_name ?? ""}
-              onChange={(e) =>
-                setForm({ ...form, type_name: e.target.value })
-              }
-            />
-          </Field>
-
-          <NumberField
-            label="세대 수"
-            value={form.unit_count}
-            set={(v) => setForm({ ...form, unit_count: v })}
-          />
-
-          <Field
-            label={
-              <span className="flex items-center gap-2">
-                공급규모
-                <span className="text-xs text-slate-500">
-                  (※ 일반 청약 공급 세대 수)
-                </span>
-              </span>
-            }
-          >
-            <NumberField
-              label=""
-              value={form.supply_count}
-              set={(v) => setForm({ ...form, supply_count: v })}
-            />
-          </Field>
-
-
-
-          <div className="relative">
-            <DecimalField
-              label="전용면적 (㎡)"
-              value={form.exclusive_area}
-              set={(v) => setForm({ ...form, exclusive_area: v })}
-            />
-            {form.exclusive_area && (
-              <span className="absolute right-4 top-[45px] text-base font-semibold text-slate-600 ">
-                {toPyeong(form.exclusive_area)}평
-              </span>
-            )}
-          </div>
-
-          <div className="relative">
-            <DecimalField
-              label="공급면적 (㎡)"
-              value={form.supply_area}
-              set={(v) => setForm({ ...form, supply_area: v })}
-            />
-            {form.supply_area && (
-              <span className="absolute right-4 top-[45px] text-base font-semibold text-slate-600 ">
-                {toPyeong(form.supply_area)}평
-              </span>
-            )}
-          </div>
-
-          <NumberField
-            label="방 개수"
-            value={form.rooms}
-            set={(v) => setForm({ ...form, rooms: v })}
-          />
-
-          <NumberField
-            label="욕실 개수"
-            value={form.bathrooms}
-            set={(v) => setForm({ ...form, bathrooms: v })}
-          />
-
-          <Field label="최소 분양가">
-            <input
-              className={inputClass}
-              value={formatNumber(form.price_min)}
-              onChange={(e) =>
-                setForm({ ...form, price_min: parseNumber(e.target.value) })
-              }
-            />
-            <p className="text-xs text-slate-400">
-              {formatKoreanMoney(form.price_min)}
-            </p>
-          </Field>
-
-          <Field label="최대 분양가">
-            <input
-              className={inputClass}
-              value={formatNumber(form.price_max)}
-              onChange={(e) =>
-                setForm({ ...form, price_max: parseNumber(e.target.value) })
-              }
-            />
-            <p className="text-xs text-slate-400">
-              {formatKoreanMoney(form.price_max)}
-            </p>
-          </Field>
-        </Grid>
-
-        <div className="flex gap-3 mt-6">
-          <button
-            onClick={save}
-            className="flex-1 py-3 rounded-xl bg-emerald-600 text-white font-bold"
-          >
-            {editingId ? "수정 완료" : "저장"}
-          </button>
-
-          {editingId && (
-            <button
-              onClick={() => {
-                setEditingId(null);
-                setForm({ properties_id: propertyId, type_name: "" });
-              }}
-              className="px-6 py-3 rounded-xl bg-slate-100"
-            >
-              취소
-            </button>
-          )}
-        </div>
-      </section>
+    <div className={cn("space-y-2", className)}>
+      <Label className="text-sm text-(--oboon-text-muted)">{label}</Label>
+      <Input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        inputMode={inputMode}
+        className="h-11"
+      />
+      {hint && (
+        <p className="text-xs text-(--oboon-text-muted)">{hint}</p>
+      )}
     </div>
   );
 }
 
-/* ---------- UI helpers ---------- */
+export default function UnitTypesPage() {
+  const params = useParams<{ id: string }>();
+  const router = useRouter();
 
-const inputClass =
-  "w-full px-4 py-3 rounded-xl bg-white border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:outline-none";
+  const propertyId = Number(params?.id);
+  const safePropertyId = Number.isFinite(propertyId) ? propertyId : null;
+  const cancelHref = `/company/properties/${propertyId}`;
 
-const Field = ({
-  label,
-  children,
-}: {
-  label: ReactNode;
-  children: ReactNode;
-}) => (
-  <div className="space-y-2">
-    <p className="font-medium">{label}</p>
-    {children}
-  </div>
-);
+  const {
+    units,
+    loading,
+    errorMsg,
+    createUnit,
+    updateUnit,
+    deleteUnit,
+    clearError,
+  } = useUnitTypes(safePropertyId);
 
-const Grid = ({ children }: { children: ReactNode }) => (
-  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{children}</div>
-);
+  // 생성 폼
+  const [creating, setCreating] = useState(false);
+  const [createDraft, setCreateDraft] = useState<UnitDraft>({
+    properties_id: safePropertyId ?? 0,
+    type_name: "",
+    exclusive_area: null,
+    supply_area: null,
+    rooms: null,
+    bathrooms: null,
+    building_layout: null,
+    orientation: null,
+    price_min: null,
+    price_max: null,
+    unit_count: null,
+    supply_count: null, // ✅ 추가
+    floor_plan_url: null,
+    image_url: null,
+  });
+  const [createFieldErrors, setCreateFieldErrors] = useState<
+    Record<string, string>
+  >({});
 
-/* 숫자 (정수) */
-const NumberField = ({
-  label,
-  value,
-  set,
-}: {
-  label: string;
-  value: number | null | undefined;
-  set: (v: number | null) => void;
-}) => (
-  <Field label={label}>
-    <input
-      className={inputClass}
-      inputMode="numeric"
-      value={formatNumber(value)}
-      onChange={(e) => set(parseNumber(e.target.value))}
-    />
-  </Field>
-);
+  // 인라인 수정(단일 카드만)
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [inlineDraft, setInlineDraft] = useState<UnitDraft | null>(null);
+  const [savingInline, setSavingInline] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
-/* ✅ 소수점 허용 */
-const DecimalField = ({
-  label,
-  value,
-  set,
-}: {
-  label: string;
-  value: number | null | undefined;
-  set: (v: number | null) => void;
-}) => {
-  const [raw, setRaw] = useState("");
+  const unitCountText = useMemo(() => {
+    if (loading) return "불러오는 중...";
+    if (units.length === 0) return "아직 등록된 평면 타입이 없어요.";
+    return `${units.length}개 평면 타입이 등록되어 있어요.`;
+  }, [loading, units.length]);
 
-  useEffect(() => {
-    setRaw(value === null || value === undefined ? "" : value.toString());
-  }, [value]);
+  const createPricePreview = useMemo(
+    () => formatPriceRange(createDraft.price_min, createDraft.price_max),
+    [createDraft.price_min, createDraft.price_max]
+  );
+
+  // ✅ 추가: 한화 표시
+  const createPriceMinKorean = useMemo(
+    () => formatKoreanMoney(createDraft.price_min),
+    [createDraft.price_min]
+  );
+
+  const createPriceMaxKorean = useMemo(
+    () => formatKoreanMoney(createDraft.price_max),
+    [createDraft.price_max]
+  );
+
+  // ✅ 추가: 평형 표시
+  const exclusivePyeong = useMemo(
+    () => toPyeong(createDraft.exclusive_area),
+    [createDraft.exclusive_area]
+  );
+
+  const supplyPyeong = useMemo(
+    () => toPyeong(createDraft.supply_area),
+    [createDraft.supply_area]
+  );
+
+  function startInlineEdit(row: UnitRow) {
+    clearError();
+    setCreateFieldErrors({});
+    setEditingId(row.id);
+    setInlineDraft(buildDraftFromRow(row));
+  }
+
+  function cancelInlineEdit() {
+    setEditingId(null);
+    setInlineDraft(null);
+    setSavingInline(false);
+  }
+
+  async function saveInlineEdit() {
+    if (!editingId || !inlineDraft) return;
+
+    const v = validateUnitDraft(inlineDraft);
+    if (!v.ok) {
+      const first = Object.values(v.fieldErrors)[0];
+      alert(first ?? "입력값을 확인해 주세요.");
+      return;
+    }
+
+    setSavingInline(true);
+    const res = await updateUnit(editingId, inlineDraft);
+    setSavingInline(false);
+
+    if (!res.ok) {
+      const appErr = mapSupabaseErrorToKorean({ message: res.error });
+      alert(appErr.description ?? appErr.title);
+      return;
+    }
+
+    cancelInlineEdit();
+  }
+
+  async function handleCreate() {
+    if (!safePropertyId) return;
+
+    clearError();
+    setCreateFieldErrors({});
+
+    const v = validateUnitDraft(createDraft);
+    if (!v.ok) {
+      setCreateFieldErrors(v.fieldErrors);
+      return;
+    }
+
+    setCreating(true);
+    const res = await createUnit(createDraft);
+    setCreating(false);
+
+    if (!res.ok) {
+      const appErr = mapSupabaseErrorToKorean({ message: res.error });
+      alert(appErr.description ?? appErr.title);
+      return;
+    }
+
+    // reset
+    setCreateDraft((d) => ({
+      ...d,
+      type_name: "",
+      exclusive_area: null,
+      supply_area: null,
+      rooms: null,
+      bathrooms: null,
+      building_layout: null,
+      orientation: null,
+      price_min: null,
+      price_max: null,
+      unit_count: null,
+      supply_count: null, // ✅ 추가
+      floor_plan_url: null,
+      image_url: null,
+    }));
+  }
+
+  async function handleDelete(id: number) {
+    if (deletingId) return;
+    const ok = confirm("이 평면 타입을 삭제할까요?");
+    if (!ok) return;
+
+    setDeletingId(id);
+    await deleteUnit(id);
+    setDeletingId(null);
+
+    if (editingId === id) cancelInlineEdit();
+  }
 
   return (
-    <Field label={label}>
-      <input
-        className={inputClass}
-        inputMode="decimal"
-        value={raw}
-        onChange={(e) => {
-          const v = e.target.value;
-          if (!/^[0-9]*\.?[0-9]*$/.test(v)) return;
-          setRaw(v);
-          set(v === "" || v === "." ? null : Number(v));
-        }}
-      />
-    </Field>
+    <main className="bg-(--oboon-bg-page)">
+      <PageContainer className="pt-8 pb-24">
+        {/* Top */}
+        <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-1">
+            <h1 className="text-xl font-semibold text-(--oboon-text-title)">
+              평면 타입 관리
+            </h1>
+            <p className="text-sm text-(--oboon-text-muted)">{unitCountText}</p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              size="md"
+              shape="pill"
+              onClick={() => router.push(cancelHref)}
+            >
+              취소
+            </Button>
+          </div>
+        </div>
+
+        {/* Error (hook) */}
+        {errorMsg && (
+          <div className="mt-6 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-500">
+            {errorMsg}
+          </div>
+        )}
+
+        {/* Create Form */}
+        <Card className="mt-6">
+          <div className="mb-5 space-y-1">
+            <p className="text-lg font-semibold text-(--oboon-text-title)">
+              새 평면 타입 등록
+            </p>
+            <p className="text-sm text-(--oboon-text-muted)">
+              타입명·전용/공급 면적·가격을 먼저 입력해 주세요.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-1">
+              <Field
+                label="평면 타입 이름"
+                placeholder="예: 76C"
+                value={createDraft.type_name ?? ""}
+                onChange={(v) =>
+                  setCreateDraft((d) => ({ ...d, type_name: v }))
+                }
+              />
+              {createFieldErrors.type_name && (
+                <div className="text-xs text-red-500">
+                  {createFieldErrors.type_name}
+                </div>
+              )}
+            </div>
+
+            {/* ✅ 전용면적 + 평형 표시 */}
+            <Field
+              label="전용 면적 (㎡)"
+              placeholder="예: 75"
+              value={
+                createDraft.exclusive_area == null
+                  ? ""
+                  : String(createDraft.exclusive_area)
+              }
+              inputMode="decimal"
+              onChange={(v) =>
+                setCreateDraft((d) => ({
+                  ...d,
+                  exclusive_area: toNumberOrNull(v),
+                }))
+              }
+              hint={exclusivePyeong ? `${exclusivePyeong}평` : undefined}
+            />
+
+            {/* ✅ 공급면적 + 평형 표시 */}
+            <Field
+              label="공급 면적 (㎡)"
+              placeholder="예: 92"
+              value={
+                createDraft.supply_area == null
+                  ? ""
+                  : String(createDraft.supply_area)
+              }
+              inputMode="decimal"
+              onChange={(v) =>
+                setCreateDraft((d) => ({
+                  ...d,
+                  supply_area: toNumberOrNull(v),
+                }))
+              }
+              hint={supplyPyeong ? `${supplyPyeong}평` : undefined}
+            />
+
+            <div className="grid grid-cols-2 gap-4">
+              <Field
+                label="방 개수"
+                value={
+                  createDraft.rooms == null ? "" : String(createDraft.rooms)
+                }
+                inputMode="numeric"
+                onChange={(v) =>
+                  setCreateDraft((d) => ({ ...d, rooms: toNumberOrNull(v) }))
+                }
+              />
+              <Field
+                label="욕실 개수"
+                value={
+                  createDraft.bathrooms == null
+                    ? ""
+                    : String(createDraft.bathrooms)
+                }
+                inputMode="numeric"
+                onChange={(v) =>
+                  setCreateDraft((d) => ({
+                    ...d,
+                    bathrooms: toNumberOrNull(v),
+                  }))
+                }
+              />
+            </div>
+
+            <Field
+              label="구조"
+              placeholder="예: 판상형"
+              value={createDraft.building_layout ?? ""}
+              onChange={(v) =>
+                setCreateDraft((d) => ({ ...d, building_layout: v }))
+              }
+            />
+
+            <Field
+              label="향"
+              placeholder="예: 남향"
+              value={createDraft.orientation ?? ""}
+              onChange={(v) =>
+                setCreateDraft((d) => ({ ...d, orientation: v }))
+              }
+            />
+
+            {/* ✅ 가격 + 한화 표시 */}
+            <div className="md:col-span-2">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Field
+                  label="가격 하한 (원)"
+                  placeholder="예: 850000000"
+                  value={
+                    createDraft.price_min == null
+                      ? ""
+                      : String(createDraft.price_min)
+                  }
+                  inputMode="numeric"
+                  onChange={(v) =>
+                    setCreateDraft((d) => ({
+                      ...d,
+                      price_min: toNumberOrNull(v),
+                    }))
+                  }
+                  hint={createPriceMinKorean}
+                />
+                <Field
+                  label="가격 상한 (원)"
+                  placeholder="예: 990000000"
+                  value={
+                    createDraft.price_max == null
+                      ? ""
+                      : String(createDraft.price_max)
+                  }
+                  inputMode="numeric"
+                  onChange={(v) =>
+                    setCreateDraft((d) => ({
+                      ...d,
+                      price_max: toNumberOrNull(v),
+                    }))
+                  }
+                  hint={createPriceMaxKorean}
+                />
+              </div>
+
+              {createPricePreview ? (
+                <div className="mt-2 text-xs text-(--oboon-text-muted)">
+                  가격 미리보기 · {createPricePreview}
+                </div>
+              ) : null}
+            </div>
+
+            <Field
+              label="세대수"
+              value={
+                createDraft.unit_count == null
+                  ? ""
+                  : String(createDraft.unit_count)
+              }
+              inputMode="numeric"
+              onChange={(v) =>
+                setCreateDraft((d) => ({ ...d, unit_count: toNumberOrNull(v) }))
+              }
+            />
+
+            {/* ✅ 추가: 공급규모 (일반 청약 공급 세대수) */}
+            <Field
+              label="공급규모"
+              placeholder="예: 100"
+              value={
+                createDraft.supply_count == null
+                  ? ""
+                  : String(createDraft.supply_count)
+              }
+              inputMode="numeric"
+              onChange={(v) =>
+                setCreateDraft((d) => ({
+                  ...d,
+                  supply_count: toNumberOrNull(v),
+                }))
+              }
+              hint="일반 청약 공급 세대 수"
+            />
+
+            <Field
+              label="평면도 URL"
+              placeholder="https://..."
+              value={createDraft.floor_plan_url ?? ""}
+              onChange={(v) =>
+                setCreateDraft((d) => ({ ...d, floor_plan_url: v }))
+              }
+              className="md:col-span-2"
+            />
+
+            <Field
+              label="이미지 URL"
+              placeholder="https://..."
+              value={createDraft.image_url ?? ""}
+              onChange={(v) => setCreateDraft((d) => ({ ...d, image_url: v }))}
+              className="md:col-span-2"
+            />
+          </div>
+
+          <div className="mt-6 flex justify-end">
+            <Button
+              variant="primary"
+              size="md"
+              shape="pill"
+              onClick={handleCreate}
+              disabled={creating || !safePropertyId}
+              loading={creating}
+            >
+              저장
+            </Button>
+          </div>
+        </Card>
+
+        {/* List */}
+        <section className="mt-8">
+          <div className="mb-4 flex items-center justify-between">
+            <p className="text-base font-semibold text-(--oboon-text-title)">
+              등록된 평면 타입
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:grid-flow-row-dense">
+            {units.map((u) => {
+              const isEditing = editingId === u.id;
+              return (
+                <UnitTypeCard
+                  key={u.id}
+                  unit={u}
+                  status={getUnitStatus(u)}
+                  isEditing={isEditing}
+                  draft={isEditing ? inlineDraft : null}
+                  saving={savingInline}
+                  onStartEdit={() => startInlineEdit(u)}
+                  onDelete={() => handleDelete(u.id)}
+                  onCancel={cancelInlineEdit}
+                  onSave={saveInlineEdit}
+                  onChange={(key, value) =>
+                    setInlineDraft((d) => (d ? { ...d, [key]: value } : d))
+                  }
+                />
+              );
+            })}
+          </div>
+        </section>
+      </PageContainer>
+    </main>
   );
-};
+}

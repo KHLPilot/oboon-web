@@ -1,7 +1,7 @@
 // app/auth/onboarding/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 
@@ -11,7 +11,7 @@ export default function OnboardingPage() {
   const [region, setRegion] = useState("");
   const [phone, setPhone] = useState("");
 
-  async function handleSubmit(e: any) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const supabase = createSupabaseClient();
 
@@ -39,7 +39,7 @@ export default function OnboardingPage() {
     }
 
     // 3) 프로필 생성 또는 업데이트 (UPSERT)
-    const { data: saved, error } = await supabase
+    const { error } = await supabase
       .from("profiles")
       .upsert(
         {
@@ -65,46 +65,62 @@ export default function OnboardingPage() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-slate-950 text-white">
+    <main className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--oboon-bg-page)" }}>
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-md space-y-4 p-6 border border-slate-700 rounded-xl bg-slate-900"
+        className="w-full max-w-md space-y-4 p-6 border rounded-xl"
+        style={{ backgroundColor: "var(--oboon-bg-surface)", borderColor: "var(--oboon-border-default)" }}
       >
-        <h1 className="text-xl font-bold">기본 정보 입력</h1>
+        <h1 className="text-xl font-bold" style={{ color: "var(--oboon-text-title)" }}>기본 정보 입력</h1>
 
         <div>
-          <label className="text-sm text-slate-300">이름</label>
+          <label className="text-sm" style={{ color: "var(--oboon-text-body)" }}>이름</label>
           <input
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full px-3 py-2 rounded bg-slate-800 border border-slate-700"
+            className="w-full px-3 py-2 rounded border"
+            style={{
+              backgroundColor: "var(--oboon-bg-subtle)",
+              borderColor: "var(--oboon-border-default)",
+              color: "var(--oboon-text-body)"
+            }}
           />
         </div>
 
         <div>
-          <label className="text-sm text-slate-300">지역</label>
+          <label className="text-sm" style={{ color: "var(--oboon-text-body)" }}>지역</label>
           <input
             required
             value={region}
             onChange={(e) => setRegion(e.target.value)}
-            className="w-full px-3 py-2 rounded bg-slate-800 border border-slate-700"
+            className="w-full px-3 py-2 rounded border"
+            style={{
+              backgroundColor: "var(--oboon-bg-subtle)",
+              borderColor: "var(--oboon-border-default)",
+              color: "var(--oboon-text-body)"
+            }}
           />
         </div>
 
         <div>
-          <label className="text-sm text-slate-300">전화번호</label>
+          <label className="text-sm" style={{ color: "var(--oboon-text-body)" }}>전화번호</label>
           <input
             required
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            className="w-full px-3 py-2 rounded bg-slate-800 border border-slate-700"
+            className="w-full px-3 py-2 rounded border"
+            style={{
+              backgroundColor: "var(--oboon-bg-subtle)",
+              borderColor: "var(--oboon-border-default)",
+              color: "var(--oboon-text-body)"
+            }}
           />
         </div>
 
         <button
           type="submit"
-          className="w-full bg-emerald-500 text-slate-900 font-semibold py-2 rounded"
+          className="w-full ob-btn ob-btn-md ob-btn-round ob-btn-primary"
         >
           저장하고 시작하기
         </button>

@@ -1,147 +1,310 @@
+"use client";
+
 // app/page.tsx
-import Header from "@/components/shared/Header";
-import PropertyCard from "@/features/property/PropertyCard";
-import { Property } from "@/types";
-import { ChevronRight, MapPin } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 
-const DUMMY_DATA: Property[] = [
-  {
-    id: 1,
-    status: "청약예정",
-    type: "아파트",
-    title: "더샵 강남 센트럴시티",
-    location: "서울시 강남구 역삼동",
-    price: "11.5억~",
-    imageUrl:
-      "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&q=80&w=600",
-  },
-  {
-    id: 2,
-    status: "선착순",
-    type: "오피스텔",
-    title: "e편한세상 시티 분당",
-    location: "경기도 성남시 분당구",
-    price: "4.2억~",
-    imageUrl:
-      "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=600",
-  },
-  {
-    id: 3,
-    status: "잔여세대",
-    type: "아파트",
-    title: "힐스테이트 판교 밸리",
-    location: "경기도 성남시 판교동",
-    price: "9.8억~",
-    imageUrl:
-      "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&q=80&w=600",
-  },
-  {
-    id: 4,
-    status: "선착순",
-    type: "하이엔드",
-    title: "루시아 청담 546",
-    location: "서울시 강남구 청담동",
-    price: "25억~",
-    imageUrl:
-      "https://images.unsplash.com/photo-1515263487990-61b07816b324?auto=format&fit=crop&q=80&w=600",
-  },
-];
+import PageContainer from "@/components/shared/PageContainer";
+import Button from "@/components/ui/Button";
+import Card from "@/components/ui/Card";
+import { UXCopy } from "@/shared/uxCopy";
 
-export default function Home() {
+import OfferingCard from "@/features/offerings/OfferingCard";
+import {
+  fetchPropertiesForOfferings,
+} from "@/features/offerings/services/offering.query";
+import {
+  mapPropertyRowToOffering,
+  hasAppraiserComment,
+  type PropertyRow,
+} from "@/features/offerings/mappers/offering.mapper";
+import {
+  OFFERING_REGION_TABS,
+} from "@/features/offerings/domain/offering.constants";
+import type { OfferingRegionTab } from "@/features/offerings/domain/offering.types";
+
+import HomeBriefingCompactCard from "@/features/home/HomeBriefingCompactCard";
+import HomeBriefingCompactSeriesCard from "@/features/home/HomeBriefingCompactSeriesCard";
+import {
+  POSTS,
+  SERIES,
+  type BriefingPost,
+  type BriefingSeries,
+} from "@/app/briefing/_data";
+
+import { createSupabaseClient } from "@/lib/supabaseClient";
+
+import type { Offering } from "@/types/index";
+
+/* ================================
+ * Page
+ * ================================ */
+export default function HomePage() {
+  const supabase = useMemo(() => createSupabaseClient(), []);
+  const [rows, setRows] = useState<PropertyRow[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const [selectedRegion, setSelectedRegion] =
+    useState<OfferingRegionTab>("전체");
+
+  useEffect(() => {
+    let mounted = true;
+
+    (async () => {
+      const { data, error } = await fetchPropertiesForOfferings(supabase, {
+        limit: 24,
+      });
+
+      if (!mounted) return;
+
+      if (error) {
+        setLoadError(error.message ?? "데이터를 불러오지 못했어요.");
+        setRows([]);
+        return;
+      }
+
+      setLoadError(null);
+      setRows((data ?? []) as PropertyRow[]);
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [supabase]);
+
+  const fallback = useMemo(
+    () => ({
+      addressShort: UXCopy.addressShort,
+      regionShort: UXCopy.regionShort,
+    }),
+    []
+  );
+
+  const offerings: Offering[] = useMemo(
+    () => rows.map((row) => mapPropertyRowToOffering(row, fallback)),
+    [rows, fallback]
+  );
+
+  // ✅ 감평사 한줄평: 코멘트 있는 것만
+  const reviewOfferings: Offering[] = useMemo(() => {
+    return rows
+      .filter(hasAppraiserComment)
+      .map((row) => mapPropertyRowToOffering(row, fallback));
+  }, [rows, fallback]);
+
+  // 감평사 섹션에 노출된 id는 지역별 인기에서 제외(중복 제거)
+  const reviewIds = useMemo(
+    () => new Set(reviewOfferings.map((o) => o.id)),
+    [reviewOfferings]
+  );
+
+  // ✅ 지역별 인기 분양: 전체면 전부, 지역 선택이면 필터
+  const popularOfferings: Offering[] = useMemo(() => {
+    const base =
+      selectedRegion === "전체"
+        ? offerings
+        : offerings.filter((o) => o.region === selectedRegion);
+
+    return base.filter((o) => !reviewIds.has(o.id));
+  }, [offerings, selectedRegion, reviewIds]);
+
+  const latestPosts: BriefingPost[] = POSTS.slice(0, 3);
+  const topSeries: BriefingSeries[] = SERIES.slice(0, 3);
+
+  const countBySeriesId = useMemo(() => {
+    return POSTS.reduce<Record<string, number>>((acc, p) => {
+      if (p.seriesId) acc[p.seriesId] = (acc[p.seriesId] ?? 0) + 1;
+      return acc;
+    }, {});
+  }, []);
+
   return (
-    <main className="min-h-screen bg-white font-sans text-slate-900">
-      <Header />
+    <main className="min-h-screen bg-(--oboon-bg-page)">
+      <PageContainer className="pt-16 pb-20">
+        <div className="flex flex-col gap-10">
+          <HeroSection />
 
-      {/* Hero Section (배너) */}
-      <section className="relative w-full h-[500px] bg-slate-900 overflow-hidden">
-        {/* 배경 이미지 */}
-        <div className="absolute inset-0">
-          <img
-            src="https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=1920"
-            alt="Hero Background"
-            className="w-full h-full object-cover opacity-60"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-slate-900 via-slate-900/60 to-transparent" />
-        </div>
+          {/* 감정평가사 한줄평 */}
+          <section className="mt-10 flex flex-col gap-2">
+            <SectionHeader
+              title="감정평가사 한줄평"
+              caption="전문가들이 직접 남긴 솔직한 평가를 확인해보세요."
+              rightLink={{ href: "/offerings", label: "전체보기" }}
+            />
 
-        {/* 배너 텍스트 내용 */}
-        <div className="relative z-10 container mx-auto px-4 md:px-8 h-full flex flex-col justify-center">
-          <span className="inline-block bg-teal-500 text-white text-[11px] font-bold px-2 py-1 rounded mb-4 w-fit">
-            오늘의 픽
-          </span>
-          <h2 className="text-4xl md:text-5xl font-bold text-white mb-4 leading-tight">
-            더샵 강남 센트럴시티
-          </h2>
-          <p className="text-slate-300 text-lg mb-8 max-w-xl leading-relaxed font-light">
-            서울의 중심에서 누리는 프리미엄 라이프. <br />
-            청약 일정 D-3, 지금 바로 확인하세요.
-          </p>
-          <div className="flex gap-3">
-            <button className="bg-white text-slate-900 font-bold px-8 py-3.5 rounded-lg hover:bg-slate-100 transition-colors">
-              자세히 보기
-            </button>
-            <button className="bg-white/10 backdrop-blur-sm border border-white/20 text-white font-bold px-8 py-3.5 rounded-lg flex items-center gap-2 hover:bg-white/20 transition-colors">
-              <MapPin className="w-4 h-4" /> 지도 보기
-            </button>
-          </div>
-        </div>
-      </section>
+            {loadError && (
+              <div className="text-[12px] text-red-500">
+                데이터를 불러오지 못했어요. ({loadError})
+              </div>
+            )}
 
-      {/* Filter Section (검색 필터) */}
-      <section className="container mx-auto px-4 md:px-8 -mt-10 relative z-20 mb-16">
-        <div className="bg-white p-6 rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-100 flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-slate-500">
-              무엇을 찾고 계신가요?
-            </h3>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {[
-              "🏢 아파트",
-              "🏡 오피스텔",
-              "🏪 상가/오피스",
-              "🏗️ 도시형생활주택",
-            ].map((cat, idx) => (
-              <button
-                key={idx}
-                className="bg-slate-50 border border-slate-200 px-5 py-2.5 rounded-full text-sm font-semibold text-slate-600 hover:bg-slate-800 hover:border-slate-800 hover:text-white transition-all"
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
+            {reviewOfferings.length === 0 ? (
+              <Card className="p-6 text-sm text-(--oboon-text-muted)">
+                아직 등록된 감정평가사 한줄평이 없어요.
+              </Card>
+            ) : (
+              <ProjectRow>
+                {reviewOfferings.map((offering) => (
+                  <OfferingCard key={offering.id} offering={offering} />
+                ))}
+              </ProjectRow>
+            )}
+          </section>
 
-      {/* Property List Section (매물 리스트) */}
-      <section className="container mx-auto px-4 md:px-8 pb-24">
-        <div className="flex items-end justify-between mb-8">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-orange-500 text-xl">🔥</span>
-              <h2 className="text-2xl font-bold text-slate-900">
-                마감 임박! 선착순 분양
-              </h2>
+          {/* 지역별 인기 분양 */}
+          <section className="mt-10 flex flex-col gap-2">
+            <SectionHeader title="지역별 인기 분양" />
+            <div className="mt-2">
+              <RegionFilterRow
+                value={selectedRegion}
+                onChange={setSelectedRegion}
+              />
             </div>
-            <p className="text-slate-500 text-sm">
-              좋은 호실은 빠르게 마감됩니다.
-            </p>
-          </div>
-          <a
-            href="#"
-            className="text-sm font-medium text-slate-400 hover:text-slate-900 flex items-center gap-1 transition-colors"
-          >
-            전체보기 <ChevronRight className="w-4 h-4" />
-          </a>
-        </div>
 
-        {/* 그리드 레이아웃 */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {DUMMY_DATA.map((prop) => (
-            <PropertyCard key={prop.id} data={prop} />
-          ))}
+            <div className="mt-3">
+              {popularOfferings.length === 0 ? (
+                <Card className="p-6 text-sm text-(--oboon-text-muted)">
+                  선택한 지역에서 보여줄 분양이 아직 없어요.
+                </Card>
+              ) : (
+                <ProjectRow>
+                  {popularOfferings.map((offering) => (
+                    <OfferingCard key={offering.id} offering={offering} />
+                  ))}
+                </ProjectRow>
+              )}
+            </div>
+          </section>
+
+          {/* 오분 브리핑 */}
+          <section className="flex flex-col gap-2">
+            <SectionHeader
+              title="오분 브리핑"
+              rightLink={{ href: "/briefing", label: "전체보기" }}
+            />
+            <Card>
+              <div className="-m-5 rounded-2xl bg-(--oboon-bg-subtle) p-3 md:p-3">
+                <div className="grid gap-4 lg:grid-cols-3">
+                  {latestPosts.map((post) => (
+                    <HomeBriefingCompactCard key={post.id} post={post} />
+                  ))}
+                </div>
+
+                <div className="mt-4 grid gap-4 lg:grid-cols-3">
+                  {topSeries.map((s) => (
+                    <HomeBriefingCompactSeriesCard
+                      key={s.id}
+                      series={s}
+                      count={countBySeriesId[s.id] ?? 0}
+                    />
+                  ))}
+                </div>
+              </div>
+            </Card>
+          </section>
         </div>
-      </section>
+      </PageContainer>
     </main>
+  );
+}
+
+/* ---------- Hero ---------- */
+function HeroSection() {
+  return (
+    <section className="flex flex-col items-center gap-7 text-center">
+      <div className="space-y-5">
+        <h1 className="text-4xl font-bold leading-tight text-(--oboon-text-title) md:text-5xl">
+          오늘의 분양
+          <br />
+          데이터를 투명하게
+        </h1>
+
+        <p className="text-base leading-relaxed text-(--oboon-text-body) md:text-lg">
+          복잡한 공고문 대신 핵심만 간단하게 정리해 드립니다.
+          <br />
+          빅데이터 기반의 객관적인 분양 정보를 만나보세요.
+        </p>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center justify-center gap-4">
+        <Button size="lg" variant="primary">
+          내 청약조건 분석하기
+        </Button>
+        <Link href="/offerings">
+          <Button size="lg" variant="secondary">
+            지도에서 보기
+          </Button>
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+/* ---------- Header ---------- */
+function SectionHeader({
+  title,
+  caption,
+  rightLink,
+}: {
+  title: string;
+  caption?: string;
+  rightLink?: { href: string; label: string };
+}) {
+  return (
+    <div className="mb-4 flex items-baseline justify-between gap-4">
+      <div className="flex flex-col gap-1">
+        <h2 className="text-xl font-semibold tracking-tight text-(--oboon-text-title) md:text-2xl">
+          {title}
+        </h2>
+        {caption && (
+          <p className="text-sm text-(--oboon-text-muted) md:text-base">
+            {caption}
+          </p>
+        )}
+      </div>
+
+      {rightLink ? (
+        <Link
+          href={rightLink.href}
+          className="shrink-0 text-sm font-medium text-(--oboon-text-muted) hover:text-(--oboon-primary)"
+        >
+          {rightLink.label}
+        </Link>
+      ) : null}
+    </div>
+  );
+}
+
+function ProjectRow({ children }: { children: React.ReactNode }) {
+  return <div className="grid gap-4 md:grid-cols-4">{children}</div>;
+}
+
+/* ---------- Region Filter ---------- */
+function RegionFilterRow({
+  value,
+  onChange,
+}: {
+  value: OfferingRegionTab;
+  onChange: (v: OfferingRegionTab) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {OFFERING_REGION_TABS.map((region) => {
+        const isActive = value === region;
+
+        return (
+          <Button
+            key={region}
+            type="button"
+            size="sm"
+            shape="pill"
+            variant={isActive ? "primary" : "secondary"}
+            onClick={() => onChange(region)}
+          >
+            {region}
+          </Button>
+        );
+      })}
+    </div>
   );
 }

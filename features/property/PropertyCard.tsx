@@ -2,57 +2,47 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link"; // 👈 Link 컴포넌트 추가
+import Link from "next/link";
 import { Heart, MapPin } from "lucide-react";
-import { Property } from "@/types";
+import type { Property } from "@/features/property/domain/property.types";
 
 interface PropertyCardProps {
   data: Property;
 }
 
-export default function PropertyCard({ data }: PropertyCardProps) {
-  // 상태 뱃지 색상 로직
-  const getBadgeColor = (status: string) => {
-    switch (status) {
-      case "청약예정":
-        return "bg-blue-500";
-      case "선착순":
-        return "bg-emerald-500";
-      case "잔여세대":
-        return "bg-orange-400";
-      case "마감임박":
-        return "bg-red-500";
-      default:
-        return "bg-slate-500";
-    }
-  };
+function isLikelyImageUrl(url: string | null | undefined): url is string {
+  if (!url) return false;
+  if (url.startsWith("data:image/")) return true;
+  return /\.(jpg|jpeg|png|webp|gif|avif|svg)(\?.*)?$/i.test(url);
+}
 
+export default function PropertyCard({ data }: PropertyCardProps) {
   return (
-    // 1. 전체를 Link로 감싸서 클릭 시 이동하게 함 (div -> Link)
-    // 현재는 모든 카드가 똑같은 /overview 페이지로 이동합니다.
     <Link
       href="/overview"
-      className="group bg-white rounded-xl border border-slate-100 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 overflow-hidden cursor-pointer flex flex-col h-full block"
+      className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-[0_6px_20px_rgba(15,23,42,0.08)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(15,23,42,0.14)]"
     >
       {/* 이미지 영역 */}
-      <div className="relative h-56 bg-slate-200 overflow-hidden">
-        <Image
-          src={data.imageUrl}
-          alt={data.title}
-          fill
-          className="object-cover group-hover:scale-105 transition-transform duration-500"
-        />
+      <div className="relative aspect-[3/4] w-full bg-slate-100 overflow-hidden md:aspect-[4/3]">
+        {isLikelyImageUrl(data.imageUrl) ? (
+          <Image
+            src={data.imageUrl}
+            alt={data.title}
+            fill
+            className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+          />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-100">
+            <span className="text-xs text-slate-400">이미지 준비중</span>
+          </div>
+        )}
 
         {/* 뱃지 */}
         <div className="absolute top-3 left-3 flex gap-1 z-10">
-          <span
-            className={`${getBadgeColor(
-              data.status
-            )} text-white text-[10px] px-2 py-1 rounded font-bold shadow-sm`}
-          >
+          <span className="rounded-full bg-[var(--badge-status-bg)] px-2.5 py-1 text-[10px] font-semibold text-[var(--badge-status-text)] shadow-sm">
             {data.status}
           </span>
-          <span className="bg-slate-800/90 backdrop-blur-sm text-white text-[10px] px-2 py-1 rounded font-bold shadow-sm">
+          <span className="rounded-full bg-[var(--badge-type-bg)] px-2.5 py-1 text-[10px] font-semibold text-[var(--badge-type-text)] shadow-sm backdrop-blur-sm">
             {data.type}
           </span>
         </div>
@@ -63,32 +53,32 @@ export default function PropertyCard({ data }: PropertyCardProps) {
             e.preventDefault(); // 부모 Link의 클릭 이벤트를 막음
             console.log("찜하기 클릭됨");
           }}
-          className="absolute bottom-3 right-3 bg-white/90 p-2 rounded-full shadow-sm hover:text-red-500 hover:scale-110 transition-all z-10"
+          className="absolute bottom-3 right-3 rounded-full bg-white/90 p-2 text-slate-700 shadow-sm backdrop-blur transition-all z-10 hover:text-rose-500 hover:scale-105"
         >
           <Heart className="w-4 h-4" />
         </button>
       </div>
 
       {/* 텍스트 정보 영역 */}
-      <div className="p-5 flex flex-col flex-1">
-        <h3 className="font-bold text-lg text-slate-900 mb-1 truncate">
+      <div className="flex flex-1 flex-col p-5">
+        <h3 className="mb-1 line-clamp-2 text-base font-semibold text-slate-900">
           {data.title}
         </h3>
-        <p className="text-xs text-slate-500 flex items-center gap-1 mb-5">
+        <p className="mb-5 flex items-center gap-1 text-xs text-slate-500">
           <MapPin className="w-3 h-3" /> {data.location}
         </p>
 
-        <div className="mt-auto flex items-center justify-between pt-4 border-t border-slate-50">
+        <div className="mt-auto flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
           <div>
             <span className="text-[11px] text-slate-400 block mb-0.5">
               분양가
             </span>
-            <span className="font-bold text-slate-800 text-base">
+            <span className="text-base font-semibold text-slate-800">
               {data.price}
             </span>
           </div>
           {/* 상담신청 버튼은 Link 안에 있어도 동작상 문제 없으므로 그대로 둠 */}
-          <button className="text-xs font-bold text-teal-600 bg-teal-50 border border-teal-100 px-4 py-2 rounded hover:bg-teal-600 hover:text-white transition-all">
+          <button className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-all hover:bg-slate-200">
             상담신청
           </button>
         </div>

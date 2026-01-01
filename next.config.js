@@ -1,11 +1,9 @@
-/** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
     remotePatterns: [
       {
         protocol: "https",
-        hostname: "images.unsplash.com",
-        port: "",
+        hostname: "pub-56f7c3092c7c48db80f9ca5633923e68.r2.dev",
         pathname: "/**",
       },
     ],

@@ -2,6 +2,8 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import "./globals.css";
+import Header from "@/components/shared/Header";
+import Footer from "@/components/shared/Footer";
 
 export const metadata: Metadata = {
   title: "OBOON 분양 플랫폼",
@@ -15,14 +17,15 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ko">
-      <body className="bg-slate-950 text-slate-50">
-        {/* 🔹 카카오(다음) 주소 검색 스크립트 */}
+      <body className="min-h-dvh flex flex-col">
         <Script
           src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"
           strategy="afterInteractive"
         />
 
-        {children}
+        <Header />
+        <main className="flex-1 relative">{children}</main>
+        <Footer />
       </body>
     </html>
   );

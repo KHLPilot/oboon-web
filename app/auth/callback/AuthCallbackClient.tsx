@@ -1,19 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 
 export default function AuthCallbackClient() {
   const router = useRouter();
-  const supabase = createSupabaseClient();
+  const supabase = useMemo(() => createSupabaseClient(), []);
   const [message, setMessage] = useState("로그인 처리 중...");
 
   useEffect(() => {
     async function run() {
-      /**
-       * 1️⃣ 소셜 로그인 해시 처리
-       */
+      // 1. 소셜 로그인 해시 처리 (네이버 포함)
       const hash = window.location.hash;
       const isSocialLogin = hash.includes("access_token");
 
@@ -23,15 +21,16 @@ export default function AuthCallbackClient() {
         const refresh_token = params.get("refresh_token");
 
         if (access_token && refresh_token) {
-          await supabase.auth.setSession({ access_token, refresh_token });
+          await supabase.auth.setSession({
+            access_token,
+            refresh_token,
+          });
           // URL 정리
           window.history.replaceState(null, "", "/auth/callback");
         }
       }
 
-      /**
-       * 2️⃣ 세션 확인
-       */
+      // 2. 세션 확인
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -41,10 +40,8 @@ export default function AuthCallbackClient() {
         return;
       }
 
-      /**
-       * 3️⃣ 이메일 인증 링크 클릭(일반 회원가입)인 경우
-       * → 리다이렉트 안 하고 창 닫기 안내만
-       */
+      // 3. 이메일 인증 링크 클릭(일반 회원가입)인 경우
+      // → 리다이렉트 안 하고 창 닫기 안내만
       if (!isSocialLogin) {
         setMessage("이메일 인증이 완료되었습니다. 이 창을 닫고 원래 창으로 돌아가주세요.");
         setTimeout(() => {
@@ -55,18 +52,14 @@ export default function AuthCallbackClient() {
         return;
       }
 
-      /**
-       * 4️⃣ 🔥 핵심: profiles 직접 조회 (role 기준 분기)
-       */
+      // 4. profiles 직접 조회 (role 기준 분기)
       const { data: profile } = await supabase
         .from("profiles")
         .select("role, name, phone_number")
         .eq("id", session.user.id)
         .single();
 
-      /**
-       * 5️⃣ role 기반 분기
-       */
+      // 5. role 기반 분기
 
       // ✅ 관리자
       if (profile?.role === "admin") {
@@ -98,11 +91,11 @@ export default function AuthCallbackClient() {
   }, [router, supabase]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">
-      <div className="text-center p-8 bg-slate-900 rounded-xl border border-slate-800 shadow-xl">
-        <p className="font-medium">{message}</p>
+    <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--oboon-bg-page)" }}>
+      <div className="text-center p-8 rounded-xl border shadow-card" style={{ backgroundColor: "var(--oboon-bg-surface)", borderColor: "var(--oboon-border-default)" }}>
+        <p className="font-medium" style={{ color: "var(--oboon-text-body)" }}>{message}</p>
         {!window.location.hash.includes("access_token") && (
-          <p className="text-xs text-slate-500 mt-2">
+          <p className="text-xs mt-2" style={{ color: "var(--oboon-text-muted)" }}>
             자동으로 닫히지 않으면 직접 닫아주세요.
           </p>
         )}

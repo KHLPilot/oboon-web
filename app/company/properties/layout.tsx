@@ -1,3 +1,4 @@
+// app/company/properties/layout.tsx
 import type { ReactNode } from "react";
 
 export default function PropertiesLayout({
@@ -5,15 +6,5 @@ export default function PropertiesLayout({
 }: {
   children: ReactNode;
 }) {
-  return (
-    <div
-      className="
-        min-h-screen
-        bg-white text-slate-900
-        dark:bg-black dark:text-slate-100
-      "
-    >
-      {children}
-    </div>
-  );
+  return <div className="flex-1">{children}</div>;
 }

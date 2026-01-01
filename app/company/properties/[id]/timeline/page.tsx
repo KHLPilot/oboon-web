@@ -1,35 +1,15 @@
+// app/company/properties/[id]/timeline/page.tsx
+
 "use client";
 
-import { useEffect, useState, useRef, forwardRef } from "react";
+import { forwardRef, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { CalendarDays } from "lucide-react";
+
+import Button, { type ButtonProps } from "@/components/ui/Button";
 import { createSupabaseClient } from "@/lib/supabaseClient";
-
-// DatePicker 관련 임포트
-import DatePicker, { registerLocale } from "react-datepicker";
-import { ko } from "date-fns/locale";
-import "react-datepicker/dist/react-datepicker.css";
-
-// 아이콘
-const CalendarIcon = () => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    fill="none"
-    viewBox="0 0 24 24"
-    strokeWidth={1.5}
-    stroke="currentColor"
-    className="w-5 h-5 text-slate-500 hover:text-emerald-600 transition-colors"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"
-    />
-  </svg>
-);
-
-registerLocale("ko", ko);
-
-const supabase = createSupabaseClient();
+import OboonDatePicker from "@/components/ui/DatePicker";
+import PrecisionDateInput from "@/components/ui/PercisionDateInput";
 
 type TimelineForm = {
   announcement_date: string | null;
@@ -41,66 +21,124 @@ type TimelineForm = {
   move_in_date: string | null;
 };
 
-// 달력 버튼
-const CalendarButton = forwardRef<HTMLButtonElement, any>(
-  ({ onClick }, ref) => (
-    <button
-      type="button"
+const EMPTY_FORM: TimelineForm = {
+  announcement_date: null,
+  application_start: null,
+  application_end: null,
+  winner_announce: null,
+  contract_start: null,
+  contract_end: null,
+  move_in_date: null,
+};
+
+const FIELDS: {
+  key: keyof TimelineForm;
+  label: string;
+  placeholder?: string;
+}[] = [
+    {
+      key: "announcement_date",
+      label: "분양/청약 모집공고",
+      placeholder: "예) 2025-07-01",
+    },
+    {
+      key: "application_start",
+      label: "청약 접수 시작",
+      placeholder: "예) 2025-07-12",
+    },
+    {
+      key: "application_end",
+      label: "청약 접수 종료",
+      placeholder: "예) 2025-07-14",
+    },
+    {
+      key: "winner_announce",
+      label: "당첨자 발표",
+      placeholder: "예) 2025-07-21",
+    },
+    { key: "contract_start", label: "계약 시작", placeholder: "예) 2025-07-25" },
+    { key: "contract_end", label: "계약 종료", placeholder: "예) 2025-07-28" },
+    { key: "move_in_date", label: "입주 예정일", placeholder: "예) 2026-03-01" },
+  ];
+
+// YYYY-MM-DD <-> Date (로컬 기준) 유틸: timezone로 하루 밀림 방지
+function parseYmdToLocalDate(ymd: string | null | undefined): Date | null {
+  if (!ymd) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  if (!y || !mo || !d) return null;
+  return new Date(y, mo - 1, d);
+}
+
+function formatLocalDateToYmd(date: Date | null): string | null {
+  if (!date) return null;
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * 이 페이지용 정사각 달력 버튼 (w=h)
+ * - OboonDatePicker의 trigger 슬롯으로 주입됨
+ */
+const TimelineDateTrigger = forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ onClick, className = "", disabled, ...rest }, ref) => (
+    <Button
       ref={ref}
+      type="button"
+      variant="secondary"
+      size="sm"
+      shape="pill"
       onClick={onClick}
-      className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors z-10"
-      tabIndex={-1}
+      disabled={disabled}
+      className={[
+        "p-0 h-10 w-10 inline-flex items-center justify-center shrink-0",
+        className,
+      ].join(" ")}
+      {...rest}
     >
-      <CalendarIcon />
-    </button>
+      <CalendarDays className="h-4 w-4" />
+      <span className="sr-only">날짜 선택</span>
+    </Button>
   )
 );
-CalendarButton.displayName = "CalendarButton";
+TimelineDateTrigger.displayName = "TimelineDateTrigger";
 
 export default function PropertyTimelinePage() {
+  const supabase = createSupabaseClient();
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const propertyId = Number(params?.id);
 
-  const EMPTY_FORM: TimelineForm = {
-    announcement_date: null,
-    application_start: null,
-    application_end: null,
-    winner_announce: null,
-    contract_start: null,
-    contract_end: null,
-    move_in_date: null,
-  };
-
   const [form, setForm] = useState<TimelineForm>(EMPTY_FORM);
+  const [baseForm, setBaseForm] = useState<TimelineForm | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [exists, setExists] = useState(false);
-
-  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
-
-  const fields = [
-    { key: "announcement_date", label: "입주자 모집공고일" },
-    { key: "application_start", label: "청약 시작일" },
-    { key: "application_end", label: "청약 종료일" },
-    { key: "winner_announce", label: "당첨자 발표일" },
-    { key: "contract_start", label: "계약 시작일" },
-    { key: "contract_end", label: "계약 종료일" },
-    { key: "move_in_date", label: "입주 예정일" },
-  ] as const;
+  const [editing, setEditing] = useState(false);
 
   useEffect(() => {
+    let alive = true;
+
     async function load() {
       if (!Number.isFinite(propertyId)) return;
+
       setLoading(true);
-      const { data } = await supabase
+
+      const { data, error } = await supabase
         .from("property_timeline")
         .select("*")
         .eq("properties_id", propertyId)
         .maybeSingle();
 
-      if (data) {
-        setForm({
+      if (!alive) return;
+
+      if (!error && data) {
+        const next: TimelineForm = {
           announcement_date: data.announcement_date,
           application_start: data.application_start,
           application_end: data.application_end,
@@ -108,226 +146,199 @@ export default function PropertyTimelinePage() {
           contract_start: data.contract_start,
           contract_end: data.contract_end,
           move_in_date: data.move_in_date,
-        });
-        setExists(true);
+        };
+        setForm(next);
+        setBaseForm(next);
+      } else {
+        setForm(EMPTY_FORM);
+        setBaseForm(EMPTY_FORM);
       }
+
       setLoading(false);
     }
+
     load();
-  }, [propertyId]);
+    return () => {
+      alive = false;
+    };
+  }, [propertyId, supabase]);
 
-  // 날짜 유효성 검사 로직
-  const isValidPartialDate = (raw: string) => {
-    if (raw.length >= 6) {
-      const monthStr = raw.slice(4, 6);
-      const month = parseInt(monthStr, 10);
-      if (month === 0 || month > 12) return false;
-    }
-
-    if (raw.length >= 8) {
-      const year = parseInt(raw.slice(0, 4), 10);
-      const month = parseInt(raw.slice(4, 6), 10);
-      const day = parseInt(raw.slice(6, 8), 10);
-      const lastDayOfMonth = new Date(year, month, 0).getDate();
-      if (day === 0 || day > lastDayOfMonth) return false;
-    }
-    return true;
-  };
-
-  // 다음 빈 칸으로 이동
-  const moveToNextField = (currentIndex: number) => {
-    const nextIndex = currentIndex + 1;
-    // 다음 칸이 있고, ref가 연결되어 있다면 포커스 이동
-    if (nextIndex < fields.length && inputRefs.current[nextIndex]) {
-      inputRefs.current[nextIndex]?.focus();
-    }
-  };
-
-  const handleRawInputChange = (
-    e: React.ChangeEvent<HTMLInputElement>,
-    key: keyof TimelineForm,
-    index: number
-  ) => {
-    let val = e.target.value.replace(/[^0-9]/g, ""); // 숫자만 남김
-
-    if (val.length > 8) val = val.slice(0, 8);
-
-    // 유효하지 않은 날짜면 입력 차단
-    if (!isValidPartialDate(val)) {
-      return;
-    }
-
-    // 포맷팅
-    let formatted = val;
-    if (val.length > 4) {
-      formatted = `${val.slice(0, 4)}-${val.slice(4)}`;
-    }
-    if (val.length > 6) {
-      formatted = `${formatted.slice(0, 7)}-${val.slice(6)}`;
-    }
-
-    setForm((prev) => ({ ...prev, [key]: formatted }));
-
-    // ★ 날짜 완성(10자리) 시 자동으로 다음 칸 이동 (setTimeout으로 타이밍 조절)
-    if (formatted.length === 10) {
-      setTimeout(() => {
-        moveToNextField(index);
-      }, 0);
-    }
-  };
-
-  const handleDateSelect = (
-    key: keyof TimelineForm,
-    date: Date | null,
-    index: number
-  ) => {
-    if (!date) return;
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, "0");
-    const d = String(date.getDate()).padStart(2, "0");
-    const dateStr = `${y}-${m}-${d}`;
-
-    setForm((prev) => ({ ...prev, [key]: dateStr }));
-
-    // 달력 선택 시에도 다음 칸으로 이동
-    setTimeout(() => {
-      moveToNextField(index);
-    }, 0);
-  };
+  const hasDirty = useMemo(() => {
+    if (!baseForm) return false;
+    return FIELDS.some(({ key }) => form[key] !== baseForm[key]);
+  }, [baseForm, form]);
 
   async function handleSave() {
     setSaving(true);
-    const cleanForm = Object.fromEntries(
-      Object.entries(form).map(([k, v]) => [k, v === "" ? null : v])
-    );
 
-    const { error } = exists
-      ? await supabase
-        .from("property_timeline")
-        .update(cleanForm)
-        .eq("properties_id", propertyId)
-      : await supabase
-        .from("property_timeline")
-        .insert({ properties_id: propertyId, ...cleanForm });
-
-    setSaving(false);
-    if (!error) {
-      alert("저장되었습니다");
-      router.push(`/company/properties/${propertyId}`);
-      router.refresh();
-    }
-  }
-
-  async function handleClear() {
-    if (!confirm("일정 정보를 모두 삭제할까요?")) return;
     const { error } = await supabase
       .from("property_timeline")
-      .delete()
-      .eq("properties_id", propertyId);
+      .upsert(
+        { properties_id: propertyId, ...form },
+        { onConflict: "properties_id" }
+      );
+
+    setSaving(false);
+
     if (!error) {
-      setForm(EMPTY_FORM);
-      alert("삭제되었습니다");
-      window.location.reload();
+      setBaseForm(form);
+      setEditing(false);
+    } else {
+      alert(`저장 실패: ${error.message}`);
     }
   }
 
-  const getValidDate = (dateStr: string | null) => {
-    if (!dateStr || dateStr.length !== 10) return null;
-    const date = new Date(dateStr);
-    return isNaN(date.getTime()) ? null : date;
+  const handleClear = () => {
+    if (!confirm("일정 정보를 모두 삭제할까요? (되돌릴 수 없습니다)")) return;
+    setForm(EMPTY_FORM);
+    setEditing(true);
   };
 
-  if (loading) return <div className="p-6">불러오는 중...</div>;
+  const handleDateChange = (
+    key: keyof TimelineForm,
+    date: Date | null
+  ) => {
+    const dateStr = formatLocalDateToYmd(date);
+    setForm((prev) => ({ ...prev, [key]: dateStr }));
+  };
+
+  if (loading) {
+    return (
+      <div className="px-4 py-8 text-sm text-(--oboon-text-muted)">
+        불러오는 중..
+      </div>
+    );
+  }
+
+  // ✅ 입력 스타일: 버튼이 줄어든 만큼 input이 길어지도록 flex 관련 클래스 포함
+  const inputClassName = [
+    "input-basic rounded-md border border-(--oboon-border-default)",
+    "bg-(--oboon-bg-subtle)/70 px-3 py-2 transition",
+    "focus:border-(--oboon-accent) focus:outline-none focus:ring-2 focus:ring-(--oboon-accent)/50",
+    // 핵심: flex 레이아웃에서 input이 남는 폭을 다 먹도록
+    "w-full flex-1 min-w-0",
+  ].join(" ");
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6 pb-40">
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => router.back()}
-          className="text-slate-400 hover:text-slate-200"
-        >
-          ← 뒤로가기
-        </button>
-        <h1 className="text-xl font-bold text-slate-900 dark:text-white">
-          📅 분양 일정
-        </h1>
-      </div>
+    <div className="bg-(--oboon-bg-page) px-4 py-8 md:px-6 md:py-10">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
+        <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-1 pt-1">
+            <p className="text-2xl font-bold text-(--oboon-text-title)">
+              분양 일정
+            </p>
+            <p className="text-sm text-(--oboon-text-muted)">
+              청약·계약·입주 주요 일정을 입력하거나 달력에서 바로 선택하세요.
+            </p>
+          </div>
 
-      <div className="space-y-4">
-        {fields.map((field, index) => (
-          <div key={field.key} className="space-y-1">
-            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-              {field.label}
-            </label>
-            <div className="relative w-full">
-              <input
-                ref={(el) => {
-                  inputRefs.current[index] = el;
-                }}
-                type="text"
-                value={form[field.key] ?? ""}
-                onChange={(e) => handleRawInputChange(e, field.key, index)}
-                placeholder="YYYY-MM-DD"
-                maxLength={10}
-                className="
-                  w-full px-4 py-3 rounded-xl pr-12
-                  bg-white text-slate-900
-                  dark:bg-slate-800 dark:text-slate-100
-                  border border-slate-300 dark:border-slate-700
-                  focus:outline-none focus:ring-2 focus:ring-emerald-500
-                "
-              />
-              <div className="absolute right-0 top-0 h-full flex items-center">
-                <DatePicker
-                  selected={getValidDate(form[field.key])}
-                  onChange={(date: Date | null) => handleDateSelect(field.key, date, index)}
-                  locale="ko"
-                  customInput={<CalendarButton />}
-                  dateFormat="yyyy-MM-dd"
-                  showMonthDropdown
-                  showYearDropdown
-                  dropdownMode="select"
-                  popperPlacement="bottom-end"
-                />
-              </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              shape="pill"
+              className="text-red-500"
+              onClick={() => router.push(`/company/properties/${propertyId}`)}
+            >
+              취소
+            </Button>
+          </div>
+        </header>
+
+        <section className="space-y-3 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-6 py-5 shadow-(--oboon-shadow-card)/30">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold text-(--oboon-text-title)">
+              일정 입력
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {FIELDS.map((field, index) => {
+              const isMoveIn = field.key === "move_in_date";
+
+              return (
+                <div key={field.key} className="space-y-2">
+                  <label className="text-sm font-medium text-(--oboon-text-title)">
+                    {field.label}
+                  </label>
+
+                  <div className="flex w-full items-center gap-2">
+                    <div className="flex-1 min-w-0">
+                      {isMoveIn ? (
+                        <PrecisionDateInput
+                          value={form.move_in_date}
+                          onChange={(next) =>
+                            setForm((prev) => ({ ...prev, move_in_date: next }))
+                          }
+                          disabled={!editing}
+                          policy="both" // ✅ YYYY-MM / YYYY-MM-DD 모두 허용
+                          defaultPrecision="day" // ✅ 기본은 일(원하면 "month"로)
+                          inputClassName={inputClassName}
+                          placeholder="예) 2026-03 또는 2026-03-01"
+                        />
+                      ) : (
+                        <OboonDatePicker
+                          selected={parseYmdToLocalDate(form[field.key])}
+                          onChange={(date: Date | null) =>
+                            handleDateChange(field.key, date)
+                          }
+                          disabled={!editing}
+                          dateFormat="yyyy-MM-dd"
+                          textFormat="yyyy-MM-dd"
+                          inputClassName={inputClassName}
+                          placeholder={field.placeholder}
+                        />
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-(--oboon-text-muted)">
+              대부분의 일정은 YYYY-MM-DD 형식으로 입력합니다. 단, 입주 예정일은
+              YYYY-MM 또는 YYYY-MM-DD 둘 다 입력 가능합니다.
+            </p>
+
+            <div className="flex gap-2">
+              {!editing ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  shape="pill"
+                  onClick={() => setEditing(true)}
+                >
+                  편집
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    shape="pill"
+                    onClick={handleClear}
+                    disabled={saving}
+                  >
+                    초기화
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    shape="pill"
+                    onClick={handleSave}
+                    loading={saving}
+                    disabled={!hasDirty}
+                  >
+                    저장
+                  </Button>
+                </>
+              )}
             </div>
           </div>
-        ))}
+        </section>
       </div>
-
-      <div className="pt-4 space-y-3">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="w-full bg-emerald-600 text-white py-4 rounded-xl font-bold hover:bg-emerald-500 disabled:opacity-50"
-        >
-          {saving ? "저장 중..." : "저장"}
-        </button>
-        <button
-          onClick={handleClear}
-          className="w-full border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 py-3 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800"
-        >
-          일정 초기화
-        </button>
-      </div>
-
-      <style jsx global>{`
-        .react-datepicker-popper {
-          z-index: 50 !important;
-        }
-        .react-datepicker__header__dropdown {
-          display: flex;
-          justify-content: center;
-          gap: 8px;
-          padding: 10px 0;
-        }
-        .react-datepicker__year-select,
-        .react-datepicker__month-select {
-          padding: 2px 4px;
-          border-radius: 4px;
-          border: 1px solid #ccc;
-        }
-      `}</style>
     </div>
   );
 }

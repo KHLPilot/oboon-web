@@ -3,13 +3,11 @@ import { createClient } from "@supabase/supabase-js";
 
 const adminSupabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: { persistSession: false },
-  }
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 export async function GET(req: Request) {
+  // 1. 현재 로그인 유저 확인 (쿠키 기반)
   const authHeader = req.headers.get("authorization");
 
   if (!authHeader) {
@@ -18,7 +16,6 @@ export async function GET(req: Request) {
 
   const accessToken = authHeader.replace("Bearer ", "");
 
-  // 토큰으로 유저 확인
   const {
     data: { user },
     error: userError,
@@ -28,15 +25,34 @@ export async function GET(req: Request) {
     return NextResponse.json({ needOnboarding: false });
   }
 
-  // profiles 존재 여부만 확인
-  const { data: profile, error } = await adminSupabase
+  // 2. profiles 조회
+  const { data: profile } = await adminSupabase
     .from("profiles")
-    .select("id")
+    .select("*")
     .eq("id", user.id)
     .single();
 
-  // profile 없으면 → 온보딩 필요
+  // 3. profiles 없으면 생성
   if (!profile) {
+    const { error: insertError } = await adminSupabase.from("profiles").insert({
+      id: user.id,
+      email: user.email,
+      name: "",
+      phone_number: "",
+      user_type: "personal",
+      role: "user",
+    });
+
+    if (insertError) {
+      console.error("profiles insert error:", insertError);
+      return NextResponse.json({ needOnboarding: true });
+    }
+
+    return NextResponse.json({ needOnboarding: true });
+  }
+
+  // 4. 필수값 체크
+  if (!profile.name || !profile.phone_number) {
     return NextResponse.json({ needOnboarding: true });
   }
 

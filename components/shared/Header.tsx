@@ -1,3 +1,5 @@
+// components/shared/Header.tsx
+
 "use client";
 
 import Link from "next/link";
@@ -6,18 +8,25 @@ import { Search, Calendar, LayoutDashboard, PlusCircle, UserPlus } from "lucide-
 import { useEffect, useState, useRef } from "react";
 import { User } from "@supabase/supabase-js";
 import { createSupabaseClient } from "@/lib/supabaseClient";
+import ThemeToggle from "./ThemeToggle";
 
 export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [profileName, setProfileName] = useState<string>("");
-  const [userRole, setUserRole] = useState<string | null>(null); // 권한 상태 추가
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const supabase = createSupabaseClient();
   const dropdownRef = useRef<HTMLDivElement | null>(null);
 
-  // 1. 드롭다운 외부 클릭 감지 (기존 유지)
+  const NAV_ITEMS = [
+    { label: "분양 리스트", href: "/offerings" },
+    { label: "지도", href: "/map" },
+    { label: "브리핑", href: "/briefing" },
+  ];
+
+  // 드롭다운 외부 클릭 감지
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -28,19 +37,24 @@ export default function Header() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // 2. 유저 데이터 및 Role 로드 (수정 및 보완)
+  // 유저 데이터 및 Role 로드
   const loadUserData = async (currentUser: User | null) => {
     setUser(currentUser);
     if (currentUser) {
-      const { data: profile } = await supabase
+      const { data: profile, error } = await supabase
         .from("profiles")
         .select("name, role")
         .eq("id", currentUser.id)
         .single();
 
+      console.log("Profile loaded:", profile, "Error:", error); // 디버깅
+
       if (profile) {
-        setProfileName(profile.name || "");
-        setUserRole(profile.role || "user"); // Role 저장
+        const realName = profile.name && profile.name !== "temp" ? profile.name : "";
+        setProfileName(realName);
+        setUserRole(profile.role || "user");
+
+        console.log("Setting profileName:", realName); // 디버깅
       }
     } else {
       setProfileName("");
@@ -48,7 +62,7 @@ export default function Header() {
     }
   };
 
-  // 3. 초기 인증 상태 감지 (기존 유지)
+  // 초기 인증 상태 감지
   useEffect(() => {
     const initAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -63,27 +77,36 @@ export default function Header() {
     return () => listener.subscription.unsubscribe();
   }, [supabase]);
 
-  // 4. 표시 이름 결정 로직 (기존 1, 2, 3순위 유지)
+  // ✅ 표시 이름 결정 - profiles 테이블 name 우선
   const getDisplayName = (): string => {
-    if (profileName) return profileName;
-    if (!user) return "";
-    const meta = user.user_metadata || {};
-    return (
-      meta.full_name ||
-      meta.name ||
-      meta.nickname ||
-      user.email?.split("@")[0] ||
-      "사용자"
-    );
-  };
+    // 1순위: profiles 테이블의 name
+    if (profileName && profileName !== "temp") {
+      console.log("Using profileName:", profileName); // 디버깅
+      return profileName;
+    }
 
-  const NAV_ITEMS = [
-    { label: "Offerings", href: "/offerings" },
-    { label: "Briefing", href: "/briefing" },
-    { label: "Overview", href: "/overview" },
-    { label: "Options", href: "/options" },
-    { label: "Navigation", href: "/navigation" },
-  ];
+    // 2순위: user가 없으면 빈 문자열
+    if (!user) return "";
+
+    // 3순위: user_metadata (소셜 로그인용)
+    const meta = user.user_metadata || {};
+    const metaName = meta.full_name || meta.name || meta.nickname;
+
+    if (metaName && metaName !== "temp") {
+      console.log("Using metaName:", metaName); // 디버깅
+      return metaName;
+    }
+
+    // 4순위: 이메일 앞부분
+    const emailName = user.email?.split("@")[0];
+    if (emailName) {
+      console.log("Using emailName:", emailName); // 디버깅
+      return emailName;
+    }
+
+    // 최후: "사용자"
+    return "사용자";
+  };
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
@@ -100,27 +123,29 @@ export default function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-100">
-      <div className="container mx-auto px-4 md:px-8 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        {/* 로고 */}
-        <div className="flex items-center justify-between md:justify-start w-full md:w-auto">
-          <Link href="/" className="text-2xl font-black text-slate-900 tracking-tighter">
-            OBOON<span className="text-teal-400">.</span>
-          </Link>
-        </div>
+    <header className="sticky top-0 z-50 w-full border-b bg-oboon-surface/90 backdrop-blur-md" style={{ borderColor: "var(--oboon-border-default)" }}>
+      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 md:px-8">
+        {/* Logo */}
+        <Link href="/" className="text-2xl font-black tracking-tighter" style={{ color: "var(--oboon-text-title)" }}>
+          OBOON<span style={{ color: "var(--oboon-primary)" }}>.</span>
+        </Link>
 
-        {/* 네비게이션 (기존 유지) */}
-        <nav className="flex gap-6 overflow-x-auto whitespace-nowrap text-sm font-medium md:gap-8 w-full md:w-auto">
+        {/* Navigation */}
+        <nav className="hidden items-center gap-8 text-sm font-medium md:flex">
           {NAV_ITEMS.map((item) => {
-            const isActive = pathname.startsWith(item.href);
+            const active = pathname.startsWith(item.href);
             return (
               <Link
-                key={item.label}
+                key={item.href}
                 href={item.href}
-                className={`transition-colors ${isActive
-                  ? "text-teal-600 font-bold border-b-2 border-teal-600 pb-0.5"
-                  : "text-slate-500 hover:text-slate-900"
+                className={`border-b-2 pb-0.5 transition-colors ${active
+                  ? "font-semibold"
+                  : "border-transparent hover:text-oboon-text-title"
                   }`}
+                style={{
+                  borderColor: active ? "var(--oboon-primary)" : "transparent",
+                  color: active ? "var(--oboon-primary)" : "var(--oboon-text-muted)",
+                }}
               >
                 {item.label}
               </Link>
@@ -128,61 +153,66 @@ export default function Header() {
           })}
         </nav>
 
-        {/* 우측 버튼 영역 (권한 로직 집중 적용) */}
-        <div className="flex items-center gap-4">
-          <button className="p-2 hover:bg-slate-100 rounded-full transition-colors">
-            <Search className="w-5 h-5 text-slate-400" />
+        {/* Right actions */}
+        <div className="flex items-center gap-3">
+          {/* 검색 */}
+          <button className="hidden rounded-full p-2 transition hover:bg-oboon-bg-subtle md:inline-flex" style={{ color: "var(--oboon-text-muted)" }}>
+            <Search className="h-4 w-4" />
           </button>
 
-          {/* [추가] 관리자 전용: 관리자 대시보드 버튼 */}
+          {/* 다크/라이트 토글 */}
+          <ThemeToggle />
+
+          {/* 관리자 전용: 관리자 대시보드 버튼 */}
           {userRole === "admin" && (
             <Link
               href="/admin"
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+              className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition-colors"
+              style={{ color: "var(--oboon-primary)" }}
             >
               <LayoutDashboard className="w-4 h-4" />
               <span className="hidden sm:inline">관리자</span>
             </Link>
           )}
 
-          {/* [추가] agent 전용: 소속 등록 신청 버튼 */}
+          {/* agent 전용: 소속 등록 신청 버튼 */}
           {userRole === "agent" && (
             <Link
               href="/agent/register"
-              className="bg-amber-500 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-amber-400 transition-colors flex items-center gap-2"
+              className="ob-btn ob-btn-md ob-btn-pill ob-btn-primary flex items-center gap-2"
             >
               <UserPlus className="w-4 h-4" />
               <span>소속 등록 신청</span>
             </Link>
           )}
 
-          {/* [수정] 상담 예약: user, agent_pending, 또는 비로그인 시에만 노출 */}
+          {/* 상담 예약: user, agent_pending, 또는 비로그인 시에만 노출 */}
           {(userRole === "user" || userRole === "agent_pending" || !userRole) && (
-            <button className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-800 transition-colors flex items-center gap-2">
+            <button className="ob-btn ob-btn-md ob-btn-pill ob-btn-secondary flex items-center gap-2">
               <Calendar className="w-4 h-4" />
               <span>상담 예약</span>
             </button>
           )}
 
-          {/* [수정] 현장 등록하기: builder, developer, admin만 노출 */}
+          {/* 현장 등록하기: builder, developer, admin만 노출 */}
           {["admin", "builder", "developer"].includes(userRole || "") && (
             <Link
               href="/company/properties"
-              className="bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-teal-500 transition-colors flex items-center gap-2"
+              className="ob-btn ob-btn-md ob-btn-pill ob-btn-primary flex items-center gap-2"
             >
               <PlusCircle className="w-4 h-4" />
               <span className="hidden sm:inline">현장 등록하기</span>
             </Link>
           )}
 
-          {/* 로그인 상태 유저 드롭다운 (기존 유지) */}
+          {/* 로그인 상태 유저 드롭다운 */}
           {user ? (
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setDropdownOpen((prev) => !prev)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+                className="flex items-center gap-2 rounded-lg px-3 py-1.5 transition-colors hover:bg-oboon-bg-subtle"
               >
-                <div className="w-9 h-9 rounded-full overflow-hidden border border-slate-200 bg-slate-100 flex items-center justify-center">
+                <div className="w-9 h-9 rounded-full overflow-hidden border flex items-center justify-center" style={{ borderColor: "var(--oboon-border-default)", backgroundColor: "var(--oboon-bg-subtle)" }}>
                   {user.user_metadata?.avatar_url ? (
                     <img
                       src={user.user_metadata.avatar_url}
@@ -190,28 +220,30 @@ export default function Header() {
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <span className="text-sm font-semibold text-slate-600">
+                    <span className="text-sm font-semibold" style={{ color: "var(--oboon-text-body)" }}>
                       {getDisplayName().slice(0, 1)}
                     </span>
                   )}
                 </div>
-                <span className="hidden sm:inline text-sm font-medium text-slate-700">
+                <span className="hidden sm:inline text-sm font-medium" style={{ color: "var(--oboon-text-body)" }}>
                   {getDisplayName()}님
                 </span>
               </button>
 
               {dropdownOpen && (
-                <div className="absolute right-0 mt-2 w-40 bg-white rounded-xl shadow-lg border border-slate-200 py-2">
+                <div className="absolute right-0 mt-2 w-40 rounded-xl shadow-card border py-2" style={{ backgroundColor: "var(--oboon-bg-surface)", borderColor: "var(--oboon-border-default)" }}>
                   <Link
                     href="/profile"
                     onClick={() => setDropdownOpen(false)}
-                    className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                    className="block px-4 py-2 text-sm transition-colors hover:bg-oboon-bg-subtle"
+                    style={{ color: "var(--oboon-text-body)" }}
                   >
                     프로필 설정
                   </Link>
                   <button
                     onClick={handleLogout}
-                    className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-slate-100"
+                    className="block w-full text-left px-4 py-2 text-sm transition-colors hover:bg-oboon-bg-subtle"
+                    style={{ color: "var(--oboon-danger)" }}
                   >
                     로그아웃
                   </button>
@@ -221,7 +253,8 @@ export default function Header() {
           ) : (
             <Link
               href="/auth/login"
-              className="text-sm font-medium text-slate-500 hover:text-slate-900 px-2"
+              className="text-sm font-medium px-2 transition-colors"
+              style={{ color: "var(--oboon-text-muted)" }}
             >
               로그인
             </Link>

@@ -110,19 +110,24 @@ export default function SignupPage() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-50 p-4">
-      <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-8 shadow-xl">
-        <h1 className="text-2xl font-bold text-center mb-1">회원가입</h1>
-        <p className="text-xs text-center text-slate-400 mb-8">이메일 인증 후 상세 정보를 입력해주세요</p>
+    <main className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: "var(--oboon-bg-page)" }}>
+      <div className="w-full max-w-md rounded-2xl border p-8 shadow-card" style={{ backgroundColor: "var(--oboon-bg-surface)", borderColor: "var(--oboon-border-default)" }}>
+        <h1 className="text-2xl font-bold text-center mb-1" style={{ color: "var(--oboon-text-title)" }}>회원가입</h1>
+        <p className="text-xs text-center mb-8" style={{ color: "var(--oboon-text-muted)" }}>이메일 인증 후 상세 정보를 입력해주세요</p>
 
         <div className="space-y-6">
           {/* 1. 이메일/비밀번호 섹션 */}
-          <div className="space-y-3 p-4 rounded-xl bg-slate-800/50 border border-slate-700">
+          <div className="space-y-3 p-4 rounded-xl border" style={{ backgroundColor: "var(--oboon-bg-subtle)", borderColor: "var(--oboon-border-default)" }}>
             <div className="space-y-1">
-              <label className="text-xs text-slate-400 ml-1 font-semibold">이메일 주소</label>
+              <label className="text-xs ml-1 font-semibold" style={{ color: "var(--oboon-text-body)" }}>이메일 주소</label>
               <div className="flex gap-2">
                 <input
-                  className="flex-1 rounded-lg bg-slate-900 border border-slate-700 px-4 py-2 text-sm focus:border-emerald-500 outline-none disabled:opacity-50"
+                  className="flex-1 rounded-lg border px-4 py-2 text-sm outline-none disabled:opacity-50"
+                  style={{
+                    backgroundColor: "var(--oboon-bg-surface)",
+                    borderColor: "var(--oboon-border-default)",
+                    color: "var(--oboon-text-body)"
+                  }}
                   placeholder="example@email.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -132,7 +137,7 @@ export default function SignupPage() {
                   type="button"
                   onClick={handleSendVerification}
                   disabled={isVerified || isEmailSent || loading}
-                  className="px-4 py-2 bg-emerald-600 rounded-lg text-xs font-bold hover:bg-emerald-500 disabled:bg-slate-700 transition whitespace-nowrap"
+                  className="px-4 py-2 rounded-lg text-xs font-bold transition whitespace-nowrap ob-btn ob-btn-sm ob-btn-round ob-btn-primary"
                 >
                   {isVerified ? "인증완료" : isEmailSent ? "인증중..." : "인증하기"}
                 </button>
@@ -140,10 +145,15 @@ export default function SignupPage() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs text-slate-400 ml-1 font-semibold">비밀번호 설정</label>
+              <label className="text-xs ml-1 font-semibold" style={{ color: "var(--oboon-text-body)" }}>비밀번호 설정</label>
               <input
                 type="password"
-                className="w-full rounded-lg bg-slate-900 border border-slate-700 px-4 py-2 text-sm focus:border-emerald-500 outline-none disabled:opacity-50"
+                className="w-full rounded-lg border px-4 py-2 text-sm outline-none disabled:opacity-50"
+                style={{
+                  backgroundColor: "var(--oboon-bg-surface)",
+                  borderColor: "var(--oboon-border-default)",
+                  color: "var(--oboon-text-body)"
+                }}
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -152,8 +162,8 @@ export default function SignupPage() {
             </div>
 
             {isEmailSent && !isVerified && (
-              <div className="flex items-center gap-2 text-[11px] text-emerald-400 animate-pulse mt-1">
-                <span className="w-2 h-2 bg-emerald-400 rounded-full"></span>
+              <div className="flex items-center gap-2 text-[11px] animate-pulse mt-1" style={{ color: "var(--oboon-primary)" }}>
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: "var(--oboon-primary)" }}></span>
                 메일함에서 인증 버튼을 누르면 아래 입력창이 활성화됩니다.
               </div>
             )}
@@ -165,9 +175,14 @@ export default function SignupPage() {
             className={`space-y-4 transition-opacity duration-300 ${!isVerified ? "opacity-30 pointer-events-none" : "opacity-100"}`}
           >
             <div className="space-y-1">
-              <label className="text-xs text-slate-400 ml-1 font-semibold">이름 (실명)</label>
+              <label className="text-xs ml-1 font-semibold" style={{ color: "var(--oboon-text-body)" }}>이름 (실명)</label>
               <input
-                className="w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-2.5 text-sm outline-none focus:border-emerald-500"
+                className="w-full rounded-lg border px-4 py-2.5 text-sm outline-none"
+                style={{
+                  backgroundColor: "var(--oboon-bg-subtle)",
+                  borderColor: "var(--oboon-border-default)",
+                  color: "var(--oboon-text-body)"
+                }}
                 placeholder="홍길동"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -176,9 +191,14 @@ export default function SignupPage() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs text-slate-400 ml-1 font-semibold">휴대폰 번호</label>
+              <label className="text-xs ml-1 font-semibold" style={{ color: "var(--oboon-text-body)" }}>휴대폰 번호</label>
               <input
-                className="w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-2.5 text-sm outline-none focus:border-emerald-500"
+                className="w-full rounded-lg border px-4 py-2.5 text-sm outline-none"
+                style={{
+                  backgroundColor: "var(--oboon-bg-subtle)",
+                  borderColor: "var(--oboon-border-default)",
+                  color: "var(--oboon-text-body)"
+                }}
                 placeholder="01012345678"
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
@@ -187,9 +207,14 @@ export default function SignupPage() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs text-slate-400 ml-1 font-semibold">회원 유형</label>
+              <label className="text-xs ml-1 font-semibold" style={{ color: "var(--oboon-text-body)" }}>회원 유형</label>
               <select
-                className="w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-2.5 text-sm outline-none focus:border-emerald-500"
+                className="w-full rounded-lg border px-4 py-2.5 text-sm outline-none"
+                style={{
+                  backgroundColor: "var(--oboon-bg-subtle)",
+                  borderColor: "var(--oboon-border-default)",
+                  color: "var(--oboon-text-body)"
+                }}
                 value={userType}
                 onChange={(e) => setUserType(e.target.value as any)}
               >
@@ -201,7 +226,8 @@ export default function SignupPage() {
             <button
               type="submit"
               disabled={!isVerified || loading}
-              className="w-full py-4 bg-emerald-500 text-slate-950 font-bold rounded-xl hover:bg-emerald-400 disabled:opacity-50 mt-6 shadow-lg shadow-emerald-500/20 transition-all active:scale-95"
+              className="w-full py-4 font-bold rounded-xl mt-6 transition-all active:scale-95 ob-btn ob-btn-md ob-btn-primary"
+              style={{ boxShadow: "var(--oboon-shadow-card)" }}
             >
               {loading ? "가입 처리 중..." : "가입 완료 후 시작하기"}
             </button>
@@ -209,7 +235,7 @@ export default function SignupPage() {
         </div>
 
         {error && (
-          <div className="mt-4 p-3 bg-red-500/10 border border-red-500/50 rounded-lg text-center text-xs text-red-400">
+          <div className="mt-4 ob-alert ob-alert-danger text-center text-xs">
             {error}
           </div>
         )}

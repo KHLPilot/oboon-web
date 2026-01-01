@@ -1,114 +1,189 @@
-// app/offerings/page.tsxx
-
-import Header from "@/components/shared/Header";
-import PropertyCard from "@/features/property/PropertyCard";
+"use client";
+// app/offerings/page.tsx
+import { useEffect, useMemo, useState } from "react";
 import FilterBar from "@/features/offerings/FilterBar";
-import { Property } from "@/types";
+import OfferingCard from "@/features/offerings/OfferingCard";
+import { createSupabaseClient } from "@/lib/supabaseClient";
+import type { Offering } from "@/types/index";
+import PageContainer from "@/components/shared/PageContainer";
+import Card from "@/components/ui/Card";
+import { UXCopy } from "@/shared/uxCopy";
+import { fetchPropertiesForOfferings } from "@/features/offerings/services/offering.query";
+import {
+  mapPropertyRowToOffering,
+  type PropertyRow,
+} from "@/features/offerings/mappers/offering.mapper";
+import {
+  OFFERING_REGION_TABS,
+  isOfferingStatusValue,
+} from "@/features/offerings/domain/offering.constants";
+import type {
+  OfferingRegionTab,
+  OfferingStatusValue,
+} from "@/features/offerings/domain/offering.types";
 
-// 더미 데이터 (나중에 실제 데이터로 교체)
-const DUMMY_DATA: Property[] = [
-  {
-    id: 1,
-    status: "청약예정",
-    type: "아파트",
-    title: "더샵 강남 센트럴시티",
-    location: "서울시 강남구 역삼동",
-    price: "11.5억~",
-    imageUrl:
-      "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&q=80&w=600",
-  },
-  {
-    id: 2,
-    status: "선착순",
-    type: "오피스텔",
-    title: "e편한세상 시티 분당",
-    location: "경기도 성남시 분당구",
-    price: "4.2억~",
-    imageUrl:
-      "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=600",
-  },
-  {
-    id: 3,
-    status: "잔여세대",
-    type: "아파트",
-    title: "힐스테이트 판교 밸리",
-    location: "경기도 성남시 판교동",
-    price: "9.8억~",
-    imageUrl:
-      "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&q=80&w=600",
-  },
-  {
-    id: 4,
-    status: "선착순",
-    type: "하이엔드",
-    title: "루시아 청담 546",
-    location: "서울시 강남구 청담동",
-    price: "25억~",
-    imageUrl:
-      "https://images.unsplash.com/photo-1515263487990-61b07816b324?auto=format&fit=crop&q=80&w=600",
-  },
-  {
-    id: 5,
-    status: "청약예정",
-    type: "아파트",
-    title: "송파 헬리오시티 2차",
-    location: "서울시 송파구 가락동",
-    price: "18.5억~",
-    imageUrl:
-      "https://images.unsplash.com/photo-1600596542815-2495db9dc2c3?auto=format&fit=crop&q=80&w=600",
-  },
-  {
-    id: 6,
-    status: "마감임박",
-    type: "상가/오피스",
-    title: "강남 파이낸스 플렉스",
-    location: "서울시 강남구 삼성동",
-    price: "8.2억~",
-    imageUrl:
-      "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=600",
-  },
-];
+/* ================================
+ * Search / Filter
+ * ================================ */
 
-export default function OfferingsPage() {
+type SearchParams = {
+  region?: string;
+  status?: string;
+  q?: string;
+  budgetMin?: string; // 억 단위
+  budgetMax?: string; // 억 단위
+};
+
+function isRegionTab(v: string): v is OfferingRegionTab {
+  return (OFFERING_REGION_TABS as readonly string[]).includes(v);
+}
+
+function filterOfferings(all: Offering[], sp: SearchParams) {
+  const rawRegion = sp.region ?? "전체";
+  const region: OfferingRegionTab =
+    rawRegion && isRegionTab(rawRegion) ? rawRegion : "전체";
+
+  const rawStatus = sp.status ?? "";
+  const status: OfferingStatusValue | "전체" =
+    rawStatus && isOfferingStatusValue(rawStatus) ? rawStatus : "전체";
+  const q = (sp.q ?? "").trim();
+
+  const budgetMin = sp.budgetMin ? Number(sp.budgetMin) : null;
+  const budgetMax = sp.budgetMax ? Number(sp.budgetMax) : null;
+  const budgetMinWon =
+    budgetMin != null ? Math.round(budgetMin * 100_000_000) : null;
+  const budgetMaxWon =
+    budgetMax != null ? Math.round(budgetMax * 100_000_000) : null;
+
+  return all.filter((o) => {
+    if (region !== "전체" && o.region !== region) return false;
+    if (status !== "전체" && o.statusValue !== status) return false;
+
+    if (q) {
+      const hay = `${o.title} ${o.addressShort} ${
+        o.regionLabel ?? o.region
+      }`.toLowerCase();
+      if (!hay.includes(q.toLowerCase())) return false;
+    }
+
+    // 예산 필터
+    if (
+      budgetMinWon != null &&
+      o.priceMax억 != null &&
+      o.priceMax억 < budgetMinWon
+    )
+      return false;
+    if (
+      budgetMaxWon != null &&
+      o.priceMin억 != null &&
+      o.priceMin억 > budgetMaxWon
+    )
+      return false;
+
+    return true;
+  });
+}
+
+/* ================================
+ * Page
+ * ================================ */
+
+export default function OfferingsPage({
+  searchParams,
+}: {
+  searchParams?: SearchParams;
+}) {
+  const supabase = useMemo(() => createSupabaseClient(), []);
+  const [rows, setRows] = useState<PropertyRow[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  /* ---------- fetch ---------- */
+  useEffect(() => {
+    let mounted = true;
+
+    (async () => {
+      const { data, error } = await fetchPropertiesForOfferings(supabase, {
+        limit: 200,
+      });
+
+      if (!mounted) return;
+
+      if (error) {
+        setLoadError(error.message ?? "데이터를 불러오지 못했어요.");
+        setRows([]);
+        return;
+      }
+
+      setLoadError(null);
+      setRows((data ?? []) as PropertyRow[]);
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [supabase]);
+
+  /* ---------- map to Offering ---------- */
+  const fallback = useMemo(
+    () => ({
+      addressShort: UXCopy.addressShort,
+      regionShort: UXCopy.regionShort,
+    }),
+    []
+  );
+
+  const allOfferings: Offering[] = useMemo(() => {
+    return rows.map((row) => mapPropertyRowToOffering(row, fallback));
+  }, [rows, fallback]);
+
+  const items = useMemo(
+    () => filterOfferings(allOfferings, searchParams ?? {}),
+    [allOfferings, searchParams]
+  );
+
+  /* ---------- render ---------- */
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-      <Header />
-
-      <main className="container mx-auto px-4 md:px-8 py-12">
-        {/* 페이지 타이틀 */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Offerings</h1>
-          <p className="text-slate-500">
-            고객님의 조건에 맞는 최적의 분양 현장을 찾아보세요.
+    <main className="bg-(--oboon-bg-page)">
+      <PageContainer className="pb-16 pt-6">
+        {/* Header */}
+        <div className="mb-4">
+          <h1 className="text-[28px] font-semibold tracking-[-0.02em] text-(--oboon-text-title)">
+            분양 리스트
+          </h1>
+          <p className="mt-1 text-[14px] leading-[1.6] text-(--oboon-text-muted)">
+            조건에 맞는 분양 정보를 빠르게 찾을 수 있어요.
           </p>
         </div>
 
-        {/* 필터 바 (Client Component) */}
-        <FilterBar />
+        {/* Filter */}
+        <Card className="mb-6">
+          <FilterBar />
+        </Card>
 
-        {/* 매물 리스트 그리드 */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {DUMMY_DATA.map((prop) => (
-            <PropertyCard key={prop.id} data={prop} />
-          ))}
+        {/* Meta */}
+        <div className="mb-4 flex items-center justify-between">
+          <div className="text-[14px] text-(--oboon-text-muted)">
+            총{" "}
+            <span className="font-semibold text-(--oboon-text-title)">
+              {items.length}
+            </span>
+            개
+          </div>
+
+          {loadError && (
+            <div className="text-[12px] text-red-500">
+              데이터를 불러오지 못했어요. ({loadError})
+            </div>
+          )}
         </div>
 
-        {/* 페이지네이션 (간단 구현) */}
-        <div className="mt-12 flex justify-center gap-2">
-          {[1, 2, 3].map((num) => (
-            <button
-              key={num}
-              className={`w-10 h-10 rounded-lg text-sm font-bold flex items-center justify-center transition-colors ${
-                num === 1
-                  ? "bg-slate-900 text-white"
-                  : "bg-white border border-slate-200 text-slate-500 hover:bg-slate-50"
-              }`}
-            >
-              {num}
-            </button>
+        {/* Grid */}
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {items.map((offering) => (
+            <OfferingCard key={offering.id} offering={offering} />
           ))}
         </div>
-      </main>
-    </div>
+      </PageContainer>
+    </main>
   );
 }

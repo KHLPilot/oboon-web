@@ -1,18 +1,37 @@
+// app/company/properties/[id]/facilities/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { Trash2 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Button from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 import { createSupabaseClient } from "@/lib/supabaseClient";
-import AddressBox from "app/components/AddressBox";
-import NaverMap from "app/components/NaverMap";
+import { FormField } from "@/app/components/FormField";
+import PrecisionDateInput from "@/components/ui/PercisionDateInput";
+import NaverMap from "@/app/components/NaverMap";
 
-declare global {
-  interface Window {
-    daum: any;
-  }
-}
+const inputBase =
+  "input-basic rounded-md border border-(--oboon-border-default) bg-(--oboon-bg-subtle)/70 px-3 py-2 transition focus:border-(--oboon-accent) focus:outline-none focus:ring-2 focus:ring-(--oboon-accent)/50 w-full";
 
-const supabase = createSupabaseClient();
+const labelStrong = "text-sm font-medium text-(--oboon-text-title)";
+
+type DaumPostcodeResult = {
+  roadAddress: string;
+  jibunAddress: string;
+};
+
+type DaumPostcodeConstructor = new (opts: {
+  oncomplete: (data: DaumPostcodeResult) => void;
+}) => { open: () => void };
+
+type GeoResult = {
+  lat: number | null;
+  lng: number | null;
+  region_1depth: string | null;
+  region_2depth: string | null;
+  region_3depth: string | null;
+};
 
 type FacilityType = "MODELHOUSE" | "PROMOTION" | "POPUP";
 
@@ -28,94 +47,77 @@ type FacilityForm = {
   region_1depth: string | null;
   region_2depth: string | null;
   region_3depth: string | null;
-  open_start: string | null; // yyyy-mm
-  open_end: string | null;   // yyyy-mm
+  open_start: string | null;
+  open_end: string | null;
   is_active: boolean;
   isEditing: boolean;
   manualMode: boolean;
   hasSelectedPosition?: boolean;
 };
 
-/* yyyy-mm formatter */
-function formatYearMonth(raw: string) {
-  let v = raw.replace(/\D/g, "");
-  if (v.length > 6) v = v.slice(0, 6);
-  if (v.length <= 4) return v;
-
-  const year = v.slice(0, 4);
-  let month = v.slice(4, 6);
-
-  if (month.length === 1 && Number(month) > 1) {
-    month = `0${month}`;
-  }
-  if (month.length === 2) {
-    const m = Number(month);
-    if (m < 1) month = "01";
-    if (m > 12) month = "12";
-  }
-
-  return `${year}-${month}`;
-}
-
 export default function PropertyFacilitiesPage() {
+  const supabase = createSupabaseClient();
+  const params = useParams<{ id: string }>();
   const router = useRouter();
-  const params = useParams();
   const propertyId = Number(params.id);
 
   const [facilities, setFacilities] = useState<FacilityForm[]>([]);
   const [loading, setLoading] = useState(false);
 
-  /* ===============================
-     초기 로드
-  =============================== */
+  const fetchFacilities = useCallback(
+    async (id: number) => {
+      const { data, error } = await supabase
+        .from("property_facilities")
+        .select("*")
+        .eq("properties_id", id)
+        .order("created_at", { ascending: true });
+
+      if (error) {
+        console.error(error);
+        return;
+      }
+
+      setFacilities(
+        data.map((f) => ({
+          id: f.id,
+          type: f.type,
+          name: f.name ?? "",
+          road_address: f.road_address ?? "",
+          jibun_address: f.jibun_address ?? "",
+          address_detail: f.address_detail ?? "",
+          lat: f.lat,
+          lng: f.lng,
+          region_1depth: f.region_1depth,
+          region_2depth: f.region_2depth,
+          region_3depth: f.region_3depth,
+          open_start: f.open_start,
+          open_end: f.open_end,
+          is_active: f.is_active ?? true,
+          isEditing: false,
+          manualMode: false,
+          hasSelectedPosition: Boolean(f.lat && f.lng),
+        }))
+      );
+    },
+    [supabase]
+  );
+
   useEffect(() => {
-    if (!Number.isFinite(propertyId)) return;
+    if (Number.isNaN(propertyId)) return;
     fetchFacilities(propertyId);
-  }, [propertyId]);
+  }, [propertyId, fetchFacilities]);
 
-  async function fetchFacilities(id: number) {
-    const { data, error } = await supabase
-      .from("property_facilities")
-      .select("*")
-      .eq("properties_id", id)
-      .order("created_at", { ascending: true });
-
-    if (error) return console.error(error);
-
-    setFacilities(
-      data.map((f) => ({
-        id: f.id,
-        type: f.type,
-        name: f.name ?? "",
-        road_address: f.road_address ?? "",
-        jibun_address: f.jibun_address ?? "",
-        address_detail: f.address_detail ?? "",
-        lat: f.lat,
-        lng: f.lng,
-        region_1depth: f.region_1depth,
-        region_2depth: f.region_2depth,
-        region_3depth: f.region_3depth,
-        open_start: f.open_start,
-        open_end: f.open_end,
-        is_active: f.is_active ?? true,
-        isEditing: false,
-        manualMode: false,
-        hasSelectedPosition: Boolean(f.lat && f.lng),
-      }))
-    );
-  }
-
-  /* ===============================
-     주소 검색
-  =============================== */
   function openPostcode(index: number) {
-    new window.daum.Postcode({
-      oncomplete: async (data: any) => {
+    const Postcode = window.daum?.Postcode;
+    if (!Postcode) return;
+
+    new Postcode({
+      oncomplete: async (data: DaumPostcodeResult) => {
         const query = data.roadAddress || data.jibunAddress;
         const res = await fetch(
           `/api/geo/address?query=${encodeURIComponent(query)}`
         );
-        const geo = await res.json();
+        const geo = (await res.json()) as GeoResult;
 
         setFacilities((prev) =>
           prev.map((f, i) =>
@@ -129,6 +131,7 @@ export default function PropertyFacilitiesPage() {
                 region_1depth: geo.region_1depth,
                 region_2depth: geo.region_2depth,
                 region_3depth: geo.region_3depth,
+                hasSelectedPosition: Boolean(geo.lat && geo.lng),
               }
               : f
           )
@@ -137,9 +140,6 @@ export default function PropertyFacilitiesPage() {
     }).open();
   }
 
-  /* ===============================
-     CRUD
-  =============================== */
   function addFacility() {
     setFacilities((prev) => [
       ...prev,
@@ -173,17 +173,11 @@ export default function PropertyFacilitiesPage() {
     }
 
     if (!f.lat || !f.lng) {
-      alert("지도에서 위치를 선택해주세요.");
-      return;
-    }
-
-    if (!f.region_1depth || !f.region_2depth) {
-      alert("행정구역 정보가 없습니다.");
+      alert("주소를 검색하거나 지도에서 위치를 선택해주세요.");
       return;
     }
 
     setLoading(true);
-
     try {
       const payload = {
         properties_id: propertyId,
@@ -192,14 +186,11 @@ export default function PropertyFacilitiesPage() {
         road_address: f.road_address,
         jibun_address: f.jibun_address,
         address_detail: f.address_detail,
-
         lat: f.lat,
         lng: f.lng,
-
         region_1depth: f.region_1depth,
         region_2depth: f.region_2depth,
         region_3depth: f.region_3depth,
-
         open_start: f.open_start,
         open_end: f.open_end,
         is_active: f.is_active,
@@ -212,12 +203,13 @@ export default function PropertyFacilitiesPage() {
           .eq("id", f.id)
         : await supabase.from("property_facilities").insert(payload);
 
-      if (error) throw error;
+      if (error) {
+        alert(error.message);
+        return;
+      }
 
       await fetchFacilities(propertyId);
       alert("저장되었습니다.");
-    } catch (err: any) {
-      alert("저장 실패: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -230,268 +222,306 @@ export default function PropertyFacilitiesPage() {
     setFacilities((prev) => prev.filter((x) => x !== f));
   }
 
-  function updateField(index: number, key: keyof FacilityForm, value: any) {
+  function updateField(
+    index: number,
+    key: keyof FacilityForm,
+    value: FacilityForm[keyof FacilityForm]
+  ) {
     setFacilities((prev) =>
       prev.map((f, i) => (i === index ? { ...f, [key]: value } : f))
     );
   }
 
-  /* ===============================
-     UI
-  =============================== */
   return (
-    <div className="max-w-3xl mx-auto px-6 pt-8 pb-40 bg-slate-50">
-      <div className="flex items-center gap-3 mb-6">
-        <button
-          onClick={() => router.push(`/company/properties/${propertyId}`)}
-          className="text-sm text-slate-500 hover:underline"
-        >
-          ← 뒤로가기
-        </button>
-        <h1 className="text-xl font-bold text-slate-900">🏠 홍보시설</h1>
-      </div>
+    <div className="bg-(--oboon-bg-page) px-4 py-8">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+        <div className="flex items-center justify-between">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-semibold text-(--oboon-text-title)">
+              홍보시설
+            </h1>
+            <p className="mt-1 text-sm text-(--oboon-text-muted)">
+              모델하우스·홍보관·팝업 등 홍보시설 정보를 입력하세요.
+            </p>
+          </div>
 
-      {facilities.map((f, idx) => (
-        <section
-          key={idx}
-          className="bg-white border border-slate-200 rounded-xl p-5 space-y-4"
-        >
-          <Field label="홍보시설 이름">
-            <input
-              className={inputClass}
-              disabled={!f.isEditing}
-              value={f.name}
-              onChange={(e) => updateField(idx, "name", e.target.value)}
-            />
-          </Field>
-
-          <Field label="홍보시설 유형">
-            <select
-              className={selectClass}
-              disabled={!f.isEditing}
-              value={f.type}
-              onChange={(e) =>
-                updateField(idx, "type", e.target.value as FacilityType)
-              }
+          <div className="flex shrink-0 items-center gap-2">
+            <Button
+              variant="primary"
+              size="sm"
+              shape="pill"
+              onClick={() => addFacility()}
             >
-              <option value="MODELHOUSE">모델하우스</option>
-              <option value="PROMOTION">홍보관</option>
-              <option value="POPUP">팝업</option>
-            </select>
-          </Field>
+              시설 추가
+            </Button>
 
-          {f.road_address && (
-            <AddressBox
-              roadAddress={f.road_address}
-              jibunAddress={f.jibun_address}
-            />
-          )}
-
-          {f.isEditing && !f.manualMode && (
-            <>
-              <button
-                className="btn-primary w-full"
-                onClick={() => openPostcode(idx)}
-              >
-                주소 검색
-              </button>
-
-              <button
-                className="btn-secondary w-full"
-                onClick={() =>
-                  setFacilities((prev) =>
-                    prev.map((x, i) =>
-                      i === idx ? { ...x, manualMode: true } : x
-                    )
-                  )
-                }
-              >
-                직접 위치 등록
-              </button>
-            </>
-          )}
-
-
-          {f.manualMode && (
-            <button
-              className="btn-secondary w-full"
-              onClick={() => updateField(idx, "manualMode", false)}
+            <Button
+              variant="secondary"
+              size="sm"
+              shape="pill"
+              onClick={() => router.push(`/company/properties/${propertyId}`)}
             >
-              돌아가기
-            </button>
-          )}
+              취소
+            </Button>
+          </div>
+        </div>
 
-          {f.isEditing && f.manualMode && (
-            <div className="space-y-2">
-              {/* 지도 */}
-              <div className="h-64 relative rounded-xl overflow-hidden border">
-                {!f.hasSelectedPosition && (
-                  <div
-                    className="
-            absolute inset-0 z-10
-            flex items-center justify-center
-            text-sm font-medium text-slate-600
-            bg-white/50 backdrop-blur
-            pointer-events-none
-          "
-                  >
-                    지도에 위치를 찍어주세요.
-                  </div>
-                )}
-
-                <NaverMap
-                  onSelectPosition={async (lat, lng) => {
-                    const res = await fetch(`/api/geo/reverse?lat=${lat}&lng=${lng}`);
-                    const geo = await res.json();
-
-                    const composedRoadAddress = [
-                      geo.region_1depth,
-                      geo.region_2depth,
-                      geo.region_3depth,
-                    ]
-                      .filter(Boolean)
-                      .join(" ");
-
-                    setFacilities((prev) =>
-                      prev.map((x, i) =>
-                        i === idx
-                          ? {
-                            ...x,
-                            lat,
-                            lng,
-                            road_address: composedRoadAddress,
-                            jibun_address: "",
-                            region_1depth: geo.region_1depth,
-                            region_2depth: geo.region_2depth,
-                            region_3depth: geo.region_3depth,
-                            hasSelectedPosition: true,
-                          }
-                          : x
-                      )
-                    );
-                  }}
-                />
+        {facilities.map((f, idx) => (
+          <section
+            key={idx}
+            className={[
+              "space-y-3 rounded-2xl border p-4",
+              "bg-(--oboon-bg-surface)",
+              "border-(--oboon-border-default)",
+              "shadow-none md:shadow-sm",
+            ].join(" ")}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Badge variant="status" className="text-[12px]">
+                  {f.type === "MODELHOUSE"
+                    ? "모델하우스"
+                    : f.type === "PROMOTION"
+                      ? "홍보관"
+                      : "팝업"}
+                </Badge>
+                <span className="text-sm text-(--oboon-text-muted)">
+                  {f.is_active ? "운영 중" : "미운영"}
+                </span>
               </div>
 
-              {/* 행정구역 표시 */}
-              <Field label="행정구역">
-                <input
-                  className={inputClass}
-                  readOnly
-                  value={[
-                    f.region_1depth,
-                    f.region_2depth,
-                    f.region_3depth,
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                  placeholder="지도에서 위치를 선택하세요"
-                />
-              </Field>
+              <button
+                type="button"
+                aria-label="삭제"
+                onClick={() => deleteFacility(f)}
+                disabled={loading}
+                className="ml-auto shrink-0 rounded-full p-1.5 text-red-500 hover:bg-red-500/10 focus:outline-none focus:ring-2 focus:ring-red-500/30 disabled:opacity-50"
+              >
+                <Trash2 size={16} />
+              </button>
             </div>
-          )}
 
-          <Field label="상세 주소">
+            <FormField label="시설명" labelClassName={labelStrong}>
+              <input
+                className={inputBase}
+                placeholder="시설명"
+                disabled={!f.isEditing}
+                value={f.name}
+                onChange={(e) => updateField(idx, "name", e.target.value)}
+              />
+            </FormField>
+
+            <FormField label="시설 유형">
+              <select
+                className={inputBase}
+                disabled={!f.isEditing}
+                value={f.type}
+                onChange={(e) =>
+                  updateField(idx, "type", e.target.value as FacilityType)
+                }
+              >
+                <option value="MODELHOUSE">모델하우스</option>
+                <option value="PROMOTION">홍보관</option>
+                <option value="POPUP">팝업</option>
+              </select>
+            </FormField>
+
+            {f.road_address && (
+              <div className="space-y-1 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-2">
+                <div className="text-xs text-(--oboon-text-muted)">
+                  도로명주소
+                </div>
+                <div className="text-sm font-medium text-(--oboon-text-title)">
+                  {f.road_address}
+                </div>
+                {f.jibun_address && (
+                  <div className="text-xs text-(--oboon-text-muted)">
+                    {f.jibun_address}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {f.isEditing && !f.manualMode && (
+              <>
+                <Button
+                  variant="secondary"
+                  size="md"
+                  shape="pill"
+                  className="w-full justify-center"
+                  onClick={() => openPostcode(idx)}
+                >
+                  주소 검색
+                </Button>
+
+                <Button
+                  variant="secondary"
+                  size="md"
+                  shape="pill"
+                  className="w-full justify-center"
+                  onClick={() => updateField(idx, "manualMode", true)}
+                >
+                  직접 위치 등록
+                </Button>
+              </>
+            )}
+
+            {f.manualMode && (
+              <Button
+                variant="secondary"
+                size="md"
+                shape="pill"
+                className="w-full justify-center"
+                onClick={() => updateField(idx, "manualMode", false)}
+              >
+                돌아가기
+              </Button>
+            )}
+
+            {f.isEditing && f.manualMode && (
+              <div className="space-y-2">
+                <div className="h-64 relative rounded-xl overflow-hidden border">
+                  {!f.hasSelectedPosition && (
+                    <div className="absolute inset-0 z-10 flex items-center justify-center text-sm font-medium bg-white/50 backdrop-blur pointer-events-none" style={{ color: "var(--oboon-text-body)" }}>
+                      지도에 위치를 찍어주세요.
+                    </div>
+                  )}
+
+                  <NaverMap
+                    onSelectPosition={async (lat, lng) => {
+                      const res = await fetch(`/api/geo/reverse?lat=${lat}&lng=${lng}`);
+                      const geo = await res.json();
+
+                      const composedRoadAddress = [
+                        geo.region_1depth,
+                        geo.region_2depth,
+                        geo.region_3depth,
+                      ]
+                        .filter(Boolean)
+                        .join(" ");
+
+                      setFacilities((prev) =>
+                        prev.map((x, i) =>
+                          i === idx
+                            ? {
+                              ...x,
+                              lat,
+                              lng,
+                              road_address: composedRoadAddress,
+                              jibun_address: "",
+                              region_1depth: geo.region_1depth,
+                              region_2depth: geo.region_2depth,
+                              region_3depth: geo.region_3depth,
+                              hasSelectedPosition: true,
+                            }
+                            : x
+                        )
+                      );
+                    }}
+                  />
+                </div>
+
+                <FormField label="행정구역">
+                  <input
+                    className={inputBase}
+                    readOnly
+                    value={[
+                      f.region_1depth,
+                      f.region_2depth,
+                      f.region_3depth,
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                    placeholder="지도에서 위치를 선택하세요"
+                  />
+                </FormField>
+              </div>
+            )}
+
             <input
-              className={inputClass}
+              className={inputBase}
+              placeholder="상세 주소"
               disabled={!f.isEditing}
               value={f.address_detail}
               onChange={(e) =>
                 updateField(idx, "address_detail", e.target.value)
               }
             />
-          </Field>
 
-          {/* yyyy-mm 직접 입력 */}
-          <div className="grid grid-cols-2 gap-3">
-            <input
-              type="text"
-              className={inputClass}
-              placeholder="yyyy-mm"
-              disabled={!f.isEditing}
-              value={f.open_start ?? ""}
-              onChange={(e) =>
-                updateField(idx, "open_start", formatYearMonth(e.target.value))
-              }
-            />
-            <input
-              type="text"
-              className={inputClass}
-              placeholder="yyyy-mm"
-              disabled={!f.isEditing}
-              value={f.open_end ?? ""}
-              onChange={(e) =>
-                updateField(idx, "open_end", formatYearMonth(e.target.value))
-              }
-            />
-          </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <FormField label="운영 시작월">
+                <PrecisionDateInput
+                  value={f.open_start}
+                  onChange={(next) => updateField(idx, "open_start", next)}
+                  disabled={!f.isEditing}
+                  policy="monthOnly"
+                  inputClassName={inputBase}
+                  placeholder="예) 2026-01"
+                />
+              </FormField>
 
-          <label className="flex items-center gap-2 text-sm text-slate-600">
-            <input
-              type="checkbox"
-              disabled={!f.isEditing}
-              checked={f.is_active}
-              onChange={(e) =>
-                updateField(idx, "is_active", e.target.checked)
-              }
-            />
-            운영 중
-          </label>
+              <FormField label="운영 종료월">
+                <PrecisionDateInput
+                  value={f.open_end}
+                  onChange={(next) => updateField(idx, "open_end", next)}
+                  disabled={!f.isEditing}
+                  policy="monthOnly"
+                  inputClassName={inputBase}
+                  placeholder="예) 2026-03"
+                />
+              </FormField>
+            </div>
 
-          <div className="flex justify-end gap-2 pt-2">
-            {f.isEditing ? (
-              <>
-                <button className="btn-danger" onClick={() => deleteFacility(f)}>
-                  삭제
-                </button>
-                <button className="btn-save" onClick={() => saveFacility(f)}>
-                  저장
-                </button>
-              </>
-            ) : (
-              <>
-                <button className="btn-danger" onClick={() => deleteFacility(f)}>
-                  삭제
-                </button>
-                <button
-                  className="btn-primary"
+            <label className="flex items-center gap-2 text-sm text-(--oboon-text-body)">
+              <input
+                type="checkbox"
+                disabled={!f.isEditing}
+                checked={f.is_active}
+                onChange={(e) =>
+                  updateField(idx, "is_active", e.target.checked)
+                }
+              />
+              운영 중
+            </label>
+
+            <div className="flex justify-end gap-2 pt-2">
+              {f.isEditing ? (
+                <>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    shape="pill"
+                    onClick={() => updateField(idx, "isEditing", false)}
+                    disabled={loading}
+                  >
+                    취소
+                  </Button>
+
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    shape="pill"
+                    onClick={() => saveFacility(f)}
+                    disabled={loading}
+                  >
+                    저장
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  shape="pill"
                   onClick={() => updateField(idx, "isEditing", true)}
+                  disabled={loading}
                 >
                   수정
-                </button>
-              </>
-            )}
-          </div>
-        </section>
-      ))}
-
-      <button className="btn-primary w-full mt-6" onClick={addFacility}>
-        + 시설 추가
-      </button>
+                </Button>
+              )}
+            </div>
+          </section>
+        ))}
+      </div>
     </div>
   );
 }
-
-/* ===============================
-   UI Helpers
-=============================== */
-
-const inputClass =
-  "w-full px-4 py-3 rounded-xl bg-white text-slate-900 " +
-  "border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 " +
-  "disabled:bg-slate-100 disabled:text-slate-500";
-
-const selectClass = inputClass;
-
-const Field = ({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) => (
-  <div className="space-y-2">
-    <p className="text-sm font-medium text-slate-700">{label}</p>
-    {children}
-  </div>
-);
