@@ -1,9 +1,8 @@
-// /app/company/properties/%5Bid%5D/specs/page.tsx
+// /app/company/properties/[id]/specs/page.tsx
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import { FormField } from "@/app/components/FormField";
@@ -62,12 +61,15 @@ export default function PropertySpecsPage() {
     scale: false,
     parking: false,
   });
-  const [hasSavedOnce, setHasSavedOnce] = useState(false);
-  const anyEditing = Object.values(sectionEdit).some(Boolean);
 
   useEffect(() => {
     let alive = true;
     async function load() {
+      if (!Number.isFinite(propertyId)) {
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       const { data, error } = await supabase
         .from("property_specs")
@@ -104,11 +106,7 @@ export default function PropertySpecsPage() {
       setLoading(false);
     }
 
-    if (Number.isFinite(propertyId)) {
-      load();
-    } else {
-      setLoading(false);
-    }
+    load();
 
     return () => {
       alive = false;
@@ -158,7 +156,6 @@ export default function PropertySpecsPage() {
       alert("저장 실패: " + error.message);
       return;
     }
-    setHasSavedOnce(true);
     setBaseForm({ ...form, properties_id: propertyId });
     setSectionEdit({
       biz: false,
@@ -172,30 +169,6 @@ export default function PropertySpecsPage() {
   const inputBase =
     "input-basic rounded-md border border-(--oboon-border-default) bg-(--oboon-bg-subtle)/70 px-3 py-2 transition focus:border-(--oboon-accent) focus:outline-none focus:ring-2 focus:ring-(--oboon-accent)/50";
   const labelStrong = "text-sm font-medium text-(--oboon-text-title)";
-  const ALL_FIELDS: (keyof SpecsForm)[] = [
-    "sale_type",
-    "trust_company",
-    "developer",
-    "builder",
-    "land_use_zone",
-    "site_area",
-    "building_area",
-    "building_coverage_ratio",
-    "floor_area_ratio",
-    "floor_ground",
-    "floor_underground",
-    "building_count",
-    "household_total",
-    "parking_total",
-    "parking_per_household",
-    "heating_type",
-    "amenities",
-  ];
-  const hasDirty = useMemo(() => {
-    if (!baseForm) return false;
-    return ALL_FIELDS.some((key) => form[key] !== baseForm[key]);
-  }, [form, baseForm]);
-  const needsSave = anyEditing || hasDirty || hasSavedOnce;
 
   const SECTION_FIELDS: Record<keyof typeof sectionEdit, (keyof SpecsForm)[]> =
     {
@@ -226,16 +199,17 @@ export default function PropertySpecsPage() {
   }
 
   function cancelSection(section: keyof typeof sectionEdit) {
-    if (baseForm) {
+    const snapshot = baseForm;
+    if (snapshot) {
       setForm((prev) => {
-        const next: SpecsForm = { ...prev };
-
-        SECTION_FIELDS[section].forEach((field) => {
-          // TS의 "union key write => never" 문제 회피
-          (next as any)[field] = (baseForm as any)[field] ?? null;
+        const next = { ...prev } as Record<
+          string,
+          SpecsForm[keyof SpecsForm]
+        >;
+        (SECTION_FIELDS[section] as Array<keyof SpecsForm>).forEach((field) => {
+          next[field] = snapshot[field] ?? null;
         });
-
-        return next;
+        return next as SpecsForm;
       });
     }
     setSectionEdit((prev) => ({ ...prev, [section]: false }));

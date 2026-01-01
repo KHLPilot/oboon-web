@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, {
   forwardRef,
@@ -28,7 +28,7 @@ export const CalendarIconButton = forwardRef<
   CalendarIconButtonProps
 >(({ className = "", ...rest }, ref) => (
   <Button
-    ref={ref as any}
+    ref={ref}
     type="button"
     variant="secondary"
     size="sm"
@@ -66,7 +66,7 @@ export type OboonDatePickerProps = Omit<
 > & {
   onChange?: (
     date: Date | null,
-    event?: React.MouseEvent<HTMLElement> | React.KeyboardEvent<HTMLElement>
+    event?: React.SyntheticEvent<HTMLElement>
   ) => void;
 
   buttonProps?: CalendarIconButtonProps;
@@ -119,6 +119,7 @@ export default function OboonDatePicker({
   placeholder,
   calendarClassName,
   popperClassName,
+  showMonthYearDropdown,
   disabled,
   ...rest
 }: OboonDatePickerProps) {
@@ -128,7 +129,7 @@ export default function OboonDatePicker({
     return (
       <CalendarIconButton
         {...buttonProps}
-        onClick={(e: any) => {
+        onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
           buttonProps?.onClick?.(e);
           if (!disabled) setOpen(true);
         }}
@@ -137,55 +138,69 @@ export default function OboonDatePicker({
     );
   }, [buttonProps, disabled]);
 
+  const handleChange = (
+    date: Date | Date[] | [Date | null, Date | null] | null,
+    event?: React.MouseEvent<HTMLElement> | React.KeyboardEvent<HTMLElement>
+  ) => {
+    setOpen(false);
+    const next = Array.isArray(date) ? date[0] ?? null : date ?? null;
+    onChange?.(next, event);
+  };
+
+  const handleRaw = (
+    event?: React.MouseEvent<HTMLElement> | React.KeyboardEvent<HTMLElement>
+  ) => {
+    if (!allowTextInput) return;
+
+    const raw =
+      (event?.target as HTMLInputElement | null)?.value?.toString() ?? "";
+    if (!raw.trim()) {
+      onChange?.(null, event);
+      return;
+    }
+
+    const parsed =
+      textFormat === "yyyy-MM"
+        ? parseYmToLocalDateStrict(raw)
+        : parseYmdToLocalDateStrict(raw);
+
+    if (parsed) onChange?.(parsed, event);
+  };
+
+  const pickerProps: NativeDatePickerProps = {
+    ...rest,
+    locale: "ko",
+    disabled,
+    open,
+    onCalendarOpen: () => setOpen(true),
+    onCalendarClose: () => setOpen(false),
+    onClickOutside: () => setOpen(false),
+    onInputClick: () => {
+      if (!disabled) setOpen(true);
+    },
+    onChange: handleChange,
+    onChangeRaw: handleRaw,
+    dateFormat: textFormat,
+    className: inputClassName,
+    placeholderText: placeholder,
+    calendarClassName: calendarClassName ?? "oboon-datepicker",
+    popperClassName: popperClassName ?? "oboon-datepicker-popper",
+    wrapperClassName: "w-full",
+    ...(showMonthYearDropdown ? { showMonthYearDropdown: true } : {}),
+  };
+
   return (
     <>
       <div className="flex w-full items-center gap-2">
-        {/* ✅ A안: wrapper 흔들림 방지(레이아웃 고정) */}
+        {/* input wrapper: 레이아웃 흔들림 방지(폭 고정) */}
         <div className="min-w-0 flex-1">
-          <DatePicker
-            {...(rest as NativeDatePickerProps)}
-            locale="ko"
-            disabled={disabled}
-            open={open}
-            onCalendarOpen={() => setOpen(true)}
-            onCalendarClose={() => setOpen(false)}
-            onClickOutside={() => setOpen(false)}
-            onInputClick={() => {
-              if (!disabled) setOpen(true);
-            }}
-            onChange={(date: any, event: any) => {
-              setOpen(false);
-              onChange?.(date ?? null, event);
-            }}
-            onChangeRaw={(e) => {
-              if (!allowTextInput) return;
-
-              const raw = (e?.target as HTMLInputElement | null)?.value ?? "";
-              if (!raw.trim()) {
-                onChange?.(null, e as any);
-                return;
-              }
-
-              const parsed =
-                textFormat === "yyyy-MM"
-                  ? parseYmToLocalDateStrict(raw)
-                  : parseYmdToLocalDateStrict(raw);
-
-              if (parsed) onChange?.(parsed, e as any);
-            }}
-            dateFormat={textFormat}
-            className={inputClassName}
-            placeholderText={placeholder}
-            calendarClassName={calendarClassName ?? "oboon-datepicker"}
-            popperClassName={popperClassName ?? "oboon-datepicker-popper"}
-            wrapperClassName="w-full"
-          />
+          <DatePicker {...pickerProps} />
         </div>
 
         {trigger}
       </div>
 
-      {/* ✅ 디자인 토큰 기반 “최소 스타일”만 적용 (레이아웃은 react-datepicker 기본을 최대한 유지) */}
+      {/* 레이아웃은 react-datepicker 기본 유지) */}
       <style jsx global>{`
         /* ===== Layout Stabilization ===== */
         .react-datepicker-wrapper {

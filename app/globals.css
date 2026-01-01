@@ -1,5 +1,17 @@
 @import "tailwindcss";
 
+/* Chrome, Safari, Edge */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Firefox */
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
 @layer components {
   /* =========================
      OBOON Button System
@@ -179,6 +191,32 @@
   --oboon-warning-bg-subtle: #fef3c7; /* amber-100 */
   --oboon-warning-text: #92400e; /* amber-800 */
   --oboon-warning-border: #fcd34d; /* amber-300 */
+
+  /* 1) 지도 마커 컬러(마커 타입별) */
+  --oboon-marker-urgent: var(--oboon-primary); /* 예: 모집중(urgent) */
+  --oboon-marker-upcoming: var(--oboon-warning); /* 예: 모집예정(upcoming) */
+  --oboon-marker-remain: var(--oboon-text-muted); /* 예: 종료/기타(remain) */
+
+  /* 2) 마커 테두리(지도 위에서 배경과 분리) */
+  --oboon-marker-stroke: var(--oboon-bg-surface);
+
+  /* 3) 선택/포커스 링(halo) */
+  /* 링은 primary 기반의 투명색으로: 라이트에서는 비교적 약하게 */
+  --oboon-focus-ring: color-mix(in srgb, var(--oboon-primary) 22%, transparent);
+
+  /* 4) 지도 마커 그림자(라이트는 그림자 강도 조금 낮게) */
+  --oboon-map-shadow-default: rgba(0, 0, 0, 0.22);
+  --oboon-map-shadow-strong: rgba(0, 0, 0, 0.32);
+
+  /* 5) 리스트 선택 뱃지 배경(= primary의 아주 연한 배경) */
+  --oboon-badge-selected-bg: color-mix(
+    in srgb,
+    var(--oboon-primary) 10%,
+    transparent
+  );
+
+  /* 6) 리스트 선택 뱃지 테두리(= primary) */
+  --oboon-badge-selected-border: var(--oboon-primary);
 }
 
 /* -----------------------------
@@ -246,6 +284,40 @@
   --oboon-warning-bg-subtle: rgba(251, 191, 36, 0.2);
   --oboon-warning-text: #fde68a; /* amber-200 */
   --oboon-warning-border: rgba(251, 191, 36, 0.4);
+
+  /* 1) 지도 마커 컬러(다크에서는 대비가 더 커야 해서 채도/명도 토큰을 쓰는 게 이상적)
+     프로젝트에 primary-strong 같은 토큰이 없으면 그대로 primary를 써도 됩니다. */
+  --oboon-marker-urgent: var(--oboon-primary);
+  --oboon-marker-upcoming: var(--oboon-warning);
+  --oboon-marker-remain: color-mix(
+    in srgb,
+    var(--oboon-text-muted) 85%,
+    white 15%
+  );
+
+  /* 2) 마커 테두리: 다크에서는 surface가 어둡기 때문에 테두리를 살짝 밝게 */
+  --oboon-marker-stroke: color-mix(
+    in srgb,
+    var(--oboon-bg-surface) 70%,
+    white 30%
+  );
+
+  /* 3) 선택 링: 다크에서는 링이 더 안 보이기 쉬워서 조금 더 진하게 */
+  --oboon-focus-ring: color-mix(in srgb, var(--oboon-primary) 32%, transparent);
+
+  /* 4) 지도 마커 그림자: 다크에서는 “그림자” 대신 글로우처럼 보이게 강도를 약간 올림 */
+  --oboon-map-shadow-default: rgba(0, 0, 0, 0.45);
+  --oboon-map-shadow-strong: rgba(0, 0, 0, 0.6);
+
+  /* 5) 선택 뱃지 배경: 다크에서는 너무 탁해지지 않도록 조금 더 올림 */
+  --oboon-badge-selected-bg: color-mix(
+    in srgb,
+    var(--oboon-primary) 16%,
+    transparent
+  );
+
+  /* 6) 선택 뱃지 테두리 */
+  --oboon-badge-selected-border: var(--oboon-primary);
 }
 
 body {

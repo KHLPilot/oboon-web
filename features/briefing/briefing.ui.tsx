@@ -31,6 +31,7 @@ export function Cover({
 
   return (
     <div className={cx("aspect-4/5 w-full overflow-hidden", className)}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={imageUrl}
         alt=""

@@ -3,180 +3,20 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
-import Button from "@/components/ui/Button";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { Trash2 } from "lucide-react";
+import {
+  getPropertyProgress,
+  type PropertyProgressRow,
+} from "@/features/property/mappers/propertyProgress";
 
 /* --------------------------------------------------
    타입
 -------------------------------------------------- */
-type RelationRow = { id: number };
-
-type SpecsRow = {
-  id: number;
-  sale_type?: string | null;
-  trust_company?: string | null;
-  developer?: string | null;
-  builder?: string | null;
-  land_use_zone?: string | null;
-  site_area?: number | null;
-  building_area?: number | null;
-  building_coverage_ratio?: number | null;
-  floor_area_ratio?: number | null;
-  floor_ground?: number | null;
-  floor_underground?: number | null;
-  building_count?: number | null;
-  household_total?: number | null;
-  parking_total?: number | null;
-  parking_per_household?: number | null;
-  heating_type?: string | null;
-  amenities?: string | null;
-};
-
-type TimelineRow = {
-  id: number;
-  announcement_date?: string | null;
-  application_start?: string | null;
-  application_end?: string | null;
-  winner_announce?: string | null;
-  contract_start?: string | null;
-  contract_end?: string | null;
-  move_in_date?: string | null;
-};
-
-type SectionStatus = "none" | "partial" | "full";
-
-type PropertyRow = {
+type PropertyRow = PropertyProgressRow & {
   id: number;
   name: string;
-
-  property_locations?: RelationRow[] | null;
-  property_facilities?: RelationRow[] | null;
-  property_specs?: SpecsRow | SpecsRow[] | null;
-  property_timeline?: TimelineRow | TimelineRow[] | null;
-  property_unit_types?: RelationRow[] | null;
 };
-
-/* --------------------------------------------------
-   진행상태 계산
--------------------------------------------------- */
-function getProgress(row: PropertyRow) {
-  const hasMany = (v?: RelationRow[] | null) =>
-    Array.isArray(v) && v.length > 0;
-  const statusFromValues = (
-    vals: (string | number | null | undefined)[]
-  ): SectionStatus => {
-    const filled = vals.filter(
-      (v) => v !== null && v !== undefined && v !== ""
-    ).length;
-    if (filled === 0) return "none";
-    if (filled === vals.length) return "full";
-    return "partial";
-  };
-
-  const specsRow = Array.isArray(row.property_specs)
-    ? row.property_specs[0]
-    : row.property_specs ?? null;
-
-  const timelineRow = Array.isArray(row.property_timeline)
-    ? row.property_timeline[0]
-    : row.property_timeline ?? null;
-
-  const siteLocationStatus: SectionStatus = hasMany(row.property_locations)
-    ? "full"
-    : "none";
-  const facilityStatus: SectionStatus = hasMany(row.property_facilities)
-    ? "full"
-    : "none";
-  const unitStatus: SectionStatus = hasMany(row.property_unit_types)
-    ? "full"
-    : "none";
-
-  const specsStatus: SectionStatus = specsRow
-    ? statusFromValues([
-        specsRow.sale_type,
-        specsRow.trust_company,
-        specsRow.developer,
-        specsRow.builder,
-        specsRow.land_use_zone,
-        specsRow.site_area,
-        specsRow.building_area,
-        specsRow.building_coverage_ratio,
-        specsRow.floor_area_ratio,
-        specsRow.floor_ground,
-        specsRow.floor_underground,
-        specsRow.building_count,
-        specsRow.household_total,
-        specsRow.parking_total,
-        specsRow.parking_per_household,
-        specsRow.heating_type,
-        specsRow.amenities,
-      ])
-    : "none";
-
-  const timelineStatus: SectionStatus = timelineRow
-    ? statusFromValues([
-        timelineRow.announcement_date,
-        timelineRow.application_start,
-        timelineRow.application_end,
-        timelineRow.winner_announce,
-        timelineRow.contract_start,
-        timelineRow.contract_end,
-        timelineRow.move_in_date,
-      ])
-    : "none";
-
-  const specsRequiredFields = [
-    specsRow?.sale_type,
-    specsRow?.developer,
-    specsRow?.builder,
-    specsRow?.land_use_zone,
-  ];
-  const timelineRequiredFields = [
-    timelineRow?.announcement_date,
-    timelineRow?.application_start,
-    timelineRow?.application_end,
-    timelineRow?.contract_start,
-  ];
-  const specsRequiredMet = specsRequiredFields.every((v) => !!v);
-  const timelineRequiredMet = timelineRequiredFields.every((v) => !!v);
-
-  const sections = [
-    { label: "현장 위치", status: siteLocationStatus },
-    { label: "건물 스펙", status: specsStatus, requiredMet: specsRequiredMet },
-    { label: "일정", status: timelineStatus, requiredMet: timelineRequiredMet },
-    { label: "평면 타입", status: unitStatus },
-    { label: "홍보시설", status: facilityStatus },
-  ];
-
-  const shouldCountSection = (status: SectionStatus, requiredMet?: boolean) =>
-    status !== "none" && (requiredMet ?? true);
-
-  const inputCount = sections.filter((s) =>
-    shouldCountSection(s.status, s.requiredMet)
-  ).length;
-  const fullCount = sections.filter((s) => s.status === "full").length;
-  const totalCount = sections.length;
-
-  const missingLabels = sections
-    .filter((s) => !shouldCountSection(s.status, s.requiredMet))
-    .map((s) => s.label);
-
-  return {
-    siteLocationStatus,
-    facilityStatus,
-    specsStatus,
-    timelineStatus,
-    unitStatus,
-    specsRequiredMet,
-    timelineRequiredMet,
-    inputCount,
-    fullCount,
-    totalCount,
-    missingLabels,
-    isIncomplete: missingLabels.length > 0,
-  };
-}
 
 /* --------------------------------------------------
    미입력 Pill (Outline)
@@ -344,13 +184,13 @@ export default function PropertyListPage() {
   }, [supabase]);
 
   const incompleteCount = useMemo(
-    () => rows.filter((r) => getProgress(r).isIncomplete).length,
+    () => rows.filter((r) => getPropertyProgress(r).isIncomplete).length,
     [rows]
   );
 
   const filteredRows = useMemo(() => {
     if (!showIncompleteOnly) return rows;
-    return rows.filter((r) => getProgress(r).isIncomplete);
+    return rows.filter((r) => getPropertyProgress(r).isIncomplete);
   }, [rows, showIncompleteOnly]);
 
   if (loading) {
@@ -443,8 +283,8 @@ export default function PropertyListPage() {
       {/* 1 → 2열 그리드 */}
       <div className="grid gap-4 sm:grid-cols-2">
         {filteredRows.map((row) => {
-          const { inputCount, fullCount, totalCount, missingLabels } =
-            getProgress(row);
+          const { inputCount, totalCount, missingLabels } =
+            getPropertyProgress(row);
 
           const MAX_PILLS = 3;
           const visibleMissing = missingLabels.slice(0, MAX_PILLS);
@@ -459,8 +299,8 @@ export default function PropertyListPage() {
                 "bg-(--oboon-bg-surface)",
                 "p-6 shadow-none md:shadow-sm",
                 "transition-transform transition-shadow",
-                "hover:-translate-y-[2px]",
-                "hover:shadow-[var(--card-shadow)]",
+                "hover:-translate-y-0.5",
+                "hover:shadow-(--card-shadow)",
               ].join(" ")}
             >
               {/* 상단: 제목 + 상태 배지 */}

@@ -1,0 +1,338 @@
+{
+  "rules": [
+    "replacement-char",
+    "double-question",
+    "sr-only-corrupt",
+    "question-heuristic",
+    "mojibake-pattern"
+  ],
+  "totals": {
+    "totalMatches": 27,
+    "totalFiles": 6
+  },
+  "byRule": {
+    "replacement-char": 6,
+    "double-question": 17,
+    "sr-only-corrupt": 0,
+    "question-heuristic": 19,
+    "mojibake-pattern": 0
+  },
+  "topFilesByRule": {
+    "replacement-char": [
+      {
+        "file": "features\\offerings\\detail\\BookingModal.tsx",
+        "count": 5
+      },
+      {
+        "file": "features\\map\\route.ts",
+        "count": 1
+      }
+    ],
+    "double-question": [
+      {
+        "file": "components\\company\\units\\UnitTypeCard.tsx",
+        "count": 7
+      },
+      {
+        "file": "app\\login\\page.tsx",
+        "count": 5
+      },
+      {
+        "file": "features\\offerings\\detail\\BookingModal.tsx",
+        "count": 3
+      },
+      {
+        "file": "app\\company\\properties\\[id]\\units\\utils.ts",
+        "count": 1
+      },
+      {
+        "file": "shared\\uxCopy.ts",
+        "count": 1
+      }
+    ],
+    "sr-only-corrupt": [],
+    "question-heuristic": [
+      {
+        "file": "components\\company\\units\\UnitTypeCard.tsx",
+        "count": 8
+      },
+      {
+        "file": "app\\company\\properties\\[id]\\units\\utils.ts",
+        "count": 6
+      },
+      {
+        "file": "app\\login\\page.tsx",
+        "count": 2
+      },
+      {
+        "file": "features\\map\\route.ts",
+        "count": 1
+      },
+      {
+        "file": "features\\offerings\\detail\\BookingModal.tsx",
+        "count": 1
+      }
+    ],
+    "mojibake-pattern": []
+  },
+  "matches": [
+    {
+      "file": "app\\company\\properties\\[id]\\units\\utils.ts",
+      "line": 21,
+      "text": "  // 肄ㅻ쭏 ?쒓굅 ?? \"?뺤닔\" 臾몄옄?대쭔 ?덉슜",
+      "rules": [
+        "question-heuristic",
+        "double-question"
+      ],
+      "risk": "Low"
+    },
+    {
+      "file": "app\\company\\properties\\[id]\\units\\utils.ts",
+      "line": 68,
+      "text": " * ?곹깭 洹쒖튃",
+      "rules": [
+        "question-heuristic"
+      ],
+      "risk": "Low"
+    },
+    {
+      "file": "app\\company\\properties\\[id]\\units\\utils.ts",
+      "line": 69,
+      "text": " * - 誘몄엯?? 二쇱슂 ?꾨뱶 梨꾩? <= 2",
+      "rules": [
+        "question-heuristic"
+      ],
+      "risk": "Low"
+    },
+    {
+      "file": "app\\company\\properties\\[id]\\units\\utils.ts",
+      "line": 70,
+      "text": " * - ?낅젰 以? ?쇰?留?梨꾩?",
+      "rules": [
+        "question-heuristic"
+      ],
+      "risk": "Low"
+    },
+    {
+      "file": "app\\company\\properties\\[id]\\units\\utils.ts",
+      "line": 71,
+      "text": " * - ?꾨즺: 二쇱슂 ?꾨뱶 紐⑤몢 梨꾩?",
+      "rules": [
+        "question-heuristic"
+      ],
+      "risk": "Low"
+    },
+    {
+      "file": "app\\company\\properties\\[id]\\units\\utils.ts",
+      "line": 73,
+      "text": " * 二쇱슂 ?꾨뱶:",
+      "rules": [
+        "question-heuristic"
+      ],
+      "risk": "Low"
+    },
+    {
+      "file": "app\\login\\page.tsx",
+      "line": 44,
+      "text": "        else setMessage(\"?뺤씤 ?대찓?쇱씠 諛쒖넚?섏뿀?듬땲?? ?대찓?쇱쓣 ?뺤씤?댁＜?몄슂.\");",
+      "rules": [
+        "question-heuristic",
+        "double-question"
+      ],
+      "risk": "Med"
+    },
+    {
+      "file": "app\\login\\page.tsx",
+      "line": 113,
+      "text": "            {/* 紐⑤뱶 ??*/}",
+      "rules": [
+        "double-question"
+      ],
+      "risk": "Med"
+    },
+    {
+      "file": "app\\login\\page.tsx",
+      "line": 148,
+      "text": "            {/* ??*/}",
+      "rules": [
+        "double-question"
+      ],
+      "risk": "Med"
+    },
+    {
+      "file": "app\\login\\page.tsx",
+      "line": 174,
+      "text": "                  placeholder=\"6???댁긽\"",
+      "rules": [
+        "question-heuristic",
+        "double-question"
+      ],
+      "risk": "Med"
+    },
+    {
+      "file": "app\\login\\page.tsx",
+      "line": 204,
+      "text": "            {/* ?뚯뀥 濡쒓렇??*/}",
+      "rules": [
+        "double-question"
+      ],
+      "risk": "Med"
+    },
+    {
+      "file": "components\\company\\units\\UnitTypeCard.tsx",
+      "line": 152,
+      "text": "            {/* ??align/end + sideOffset?쇰줈 ?꾩튂 ?덉젙??*/}",
+      "rules": [
+        "double-question"
+      ],
+      "risk": "Med"
+    },
+    {
+      "file": "components\\company\\units\\UnitTypeCard.tsx",
+      "line": 187,
+      "text": "            <FormField label=\"?됰㈃ ????대쫫\">",
+      "rules": [
+        "question-heuristic",
+        "double-question"
+      ],
+      "risk": "Med"
+    },
+    {
+      "file": "components\\company\\units\\UnitTypeCard.tsx",
+      "line": 195,
+      "text": "            <FormField label=\"?꾩슜 硫댁쟻 (??\">",
+      "rules": [
+        "question-heuristic",
+        "double-question"
+      ],
+      "risk": "Med"
+    },
+    {
+      "file": "components\\company\\units\\UnitTypeCard.tsx",
+      "line": 206,
+      "text": "            <FormField label=\"怨듦툒 硫댁쟻 (??\">",
+      "rules": [
+        "question-heuristic",
+        "double-question"
+      ],
+      "risk": "Med"
+    },
+    {
+      "file": "components\\company\\units\\UnitTypeCard.tsx",
+      "line": 228,
+      "text": "              <FormField label=\"?뺤떎\">",
+      "rules": [
+        "question-heuristic"
+      ],
+      "risk": "Med"
+    },
+    {
+      "file": "components\\company\\units\\UnitTypeCard.tsx",
+      "line": 259,
+      "text": "                <FormField label=\"媛寃??섑븳 (??\">",
+      "rules": [
+        "question-heuristic",
+        "double-question"
+      ],
+      "risk": "Med"
+    },
+    {
+      "file": "components\\company\\units\\UnitTypeCard.tsx",
+      "line": 273,
+      "text": "                <FormField label=\"媛寃??곹븳 (??\">",
+      "rules": [
+        "question-heuristic",
+        "double-question"
+      ],
+      "risk": "Med"
+    },
+    {
+      "file": "components\\company\\units\\UnitTypeCard.tsx",
+      "line": 307,
+      "text": "            <FormField label=\"?됰㈃??URL\" className=\"md:col-span-2\">",
+      "rules": [
+        "question-heuristic",
+        "double-question"
+      ],
+      "risk": "Med"
+    },
+    {
+      "file": "components\\company\\units\\UnitTypeCard.tsx",
+      "line": 316,
+      "text": "            <FormField label=\"?대?吏 URL\" className=\"md:col-span-2\">",
+      "rules": [
+        "question-heuristic"
+      ],
+      "risk": "Med"
+    },
+    {
+      "file": "features\\map\\route.ts",
+      "line": 77,
+      "text": "          title: p.name ?? \"?�목 ?�음\",",
+      "rules": [
+        "replacement-char",
+        "question-heuristic"
+      ],
+      "risk": "Med"
+    },
+    {
+      "file": "features\\offerings\\detail\\BookingModal.tsx",
+      "line": 19,
+      "text": "  const DATES = useMemo(() => [\"12.01 (�?\", \"12.02 (??\", \"12.03 (??\"], []);",
+      "rules": [
+        "replacement-char",
+        "question-heuristic",
+        "double-question"
+      ],
+      "risk": "Med"
+    },
+    {
+      "file": "features\\offerings\\detail\\BookingModal.tsx",
+      "line": 39,
+      "text": "              ?�담 ?�약",
+      "rules": [
+        "replacement-char"
+      ],
+      "risk": "Med"
+    },
+    {
+      "file": "features\\offerings\\detail\\BookingModal.tsx",
+      "line": 42,
+      "text": "              ?�짜/?�간???�택?�고 ?�락처�? ?�겨주세??",
+      "rules": [
+        "replacement-char"
+      ],
+      "risk": "Med"
+    },
+    {
+      "file": "features\\offerings\\detail\\BookingModal.tsx",
+      "line": 47,
+      "text": "        {/* ?�른�??�기 버튼?� Modal 기본 ?�닫기�?버튼???�으므�?중복 방�? 차원?�서 ?�략 */}",
+      "rules": [
+        "replacement-char",
+        "double-question"
+      ],
+      "risk": "Med"
+    },
+    {
+      "file": "features\\offerings\\detail\\BookingModal.tsx",
+      "line": 55,
+      "text": "              {/* ?�제 ?�이???�결 ?�까지??placeholder */}",
+      "rules": [
+        "replacement-char",
+        "double-question"
+      ],
+      "risk": "Med"
+    },
+    {
+      "file": "shared\\uxCopy.ts",
+      "line": 24,
+      "text": "  // ì§€??",
+      "rules": [
+        "question-heuristic",
+        "double-question"
+      ],
+      "risk": "Low"
+    }
+  ]
+}

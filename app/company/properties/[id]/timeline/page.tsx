@@ -4,7 +4,7 @@ import { forwardRef, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { CalendarDays } from "lucide-react";
 
-import Button from "@/components/ui/Button";
+import Button, { type ButtonProps } from "@/components/ui/Button";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import OboonDatePicker from "@/components/ui/DatePicker";
 import PrecisionDateInput from "@/components/ui/PercisionDateInput";
@@ -83,10 +83,10 @@ function formatLocalDateToYmd(date: Date | null): string | null {
  * 이 페이지용 정사각 달력 버튼 (w=h)
  * - OboonDatePicker의 trigger 슬롯으로 주입됨
  */
-const TimelineDateTrigger = forwardRef<HTMLButtonElement, any>(
+const TimelineDateTrigger = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ onClick, className = "", disabled, ...rest }, ref) => (
     <Button
-      ref={ref as any}
+      ref={ref}
       type="button"
       variant="secondary"
       size="sm"
@@ -117,7 +117,7 @@ export default function PropertyTimelinePage() {
 
   // (유지) 다음 필드 자동 오픈용 인덱스: 현재 OboonDatePicker가 외부 open 제어를 지원하지 않으면 시각적 오픈까지는 못하지만,
   // 값 설정 후 다음 필드로 UX 확장 시 쓰기 좋습니다.
-  const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const [, setOpenIndex] = useState<number | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

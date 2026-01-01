@@ -1,72 +1,10 @@
 import Link from "next/link";
-import {
-  POSTS,
-  SERIES,
-  formatDate,
-  typeLabel,
-  type BriefingPost,
-} from "../../_data";
+import { POSTS, SERIES } from "../../_data";
 
 import BriefingPostCard from "@/features/briefing/BriefingPostCard";
 
 function cx(...v: (string | false | null | undefined)[]) {
   return v.filter(Boolean).join(" ");
-}
-
-function Cover({ imageUrl }: { imageUrl?: string }) {
-  if (!imageUrl) {
-    return (
-      <div
-        className={cx(
-          "aspect-[16/9] w-full overflow-hidden rounded-[16px]",
-          "bg-(--oboon-bg-subtle)",
-          "border border-(--oboon-border-default)"
-        )}
-      />
-    );
-  }
-
-  return (
-    <div
-      className={cx(
-        "aspect-[16/9] w-full overflow-hidden rounded-[16px]",
-        "bg-(--oboon-bg-subtle)",
-        "border border-(--oboon-border-default)"
-      )}
-    >
-      <img
-        src={imageUrl}
-        alt=""
-        className="h-full w-full object-cover"
-        loading="lazy"
-      />
-    </div>
-  );
-}
-
-function PostCard({ post }: { post: BriefingPost }) {
-  return (
-    <Link href={`/briefing/${post.id}`} className="group block">
-      <Cover imageUrl={post.coverImageUrl} />
-      <div className="mt-3">
-        <div className="mb-1 text-[12px] font-medium text-(--oboon-text-muted)">
-          {typeLabel(post.type)}
-        </div>
-        <div
-          className={cx(
-            "text-[16px] font-semibold leading-[1.45] text-(--oboon-text-title)",
-            "line-clamp-2",
-            "group-hover:underline"
-          )}
-        >
-          {post.title}
-        </div>
-        <div className="mt-2 text-[13px] text-(--oboon-text-muted)">
-          {formatDate(post.createdAt)}
-        </div>
-      </div>
-    </Link>
-  );
 }
 
 export default function SeriesPage({ params }: { params: { id: string } }) {

@@ -1,4 +1,5 @@
-import type { UnitRow, UnitStatus } from "./types";
+﻿import type { UnitRow, UnitStatus } from "./types";
+import { formatPriceRange as formatPriceRangeWon } from "@/shared/price";
 
 export function cn(...classes: Array<string | undefined | null | false>) {
   return classes.filter(Boolean).join(" ");
@@ -17,7 +18,7 @@ export function toIntOrNull(v: string): number | null {
   const s = v.trim();
   if (!s) return null;
 
-  // 콤마 제거 후, "정수" 문자열만 허용
+  // 肄ㅻ쭏 ?쒓굅 ?? "?뺤닔" 臾몄옄?대쭔 ?덉슜
   const normalized = s.replaceAll(",", "");
   if (!/^-?\d+$/.test(normalized)) return null;
 
@@ -41,26 +42,19 @@ export function summarizeRoomsBaths(
   baths: number | null
 ) {
   const parts: string[] = [];
-  if (rooms != null) parts.push(`방 ${rooms}`);
-  if (baths != null) parts.push(`욕실 ${baths}`);
-  return parts.length ? parts.join(" · ") : "-";
-}
-
-function formatEok(value: number, digits = 2): string {
-  const eok = value / 100_000_000;
-  return `${eok.toFixed(digits)}억`;
+  if (rooms != null) parts.push(`\uBC29 ${rooms}`);
+  if (baths != null) parts.push(`\uC695\uC2E4 ${baths}`);
+  return parts.length ? parts.join(" \u00B7 ") : "-";
 }
 
 export function formatPriceRange(
   min?: number | null,
-  max?: number | null,
-  digits = 2
+  max?: number | null
 ): string | null {
-  if (min == null && max == null) return null;
-  if (min != null && max != null)
-    return `${formatEok(min, digits)} ~ ${formatEok(max, digits)}`;
-  if (min != null) return formatEok(min, digits);
-  return formatEok(max as number, digits);
+  const text = formatPriceRangeWon(min ?? null, max ?? null, {
+    unknownLabel: "",
+  });
+  return text || null;
 }
 
 function isFilled(v: unknown) {
@@ -71,12 +65,12 @@ function isFilled(v: unknown) {
 }
 
 /**
- * 상태 규칙
- * - 미입력: 주요 필드 채움 <= 2
- * - 입력 중: 일부만 채움
- * - 완료: 주요 필드 모두 채움
+ * ?곹깭 洹쒖튃
+ * - 誘몄엯?? 二쇱슂 ?꾨뱶 梨꾩? <= 2
+ * - ?낅젰 以? ?쇰?留?梨꾩?
+ * - ?꾨즺: 二쇱슂 ?꾨뱶 紐⑤몢 梨꾩?
  *
- * 주요 필드:
+ * 二쇱슂 ?꾨뱶:
  * type_name, exclusive_area, supply_area, rooms, bathrooms,
  * building_layout, orientation, price_min, price_max, unit_count
  */
@@ -96,7 +90,7 @@ export function getUnitStatus(u: UnitRow): UnitStatus {
 
   const filled = required.filter(isFilled).length;
 
-  if (filled <= 2) return "미입력";
-  if (filled < required.length) return "입력 중";
-  return "완료";
+  if (filled <= 2) return "\uBBF8\uC785\uB825";
+  if (filled < required.length) return "\uC785\uB825 \uC911";
+  return "\uC644\uB8CC";
 }

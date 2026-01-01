@@ -1,7 +1,7 @@
 // app/onboarding/page.tsx
 "use client";
 
-import { useState } from "react";
+import { type FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 
@@ -11,7 +11,7 @@ export default function OnboardingPage() {
   const [region, setRegion] = useState("");
   const [phone, setPhone] = useState("");
 
-  async function handleSubmit(e: any) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const supabase = createSupabaseClient();
 
@@ -37,7 +37,7 @@ export default function OnboardingPage() {
     }
 
     // 3) 프로필 생성 또는 업데이트 (UPSERT)
-    const { data: saved, error } = await supabase
+    const { error } = await supabase
       .from("profiles")
       .upsert(
         {

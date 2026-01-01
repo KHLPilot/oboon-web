@@ -35,8 +35,9 @@ export function useUnitTypes(propertyId: number | null) {
       if (error) throw error;
 
       setUnits((data ?? []) as UnitRow[]);
-    } catch (e: any) {
-      setErrorMsg(e?.message ?? "평면 타입을 불러오지 못했어요.");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "평면 타입을 불러오지 못했어요.";
+      setErrorMsg(msg);
     } finally {
       setLoading(false);
     }
@@ -81,8 +82,8 @@ export function useUnitTypes(propertyId: number | null) {
 
         setUnits((prev) => [...prev, data as UnitRow]);
         return { ok: true as const, data: data as UnitRow };
-      } catch (e: any) {
-        const msg = e?.message ?? "저장에 실패했어요.";
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : "저장에 실패했어요.";
         setErrorMsg(msg);
         return { ok: false as const, error: msg };
       }
@@ -121,8 +122,8 @@ export function useUnitTypes(propertyId: number | null) {
         const updated = data as UnitRow;
         setUnits((prev) => prev.map((x) => (x.id === id ? updated : x)));
         return { ok: true as const, data: updated };
-      } catch (e: any) {
-        const msg = e?.message ?? "수정 저장에 실패했어요.";
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : "수정 저장에 실패했어요.";
         setErrorMsg(msg);
         return { ok: false as const, error: msg };
       }
@@ -142,8 +143,8 @@ export function useUnitTypes(propertyId: number | null) {
 
         setUnits((prev) => prev.filter((x) => x.id !== id));
         return { ok: true as const };
-      } catch (e: any) {
-        const msg = e?.message ?? "삭제에 실패했어요.";
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : "삭제에 실패했어요.";
         setErrorMsg(msg);
         return { ok: false as const, error: msg };
       }

@@ -26,7 +26,7 @@ export async function GET(req: Request) {
   }
 
   // 2. profiles 조회
-  const { data: profile, error } = await adminSupabase
+  const { data: profile } = await adminSupabase
     .from("profiles")
     .select("*")
     .eq("id", user.id)

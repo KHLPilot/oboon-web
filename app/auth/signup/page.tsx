@@ -102,7 +102,12 @@ export default function SignupPage() {
           <select
             className="input"
             value={userType}
-            onChange={(e) => setUserType(e.target.value as any)}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (value === "personal" || value === "company") {
+                setUserType(value);
+              }
+            }}
           >
             <option value="personal">개인</option>
             <option value="company">기업</option>

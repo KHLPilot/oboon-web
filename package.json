@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "ssot:check": "node scripts/ssot-check.js"
   },
   "dependencies": {
     "@supabase/ssr": "^0.8.0",

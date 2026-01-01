@@ -28,7 +28,7 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ success: true });
-  } catch (e) {
+  } catch {
     return NextResponse.json({ error: "서버 오류" }, { status: 500 });
   }
 }

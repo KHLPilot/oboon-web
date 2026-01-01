@@ -59,6 +59,7 @@ export default function PrecisionDateInput({
   useEffect(() => {
     if (policy !== "both") return;
     if (!value) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- value change should sync precision mode when policy=both.
     setPrecision(inferPrecision(value));
   }, [policy, value]);
 

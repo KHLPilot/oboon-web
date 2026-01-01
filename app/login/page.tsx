@@ -1,8 +1,14 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+
+import PageContainer from "@/components/shared/PageContainer";
+import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
+import Input from "@/components/ui/Input";
+import Label from "@/components/ui/Label";
+
 import { createSupabaseClient } from "@/lib/supabaseClient";
 
 type Mode = "login" | "signup";
@@ -23,7 +29,6 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  // Header에서 /login?redirect=... 로 보내는 흐름 지원
   const redirect = useMemo(() => sp.get("redirect"), [sp]);
 
   async function handleSubmit(e: FormEvent) {
@@ -34,13 +39,9 @@ export default function LoginPage() {
 
     try {
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-        });
-
+        const { error } = await supabase.auth.signUp({ email, password });
         if (error) setError(error.message);
-        else setMessage("확인 이메일이 발송되었습니다. 이메일을 확인해주세요.");
+        else setMessage("?뺤씤 ?대찓?쇱씠 諛쒖넚?섏뿀?듬땲?? ?대찓?쇱쓣 ?뺤씤?댁＜?몄슂.");
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email,
@@ -50,7 +51,6 @@ export default function LoginPage() {
         if (error) {
           setError(error.message);
         } else {
-          // 프로필 보장 API를 사용 중이면 유지
           const next = redirect
             ? `/api/auth/ensure-profile?redirect=${encodeURIComponent(
                 redirect
@@ -59,8 +59,9 @@ export default function LoginPage() {
           router.push(next);
         }
       }
-    } catch (err: any) {
-      setError(err?.message ?? "로그인 처리 중 오류가 발생했습니다.");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "\uB85C\uADF8\uC778 \uCC98\uB9AC \uC911 \uC624\uB958\uAC00 \uBC1C\uC0DD\uD588\uC2B5\uB2C8\uB2E4\.";
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -72,17 +73,13 @@ export default function LoginPage() {
     setMessage(null);
 
     const origin = window.location.origin;
-
-    // callback에서 redirect 쿼리를 처리하도록 전달
     const callbackUrl = redirect
       ? `${origin}/auth/callback?redirect=${encodeURIComponent(redirect)}`
       : `${origin}/auth/callback`;
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
-      options: {
-        redirectTo: callbackUrl,
-      },
+      options: { redirectTo: callbackUrl },
     });
 
     if (error) {
@@ -92,104 +89,90 @@ export default function LoginPage() {
   }
 
   function handleNaverLogin() {
-    // naver login API에서도 redirect를 전달할 수 있으면 같이 전달 추천
     const qs = redirect ? `?redirect=${encodeURIComponent(redirect)}` : "";
     window.location.href = `/api/auth/naver/login${qs}`;
   }
 
   return (
     <main className="bg-(--oboon-bg-page)">
-      <div className="mx-auto w-full max-w-[1200px] px-5 pt-10 pb-10">
+      <PageContainer className="pt-10 pb-10">
         <div className="mx-auto w-full max-w-[420px]">
-          {/* 헤더 */}
+          {/* ?ㅻ뜑 */}
           <div className="mb-5">
             <h1 className="text-[28px] font-semibold tracking-[-0.02em] text-(--oboon-text-title)">
-              {mode === "login" ? "로그인" : "회원가입"}
+              {mode === "login" ? "\uB85C\uADF8\uC778" : "\uD68C\uC6D0\uAC00\uC785"}
             </h1>
             <p className="mt-1 text-[14px] leading-[1.6] text-(--oboon-text-muted)">
-              OBOON 분양 플랫폼에 {mode === "login" ? "로그인" : "회원 등록"}{" "}
-              해주세요.
+              OBOON 遺꾩뼇 ?뚮옯?쇱뿉 {mode === "login" ? "\uB85C\uADF8\uC778" : "\uD68C\uC6D0\uAC00\uC785"}{" "}
+              ?댁＜?몄슂.
             </p>
           </div>
 
-          {/* 카드 */}
-          <div
-            className={cx(
-              "rounded-[16px] p-5",
-              "bg-(--oboon-bg-surface)",
-              "border border-(--oboon-border-default)",
-              "shadow-[0_10px_20px_rgba(0,0,0,0.04)]"
-            )}
-          >
-            {/* 모드 탭 */}
+          {/* 移대뱶 */}
+          <Card>
+            {/* 紐⑤뱶 ??*/}
             <div className="mb-4 flex gap-2">
-              <button
+              <Button
                 type="button"
                 onClick={() => setMode("login")}
+                variant="secondary"
+                size="sm"
+                shape="pill"
                 className={cx(
-                  "h-9 flex-1 rounded-[10px] px-4 text-[13px] font-medium",
+                  "h-9 flex-1 rounded-[10px] px-4 text-[13px] font-medium justify-center",
                   mode === "login"
                     ? "bg-(--oboon-bg-subtle) text-(--oboon-text-title) border border-(--oboon-border-default)"
-                    : "bg-transparent text-(--oboon-text-muted) border border-(--oboon-border-default) hover:bg-(--oboon-bg-subtle)",
-                  "transition-colors"
+                    : "bg-transparent text-(--oboon-text-muted) border border-(--oboon-border-default) hover:bg-(--oboon-bg-subtle)"
                 )}
               >
-                로그인
-              </button>
+                濡쒓렇??
+              </Button>
 
-              <button
+              <Button
                 type="button"
                 onClick={() => setMode("signup")}
+                variant="secondary"
+                size="sm"
+                shape="pill"
                 className={cx(
-                  "h-9 flex-1 rounded-[10px] px-4 text-[13px] font-medium",
+                  "h-9 flex-1 rounded-[10px] px-4 text-[13px] font-medium justify-center",
                   mode === "signup"
                     ? "bg-(--oboon-bg-subtle) text-(--oboon-text-title) border border-(--oboon-border-default)"
-                    : "bg-transparent text-(--oboon-text-muted) border border-(--oboon-border-default) hover:bg-(--oboon-bg-subtle)",
-                  "transition-colors"
+                    : "bg-transparent text-(--oboon-text-muted) border border-(--oboon-border-default) hover:bg-(--oboon-bg-subtle)"
                 )}
               >
-                회원가입
-              </button>
+                ?뚯썝媛??
+              </Button>
             </div>
 
-            {/* 폼 */}
+            {/* ??*/}
             <form onSubmit={handleSubmit} className="space-y-3">
               <div>
-                <label className="mb-1 block text-[12px] font-medium text-(--oboon-text-muted)">
-                  이메일
-                </label>
-                <input
+                <Label className="mb-1 block text-[12px] font-medium text-(--oboon-text-muted)">
+                  ?대찓??
+                </Label>
+                <Input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@example.com"
-                  className={cx(
-                    "h-11 w-full rounded-[12px] px-3 text-[14px]",
-                    "bg-(--oboon-bg-surface) text-(--oboon-text-body)",
-                    "border border-(--oboon-border-default)",
-                    "outline-none focus:ring-2 focus:ring-(--oboon-primary)/30"
-                  )}
+                  className="h-11 text-[14px]"
                 />
               </div>
 
               <div>
-                <label className="mb-1 block text-[12px] font-medium text-(--oboon-text-muted)">
-                  비밀번호
-                </label>
-                <input
+                <Label className="mb-1 block text-[12px] font-medium text-(--oboon-text-muted)">
+                  鍮꾨?踰덊샇
+                </Label>
+                <Input
                   type="password"
                   required
                   minLength={6}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="6자 이상"
-                  className={cx(
-                    "h-11 w-full rounded-[12px] px-3 text-[14px]",
-                    "bg-(--oboon-bg-surface) text-(--oboon-text-body)",
-                    "border border-(--oboon-border-default)",
-                    "outline-none focus:ring-2 focus:ring-(--oboon-primary)/30"
-                  )}
+                  placeholder="6???댁긽"
+                  className="h-11 text-[14px]"
                 />
               </div>
 
@@ -201,39 +184,27 @@ export default function LoginPage() {
                 loading={loading}
                 className="w-full justify-center text-[14px]"
               >
-                {mode === "login" ? "로그인" : "회원가입"}
+                {mode === "login" ? "\uB85C\uADF8\uC778" : "\uD68C\uC6D0\uAC00\uC785"}
               </Button>
             </form>
 
-            {/* 상태 메시지 */}
+            {/* ?곹깭 硫붿떆吏 */}
             {error ? (
-              <div
-                className={cx(
-                  "mt-4 rounded-[12px] p-3 text-[13px]",
-                  "border border-(--oboon-border-default)",
-                  "bg-(--oboon-bg-subtle) text-red-400"
-                )}
-              >
+              <div className="mt-4 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-3 text-[13px] text-red-400">
                 {error}
               </div>
             ) : null}
 
             {message ? (
-              <div
-                className={cx(
-                  "mt-4 rounded-[12px] p-3 text-[13px]",
-                  "border border-(--oboon-border-default)",
-                  "bg-(--oboon-bg-subtle) text-(--oboon-text-body)"
-                )}
-              >
+              <div className="mt-4 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-3 text-[13px] text-(--oboon-text-body)">
                 {message}
               </div>
             ) : null}
 
-            {/* 소셜 로그인 */}
+            {/* ?뚯뀥 濡쒓렇??*/}
             <div className="mt-6 border-t border-(--oboon-border-default) pt-4">
               <div className="mb-3 text-center text-[12px] text-(--oboon-text-muted)">
-                소셜 계정으로 계속하기
+                ?뚯뀥 怨꾩젙?쇰줈 怨꾩냽?섍린
               </div>
 
               <div className="flex flex-col gap-2">
@@ -246,7 +217,7 @@ export default function LoginPage() {
                   className="w-full justify-center"
                   onClick={() => handleOAuthLogin("google")}
                 >
-                  Google로 계속하기
+                  Google濡?怨꾩냽?섍린
                 </Button>
 
                 <Button
@@ -258,7 +229,7 @@ export default function LoginPage() {
                   className="w-full justify-center"
                   onClick={handleNaverLogin}
                 >
-                  네이버로 계속하기
+                  ?ㅼ씠踰꾨줈 怨꾩냽?섍린
                 </Button>
 
                 <Button
@@ -270,19 +241,19 @@ export default function LoginPage() {
                   className="w-full justify-center"
                   onClick={() => handleOAuthLogin("kakao")}
                 >
-                  카카오로 계속하기
+                  移댁뭅?ㅻ줈 怨꾩냽?섍린
                 </Button>
               </div>
             </div>
-          </div>
+          </Card>
 
-          {/* 하단 안내 */}
+          {/* ?섎떒 ?덈궡 */}
           <div className="mt-3 text-center text-[12px] leading-5 text-(--oboon-text-muted)">
-            로그인/회원가입 진행 시 이용약관 및 개인정보처리방침에 동의한 것으로
-            간주됩니다.
+            濡쒓렇???뚯썝媛??吏꾪뻾 ???댁슜?쎄? 諛?媛쒖씤?뺣낫泥섎━諛⑹묠???숈쓽??寃껋쑝濡?
+            媛꾩＜?⑸땲??
           </div>
         </div>
-      </div>
+      </PageContainer>
     </main>
   );
 }

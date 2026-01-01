@@ -4,7 +4,6 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
 import Button from "@/components/ui/Button";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 
@@ -18,9 +17,32 @@ type LocationForm = {
   region_3depth: string;
 };
 
+type DaumPostcodeResult = {
+  roadAddress: string;
+  jibunAddress: string;
+};
+
+type DaumPostcodeConstructor = new (opts: {
+  oncomplete: (data: DaumPostcodeResult) => void;
+}) => { open: () => void };
+
+type GeoResult = {
+  lat: string;
+  lng: string;
+  region_1depth: string;
+  region_2depth: string;
+  region_3depth: string;
+};
+
+declare global {
+  interface Window {
+    daum?: { Postcode: DaumPostcodeConstructor };
+  }
+}
+
 export default function PropertyLocationPage() {
   const supabase = createSupabaseClient();
-  const params = useParams();
+  const params = useParams<{ id: string }>();
   const router = useRouter();
   const propertyId = Number(params.id);
 
@@ -66,14 +88,17 @@ export default function PropertyLocationPage() {
   function openPostcode() {
     if (!isEditing) return;
 
-    new window.daum.Postcode({
-      oncomplete: async function (data: any) {
+    const Postcode = window.daum?.Postcode;
+    if (!Postcode) return;
+
+    new Postcode({
+      oncomplete: async function (data: DaumPostcodeResult) {
         const query = data.roadAddress || data.jibunAddress;
 
         const res = await fetch(
           `/api/geo/address?query=${encodeURIComponent(query)}`
         );
-        const geo = await res.json();
+        const geo = (await res.json()) as GeoResult;
 
         setSite({
           road_address: data.roadAddress,
@@ -110,8 +135,9 @@ export default function PropertyLocationPage() {
       }
 
       router.push(`/company/properties/${propertyId}`);
-    } catch (err: any) {
-      alert("저장 실패: " + err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "알 수 없는 오류";
+      alert("저장 실패: " + message);
     } finally {
       setLoading(false);
     }

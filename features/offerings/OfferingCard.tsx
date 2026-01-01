@@ -1,115 +1,122 @@
+"use client";
+
 // /features/offerings/OfferingCard.tsx
+import Image from "next/image";
 import Link from "next/link";
+
 import type { Offering } from "@/types/index";
-import { Badge } from "@/components/ui/Badge";
+import { ROUTES } from "@/types/index";
 
-function formatPrice(o: Offering) {
-  const min = o.priceMin억;
-  const max = o.priceMax억;
-  if (min == null && max == null) return "-";
-  if (min != null && max != null) return `${min}억 ~ ${max}억`;
-  if (min != null) return `${min}억 ~`;
-  return `~ ${max}억`;
-}
+import Card from "@/components/ui/Card";
+import { UXCopy } from "@/shared/uxCopy";
+import { formatPriceRange } from "@/shared/price";
 
-function statusTone(status: Offering["status"]) {
-  // 토스피드 느낌: 너무 튀지 않는 ‘필’ 색
-  switch (status) {
-    case "분양중":
-      return "bg-(--oboon-bg-subtle) text-(--oboon-text-title)";
-    case "청약예정":
-      return "bg-(--oboon-bg-subtle) text-(--oboon-text-title)";
-    case "모집공고":
-      return "bg-(--oboon-bg-subtle) text-(--oboon-text-title)";
-    case "마감":
-      return "bg-(--oboon-bg-subtle) text-(--oboon-text-muted)";
-    default:
-      return "bg-(--oboon-bg-subtle) text-(--oboon-text-title)";
-  }
+import OfferingBadge from "@/features/offerings/OfferingBadges";
+
+function isLikelyImageUrl(url: string | null | undefined) {
+  if (!url) return false;
+  if (url.startsWith("data:image/")) return true;
+  return /\.(jpg|jpeg|png|webp|gif|avif|svg)(\?.*)?$/i.test(url);
 }
 
 export default function OfferingCard({ offering }: { offering: Offering }) {
+  const priceRange = formatPriceRange(
+    offering.priceMin억,
+    offering.priceMax억,
+    {
+      unknownLabel: UXCopy.priceRangeShort,
+    }
+  );
+
+  // next/image src 타입 안정화
+  const normalizedImageUrl =
+    typeof offering.imageUrl === "string" ? offering.imageUrl : "";
+  const hasValidImage = isLikelyImageUrl(normalizedImageUrl);
+
+  // 지역 배지 값: 프로젝트 내 Offering 형태가 섞여있을 수 있어 안전하게 폴백 처리
+  const regionBadge =
+    offering.regionLabel ?? offering.region ?? UXCopy.regionShort;
+
   return (
     <Link
-      href={`/offerings/${offering.id}`}
-      className={[
-        "group block overflow-hidden rounded-[16px]",
-        "border border-(--oboon-border-default)",
-        "bg-(--oboon-bg-surface)",
-        "shadow-[0_12px_24px_rgba(0,0,0,0.06)]",
-        "transition-transform duration-200",
-        "hover:-translate-y-[2px]",
-      ].join(" ")}
+      href={ROUTES.offerings.detail(offering.id)}
+      className="group block h-full"
     >
-      {/* 썸네일 */}
-      <div className="relative aspect-[16/9] w-full bg-(--oboon-bg-subtle)">
-        {offering.imageUrl ? (
-          // next/image로 바꿔도 되지만, 우선 깨짐 없는 형태로
-          <img
-            src={offering.imageUrl}
-            alt={offering.title}
-            className="h-full w-full object-cover"
-            loading="lazy"
-          />
-        ) : (
-          <div className="h-full w-full" />
-        )}
+      {/* hover shadow 책임은 Card로 (정책 일관성) */}
+      <Card className="h-full transition hover:shadow-md">
+        <div className="-m-5">
+          {/* 이미지 영역 */}
+          <div className="overflow-hidden rounded-t-2xl rounded-b-none">
+            <div className="relative aspect-video w-full bg-(--oboon-bg-subtle)">
+              {hasValidImage ? (
+                <Image
+                  src={normalizedImageUrl}
+                  alt={offering.title || "offering"}
+                  fill
+                  sizes="(max-width: 768px) 100vw, 33vw"
+                  className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                  priority={false}
+                />
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="absolute inset-0 bg-linear-to-br from-(--oboon-bg-subtle) to-(--oboon-border-default) opacity-40" />
+                  <span className="relative text-sm text-(--oboon-text-muted)">
+                    {UXCopy.imagePlaceholder}
+                  </span>
+                </div>
+              )}
 
-        {/* 좌측 상단 상태 뱃지 */}
-        <div className="absolute left-3 top-3">
-          <Badge variant="status" className="backdrop-blur">
-            {offering.status}
-            {offering.deadlineLabel ? (
-              <span className="ml-1 text-(--oboon-text-muted)">
-                · {offering.deadlineLabel}
-              </span>
-            ) : null}
-          </Badge>
-        </div>
+              {/* 좌상단 배지 */}
+              <div className="absolute left-3 top-3 flex items-center gap-2">
+                {/* 지역 배지 */}
+                <OfferingBadge
+                  type="region"
+                  value={regionBadge}
+                  className="bg-(--oboon-bg-surface)/80 backdrop-blur"
+                />
 
-        {/* 우측 상단 메뉴 버튼(더미) */}
-        <button
-          type="button"
-          className={[
-            "absolute right-3 top-3",
-            "h-9 w-9 rounded-full",
-            "bg-(--oboon-bg-surface)/80",
-            "border border-(--oboon-border-default)",
-            "text-(--oboon-text-muted)",
-            "backdrop-blur",
-            "opacity-0 group-hover:opacity-100 transition-opacity",
-          ].join(" ")}
-          aria-label="더보기"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            // TODO: 메뉴/북마크 등
-          }}
-        >
-          …
-        </button>
-      </div>
+                {/* 상태 배지 */}
+                <OfferingBadge
+                  type="status"
+                  value={offering.statusValue ?? undefined}
+                  className="bg-(--oboon-bg-surface)/80 backdrop-blur"
+                />
 
-      {/* 본문 */}
-      <div className="p-5">
-        <div className="mb-2 line-clamp-1 text-[18px] font-semibold text-(--oboon-text-title)">
-          {offering.title}
-        </div>
-        <div className="mb-4 line-clamp-1 text-[14px] text-(--oboon-text-muted)">
-          {offering.addressShort}
-        </div>
-
-        <div className="flex items-end justify-between gap-3">
-          <div>
-            <div className="text-[16px] font-semibold text-(--oboon-text-title)">
-              {formatPrice(offering)}
+                {/* ✅ type / tag 확장 */}
+                {/*
+                {offering.type ? (
+                  <span className="shrink-0 rounded-full bg-(--oboon-bg-surface)/80 px-2.5 py-1 text-[11px] font-semibold text-(--oboon-text-muted) backdrop-blur">
+                    {offering.type}
+                  </span>
+                ) : null}
+                 */}
+              </div>
             </div>
-            <div className="text-[12px] text-(--oboon-text-muted)">
-              분양가 기준
+          </div>
+
+          {/* 텍스트/배지 영역 */}
+          <div className="px-5 pt-4 pb-5">
+            <h3 className="text-base font-semibold text-(--oboon-text-title) line-clamp-2">
+              {offering.title}
+            </h3>
+
+            <p className="mt-1 text-sm text-(--oboon-text-muted)">
+              {offering.addressShort}
+            </p>
+
+            <div className="mt-4 flex items-end justify-between gap-3">
+              <div>
+                <p className="text-base font-semibold text-(--oboon-text-title)">
+                  {priceRange}
+                </p>
+                <p className="mt-0.5 text-xs text-(--oboon-text-muted)">
+                  분양가 기준
+                </p>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </Card>
     </Link>
   );
 }

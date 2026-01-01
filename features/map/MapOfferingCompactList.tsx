@@ -1,13 +1,14 @@
 "use client";
 
-import { Badge } from "@/components/ui/Badge";
+import OfferingBadge from "@/features/offerings/OfferingBadges";
+import type { OfferingStatusValue } from "@/features/offerings/domain/offering.types";
 
 export type MapOfferingCompactItem = {
   id: number;
   title: string;
   region: string;
   priceRange: string;
-  status: string;
+  statusValue: OfferingStatusValue | null;
 };
 
 export default function MapOfferingCompactList({
@@ -53,7 +54,16 @@ export default function MapOfferingCompactList({
               ].join(" ")}
             >
               <div className="flex items-center gap-2">
-                <Badge variant="status">{item.status}</Badge>
+                <OfferingBadge
+                  type="status"
+                  value={item.statusValue ?? undefined}
+                  className={
+                    isFocused
+                      ? "border-(--oboon-page) bg-(--oboon-page) text-(--oboon-text-title)"
+                      : ""
+                  }
+                />
+
                 <span className="text-sm font-semibold text-(--oboon-text-title) line-clamp-1">
                   {item.title}
                 </span>

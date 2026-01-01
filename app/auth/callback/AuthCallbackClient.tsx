@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 
 export default function AuthCallbackClient() {
   const router = useRouter();
-  const supabase = createSupabaseClient();
+  const supabase = useMemo(() => createSupabaseClient(), []);
 
   useEffect(() => {
     async function run() {
@@ -56,7 +56,7 @@ export default function AuthCallbackClient() {
     }
 
     run();
-  }, []);
+  }, [router, supabase]);
 
   return <p className="text-white">로그인 처리 중...</p>;
 }

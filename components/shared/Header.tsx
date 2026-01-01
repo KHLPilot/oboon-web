@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { Search } from "lucide-react";
@@ -12,8 +12,6 @@ import Button from "@/components/ui/Button";
 
 export default function Header() {
   const pathname = usePathname();
-  const router = useRouter();
-
   const NAV_ITEMS = [
     { label: "분양 리스트", href: "/offerings" },
     { label: "지도", href: "/map" },

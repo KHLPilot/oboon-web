@@ -4,10 +4,16 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Heart, MapPin } from "lucide-react";
-import { Property } from "@/types";
+import type { Property } from "@/features/property/domain/property.types";
 
 interface PropertyCardProps {
   data: Property;
+}
+
+function isLikelyImageUrl(url: string | null | undefined): url is string {
+  if (!url) return false;
+  if (url.startsWith("data:image/")) return true;
+  return /\.(jpg|jpeg|png|webp|gif|avif|svg)(\?.*)?$/i.test(url);
 }
 
 export default function PropertyCard({ data }: PropertyCardProps) {
@@ -18,12 +24,18 @@ export default function PropertyCard({ data }: PropertyCardProps) {
     >
       {/* 이미지 영역 */}
       <div className="relative aspect-[3/4] w-full bg-slate-100 overflow-hidden md:aspect-[4/3]">
-        <Image
-          src={data.imageUrl}
-          alt={data.title}
-          fill
-          className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-        />
+        {isLikelyImageUrl(data.imageUrl) ? (
+          <Image
+            src={data.imageUrl}
+            alt={data.title}
+            fill
+            className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+          />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-100">
+            <span className="text-xs text-slate-400">이미지 준비중</span>
+          </div>
+        )}
 
         {/* 뱃지 */}
         <div className="absolute top-3 left-3 flex gap-1 z-10">

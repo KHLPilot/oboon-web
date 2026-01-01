@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -25,36 +25,36 @@ import {
   formatPriceRange,
 } from "@/app/company/properties/[id]/units/utils";
 
-function StatusBadge({ status }: { status: UnitStatus | "수정 중" }) {
-  if (status === "수정 중") {
+function StatusBadge({ status }: { status: UnitStatus | "\uC218\uC815 \uC911" }) {
+  if (status === "\uC218\uC815 \uC911") {
     return (
       <Badge
         variant="default"
         className="shrink-0 border border-(--oboon-accent)/35 bg-(--oboon-bg-surface) text-(--oboon-text-title)"
       >
-        수정 중
+        {"\uC218\uC815 \uC911"}
       </Badge>
     );
   }
 
-  if (status === "미입력") {
+  if (status === "\uBBF8\uC785\uB825") {
     return (
       <Badge
         variant="default"
         className="shrink-0 border border-(--oboon-border-default) bg-(--oboon-bg-surface) text-(--oboon-text-muted)"
       >
-        미입력
+        {"\uBBF8\uC785\uB825"}
       </Badge>
     );
   }
 
-  if (status === "입력 중") {
+  if (status === "\uC785\uB825 \uC911") {
     return (
       <Badge
         variant="default"
         className="shrink-0 border border-(--oboon-border-default) bg-(--oboon-bg-surface) text-(--oboon-text-title)"
       >
-        입력 중
+        {"\uC785\uB825 \uC911"}
       </Badge>
     );
   }
@@ -64,7 +64,7 @@ function StatusBadge({ status }: { status: UnitStatus | "수정 중" }) {
       variant="default"
       className="shrink-0 border border-(--oboon-border-default) bg-(--oboon-bg-surface) text-(--oboon-text-title)"
     >
-      완료
+      {"\uC644\uB8CC"}
     </Badge>
   );
 }
@@ -104,19 +104,10 @@ export default function UnitTypeCard({
 
   const summaryPrice = formatPriceRange(
     isEditing ? draft?.price_min : unit.price_min,
-    isEditing ? draft?.price_max : unit.price_max,
-    2
+    isEditing ? draft?.price_max : unit.price_max
   );
-
-  const stripeClass =
-    status === "미입력"
-      ? "bg-(--oboon-text-muted)/20"
-      : status === "입력 중"
-      ? "bg-(--oboon-accent)/35"
-      : "bg-(--oboon-accent)/70";
-
   const inlinePreview = draft
-    ? formatPriceRange(draft.price_min, draft.price_max, 2)
+    ? formatPriceRange(draft.price_min, draft.price_max)
     : null;
 
   return (
@@ -134,10 +125,10 @@ export default function UnitTypeCard({
             {title}
           </p>
           <p className="mt-1 text-xs text-(--oboon-text-muted)">
-            전용{" "}
+            ?꾩슜{" "}
             {formatM2(isEditing ? draft?.exclusive_area : unit.exclusive_area)}
-            ㎡ · 공급{" "}
-            {formatM2(isEditing ? draft?.supply_area : unit.supply_area)}㎡
+            ??쨌 怨듦툒{" "}
+            {formatM2(isEditing ? draft?.supply_area : unit.supply_area)}??
           </p>
           <p className="mt-1 text-xs text-(--oboon-text-muted)">
             {summarizeRoomsBaths(unit.rooms, unit.bathrooms)}
@@ -154,27 +145,26 @@ export default function UnitTypeCard({
                 shape="pill"
                 className="inline-flex h-8 w-8 min-w-8 items-center justify-center px-0 text-(--oboon-text-muted) hover:bg-(--oboon-bg-subtle) focus-visible:ring-2 focus-visible:ring-(--oboon-accent)/40 shrink-0"
               >
-                …
+                ??
               </Button>
             </DropdownMenuTrigger>
 
-            {/* ✅ align/end + sideOffset으로 위치 안정화 */}
+            {/* ??align/end + sideOffset?쇰줈 ?꾩튂 ?덉젙??*/}
             <DropdownMenuContent
-              align="end"
-              className="min-w-160px rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-1 shadow-lg
-             data-[side=bottom]:mt-2 data-[side=top]:mb-2 data-[side=left]:mr-2 data-[side=right]:ml-2"
-            >
+  align="end"
+  className="min-w-[160px] rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-1 shadow-lg data-[side=bottom]:mt-2 data-[side=top]:mb-2 data-[side=left]:mr-2 data-[side=right]:ml-2"
+>
               <DropdownMenuItem
                 className="rounded-lg px-3 py-2 text-sm"
                 onClick={onStartEdit}
               >
-                수정
+                ?섏젙
               </DropdownMenuItem>
               <DropdownMenuItem
                 className="rounded-lg px-3 py-2 text-sm"
                 onClick={onDelete}
               >
-                삭제
+                ??젣
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -186,7 +176,7 @@ export default function UnitTypeCard({
         {summaryPrice ? (
           <p>{summaryPrice}</p>
         ) : (
-          <p className="text-(--oboon-text-muted)">가격 정보 없음</p>
+          <p className="text-(--oboon-text-muted)">媛寃??뺣낫 ?놁쓬</p>
         )}
       </div>
 
@@ -194,7 +184,7 @@ export default function UnitTypeCard({
       {isEditing && draft ? (
         <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-default) p-4">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <FormField label="평면 타입 이름">
+            <FormField label="?됰㈃ ????대쫫">
               <input
                 className={inputClass}
                 value={draft.type_name ?? ""}
@@ -202,7 +192,7 @@ export default function UnitTypeCard({
               />
             </FormField>
 
-            <FormField label="전용 면적 (㎡)">
+            <FormField label="?꾩슜 硫댁쟻 (??">
               <input
                 className={inputClass}
                 value={draft.exclusive_area ?? ""}
@@ -213,7 +203,7 @@ export default function UnitTypeCard({
               />
             </FormField>
 
-            <FormField label="공급 면적 (㎡)">
+            <FormField label="怨듦툒 硫댁쟻 (??">
               <input
                 className={inputClass}
                 value={draft.supply_area ?? ""}
@@ -225,7 +215,7 @@ export default function UnitTypeCard({
             </FormField>
 
             <div className="grid grid-cols-2 gap-3">
-              <FormField label="방">
+              <FormField label="\uBC29 \uAC1C\uC218">
                 <input
                   className={inputClass}
                   value={draft.rooms ?? ""}
@@ -235,7 +225,7 @@ export default function UnitTypeCard({
                   inputMode="numeric"
                 />
               </FormField>
-              <FormField label="욕실">
+              <FormField label="?뺤떎">
                 <input
                   className={inputClass}
                   value={draft.bathrooms ?? ""}
@@ -247,7 +237,7 @@ export default function UnitTypeCard({
               </FormField>
             </div>
 
-            <FormField label="구조">
+            <FormField label="援ъ“">
               <input
                 className={inputClass}
                 value={draft.building_layout ?? ""}
@@ -255,7 +245,7 @@ export default function UnitTypeCard({
               />
             </FormField>
 
-            <FormField label="향">
+            <FormField label="\uD5A5">
               <input
                 className={inputClass}
                 value={draft.orientation ?? ""}
@@ -263,10 +253,10 @@ export default function UnitTypeCard({
               />
             </FormField>
 
-            {/* 가격 + 미리보기(바로 아래) */}
+            {/* 媛寃?+ 誘몃━蹂닿린(諛붾줈 ?꾨옒) */}
             <div className="space-y-2 md:col-span-2">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <FormField label="가격 하한 (원)">
+                <FormField label="媛寃??섑븳 (??">
                   <input
                     className={inputClass}
                     value={
@@ -280,7 +270,7 @@ export default function UnitTypeCard({
                     inputMode="numeric"
                   />
                 </FormField>
-                <FormField label="가격 상한 (원)">
+                <FormField label="媛寃??곹븳 (??">
                   <input
                     className={inputClass}
                     value={
@@ -298,12 +288,12 @@ export default function UnitTypeCard({
 
               {inlinePreview ? (
                 <div className="text-xs text-(--oboon-text-muted)">
-                  가격 미리보기 · {inlinePreview}
+                  媛寃?誘몃━蹂닿린 쨌 {inlinePreview}
                 </div>
               ) : null}
             </div>
 
-            <FormField label="세대수">
+            <FormField label="\uC138\uB300\uC218">
               <input
                 className={inputClass}
                 value={draft.unit_count ?? ""}
@@ -314,7 +304,7 @@ export default function UnitTypeCard({
               />
             </FormField>
 
-            <FormField label="평면도 URL" className="md:col-span-2">
+            <FormField label="?됰㈃??URL" className="md:col-span-2">
               <input
                 className={inputClass}
                 value={draft.floor_plan_url ?? ""}
@@ -323,7 +313,7 @@ export default function UnitTypeCard({
               />
             </FormField>
 
-            <FormField label="이미지 URL" className="md:col-span-2">
+            <FormField label="?대?吏 URL" className="md:col-span-2">
               <input
                 className={inputClass}
                 value={draft.image_url ?? ""}
@@ -341,7 +331,7 @@ export default function UnitTypeCard({
               onClick={onCancel}
               disabled={saving}
             >
-              취소
+              痍⑥냼
             </Button>
 
             <Button
@@ -352,7 +342,7 @@ export default function UnitTypeCard({
               disabled={saving}
               loading={saving}
             >
-              저장
+              ???
             </Button>
           </div>
         </div>

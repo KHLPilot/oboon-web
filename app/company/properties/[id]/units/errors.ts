@@ -27,11 +27,17 @@ const FIELD_LABELS: Record<string, string> = {
  * - 가능한 경우 code 기반(예: 23502) 매핑
  * - code가 없을 경우 message 패턴으로 fallback
  */
-export function mapSupabaseErrorToKorean(err: any): AppFormError {
-  const code: string | undefined = err?.code;
-  const message: string = String(err?.message ?? "");
-  const details: string = String(err?.details ?? "");
-  const hint: string = String(err?.hint ?? "");
+export function mapSupabaseErrorToKorean(err: unknown): AppFormError {
+  const errorLike = err as {
+    code?: string;
+    message?: string;
+    details?: string;
+    hint?: string;
+  };
+  const code: string | undefined = errorLike?.code;
+  const message: string = String(errorLike?.message ?? "");
+  const details: string = String(errorLike?.details ?? "");
+  const hint: string = String(errorLike?.hint ?? "");
 
   const raw = [message, details, hint].filter(Boolean).join(" | ");
 

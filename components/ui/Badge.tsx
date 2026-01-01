@@ -1,3 +1,5 @@
+// components/ui/Badge.tsx
+
 import React from "react";
 
 interface BadgeProps {

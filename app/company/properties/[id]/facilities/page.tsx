@@ -2,7 +2,7 @@
 "use client";
 
 import { Trash2 } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -15,9 +15,26 @@ const inputBase =
 
 const labelStrong = "text-sm font-medium text-(--oboon-text-title)";
 
+type DaumPostcodeResult = {
+  roadAddress: string;
+  jibunAddress: string;
+};
+
+type DaumPostcodeConstructor = new (opts: {
+  oncomplete: (data: DaumPostcodeResult) => void;
+}) => { open: () => void };
+
+type GeoResult = {
+  lat: number | null;
+  lng: number | null;
+  region_1depth: string | null;
+  region_2depth: string | null;
+  region_3depth: string | null;
+};
+
 declare global {
   interface Window {
-    daum: any;
+    daum?: { Postcode: DaumPostcodeConstructor };
   }
 }
 
@@ -46,61 +63,65 @@ type FacilityForm = {
 
 export default function PropertyFacilitiesPage() {
   const supabase = createSupabaseClient();
-  const params = useParams();
+  const params = useParams<{ id: string }>();
   const router = useRouter();
-  const propertyId = Number((params as any).id);
+  const propertyId = Number(params.id);
 
   const [facilities, setFacilities] = useState<FacilityForm[]>([]);
   const [loading, setLoading] = useState(false);
 
+  const fetchFacilities = useCallback(
+    async (id: number) => {
+      const { data, error } = await supabase
+        .from("property_facilities")
+        .select("*")
+        .eq("properties_id", id)
+        .order("created_at", { ascending: true });
+
+      if (error) {
+        console.error(error);
+        return;
+      }
+
+      setFacilities(
+        data.map((f) => ({
+          id: f.id,
+          type: f.type,
+          name: f.name ?? "",
+          road_address: f.road_address ?? "",
+          jibun_address: f.jibun_address ?? "",
+          address_detail: f.address_detail ?? "",
+          lat: f.lat,
+          lng: f.lng,
+          region_1depth: f.region_1depth,
+          region_2depth: f.region_2depth,
+          region_3depth: f.region_3depth,
+          open_start: f.open_start, // ✅ YYYY-MM 기대
+          open_end: f.open_end, // ✅ YYYY-MM 기대
+          is_active: f.is_active ?? true,
+          isEditing: false,
+        }))
+      );
+    },
+    [supabase]
+  );
+
   useEffect(() => {
-    if (!(params as any)?.id) return;
-    const id = Number((params as any).id);
-    if (Number.isNaN(id)) return;
-    fetchFacilities(id);
-  }, [(params as any)?.id]);
-
-  async function fetchFacilities(id: number) {
-    const { data, error } = await supabase
-      .from("property_facilities")
-      .select("*")
-      .eq("properties_id", id)
-      .order("created_at", { ascending: true });
-
-    if (error) {
-      console.error(error);
-      return;
-    }
-
-    setFacilities(
-      data.map((f) => ({
-        id: f.id,
-        type: f.type,
-        name: f.name ?? "",
-        road_address: f.road_address ?? "",
-        jibun_address: f.jibun_address ?? "",
-        address_detail: f.address_detail ?? "",
-        lat: f.lat,
-        lng: f.lng,
-        region_1depth: f.region_1depth,
-        region_2depth: f.region_2depth,
-        region_3depth: f.region_3depth,
-        open_start: f.open_start, // ✅ YYYY-MM 기대
-        open_end: f.open_end, // ✅ YYYY-MM 기대
-        is_active: f.is_active ?? true,
-        isEditing: false,
-      }))
-    );
-  }
+    if (Number.isNaN(propertyId)) return;
+    fetchFacilities(propertyId);
+  }, [propertyId, fetchFacilities]);
 
   function openPostcode(index: number) {
-    new window.daum.Postcode({
-      oncomplete: async (data: any) => {
+    const Postcode = window.daum?.Postcode;
+    if (!Postcode) return;
+
+    new Postcode({
+      oncomplete: async (data: DaumPostcodeResult) => {
         const query = data.roadAddress || data.jibunAddress;
         const res = await fetch(
           `/api/geo/address?query=${encodeURIComponent(query)}`
         );
-        const geo = await res.json();
+        const geo = (await res.json()) as GeoResult;
 
         setFacilities((prev) =>
           prev.map((f, i) =>
@@ -201,7 +222,11 @@ export default function PropertyFacilitiesPage() {
     setFacilities((prev) => prev.filter((x) => x !== f));
   }
 
-  function updateField(index: number, key: keyof FacilityForm, value: any) {
+  function updateField(
+    index: number,
+    key: keyof FacilityForm,
+    value: FacilityForm[keyof FacilityForm]
+  ) {
     setFacilities((prev) =>
       prev.map((f, i) => (i === index ? { ...f, [key]: value } : f))
     );

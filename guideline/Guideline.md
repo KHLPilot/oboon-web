@@ -412,3 +412,15 @@ import "./globals.css";
 - `/company/properties`는 “미입력만 노출 + 2열 그리드 + 하단 액션 고정 + 미완 토글” 패턴 준수
 
 ---
+
+## 최근 변경 요약
+- pp/company/properties/[id]/units/page.tsx는 useUnitTypes + UnitTypeCard/UnitTypeCreateForm으로 Supabase CRUD/인라인 카드 에디트/가격 프리뷰를 통합하고 디자인 토큰(입력, 버튼, Badge)을 지켰습니다.
+- components/company/units/UnitTypeCard.tsx/utils.ts에서 가격/상태/스트라이프 카드 비주얼을 정리하고, 중복 정의를 제거했습니다.
+- pp/company/properties/[id]/timeline/page.tsx는 OboonDatePicker(components/ui/DatePicker.tsx) 공통 캘린더를 도입해 로직을 분리하고 날짜 입력/팝업 스타일을 재활용합니다.
+- 기타 토큰(전역 css)과 안내 문서는 같은 폴더에서 유지하면서 헤더/버튼 시스템을 일관되게 사용했습니다.
+
+## 최근 작업 요약
+- `/company/properties/[id]/units` 페이지는 `useUnitTypes`, `UnitTypeCard`, `UnitTypeCreateForm`을 활용해 Supabase CRUD, 인라인 수정, 가격 프리뷰를 디자인 토큰에 맞춰 통합했습니다.
+- `components/company/units/UnitTypeCard.tsx`/`utils.ts`에서 가격·상태 포맷과 좌측 스트라이프 카드 레이아웃을 한데 모으며 중복 정의를 제거했습니다.
+- `app/company/properties/[id]/timeline/page.tsx`는 `components/ui/DatePicker.tsx` 기반의 `OboonDatePicker`를 가져와 캘린더 UI와 스타일을 하나의 컴포넌트로 정리했습니다.
+- 전역 토큰은 `app/globals.css`에 계속 정의되어 있어 버튼·배지·입력 등 전체 UI가 일관된 색상·그림자·경계 값을 공유합니다.

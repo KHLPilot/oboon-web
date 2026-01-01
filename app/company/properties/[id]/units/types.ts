@@ -1,4 +1,4 @@
-export type UnitRow = {
+﻿export type UnitRow = {
   id: number;
   created_at?: string | null;
 
@@ -25,4 +25,4 @@ export type UnitRow = {
 
 export type UnitDraft = Omit<UnitRow, "id" | "created_at">;
 
-export type UnitStatus = "미입력" | "입력 중" | "완료";
+export type UnitStatus = "\uBBF8\uC785\uB825" | "\uC785\uB825 \uC911" | "\uC644\uB8CC";

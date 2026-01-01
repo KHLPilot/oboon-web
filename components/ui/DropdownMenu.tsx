@@ -4,6 +4,7 @@
 import React, {
   createContext,
   useContext,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -43,12 +44,15 @@ export function DropdownMenu({
   const [open, setOpenState] = useState(defaultOpen);
   const triggerRef = useRef<HTMLElement>(null);
 
-  const setOpen = (v: boolean) => {
+  const setOpen = useCallback((v: boolean) => {
     setOpenState(v);
     onOpenChange?.(v);
-  };
+  }, [onOpenChange]);
 
-  const value = useMemo(() => ({ open, setOpen, triggerRef }), [open]);
+  const value = useMemo(
+    () => ({ open, setOpen, triggerRef }),
+    [open, setOpen]
+  );
 
   // ESC to close
   useEffect(() => {
@@ -58,7 +62,7 @@ export function DropdownMenu({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open]);
+  }, [open, setOpen]);
 
   return (
     <DropdownMenuContext.Provider value={value}>
@@ -76,23 +80,31 @@ export function DropdownMenuTrigger({
 }) {
   const { open, setOpen, triggerRef } = useDropdownMenu();
 
-  const onToggle = (e: React.MouseEvent) => {
+  const onToggle = (e: React.MouseEvent<HTMLElement>) => {
     e.preventDefault();
     setOpen(!open);
   };
 
   if (asChild) {
-    const child = React.Children.only(children) as React.ReactElement<any>;
+    type TriggerElement = React.ReactElement<
+      React.HTMLAttributes<HTMLElement> & React.RefAttributes<HTMLElement>
+    >;
+    const child = React.Children.only(children) as TriggerElement;
+    // eslint-disable-next-line react-hooks/refs
     return React.cloneElement(child, {
       ref: (node: HTMLElement | null) => {
         // keep original ref if any
-        const originalRef = (child as any).ref;
+        const originalRef = (child as TriggerElement & {
+          ref?: React.Ref<HTMLElement>;
+        }).ref;
         if (typeof originalRef === "function") originalRef(node);
         else if (originalRef && typeof originalRef === "object")
-          originalRef.current = node;
-        (triggerRef as any).current = node;
+          (originalRef as React.MutableRefObject<HTMLElement | null>).current =
+            node;
+        (triggerRef as React.MutableRefObject<HTMLElement | null>).current =
+          node;
       },
-      onClick: (e: React.MouseEvent) => {
+      onClick: (e: React.MouseEvent<HTMLElement>) => {
         child.props?.onClick?.(e);
         if (!e.defaultPrevented) onToggle(e);
       },
@@ -103,7 +115,7 @@ export function DropdownMenuTrigger({
 
   return (
     <button
-      ref={triggerRef as any}
+      ref={triggerRef as React.Ref<HTMLButtonElement>}
       type="button"
       onClick={onToggle}
       aria-haspopup="menu"
@@ -146,11 +158,10 @@ export function DropdownMenuContent({
       setOpen(false);
     };
 
-    window.addEventListener("pointerdown", onPointerDown, { capture: true });
+    const captureOptions: AddEventListenerOptions = { capture: true };
+    window.addEventListener("pointerdown", onPointerDown, captureOptions);
     return () =>
-      window.removeEventListener("pointerdown", onPointerDown, {
-        capture: true,
-      } as any);
+      window.removeEventListener("pointerdown", onPointerDown, captureOptions);
   }, [open, setOpen, triggerRef]);
 
   // position: fixed 기준 계산 (open 시 + resize/scroll 반영)

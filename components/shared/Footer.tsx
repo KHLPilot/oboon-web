@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function Footer() {
   const year = new Date().getFullYear();
 
@@ -14,7 +16,7 @@ export default function Footer() {
             <p className="max-w-xs text-xs leading-5 text-(--oboon-text-muted)">
               투명한 분양 시장의 시작.
               <br />
-              데이터 기반의 의사결정을 돕습니다.
+              데이터기반의 의사결정을 돕습니다.
             </p>
           </div>
 
@@ -25,25 +27,25 @@ export default function Footer() {
             </div>
             <ul className="space-y-2 text-xs text-(--oboon-text-muted)">
               <li>
-                <a
+                <Link
                   href="/offerings"
                   className="hover:text-(--oboon-text-default)"
                 >
                   분양 리스트
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="/map" className="hover:text-(--oboon-text-default)">
-                  지도 검색
-                </a>
+                <Link href="/map" className="hover:text-(--oboon-text-default)">
+                  지도로 검색하기
+                </Link>
               </li>
               <li>
-                <a
+                <Link
                   href="/briefing"
                   className="hover:text-(--oboon-text-default)"
                 >
                   브리핑
-                </a>
+                </Link>
               </li>
             </ul>
           </div>
@@ -55,25 +57,28 @@ export default function Footer() {
             </div>
             <ul className="space-y-2 text-xs text-(--oboon-text-muted)">
               <li>
-                <a href="/about" className="hover:text-(--oboon-text-default)">
+                <Link
+                  href="/about"
+                  className="hover:text-(--oboon-text-default)"
+                >
                   소개
-                </a>
+                </Link>
               </li>
               <li>
-                <a
+                <Link
                   href="/careers"
                   className="hover:text-(--oboon-text-default)"
                 >
                   채용
-                </a>
+                </Link>
               </li>
               <li>
-                <a
+                <Link
                   href="/contact"
                   className="hover:text-(--oboon-text-default)"
                 >
                   제휴 문의
-                </a>
+                </Link>
               </li>
             </ul>
           </div>
@@ -85,22 +90,25 @@ export default function Footer() {
             </div>
             <ul className="space-y-2 text-xs text-(--oboon-text-muted)">
               <li>
-                <a href="/notice" className="hover:text-(--oboon-text-default)">
+                <Link
+                  href="/notice"
+                  className="hover:text-(--oboon-text-default)"
+                >
                   공지사항
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="/faq" className="hover:text-(--oboon-text-default)">
+                <Link href="/faq" className="hover:text-(--oboon-text-default)">
                   자주 묻는 질문
-                </a>
+                </Link>
               </li>
               <li>
-                <a
+                <Link
                   href="/inquiry"
                   className="hover:text-(--oboon-text-default)"
                 >
                   1:1 문의
-                </a>
+                </Link>
               </li>
             </ul>
           </div>
