@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, Suspense } from "react"; // Suspense 추가
 import { useSearchParams } from "next/navigation";
 
 import PageContainer from "@/components/shared/PageContainer";
@@ -13,9 +13,10 @@ import BriefingSeriesCard from "@/features/briefing/BriefingSeriesCard";
 
 import { POSTS, SERIES, type BriefingPost, type BriefingSeries } from "./_data";
 
-export default function BriefingPage() {
+// 1. 기존 로직을 BriefingContent라는 별도 컴포넌트로 분리합니다.
+function BriefingContent() {
   const sp = useSearchParams();
-  const seriesId = sp.get("series"); // /briefing?series=s_region
+  const seriesId = sp.get("series");
 
   const latest = useMemo(() => {
     return [...POSTS].sort(
@@ -44,9 +45,104 @@ export default function BriefingPage() {
   }, [latest, seriesId]);
 
   return (
+    <>
+      {/* 1) 시리즈 필터 모드 */}
+      {seriesId ? (
+        <section>
+          <div className="mb-4 border-t border-(--oboon-border-default) pt-6">
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <div className="text-[20px] font-semibold text-(--oboon-text-title)">
+                  {selectedSeries ? selectedSeries.title : "시리즈"}
+                </div>
+                <div className="mt-1 text-[14px] text-(--oboon-text-muted)">
+                  {selectedSeries
+                    ? selectedSeries.description
+                    : "선택한 시리즈의 브리핑을 모아봤어요."}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Link href="/briefing">
+                  <Button variant="secondary" size="sm" shape="pill">
+                    전체 보기
+                  </Button>
+                </Link>
+
+                <Link
+                  href={`/briefing/series/${encodeURIComponent(seriesId)}`}
+                >
+                  <Button variant="primary" size="sm" shape="pill">
+                    시리즈 페이지로
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          {filteredPosts.length === 0 ? (
+            <Card className="text-[14px] text-(--oboon-text-muted)">
+              아직 이 시리즈에 등록된 브리핑이 없습니다.
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+              {filteredPosts.map((p: BriefingPost) => (
+                <BriefingPostCard key={p.id} post={p} />
+              ))}
+            </div>
+          )}
+        </section>
+      ) : (
+        <>
+          {/* 2) 기본 모드 */}
+          <section className="mb-14">
+            <div className="mb-4 border-t border-(--oboon-border-default) pt-6">
+              <div className="text-[20px] font-semibold text-(--oboon-text-title)">
+                방금 올라온 콘텐츠
+              </div>
+              <div className="mt-1 text-[14px] text-(--oboon-text-muted)">
+                실시간 업데이트 소식 살펴보기
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+              {latest.slice(0, 8).map((p: BriefingPost) => (
+                <BriefingPostCard key={p.id} post={p} />
+              ))}
+            </div>
+          </section>
+
+          <section>
+            <div className="mb-4 border-t border-(--oboon-border-default) pt-6">
+              <div className="text-[20px] font-semibold text-(--oboon-text-title)">
+                OBOON 오리지널
+              </div>
+              <div className="mt-1 text-[14px] text-(--oboon-text-muted)">
+                감정평가사 한줄평과 시리즈로 분양 판단 기준을 정리해요.
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+              {SERIES.map((s: BriefingSeries) => (
+                <BriefingSeriesCard
+                  key={s.id}
+                  series={s}
+                  count={seriesCounts.get(s.id) ?? 0}
+                />
+              ))}
+            </div>
+          </section>
+        </>
+      )}
+    </>
+  );
+}
+
+// 2. 메인 페이지 컴포넌트에서는 BriefingContent를 Suspense로 감쌉니다.
+export default function BriefingPage() {
+  return (
     <main className="bg-(--oboon-bg-page)">
       <PageContainer>
-        {/* 헤더 */}
         <div className="mb-5">
           <h1 className="mb-1 text-[28px] font-semibold tracking-[-0.02em] text-(--oboon-text-title)">
             브리핑
@@ -56,108 +152,10 @@ export default function BriefingPage() {
           </p>
         </div>
 
-        {/* =========================
-            1) 시리즈 필터 모드
-           ========================= */}
-        {seriesId ? (
-          <section>
-            <div className="mb-4 border-t border-(--oboon-border-default) pt-6">
-              <div className="flex items-end justify-between gap-4">
-                <div>
-                  <div className="text-[20px] font-semibold text-(--oboon-text-title)">
-                    {selectedSeries ? selectedSeries.title : "시리즈"}
-                  </div>
-                  <div className="mt-1 text-[14px] text-(--oboon-text-muted)">
-                    {selectedSeries
-                      ? selectedSeries.description
-                      : "선택한 시리즈의 브리핑을 모아봤어요."}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Link href="/briefing">
-                    <Button variant="secondary" size="sm" shape="pill">
-                      전체 보기
-                    </Button>
-                  </Link>
-
-                  <Link
-                    href={`/briefing/series/${encodeURIComponent(seriesId)}`}
-                  >
-                    <Button variant="primary" size="sm" shape="pill">
-                      시리즈 페이지로
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-            </div>
-
-            {filteredPosts.length === 0 ? (
-              <Card className="text-[14px] text-(--oboon-text-muted)">
-                아직 이 시리즈에 등록된 브리핑이 없습니다.
-              </Card>
-            ) : (
-              <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-                {filteredPosts.map((p: BriefingPost) => (
-                  <BriefingPostCard key={p.id} post={p} />
-                ))}
-              </div>
-            )}
-          </section>
-        ) : (
-          <>
-            {/* =========================
-                2) 기본 모드
-               ========================= */}
-
-            {/* 섹션 1: 방금 올라온 콘텐츠 */}
-            <section className="mb-14">
-              <div className="mb-4 border-t border-(--oboon-border-default) pt-6">
-                <div className="text-[20px] font-semibold text-(--oboon-text-title)">
-                  방금 올라온 콘텐츠
-                </div>
-                <div className="mt-1 text-[14px] text-(--oboon-text-muted)">
-                  실시간 업데이트 소식 살펴보기
-                </div>
-              </div>
-
-              {/* (선택) 로딩 상태가 있다면 아래 skeleton을 조건부로 사용 */}
-              {/* <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <BriefingPostCardSkeleton key={i} />
-                ))}
-              </div> */}
-
-              <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-                {latest.slice(0, 8).map((p: BriefingPost) => (
-                  <BriefingPostCard key={p.id} post={p} />
-                ))}
-              </div>
-            </section>
-
-            {/* 섹션 2: 오리지널 시리즈 */}
-            <section>
-              <div className="mb-4 border-t border-(--oboon-border-default) pt-6">
-                <div className="text-[20px] font-semibold text-(--oboon-text-title)">
-                  OBOON 오리지널
-                </div>
-                <div className="mt-1 text-[14px] text-(--oboon-text-muted)">
-                  감정평가사 한줄평과 시리즈로 분양 판단 기준을 정리해요.
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-                {SERIES.map((s: BriefingSeries) => (
-                  <BriefingSeriesCard
-                    key={s.id}
-                    series={s}
-                    count={seriesCounts.get(s.id) ?? 0}
-                  />
-                ))}
-              </div>
-            </section>
-          </>
-        )}
+        {/* 빌드 에러 해결의 핵심: Suspense 바운더리 */}
+        <Suspense fallback={<div className="py-20 text-center text-muted-foreground">목록을 불러오는 중입니다...</div>}>
+          <BriefingContent />
+        </Suspense>
       </PageContainer>
     </main>
   );
