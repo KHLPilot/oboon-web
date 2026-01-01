@@ -21,7 +21,7 @@ export const UXCopy = {
   address: "주소를 확인 중이에요",
   addressShort: "주소 확인 중",
 
-  // ì§€??
+  // 지역
   region: "지역을 확인 중이에요",
   regionShort: "지역 확인 중",
 

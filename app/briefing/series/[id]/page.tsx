@@ -74,7 +74,7 @@ export default function SeriesPage({ params }: { params: { id: string } }) {
           {posts.length === 0 ? (
             <div
               className={cx(
-                "rounded-[16px] p-6",
+                "rounded-2xl p-6",
                 "bg-(--oboon-bg-surface)",
                 "border border-(--oboon-border-default)",
                 "text-[14px] text-(--oboon-text-muted)"
