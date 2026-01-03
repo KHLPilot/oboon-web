@@ -8,13 +8,12 @@ export default function AuthCallbackClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createSupabaseClient();
-  const [message, setMessage] = useState("로그인 처리 중...");
+  const [message, setMessage] = useState("처리 중...");
 
   useEffect(() => {
     async function handleCallback() {
       try {
         const type = searchParams.get("type");
-        const hash = window.location.hash;
 
         // ========================================
         // 1️⃣ 네이버 로그인 (OTP 방식)
@@ -29,6 +28,7 @@ export default function AuthCallbackClient() {
           }
 
           console.log("🔐 네이버 OTP 인증 중...");
+          setMessage("네이버 로그인 처리 중...");
 
           const { error } = await supabase.auth.verifyOtp({
             token_hash: tokenHash,
@@ -49,34 +49,10 @@ export default function AuthCallbackClient() {
         }
 
         // ========================================
-        // 2️⃣ 구글 로그인 (해시 토큰 방식)
+        // 2️⃣ 이메일 인증 (일반 회원가입)
         // ========================================
-        if (hash.includes("access_token")) {
-          console.log("🔐 구글 로그인 처리 중...");
+        setMessage("이메일 인증 처리 중...");
 
-          const params = new URLSearchParams(hash.substring(1));
-          const access_token = params.get("access_token");
-          const refresh_token = params.get("refresh_token");
-
-          if (access_token && refresh_token) {
-            await supabase.auth.setSession({
-              access_token,
-              refresh_token,
-            });
-
-            window.history.replaceState(null, "", "/auth/callback");
-          }
-
-          console.log("✅ 구글 로그인 완료");
-
-          // profiles 체크 후 리다이렉트
-          await checkProfileAndRedirect();
-          return;
-        }
-
-        // ========================================
-        // 3️⃣ 이메일 인증 (일반 회원가입)
-        // ========================================
         const { data: { session } } = await supabase.auth.getSession();
 
         if (session?.user) {
@@ -149,11 +125,6 @@ export default function AuthCallbackClient() {
         return;
       }
 
-      if (profile?.role === "agent_pending" || profile?.role === "agent") {
-        router.replace("/");
-        return;
-      }
-
       // 프로필 완성 체크
       const isMissing =
         !profile ||
@@ -178,7 +149,7 @@ export default function AuthCallbackClient() {
         <p className="font-medium whitespace-pre-line text-lg" style={{ color: "var(--oboon-text-body)" }}>
           {message}
         </p>
-        {!window.location.hash.includes("access_token") && !searchParams.get("type") && (
+        {!searchParams.get("type") && (
           <p className="text-sm mt-4" style={{ color: "var(--oboon-text-muted)" }}>
             자동으로 닫히지 않으면 직접 닫아주세요.
           </p>
