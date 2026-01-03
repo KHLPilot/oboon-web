@@ -1,10 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
 
 export async function GET(req: Request) {
     const url = new URL(req.url);
@@ -14,27 +10,43 @@ export async function GET(req: Request) {
         return NextResponse.redirect(new URL("/auth/login?error=no_code", process.env.NEXT_PUBLIC_SITE_URL!));
     }
 
+    const cookieStore = cookies();
+
+    // 1. SSR 클라이언트 생성 (PKCE 자동 처리)
+    const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+            cookies: {
+                get(name: string) {
+                    return cookieStore.get(name)?.value;
+                },
+                set(name: string, value: string, options: any) {
+                    cookieStore.set({ name, value, ...options });
+                },
+                remove(name: string, options: any) {
+                    cookieStore.set({ name, value: "", ...options });
+                },
+            },
+        }
+    );
+
     try {
         console.log("📧 구글 코드 수신:", code.substring(0, 10) + "...");
 
-        // 1. 코드를 사용해 Supabase에서 유저 정보 가져오기
-        // pkce 방식으로 처리
-        const { data: sessionData, error: sessionError } = await supabaseAdmin.auth.exchangeCodeForSession(code);
+        // 2. 코드로 세션 교환 (PKCE 자동 처리)
+        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
-        if (sessionError || !sessionData?.user) {
-            console.error("❌ 세션 교환 실패:", sessionError);
-
-            // 코드 만료 등의 경우 로그인 페이지로
+        if (error || !data.user) {
+            console.error("❌ 세션 교환 실패:", error);
             return NextResponse.redirect(new URL("/auth/login?error=session_failed", process.env.NEXT_PUBLIC_SITE_URL!));
         }
 
-        const user = sessionData.user;
-        const session = sessionData.session;
-
+        const user = data.user;
         console.log("✅ 구글 로그인 성공:", user.email);
 
-        // 2. profiles 확인
-        const { data: profile } = await supabaseAdmin
+        // 3. profiles 확인 (anon key로 조회)
+        const { data: profile } = await supabase
             .from("profiles")
             .select("role, name, phone_number")
             .eq("id", user.id)
@@ -49,17 +61,17 @@ export async function GET(req: Request) {
 
         let redirectPath = "/";
 
-        // 3. profiles 없으면 온보딩
+        // 4. profiles 없으면 온보딩
         if (!profile) {
             console.log("🆕 신규 유저 - 온보딩으로");
             redirectPath = "/auth/onboarding";
         } else {
-            // 4. role 체크
+            // 5. role 체크
             if (profile.role === "admin") {
                 console.log("👑 관리자 - 관리자 페이지로");
                 redirectPath = "/admin";
             } else {
-                // 5. 프로필 완성 체크
+                // 6. 프로필 완성 체크
                 const isMissing =
                     !profile.name ||
                     profile.name === "temp" ||
@@ -84,31 +96,10 @@ export async function GET(req: Request) {
             }
         }
 
-        // 6. 쿠키 설정 후 리다이렉트
-        const response = NextResponse.redirect(new URL(redirectPath, process.env.NEXT_PUBLIC_SITE_URL!));
-
-        response.cookies.set({
-            name: "sb-access-token",
-            value: session.access_token,
-            path: "/",
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "lax",
-            maxAge: 60 * 60 * 24 * 7, // 7일
-        });
-
-        response.cookies.set({
-            name: "sb-refresh-token",
-            value: session.refresh_token,
-            path: "/",
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "lax",
-            maxAge: 60 * 60 * 24 * 30, // 30일
-        });
-
         console.log(`✅ ${redirectPath}로 리다이렉트`);
-        return response;
+
+        // 7. 리다이렉트 (쿠키는 이미 설정됨)
+        return NextResponse.redirect(new URL(redirectPath, process.env.NEXT_PUBLIC_SITE_URL!));
 
     } catch (error: any) {
         console.error("❌ Google OAuth 오류:", error);
