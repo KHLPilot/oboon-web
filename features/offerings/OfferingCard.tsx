@@ -69,17 +69,12 @@ export default function OfferingCard({ offering }: { offering: Offering }) {
               {/* 좌상단 배지 */}
               <div className="absolute left-3 top-3 flex items-center gap-2">
                 {/* 지역 배지 */}
-                <OfferingBadge
-                  type="region"
-                  value={regionBadge}
-                  className="bg-(--oboon-bg-surface)/80 backdrop-blur"
-                />
+                <OfferingBadge type="region" value={regionBadge} />
 
                 {/* 상태 배지 */}
                 <OfferingBadge
                   type="status"
                   value={offering.statusValue ?? undefined}
-                  className="bg-(--oboon-bg-surface)/80 backdrop-blur"
                 />
 
                 {/* ✅ type / tag 확장 */}
