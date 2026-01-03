@@ -3,6 +3,7 @@
 import { FormEvent, useState, useEffect, useRef } from "react";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
 
 export default function SignupPage() {
@@ -14,6 +15,7 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [name, setName] = useState("");
+  const [nickname, setNickname] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [userType, setUserType] = useState<"personal" | "company">("personal");
 
@@ -46,8 +48,22 @@ export default function SignupPage() {
   useEffect(() => {
     async function checkSession() {
       const { data: { session } } = await supabase.auth.getSession();
+
       if (session) {
-        router.replace("/");
+        // 세션은 있지만 프로필이 완성되지 않은 경우 체크
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("name, phone_number")
+          .eq("id", session.user.id)
+          .single();
+
+        // 프로필이 완성된 경우에만 홈으로 리다이렉트
+        if (profile && profile.name && profile.name !== "temp" && profile.phone_number && profile.phone_number !== "temp") {
+          router.replace("/");
+        } else {
+          // ✅ 프로필 미완성 → 온보딩 페이지로
+          router.replace("/auth/onboarding");
+        }
       }
     }
     checkSession();
@@ -200,7 +216,6 @@ export default function SignupPage() {
         alert(
           "인증 메일이 발송되었습니다.\n\n" +
           "📧 메일함을 확인하여 인증 링크를 클릭하세요.\n" +
-          "(어떤 앱/브라우저로 열어도 상관없습니다)\n\n" +
           "⚠️ 스팸함도 확인해주세요!"
         );
       }
@@ -264,6 +279,7 @@ export default function SignupPage() {
         data: {
           name: name,
           full_name: name,
+          nickname: nickname || name,
           phone_number: phoneNumber,
           user_type: userType
         }
@@ -276,6 +292,7 @@ export default function SignupPage() {
           id: user.id,
           email: user.email,
           name: name,
+          nickname: nickname || name,
           phone_number: phoneNumber,
           user_type: userType,
           role: "user",
@@ -298,7 +315,15 @@ export default function SignupPage() {
     <main className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: "var(--oboon-bg-page)" }}>
       <div className="w-full max-w-md rounded-2xl border p-8 shadow-card" style={{ backgroundColor: "var(--oboon-bg-surface)", borderColor: "var(--oboon-border-default)" }}>
         <h1 className="text-2xl font-bold text-center mb-1" style={{ color: "var(--oboon-text-title)" }}>회원가입</h1>
-        <p className="text-xs text-center mb-8" style={{ color: "var(--oboon-text-muted)" }}>이메일 인증 후 상세 정보를 입력해주세요</p>
+        <p className="text-xs text-center mb-2" style={{ color: "var(--oboon-text-muted)" }}>이메일 인증 후 상세 정보를 입력해주세요</p>
+
+        {/* ✅ 로그인 페이지로 이동 */}
+        <div className="text-center mb-6">
+          <span className="text-xs" style={{ color: "var(--oboon-text-muted)" }}>이미 계정이 있으신가요? </span>
+          <Link href="/auth/login" className="text-xs font-semibold hover:underline" style={{ color: "var(--oboon-primary)" }}>
+            로그인
+          </Link>
+        </div>
 
         <div className="space-y-6">
           <div className="space-y-3 p-4 rounded-xl border" style={{ backgroundColor: "var(--oboon-bg-subtle)", borderColor: "var(--oboon-border-default)" }}>
@@ -415,10 +440,7 @@ export default function SignupPage() {
                 </div>
 
                 <div className="text-[10px] p-3 rounded-lg space-y-1" style={{ backgroundColor: "var(--oboon-bg-surface)", color: "var(--oboon-text-muted)" }}>
-                  <div>💡 <strong>어떤 앱으로 열어도 괜찮습니다</strong></div>
-                  <div className="ml-4">• 카카오톡, 네이버, Gmail 등 어디서든 OK</div>
-                  <div className="ml-4">• 다른 기기에서 열어도 됩니다</div>
-                  <div className="mt-2">⚠️ <strong>스팸함도 확인</strong>해주세요!</div>
+                  <div>⚠️ <strong>스팸함도 확인</strong>해주세요!</div>
                 </div>
 
                 <button
@@ -451,10 +473,27 @@ export default function SignupPage() {
                   borderColor: "var(--oboon-border-default)",
                   color: "var(--oboon-text-body)"
                 }}
-                placeholder="홍길동"
+                placeholder="김오분"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required={isVerified}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs ml-1 font-semibold" style={{ color: "var(--oboon-text-body)" }}>
+                닉네임
+              </label>
+              <input
+                className="w-full rounded-lg border px-4 py-2.5 text-sm outline-none"
+                style={{
+                  backgroundColor: "var(--oboon-bg-subtle)",
+                  borderColor: "var(--oboon-border-default)",
+                  color: "var(--oboon-text-body)"
+                }}
+                placeholder="오분이"
+                value={nickname}
+                onChange={(e) => setNickname(e.target.value)}
               />
             </div>
 

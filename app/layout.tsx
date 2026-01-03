@@ -2,6 +2,7 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import "./globals.css";
+import ProfileChecker from "app/components/ProfileChecker";
 import Header from "@/components/shared/Header";
 import Footer from "@/components/shared/Footer";
 
@@ -22,7 +23,7 @@ export default function RootLayout({
           src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"
           strategy="afterInteractive"
         />
-
+        <ProfileChecker />
         <Header />
         <main className="flex-1 relative">{children}</main>
         <Footer />

@@ -67,12 +67,35 @@ export default function AuthCallbackClient() {
           return;
         }
 
-        // 4. profiles 조회
-        const { data: profile } = await supabase
+        // 4. profiles 조회 및 생성 (소셜 로그인)
+        const { data: profile, error: profileError } = await supabase
           .from("profiles")
           .select("role, name, phone_number")
           .eq("id", session.user.id)
           .single();
+
+        // ✅ profiles 없으면 temp 값으로 생성 (신규 소셜 로그인 유저)
+        if (profileError && profileError.code === "PGRST116") {
+          console.log("🆕 신규 소셜 로그인 유저 - profiles 생성");
+
+          const { error: insertError } = await supabase.from("profiles").insert({
+            id: session.user.id,
+            email: session.user.email,
+            name: "temp",
+            nickname: null,
+            phone_number: "temp",
+            user_type: "personal",
+            role: "user",
+          });
+
+          if (insertError) {
+            console.error("Profile 생성 실패:", insertError);
+          }
+
+          // temp 유저이므로 온보딩으로
+          router.replace("/auth/onboarding");
+          return;
+        }
 
         // 5. role 기반 분기
         if (profile?.role === "admin") {
@@ -85,11 +108,13 @@ export default function AuthCallbackClient() {
           return;
         }
 
+        // 6. 프로필 완성 여부 체크
         const isMissingInfo =
           !profile ||
           !profile.name ||
           profile.name === "temp" ||
-          !profile.phone_number;
+          !profile.phone_number ||
+          profile.phone_number === "temp";
 
         if (isMissingInfo) {
           router.replace("/auth/onboarding");

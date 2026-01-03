@@ -52,11 +52,6 @@ export default function HeaderAuth() {
     router.push("/auth/login");
   }
 
-  // ✅ auth 페이지에서는 헤더 숨김 (hooks 이후에 체크)
-  if (pathname?.startsWith("/auth")) {
-    return null;
-  }
-
   if (loading) {
     return (
       <Button

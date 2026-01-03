@@ -37,25 +37,33 @@ export async function GET(req: Request) {
     const { error: insertError } = await adminSupabase.from("profiles").insert({
       id: user.id,
       email: user.email,
-      name: "",
-      phone_number: "",
+      name: "temp",
+      nickname: null,
+      phone_number: "temp",
       user_type: "personal",
       role: "user",
     });
 
     if (insertError) {
       console.error("profiles insert error:", insertError);
-      return NextResponse.json({ needOnboarding: true });
     }
 
     return NextResponse.json({ needOnboarding: true });
   }
 
-  // 4. 필수값 체크
-  if (!profile.name || !profile.phone_number) {
+  // ✅ 4. 필수값 체크 (temp 값도 체크)
+  const isNameMissing = !profile.name || profile.name === "temp";
+  const isPhoneMissing = !profile.phone_number || profile.phone_number === "temp";
+
+  if (isNameMissing || isPhoneMissing) {
+    console.log("🔄 온보딩 필요:", {
+      userId: user.id,
+      name: profile.name,
+      phone: profile.phone_number
+    });
     return NextResponse.json({ needOnboarding: true });
   }
 
-  // 있으면 → 무조건 통과
+  // 모든 값이 정상 → 온보딩 불필요
   return NextResponse.json({ needOnboarding: false });
 }

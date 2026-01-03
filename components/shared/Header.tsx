@@ -26,7 +26,6 @@ export default function Header() {
     { label: "브리핑", href: "/briefing" },
   ];
 
-  // 드롭다운 외부 클릭 감지
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -37,24 +36,26 @@ export default function Header() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // 유저 데이터 및 Role 로드
+  // ✅ nickname 우선 표시
   const loadUserData = async (currentUser: User | null) => {
     setUser(currentUser);
     if (currentUser) {
       const { data: profile, error } = await supabase
         .from("profiles")
-        .select("name, role")
+        .select("name, nickname, role")
         .eq("id", currentUser.id)
         .single();
 
-      console.log("Profile loaded:", profile, "Error:", error); // 디버깅
+      console.log("Profile loaded:", profile, "Error:", error);
 
       if (profile) {
-        const realName = profile.name && profile.name !== "temp" ? profile.name : "";
+        // nickname 우선, 없으면 name 사용
+        const displayName = profile.nickname || profile.name;
+        const realName = displayName && displayName !== "temp" ? displayName : "";
         setProfileName(realName);
         setUserRole(profile.role || "user");
 
-        console.log("Setting profileName:", realName); // 디버깅
+        console.log("Setting profileName:", realName);
       }
     } else {
       setProfileName("");
@@ -62,7 +63,6 @@ export default function Header() {
     }
   };
 
-  // 초기 인증 상태 감지
   useEffect(() => {
     const initAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -77,11 +77,9 @@ export default function Header() {
     return () => listener.subscription.unsubscribe();
   }, [supabase]);
 
-  // ✅ 표시 이름 결정 - profiles 테이블 name 우선
   const getDisplayName = (): string => {
-    // 1순위: profiles 테이블의 name
+    // 1순위: profiles 테이블의 nickname 또는 name
     if (profileName && profileName !== "temp") {
-      console.log("Using profileName:", profileName); // 디버깅
       return profileName;
     }
 
@@ -93,18 +91,15 @@ export default function Header() {
     const metaName = meta.full_name || meta.name || meta.nickname;
 
     if (metaName && metaName !== "temp") {
-      console.log("Using metaName:", metaName); // 디버깅
       return metaName;
     }
 
     // 4순위: 이메일 앞부분
     const emailName = user.email?.split("@")[0];
     if (emailName) {
-      console.log("Using emailName:", emailName); // 디버깅
       return emailName;
     }
 
-    // 최후: "사용자"
     return "사용자";
   };
 
@@ -122,15 +117,17 @@ export default function Header() {
     router.refresh();
   };
 
+  if (pathname?.startsWith("/auth")) {
+    return null;
+  }
+
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-oboon-surface/90 backdrop-blur-md" style={{ borderColor: "var(--oboon-border-default)" }}>
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 md:px-8">
-        {/* Logo */}
         <Link href="/" className="text-2xl font-black tracking-tighter" style={{ color: "var(--oboon-text-title)" }}>
           OBOON<span style={{ color: "var(--oboon-primary)" }}>.</span>
         </Link>
 
-        {/* Navigation */}
         <nav className="hidden items-center gap-8 text-sm font-medium md:flex">
           {NAV_ITEMS.map((item) => {
             const active = pathname.startsWith(item.href);
@@ -153,17 +150,13 @@ export default function Header() {
           })}
         </nav>
 
-        {/* Right actions */}
         <div className="flex items-center gap-3">
-          {/* 검색 */}
           <button className="hidden rounded-full p-2 transition hover:bg-oboon-bg-subtle md:inline-flex" style={{ color: "var(--oboon-text-muted)" }}>
             <Search className="h-4 w-4" />
           </button>
 
-          {/* 다크/라이트 토글 */}
           <ThemeToggle />
 
-          {/* 관리자 전용: 관리자 대시보드 버튼 */}
           {userRole === "admin" && (
             <Link
               href="/admin"
@@ -175,7 +168,6 @@ export default function Header() {
             </Link>
           )}
 
-          {/* agent 전용: 소속 등록 신청 버튼 */}
           {userRole === "agent" && (
             <Link
               href="/agent/register"
@@ -186,7 +178,6 @@ export default function Header() {
             </Link>
           )}
 
-          {/* 상담 예약: user, agent_pending, 또는 비로그인 시에만 노출 */}
           {(userRole === "user" || userRole === "agent_pending" || !userRole) && (
             <button className="ob-btn ob-btn-md ob-btn-pill ob-btn-secondary flex items-center gap-2">
               <Calendar className="w-4 h-4" />
@@ -194,7 +185,6 @@ export default function Header() {
             </button>
           )}
 
-          {/* 현장 등록하기: builder, developer, admin만 노출 */}
           {["admin", "builder", "developer"].includes(userRole || "") && (
             <Link
               href="/company/properties"
@@ -205,7 +195,6 @@ export default function Header() {
             </Link>
           )}
 
-          {/* 로그인 상태 유저 드롭다운 */}
           {user ? (
             <div className="relative" ref={dropdownRef}>
               <button
