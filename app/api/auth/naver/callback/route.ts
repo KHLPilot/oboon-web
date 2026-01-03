@@ -16,17 +16,18 @@ export async function GET(req: Request) {
   }
 
   try {
-    // 1) 네이버 Access Token 요청
+    // 1. 네이버 Access Token 요청
     const tokenRes = await fetch(
       `https://nid.naver.com/oauth2.0/token?grant_type=authorization_code&client_id=${process.env.NAVER_CLIENT_ID}&client_secret=${process.env.NAVER_CLIENT_SECRET}&code=${code}&state=${state}`
     );
     const tokenData = await tokenRes.json();
 
     if (!tokenData.access_token) {
+      console.error("❌ 네이버 토큰 발급 실패");
       return NextResponse.json({ error: "Token error" }, { status: 400 });
     }
 
-    // 2) 네이버 프로필 조회
+    // 2. 네이버 프로필 조회
     const profileRes = await fetch("https://openapi.naver.com/v1/nid/me", {
       headers: { Authorization: `Bearer ${tokenData.access_token}` },
     });
@@ -35,26 +36,30 @@ export async function GET(req: Request) {
     const { email, name } = profileData.response;
 
     if (!email) {
+      console.error("❌ 네이버에서 이메일 정보 없음");
       return NextResponse.json({ error: "Email not provided" }, { status: 400 });
     }
 
-    // 3) 기존 유저 확인
+    console.log("📧 네이버 로그인 시도:", email);
+
+    // 3. 기존 유저 확인
     const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
     const existingUser = users.find((u) => u.email === email);
 
     let userId: string;
 
     if (existingUser) {
-      // ✅ 기존 유저: 메타데이터만 업데이트
+      // 기존 유저: 메타데이터만 업데이트
       await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
         user_metadata: {
           provider: "naver",
-          name: name || "네이버 사용자"
+          name: name || "네이버 사용자",
         },
       });
       userId = existingUser.id;
+      console.log("✅ 기존 유저 로그인:", email);
     } else {
-      // ✅ 신규 유저: auth.users 생성
+      // 신규 유저: auth.users 생성
       const { data, error } = await supabaseAdmin.auth.admin.createUser({
         email,
         email_confirm: true,
@@ -65,29 +70,28 @@ export async function GET(req: Request) {
       });
 
       if (error || !data.user) {
-        console.error("User creation error:", error);
-        return NextResponse.json({ error: "Failed to create user" }, { status: 500 });
-      }
+        console.error("❌ 유저 생성 실패:", error);
 
-      userId = data.user.id;
+        // 동시 요청으로 이미 생성되었을 수 있음 - 재조회
+        const { data: { users: retryUsers } } = await supabaseAdmin.auth.admin.listUsers();
+        const existingUserRetry = retryUsers.find((u) => u.email === email);
 
-      // ✅ profiles 테이블에 temp 값으로 생성
-      const { error: profileError } = await supabaseAdmin.from("profiles").insert({
-        id: userId,
-        email: email,
-        name: "temp",
-        nickname: null,
-        phone_number: "temp",
-        user_type: "personal",
-        role: "user",
-      });
-
-      if (profileError) {
-        console.error("Profile creation error:", profileError);
+        if (existingUserRetry) {
+          userId = existingUserRetry.id;
+          console.log("✅ 유저가 이미 존재함:", email);
+        } else {
+          return NextResponse.json({
+            error: "Failed to create user",
+            details: error?.message || "Unknown error",
+          }, { status: 500 });
+        }
+      } else {
+        userId = data.user.id;
+        console.log("✅ 신규 유저 생성:", email);
       }
     }
 
-    // 4) 세션 생성을 위한 매직링크 생성
+    // 4. 세션 생성을 위한 매직링크 생성
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: "magiclink",
       email: email,
@@ -97,14 +101,16 @@ export async function GET(req: Request) {
     });
 
     if (linkError || !linkData) {
-      console.error("Link generation error:", linkError);
+      console.error("❌ 매직링크 생성 실패:", linkError);
       return NextResponse.json({ error: "Failed to generate login link" }, { status: 500 });
     }
 
-    // 5) 매직링크로 리다이렉트 (자동 로그인)
+    console.log("✅ 매직링크 생성 완료 - 자동 로그인");
+
+    // 5. 매직링크로 리다이렉트 (자동 로그인)
     return NextResponse.redirect(linkData.properties.action_link);
   } catch (error: any) {
-    console.error("Naver OAuth error:", error);
+    console.error("❌ 네이버 OAuth 오류:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
