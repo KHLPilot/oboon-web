@@ -1,69 +1,256 @@
 "use client";
 
-import { FormEvent, useState, useEffect } from "react";
+import { FormEvent, useState, useEffect, useRef } from "react";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
+import { Eye, EyeOff } from "lucide-react";
 
 export default function SignupPage() {
   const supabase = createSupabaseClient();
   const router = useRouter();
 
-  // 1. 상태 관리
+  // 상태 관리
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
   const [name, setName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [userType, setUserType] = useState<"personal" | "company">("personal");
 
-  // 2. 프로세스 제어 상태
-  const [isEmailSent, setIsEmailSent] = useState(false); // 인증 메일 발송 여부
-  const [isVerified, setIsVerified] = useState(false);   // 이메일 인증 완료 여부 (기존 창 감지용)
+  // 프로세스 제어 상태
+  const [isEmailSent, setIsEmailSent] = useState(false);
+  const [isVerified, setIsVerified] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 3. 실시간 인증 감지 (새 창에서 인증 완료 시 기존 창이 이를 인지)
+  // 폴링 관련 상태
+  const [verificationToken, setVerificationToken] = useState<string | null>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // ✅ 비밀번호 UI 상태
+  const [showPassword, setShowPassword] = useState(false);
+  const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
+  const [capsLockOn, setCapsLockOn] = useState(false);
+  const [passwordMatch, setPasswordMatch] = useState(true);
+
+  // ✅ 비밀번호 일치 확인
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      // 메일 링크 클릭 시 SIGNED_IN 이벤트 발생
-      if (event === "SIGNED_IN" && session) {
-        setIsVerified(true);
-        setIsEmailSent(false);
-        console.log("인증 완료 감지: 이제 나머지 정보를 입력할 수 있습니다.");
+    if (passwordConfirm) {
+      setPasswordMatch(password === passwordConfirm);
+    } else {
+      setPasswordMatch(true);
+    }
+  }, [password, passwordConfirm]);
+
+  // ✅ 페이지 로드 시 세션 체크
+  useEffect(() => {
+    async function checkSession() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        router.replace("/");
       }
-    });
+    }
+    checkSession();
+  }, [supabase, router]);
 
-    return () => subscription.unsubscribe();
-  }, [supabase]);
+  // ✅ 토큰 기반 폴링
+  useEffect(() => {
+    if (!isEmailSent || !verificationToken || isVerified) return;
 
-  // 4. [단계 1] 이메일 인증 메일 보내기 (비밀번호와 함께 Auth 유저 생성)
+    console.log("🔄 인증 폴링 시작...");
+
+    pollingIntervalRef.current = setInterval(async () => {
+      try {
+        console.log("🔍 폴링 중... 토큰:", verificationToken);
+        const response = await fetch(`/api/auth/check-verification?token=${verificationToken}`);
+        const data = await response.json();
+
+        console.log("📡 서버 응답:", data);
+
+        if (data.verified) {
+          console.log("✅ 이메일 인증 확인됨! 로그인 시도...");
+
+          const { error: signInError } = await supabase.auth.signInWithPassword({
+            email: email,
+            password: password,
+          });
+
+          if (signInError) {
+            console.error("❌ 로그인 실패:", signInError);
+          } else {
+            console.log("✅ 로그인 성공! 입력란 활성화");
+            setIsVerified(true);
+            setIsEmailSent(false);
+
+            if (pollingIntervalRef.current) {
+              clearInterval(pollingIntervalRef.current);
+            }
+          }
+        } else {
+          console.log("⏳ 아직 미인증");
+        }
+      } catch (err) {
+        console.error("❌ 인증 확인 중 오류:", err);
+      }
+    }, 3000);
+
+    const timeout = setTimeout(() => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        setError("인증 시간이 초과되었습니다. 다시 시도해주세요.");
+        setIsEmailSent(false);
+      }
+    }, 10 * 60 * 1000);
+
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+      clearTimeout(timeout);
+    };
+  }, [isEmailSent, verificationToken, isVerified, supabase, email, password]);
+
+  // ✅ Caps Lock 감지 (항시 체크)
+  function handleKeyEvent(e: React.KeyboardEvent) {
+    setCapsLockOn(e.getModifierState("CapsLock"));
+  }
+
+  // ✅ 이메일 인증 메일 보내기
   async function handleSendVerification() {
     if (!email || !password) {
       alert("이메일과 비밀번호를 먼저 입력해주세요.");
       return;
     }
+
+    if (!passwordMatch) {
+      alert("비밀번호가 일치하지 않습니다.");
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        // 인증 전 임시 데이터를 메타데이터에 저장 (트리거가 profiles에 기본 행을 생성하도록 유도)
-        data: { name: "temp", phone_number: "temp", user_type: userType },
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
+    try {
+      // ✅ 1. 먼저 이메일 중복 체크 (회원가입 전)
+      const checkResponse = await fetch("/api/auth/check-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
 
-    setLoading(false);
-    if (error) {
-      setError("인증 실패: " + error.message);
-    } else {
-      setIsEmailSent(true);
-      alert("인증 메일이 발송되었습니다. 메일함의 '인증 완료하기'를 클릭한 뒤 이 화면으로 돌아와주세요.");
+      const { exists, confirmed } = await checkResponse.json();
+
+      if (exists && confirmed) {
+        // 이미 가입 완료된 이메일
+        setError("이미 가입된 이메일입니다. 로그인해주세요.");
+        setLoading(false);
+        setTimeout(() => router.push("/auth/login"), 5000);
+        return;
+      }
+
+      if (exists && !confirmed) {
+        // 인증 안된 temp 유저 → 삭제 후 진행
+        await fetch("/api/auth/cleanup-temp-user", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+      }
+
+      // 2. 회원가입 시도
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name: "temp",
+            phone_number: "temp",
+            user_type: userType
+          },
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+
+      if (signUpError) {
+        if (signUpError.message.includes("Email rate limit exceeded")) {
+          const match = signUpError.message.match(/(\d+)\s*second/);
+          const seconds = match ? match[1] : "60";
+          setError(`인증 요청이 너무 많습니다. ${seconds}초 후에 다시 시도해주세요.`);
+          return;
+        }
+
+        setError("인증 실패: " + signUpError.message);
+        return;
+      }
+
+      if (data.user) {
+        const tokenResponse = await fetch("/api/auth/create-verification-token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: data.user.id,
+            email: data.user.email
+          }),
+        });
+
+        const { token } = await tokenResponse.json();
+        setVerificationToken(token);
+        setIsEmailSent(true);
+
+        alert(
+          "인증 메일이 발송되었습니다.\n\n" +
+          "📧 메일함을 확인하여 인증 링크를 클릭하세요.\n" +
+          "(어떤 앱/브라우저로 열어도 상관없습니다)\n\n" +
+          "⚠️ 스팸함도 확인해주세요!"
+        );
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError("오류가 발생했습니다: " + err.message);
+    } finally {
+      setLoading(false);
     }
   }
 
-  // 5. [단계 2] 최종 가입 완료 (기존 프로필 정보를 실제 입력값으로 업데이트)
+  async function handleManualCheck() {
+    if (!verificationToken) return;
+
+    setLoading(true);
+    try {
+      console.log("🔍 수동 확인 - 토큰:", verificationToken);
+      const response = await fetch(`/api/auth/check-verification?token=${verificationToken}`);
+      const data = await response.json();
+
+      console.log("📡 수동 확인 응답:", data);
+
+      if (data.verified) {
+        console.log("✅ 인증 확인됨! 로그인 시도...");
+
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: email,
+          password: password,
+        });
+
+        if (!signInError) {
+          console.log("✅ 로그인 성공!");
+          setIsVerified(true);
+          setIsEmailSent(false);
+          alert("✅ 인증이 확인되었습니다!");
+        } else {
+          console.error("❌ 로그인 실패:", signInError);
+          alert("로그인 중 오류가 발생했습니다: " + signInError.message);
+        }
+      } else {
+        alert("아직 인증이 완료되지 않았습니다. 메일함을 확인해주세요.");
+      }
+    } catch (err: any) {
+      console.error("❌ 확인 중 오류:", err);
+      alert("확인 중 오류가 발생했습니다: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleFinalSubmit(e: FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -73,18 +260,16 @@ export default function SignupPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("인증 세션이 만료되었습니다. 다시 시도해주세요.");
 
-      // 1. Supabase Auth 메타데이터 업데이트 (관리자 페이지 display_name 동기화)
       const { error: authUpdateError } = await supabase.auth.updateUser({
         data: {
           name: name,
-          full_name: name, // 일부 소셜 로그인 필드와 호환을 위해 추가
+          full_name: name,
           phone_number: phoneNumber,
           user_type: userType
         }
       });
       if (authUpdateError) throw authUpdateError;
 
-      // 2. 내 DB (profiles 테이블) 업데이트 (UPSERT)
       const { error: upsertError } = await supabase
         .from("profiles")
         .upsert({
@@ -116,7 +301,6 @@ export default function SignupPage() {
         <p className="text-xs text-center mb-8" style={{ color: "var(--oboon-text-muted)" }}>이메일 인증 후 상세 정보를 입력해주세요</p>
 
         <div className="space-y-6">
-          {/* 1. 이메일/비밀번호 섹션 */}
           <div className="space-y-3 p-4 rounded-xl border" style={{ backgroundColor: "var(--oboon-bg-subtle)", borderColor: "var(--oboon-border-default)" }}>
             <div className="space-y-1">
               <label className="text-xs ml-1 font-semibold" style={{ color: "var(--oboon-text-body)" }}>이메일 주소</label>
@@ -144,32 +328,116 @@ export default function SignupPage() {
               </div>
             </div>
 
+            {/* ✅ 비밀번호 입력 (보기/숨기기 토글) */}
             <div className="space-y-1">
               <label className="text-xs ml-1 font-semibold" style={{ color: "var(--oboon-text-body)" }}>비밀번호 설정</label>
-              <input
-                type="password"
-                className="w-full rounded-lg border px-4 py-2 text-sm outline-none disabled:opacity-50"
-                style={{
-                  backgroundColor: "var(--oboon-bg-surface)",
-                  borderColor: "var(--oboon-border-default)",
-                  color: "var(--oboon-text-body)"
-                }}
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={isVerified || isEmailSent}
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  className="w-full rounded-lg border px-4 py-2 pr-10 text-sm outline-none disabled:opacity-50"
+                  style={{
+                    backgroundColor: "var(--oboon-bg-surface)",
+                    borderColor: "var(--oboon-border-default)",
+                    color: "var(--oboon-text-body)"
+                  }}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onKeyDown={handleKeyEvent}
+                  onKeyUp={handleKeyEvent}
+                  disabled={isVerified || isEmailSent}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors hover:opacity-70"
+                  style={{ color: "var(--oboon-text-muted)" }}
+                  disabled={isVerified || isEmailSent}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* ✅ 비밀번호 확인 */}
+            <div className="space-y-1">
+              <label className="text-xs ml-1 font-semibold" style={{ color: "var(--oboon-text-body)" }}>비밀번호 확인</label>
+              <div className="relative">
+                <input
+                  type={showPasswordConfirm ? "text" : "password"}
+                  className="w-full rounded-lg border px-4 py-2 pr-10 text-sm outline-none disabled:opacity-50"
+                  style={{
+                    backgroundColor: "var(--oboon-bg-surface)",
+                    borderColor: passwordMatch ? "var(--oboon-border-default)" : "var(--oboon-danger)",
+                    color: "var(--oboon-text-body)"
+                  }}
+                  placeholder="••••••••"
+                  value={passwordConfirm}
+                  onChange={(e) => setPasswordConfirm(e.target.value)}
+                  onKeyDown={handleKeyEvent}
+                  onKeyUp={handleKeyEvent}
+                  disabled={isVerified || isEmailSent}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPasswordConfirm(!showPasswordConfirm)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors hover:opacity-70"
+                  style={{ color: "var(--oboon-text-muted)" }}
+                  disabled={isVerified || isEmailSent}
+                >
+                  {showPasswordConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {!passwordMatch && passwordConfirm && (
+                <p className="text-[10px] ml-1" style={{ color: "var(--oboon-danger)" }}>
+                  ❌ 비밀번호가 일치하지 않습니다
+                </p>
+              )}
+              {passwordMatch && passwordConfirm && (
+                <p className="text-[10px] ml-1" style={{ color: "var(--oboon-success)" }}>
+                  ✅ 비밀번호가 일치합니다
+                </p>
+              )}
+              <div className="h-4 ml-1">
+                {capsLockOn && (
+                  <p className="text-[10px] flex items-center gap-1" style={{ color: "var(--oboon-warning)" }}>
+                    ⚠️ Caps Lock이 켜져 있습니다
+                  </p>
+                )}
+              </div>
             </div>
 
             {isEmailSent && !isVerified && (
-              <div className="flex items-center gap-2 text-[11px] animate-pulse mt-1" style={{ color: "var(--oboon-primary)" }}>
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: "var(--oboon-primary)" }}></span>
-                메일함에서 인증 버튼을 누르면 아래 입력창이 활성화됩니다.
+              <div className="space-y-3 mt-3">
+                <div className="flex items-center gap-2 text-[11px] animate-pulse" style={{ color: "var(--oboon-primary)" }}>
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: "var(--oboon-primary)" }}></span>
+                  이메일 인증 대기중... (자동으로 확인됩니다)
+                </div>
+
+                <div className="text-[10px] p-3 rounded-lg space-y-1" style={{ backgroundColor: "var(--oboon-bg-surface)", color: "var(--oboon-text-muted)" }}>
+                  <div>💡 <strong>어떤 앱으로 열어도 괜찮습니다</strong></div>
+                  <div className="ml-4">• 카카오톡, 네이버, Gmail 등 어디서든 OK</div>
+                  <div className="ml-4">• 다른 기기에서 열어도 됩니다</div>
+                  <div className="mt-2">⚠️ <strong>스팸함도 확인</strong>해주세요!</div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleManualCheck}
+                  disabled={loading}
+                  className="w-full py-2 text-xs rounded-lg border transition hover:bg-opacity-80"
+                  style={{
+                    borderColor: "var(--oboon-border-default)",
+                    color: "var(--oboon-text-body)",
+                    backgroundColor: "var(--oboon-bg-surface)"
+                  }}
+                >
+                  ✅ 인증 완료했는데 안넘어가나요? 여기를 클릭하세요
+                </button>
               </div>
             )}
           </div>
 
-          {/* 2. 추가 정보 입력 섹션 (인증 전까지 비활성화) */}
           <form
             onSubmit={handleFinalSubmit}
             className={`space-y-4 transition-opacity duration-300 ${!isVerified ? "opacity-30 pointer-events-none" : "opacity-100"}`}

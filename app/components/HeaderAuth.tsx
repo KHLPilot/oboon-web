@@ -1,15 +1,14 @@
-// app/components/HeaderAuth.tsx
-
 "use client";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Button from "@/components/ui/Button";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 
 export default function HeaderAuth() {
   const router = useRouter();
+  const pathname = usePathname();
   const supabase = createSupabaseClient();
 
   const [displayName, setDisplayName] = useState<string | null>(null);
@@ -50,7 +49,12 @@ export default function HeaderAuth() {
   async function handleLogout() {
     await supabase.auth.signOut();
     setDisplayName(null);
-    router.push("/login");
+    router.push("/auth/login");
+  }
+
+  // ✅ auth 페이지에서는 헤더 숨김 (hooks 이후에 체크)
+  if (pathname?.startsWith("/auth")) {
+    return null;
   }
 
   if (loading) {
@@ -71,7 +75,7 @@ export default function HeaderAuth() {
 
   if (!displayName) {
     return (
-      <Link href="/login">
+      <Link href="/auth/login">
         <Button variant="secondary" size="sm" shape="pill">
           로그인
         </Button>
