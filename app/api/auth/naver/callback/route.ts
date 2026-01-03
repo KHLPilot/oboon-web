@@ -12,7 +12,7 @@ export async function GET(req: Request) {
   const state = url.searchParams.get("state");
 
   if (!code) {
-    return NextResponse.json({ error: "No code provided" }, { status: 400 });
+    return NextResponse.redirect(new URL("/auth/login?error=no_code", process.env.NEXT_PUBLIC_SITE_URL!));
   }
 
   try {
@@ -23,8 +23,7 @@ export async function GET(req: Request) {
     const tokenData = await tokenRes.json();
 
     if (!tokenData.access_token) {
-      console.error("❌ 네이버 토큰 발급 실패");
-      return NextResponse.json({ error: "Token error" }, { status: 400 });
+      return NextResponse.redirect(new URL("/auth/login?error=token_failed", process.env.NEXT_PUBLIC_SITE_URL!));
     }
 
     // 2. 네이버 프로필 조회
@@ -36,49 +35,24 @@ export async function GET(req: Request) {
     const { email, name } = profileData.response;
 
     if (!email) {
-      console.error("❌ 네이버에서 이메일 정보 없음");
-      return NextResponse.json({ error: "Email not provided" }, { status: 400 });
+      return NextResponse.redirect(new URL("/auth/login?error=no_email", process.env.NEXT_PUBLIC_SITE_URL!));
     }
 
-    console.log("📧 네이버 로그인 시도:", email);
+    console.log("📧 네이버 로그인:", email);
 
-    // 3. 기존 유저 확인 (전체 유저 목록 조회)
-    const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers();
-
-    if (listError) {
-      console.error("❌ 유저 목록 조회 실패:", listError);
-      return NextResponse.json({ error: "Failed to list users" }, { status: 500 });
-    }
-
+    // 3. 기존 유저 확인
+    const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
     const existingUser = users.find((u) => u.email === email);
 
     let userId: string;
 
     if (existingUser) {
-      // ✅ 기존 유저 발견 - 메타데이터만 업데이트
-      console.log("✅ 기존 유저 발견:", email);
-
-      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
-        existingUser.id,
-        {
-          user_metadata: {
-            provider: "naver",
-            name: name || "네이버 사용자",
-          },
-        }
-      );
-
-      if (updateError) {
-        console.error("⚠️ 메타데이터 업데이트 실패:", updateError);
-      }
-
+      // 기존 유저
       userId = existingUser.id;
-      console.log("✅ 기존 유저로 로그인 처리");
+      console.log("✅ 기존 유저:", email);
     } else {
-      // ✅ 신규 유저 - 생성 시도
-      console.log("🆕 신규 유저 생성 시도:", email);
-
-      const { data, error: createError } = await supabaseAdmin.auth.admin.createUser({
+      // 신규 유저 생성
+      const { data, error } = await supabaseAdmin.auth.admin.createUser({
         email,
         email_confirm: true,
         user_metadata: {
@@ -87,61 +61,44 @@ export async function GET(req: Request) {
         },
       });
 
-      if (createError) {
-        console.error("❌ 유저 생성 실패:", createError);
-        console.error("❌ 에러 상세:", JSON.stringify(createError, null, 2));
-
-        // ✅ 생성 실패 시 다시 한번 조회 (동시 요청 대응)
-        console.log("🔄 유저 재조회 중...");
-        const { data: { users: retryUsers } } = await supabaseAdmin.auth.admin.listUsers();
-        const retryUser = retryUsers.find((u) => u.email === email);
+      if (error || !data?.user) {
+        // 재조회
+        const { data: { users: retry } } = await supabaseAdmin.auth.admin.listUsers();
+        const retryUser = retry.find((u) => u.email === email);
 
         if (retryUser) {
-          console.log("✅ 재조회 성공 - 유저 존재함:", email);
           userId = retryUser.id;
         } else {
-          console.error("❌ 재조회 실패 - 유저 생성 불가");
-          return NextResponse.json({
-            error: "Failed to create user",
-            details: createError.message,
-            hint: "해당 이메일이 이미 존재하거나 Database 제약 조건 위반",
-          }, { status: 500 });
+          return NextResponse.redirect(new URL("/auth/login?error=create_failed", process.env.NEXT_PUBLIC_SITE_URL!));
         }
-      } else if (data?.user) {
-        userId = data.user.id;
-        console.log("✅ 신규 유저 생성 완료:", email);
       } else {
-        console.error("❌ 유저 데이터 없음");
-        return NextResponse.json({ error: "No user data returned" }, { status: 500 });
+        userId = data.user.id;
+        console.log("✅ 신규 유저 생성:", email);
       }
     }
 
-    // 4. 세션 생성을 위한 매직링크 생성
-    console.log("🔗 매직링크 생성 중...");
-
+    // 4. ✅ generateLink로 OTP 생성
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: "magiclink",
       email: email,
-      options: {
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/`,
-      },
     });
 
     if (linkError || !linkData) {
-      console.error("❌ 매직링크 생성 실패:", linkError);
-      return NextResponse.json({ error: "Failed to generate login link" }, { status: 500 });
+      console.error("❌ 링크 생성 실패:", linkError);
+      return NextResponse.redirect(new URL("/auth/login?error=link_failed", process.env.NEXT_PUBLIC_SITE_URL!));
     }
 
-    console.log("✅ 매직링크 생성 완료 - 자동 로그인");
+    // 5. ✅ /auth/callback으로 리다이렉트 (OTP 포함)
+    const redirectUrl = new URL("/auth/callback", process.env.NEXT_PUBLIC_SITE_URL!);
+    redirectUrl.searchParams.set("type", "naver");
+    redirectUrl.searchParams.set("token_hash", linkData.properties.hashed_token);
+    redirectUrl.searchParams.set("email", email);
 
-    // 5. 매직링크로 리다이렉트 (자동 로그인)
-    return NextResponse.redirect(linkData.properties.action_link);
+    console.log("✅ /auth/callback으로 리다이렉트");
+    return NextResponse.redirect(redirectUrl.toString());
+
   } catch (error: any) {
-    console.error("❌ 네이버 OAuth 최상위 오류:", error);
-    console.error("❌ 오류 스택:", error.stack);
-    return NextResponse.json({
-      error: error.message,
-      stack: error.stack
-    }, { status: 500 });
+    console.error("❌ 네이버 OAuth 오류:", error);
+    return NextResponse.redirect(new URL("/auth/login?error=unknown", process.env.NEXT_PUBLIC_SITE_URL!));
   }
 }
