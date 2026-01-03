@@ -40,6 +40,13 @@ export async function GET(req: Request) {
             .eq("id", user.id)
             .single();
 
+        console.log("📋 프로필 조회 결과:", {
+            exists: !!profile,
+            name: profile?.name,
+            phone_number: profile?.phone_number,
+            role: profile?.role
+        });
+
         let redirectPath = "/";
 
         // 3. profiles 없으면 온보딩
@@ -49,6 +56,7 @@ export async function GET(req: Request) {
         } else {
             // 4. role 체크
             if (profile.role === "admin") {
+                console.log("👑 관리자 - 관리자 페이지로");
                 redirectPath = "/admin";
             } else {
                 // 5. 프로필 완성 체크
@@ -57,6 +65,14 @@ export async function GET(req: Request) {
                     profile.name === "temp" ||
                     !profile.phone_number ||
                     profile.phone_number === "temp";
+
+                console.log("🔍 프로필 완성 체크:", {
+                    name: profile.name,
+                    name_is_temp: profile.name === "temp",
+                    phone_number: profile.phone_number,
+                    phone_is_temp: profile.phone_number === "temp",
+                    isMissing: isMissing
+                });
 
                 if (isMissing) {
                     console.log("🔄 프로필 미완성 - 온보딩으로");
