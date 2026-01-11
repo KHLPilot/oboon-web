@@ -5,6 +5,7 @@ import { createSupabaseClient } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
+import { validateName, validateNickname, validatePhone, validatePassword, sanitizeInput } from "@/lib/validators/profileValidation";
 
 export default function SignupPage() {
   const supabase = createSupabaseClient();
@@ -29,13 +30,21 @@ export default function SignupPage() {
   const [verificationToken, setVerificationToken] = useState<string | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // ✅ 비밀번호 UI 상태
+  // 비밀번호 UI 상태
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
   const [capsLockOn, setCapsLockOn] = useState(false);
   const [passwordMatch, setPasswordMatch] = useState(true);
 
-  // ✅ 비밀번호 일치 확인
+  // ✅ 검증 에러
+  const [errors, setErrors] = useState<{
+    name?: string;
+    nickname?: string;
+    phone?: string;
+    password?: string;
+  }>({});
+
+  // 비밀번호 일치 확인
   useEffect(() => {
     if (passwordConfirm) {
       setPasswordMatch(password === passwordConfirm);
@@ -44,24 +53,21 @@ export default function SignupPage() {
     }
   }, [password, passwordConfirm]);
 
-  // ✅ 페이지 로드 시 세션 체크
+  // 페이지 로드 시 세션 체크
   useEffect(() => {
     async function checkSession() {
       const { data: { session } } = await supabase.auth.getSession();
 
       if (session) {
-        // 세션은 있지만 프로필이 완성되지 않은 경우 체크
         const { data: profile } = await supabase
           .from("profiles")
           .select("name, phone_number")
           .eq("id", session.user.id)
           .single();
 
-        // 프로필이 완성된 경우에만 홈으로 리다이렉트
-        if (profile && profile.name && profile.name !== "temp" && profile.phone_number && profile.phone_number !== "temp") {
+        if (profile && profile.name && profile.phone_number) {
           router.replace("/");
         } else {
-          // ✅ 프로필 미완성 → 온보딩 페이지로
           router.replace("/auth/onboarding");
         }
       }
@@ -69,7 +75,7 @@ export default function SignupPage() {
     checkSession();
   }, [supabase, router]);
 
-  // ✅ 토큰 기반 폴링
+  // 토큰 기반 폴링
   useEffect(() => {
     if (!isEmailSent || !verificationToken || isVerified) return;
 
@@ -77,11 +83,8 @@ export default function SignupPage() {
 
     pollingIntervalRef.current = setInterval(async () => {
       try {
-        console.log("🔍 폴링 중... 토큰:", verificationToken);
         const response = await fetch(`/api/auth/check-verification?token=${verificationToken}`);
         const data = await response.json();
-
-        console.log("📡 서버 응답:", data);
 
         if (data.verified) {
           console.log("✅ 이메일 인증 확인됨! 로그인 시도...");
@@ -91,9 +94,7 @@ export default function SignupPage() {
             password: password,
           });
 
-          if (signInError) {
-            console.error("❌ 로그인 실패:", signInError);
-          } else {
+          if (!signInError) {
             console.log("✅ 로그인 성공! 입력란 활성화");
             setIsVerified(true);
             setIsEmailSent(false);
@@ -102,8 +103,6 @@ export default function SignupPage() {
               clearInterval(pollingIntervalRef.current);
             }
           }
-        } else {
-          console.log("⏳ 아직 미인증");
         }
       } catch (err) {
         console.error("❌ 인증 확인 중 오류:", err);
@@ -126,15 +125,48 @@ export default function SignupPage() {
     };
   }, [isEmailSent, verificationToken, isVerified, supabase, email, password]);
 
-  // ✅ Caps Lock 감지 (항시 체크)
+  // ✅ Caps Lock 감지
   function handleKeyEvent(e: React.KeyboardEvent) {
     setCapsLockOn(e.getModifierState("CapsLock"));
   }
+
+  // ✅ 실시간 입력 제한
+  const handleNameChange = (value: string) => {
+    const sanitized = sanitizeInput(value, "name");
+    setName(sanitized);
+    if (errors.name) {
+      setErrors(prev => ({ ...prev, name: undefined }));
+    }
+  };
+
+  const handleNicknameChange = (value: string) => {
+    const sanitized = sanitizeInput(value, "nickname");
+    setNickname(sanitized);
+    if (errors.nickname) {
+      setErrors(prev => ({ ...prev, nickname: undefined }));
+    }
+  };
+
+  const handlePhoneChange = (value: string) => {
+    const sanitized = sanitizeInput(value, "phone");
+    setPhoneNumber(sanitized);
+    if (errors.phone) {
+      setErrors(prev => ({ ...prev, phone: undefined }));
+    }
+  };
 
   // ✅ 이메일 인증 메일 보내기
   async function handleSendVerification() {
     if (!email || !password) {
       alert("이메일과 비밀번호를 먼저 입력해주세요.");
+      return;
+    }
+
+    // ✅ 비밀번호 검증
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      setErrors(prev => ({ ...prev, password: passwordError }));
+      alert(passwordError);
       return;
     }
 
@@ -147,7 +179,7 @@ export default function SignupPage() {
     setError(null);
 
     try {
-      // ✅ 1. 먼저 이메일 중복 체크 (회원가입 전)
+      // 이메일 중복 체크
       const checkResponse = await fetch("/api/auth/check-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -157,7 +189,6 @@ export default function SignupPage() {
       const { exists, confirmed } = await checkResponse.json();
 
       if (exists && confirmed) {
-        // 이미 가입 완료된 이메일
         setError("이미 가입된 이메일입니다. 로그인해주세요.");
         setLoading(false);
         setTimeout(() => router.push("/auth/login"), 5000);
@@ -165,7 +196,6 @@ export default function SignupPage() {
       }
 
       if (exists && !confirmed) {
-        // 인증 안된 temp 유저 → 삭제 후 진행
         await fetch("/api/auth/cleanup-temp-user", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -173,14 +203,12 @@ export default function SignupPage() {
         });
       }
 
-      // 2. 회원가입 시도
+      // 회원가입 시도
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
-            name: "temp",
-            phone_number: "temp",
             user_type: userType
           },
           emailRedirectTo: `${window.location.origin}/auth/callback`,
@@ -232,46 +260,60 @@ export default function SignupPage() {
 
     setLoading(true);
     try {
-      console.log("🔍 수동 확인 - 토큰:", verificationToken);
       const response = await fetch(`/api/auth/check-verification?token=${verificationToken}`);
       const data = await response.json();
 
-      console.log("📡 수동 확인 응답:", data);
-
       if (data.verified) {
-        console.log("✅ 인증 확인됨! 로그인 시도...");
-
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email: email,
           password: password,
         });
 
         if (!signInError) {
-          console.log("✅ 로그인 성공!");
           setIsVerified(true);
           setIsEmailSent(false);
           alert("✅ 인증이 확인되었습니다!");
         } else {
-          console.error("❌ 로그인 실패:", signInError);
           alert("로그인 중 오류가 발생했습니다: " + signInError.message);
         }
       } else {
         alert("아직 인증이 완료되지 않았습니다. 메일함을 확인해주세요.");
       }
     } catch (err: any) {
-      console.error("❌ 확인 중 오류:", err);
       alert("확인 중 오류가 발생했습니다: " + err.message);
     } finally {
       setLoading(false);
     }
   }
 
+  // ✅ 최종 제출 (검증 추가)
   async function handleFinalSubmit(e: FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
     try {
+      // ✅ 검증
+      const newErrors: typeof errors = {};
+
+      const nameError = validateName(name);
+      if (nameError) newErrors.name = nameError;
+
+      if (nickname) {
+        const nicknameError = validateNickname(nickname);
+        if (nicknameError) newErrors.nickname = nicknameError;
+      }
+
+      const phoneError = validatePhone(phoneNumber);
+      if (phoneError) newErrors.phone = phoneError;
+
+      if (Object.keys(newErrors).length > 0) {
+        setErrors(newErrors);
+        setLoading(false);
+        alert("입력 정보를 확인해주세요.");
+        return;
+      }
+
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("인증 세션이 만료되었습니다. 다시 시도해주세요.");
 
@@ -279,7 +321,7 @@ export default function SignupPage() {
         data: {
           name: name,
           full_name: name,
-          nickname: nickname || name,
+          nickname: nickname || null,
           phone_number: phoneNumber,
           user_type: userType
         }
@@ -292,7 +334,7 @@ export default function SignupPage() {
           id: user.id,
           email: user.email,
           name: name,
-          nickname: nickname || name,
+          nickname: nickname || null,
           phone_number: phoneNumber,
           user_type: userType,
           role: "user",
@@ -317,7 +359,6 @@ export default function SignupPage() {
         <h1 className="text-2xl font-bold text-center mb-1" style={{ color: "var(--oboon-text-title)" }}>회원가입</h1>
         <p className="text-xs text-center mb-2" style={{ color: "var(--oboon-text-muted)" }}>이메일 인증 후 상세 정보를 입력해주세요</p>
 
-        {/* ✅ 로그인 페이지로 이동 */}
         <div className="text-center mb-6">
           <span className="text-xs" style={{ color: "var(--oboon-text-muted)" }}>이미 계정이 있으신가요? </span>
           <Link href="/auth/login" className="text-xs font-semibold hover:underline" style={{ color: "var(--oboon-primary)" }}>
@@ -353,7 +394,6 @@ export default function SignupPage() {
               </div>
             </div>
 
-            {/* ✅ 비밀번호 입력 (보기/숨기기 토글) */}
             <div className="space-y-1">
               <label className="text-xs ml-1 font-semibold" style={{ color: "var(--oboon-text-body)" }}>비밀번호 설정</label>
               <div className="relative">
@@ -365,7 +405,7 @@ export default function SignupPage() {
                     borderColor: "var(--oboon-border-default)",
                     color: "var(--oboon-text-body)"
                   }}
-                  placeholder="••••••••"
+                  placeholder="대소문자+숫자+특수문자 8자 이상"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   onKeyDown={handleKeyEvent}
@@ -382,9 +422,13 @@ export default function SignupPage() {
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+              {errors.password && (
+                <p className="text-[10px] ml-1" style={{ color: "var(--oboon-danger)" }}>
+                  ❌ {errors.password}
+                </p>
+              )}
             </div>
 
-            {/* ✅ 비밀번호 확인 */}
             <div className="space-y-1">
               <label className="text-xs ml-1 font-semibold" style={{ color: "var(--oboon-text-body)" }}>비밀번호 확인</label>
               <div className="relative">
@@ -465,19 +509,23 @@ export default function SignupPage() {
             className={`space-y-4 transition-opacity duration-300 ${!isVerified ? "opacity-30 pointer-events-none" : "opacity-100"}`}
           >
             <div className="space-y-1">
-              <label className="text-xs ml-1 font-semibold" style={{ color: "var(--oboon-text-body)" }}>이름 (실명)</label>
+              <label className="text-xs ml-1 font-semibold" style={{ color: "var(--oboon-text-body)" }}>이름 (실명) *</label>
               <input
                 className="w-full rounded-lg border px-4 py-2.5 text-sm outline-none"
                 style={{
                   backgroundColor: "var(--oboon-bg-subtle)",
-                  borderColor: "var(--oboon-border-default)",
+                  borderColor: errors.name ? "var(--oboon-danger)" : "var(--oboon-border-default)",
                   color: "var(--oboon-text-body)"
                 }}
-                placeholder="김오분"
+                placeholder="김오분 (한글/영문 2-20자)"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => handleNameChange(e.target.value)}
                 required={isVerified}
+                maxLength={20}
               />
+              {errors.name && (
+                <p className="text-xs text-red-500 mt-1">{errors.name}</p>
+              )}
             </div>
 
             <div className="space-y-1">
@@ -488,29 +536,37 @@ export default function SignupPage() {
                 className="w-full rounded-lg border px-4 py-2.5 text-sm outline-none"
                 style={{
                   backgroundColor: "var(--oboon-bg-subtle)",
-                  borderColor: "var(--oboon-border-default)",
+                  borderColor: errors.nickname ? "var(--oboon-danger)" : "var(--oboon-border-default)",
                   color: "var(--oboon-text-body)"
                 }}
-                placeholder="오분이"
+                placeholder="오분이 (선택, 2-15자)"
                 value={nickname}
-                onChange={(e) => setNickname(e.target.value)}
+                onChange={(e) => handleNicknameChange(e.target.value)}
+                maxLength={15}
               />
+              {errors.nickname && (
+                <p className="text-xs text-red-500 mt-1">{errors.nickname}</p>
+              )}
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs ml-1 font-semibold" style={{ color: "var(--oboon-text-body)" }}>휴대폰 번호</label>
+              <label className="text-xs ml-1 font-semibold" style={{ color: "var(--oboon-text-body)" }}>휴대폰 번호 *</label>
               <input
                 className="w-full rounded-lg border px-4 py-2.5 text-sm outline-none"
                 style={{
                   backgroundColor: "var(--oboon-bg-subtle)",
-                  borderColor: "var(--oboon-border-default)",
+                  borderColor: errors.phone ? "var(--oboon-danger)" : "var(--oboon-border-default)",
                   color: "var(--oboon-text-body)"
                 }}
                 placeholder="01012345678"
                 value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
+                onChange={(e) => handlePhoneChange(e.target.value)}
                 required={isVerified}
+                maxLength={13}
               />
+              {errors.phone && (
+                <p className="text-xs text-red-500 mt-1">{errors.phone}</p>
+              )}
             </div>
 
             <div className="space-y-1">
