@@ -1,161 +1,248 @@
-"use client";
-
+// app/briefing/page.tsx
 import Link from "next/link";
-import { useMemo, Suspense } from "react"; // Suspense 추가
-import { useSearchParams } from "next/navigation";
 
 import PageContainer from "@/components/shared/PageContainer";
-import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
+import Button from "@/components/ui/Button";
 
-import BriefingPostCard from "@/features/briefing/BriefingPostCard";
-import BriefingSeriesCard from "@/features/briefing/BriefingSeriesCard";
+import { createSupabaseServer } from "@/lib/supabaseServer";
+import { Cover, cx } from "@/features/briefing/briefing.ui";
+import BriefingCardGrid from "@/features/briefing/BriefingCardGrid";
 
-import { POSTS, SERIES, type BriefingPost, type BriefingSeries } from "./_data";
+type PostRow = {
+  id: string;
+  slug: string;
+  title: string;
+  content_md: string | null;
+  created_at: string;
+  published_at?: string | null;
+  cover_image_url: string | null;
+  board: { key: string } | { key: string }[] | null;
+  category:
+    | { key: string; name: string }
+    | { key: string; name: string }[]
+    | null;
+};
 
-// 1. 기존 로직을 BriefingContent라는 별도 컴포넌트로 분리합니다.
-function BriefingContent() {
-  const sp = useSearchParams();
-  const seriesId = sp.get("series");
-
-  const latest = useMemo(() => {
-    return [...POSTS].sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
-  }, []);
-
-  const seriesCounts = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const p of POSTS) {
-      if (!p.seriesId) continue;
-      m.set(p.seriesId, (m.get(p.seriesId) ?? 0) + 1);
-    }
-    return m;
-  }, []);
-
-  const selectedSeries = useMemo(() => {
-    if (!seriesId) return null;
-    return SERIES.find((s) => s.id === seriesId) ?? null;
-  }, [seriesId]);
-
-  const filteredPosts = useMemo(() => {
-    if (!seriesId) return [];
-    return latest.filter((p) => p.seriesId === seriesId);
-  }, [latest, seriesId]);
-
-  return (
-    <>
-      {/* 1) 시리즈 필터 모드 */}
-      {seriesId ? (
-        <section>
-          <div className="mb-4 border-t border-(--oboon-border-default) pt-6">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <div className="text-[20px] font-semibold text-(--oboon-text-title)">
-                  {selectedSeries ? selectedSeries.title : "시리즈"}
-                </div>
-                <div className="mt-1 text-[14px] text-(--oboon-text-muted)">
-                  {selectedSeries
-                    ? selectedSeries.description
-                    : "선택한 시리즈의 브리핑을 모아봤어요."}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Link href="/briefing">
-                  <Button variant="secondary" size="sm" shape="pill">
-                    전체 보기
-                  </Button>
-                </Link>
-
-                <Link
-                  href={`/briefing/series/${encodeURIComponent(seriesId)}`}
-                >
-                  <Button variant="primary" size="sm" shape="pill">
-                    시리즈 페이지로
-                  </Button>
-                </Link>
-              </div>
-            </div>
-          </div>
-
-          {filteredPosts.length === 0 ? (
-            <Card className="text-[14px] text-(--oboon-text-muted)">
-              아직 이 시리즈에 등록된 브리핑이 없습니다.
-            </Card>
-          ) : (
-            <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredPosts.map((p: BriefingPost) => (
-                <BriefingPostCard key={p.id} post={p} />
-              ))}
-            </div>
-          )}
-        </section>
-      ) : (
-        <>
-          {/* 2) 기본 모드 */}
-          <section className="mb-14">
-            <div className="mb-4 border-t border-(--oboon-border-default) pt-6">
-              <div className="text-[20px] font-semibold text-(--oboon-text-title)">
-                방금 올라온 콘텐츠
-              </div>
-              <div className="mt-1 text-[14px] text-(--oboon-text-muted)">
-                실시간 업데이트 소식 살펴보기
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-              {latest.slice(0, 8).map((p: BriefingPost) => (
-                <BriefingPostCard key={p.id} post={p} />
-              ))}
-            </div>
-          </section>
-
-          <section>
-            <div className="mb-4 border-t border-(--oboon-border-default) pt-6">
-              <div className="text-[20px] font-semibold text-(--oboon-text-title)">
-                OBOON 오리지널
-              </div>
-              <div className="mt-1 text-[14px] text-(--oboon-text-muted)">
-                감정평가사 한줄평과 시리즈로 분양 판단 기준을 정리해요.
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-              {SERIES.map((s: BriefingSeries) => (
-                <BriefingSeriesCard
-                  key={s.id}
-                  series={s}
-                  count={seriesCounts.get(s.id) ?? 0}
-                />
-              ))}
-            </div>
-          </section>
-        </>
-      )}
-    </>
-  );
+function pickKey(v: any): string | null {
+  if (!v) return null;
+  return Array.isArray(v) ? v?.[0]?.key ?? null : v?.key ?? null;
 }
 
-// 2. 메인 페이지 컴포넌트에서는 BriefingContent를 Suspense로 감쌉니다.
-export default function BriefingPage() {
+function pickName(v: any): string | null {
+  if (!v) return null;
+  return Array.isArray(v) ? v?.[0]?.name ?? null : v?.name ?? null;
+}
+
+function formatDate(iso: string) {
+  // YYYY.MM.DD
+  const d = new Date(iso);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}.${m}.${day}`;
+}
+
+function stripMd(md: string) {
+  return md
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/`[^`]*`/g, "")
+    .replace(/!\[[^\]]*]\([^)]\)/g, "")
+    .replace(/\[[^\]]*]\([^)]\)/g, "")
+    .replace(/[#>*_~\-]/g, " ")
+    .replace(/\s/g, " ")
+    .trim();
+}
+
+function excerpt(md: string | null, max = 70) {
+  if (!md) return "";
+  const s = stripMd(md);
+  return s.length > max ? `${s.slice(0, max)}…` : s;
+}
+
+function pickPrimaryTagName(post: any): string | null {
+  const items = (post?.post_tags ?? []) as any[];
+  const activeTags = items.map((x) => x?.tag).filter((t) => t && t.is_active);
+
+  if (activeTags.length === 0) return null;
+
+  activeTags.sort((a, b) => {
+    const ao = typeof a.sort_order === "number" ? a.sort_order : 0;
+    const bo = typeof b.sort_order === "number" ? b.sort_order : 0;
+    if (ao !== bo) return ao - bo;
+    return String(a.name ?? "").localeCompare(String(b.name ?? ""));
+  });
+
+  return activeTags[0]?.name ?? null;
+}
+
+export default async function BriefingPage() {
+  const supabase = createSupabaseServer();
+
+  // board_id 확보 (oboon_original)
+  const { data: ob, error: obErr } = await supabase
+    .from("briefing_boards")
+    .select("id")
+    .eq("key", "oboon_original")
+    .single();
+  if (obErr) throw obErr;
+  const oboonOriginalBoardId = ob.id as string;
+
+  // 1) 오분 오리지널 “대표 카드”용: 최신 오리지널 글 1개
+  const { data: heroData, error: heroErr } = await supabase
+    .from("briefing_posts")
+    .select(
+      `
+      id, slug, title, content_md, created_at, published_at, cover_image_url,
+      board:briefing_boards!inner(key),
+      category:briefing_categories(key,name)
+    `
+    )
+    .eq("status", "published")
+    .eq("board.key", "oboon_original")
+    .order("published_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (heroErr) throw heroErr;
+
+  const heroPost = (heroData ?? null) as any as PostRow | null;
+  const heroCategoryKey = heroPost ? pickKey(heroPost.category) : null;
+
+  // 2) CTA 카드 상단 “태그 칩”처럼 보이는 요소: 오리지널 카테고리 상위 5개
+  // (현재 tag 테이블이 없으므로 category를 chip처럼 사용)
+  const { data: tagData, error: tagErr } = await supabase
+    .from("briefing_tags")
+    .select("key,name")
+    .eq("is_active", true)
+    .order("sort_order");
+
+  if (tagErr) throw tagErr;
+
+  // 3) 일반 브리핑 카드: 최신 4개
+  const { data: generalData, error: generalErr } = await supabase
+    .from("briefing_posts")
+    .select(
+      `
+      id, slug, title, content_md, created_at, published_at, cover_image_url,
+      board:briefing_boards!inner(key),
+      category:briefing_categories(key,name)
+      post_tags:briefing_post_tags(
+        tag:briefing_tags(id,key,name,sort_order,is_active)
+      )
+      `
+    )
+    .eq("status", "published")
+    .eq("board.key", "general")
+    .order("published_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  if (generalErr) throw generalErr;
+
+  const generalPosts = (generalData ?? []) as any as PostRow[];
+
   return (
     <main className="bg-(--oboon-bg-page)">
-      <PageContainer>
-        <div className="mb-5">
-          <h1 className="mb-1 text-[28px] font-semibold tracking-[-0.02em] text-(--oboon-text-title)">
-            브리핑
-          </h1>
-          <p className="text-[14px] leading-[1.6] text-(--oboon-text-muted)">
-            실시간 업데이트 소식과 시리즈로, 분양을 판단하는 기준을 정리합니다.
-          </p>
+      <PageContainer className="pt-10 pb-20">
+        {/* ===== HERO (OBOON Original) ===== */}
+        <div className="mb-10">
+          <Card className="p-5 overflow-hidden shadow-none h-[500px]">
+            <div className="grid grid-cols-1 md:grid-cols-2 h-full gap-5">
+              {/* left */}
+              <div className="relative h-full">
+                <div className="flex h-full flex-col">
+                  {/* chips (좌상단) */}
+                  <div className="flex flex-wrap gap-2">
+                    {(tagData ?? []).map((t) => (
+                      <span
+                        key={t.key}
+                        className={cx(
+                          "inline-flex items-center rounded-full border px-3 py-1 text-[12px] font-medium",
+                          "border-(--oboon-border-default) bg-(--oboon-bg-subtle) text-(--oboon-text-muted)"
+                        )}
+                      >
+                        {t.name}
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* 중앙 카피 (스크린샷처럼 가운데 정렬) */}
+                  <div className="flex-1 flex items-center justify-end">
+                    <div
+                      className={cx(
+                        "ob-typo-h3 text-(--oboon-text-muted)",
+                        "text-right",
+                        "break-keep",
+                        "max-w-60"
+                      )}
+                    >
+                      OBOON이 직접 정리한
+                      <br />
+                      시장을 읽는 기준.
+                    </div>
+                  </div>
+
+                  {/* 하단: 타이틀  버튼 (스크린샷처럼 같은 줄) */}
+                  <div className="flex items-end justify-between gap-5">
+                    <div className="ob-typo-display text-(--oboon-text-title)">
+                      OBOON
+                      <br />
+                      Original
+                    </div>
+
+                    <Link href="/briefing/oboon-original" className="shrink-0">
+                      <Button
+                        size="sm"
+                        shape="pill"
+                        className="px-7"
+                        aria-label="오분 오리지널 보러가기"
+                      >
+                        보러가기
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+
+              {/* right image */}
+              <div className="h-full">
+                <Cover
+                  mode="fill"
+                  imageUrl={heroPost?.cover_image_url ?? undefined}
+                  className="rounded-2xl md:h-full w-full"
+                />
+              </div>
+            </div>
+          </Card>
         </div>
 
-        {/* 빌드 에러 해결의 핵심: Suspense 바운더리 */}
-        <Suspense fallback={<div className="py-20 text-center text-muted-foreground">목록을 불러오는 중입니다...</div>}>
-          <BriefingContent />
-        </Suspense>
+        {/* ===== 일반 브리핑 ===== */}
+        <div className="mb-4">
+          <div className="ob-typo-h2 text-(--oboon-text-title)">
+            일반 브리핑
+          </div>
+          <div className="mt-1 ob-typo-meta text-(--oboon-text-muted)">
+            단일 주제로 정리된 최신 브리핑 글입니다.
+          </div>
+        </div>
+        <BriefingCardGrid
+          posts={generalPosts.map((p: any) => ({
+            id: p.id,
+            href: `/briefing/general/${encodeURIComponent(p.slug)}`,
+            slug: p.slug,
+            title: p.title,
+            content_md: p.content_md ?? null,
+            created_at: p.created_at,
+            published_at: p.published_at ?? null,
+            cover_image_url: p.cover_image_url ?? null,
+            badgeLabel:
+              pickPrimaryTagName(p) ?? pickName(p.category) ?? "브리핑",
+          }))}
+          initialCount={4}
+          step={4}
+        />
       </PageContainer>
     </main>
   );

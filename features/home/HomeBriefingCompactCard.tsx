@@ -2,16 +2,26 @@
 
 import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
-import { formatDate, typeLabel, type BriefingPost } from "@/app/briefing/_data";
+
+import type { BriefingPostCardModel } from "@/features/briefing/types";
+import {
+  getBriefingPostHref,
+  getBriefingPostBadgeText,
+  formatBriefingDate,
+} from "@/features/briefing/types";
 
 export default function HomeBriefingCompactCard({
   post,
 }: {
-  post: BriefingPost;
+  post: BriefingPostCardModel;
 }) {
+  const href = getBriefingPostHref(post);
+  const badgeText = getBriefingPostBadgeText(post);
+  const dateText = formatBriefingDate(post.createdAt);
+
   return (
     <Link
-      href={`/briefing/${post.id}`}
+      href={href}
       className={[
         "group block",
         "rounded-2xl border border-(--oboon-border-default)",
@@ -24,27 +34,26 @@ export default function HomeBriefingCompactCard({
       <div className="p-4">
         {/* 상단: 타입 배지 + 날짜 */}
         <div className="flex items-center justify-between gap-3">
-          <Badge variant="status">{typeLabel(post.type)}</Badge>
-          <span className="text-xs text-(--oboon-text-muted)">
-            {formatDate(post.createdAt)}
+          <Badge variant="status">{badgeText}</Badge>
+          <span className="ob-typo-caption text-(--oboon-text-muted)">
+            {dateText}
           </span>
         </div>
 
-        {/* 제목: 2줄 고정(홈 카드 높이 균일화) */}
+        {/* 제목: 2줄 고정 */}
         <div
           className={[
             "mt-3",
-            "text-[15px] font-semibold leading-[1.45] text-(--oboon-text-title)",
-            "line-clamp-2",
-            "min-h-[2.8rem]",
+            "ob-typo-card-title-sm text-(--oboon-text-title)",
+            "line-clamp-2 min-h-[2.8rem]",
           ].join(" ")}
         >
           {post.title}
         </div>
 
         {/* CTA */}
-        <div className="mt-4 text-[13px] font-medium text-(--oboon-primary) group-hover:underline">
-          브리핑 보기 →
+        <div className="mt-4 ob-typo-cta text-(--oboon-primary) group-hover:underline">
+          브리핑 보기
         </div>
       </div>
     </Link>

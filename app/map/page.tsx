@@ -157,7 +157,7 @@ export default function MapPage() {
           </p>
         </div>
 
-        <Card className="overflow-hidden p-0">
+        <Card className="overflow-hidden p-5 shadow-none">
           <div className="relative w-full h-[520px]">
             <div className="absolute inset-0">
               <NaverMap

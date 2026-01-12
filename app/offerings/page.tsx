@@ -156,7 +156,7 @@ export default function OfferingsPage({
         </div>
 
         {/* Filter */}
-        <Card className="mb-6">
+        <Card className="p-5 mb-6">
           <FilterBar />
         </Card>
 

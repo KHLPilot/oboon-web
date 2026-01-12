@@ -12,7 +12,7 @@ export default function Card({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-5 shadow-(--oboon-shadow-card)",
+        "rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) shadow-(--oboon-shadow-card)",
         className
       )}
     >

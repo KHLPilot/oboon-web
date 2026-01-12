@@ -13,7 +13,7 @@ export default function OfferingDetailRight() {
 
   return (
     <>
-      <Card>
+      <Card className="p-5">
         <div className="text-sm font-semibold text-(--oboon-text-title)">
           상담/자료 요청
         </div>

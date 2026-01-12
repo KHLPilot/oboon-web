@@ -343,7 +343,7 @@ export default function OfferingDetailLeft({
         />
 
         <div className="mt-3">
-          <Card>
+          <Card className="p-5">
             <div className="grid grid-cols-1 gap-y-4 md:grid-cols-2 md:gap-x-10">
               <div className="space-y-3">
                 <div>
@@ -402,7 +402,7 @@ export default function OfferingDetailLeft({
         />
 
         <div className="mt-3 space-y-3">
-          <Card>
+          <Card className="p-5">
             <div className="text-xs font-medium text-(--oboon-text-muted)">
               확정 내용
             </div>
@@ -411,7 +411,7 @@ export default function OfferingDetailLeft({
             </div>
           </Card>
 
-          <Card>
+          <Card className="p-5">
             <div className="text-xs font-medium text-(--oboon-text-muted)">
               추정 내용
             </div>
@@ -420,7 +420,7 @@ export default function OfferingDetailLeft({
             </div>
           </Card>
 
-          <Card>
+          <Card className="p-5">
             <div className="text-xs font-medium text-(--oboon-text-muted)">
               미정 내용
             </div>
@@ -440,7 +440,7 @@ export default function OfferingDetailLeft({
         />
 
         <div className="mt-3">
-          <Card>
+          <Card className="p-5">
             {unitTypes.length === 0 ? (
               <div className="text-sm text-(--oboon-text-muted)">
                 {UXCopy.checking}
@@ -480,7 +480,7 @@ export default function OfferingDetailLeft({
         />
 
         <div className="mt-3">
-          <Card>
+          <Card className="p-5">
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <StatCard
                 label="모집공고"
