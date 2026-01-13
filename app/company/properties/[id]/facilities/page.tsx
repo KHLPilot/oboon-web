@@ -261,7 +261,7 @@ export default function PropertyFacilitiesPage() {
               shape="pill"
               onClick={() => router.push(`/company/properties/${propertyId}`)}
             >
-              취소
+              목록
             </Button>
           </div>
         </div>
@@ -454,7 +454,7 @@ export default function PropertyFacilitiesPage() {
                   value={f.open_start}
                   onChange={(next) => updateField(idx, "open_start", next)}
                   disabled={!f.isEditing}
-                  policy="monthOnly"
+                  policy="month"
                   inputClassName={inputBase}
                   placeholder="예) 2026-01"
                 />
@@ -465,7 +465,7 @@ export default function PropertyFacilitiesPage() {
                   value={f.open_end}
                   onChange={(next) => updateField(idx, "open_end", next)}
                   disabled={!f.isEditing}
-                  policy="monthOnly"
+                  policy="month"
                   inputClassName={inputBase}
                   placeholder="예) 2026-03"
                 />

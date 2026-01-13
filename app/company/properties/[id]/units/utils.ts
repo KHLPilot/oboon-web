@@ -19,7 +19,6 @@ export function toIntOrNull(v: string): number | null {
   if (v == null) return null;
   const s = v.trim();
   if (!s) return null;
-
   const normalized = s.replaceAll(",", "");
   if (!/^-?\d+$/.test(normalized)) return null;
 

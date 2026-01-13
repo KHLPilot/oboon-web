@@ -36,20 +36,11 @@ export default function PropertySpecsPage() {
   const propertyId = Number(params?.id);
 
   const [form, setForm] = useState<SpecsForm>({ properties_id: propertyId });
-  const [baseForm, setBaseForm] = useState<SpecsForm | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [sectionEdit, setSectionEdit] = useState({
-    biz: false,
-    area: false,
-    scale: false,
-    parking: false,
-  });
 
   // ✅ 평면 타입 세대수 목록
-  const [unitTypes, setUnitTypes] = useState<
-    { unit_count: number | null }[]
-  >([]);
+  const [unitTypes, setUnitTypes] = useState<{ unit_count: number | null }[]>([]);
 
   useEffect(() => {
     if (!Number.isFinite(propertyId)) return;
@@ -99,23 +90,14 @@ export default function PropertySpecsPage() {
         console.error(error);
         const empty = { properties_id: propertyId };
         setForm(empty);
-        setBaseForm(empty);
       } else if (data) {
         const next = { ...data, properties_id: propertyId };
         setForm(next);
-        setBaseForm(next);
       } else {
         const empty = { properties_id: propertyId };
         setForm(empty);
-        setBaseForm(empty);
       }
 
-      setSectionEdit({
-        biz: false,
-        area: false,
-        scale: false,
-        parking: false,
-      });
       setLoading(false);
     }
 
@@ -151,7 +133,7 @@ export default function PropertySpecsPage() {
       floor_ground: form.floor_ground ?? null,
       floor_underground: form.floor_underground ?? null,
       building_count: form.building_count ?? null,
-      household_total: form.household_total ?? null,
+      household_total: calculatedHouseholdTotal, // ← 자동 계산된 값 저장
       parking_total: form.parking_total ?? null,
       parking_per_household: form.parking_per_household ?? null,
       heating_type: form.heating_type ?? null,
@@ -168,67 +150,14 @@ export default function PropertySpecsPage() {
       alert("저장 실패: " + error.message);
       return;
     }
-    setBaseForm({ ...form, properties_id: propertyId });
-    setSectionEdit({
-      biz: false,
-      area: false,
-      scale: false,
-      parking: false,
-    });
+
+    // ✅ 저장 성공 후 자동으로 뒤로 가기
+    router.push(`/company/properties/${propertyId}`);
   }
 
   const inputBase =
     "input-basic rounded-md border border-(--oboon-border-default) bg-(--oboon-bg-subtle)/70 px-3 py-2 transition focus:border-(--oboon-accent) focus:outline-none focus:ring-2 focus:ring-(--oboon-accent)/50";
   const labelStrong = "text-sm font-medium text-(--oboon-text-title)";
-
-  const SECTION_FIELDS: Record<keyof typeof sectionEdit, (keyof SpecsForm)[]> =
-  {
-    biz: ["sale_type", "trust_company", "developer", "builder"],
-    area: [
-      "site_area",
-      "building_area",
-      "building_coverage_ratio",
-      "floor_area_ratio",
-    ],
-    scale: [
-      "floor_ground",
-      "floor_underground",
-      "building_count",
-      "household_total",
-    ],
-    parking: [
-      "parking_total",
-      "parking_per_household",
-      "heating_type",
-      "amenities",
-    ],
-  };
-
-  function startEdit(section: keyof typeof sectionEdit) {
-    setSectionEdit((prev) => ({ ...prev, [section]: true }));
-  }
-
-  function cancelSection(section: keyof typeof sectionEdit) {
-    const snapshot = baseForm;
-    if (snapshot) {
-      setForm((prev) => {
-        const next = { ...prev } as Record<
-          string,
-          SpecsForm[keyof SpecsForm]
-        >;
-        (SECTION_FIELDS[section] as Array<keyof SpecsForm>).forEach((field) => {
-          next[field] = snapshot[field] ?? null;
-        });
-        return next as SpecsForm;
-      });
-    }
-    setSectionEdit((prev) => ({ ...prev, [section]: false }));
-  }
-
-  async function saveSection(section: keyof typeof sectionEdit) {
-    await handleSave();
-    setSectionEdit((prev) => ({ ...prev, [section]: false }));
-  }
 
   if (loading) {
     return (
@@ -259,64 +188,39 @@ export default function PropertySpecsPage() {
               </p>
             </div>
           </div>
+          {/* ✅ 상단 버튼: 취소 + 저장 */}
           <div className="flex items-center gap-2">
             <Button
               variant="secondary"
               size="sm"
               shape="pill"
-              className="text-red-500"
               onClick={() => router.push(`/company/properties/${propertyId}`)}
             >
               취소
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              shape="pill"
+              onClick={handleSave}
+              loading={saving}
+            >
+              저장
             </Button>
           </div>
         </header>
 
         {/* 분양·사업 정보 */}
         <section className="space-y-3 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-6 py-5 ">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-(--oboon-text-title)">
-              분양·사업 정보
-            </h2>
-            {sectionEdit.biz ? (
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  shape="pill"
-                  className="text-red-500"
-                  onClick={() => cancelSection("biz")}
-                >
-                  취소
-                </Button>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  shape="pill"
-                  onClick={() => saveSection("biz")}
-                  loading={saving}
-                >
-                  저장
-                </Button>
-              </div>
-            ) : (
-              <Button
-                variant="secondary"
-                size="sm"
-                shape="pill"
-                onClick={() => startEdit("biz")}
-              >
-                편집
-              </Button>
-            )}
-          </div>
+          <h2 className="text-lg font-semibold text-(--oboon-text-title)">
+            분양·사업 정보
+          </h2>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <FormField label="분양 유형" labelClassName={labelStrong}>
               <input
                 className={inputBase}
                 value={form.sale_type ?? ""}
                 onChange={(e) => update("sale_type", e.target.value)}
-                disabled={!sectionEdit.biz}
                 placeholder="예) 민간분양, 임대 등"
               />
             </FormField>
@@ -325,7 +229,6 @@ export default function PropertySpecsPage() {
                 className={inputBase}
                 value={form.trust_company ?? ""}
                 onChange={(e) => update("trust_company", e.target.value)}
-                disabled={!sectionEdit.biz}
                 placeholder="예) OO신탁"
               />
             </FormField>
@@ -334,7 +237,6 @@ export default function PropertySpecsPage() {
                 className={inputBase}
                 value={form.developer ?? ""}
                 onChange={(e) => update("developer", e.target.value)}
-                disabled={!sectionEdit.biz}
                 placeholder="예) OO디벨로퍼"
               />
             </FormField>
@@ -343,7 +245,6 @@ export default function PropertySpecsPage() {
                 className={inputBase}
                 value={form.builder ?? ""}
                 onChange={(e) => update("builder", e.target.value)}
-                disabled={!sectionEdit.biz}
                 placeholder="예) OO건설"
               />
             </FormField>
@@ -352,48 +253,14 @@ export default function PropertySpecsPage() {
 
         {/* 면적·비율 */}
         <section className="space-y-3 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-6 py-5 ">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-(--oboon-text-title)">
-              면적·비율
-            </h2>
-            {sectionEdit.area ? (
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  shape="pill"
-                  className="text-red-500"
-                  onClick={() => cancelSection("area")}
-                >
-                  취소
-                </Button>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  shape="pill"
-                  onClick={() => saveSection("area")}
-                  loading={saving}
-                >
-                  저장
-                </Button>
-              </div>
-            ) : (
-              <Button
-                variant="secondary"
-                size="sm"
-                shape="pill"
-                onClick={() => startEdit("area")}
-              >
-                편집
-              </Button>
-            )}
-          </div>
+          <h2 className="text-lg font-semibold text-(--oboon-text-title)">
+            면적·비율
+          </h2>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <FormField label="대지면적(㎡)" labelClassName={labelStrong}>
               <input
                 type="number"
                 className={inputBase}
-                disabled={!sectionEdit.area}
                 placeholder="예) 1234"
                 {...numberInputProps("site_area")}
               />
@@ -402,7 +269,6 @@ export default function PropertySpecsPage() {
               <input
                 type="number"
                 className={inputBase}
-                disabled={!sectionEdit.area}
                 placeholder="예) 500"
                 {...numberInputProps("building_area")}
               />
@@ -411,7 +277,6 @@ export default function PropertySpecsPage() {
               <input
                 type="number"
                 className={inputBase}
-                disabled={!sectionEdit.area}
                 placeholder="예) 25"
                 {...numberInputProps("building_coverage_ratio")}
               />
@@ -420,7 +285,6 @@ export default function PropertySpecsPage() {
               <input
                 type="number"
                 className={inputBase}
-                disabled={!sectionEdit.area}
                 placeholder="예) 240"
                 {...numberInputProps("floor_area_ratio")}
               />
@@ -430,48 +294,14 @@ export default function PropertySpecsPage() {
 
         {/* 규모 */}
         <section className="space-y-3 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-6 py-5 ">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-(--oboon-text-title)">
-              규모
-            </h2>
-            {sectionEdit.scale ? (
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  shape="pill"
-                  className="text-red-500"
-                  onClick={() => cancelSection("scale")}
-                >
-                  취소
-                </Button>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  shape="pill"
-                  onClick={() => saveSection("scale")}
-                  loading={saving}
-                >
-                  저장
-                </Button>
-              </div>
-            ) : (
-              <Button
-                variant="secondary"
-                size="sm"
-                shape="pill"
-                onClick={() => startEdit("scale")}
-              >
-                편집
-              </Button>
-            )}
-          </div>
+          <h2 className="text-lg font-semibold text-(--oboon-text-title)">
+            규모
+          </h2>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <FormField label="지상층수" labelClassName={labelStrong}>
               <input
                 type="number"
                 className={inputBase}
-                disabled={!sectionEdit.scale}
                 placeholder="예) 29"
                 {...numberInputProps("floor_ground")}
               />
@@ -480,7 +310,6 @@ export default function PropertySpecsPage() {
               <input
                 type="number"
                 className={inputBase}
-                disabled={!sectionEdit.scale}
                 placeholder="예) 2"
                 {...numberInputProps("floor_underground")}
               />
@@ -489,7 +318,6 @@ export default function PropertySpecsPage() {
               <input
                 type="number"
                 className={inputBase}
-                disabled={!sectionEdit.scale}
                 placeholder="예) 4"
                 {...numberInputProps("building_count")}
               />
@@ -517,48 +345,14 @@ export default function PropertySpecsPage() {
 
         {/* 주차·난방·기타 */}
         <section className="space-y-3 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-6 py-5 ">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-(--oboon-text-title)">
-              주차·난방·기타
-            </h2>
-            {sectionEdit.parking ? (
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  shape="pill"
-                  className="text-red-500"
-                  onClick={() => cancelSection("parking")}
-                >
-                  취소
-                </Button>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  shape="pill"
-                  onClick={() => saveSection("parking")}
-                  loading={saving}
-                >
-                  저장
-                </Button>
-              </div>
-            ) : (
-              <Button
-                variant="secondary"
-                size="sm"
-                shape="pill"
-                onClick={() => startEdit("parking")}
-              >
-                편집
-              </Button>
-            )}
-          </div>
+          <h2 className="text-lg font-semibold text-(--oboon-text-title)">
+            주차·난방·기타
+          </h2>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <FormField label="총 주차대수" labelClassName={labelStrong}>
               <input
                 type="number"
                 className={inputBase}
-                disabled={!sectionEdit.parking}
                 placeholder="예) 400"
                 {...numberInputProps("parking_total")}
               />
@@ -567,7 +361,6 @@ export default function PropertySpecsPage() {
               <input
                 type="number"
                 className={inputBase}
-                disabled={!sectionEdit.parking}
                 placeholder="예) 1.2"
                 step="0.1"
                 {...numberInputProps("parking_per_household")}
@@ -576,7 +369,6 @@ export default function PropertySpecsPage() {
             <FormField label="난방방식" labelClassName={labelStrong}>
               <input
                 className={inputBase}
-                disabled={!sectionEdit.parking}
                 placeholder="예) 지역난방, 개별난방"
                 value={form.heating_type ?? ""}
                 onChange={(e) => update("heating_type", e.target.value)}
@@ -585,7 +377,6 @@ export default function PropertySpecsPage() {
             <FormField label="어메니티" labelClassName={labelStrong}>
               <input
                 className={inputBase}
-                disabled={!sectionEdit.parking}
                 placeholder="예) 커뮤니티센터, 피트니스 등"
                 value={form.amenities ?? ""}
                 onChange={(e) => update("amenities", e.target.value)}
@@ -593,6 +384,25 @@ export default function PropertySpecsPage() {
             </FormField>
           </div>
         </section>
+
+        {/* ✅ 하단 버튼: 취소 + 저장 */}
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            variant="secondary"
+            size="md"
+            onClick={() => router.push(`/company/properties/${propertyId}`)}
+          >
+            취소
+          </Button>
+          <Button
+            variant="primary"
+            size="md"
+            onClick={handleSave}
+            loading={saving}
+          >
+            저장
+          </Button>
+        </div>
       </div>
     </div>
   );

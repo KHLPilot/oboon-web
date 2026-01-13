@@ -5,6 +5,7 @@ import React, {
   useMemo,
   useState,
   type ComponentPropsWithoutRef,
+  type ReactElement,
 } from "react";
 import DatePicker from "react-datepicker";
 import { registerLocale } from "react-datepicker";
@@ -49,10 +50,6 @@ type NativeDatePickerProps = ComponentPropsWithoutRef<typeof DatePicker>;
 
 export type DateTextFormat = "yyyy-MM" | "yyyy-MM-dd";
 
-/**
- * ✅ trigger prop 없음(중복 방지): 아이콘은 여기서만 생성
- * ✅ popperModifiers 미사용(타입 충돌/레이아웃 꼬임 방지)
- */
 export type OboonDatePickerProps = Omit<
   NativeDatePickerProps,
   | "customInput"
@@ -75,40 +72,114 @@ export type OboonDatePickerProps = Omit<
   allowTextInput?: boolean;
   textFormat?: DateTextFormat;
   placeholder?: string;
+
+  customTrigger?: (props: CalendarIconButtonProps) => ReactElement;
 };
 
-function parseYmdToLocalDateStrict(ymd: string): Date | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd.trim());
-  if (!m) return null;
-
-  const y = Number(m[1]);
-  const mo = Number(m[2]);
-  const d = Number(m[3]);
-
-  if (!y || mo < 1 || mo > 12 || d < 1 || d > 31) return null;
-
-  const dt = new Date(y, mo - 1, d);
-  if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d)
-    return null;
-
-  return dt;
+function getDaysInMonth(year: number, month: number): number {
+  return new Date(year, month, 0).getDate();
 }
 
-/** YYYY-MM 입력은 해당 월의 1일로 간주 */
-function parseYmToLocalDateStrict(ym: string): Date | null {
-  const m = /^(\d{4})-(\d{2})$/.exec(ym.trim());
-  if (!m) return null;
+// ✅ 커스텀 인풋 컴포넌트
+const CustomInput = forwardRef<
+  HTMLInputElement,
+  {
+    value?: string;
+    onClick?: () => void;
+    onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    placeholder?: string;
+    className?: string;
+    disabled?: boolean;
+    onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  }
+>(({ value, onClick, onChange, placeholder, className, disabled, onKeyDown }, ref) => {
+  // ✅ 숫자만 입력 + 자동 포맷팅
+  const handleInput = (e: React.FormEvent<HTMLInputElement>) => {
+    const raw = (e.target as HTMLInputElement).value;
+    const digitsOnly = raw.replace(/[^\d]/g, "");
 
-  const y = Number(m[1]);
-  const mo = Number(m[2]);
+    let formatted = "";
 
-  if (!y || mo < 1 || mo > 12) return null;
+    if (digitsOnly.length <= 4) {
+      formatted = digitsOnly;
+    } else if (digitsOnly.length <= 6) {
+      const year = digitsOnly.slice(0, 4);
+      let month = digitsOnly.slice(4, 6);
 
-  const dt = new Date(y, mo - 1, 1);
-  if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1) return null;
+      if (month.length === 1) {
+        const firstDigit = parseInt(month[0], 10);
+        if (firstDigit > 1) {
+          month = `0${firstDigit}`;
+        }
+      } else if (month.length === 2) {
+        const monthNum = parseInt(month, 10);
+        if (monthNum > 12) month = "12";
+        else if (monthNum < 1) month = "01";
+      }
 
-  return dt;
-}
+      formatted = `${year}-${month}`;
+    } else {
+      const year = digitsOnly.slice(0, 4);
+      let month = digitsOnly.slice(4, 6);
+      let day = digitsOnly.slice(6, 8);
+
+      if (month.length === 1) {
+        const firstDigit = parseInt(month[0], 10);
+        if (firstDigit > 1) month = `0${firstDigit}`;
+      } else if (month.length === 2) {
+        const monthNum = parseInt(month, 10);
+        if (monthNum > 12) month = "12";
+        else if (monthNum < 1) month = "01";
+      }
+
+      if (day) {
+        const yearNum = parseInt(year, 10);
+        const monthNum = parseInt(month, 10);
+        const maxDays = getDaysInMonth(yearNum, monthNum);
+
+        if (day.length === 1) {
+          const firstDigit = parseInt(day[0], 10);
+          if (firstDigit > 3) day = `0${firstDigit}`;
+        } else if (day.length === 2) {
+          const dayNum = parseInt(day, 10);
+          if (dayNum > maxDays) day = String(maxDays).padStart(2, "0");
+          else if (dayNum < 1) day = "01";
+        }
+      }
+
+      formatted = `${year}-${month}${day ? `-${day}` : ""}`;
+    }
+
+    (e.target as HTMLInputElement).value = formatted;
+
+    // onChange 이벤트 발생
+    if (onChange) {
+      const syntheticEvent = {
+        ...e,
+        target: e.target as HTMLInputElement,
+        currentTarget: e.target as HTMLInputElement,
+      } as React.ChangeEvent<HTMLInputElement>;
+      onChange(syntheticEvent);
+    }
+  };
+
+  return (
+    <input
+      ref={ref}
+      type="text"
+      value={value}
+      onClick={onClick}
+      onInput={handleInput}
+      onChange={onChange}
+      onKeyDown={onKeyDown}
+      placeholder={placeholder}
+      className={className}
+      disabled={disabled}
+      inputMode="numeric"
+    />
+  );
+});
+CustomInput.displayName = "CustomInput";
 
 export default function OboonDatePicker({
   buttonProps,
@@ -121,22 +192,27 @@ export default function OboonDatePicker({
   popperClassName,
   showMonthYearDropdown,
   disabled,
+  customTrigger,
   ...rest
 }: OboonDatePickerProps) {
   const [open, setOpen] = useState(false);
 
   const trigger = useMemo(() => {
-    return (
-      <CalendarIconButton
-        {...buttonProps}
-        onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-          buttonProps?.onClick?.(e);
-          if (!disabled) setOpen(true);
-        }}
-        disabled={disabled ?? buttonProps?.disabled}
-      />
-    );
-  }, [buttonProps, disabled]);
+    const triggerProps: CalendarIconButtonProps = {
+      ...buttonProps,
+      onClick: (e: React.MouseEvent<HTMLButtonElement>) => {
+        buttonProps?.onClick?.(e);
+        if (!disabled) setOpen(true);
+      },
+      disabled: disabled ?? buttonProps?.disabled,
+    };
+
+    if (customTrigger) {
+      return customTrigger(triggerProps);
+    }
+
+    return <CalendarIconButton {...triggerProps} />;
+  }, [buttonProps, disabled, customTrigger]);
 
   const handleChange = (
     date: Date | Date[] | [Date | null, Date | null] | null,
@@ -152,19 +228,19 @@ export default function OboonDatePicker({
   ) => {
     if (!allowTextInput) return;
 
-    const raw =
-      (event?.target as HTMLInputElement | null)?.value?.toString() ?? "";
+    const raw = (event?.target as HTMLInputElement | null)?.value?.toString() ?? "";
     if (!raw.trim()) {
       onChange?.(null, event);
       return;
     }
 
-    const parsed =
-      textFormat === "yyyy-MM"
-        ? parseYmToLocalDateStrict(raw)
-        : parseYmdToLocalDateStrict(raw);
-
-    if (parsed) onChange?.(parsed, event);
+    // YYYY-MM-DD 완성 시 Date 객체로 변환
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw.trim());
+    if (m) {
+      const [_, y, mo, d] = m;
+      const date = new Date(Number(y), Number(mo) - 1, Number(d));
+      onChange?.(date, event);
+    }
   };
 
   const pickerProps: NativeDatePickerProps = {
@@ -175,24 +251,20 @@ export default function OboonDatePicker({
     onCalendarOpen: () => setOpen(true),
     onCalendarClose: () => setOpen(false),
     onClickOutside: () => setOpen(false),
-    onInputClick: () => {
-      if (!disabled) setOpen(true);
-    },
     onChange: handleChange,
     onChangeRaw: handleRaw,
     dateFormat: textFormat,
-    className: inputClassName,
     placeholderText: placeholder,
     calendarClassName: calendarClassName ?? "oboon-datepicker",
     popperClassName: popperClassName ?? "oboon-datepicker-popper",
     wrapperClassName: "w-full",
+    customInput: <CustomInput className={inputClassName} />,
     ...(showMonthYearDropdown ? { showMonthYearDropdown: true } : {}),
   };
 
   return (
     <>
       <div className="flex w-full items-center gap-2">
-        {/* input wrapper: 레이아웃 흔들림 방지(폭 고정) */}
         <div className="min-w-0 flex-1">
           <DatePicker {...pickerProps} />
         </div>
@@ -200,9 +272,7 @@ export default function OboonDatePicker({
         {trigger}
       </div>
 
-      {/* 레이아웃은 react-datepicker 기본 유지) */}
       <style jsx global>{`
-        /* ===== Layout Stabilization ===== */
         .react-datepicker-wrapper {
           width: 100% !important;
           display: block;
@@ -214,12 +284,10 @@ export default function OboonDatePicker({
           width: 100%;
         }
 
-        /* ===== Popper ===== */
         .oboon-datepicker-popper {
           z-index: 50;
         }
 
-        /* ===== Minimal Theme (tokens only) ===== */
         .oboon-datepicker {
           background: var(--oboon-bg-surface);
           border: 1px solid var(--oboon-border-default);

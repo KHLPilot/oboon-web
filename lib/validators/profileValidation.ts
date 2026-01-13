@@ -1,5 +1,7 @@
 // lib/validators/profileValidation.ts
 
+import { bannedWords, bannedSubstrings, bannedExactWords } from "./banndedWords";
+
 export interface ProfileValidationResult {
     isValid: boolean;
     errors: {
@@ -46,12 +48,12 @@ export function validateName(name: string): string | null {
 }
 
 /**
- * 닉네임 검증
+ * 닉네임 검증 (금지어 체크 강화)
  */
 export function validateNickname(nickname: string): string | null {
     // 1. 선택 입력 (비어있어도 OK)
     if (!nickname || nickname.trim() === "") {
-        return null; // 통과
+        return null;
     }
 
     // 2. 길이 체크 (2~15자)
@@ -77,10 +79,23 @@ export function validateNickname(nickname: string): string | null {
         }
     }
 
-    // 5. 욕설/비속어 체크 (예시)
-    const bannedWords = ["관리자", "admin", "운영자", "시스템"];
+    // 5. ✅ 정확히 일치하는 금지어 체크 (대소문자 무시)
+    for (const word of bannedExactWords) {
+        if (lowerNickname === word.toLowerCase()) {
+            return "사용할 수 없는 닉네임입니다.";
+        }
+    }
+
+    // 6. ✅ 부분 매칭 금지어 체크 (포함 여부)
+    for (const word of bannedSubstrings) {
+        if (lowerNickname.includes(word.toLowerCase())) {
+            return "사용할 수 없는 닉네임입니다.";
+        }
+    }
+
+    // 7. ✅ 일반 금지어 체크 (기본)
     for (const word of bannedWords) {
-        if (lowerNickname.includes(word)) {
+        if (lowerNickname.includes(word.toLowerCase())) {
             return "사용할 수 없는 닉네임입니다.";
         }
     }

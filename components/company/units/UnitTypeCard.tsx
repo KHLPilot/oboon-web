@@ -1,4 +1,7 @@
-﻿"use client";
+﻿// components/company/units/UnitTypeCard.tsx
+"use client";
+
+import React, { useEffect, useState } from "react";
 
 import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -21,40 +24,39 @@ import {
   summarizeRoomsBaths,
   numberWithCommas,
   toNumberOrNull,
-  toIntOrNull,
   formatPriceRange,
 } from "@/app/company/properties/[id]/units/utils";
 
-function StatusBadge({ status }: { status: UnitStatus | "\uC218\uC815 \uC911" }) {
-  if (status === "\uC218\uC815 \uC911") {
+function StatusBadge({ status }: { status: UnitStatus | "수정 중" }) {
+  if (status === "수정 중") {
     return (
       <Badge
         variant="default"
         className="shrink-0 border border-(--oboon-accent)/35 bg-(--oboon-bg-surface) text-(--oboon-text-title)"
       >
-        {"\uC218\uC815 \uC911"}
+        수정 중
       </Badge>
     );
   }
 
-  if (status === "\uBBF8\uC785\uB825") {
+  if (status === "미입력") {
     return (
       <Badge
         variant="default"
         className="shrink-0 border border-(--oboon-border-default) bg-(--oboon-bg-surface) text-(--oboon-text-muted)"
       >
-        {"\uBBF8\uC785\uB825"}
+        미입력
       </Badge>
     );
   }
 
-  if (status === "\uC785\uB825 \uC911") {
+  if (status === "입력 중") {
     return (
       <Badge
         variant="default"
         className="shrink-0 border border-(--oboon-border-default) bg-(--oboon-bg-surface) text-(--oboon-text-title)"
       >
-        {"\uC785\uB825 \uC911"}
+        입력 중
       </Badge>
     );
   }
@@ -64,7 +66,7 @@ function StatusBadge({ status }: { status: UnitStatus | "\uC218\uC815 \uC911" })
       variant="default"
       className="shrink-0 border border-(--oboon-border-default) bg-(--oboon-bg-surface) text-(--oboon-text-title)"
     >
-      {"\uC644\uB8CC"}
+      완료
     </Badge>
   );
 }
@@ -110,6 +112,25 @@ export default function UnitTypeCard({
     ? formatPriceRange(draft.price_min, draft.price_max)
     : null;
 
+  // ✅ 인라인 수정 시 전용/공급 면적 입력 텍스트 (소수 허용)
+  const [exclusiveText, setExclusiveText] = useState("");
+  const [supplyText, setSupplyText] = useState("");
+
+  // 편집 시작/초기 로딩 시 draft 값 → 텍스트로 동기화
+  useEffect(() => {
+    if (isEditing && draft) {
+      setExclusiveText(
+        draft.exclusive_area != null ? String(draft.exclusive_area) : ""
+      );
+      setSupplyText(
+        draft.supply_area != null ? String(draft.supply_area) : ""
+      );
+    } else {
+      setExclusiveText("");
+      setSupplyText("");
+    }
+  }, [isEditing, draft?.exclusive_area, draft?.supply_area]);
+
   return (
     <div
       className={cn(
@@ -125,10 +146,10 @@ export default function UnitTypeCard({
             {title}
           </p>
           <p className="mt-1 text-xs text-(--oboon-text-muted)">
-            ?꾩슜{" "}
+            전용{" "}
             {formatM2(isEditing ? draft?.exclusive_area : unit.exclusive_area)}
-            ??쨌 怨듦툒{" "}
-            {formatM2(isEditing ? draft?.supply_area : unit.supply_area)}??
+            ㎡ · 공급{" "}
+            {formatM2(isEditing ? draft?.supply_area : unit.supply_area)}㎡
           </p>
           <p className="mt-1 text-xs text-(--oboon-text-muted)">
             {summarizeRoomsBaths(unit.rooms, unit.bathrooms)}
@@ -145,26 +166,25 @@ export default function UnitTypeCard({
                 shape="pill"
                 className="inline-flex h-8 w-8 min-w-8 items-center justify-center px-0 text-(--oboon-text-muted) hover:bg-(--oboon-bg-subtle) focus-visible:ring-2 focus-visible:ring-(--oboon-accent)/40 shrink-0"
               >
-                ??
+                ⋮
               </Button>
             </DropdownMenuTrigger>
 
-            {/* ??align/end + sideOffset?쇰줈 ?꾩튂 ?덉젙??*/}
             <DropdownMenuContent
-  align="end"
-  className="min-w-[160px] rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-1 shadow-lg data-[side=bottom]:mt-2 data-[side=top]:mb-2 data-[side=left]:mr-2 data-[side=right]:ml-2"
->
+              align="end"
+              className="min-w-[160px] rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-1 shadow-lg data-[side=bottom]:mt-2 data-[side=top]:mb-2 data-[side=left]:mr-2 data-[side=right]:ml-2"
+            >
               <DropdownMenuItem
                 className="rounded-lg px-3 py-2 text-sm"
                 onClick={onStartEdit}
               >
-                ?섏젙
+                수정
               </DropdownMenuItem>
               <DropdownMenuItem
                 className="rounded-lg px-3 py-2 text-sm"
                 onClick={onDelete}
               >
-                ??젣
+                삭제
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -176,7 +196,7 @@ export default function UnitTypeCard({
         {summaryPrice ? (
           <p>{summaryPrice}</p>
         ) : (
-          <p className="text-(--oboon-text-muted)">媛寃??뺣낫 ?놁쓬</p>
+          <p className="text-(--oboon-text-muted)">가격 정보 없음</p>
         )}
       </div>
 
@@ -184,7 +204,7 @@ export default function UnitTypeCard({
       {isEditing && draft ? (
         <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-default) p-4">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <FormField label="?됰㈃ ????대쫫">
+            <FormField label="평면 타입 이름">
               <input
                 className={inputClass}
                 value={draft.type_name ?? ""}
@@ -192,30 +212,34 @@ export default function UnitTypeCard({
               />
             </FormField>
 
-            <FormField label="?꾩슜 硫댁쟻 (??">
+            <FormField label="전용 면적 (㎡)">
               <input
                 className={inputClass}
-                value={draft.exclusive_area ?? ""}
-                onChange={(e) =>
-                  onChange("exclusive_area", toIntOrNull(e.target.value))
-                }
-                inputMode="numeric"
+                value={exclusiveText} // ✅ 문자열 그대로
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  setExclusiveText(raw);
+                  onChange("exclusive_area", toNumberOrNull(raw)); // ✅ 숫자만 draft에 저장
+                }}
+                inputMode="decimal"
               />
             </FormField>
 
-            <FormField label="怨듦툒 硫댁쟻 (??">
+            <FormField label="공급 면적 (㎡)">
               <input
                 className={inputClass}
-                value={draft.supply_area ?? ""}
-                onChange={(e) =>
-                  onChange("supply_area", toIntOrNull(e.target.value))
-                }
-                inputMode="numeric"
+                value={supplyText}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  setSupplyText(raw);
+                  onChange("supply_area", toNumberOrNull(raw));
+                }}
+                inputMode="decimal"
               />
             </FormField>
 
             <div className="grid grid-cols-2 gap-3">
-              <FormField label="\uBC29 \uAC1C\uC218">
+              <FormField label="방 개수">
                 <input
                   className={inputClass}
                   value={draft.rooms ?? ""}
@@ -225,7 +249,7 @@ export default function UnitTypeCard({
                   inputMode="numeric"
                 />
               </FormField>
-              <FormField label="?뺤떎">
+              <FormField label="욕실">
                 <input
                   className={inputClass}
                   value={draft.bathrooms ?? ""}
@@ -237,7 +261,7 @@ export default function UnitTypeCard({
               </FormField>
             </div>
 
-            <FormField label="援ъ“">
+            <FormField label="구조">
               <input
                 className={inputClass}
                 value={draft.building_layout ?? ""}
@@ -245,7 +269,7 @@ export default function UnitTypeCard({
               />
             </FormField>
 
-            <FormField label="\uD5A5">
+            <FormField label="향">
               <input
                 className={inputClass}
                 value={draft.orientation ?? ""}
@@ -253,10 +277,10 @@ export default function UnitTypeCard({
               />
             </FormField>
 
-            {/* 媛寃?+ 誘몃━蹂닿린(諛붾줈 ?꾨옒) */}
+            {/* 가격 + 미리보기 */}
             <div className="space-y-2 md:col-span-2">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <FormField label="媛寃??섑븳 (??">
+                <FormField label="가격 하한 (원)">
                   <input
                     className={inputClass}
                     value={
@@ -270,7 +294,7 @@ export default function UnitTypeCard({
                     inputMode="numeric"
                   />
                 </FormField>
-                <FormField label="媛寃??곹븳 (??">
+                <FormField label="가격 상한 (원)">
                   <input
                     className={inputClass}
                     value={
@@ -288,12 +312,12 @@ export default function UnitTypeCard({
 
               {inlinePreview ? (
                 <div className="text-xs text-(--oboon-text-muted)">
-                  媛寃?誘몃━蹂닿린 쨌 {inlinePreview}
+                  가격 미리보기 · {inlinePreview}
                 </div>
               ) : null}
             </div>
 
-            <FormField label="\uC138\uB300\uC218">
+            <FormField label="세대수">
               <input
                 className={inputClass}
                 value={draft.unit_count ?? ""}
@@ -304,7 +328,7 @@ export default function UnitTypeCard({
               />
             </FormField>
 
-            <FormField label="?됰㈃??URL" className="md:col-span-2">
+            <FormField label="평면도 URL" className="md:col-span-2">
               <input
                 className={inputClass}
                 value={draft.floor_plan_url ?? ""}
@@ -313,7 +337,7 @@ export default function UnitTypeCard({
               />
             </FormField>
 
-            <FormField label="?대?吏 URL" className="md:col-span-2">
+            <FormField label="이미지 URL" className="md:col-span-2">
               <input
                 className={inputClass}
                 value={draft.image_url ?? ""}
@@ -331,7 +355,7 @@ export default function UnitTypeCard({
               onClick={onCancel}
               disabled={saving}
             >
-              痍⑥냼
+              취소
             </Button>
 
             <Button
@@ -342,7 +366,7 @@ export default function UnitTypeCard({
               disabled={saving}
               loading={saving}
             >
-              ???
+              저장
             </Button>
           </div>
         </div>

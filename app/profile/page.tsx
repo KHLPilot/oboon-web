@@ -36,6 +36,13 @@ export default function ProfilePage() {
   const [nicknameAvailable, setNicknameAvailable] = useState<boolean | null>(null);
   const [originalNickname, setOriginalNickname] = useState(""); // 원래 닉네임 저장
 
+
+  // ✅ 삭제
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
   /* =====================
      프로필 불러오기
      ===================== */
@@ -197,6 +204,75 @@ export default function ProfilePage() {
     alert("기본 정보가 저장되었습니다.");
     setOriginalNickname(nickname); // 저장 후 원래 닉네임 업데이트
     window.location.reload();
+  };
+
+  /* =====================
+     계정 삭제
+     ===================== */
+  const deleteAccount = async () => {
+    // 1. 비밀번호 확인
+    if (!deletePassword) {
+      alert("비밀번호를 입력해주세요.");
+      return;
+    }
+
+    // 2. 확인 문구 체크
+    if (deleteConfirm !== "계정삭제") {
+      alert("'계정삭제'를 정확히 입력해주세요.");
+      return;
+    }
+
+    // 3. 최종 확인
+    const finalConfirm = confirm(
+      "정말로 계정을 삭제하시겠습니까?\n\n" +
+      "⚠️ 이 작업은 되돌릴 수 없습니다.\n" +
+      "⚠️ 모든 개인정보가 삭제됩니다.\n" +
+      "⚠️ 작성한 게시글은 '탈퇴한 사용자'로 표시됩니다."
+    );
+
+    if (!finalConfirm) return;
+
+    setDeleting(true);
+
+    try {
+      // 4. 비밀번호 검증
+      const { error: pwError } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: deletePassword,
+      });
+
+      if (pwError) {
+        alert("비밀번호가 올바르지 않습니다.");
+        setDeleting(false);
+        return;
+      }
+
+      // 5. 계정 삭제 API 호출
+      const response = await fetch("/api/profile/delete-account", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: userId,
+          password: deletePassword,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "계정 삭제 실패");
+      }
+
+      // 6. 로그아웃 및 로그인 페이지로 이동
+      await supabase.auth.signOut();
+      alert("계정이 삭제되었습니다. 그동안 이용해주셔서 감사합니다.");
+      window.location.href = "/";
+    } catch (err: any) {
+      console.error("계정 삭제 오류:", err);
+      alert("계정 삭제 중 오류가 발생했습니다: " + err.message);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   /* =====================
@@ -413,6 +489,102 @@ export default function ProfilePage() {
               </p>
             )}
           </Card>
+          {/* 계정 삭제 */}
+          <Card>
+            <h2 className="text-lg font-semibold text-red-600 mb-3">
+              계정삭제
+            </h2>
+
+            <p className="text-sm text-(--oboon-text-body) mb-4">
+              계정을 삭제하면 모든 개인정보가 삭제되며 복구할 수 없습니다.
+            </p>
+
+            <Button
+              variant="secondary"
+              size="md"
+              onClick={() => setShowDeleteModal(true)}
+              className="bg-red-50 hover:bg-red-100 text-red-600 border-red-200"
+            >
+              계정 삭제
+            </Button>
+          </Card>
+
+          {/* ✅ 3. 계정 삭제 모달 (맨 아래) */}
+          {showDeleteModal && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+              onClick={() => {
+                setShowDeleteModal(false);
+                setDeletePassword("");
+                setDeleteConfirm("");
+              }}
+            >
+              <div
+                className="w-full max-w-md rounded-2xl border p-6 shadow-card bg-white"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3 className="text-lg font-semibold text-red-600 mb-4">
+                  ⚠️ 계정 삭제
+                </h3>
+
+                <div className="space-y-4 mb-6">
+                  <div className="p-3 rounded-lg bg-red-50 border border-red-200">
+                    <p className="text-sm text-red-800 space-y-1">
+                      <div>• 모든 개인정보가 삭제됩니다</div>
+                      <div>• 작성한 게시글은 "탈퇴한 사용자"로 표시됩니다</div>
+                      <div>• 이 작업은 되돌릴 수 없습니다</div>
+                    </p>
+                  </div>
+
+                  <div>
+                    <Label>비밀번호 확인</Label>
+                    <Input
+                      type="password"
+                      value={deletePassword}
+                      onChange={(e) => setDeletePassword(e.target.value)}
+                      placeholder="비밀번호를 입력하세요"
+                    />
+                  </div>
+
+                  <div>
+                    <Label>확인 문구 입력</Label>
+                    <Input
+                      value={deleteConfirm}
+                      onChange={(e) => setDeleteConfirm(e.target.value)}
+                      placeholder="'계정삭제'를 입력하세요"
+                    />
+                    <p className="text-xs text-(--oboon-text-muted) mt-1">
+                      정확히 '계정삭제'를 입력해주세요
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <Button
+                    variant="primary"
+                    size="md"
+                    onClick={deleteAccount}
+                    disabled={deleting || !deletePassword || deleteConfirm !== "계정삭제"}
+                    loading={deleting}
+                    className="flex-1 bg-red-600 hover:bg-red-700"
+                  >
+                    {deleting ? "삭제 중..." : "계정 삭제"}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="md"
+                    onClick={() => {
+                      setShowDeleteModal(false);
+                      setDeletePassword("");
+                      setDeleteConfirm("");
+                    }}
+                  >
+                    취소
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </PageContainer>
     </main>

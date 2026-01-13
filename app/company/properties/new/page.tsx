@@ -225,19 +225,6 @@ export default function PropertyCreatePage() {
               />
             </Field>
 
-            <Field
-              label="대표 이미지 URL"
-              helper="https://example.com/image.jpg"
-            >
-              <Input
-                className="h-11"
-                value={form.image_url}
-                onChange={(e) =>
-                  setForm({ ...form, image_url: e.target.value })
-                }
-              />
-            </Field>
-
             <div className="pt-2">
               <div
                 className="text-sm font-semibold"

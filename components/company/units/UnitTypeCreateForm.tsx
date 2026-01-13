@@ -33,6 +33,23 @@ export default function UnitTypeCreateForm({
   creating,
   pricePreview,
 }: Props) {
+  // ✅ 전용/공급 면적: 입력창에 보여줄 텍스트 상태 (소수 포함)
+  const [exclusiveText, setExclusiveText] = React.useState("");
+  const [supplyText, setSupplyText] = React.useState("");
+
+  // 부모 value가 바뀔 때(초기 로딩/리셋 등) 텍스트도 동기화
+  React.useEffect(() => {
+    setExclusiveText(
+      value.exclusive_area != null ? String(value.exclusive_area) : ""
+    );
+  }, [value.exclusive_area]);
+
+  React.useEffect(() => {
+    setSupplyText(
+      value.supply_area != null ? String(value.supply_area) : ""
+    );
+  }, [value.supply_area]);
+
   return (
     <section className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-card) p-6 shadow-sm">
       <div className="mb-6">
@@ -61,14 +78,18 @@ export default function UnitTypeCreateForm({
         <div className="md:col-span-1">
           <Label>전용 면적 (㎡)</Label>
           <Input
-            placeholder="예: 75"
-            value={value.exclusive_area ?? ""}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+            placeholder="예: 75.5"
+            value={exclusiveText} // ✅ 문자열 그대로 표시
+            inputMode="decimal"
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+              const raw = e.target.value;
+              setExclusiveText(raw); // 1) 텍스트 상태 유지
               onChange({
+                // 2) 숫자로 변환해서 UnitDraft에 저장
                 ...value,
-                exclusive_area: toNumberOrNull(e.target.value),
-              })
-            }
+                exclusive_area: toNumberOrNull(raw),
+              });
+            }}
           />
         </div>
 
@@ -76,14 +97,17 @@ export default function UnitTypeCreateForm({
         <div className="md:col-span-1">
           <Label>공급 면적 (㎡)</Label>
           <Input
-            placeholder="예: 92"
-            value={value.supply_area ?? ""}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+            placeholder="예: 92.3"
+            value={supplyText} // ✅ 문자열 그대로 표시
+            inputMode="decimal"
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+              const raw = e.target.value;
+              setSupplyText(raw);
               onChange({
                 ...value,
-                supply_area: toNumberOrNull(e.target.value),
-              })
-            }
+                supply_area: toNumberOrNull(raw),
+              });
+            }}
           />
         </div>
 
@@ -92,6 +116,7 @@ export default function UnitTypeCreateForm({
           <Label>방 개수</Label>
           <Input
             value={value.rooms ?? ""}
+            inputMode="numeric"
             onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
               onChange({ ...value, rooms: toNumberOrNull(e.target.value) })
             }
@@ -103,6 +128,7 @@ export default function UnitTypeCreateForm({
           <Label>욕실 개수</Label>
           <Input
             value={value.bathrooms ?? ""}
+            inputMode="numeric"
             onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
               onChange({ ...value, bathrooms: toNumberOrNull(e.target.value) })
             }
@@ -139,6 +165,7 @@ export default function UnitTypeCreateForm({
           <Input
             placeholder="예: 1032672000"
             value={value.price_min ?? ""}
+            inputMode="numeric"
             onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
               onChange({ ...value, price_min: toNumberOrNull(e.target.value) })
             }
@@ -151,6 +178,7 @@ export default function UnitTypeCreateForm({
           <Input
             placeholder="예: 1198191000"
             value={value.price_max ?? ""}
+            inputMode="numeric"
             onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
               onChange({ ...value, price_max: toNumberOrNull(e.target.value) })
             }
@@ -162,6 +190,7 @@ export default function UnitTypeCreateForm({
           <Label>세대수</Label>
           <Input
             value={value.unit_count ?? ""}
+            inputMode="numeric"
             onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
               onChange({ ...value, unit_count: toNumberOrNull(e.target.value) })
             }

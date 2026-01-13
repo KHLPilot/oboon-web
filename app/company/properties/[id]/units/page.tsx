@@ -15,6 +15,7 @@ import {
   formatPriceRange,
   getUnitStatus,
   toNumberOrNull,
+  toIntOrNull,
   toPyeong,
   formatKoreanMoney
 } from "./utils";
@@ -50,7 +51,7 @@ function Field({
   placeholder,
   value,
   onChange,
-  inputMode,
+  inputMode = "text",
   className,
   hint,
 }: {
@@ -58,7 +59,7 @@ function Field({
   placeholder?: string;
   value: string;
   onChange: (v: string) => void;
-  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
+  inputMode?: "text" | "numeric" | "decimal";
   className?: string;
   hint?: string;
 }) {
@@ -97,6 +98,10 @@ export default function UnitTypesPage() {
     clearError,
   } = useUnitTypes(safePropertyId);
 
+  // ✅ 전용/공급 면적 입력용 “문자열 상태”
+  const [exclusiveAreaText, setExclusiveAreaText] = useState("");
+  const [supplyAreaText, setSupplyAreaText] = useState("");
+
   // 생성 폼
   const [creating, setCreating] = useState(false);
   const [createDraft, setCreateDraft] = useState<UnitDraft>({
@@ -111,7 +116,7 @@ export default function UnitTypesPage() {
     price_min: null,
     price_max: null,
     unit_count: null,
-    supply_count: null, // ✅ 추가
+    supply_count: null,
     floor_plan_url: null,
     image_url: null,
   });
@@ -229,10 +234,12 @@ export default function UnitTypesPage() {
       price_min: null,
       price_max: null,
       unit_count: null,
-      supply_count: null, // ✅ 추가
+      supply_count: null,
       floor_plan_url: null,
       image_url: null,
     }));
+    setExclusiveAreaText("");
+    setSupplyAreaText("");
   }
 
   async function handleDelete(id: number) {
@@ -266,7 +273,7 @@ export default function UnitTypesPage() {
               shape="pill"
               onClick={() => router.push(cancelHref)}
             >
-              취소
+              목록으로
             </Button>
           </div>
         </div>
@@ -309,38 +316,31 @@ export default function UnitTypesPage() {
             {/* ✅ 전용면적 + 평형 표시 */}
             <Field
               label="전용 면적 (㎡)"
-              placeholder="예: 75"
-              value={
-                createDraft.exclusive_area == null
-                  ? ""
-                  : String(createDraft.exclusive_area)
-              }
+              placeholder="예: 75.5"
+              value={exclusiveAreaText}
               inputMode="decimal"
-              onChange={(v) =>
+              onChange={(v) => {
+                setExclusiveAreaText(v);
                 setCreateDraft((d) => ({
                   ...d,
                   exclusive_area: toNumberOrNull(v),
-                }))
-              }
+                }));
+              }}
               hint={exclusivePyeong ? `${exclusivePyeong}평` : undefined}
             />
 
-            {/* ✅ 공급면적 + 평형 표시 */}
             <Field
               label="공급 면적 (㎡)"
-              placeholder="예: 92"
-              value={
-                createDraft.supply_area == null
-                  ? ""
-                  : String(createDraft.supply_area)
-              }
+              placeholder="예: 92.3"
+              value={supplyAreaText}
               inputMode="decimal"
-              onChange={(v) =>
+              onChange={(v) => {
+                setSupplyAreaText(v);
                 setCreateDraft((d) => ({
                   ...d,
                   supply_area: toNumberOrNull(v),
-                }))
-              }
+                }));
+              }}
               hint={supplyPyeong ? `${supplyPyeong}평` : undefined}
             />
 
@@ -350,9 +350,9 @@ export default function UnitTypesPage() {
                 value={
                   createDraft.rooms == null ? "" : String(createDraft.rooms)
                 }
-                inputMode="numeric"
+                inputMode="numeric" // ✅ 숫자 키패드
                 onChange={(v) =>
-                  setCreateDraft((d) => ({ ...d, rooms: toNumberOrNull(v) }))
+                  setCreateDraft((d) => ({ ...d, rooms: toIntOrNull(v) })) // ✅ 정수만
                 }
               />
               <Field
@@ -362,11 +362,11 @@ export default function UnitTypesPage() {
                     ? ""
                     : String(createDraft.bathrooms)
                 }
-                inputMode="numeric"
+                inputMode="numeric" // ✅ 숫자 키패드
                 onChange={(v) =>
                   setCreateDraft((d) => ({
                     ...d,
-                    bathrooms: toNumberOrNull(v),
+                    bathrooms: toIntOrNull(v), // ✅ 정수만
                   }))
                 }
               />
@@ -443,9 +443,9 @@ export default function UnitTypesPage() {
                   ? ""
                   : String(createDraft.unit_count)
               }
-              inputMode="numeric"
+              inputMode="numeric" // ✅ 숫자 키패드
               onChange={(v) =>
-                setCreateDraft((d) => ({ ...d, unit_count: toNumberOrNull(v) }))
+                setCreateDraft((d) => ({ ...d, unit_count: toIntOrNull(v) })) // ✅ 정수만
               }
             />
 
@@ -458,11 +458,11 @@ export default function UnitTypesPage() {
                   ? ""
                   : String(createDraft.supply_count)
               }
-              inputMode="numeric"
+              inputMode="numeric" // ✅ 숫자 키패드
               onChange={(v) =>
                 setCreateDraft((d) => ({
                   ...d,
-                  supply_count: toNumberOrNull(v),
+                  supply_count: toIntOrNull(v), // ✅ 정수만
                 }))
               }
               hint="일반 청약 공급 세대 수"
