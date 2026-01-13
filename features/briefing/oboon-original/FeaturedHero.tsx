@@ -54,9 +54,11 @@ function hrefForCategory(post: FeaturedPostRow) {
 export default function FeaturedHero({
   posts,
   brandTitle = "OBOON\nOriginal",
+  isAdmin = false,
 }: {
   posts: FeaturedPostRow[];
   brandTitle?: string;
+  isAdmin?: boolean;
 }) {
   const list = useMemo(() => (posts ?? []).filter(Boolean), [posts]);
   const total = list.length;
@@ -215,15 +217,27 @@ export default function FeaturedHero({
         </div>
       </div>
 
-      {/* CTA: bottom-right of whole card, width same as thumbnail (140px) */}
-      <Link
-        href={hrefForCategory(current)}
-        className={cx("absolute bottom-5 right-5")}
-      >
-        <Button size="sm" shape="pill" className="w-[140px] h-10 mb-2.5">
-          보러가기
-        </Button>
-      </Link>
+      {/* CTA: bottom-right (보러가기 + admin 글쓰기) */}
+      <div className={cx("absolute bottom-5 right-5 flex items-center gap-5")}>
+        {isAdmin ? (
+          <Link href="/briefing/admin/posts/new">
+            <Button
+              variant="secondary"
+              size="sm"
+              shape="pill"
+              className="h-10 mb-2.5"
+            >
+              글쓰기
+            </Button>
+          </Link>
+        ) : null}
+
+        <Link href={hrefForCategory(current)}>
+          <Button size="sm" shape="pill" className="w-[140px] h-10 mb-2.5">
+            보러가기
+          </Button>
+        </Link>
+      </div>
     </Card>
   );
 }

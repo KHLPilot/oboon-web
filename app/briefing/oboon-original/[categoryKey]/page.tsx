@@ -69,9 +69,6 @@ export default async function OboonOriginalCategoryPage({
 }) {
   const categoryKey = decodeURIComponent(params.categoryKey);
 
-  // 전용 라우트가 따로 있으면 기존 정책 유지
-  if (categoryKey === "dictionary" || categoryKey === "shorts") notFound();
-
   const supabase = createSupabaseServer();
 
   // board_id 확보 (DB key: oboon_original)

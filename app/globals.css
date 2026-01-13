@@ -523,3 +523,123 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   opacity: 0.8;
   cursor: pointer;
 }
+
+/* Markdown preview: Tailwind preflight로 사라진 기본 문서 스타일 복원 */
+@layer utilities {
+  .ob-md {
+    color: var(--oboon-text-body);
+  }
+
+  .ob-md h1 {
+    font-size: 22px;
+    line-height: 1.25;
+    font-weight: 700;
+    margin: 0 0 12px 0;
+    color: var(--oboon-text-title);
+  }
+  .ob-md h2 {
+    font-size: 18px;
+    line-height: 1.3;
+    font-weight: 700;
+    margin: 20px 0 8px 0;
+    color: var(--oboon-text-title);
+  }
+  .ob-md h3 {
+    font-size: 16px;
+    line-height: 1.35;
+    font-weight: 700;
+    margin: 16px 0 6px 0;
+    color: var(--oboon-text-title);
+  }
+
+  .ob-md p {
+    margin: 8px 0;
+    line-height: 1.85;
+  }
+
+  /* 핵심: list-style 복원 */
+  .ob-md ul {
+    list-style: disc;
+    padding-left: 1.25rem; /* 20px */
+    margin: 8px 0;
+  }
+  .ob-md ol {
+    list-style: decimal;
+    padding-left: 1.25rem;
+    margin: 8px 0;
+  }
+  .ob-md li {
+    margin: 4px 0;
+  }
+
+  .ob-md hr {
+    border: 0;
+    border-top: 1px solid var(--oboon-border-default);
+    margin: 20px 0;
+  }
+
+  .ob-md blockquote {
+    margin: 12px 0;
+    padding-left: 12px;
+    border-left: 2px solid var(--oboon-border-default);
+    color: var(--oboon-text-muted);
+  }
+
+  .ob-md code {
+    border: 1px solid var(--oboon-border-default);
+    background: var(--oboon-bg-subtle);
+    border-radius: 8px;
+    padding: 0.1rem 0.35rem;
+    font-size: 12px;
+  }
+  .ob-md pre {
+    margin: 12px 0;
+    padding: 12px;
+    border: 1px solid var(--oboon-border-default);
+    background: var(--oboon-bg-subtle);
+    border-radius: 14px;
+    overflow: auto;
+  }
+  .ob-md pre code {
+    border: 0;
+    background: transparent;
+    padding: 0;
+    font-size: 12px;
+  }
+
+  /* GFM table */
+  .ob-md table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 13px;
+  }
+  .ob-md th,
+  .ob-md td {
+    border: 1px solid var(--oboon-border-default);
+    padding: 8px 10px;
+    vertical-align: top;
+  }
+  .ob-md th {
+    background: var(--oboon-bg-subtle);
+    font-weight: 600;
+    color: var(--oboon-text-title);
+  }
+}
+
+/* OBOON Header Logo */
+.oboon-logo {
+  width: 24px;
+  height: 24px;
+  display: inline-block;
+
+  background-color: var(--oboon-primary);
+
+  -webkit-mask: url("/logo.svg") no-repeat center / contain;
+  mask: url("/logo.svg") no-repeat center / contain;
+}
+
+/* Dark mode */
+[data-theme="dark"] .oboon-logo {
+  background-color: #ffffff;
+}

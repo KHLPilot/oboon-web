@@ -4,11 +4,18 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Search, Calendar, LayoutDashboard, PlusCircle, UserPlus } from "lucide-react";
+import {
+  Search,
+  Calendar,
+  LayoutDashboard,
+  PlusCircle,
+  UserPlus,
+} from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { User } from "@supabase/supabase-js";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import ThemeToggle from "./ThemeToggle";
+import Image from "next/image";
 
 export default function Header() {
   const pathname = usePathname();
@@ -28,7 +35,10 @@ export default function Header() {
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
         setDropdownOpen(false);
       }
     }
@@ -51,7 +61,8 @@ export default function Header() {
       if (profile) {
         // nickname 우선, 없으면 name 사용
         const displayName = profile.nickname || profile.name;
-        const realName = displayName && displayName !== "temp" ? displayName : "";
+        const realName =
+          displayName && displayName !== "temp" ? displayName : "";
         setProfileName(realName);
         setUserRole(profile.role || "user");
 
@@ -65,14 +76,18 @@ export default function Header() {
 
   useEffect(() => {
     const initAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       loadUserData(session?.user ?? null);
     };
     initAuth();
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      loadUserData(session?.user ?? null);
-    });
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        loadUserData(session?.user ?? null);
+      }
+    );
 
     return () => listener.subscription.unsubscribe();
   }, [supabase]);
@@ -122,26 +137,39 @@ export default function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-oboon-surface/90 backdrop-blur-md" style={{ borderColor: "var(--oboon-border-default)" }}>
+    <header
+      className="sticky top-0 z-50 w-full border-b bg-oboon-surface/90 backdrop-blur-md"
+      style={{ borderColor: "var(--oboon-border-default)" }}
+    >
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 md:px-8">
-        <Link href="/" className="text-2xl font-black tracking-tighter" style={{ color: "var(--oboon-text-title)" }}>
-          OBOON<span style={{ color: "var(--oboon-primary)" }}>.</span>
+        <Link
+          href="/"
+          className="flex items-center gap-1 text-2xl font-black tracking-tighter"
+          style={{ color: "var(--oboon-text-title)" }}
+        >
+          <span className="oboon-logo" aria-hidden />
+          <span className="text-[28px] font-bold tracking-[-0.02em]">
+            OBOON
+          </span>
         </Link>
 
-        <nav className="hidden items-center gap-8 text-sm font-medium md:flex">
+        <nav className="mt-1 hidden items-center gap-8 ob-typo-body md:flex">
           {NAV_ITEMS.map((item) => {
             const active = pathname.startsWith(item.href);
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`border-b-2 pb-0.5 transition-colors ${active
-                  ? "font-semibold"
-                  : "border-transparent hover:text-oboon-text-title"
-                  }`}
+                className={`border-b-2 pb-0.5 transition-colors ${
+                  active
+                    ? "font-semibold"
+                    : "border-transparent hover:text-oboon-text-title"
+                }`}
                 style={{
                   borderColor: active ? "var(--oboon-primary)" : "transparent",
-                  color: active ? "var(--oboon-primary)" : "var(--oboon-text-muted)",
+                  color: active
+                    ? "var(--oboon-primary)"
+                    : "var(--oboon-text-muted)",
                 }}
               >
                 {item.label}
@@ -151,7 +179,10 @@ export default function Header() {
         </nav>
 
         <div className="flex items-center gap-3">
-          <button className="hidden rounded-full p-2 transition hover:bg-oboon-bg-subtle md:inline-flex" style={{ color: "var(--oboon-text-muted)" }}>
+          <button
+            className="hidden rounded-full p-2 transition hover:bg-oboon-bg-subtle md:inline-flex"
+            style={{ color: "var(--oboon-text-muted)" }}
+          >
             <Search className="h-4 w-4" />
           </button>
 
@@ -178,7 +209,9 @@ export default function Header() {
             </Link>
           )}
 
-          {(userRole === "user" || userRole === "agent_pending" || !userRole) && (
+          {(userRole === "user" ||
+            userRole === "agent_pending" ||
+            !userRole) && (
             <button className="ob-btn ob-btn-md ob-btn-pill ob-btn-secondary flex items-center gap-2">
               <Calendar className="w-4 h-4" />
               <span>상담 예약</span>
@@ -201,7 +234,13 @@ export default function Header() {
                 onClick={() => setDropdownOpen((prev) => !prev)}
                 className="flex items-center gap-2 rounded-lg px-3 py-1.5 transition-colors hover:bg-oboon-bg-subtle"
               >
-                <div className="w-9 h-9 rounded-full overflow-hidden border flex items-center justify-center" style={{ borderColor: "var(--oboon-border-default)", backgroundColor: "var(--oboon-bg-subtle)" }}>
+                <div
+                  className="w-9 h-9 rounded-full overflow-hidden border flex items-center justify-center"
+                  style={{
+                    borderColor: "var(--oboon-border-default)",
+                    backgroundColor: "var(--oboon-bg-subtle)",
+                  }}
+                >
                   {user.user_metadata?.avatar_url ? (
                     <img
                       src={user.user_metadata.avatar_url}
@@ -209,18 +248,30 @@ export default function Header() {
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <span className="text-sm font-semibold" style={{ color: "var(--oboon-text-body)" }}>
+                    <span
+                      className="text-sm font-semibold"
+                      style={{ color: "var(--oboon-text-body)" }}
+                    >
                       {getDisplayName().slice(0, 1)}
                     </span>
                   )}
                 </div>
-                <span className="hidden sm:inline text-sm font-medium" style={{ color: "var(--oboon-text-body)" }}>
+                <span
+                  className="hidden sm:inline text-sm font-medium"
+                  style={{ color: "var(--oboon-text-body)" }}
+                >
                   {getDisplayName()}님
                 </span>
               </button>
 
               {dropdownOpen && (
-                <div className="absolute right-0 mt-2 w-40 rounded-xl shadow-card border py-2" style={{ backgroundColor: "var(--oboon-bg-surface)", borderColor: "var(--oboon-border-default)" }}>
+                <div
+                  className="absolute right-0 mt-2 w-40 rounded-xl shadow-card border py-2"
+                  style={{
+                    backgroundColor: "var(--oboon-bg-surface)",
+                    borderColor: "var(--oboon-border-default)",
+                  }}
+                >
                   <Link
                     href="/profile"
                     onClick={() => setDropdownOpen(false)}

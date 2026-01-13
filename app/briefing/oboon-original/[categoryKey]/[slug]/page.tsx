@@ -2,16 +2,27 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Heart, MessageCircle, Share2, Tag } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { redirect } from "next/navigation";
 
 import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import AdminPostActions from "@/components/briefing/AdminPostActions.client";
 
 import BriefingOriginalCard from "@/features/briefing/oboon-original/BriefingOriginalCard";
 import { Cover, cx } from "@/features/briefing/briefing.ui";
 
 import { createSupabaseServer } from "@/lib/supabaseServer";
+
+type AuthorProfile = {
+  id: string;
+  name: string;
+  nickname: string | null;
+  role: string;
+};
 
 type PostRow = {
   id: string;
@@ -21,6 +32,7 @@ type PostRow = {
   created_at: string;
   published_at?: string | null;
   cover_image_url: string | null;
+  author_profile: AuthorProfile | null;
   post_tags?:
     | {
         tag: {
@@ -64,10 +76,25 @@ export default async function OboonOriginalPostPage({
 }) {
   const categoryKey = decodeURIComponent(params.categoryKey);
   const slug = decodeURIComponent(params.slug);
-  if (categoryKey === "dictionary" || categoryKey === "shorts") notFound();
-
   const supabase = createSupabaseServer();
 
+  // 관리자 체크
+  async function getIsAdmin() {
+    const supabase = createSupabaseServer();
+    const { data: auth } = await supabase.auth.getUser();
+    const user = auth.user;
+    if (!user) return { isAdmin: false, userId: null as string | null };
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id, role, deleted_at")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    const isAdmin =
+      !!profile && !profile.deleted_at && profile.role === "admin";
+    return { isAdmin, userId: user.id };
+  }
   // board_id 확보
   const { data: board, error: boardError } = await supabase
     .from("briefing_boards")
@@ -93,11 +120,23 @@ export default async function OboonOriginalPostPage({
     .from("briefing_posts")
     .select(
       `
-      id, slug, title, content_md, created_at, published_at, cover_image_url,
-      post_tags:briefing_post_tags(
-        tag:briefing_tags(id,name,sort_order,is_active)
-      )
-    `
+    id,
+    slug,
+    title,
+    content_md,
+    created_at,
+    published_at,
+    cover_image_url,
+    author_profile:profiles(
+      id,
+      name,
+      nickname,
+      role
+    ),
+    post_tags:briefing_post_tags(
+      tag:briefing_tags(id,name,sort_order,is_active)
+    )
+  `
     )
     .eq("status", "published")
     .eq("slug", slug)
@@ -110,6 +149,9 @@ export default async function OboonOriginalPostPage({
 
   const post = data as any as PostRow;
   const createdAt = (post.published_at ?? post.created_at) as string;
+
+  const author = post.author_profile;
+  const authorName = author?.nickname?.trim() || author?.name || "알 수 없음";
 
   // 사이드바 배지: 글 대표 태그(없으면 카테고리)
   const primaryTagName = pickPrimaryTagName(post);
@@ -128,6 +170,35 @@ export default async function OboonOriginalPostPage({
 
   if (relErr) throw relErr;
 
+  const { isAdmin } = await getIsAdmin();
+
+  async function deletePostAction() {
+    "use server";
+
+    const supabase = createSupabaseServer();
+    const { data: auth } = await supabase.auth.getUser();
+    const user = auth.user;
+    if (!user) redirect("/briefing");
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id, role, deleted_at")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    const adminOk =
+      !!profile && !profile.deleted_at && profile.role === "admin";
+    if (!adminOk) redirect("/briefing");
+
+    await supabase.from("briefing_post_tags").delete().eq("post_id", post.id);
+    const { error } = await supabase
+      .from("briefing_posts")
+      .delete()
+      .eq("id", post.id);
+    if (error) throw error;
+
+    redirect(`/briefing/oboon-original/${encodeURIComponent(categoryKey)}`);
+  }
   // 추천 오리지널 시리즈(카테고리 3개)
   const { data: recCats, error: recErr } = await supabase
     .from("briefing_categories")
@@ -222,7 +293,7 @@ export default async function OboonOriginalPostPage({
 
                     {/* 작성자 · 날짜 */}
                     <div className="shrink-0 ob-typo-caption text-(--oboon-text-muted) whitespace-nowrap">
-                      오분이 · {formatDateLong(createdAt)}
+                      {authorName} · {formatDateLong(createdAt)}
                     </div>
                   </div>
                 </div>
@@ -246,8 +317,25 @@ export default async function OboonOriginalPostPage({
         <div className="mt-15 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_440px]">
           {/* content */}
           <div className="min-w-0">
-            <div className="ob-typo-body text-(--oboon-text-body) whitespace-pre-wrap leading-[1.9]">
-              {post.content_md ?? ""}
+            <div className="relative">
+              {isAdmin ? (
+                <div className="absolute z-10">
+                  <AdminPostActions
+                    editHref={`/briefing/admin/posts/${post.id}/edit`}
+                    deleteAction={deletePostAction}
+                    postTitle={post.title}
+                  />
+                </div>
+              ) : null}
+
+              {/* 버튼 영역만큼 본문을 아래로 내림 */}
+              <div className={cx("ob-md", isAdmin ? "pt-14" : "")}>
+                <div className="prose max-w-none">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {post.content_md ?? ""}
+                  </ReactMarkdown>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -276,10 +364,10 @@ export default async function OboonOriginalPostPage({
                 {/* 작성자 정보 + 설명 */}
                 <div className="min-w-0">
                   <div className="ob-typo-body font-medium text-(--oboon-text-title)">
-                    오분이
+                    {authorName}
                   </div>
                   <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
-                    디렉터스
+                    {author?.role === "admin" ? "오분 에디터" : "작성자"}
                   </div>
                 </div>
               </div>
@@ -371,8 +459,8 @@ export default async function OboonOriginalPostPage({
 
             {/* ===== 우측 패널 (subtle) ===== */}
             <div className="bg-(--oboon-bg-subtle)">
-              <div className="h-full bg-(--oboon-bg-subtle) p-0">
-                <div className="space-y-3">
+              <div className="h-full bg-(--oboon-bg-subtle) p-5">
+                <div className="space-y-5">
                   {(relatedData ?? []).map((r: any) => {
                     const href = `/briefing/oboon-original/${encodeURIComponent(
                       categoryKey
@@ -382,17 +470,17 @@ export default async function OboonOriginalPostPage({
 
                     return (
                       <Link key={r.id} href={href} className="block">
-                        <Card className="p-4 shadow-none bg-(--oboon-bg-surface) hover:bg-(--oboon-bg-subtle) transition-colors">
-                          <div className="ob-typo-card-title-sm text-(--oboon-text-title) line-clamp-2">
+                        <Card className="p-5 h-[140px] shadow-none bg-(--oboon-bg-surface) hover:bg-(--oboon-bg-subtle) transition-colors">
+                          <div className="ob-typo-h3 text-(--oboon-text-title) line-clamp-2">
                             {r.title}
                           </div>
 
                           {bullets.length > 0 ? (
-                            <div className="mt-2 space-y-1">
+                            <div className="mt-4 space-y-1">
                               {bullets.map((t, i) => (
                                 <div
                                   key={i}
-                                  className="text-[12px] leading-5 text-(--oboon-text-muted) line-clamp-1"
+                                  className="ob-typo-body leading-5 text-(--oboon-text-muted) line-clamp-1"
                                 >
                                   {t}
                                 </div>

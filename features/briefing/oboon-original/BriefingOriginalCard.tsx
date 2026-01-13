@@ -1,3 +1,5 @@
+// features/briefing/oboon-original/BriefingOriginalCard.tsx
+
 "use client";
 
 import Link from "next/link";
@@ -13,16 +15,11 @@ type Props = {
   original: BriefingOriginalCardModel;
   count: number;
   href?: string; // 주입용
-  external?: boolean; // 외부 링크면 <a>
 };
 
-export default function BriefingOriginalCard({
-  original,
-  count,
-  href,
-  external,
-}: Props) {
-  const linkHref = href ?? getBriefingOriginalHref(original);
+export default function BriefingOriginalCard({ original, count, href }: Props) {
+  const linkHref =
+    href ?? `/briefing/oboon-original/${encodeURIComponent(original.key)}`;
 
   const badgeText = original.description ?? original.name;
 
@@ -64,14 +61,6 @@ export default function BriefingOriginalCard({
   );
 
   const cls = cx("group block", "hover:-translate-y-px transition-transform");
-
-  if (external) {
-    return (
-      <a href={linkHref} target="_blank" rel="noreferrer" className={cls}>
-        {content}
-      </a>
-    );
-  }
 
   return (
     <Link href={linkHref} className={cls}>

@@ -44,15 +44,15 @@ export function DropdownMenu({
   const [open, setOpenState] = useState(defaultOpen);
   const triggerRef = useRef<HTMLElement>(null);
 
-  const setOpen = useCallback((v: boolean) => {
-    setOpenState(v);
-    onOpenChange?.(v);
-  }, [onOpenChange]);
-
-  const value = useMemo(
-    () => ({ open, setOpen, triggerRef }),
-    [open, setOpen]
+  const setOpen = useCallback(
+    (v: boolean) => {
+      setOpenState(v);
+      onOpenChange?.(v);
+    },
+    [onOpenChange]
   );
+
+  const value = useMemo(() => ({ open, setOpen, triggerRef }), [open, setOpen]);
 
   // ESC to close
   useEffect(() => {
@@ -94,9 +94,11 @@ export function DropdownMenuTrigger({
     return React.cloneElement(child, {
       ref: (node: HTMLElement | null) => {
         // keep original ref if any
-        const originalRef = (child as TriggerElement & {
-          ref?: React.Ref<HTMLElement>;
-        }).ref;
+        const originalRef = (
+          child as TriggerElement & {
+            ref?: React.Ref<HTMLElement>;
+          }
+        ).ref;
         if (typeof originalRef === "function") originalRef(node);
         else if (originalRef && typeof originalRef === "object")
           (originalRef as React.MutableRefObject<HTMLElement | null>).current =
@@ -214,7 +216,7 @@ export function DropdownMenuContent({
       ref={panelRef}
       role="menu"
       style={style}
-      className={[base, "min-w-[160px] p-1", className].join(" ")}
+      className={[base, "min-w-40 p-1", className].join(" ")}
     >
       {children}
     </div>,

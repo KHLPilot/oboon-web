@@ -79,6 +79,19 @@ function pickPrimaryTagName(post: any): string | null {
 export default async function BriefingPage() {
   const supabase = createSupabaseServer();
 
+  // admin 체크
+  const { data: auth } = await supabase.auth.getUser();
+  const user = auth.user;
+  let isAdmin = false;
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id, role, deleted_at")
+      .eq("id", user.id)
+      .maybeSingle();
+    isAdmin = !!profile && !profile.deleted_at && profile.role === "admin";
+  }
+
   // board_id 확보 (oboon_original)
   const { data: ob, error: obErr } = await supabase
     .from("briefing_boards")
@@ -180,24 +193,40 @@ export default async function BriefingPage() {
                     >
                       OBOON이 직접 정리한
                       <br />
-                      시장을 읽는 기준.
+                      분양을 읽는 기준.
                     </div>
                   </div>
 
                   {/* 하단: 타이틀  버튼 (스크린샷처럼 같은 줄) */}
-                  <div className="flex items-end justify-between gap-5">
-                    <div className="ob-typo-display text-(--oboon-text-title)">
-                      OBOON
-                      <br />
-                      Original
-                    </div>
+
+                  <div className="ob-typo-display text-(--oboon-text-title)">
+                    OBOON
+                    <br />
+                    Original
+                  </div>
+                  <div
+                    className={cx(
+                      "absolute bottom-0 right-0 flex items-center gap-2"
+                    )}
+                  >
+                    {isAdmin ? (
+                      <Link href="/briefing/admin/posts/new">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          shape="pill"
+                          className="h-10 mb-2.5"
+                        >
+                          글쓰기
+                        </Button>
+                      </Link>
+                    ) : null}
 
                     <Link href="/briefing/oboon-original" className="shrink-0">
                       <Button
                         size="sm"
                         shape="pill"
-                        className="px-7"
-                        aria-label="오분 오리지널 보러가기"
+                        className="w-[140px] h-10 mb-2.5"
                       >
                         보러가기
                       </Button>
@@ -220,8 +249,10 @@ export default async function BriefingPage() {
 
         {/* ===== 일반 브리핑 ===== */}
         <div className="mb-4">
-          <div className="ob-typo-h2 text-(--oboon-text-title)">
-            일반 브리핑
+          <div className="flex items-end justify-between gap-3">
+            <div className="ob-typo-h2 text-(--oboon-text-title)">
+              일반 브리핑
+            </div>
           </div>
           <div className="mt-1 ob-typo-meta text-(--oboon-text-muted)">
             단일 주제로 정리된 최신 브리핑 글입니다.

@@ -26,6 +26,19 @@ type CategoryRow = {
 export default async function OboonOriginalPage() {
   const supabase = createSupabaseServer();
 
+  // ===== admin 체크 =====
+  const { data: auth } = await supabase.auth.getUser();
+  const user = auth.user;
+  let isAdmin = false;
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id, role, deleted_at")
+      .eq("id", user.id)
+      .maybeSingle();
+    isAdmin = !!profile && !profile.deleted_at && profile.role === "admin";
+  }
+
   // board 찾기 (DB에는 oboon_original)
   const { data: board, error: boardError } = await supabase
     .from("briefing_boards")
@@ -35,7 +48,6 @@ export default async function OboonOriginalPage() {
 
   if (boardError) throw boardError;
 
-  // ✅ 필수 가드: 여기서 걸러야 uuid에 "undefined"가 들어가는 사고가 사라짐
   if (!board?.id) {
     throw new Error(
       'briefing_boards에서 key="oboon_original" 보드를 찾지 못했습니다.'
@@ -143,7 +155,7 @@ export default async function OboonOriginalPage() {
       <PageContainer>
         {/* ===== Featured Hero (캐러셀) ===== */}
         <div className="mb-6">
-          <FeaturedHero posts={featuredPosts} />
+          <FeaturedHero posts={featuredPosts} isAdmin={isAdmin} />
 
           {/* ===== “태그” 칩 ===== */}
           <div className="mt-4 flex flex-wrap gap-2">
