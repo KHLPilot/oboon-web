@@ -15,22 +15,36 @@ export function Cover({
   imageUrl,
   className,
   imgClassName,
+  mode = "ratio",
 }: {
   imageUrl?: string;
   className?: string;
   imgClassName?: string;
+  mode?: "ratio" | "fill";
 }) {
-  // 이미지 없을 때 placeholder
   if (!imageUrl) {
     return (
       <div
-        className={cx("aspect-4/5 w-full bg-(--oboon-bg-subtle)", className)}
+        className={cx(
+          mode === "ratio"
+            ? "aspect-4/5 w-full bg-(--oboon-bg-subtle)"
+            : "h-full w-full bg-(--oboon-bg-subtle)",
+          className
+        )}
       />
     );
   }
 
   return (
-    <div className={cx("aspect-4/5 w-full overflow-hidden", className)}>
+    <div
+      className={cx(
+        mode === "ratio"
+          ? "aspect-4/5 w-full overflow-hidden"
+          : "h-full w-full overflow-hidden",
+        className
+      )}
+    >
+      {" "}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={imageUrl}

@@ -43,7 +43,7 @@ export default function OfferingCard({ offering }: { offering: Offering }) {
       className="group block h-full"
     >
       {/* hover shadow 책임은 Card로 (정책 일관성) */}
-      <Card className="h-full transition hover:shadow-md">
+      <Card className="p-5 h-full transition hover:shadow-md">
         <div className="-m-5">
           {/* 이미지 영역 */}
           <div className="overflow-hidden rounded-t-2xl rounded-b-none">

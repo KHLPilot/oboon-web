@@ -1,5 +1,6 @@
 @import "tailwindcss";
 
+/* NOTE: SUIT는 next/font/local에서 --font-suit로 주입됨 (layout.tsx) */
 /* Chrome, Safari, Edge */
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button {
@@ -13,7 +14,6 @@ input[type="number"] {
 }
 
 @layer components {
-
   /* =========================
      OBOON Button System
      ========================= */
@@ -106,17 +106,32 @@ input[type="number"] {
 }
 
 :root {
+  --font-sans: var(--font-suit), system-ui, -apple-system, BlinkMacSystemFont,
+    "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+}
+
+:root {
+  /* ===== Typography Scale (Tokens) ===== */
+  --font-display: 70px;
   --font-h1: 32px;
   --font-h2: 24px;
-  --font-h3: 18px;
-  --font-h4: 15px;
+  --font-h3: 20px;
+  --font-h4: 16px;
 
-  --font-body: 16px;
+  --font-body: 15px;
   --font-body2: 14px;
-  --font-caption: 12px;
+  --font-caption: 13px;
 
   --line-height-tight: 120%;
   --line-height-normal: 150%;
+
+  /* letter-spacing presets */
+  --tracking-tight: -0.02em;
+  --tracking-normal: -0.01em;
+
+  /* font family chain (SUIT -> system fallback) */
+  --font-sans: var(--font-suit), system-ui, -apple-system, BlinkMacSystemFont,
+    "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
 }
 
 /* Secondary Button Tokens */
@@ -232,9 +247,11 @@ input[type="number"] {
   --oboon-map-shadow-strong: rgba(0, 0, 0, 0.32);
 
   /* 5) 리스트 선택 뱃지 배경(= primary의 아주 연한 배경) */
-  --oboon-badge-selected-bg: color-mix(in srgb,
-      var(--oboon-primary) 10%,
-      transparent);
+  --oboon-badge-selected-bg: color-mix(
+    in srgb,
+    var(--oboon-primary) 10%,
+    transparent
+  );
 
   /* 6) 리스트 선택 뱃지 테두리(= primary) */
   --oboon-badge-selected-border: var(--oboon-primary);
@@ -316,14 +333,18 @@ input[type="number"] {
      프로젝트에 primary-strong 같은 토큰이 없으면 그대로 primary를 써도 됩니다. */
   --oboon-marker-urgent: var(--oboon-primary);
   --oboon-marker-upcoming: var(--oboon-warning);
-  --oboon-marker-remain: color-mix(in srgb,
-      var(--oboon-text-muted) 85%,
-      white 15%);
+  --oboon-marker-remain: color-mix(
+    in srgb,
+    var(--oboon-text-muted) 85%,
+    white 15%
+  );
 
   /* 2) 마커 테두리: 다크에서는 surface가 어둡기 때문에 테두리를 살짝 밝게 */
-  --oboon-marker-stroke: color-mix(in srgb,
-      var(--oboon-bg-surface) 70%,
-      white 30%);
+  --oboon-marker-stroke: color-mix(
+    in srgb,
+    var(--oboon-bg-surface) 70%,
+    white 30%
+  );
 
   /* 3) 선택 링: 다크에서는 링이 더 안 보이기 쉬워서 조금 더 진하게 */
   --oboon-focus-ring: color-mix(in srgb, var(--oboon-primary) 32%, transparent);
@@ -333,9 +354,11 @@ input[type="number"] {
   --oboon-map-shadow-strong: rgba(0, 0, 0, 0.6);
 
   /* 5) 선택 뱃지 배경: 다크에서는 너무 탁해지지 않도록 조금 더 올림 */
-  --oboon-badge-selected-bg: color-mix(in srgb,
-      var(--oboon-primary) 16%,
-      transparent);
+  --oboon-badge-selected-bg: color-mix(
+    in srgb,
+    var(--oboon-primary) 16%,
+    transparent
+  );
 
   /* 6) 선택 뱃지 테두리 */
   --oboon-badge-selected-border: var(--oboon-primary);
@@ -344,8 +367,105 @@ input[type="number"] {
 body {
   background-color: var(--background);
   color: var(--foreground);
+  font-family: var(--font-sans);
 }
 
+/* --------------------------------------------------
+   Typography Presets (Utilities)
+-------------------------------------------------- */
+@layer utilities {
+  /* Headings */
+  .ob-typo-display {
+    font-size: var(--font-display);
+    line-height: var(--line-height-tight);
+    letter-spacing: var(--tracking-tight);
+    font-weight: 800;
+  }
+  .ob-typo-h1 {
+    font-size: var(--font-h1);
+    line-height: var(--line-height-tight);
+    letter-spacing: var(--tracking-tight);
+    font-weight: 800;
+  }
+  .ob-typo-h2 {
+    font-size: var(--font-h2);
+    line-height: var(--line-height-tight);
+    letter-spacing: var(--tracking-tight);
+    font-weight: 700;
+  }
+  .ob-typo-h3 {
+    font-size: var(--font-h3);
+    line-height: var(--line-height-normal);
+    letter-spacing: var(--tracking-normal);
+    font-weight: 600;
+  }
+  .ob-typo-h4 {
+    font-size: var(--font-h4);
+    line-height: var(--line-height-normal);
+    letter-spacing: var(--tracking-normal);
+    font-weight: 600;
+  }
+
+  /* Body */
+  .ob-typo-body {
+    font-size: var(--font-body);
+    line-height: var(--line-height-normal);
+    letter-spacing: var(--tracking-normal);
+    font-weight: 400;
+  }
+  .ob-typo-body2 {
+    font-size: var(--font-body2);
+    line-height: var(--line-height-normal);
+    letter-spacing: var(--tracking-normal);
+    font-weight: 400;
+  }
+  .ob-typo-caption {
+    font-size: var(--font-caption);
+    line-height: var(--line-height-normal);
+    letter-spacing: 0;
+    font-weight: 400;
+  }
+
+  /* Card-specific presets (OBOON UI에 자주 쓰는 조합) */
+  .ob-typo-card-title {
+    font-size: var(--font-body);
+    line-height: 145%;
+    letter-spacing: var(--tracking-normal);
+    font-weight: 600;
+  }
+  .ob-typo-card-title-sm {
+    font-size: var(--font-h3);
+    line-height: 145%;
+    letter-spacing: var(--tracking-normal);
+    font-weight: 600;
+  }
+  .ob-typo-meta {
+    font-size: 15px;
+    line-height: 150%;
+    letter-spacing: 0;
+    font-weight: 400;
+  }
+  .ob-typo-cta {
+    font-size: 15px;
+    line-height: 150%;
+    letter-spacing: 0;
+    font-weight: 500;
+  }
+
+  .ob-typo-nav {
+    font-size: var(--font-nav);
+    line-height: 150%;
+    letter-spacing: var(--tracking-normal);
+    font-weight: 500;
+  }
+
+  .ob-typo-button {
+    font-size: var(--font-button);
+    line-height: 150%;
+    letter-spacing: var(--tracking-normal);
+    font-weight: 600;
+  }
+}
 /* --------------------------------------------------
    3) 공통 컴포넌트 스타일
 -------------------------------------------------- */

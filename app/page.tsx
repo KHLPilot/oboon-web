@@ -10,43 +10,48 @@ import Card from "@/components/ui/Card";
 import { UXCopy } from "@/shared/uxCopy";
 
 import OfferingCard from "@/features/offerings/OfferingCard";
-import {
-  fetchPropertiesForOfferings,
-} from "@/features/offerings/services/offering.query";
+import { fetchPropertiesForOfferings } from "@/features/offerings/services/offering.query";
 import {
   mapPropertyRowToOffering,
   hasAppraiserComment,
   type PropertyRow,
 } from "@/features/offerings/mappers/offering.mapper";
-import {
-  OFFERING_REGION_TABS,
-} from "@/features/offerings/domain/offering.constants";
+import { OFFERING_REGION_TABS } from "@/features/offerings/domain/offering.constants";
 import type { OfferingRegionTab } from "@/features/offerings/domain/offering.types";
 
 import HomeBriefingCompactCard from "@/features/home/HomeBriefingCompactCard";
-import HomeBriefingCompactSeriesCard from "@/features/home/HomeBriefingCompactSeriesCard";
-import {
-  POSTS,
-  SERIES,
-  type BriefingPost,
-  type BriefingSeries,
-} from "@/app/briefing/_data";
+import HomeBriefingCompactOriginalCard from "@/features/home/HomeBriefingCompactOriginalCard";
 
 import { createSupabaseClient } from "@/lib/supabaseClient";
 
 import type { Offering } from "@/types/index";
+import type {
+  BriefingPostCardModel,
+  BriefingOriginalCardModel,
+} from "@/features/briefing/types";
 
 /* ================================
  * Page
  * ================================ */
 export default function HomePage() {
   const supabase = useMemo(() => createSupabaseClient(), []);
+
+  /* ---------- Offerings state ---------- */
   const [rows, setRows] = useState<PropertyRow[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
-
   const [selectedRegion, setSelectedRegion] =
     useState<OfferingRegionTab>("전체");
 
+  /* ---------- Briefing state ---------- */
+  const [briefingPosts, setBriefingPosts] = useState<BriefingPostCardModel[]>(
+    []
+  );
+  const [briefingOriginal, setBriefingOriginal] = useState<
+    Array<BriefingOriginalCardModel & { count: number }>
+  >([]);
+  const [briefingError, setBriefingError] = useState<string | null>(null);
+
+  /* ---------- Offerings fetch ---------- */
   useEffect(() => {
     let mounted = true;
 
@@ -72,6 +77,112 @@ export default function HomePage() {
     };
   }, [supabase]);
 
+  /* ---------- Briefing posts fetch (latest 3) ---------- */
+  useEffect(() => {
+    let mounted = true;
+
+    (async () => {
+      const { data, error } = await supabase
+        .from("briefing_posts")
+        .select(
+          `
+          id,
+          slug,
+          title,
+          created_at,
+          published_at,
+          cover_image_url,
+          content_kind,
+          external_url,
+          board:briefing_boards!inner(key),
+          category:briefing_categories(key,name)
+        `
+        )
+        .eq("status", "published")
+        .order("published_at", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false })
+        .limit(3);
+
+      if (!mounted) return;
+
+      if (error) {
+        console.error("[home briefing posts]", error);
+        setBriefingError("브리핑을 불러오지 못했어요.");
+        setBriefingPosts([]);
+        return;
+      }
+
+      setBriefingError(null);
+
+      const mapped: BriefingPostCardModel[] = (data ?? []).map((r: any) => ({
+        id: r.id,
+        slug: r.slug,
+        title: r.title,
+        createdAt: (r.published_at ?? r.created_at) as string,
+        coverImageUrl: r.cover_image_url,
+        boardKey: r.board?.[0]?.key ?? "general",
+        categoryKey: r.category?.[0]?.key ?? null,
+        categoryName: r.category?.[0]?.name ?? "브리핑",
+        contentKind: r.content_kind === "short" ? "short" : "article",
+        externalUrl: r.external_url,
+      }));
+
+      setBriefingPosts(mapped);
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [supabase]);
+
+  /* ---------- Briefing Original fetch (top 3) ---------- */
+  useEffect(() => {
+    let mounted = true;
+
+    (async () => {
+      const { data, error } = await supabase
+        .from("briefing_categories")
+        .select(
+          `
+          key,
+          name,
+          description,
+          posts:briefing_posts(count)
+        `
+        )
+        .eq("board_key", "oboon_Original")
+        .eq("is_active", true)
+        .limit(3);
+
+      if (!mounted) return;
+
+      if (error) {
+        console.error("[home briefing Original]", error);
+        setBriefingError("브리핑 시리즈를 불러오지 못했어요.");
+        setBriefingOriginal([]);
+        return;
+      }
+
+      setBriefingError(null);
+
+      const mapped: Array<BriefingOriginalCardModel & { count: number }> = (
+        data ?? []
+      ).map((s: any) => ({
+        key: s.key,
+        name: s.name,
+        description: s.description ?? null,
+        count: s.posts?.[0]?.count ?? 0,
+      }));
+
+      setBriefingOriginal(mapped);
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [supabase]);
+
+  /* ---------- Mappers ---------- */
   const fallback = useMemo(
     () => ({
       addressShort: UXCopy.addressShort,
@@ -85,20 +196,17 @@ export default function HomePage() {
     [rows, fallback]
   );
 
-  // ✅ 감평사 한줄평: 코멘트 있는 것만
   const reviewOfferings: Offering[] = useMemo(() => {
     return rows
       .filter(hasAppraiserComment)
       .map((row) => mapPropertyRowToOffering(row, fallback));
   }, [rows, fallback]);
 
-  // 감평사 섹션에 노출된 id는 지역별 인기에서 제외(중복 제거)
   const reviewIds = useMemo(
     () => new Set(reviewOfferings.map((o) => o.id)),
     [reviewOfferings]
   );
 
-  // ✅ 지역별 인기 분양: 전체면 전부, 지역 선택이면 필터
   const popularOfferings: Offering[] = useMemo(() => {
     const base =
       selectedRegion === "전체"
@@ -107,16 +215,6 @@ export default function HomePage() {
 
     return base.filter((o) => !reviewIds.has(o.id));
   }, [offerings, selectedRegion, reviewIds]);
-
-  const latestPosts: BriefingPost[] = POSTS.slice(0, 3);
-  const topSeries: BriefingSeries[] = SERIES.slice(0, 3);
-
-  const countBySeriesId = useMemo(() => {
-    return POSTS.reduce<Record<string, number>>((acc, p) => {
-      if (p.seriesId) acc[p.seriesId] = (acc[p.seriesId] ?? 0) + 1;
-      return acc;
-    }, {});
-  }, []);
 
   return (
     <main className="min-h-screen bg-(--oboon-bg-page)">
@@ -182,25 +280,44 @@ export default function HomePage() {
               title="오분 브리핑"
               rightLink={{ href: "/briefing", label: "전체보기" }}
             />
-            <Card>
-              <div className="-m-5 rounded-2xl bg-(--oboon-bg-subtle) p-3 md:p-3">
-                <div className="grid gap-4 lg:grid-cols-3">
-                  {latestPosts.map((post) => (
-                    <HomeBriefingCompactCard key={post.id} post={post} />
-                  ))}
-                </div>
 
-                <div className="mt-4 grid gap-4 lg:grid-cols-3">
-                  {topSeries.map((s) => (
-                    <HomeBriefingCompactSeriesCard
-                      key={s.id}
-                      series={s}
-                      count={countBySeriesId[s.id] ?? 0}
-                    />
-                  ))}
+            {briefingError ? (
+              <Card className="p-6 text-sm text-(--oboon-text-muted)">
+                {briefingError}
+              </Card>
+            ) : (
+              <Card>
+                <div className="-m-5 rounded-2xl bg-(--oboon-bg-subtle) p-3">
+                  <div className="grid gap-4 lg:grid-cols-4">
+                    {briefingPosts.length === 0 ? (
+                      <div className="text-[13px] text-(--oboon-text-muted)">
+                        아직 공개된 브리핑이 없습니다.
+                      </div>
+                    ) : (
+                      briefingPosts.map((post) => (
+                        <HomeBriefingCompactCard key={post.id} post={post} />
+                      ))
+                    )}
+                  </div>
+
+                  <div className="mt-4 grid gap-4 lg:grid-cols-4">
+                    {briefingOriginal.length === 0 ? (
+                      <div className="text-[13px] text-(--oboon-text-muted)">
+                        아직 공개된 시리즈가 없습니다.
+                      </div>
+                    ) : (
+                      briefingOriginal.map((s) => (
+                        <HomeBriefingCompactOriginalCard
+                          key={s.key}
+                          Original={s}
+                          count={s.count}
+                        />
+                      ))
+                    )}
+                  </div>
                 </div>
-              </div>
-            </Card>
+              </Card>
+            )}
           </section>
         </div>
       </PageContainer>

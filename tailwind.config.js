@@ -7,6 +7,10 @@ module.exports = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ["var(--font-suit)"],
+      },
+
       colors: {
         oboon: {
           page: "var(--oboon-bg-page)",
