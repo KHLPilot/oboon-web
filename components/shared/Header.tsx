@@ -200,7 +200,7 @@ export default function Header() {
                 onClick={() => router.push("/company/properties")}
               >
                 <span className="hidden sm:inline">현장 등록하기</span>
-                <span className="sm:hidden">현장 등록</span>
+                <span className="sm:hidden ob-typo-caption">현장 등록</span>
               </Button>
             )}
 

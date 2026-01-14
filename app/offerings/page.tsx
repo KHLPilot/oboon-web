@@ -6,7 +6,6 @@ import OfferingCard from "@/features/offerings/OfferingCard";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import type { Offering } from "@/types/index";
 import PageContainer from "@/components/shared/PageContainer";
-import Card from "@/components/ui/Card";
 import { UXCopy } from "@/shared/uxCopy";
 import { fetchPropertiesForOfferings } from "@/features/offerings/services/offering.query";
 import {
@@ -144,24 +143,20 @@ export default function OfferingsPage({
   /* ---------- render ---------- */
   return (
     <main className="bg-(--oboon-bg-page)">
-      <PageContainer className="pb-16 pt-6">
+      <PageContainer>
         {/* Header */}
         <div className="mb-4">
-          <h1 className="ob-typo-h1 text-(--oboon-text-title)">
-            분양 리스트
-          </h1>
+          <h1 className="ob-typo-h1 text-(--oboon-text-title)">분양 리스트</h1>
           <p className="mt-1 ob-typo-body text-(--oboon-text-muted)">
             조건에 맞는 분양 정보를 빠르게 찾을 수 있어요.
           </p>
         </div>
 
         {/* Filter */}
-        <Card className="p-5 mb-6">
-          <FilterBar />
-        </Card>
+        <FilterBar />
 
         {/* Meta */}
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mt-4 mb-4 flex items-center justify-between">
           <div className="ob-typo-body text-(--oboon-text-muted)">
             총{" "}
             <span className="font-semibold text-(--oboon-text-title)">

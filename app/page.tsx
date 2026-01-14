@@ -274,7 +274,7 @@ export default function HomePage() {
 
   return (
     <main className="min-h-screen bg-(--oboon-bg-page)">
-      <PageContainer className="pt-20 sm:pt-24 md:pt-40">
+      <PageContainer>
         <div className="flex flex-col gap-10">
           <HeroSection />
 

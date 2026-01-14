@@ -1,17 +1,17 @@
 // components/layout/PageContainer.tsx
-import type { ReactNode } from "react";
+import { cn } from "@/app/company/properties/[id]/units/utils";
 
-function cn(...classes: Array<string | undefined | false | null>) {
-  return classes.filter(Boolean).join(" ");
-}
+type PageContainerProp = {
+  children: React.ReactNode;
+  className?: string;
+  noHeaderOffset?: boolean;
+};
 
 export default function PageContainer({
   children,
   className,
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
+  noHeaderOffset,
+}: PageContainerProp) {
   return (
     <div
       className={cn(
@@ -24,8 +24,9 @@ export default function PageContainer({
         // horizontal padding
         "px-4 sm:px-5",
 
-        // vertical padding (mobile first)
-        "py-8 sm:py-10",
+        // vertical padding
+        !noHeaderOffset && "pt-22 sm:pt-24 md:pt-24",
+        "pb-8 sm:pb-10",
 
         className
       )}
