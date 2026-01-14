@@ -4,18 +4,19 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import {
-  Search,
-  Calendar,
-  LayoutDashboard,
-  PlusCircle,
-  UserPlus,
-} from "lucide-react";
+import { Calendar, LayoutDashboard, PlusCircle, UserPlus } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { User } from "@supabase/supabase-js";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import ThemeToggle from "./ThemeToggle";
-import Image from "next/image";
+import Button from "../ui/Button";
+
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "../ui/DropdownMenu";
 
 export default function Header() {
   const pathname = usePathname();
@@ -144,16 +145,14 @@ export default function Header() {
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 md:px-8">
         <Link
           href="/"
-          className="flex items-center gap-1 text-2xl font-black tracking-tighter"
+          className="flex items-center gap-1 ob-typo-h2"
           style={{ color: "var(--oboon-text-title)" }}
         >
           <span className="oboon-logo" aria-hidden />
-          <span className="text-[28px] font-bold tracking-[-0.02em]">
-            OBOON
-          </span>
+          <span>OBOON</span>
         </Link>
 
-        <nav className="mt-1 hidden items-center gap-8 ob-typo-body md:flex">
+        <nav className="mt-1 hidden items-center gap-8 ob-typo-nav md:flex">
           {NAV_ITEMS.map((item) => {
             const active = pathname.startsWith(item.href);
             return (
@@ -161,9 +160,7 @@ export default function Header() {
                 key={item.href}
                 href={item.href}
                 className={`border-b-2 pb-0.5 transition-colors ${
-                  active
-                    ? "font-semibold"
-                    : "border-transparent hover:text-oboon-text-title"
+                  active ? "" : "border-transparent hover:text-oboon-text-title"
                 }`}
                 style={{
                   borderColor: active ? "var(--oboon-primary)" : "transparent",
@@ -179,26 +176,6 @@ export default function Header() {
         </nav>
 
         <div className="flex items-center gap-3">
-          <button
-            className="hidden rounded-full p-2 transition hover:bg-oboon-bg-subtle md:inline-flex"
-            style={{ color: "var(--oboon-text-muted)" }}
-          >
-            <Search className="h-4 w-4" />
-          </button>
-
-          <ThemeToggle />
-
-          {userRole === "admin" && (
-            <Link
-              href="/admin"
-              className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition-colors"
-              style={{ color: "var(--oboon-primary)" }}
-            >
-              <LayoutDashboard className="w-4 h-4" />
-              <span className="hidden sm:inline">관리자</span>
-            </Link>
-          )}
-
           {userRole === "agent" && (
             <Link
               href="/agent/register"
@@ -212,88 +189,82 @@ export default function Header() {
           {(userRole === "user" ||
             userRole === "agent_pending" ||
             !userRole) && (
-            <button className="ob-btn ob-btn-md ob-btn-pill ob-btn-secondary flex items-center gap-2">
+            <button className="ob-btn ob-btn-sm ob-btn-pill ob-btn-secondary flex items-center gap-2">
               <Calendar className="w-4 h-4" />
               <span>상담 예약</span>
             </button>
           )}
 
           {["admin", "builder", "developer"].includes(userRole || "") && (
-            <Link
-              href="/company/properties"
-              className="ob-btn ob-btn-md ob-btn-pill ob-btn-primary flex items-center gap-2"
+            <Button
+              variant="primary"
+              size="sm"
+              shape="pill"
+              className="flex items-center gap-2"
+              onClick={() => router.push("/company/properties")}
             >
-              <PlusCircle className="w-4 h-4" />
               <span className="hidden sm:inline">현장 등록하기</span>
-            </Link>
+            </Button>
           )}
 
-          {user ? (
-            <div className="relative" ref={dropdownRef}>
-              <button
-                onClick={() => setDropdownOpen((prev) => !prev)}
-                className="flex items-center gap-2 rounded-lg px-3 py-1.5 transition-colors hover:bg-oboon-bg-subtle"
-              >
-                <div
-                  className="w-9 h-9 rounded-full overflow-hidden border flex items-center justify-center"
-                  style={{
-                    borderColor: "var(--oboon-border-default)",
-                    backgroundColor: "var(--oboon-bg-subtle)",
-                  }}
-                >
-                  {user.user_metadata?.avatar_url ? (
-                    <img
-                      src={user.user_metadata.avatar_url}
-                      alt="Profile"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <span
-                      className="text-sm font-semibold"
-                      style={{ color: "var(--oboon-text-body)" }}
-                    >
-                      {getDisplayName().slice(0, 1)}
-                    </span>
-                  )}
-                </div>
-                <span
-                  className="hidden sm:inline text-sm font-medium"
-                  style={{ color: "var(--oboon-text-body)" }}
-                >
-                  {getDisplayName()}님
-                </span>
-              </button>
+          <ThemeToggle />
 
-              {dropdownOpen && (
-                <div
-                  className="absolute right-0 mt-2 w-40 rounded-xl shadow-card border py-2"
-                  style={{
-                    backgroundColor: "var(--oboon-bg-surface)",
-                    borderColor: "var(--oboon-border-default)",
-                  }}
-                >
-                  <Link
-                    href="/profile"
-                    onClick={() => setDropdownOpen(false)}
-                    className="block px-4 py-2 text-sm transition-colors hover:bg-oboon-bg-subtle"
+          {user ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-2 rounded-lg transition-colors hover:bg-oboon-bg-subtle">
+                  <div
+                    className="w-8 h-8 rounded-full overflow-hidden border flex items-center justify-center"
+                    style={{
+                      borderColor: "var(--oboon-border-default)",
+                      backgroundColor: "var(--oboon-bg-subtle)",
+                    }}
+                  >
+                    {user.user_metadata?.avatar_url ? (
+                      <img
+                        src={user.user_metadata.avatar_url}
+                        alt="Profile"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <span
+                        className="ob-typo-caption"
+                        style={{ color: "var(--oboon-text-body)" }}
+                      >
+                        {getDisplayName().slice(0, 1)}
+                      </span>
+                    )}
+                  </div>
+
+                  <span
+                    className="hidden sm:inline ob-typo-body"
                     style={{ color: "var(--oboon-text-body)" }}
                   >
-                    프로필 설정
-                  </Link>
-                  <button
-                    onClick={handleLogout}
-                    className="block w-full text-left px-4 py-2 text-sm transition-colors hover:bg-oboon-bg-subtle"
-                    style={{ color: "var(--oboon-danger)" }}
-                  >
-                    로그아웃
-                  </button>
-                </div>
-              )}
-            </div>
+                    {getDisplayName()}님
+                  </span>
+                </button>
+              </DropdownMenuTrigger>
+
+              <DropdownMenuContent align="start" className="mt-2 w-40 p-1">
+                <DropdownMenuItem onClick={() => router.push("/profile")}>
+                  프로필 설정
+                </DropdownMenuItem>
+
+                {userRole === "admin" && (
+                  <DropdownMenuItem onClick={() => router.push("/admin")}>
+                    관리자
+                  </DropdownMenuItem>
+                )}
+
+                <DropdownMenuItem destructive onClick={handleLogout}>
+                  로그아웃
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : (
             <Link
               href="/auth/login"
-              className="text-sm font-medium px-2 transition-colors"
+              className="ob-typo-nav px-2 transition-colors"
               style={{ color: "var(--oboon-text-muted)" }}
             >
               로그인

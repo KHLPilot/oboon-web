@@ -1,5 +1,5 @@
 // app/company/properties/page.tsx
-// app/company/properties/[id]/page.tsx
+
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -8,8 +8,8 @@ import { Badge } from "@/components/ui/Badge";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
-
-// 기존에 쓰던 getPropertyProgress는 이제 내부 로직으로 대체하므로 import 하지 않아도 됩니다.
+import Button from "@/components/ui/Button";
+import { Router } from "next/router";
 
 const ALLOWED_ROLES = ["builder", "developer", "admin"];
 
@@ -41,10 +41,11 @@ function MissingPill({ label }: { label: string }) {
   return (
     <span
       className={[
-        "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium",
+        "inline-flex items-center rounded-full px-2.5 py-1",
         "border border-(--oboon-border-default)",
         "bg-transparent",
         "text-(--oboon-text-muted)",
+        "ob-typo-caption",
       ].join(" ")}
     >
       {label}
@@ -60,10 +61,11 @@ function MorePill({ count }: { count: number }) {
   return (
     <span
       className={[
-        "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium",
+        "inline-flex items-center rounded-full px-2.5 py-1",
         "border border-(--oboon-border-default)",
         "bg-(--oboon-bg-subtle)",
         "text-(--oboon-text-body)",
+        "ob-typo-caption",
       ].join(" ")}
     >
       +{count}
@@ -84,7 +86,7 @@ function StatusChip({
   const isComplete = inputCount === totalCount;
 
   return (
-    <Badge variant="status" className="text-[13px]">
+    <Badge variant="status" className="ob-typo-caption">
       {isComplete ? "입력 완료" : `입력 상태 ${inputCount}/${totalCount}`}
     </Badge>
   );
@@ -94,35 +96,20 @@ function StatusChip({
    수정 버튼
 -------------------------------------------------- */
 function EditButton({ href, disabled }: { href: string; disabled?: boolean }) {
-  if (disabled) {
-    return (
-      <button
-        disabled
-        className={[
-          "inline-flex h-9 items-center justify-center rounded-xl px-3",
-          "text-[13px] font-semibold",
-          "bg-(--oboon-bg-subtle) text-(--oboon-text-muted)",
-          "cursor-not-allowed opacity-50",
-        ].join(" ")}
-      >
-        수정 불가
-      </button>
-    );
-  }
+  const router = useRouter();
 
   return (
-    <Link
-      href={href}
-      className={[
-        "inline-flex h-9 items-center justify-center rounded-xl px-3",
-        "text-[13px] font-semibold",
-        "bg-(--oboon-primary) text-white",
-        "hover:bg-(--oboon-primary-hover)",
-        "transition-colors",
-      ].join(" ")}
+    <Button
+      variant={disabled ? "secondary" : "primary"}
+      size="sm"
+      shape="pill"
+      disabled={disabled}
+      onClick={() => {
+        if (!disabled) router.push(href);
+      }}
     >
-      수정
-    </Link>
+      {disabled ? "수정 불가" : "수정"}
+    </Button>
   );
 }
 
@@ -250,7 +237,7 @@ export default function PropertyListPage() {
   }, [router, supabase]);
 
   /* --------------------------------------------------
-     핵심 로직: 진행 상황 체크 (예전 코드를 이식함)
+     핵심 로직: 진행 상황 체크
   -------------------------------------------------- */
   const getInternalProgress = (row: PropertyRow) => {
     const hasData = (v: any) => {
@@ -289,7 +276,9 @@ export default function PropertyListPage() {
   if (loading) {
     return (
       <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 py-8">
-        <div className="text-sm text-(--oboon-text-muted)">불러오는 중...</div>
+        <div className="ob-typo-body text-(--oboon-text-muted)">
+          불러오는 중...
+        </div>
       </div>
     );
   }
@@ -300,10 +289,9 @@ export default function PropertyListPage() {
       <div className="mb-6 flex flex-col gap-3">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
-            <h1 className="text-xl font-bold text-(--oboon-text-title)">
-              현장 목록
-            </h1>
-            <Badge variant="status" className="text-xs px-2.5 py-1">
+            <h1 className="ob-typo-h1 text-(--oboon-text-title)">현장 목록</h1>
+
+            <Badge variant="status" className="ob-typo-caption px-2.5 py-1">
               미완 {incompleteCount}건
             </Badge>
           </div>
@@ -313,10 +301,10 @@ export default function PropertyListPage() {
               type="button"
               onClick={() => setShowIncompleteOnly((v) => !v)}
               className={[
-                "inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-semibold",
-                "bg-transparent",
-                "text-(--oboon-text-body)",
+                "inline-flex h-10 items-center gap-2 rounded-xl px-4",
+                "bg-transparent text-(--oboon-text-body)",
                 "transition-colors",
+                "ob-typo-button",
               ].join(" ")}
               aria-pressed={showIncompleteOnly}
             >
@@ -338,20 +326,17 @@ export default function PropertyListPage() {
                   ].join(" ")}
                 />
               </span>
-              <span>미완 현장만</span>
+              <span className="ob-typo-body">미완 현장만</span>
             </button>
 
-            <Link
-              href="/company/properties/new"
-              className={[
-                "inline-flex h-10 items-center justify-center rounded-xl px-4",
-                "text-sm font-semibold text-white",
-                "bg-(--oboon-primary) hover:bg-(--oboon-primary-hover)",
-                "transition-colors",
-              ].join(" ")}
+            <Button
+              variant="primary"
+              size="md"
+              shape="default"
+              onClick={() => router.push("/company/properties/new")}
             >
               + 새 현장 등록
-            </Link>
+            </Button>
           </div>
         </div>
       </div>
@@ -362,7 +347,8 @@ export default function PropertyListPage() {
           className={[
             "rounded-2xl border border-(--oboon-border-default)",
             "bg-(--oboon-bg-surface)",
-            "p-6 text-sm text-(--oboon-text-muted)",
+            "p-6",
+            "ob-typo-body text-(--oboon-text-muted)",
           ].join(" ")}
         >
           {showIncompleteOnly
@@ -374,21 +360,18 @@ export default function PropertyListPage() {
       {/* 2열 그리드 */}
       <div className="grid gap-4 sm:grid-cols-2">
         {filteredRows.map((row) => {
-          // ✅ 수정된 내부 체크 로직 사용
-          const { inputCount, totalCount, missingLabels } = getInternalProgress(row);
+          const { inputCount, totalCount, missingLabels } =
+            getInternalProgress(row);
 
-          // 권한 체크: admin은 모든 현장 수정 가능, 나머지는 본인 것만
           const canEdit =
             currentUserRole === "admin" || row.created_by === currentUserId;
 
-          // profiles 처리
           const profile = row.profiles
             ? Array.isArray(row.profiles)
               ? row.profiles[0]
               : row.profiles
             : null;
 
-          // ✅ 이름과 역할을 조합하여 표시하는 로직
           const getDisplayName = (prof: ProfileRow | null) => {
             if (!prof) return "작성자 알 수 없음";
 
@@ -396,7 +379,7 @@ export default function PropertyListPage() {
             if (prof.role === "admin") roleSuffix = "오분";
             else if (prof.role === "builder") roleSuffix = "시공사";
             else if (prof.role === "developer") roleSuffix = "시행사";
-            else roleSuffix = prof.role; // 기타 역할은 그대로 표시
+            else roleSuffix = prof.role;
 
             return `${prof.name} / ${roleSuffix}`;
           };
@@ -414,19 +397,16 @@ export default function PropertyListPage() {
                 "h-full flex flex-col",
                 "rounded-2xl border border-(--oboon-border-default)",
                 "bg-(--oboon-bg-surface)",
-                "p-6 shadow-none md:shadow-sm",
-                "transition-transform transition-shadow",
-                "hover:-translate-y-0.5",
-                "hover:shadow-(--card-shadow)",
+                "p-6 shadow-none",
               ].join(" ")}
             >
               {/* 상단: 제목 + 상태 배지 */}
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
-                  <h2 className="text-[18px] font-semibold text-(--oboon-text-title) truncate">
+                  <h2 className="ob-typo-h3 text-(--oboon-text-title) truncate">
                     {row.name}
                   </h2>
-                  <p className="text-xs text-(--oboon-text-muted) mt-1">
+                  <p className="ob-typo-caption text-(--oboon-text-muted) mt-1">
                     작성자: {displayName}
                   </p>
                 </div>
@@ -439,7 +419,12 @@ export default function PropertyListPage() {
                       type="button"
                       onClick={() => handleDelete(row.id, canEdit)}
                       aria-label="삭제"
-                      className="rounded-full p-1 text-red-500 hover:bg-red-500/10 focus:outline-none focus:ring-2 focus:ring-red-500/30"
+                      className={[
+                        "rounded-full p-1",
+                        "text-(--oboon-danger)",
+                        "hover:bg-(--oboon-danger-bg)",
+                        "focus:outline-none focus:ring-2 focus:ring-(--oboon-danger)/30",
+                      ].join(" ")}
                     >
                       <Trash2 size={16} />
                     </button>
@@ -457,7 +442,9 @@ export default function PropertyListPage() {
                 </div>
               ) : (
                 <div className="mt-4">
-                  <span className="text-xs text-green-600 font-medium">✨ 모든 데이터가 입력되었습니다.</span>
+                  <span className="ob-typo-caption text-(--oboon-primary)">
+                    모든 데이터가 입력되었습니다.
+                  </span>
                 </div>
               )}
 

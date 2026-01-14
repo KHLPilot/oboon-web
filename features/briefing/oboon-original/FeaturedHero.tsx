@@ -89,7 +89,7 @@ export default function FeaturedHero({
           <Cover
             mode="fill"
             imageUrl={current.cover_image_url ?? undefined}
-            className="h-[500px] w-full md:h-[500px]"
+            className="h-125 w-full md:h-125"
           />
 
           <div className="pointer-events-none absolute inset-0 bg-linear-to-t from-black/45 via-black/15 to-transparent" />
@@ -205,7 +205,7 @@ export default function FeaturedHero({
 
             {/* thumbnail 140x210 */}
             <div className="shrink-0">
-              <div className="h-[210px] w-[140px] overflow-hidden rounded-xl border border-(--oboon-border-default)">
+              <div className="h-52.5 w-35 overflow-hidden rounded-xl border border-(--oboon-border-default)">
                 <Cover
                   mode="fill"
                   imageUrl={current.cover_image_url ?? undefined}
@@ -233,7 +233,7 @@ export default function FeaturedHero({
         ) : null}
 
         <Link href={hrefForCategory(current)}>
-          <Button size="sm" shape="pill" className="w-[140px] h-10 mb-2.5">
+          <Button size="sm" shape="pill" className="w-35 h-10 mb-2.5">
             보러가기
           </Button>
         </Link>

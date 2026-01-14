@@ -44,7 +44,7 @@ export default function BriefingPostCard({
           <div className="p-5 flex flex-col h-[116px]">
             <div
               className={cx(
-                "ob-typo-card-title text-(--oboon-text-title)",
+                "ob-typo-h3 text-(--oboon-text-title)",
                 "line-clamp-2",
                 "min-h-[2.9rem]",
                 "group-hover:underline"
@@ -53,7 +53,7 @@ export default function BriefingPostCard({
               {post.title}
             </div>
 
-            <div className="mt-auto pt-3 ob-typo-meta text-(--oboon-text-muted)">
+            <div className="mt-auto pt-3 ob-typo-caption text-(--oboon-text-muted)">
               {formatBriefingDate(post.createdAt)}
             </div>
           </div>

@@ -44,16 +44,11 @@ export default function HomeBriefingCompactCard({
         <div
           className={[
             "mt-3",
-            "ob-typo-card-title-sm text-(--oboon-text-title)",
+            "ob-typo-subtitle text-(--oboon-text-title)",
             "line-clamp-2 min-h-[2.8rem]",
           ].join(" ")}
         >
           {post.title}
-        </div>
-
-        {/* CTA */}
-        <div className="mt-4 ob-typo-cta text-(--oboon-primary) group-hover:underline">
-          브리핑 보기
         </div>
       </div>
     </Link>

@@ -36,21 +36,16 @@ export default function HomeBriefingCompactOriginalCard({
         </div>
 
         {/* 시리즈 제목 */}
-        <div className="mt-3 ob-typo-card-title-sm text-(--oboon-text-title) line-clamp-2 min-h-[2.8rem]">
+        <div className="mt-3 ob-typo-subtitle text-(--oboon-text-title) line-clamp-2">
           {Original.name}
         </div>
 
         {/* 설명 */}
         {Original.description ? (
-          <div className="mt-2 ob-typo-meta text-(--oboon-text-muted) line-clamp-2">
+          <div className="mt-2 ob-typo-caption text-(--oboon-text-muted) line-clamp-2">
             {Original.description}
           </div>
         ) : null}
-
-        {/* CTA */}
-        <div className="mt-4 ob-typo-cta text-(--oboon-primary) group-hover:underline">
-          시리즈 보기 →
-        </div>
       </div>
     </Link>
   );

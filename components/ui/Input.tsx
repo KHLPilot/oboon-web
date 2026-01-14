@@ -10,7 +10,7 @@ export default function Input(
     <input
       {...rest}
       className={cn(
-        "w-full rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-(--oboon-primary)",
+        "w-full rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-4 py-3 ob-typo-body focus:outline-none focus:ring-2 focus:ring-(--oboon-primary)",
         className
       )}
     />

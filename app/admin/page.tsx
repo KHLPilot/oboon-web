@@ -1,241 +1,492 @@
+// app/admin/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { approveAgent, restoreAccount } from "./serverActions";
 
+import Card from "@/components/ui/Card";
+import Button from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
+import Modal from "@/components/ui/Modal";
+import { ToastProvider, useToast } from "@/components/ui/Toast";
+
 type Profile = {
-    id: string;
-    name: string | null;
-    email: string;
-    phone_number: string | null;
-    role: string;
-    created_at: string;
-    deleted_at: string | null;
+  id: string;
+  name: string | null;
+  email: string;
+  phone_number: string | null;
+  role: string;
+  created_at: string;
+  deleted_at: string | null;
 };
 
+function roleLabel(role: string) {
+  switch (role) {
+    case "admin":
+      return "관리자";
+    case "user":
+      return "일반 사용자";
+    case "agent_pending":
+      return "대행사 직원 (승인 대기)";
+    case "agent":
+      return "대행사 직원";
+    default:
+      return role;
+  }
+}
+
+function roleSortKey(role: string) {
+  // 사람이 보는 라벨 기준으로 정렬
+  return roleLabel(role);
+}
+
+type ConfirmKind = "approve" | "restore";
+type ConfirmState =
+  | { open: false }
+  | {
+      open: true;
+      kind: ConfirmKind;
+      userId: string;
+      title: string;
+      description: string;
+      confirmLabel: string;
+    };
+
 export default function AdminPage() {
-    const router = useRouter();
-    const supabase = createSupabaseClient();
+  return (
+    <ToastProvider>
+      <AdminPageInner />
+    </ToastProvider>
+  );
+}
 
-    const [loading, setLoading] = useState(true);
-    const [pendingAgents, setPendingAgents] = useState<Profile[]>([]);
-    const [deletedUsers, setDeletedUsers] = useState<Profile[]>([]);
-    const [activeUsers, setActiveUsers] = useState<Profile[]>([]);
+function AdminPageInner() {
+  const router = useRouter();
+  const toast = useToast();
+  const supabase = useMemo(() => createSupabaseClient(), []);
 
-    // 데이터 로드
-    useEffect(() => {
-        async function loadData() {
-            // 1. 관리자 체크
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) {
-                router.push("/");
-                return;
-            }
+  const [loading, setLoading] = useState(true);
+  const [pendingAgents, setPendingAgents] = useState<Profile[]>([]);
+  const [deletedUsers, setDeletedUsers] = useState<Profile[]>([]);
+  const [activeUsers, setActiveUsers] = useState<Profile[]>([]);
+  const [roleSort, setRoleSort] = useState<"none" | "asc" | "desc">("none");
+  const [confirm, setConfirm] = useState<ConfirmState>({ open: false });
+  const [confirmLoading, setConfirmLoading] = useState(false);
 
-            const { data: adminProfile } = await supabase
-                .from("profiles")
-                .select("role")
-                .eq("id", user.id)
-                .single();
+  const loadData = useCallback(async () => {
+    setLoading(true);
 
-            if (adminProfile?.role !== "admin") {
-                router.push("/");
-                return;
-            }
-
-            // 2. 승인 대기 목록
-            const { data: pending } = await supabase
-                .from("profiles")
-                .select("*")
-                .eq("role", "agent_pending")
-                .order("created_at", { ascending: true });
-
-            setPendingAgents(pending || []);
-
-            // 3. 전체 유저 현황
-            const { data: users } = await supabase
-                .from("profiles")
-                .select("*")
-                .order("created_at", { ascending: false });
-
-            const deleted = users?.filter(u => u.deleted_at !== null) || [];
-            const active = users?.filter(u => u.deleted_at === null) || [];
-
-            setDeletedUsers(deleted);
-            setActiveUsers(active);
-            setLoading(false);
-        }
-
-        loadData();
-    }, [supabase, router]);
-
-    // 승인 처리
-    const handleApprove = async (userId: string) => {
-        const formData = new FormData();
-        formData.append("userId", userId);
-
-        const result = await approveAgent(formData);
-
-        if (result?.error) {
-            alert(result.error);
-        } else {
-            window.location.reload();  // ← 새로고침
-        }
-    };
-
-    // 복구 처리
-    const handleRestore = async (userId: string) => {
-        const formData = new FormData();
-        formData.append("userId", userId);
-
-        const result = await restoreAccount(formData);
-
-        if (result?.error) {
-            alert(result.error);
-        } else {
-            window.location.reload();  // ← 새로고침
-        }
-    };
-
-    if (loading) {
-        return (
-            <main className="mx-auto max-w-6xl px-6 py-10">
-                <div className="text-center">로딩 중...</div>
-            </main>
-        );
+    // 1) 관리자 체크
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      router.push("/");
+      return;
     }
 
+    const { data: adminProfile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    if (adminProfile?.role !== "admin") {
+      router.push("/");
+      return;
+    }
+
+    // 2) 승인 대기 목록
+    const { data: pending } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("role", "agent_pending")
+      .order("created_at", { ascending: true });
+
+    setPendingAgents(pending || []);
+
+    // 3) 전체 유저 현황
+    const { data: users } = await supabase
+      .from("profiles")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    const deleted = (users || []).filter((u) => u.deleted_at !== null);
+    const active = (users || []).filter((u) => u.deleted_at === null);
+
+    setDeletedUsers(deleted);
+    setActiveUsers(active);
+
+    setLoading(false);
+  }, [router, supabase]);
+
+  const closeConfirm = () => {
+    if (confirmLoading) return;
+    setConfirm({ open: false });
+  };
+
+  const openApproveConfirm = (agent: Profile) => {
+    setConfirm({
+      open: true,
+      kind: "approve",
+      userId: agent.id,
+      title: "승인 확인",
+      description: `${agent.name ?? "-"} (${agent.email}) 사용자를 승인할까요?`,
+      confirmLabel: "승인하기",
+    });
+  };
+
+  const openRestoreConfirm = (u: Profile) => {
+    setConfirm({
+      open: true,
+      kind: "restore",
+      userId: u.id,
+      title: "복구 확인",
+      description: `${u.name ?? "-"} (${u.email}) 계정을 복구할까요?`,
+      confirmLabel: "복구하기",
+    });
+  };
+
+  const onConfirm = async () => {
+    if (!confirm.open) return;
+    try {
+      setConfirmLoading(true);
+      const formData = new FormData();
+      formData.append("userId", confirm.userId);
+      const result =
+        confirm.kind === "approve"
+          ? await approveAgent(formData)
+          : await restoreAccount(formData);
+
+      if (result?.error) {
+        toast.error(result.error, "작업 실패");
+        return;
+      }
+
+      // 성공: 모달 닫기 + 데이터 재로딩(토스트가 보이도록)
+      setConfirm({ open: false });
+      await loadData();
+      router.refresh();
+      toast.success(
+        confirm.kind === "approve"
+          ? "승인이 완료되었습니다."
+          : "복구가 완료되었습니다.",
+        "완료"
+      );
+    } finally {
+      setConfirmLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const toggleRoleSort = () => {
+    setRoleSort((prev) =>
+      prev === "none" ? "asc" : prev === "asc" ? "desc" : "none"
+    );
+  };
+
+  const sortedActiveUsers = useMemo(() => {
+    if (roleSort === "none") return activeUsers;
+    const dir = roleSort === "asc" ? 1 : -1;
+    return [...activeUsers].sort(
+      (a, b) =>
+        roleSortKey(a.role).localeCompare(roleSortKey(b.role), "ko-KR") * dir
+    );
+  }, [activeUsers, roleSort]);
+
+  if (loading) {
     return (
-        <main className="mx-auto max-w-6xl px-6 py-10 space-y-10">
-            {/* 헤더 */}
-            <div className="flex items-center justify-between">
-                <h1 className="text-2xl font-bold">관리자 대시보드</h1>
-                <Link href="/" className="text-sm text-slate-600 hover:text-black">
-                    ← 홈으로 돌아가기
-                </Link>
+      <div className="py-16 text-center text-sm text-(--oboon-text-muted)">
+        로딩 중...
+      </div>
+    );
+  }
+
+  const TableShell = ({ children }: { children: React.ReactNode }) => (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[720px] text-sm border-collapse">
+        {children}
+      </table>
+    </div>
+  );
+
+  const Th = ({ children, className = "" }: any) => (
+    <th
+      className={[
+        "py-3 px-3 text-left font-semibold",
+        "text-(--oboon-text-title)",
+        "border-b border-(--oboon-border-default)",
+        className,
+      ].join(" ")}
+    >
+      {children}
+    </th>
+  );
+
+  const Td = ({ children, className = "" }: any) => (
+    <td
+      className={[
+        "py-3 px-3 align-middle",
+        "text-(--oboon-text-body)",
+        "border-b border-(--oboon-border-default)",
+        className,
+      ].join(" ")}
+    >
+      {children}
+    </td>
+  );
+
+  return (
+    <div className="space-y-8">
+      <Modal
+        open={confirm.open}
+        onClose={closeConfirm}
+        showCloseIcon={!confirmLoading}
+      >
+        {confirm.open && (
+          <>
+            <div className="text-[16px] font-semibold text-(--oboon-text-title)">
+              {confirm.title}
+            </div>
+            <p className="mt-2 text-sm text-(--oboon-text-muted)">
+              {confirm.description}
+            </p>
+            <div className="mt-5 flex gap-2">
+              <Button
+                className="flex-1"
+                variant="secondary"
+                onClick={closeConfirm}
+                disabled={confirmLoading}
+              >
+                취소
+              </Button>
+              <Button
+                className="flex-1"
+                variant="primary"
+                loading={confirmLoading}
+                onClick={onConfirm}
+              >
+                {confirm.confirmLabel}
+              </Button>
+            </div>
+          </>
+        )}
+      </Modal>
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="ob-typo-h2 font-semibold text-(--oboon-text-title)">
+            관리자 대시보드
+          </div>
+          <p className="mt-1 text-sm text-(--oboon-text-muted)">
+            승인/복구 및 사용자 현황을 관리합니다.
+          </p>
+        </div>
+
+        <Link
+          href="/"
+          className="text-sm text-(--oboon-text-muted) hover:text-(--oboon-text-title) transition-colors"
+        >
+          ← 홈으로
+        </Link>
+      </div>
+
+      {/* Pending */}
+      <Card className="p-6">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-[16px] font-semibold text-(--oboon-text-title)">
+              대행사 직원 승인 대기
+            </h2>
+          </div>
+
+          <Badge variant="status">{pendingAgents.length}건</Badge>
+        </div>
+
+        <div className="mt-4">
+          {pendingAgents.length === 0 ? (
+            <div className="text-sm text-(--oboon-text-muted)">
+              승인 대기 중인 요청이 없습니다.
+            </div>
+          ) : (
+            <TableShell>
+              <thead>
+                <tr>
+                  <Th>이름</Th>
+                  <Th>이메일</Th>
+                  <Th>연락처</Th>
+                  <Th className="text-right">작업</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingAgents.map((agent) => (
+                  <tr key={agent.id}>
+                    <Td>{agent.name || "-"}</Td>
+                    <Td className="text-(--oboon-text-muted)">{agent.email}</Td>
+                    <Td className="text-(--oboon-text-muted)">
+                      {agent.phone_number || "-"}
+                    </Td>
+                    <Td className="text-right">
+                      <Button
+                        size="sm"
+                        shape="pill"
+                        variant="primary"
+                        onClick={() => openApproveConfirm(agent)}
+                      >
+                        승인
+                      </Button>
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </TableShell>
+          )}
+        </div>
+      </Card>
+
+      {/* Deleted Users */}
+      {deletedUsers.length > 0 && (
+        <Card className="p-6 border-(--oboon-warning-border)">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-[16px] font-semibold text-(--oboon-text-title)">
+                탈퇴(비활성) 사용자
+              </h2>
+              <p className="mt-1 text-xs text-(--oboon-text-muted)">
+                복구 시 사용자는 로그인 후 프로필 정보를 다시 입력해야 할 수
+                있습니다.
+              </p>
             </div>
 
-            {/* 승인 대기 */}
-            <section className="rounded-xl border p-6 space-y-4">
-                <h2 className="text-lg font-semibold">분양대행사 직원 승인 대기</h2>
+            <Badge variant="status">{deletedUsers.length}명</Badge>
+          </div>
 
-                {pendingAgents.length === 0 ? (
-                    <p className="text-sm text-slate-500">승인 대기 중인 요청이 없습니다.</p>
-                ) : (
-                    <table className="w-full text-sm border-collapse">
-                        <thead>
-                            <tr className="border-b text-left">
-                                <th className="py-2">이름</th>
-                                <th>이메일</th>
-                                <th>연락처</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {pendingAgents.map((agent) => (
-                                <tr key={agent.id} className="border-b">
-                                    <td className="py-2">{agent.name}</td>
-                                    <td>{agent.email}</td>
-                                    <td>{agent.phone_number}</td>
-                                    <td className="text-right">
-                                        <button
-                                            onClick={() => handleApprove(agent.id)}
-                                            className="rounded-md bg-black px-3 py-1 text-white text-xs"
-                                        >
-                                            승인
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                )}
-            </section>
+          <div className="mt-4">
+            <TableShell>
+              <thead>
+                <tr>
+                  <Th>이름</Th>
+                  <Th>이메일</Th>
+                  <Th>탈퇴일</Th>
+                  <Th className="text-right">작업</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {deletedUsers.map((u) => (
+                  <tr key={u.id}>
+                    <Td className="text-(--oboon-text-muted)">
+                      {u.name || "-"}
+                    </Td>
+                    <Td className="text-(--oboon-text-muted)">{u.email}</Td>
+                    <Td className="text-xs text-(--oboon-text-muted)">
+                      {u.deleted_at
+                        ? new Date(u.deleted_at).toLocaleDateString()
+                        : "-"}
+                    </Td>
+                    <Td className="text-right">
+                      <Button
+                        size="sm"
+                        shape="pill"
+                        variant="warning"
+                        onClick={() => openRestoreConfirm(u)}
+                      >
+                        복구
+                      </Button>
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </TableShell>
+          </div>
+        </Card>
+      )}
 
-            {/* 탈퇴한 사용자 */}
-            {deletedUsers.length > 0 && (
-                <section className="rounded-xl border border-red-200 bg-red-50 p-6 space-y-4">
-                    <h2 className="text-lg font-semibold text-red-700">
-                        탈퇴한 사용자 ({deletedUsers.length}명)
-                    </h2>
+      {/* Active Users */}
+      <Card className="p-6">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-[16px] font-semibold text-(--oboon-text-title)">
+              전체 사용자 현황
+            </h2>
+          </div>
 
-                    <table className="w-full text-sm border-collapse bg-white rounded">
-                        <thead>
-                            <tr className="border-b text-left">
-                                <th className="py-2 px-3">이름</th>
-                                <th>이메일</th>
-                                <th>탈퇴일</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {deletedUsers.map((u) => (
-                                <tr key={u.id} className="border-b">
-                                    <td className="py-2 px-3 text-slate-500">{u.name || "-"}</td>
-                                    <td className="text-slate-500">{u.email}</td>
-                                    <td className="text-xs text-slate-400">
-                                        {new Date(u.deleted_at!).toLocaleDateString()}
-                                    </td>
-                                    <td className="text-right px-3">
-                                        <button
-                                            onClick={() => handleRestore(u.id)}
-                                            className="rounded-md bg-blue-600 hover:bg-blue-700 px-3 py-1 text-white text-xs transition"
-                                        >
-                                            복구
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+          <Badge variant="status">{activeUsers.length}명</Badge>
+        </div>
 
-                    <p className="text-xs text-red-600">
-                        ⚠️ 복구 시 유저는 로그인 후 프로필 정보를 다시 입력해야 합니다.
-                    </p>
-                </section>
-            )}
+        <div className="mt-4">
+          {activeUsers.length === 0 ? (
+            <div className="text-sm text-(--oboon-text-muted)">
+              사용자가 없습니다.
+            </div>
+          ) : (
+            <TableShell>
+              <thead>
+                <tr>
+                  <Th>이름</Th>
+                  <Th>이메일</Th>
+                  <Th>
+                    <button
+                      type="button"
+                      onClick={toggleRoleSort}
+                      className="inline-flex items-center gap-1 hover:text-(--oboon-text-title)"
+                      title="계정 유형 정렬"
+                    >
+                      계정 유형
+                      <span
+                        className={[
+                          "text-[11px]",
+                          roleSort === "none"
+                            ? "text-(--oboon-text-muted)"
+                            : "text-(--oboon-text-title)",
+                        ].join(" ")}
+                      >
+                        {roleSort === "none"
+                          ? "-"
+                          : roleSort === "asc"
+                          ? "▲"
+                          : "▼"}
+                      </span>
+                    </button>
+                  </Th>
+                  <Th>가입일</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedActiveUsers.map((u) => (
+                  <tr key={u.id}>
+                    <Td>{u.name || "-"}</Td>
+                    <Td className="text-(--oboon-text-muted)">{u.email}</Td>
+                    <Td>
+                      <Badge variant="status">{roleLabel(u.role)}</Badge>
+                    </Td>
+                    <Td className="text-xs text-(--oboon-text-muted)">
+                      {new Date(u.created_at).toLocaleDateString()}
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </TableShell>
+          )}
+        </div>
+      </Card>
 
-            {/* 전체 유저 현황 */}
-            <section className="rounded-xl border p-6 space-y-4">
-                <h2 className="text-lg font-semibold">
-                    전체 사용자 현황 ({activeUsers.length}명)
-                </h2>
-
-                {activeUsers.length === 0 ? (
-                    <p className="text-sm text-slate-500">사용자가 없습니다.</p>
-                ) : (
-                    <table className="w-full text-sm border-collapse">
-                        <thead>
-                            <tr className="border-b text-left">
-                                <th className="py-2">이름</th>
-                                <th>이메일</th>
-                                <th>계정 유형</th>
-                                <th>가입일</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {activeUsers.map((u) => (
-                                <tr key={u.id} className="border-b">
-                                    <td className="py-2">{u.name || "-"}</td>
-                                    <td>{u.email}</td>
-                                    <td>
-                                        {u.role === "admin" && "관리자"}
-                                        {u.role === "user" && "일반 사용자"}
-                                        {u.role === "agent_pending" && "대행사 직원 (승인 대기)"}
-                                        {u.role === "agent" && "대행사 직원"}
-                                    </td>
-                                    <td className="text-xs text-slate-500">
-                                        {new Date(u.created_at).toLocaleDateString()}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                )}
-            </section>
-        </main>
-    );
+      {/* Footer actions */}
+      <div className="flex justify-end">
+        <Button
+          variant="secondary"
+          size="sm"
+          shape="pill"
+          onClick={() => loadData()}
+        >
+          새로고침
+        </Button>
+      </div>
+    </div>
+  );
 }

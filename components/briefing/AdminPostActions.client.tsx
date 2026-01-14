@@ -44,12 +44,12 @@ export default function AdminPostActions({
       </div>
 
       <Modal open={open} onClose={() => setOpen(false)}>
-        <div className="ob-typo-h2 font-semibold text-(--oboon-text-title)">
+        <div className="ob-typo-h2 text-(--oboon-text-title)">
           글을 삭제할까요?
         </div>
 
-        <div className="mt-5 ob-typo-caption leading-5 text-(--oboon-text-muted)">
-          <span className="ob-typo-h4 text-(--oboon-text-title)">
+        <div className="mt-5 ob-typo-caption text-(--oboon-text-muted)">
+          <span className="ob-typo-h3 text-(--oboon-text-title)">
             {postTitle}
           </span>
           <br />

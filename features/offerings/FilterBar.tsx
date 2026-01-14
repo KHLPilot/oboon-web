@@ -181,7 +181,7 @@ function FilterBarBody({
             onChange={(e) => setQ(e.target.value)}
             placeholder="지역, 단지명으로 검색"
             className={cx(
-              "h-11 w-full rounded-xl px-4 text-[14px]",
+              "h-11 w-full rounded-xl px-4 ob-typo-body",
               "outline-none focus:ring-2 focus:ring-(--oboon-primary)/30"
             )}
             onKeyDown={(e) => {
@@ -198,7 +198,7 @@ function FilterBarBody({
             type="button"
             variant="primary"
             size="md"
-            className="h-11 rounded-xl px-4 text-[14px]"
+            className="h-11 rounded-xl px-4 ob-typo-button"
             onClick={() => pushParams({ q })}
           >
             검색
@@ -208,7 +208,7 @@ function FilterBarBody({
             type="button"
             variant="secondary"
             size="md"
-            className="h-11 rounded-xl px-4 text-[14px]"
+            className="h-11 rounded-xl px-4 ob-typo-button"
             onClick={resetAll}
           >
             초기화
@@ -218,7 +218,7 @@ function FilterBarBody({
             type="button"
             variant="secondary"
             size="md"
-            className="h-11 rounded-xl px-4 text-[14px] sm:hidden"
+            className="h-11 rounded-xl px-4 ob-typo-button sm:hidden"
             onClick={() => setOpen((v) => !v)}
             aria-expanded={open}
           >
@@ -238,7 +238,7 @@ function FilterBarBody({
                 size="sm"
                 shape="pill"
                 variant={active ? "primary" : "secondary"}
-                className="h-9 px-4 text-[13px]"
+                className="h-9 px-4 ob-typo-button"
                 onClick={() => pushParams({ region: r })}
               >
                 {r}
@@ -260,7 +260,7 @@ function FilterBarBody({
                 shape="pill"
                 variant={active ? "secondary" : "ghost"}
                 className={cx(
-                  "h-9 px-4 text-[13px]",
+                  "h-9 px-4 ob-typo-button",
                   !active && "text-(--oboon-text-muted)"
                 )}
                 onClick={() => pushParams({ status: s })}
@@ -272,7 +272,7 @@ function FilterBarBody({
         </div>
 
         <div className="mt-5 space-y-2">
-          <div className="text-[14px] font-semibold text-(--oboon-text-title)">
+          <div className="ob-typo-subtitle text-(--oboon-text-title)">
             예산
           </div>
 
@@ -289,7 +289,7 @@ function FilterBarBody({
                   size="sm"
                   shape="pill"
                   variant={active ? "primary" : "secondary"}
-                  className="h-9 px-4 text-[13px]"
+                  className="h-9 px-4 ob-typo-button"
                   onClick={() => {
                     const nextMin = String(p.min);
                     const nextMax = String(p.max);
@@ -314,14 +314,14 @@ function FilterBarBody({
                 onChange={(e) => setBudgetMin(e.target.value)}
                 onKeyDown={onBudgetEnter}
                 className={cx(
-                  "h-10 w-32 rounded-[10px] px-3 pr-12 text-[13px]",
+                  "h-10 w-32 rounded-[10px] px-3 pr-12 ob-typo-body",
                   budgetError
-                    ? "border-orange-300 focus:ring-orange-200"
+                    ? "border-(--oboon-warning-border) focus:ring-(--oboon-warning)/20"
                     : "border-(--oboon-border-default) focus:ring-(--oboon-primary)/20"
                 )}
               />
               {formatEokPreview(budgetMin) && (
-                <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-(--oboon-text-muted)">
+                <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 ob-typo-caption text-(--oboon-text-muted)">
                   {formatEokPreview(budgetMin)}
                 </span>
               )}
@@ -338,14 +338,14 @@ function FilterBarBody({
                 onChange={(e) => setBudgetMax(e.target.value)}
                 onKeyDown={onBudgetEnter}
                 className={cx(
-                  "h-10 w-32 rounded-[10px] px-3 pr-12 text-[13px]",
+                  "h-10 w-32 rounded-[10px] px-3 pr-12 ob-typo-body",
                   budgetError
-                    ? "border-orange-300 focus:ring-orange-200"
+                    ? "border-(--oboon-warning-border) focus:ring-(--oboon-warning)/20"
                     : "border-(--oboon-border-default) focus:ring-(--oboon-primary)/20"
                 )}
               />
               {formatEokPreview(budgetMax) && (
-                <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-(--oboon-text-muted)">
+                <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 ob-typo-caption text-(--oboon-text-muted)">
                   {formatEokPreview(budgetMax)}
                 </span>
               )}
@@ -358,7 +358,7 @@ function FilterBarBody({
               variant="secondary"
               size="sm"
               className={cx(
-                "h-10 rounded-[10px] px-4 text-[13px]",
+                "h-10 rounded-[10px] px-4 ob-typo-button",
                 applyDisabled ? "opacity-60 cursor-not-allowed" : ""
               )}
             >
@@ -367,18 +367,18 @@ function FilterBarBody({
           </div>
 
           {budgetError ? (
-            <div className="mt-2 text-[12px] text-orange-600">
+            <div className="mt-2 ob-typo-caption text-(--oboon-warning-text)">
               {budgetError}
             </div>
           ) : (
-            <div className="mt-2 text-[12px] text-(--oboon-text-muted)">
+            <div className="mt-2 ob-typo-caption text-(--oboon-text-muted)">
               소수 1자리까지 입력할 수 있어요. (예: 15.6 → 15억 6천)
             </div>
           )}
         </div>
 
         <div className="mt-5 space-y-2">
-          <div className="text-[14px] font-semibold text-(--oboon-text-title)">
+          <div className="ob-typo-subtitle text-(--oboon-text-title)">
             어떤 용도로 찾으시나요?
           </div>
 
@@ -392,7 +392,7 @@ function FilterBarBody({
                   size="sm"
                   shape="pill"
                   variant={active ? "primary" : "secondary"}
-                  className="h-9 px-4 text-[13px]"
+                  className="h-9 px-4 ob-typo-button"
                   onClick={() => pushParams({ purpose: p.value })}
                 >
                   {p.label}
@@ -407,7 +407,7 @@ function FilterBarBody({
             type="button"
             variant="secondary"
             size="md"
-            className="h-11 w-full rounded-xl px-4 text-[14px]"
+            className="h-11 w-full rounded-xl px-4 ob-typo-button"
             onClick={() => setOpen(false)}
           >
             필터 닫기

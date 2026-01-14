@@ -51,7 +51,7 @@ export default function Modal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-999999 flex items-center justify-center bg-black/60 backdrop-blur"
+      className="fixed inset-0 z-999999 flex items-center justify-center bg-(--oboon-overlay) backdrop-blur"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}

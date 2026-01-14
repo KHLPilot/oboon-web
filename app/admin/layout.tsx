@@ -1,5 +1,7 @@
+// app/admin/layout.tsx
 import { createSupabaseServer } from "@/lib/supabaseServer";
 import { redirect } from "next/navigation";
+import PageContainer from "@/components/shared/PageContainer";
 
 export default async function AdminLayout({
   children,
@@ -12,9 +14,7 @@ export default async function AdminLayout({
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
-    redirect("/");
-  }
+  if (!user) redirect("/");
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -22,9 +22,7 @@ export default async function AdminLayout({
     .eq("id", user.id)
     .single();
 
-  if (!profile || profile.role !== "admin") {
-    redirect("/");
-  }
+  if (!profile || profile.role !== "admin") redirect("/");
 
-  return <>{children}</>;
+  return <PageContainer className="pt-8 pb-12">{children}</PageContainer>;
 }

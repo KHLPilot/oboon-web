@@ -331,7 +331,7 @@ export default function OboonDatePicker({
         .oboon-datepicker .react-datepicker__year-text--selected,
         .oboon-datepicker .react-datepicker__year-text--keyboard-selected {
           background: var(--oboon-primary);
-          color: var(--oboon-on-primary, #fff);
+          color: var(--oboon-on-primary);
           border-radius: 8px;
         }
 
@@ -343,12 +343,12 @@ export default function OboonDatePicker({
         }
 
         .oboon-datepicker .react-datepicker__navigation-icon::before {
-          border-color: var(--oboon-text-muted);
+          border-color: var(--oboon-border-default);
         }
         .oboon-datepicker
           .react-datepicker__navigation:hover
           .react-datepicker__navigation-icon::before {
-          border-color: var(--oboon-text-title);
+          border-color: var(--oboon-border-strong);
         }
       `}</style>
     </>

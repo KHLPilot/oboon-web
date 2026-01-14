@@ -30,6 +30,16 @@ import type {
   BriefingOriginalCardModel,
 } from "@/features/briefing/types";
 
+/**
+ * Board key SSOT (DB: briefing_boards.key)
+ * - OBOON_ORIGINAL은 너가 확인한 값으로 확정
+ * - GENERAL_BRIEFING은 프로젝트 DB에 맞게 필요 시 교체
+ */
+const BOARD_KEYS = {
+  GENERAL_BRIEFING: "general",
+  OBOON_ORIGINAL: "oboon_original",
+} as const;
+
 /* ================================
  * Page
  * ================================ */
@@ -77,7 +87,7 @@ export default function HomePage() {
     };
   }, [supabase]);
 
-  /* ---------- Briefing posts fetch (latest 3) ---------- */
+  /* ---------- Briefing posts fetch (latest 4) ---------- */
   useEffect(() => {
     let mounted = true;
 
@@ -101,7 +111,7 @@ export default function HomePage() {
         .eq("status", "published")
         .order("published_at", { ascending: false, nullsFirst: false })
         .order("created_at", { ascending: false })
-        .limit(3);
+        .limit(4);
 
       if (!mounted) return;
 
@@ -114,15 +124,16 @@ export default function HomePage() {
 
       setBriefingError(null);
 
+      // Supabase join alias는 기본적으로 객체(또는 null)로 내려오는 형태가 정상입니다.
       const mapped: BriefingPostCardModel[] = (data ?? []).map((r: any) => ({
         id: r.id,
         slug: r.slug,
         title: r.title,
         createdAt: (r.published_at ?? r.created_at) as string,
         coverImageUrl: r.cover_image_url,
-        boardKey: r.board?.[0]?.key ?? "general",
-        categoryKey: r.category?.[0]?.key ?? null,
-        categoryName: r.category?.[0]?.name ?? "브리핑",
+        boardKey: r.board?.key ?? BOARD_KEYS.GENERAL_BRIEFING,
+        categoryKey: r.category?.key ?? null,
+        categoryName: r.category?.name ?? "브리핑",
         contentKind: r.content_kind === "short" ? "short" : "article",
         externalUrl: r.external_url,
       }));
@@ -135,44 +146,89 @@ export default function HomePage() {
     };
   }, [supabase]);
 
-  /* ---------- Briefing Original fetch (top 3) ---------- */
+  /* ---------- Briefing Original fetch (top 4 categories + counts) ---------- */
   useEffect(() => {
     let mounted = true;
 
     (async () => {
-      const { data, error } = await supabase
-        .from("briefing_categories")
+      // 1) 오분 오리지널 보드에서 카테고리를 FK 기반으로 중첩 조회
+      const { data: board, error: boardErr } = await supabase
+        .from("briefing_boards")
         .select(
           `
+          id,
           key,
           name,
           description,
-          posts:briefing_posts(count)
+          is_active,
+          briefing_categories!briefing_categories_board_id_fkey (
+            id,
+            key,
+            name,
+            description,
+            sort_order,
+            is_active
+          )
         `
         )
-        .eq("board_key", "oboon_Original")
-        .eq("is_active", true)
-        .limit(3);
+        .eq("key", BOARD_KEYS.OBOON_ORIGINAL)
+        .single();
 
       if (!mounted) return;
 
-      if (error) {
-        console.error("[home briefing Original]", error);
+      if (boardErr) {
+        console.error("[home briefing original:board]", boardErr);
         setBriefingError("브리핑 시리즈를 불러오지 못했어요.");
         setBriefingOriginal([]);
         return;
       }
 
+      if (!board || board.is_active === false) {
+        setBriefingError(null);
+        setBriefingOriginal([]);
+        return;
+      }
+
+      const categoriesRaw: any[] = (board.briefing_categories ?? []) as any[];
+
+      const categoriesTop = categoriesRaw
+        .filter((c) => c?.is_active)
+        .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+        .slice(0, 4);
+
+      // 2) 카테고리별 게시글 수 집계(발행된 글만)
+      const categoryIds = categoriesTop.map((c) => c.id).filter(Boolean);
+      const countByCategory = new Map<string, number>();
+
+      if (categoryIds.length > 0) {
+        const { data: posts, error: postsErr } = await supabase
+          .from("briefing_posts")
+          .select("id, category_id")
+          .in("category_id", categoryIds)
+          .eq("status", "published");
+
+        if (!mounted) return;
+
+        if (postsErr) {
+          console.error("[home briefing original:counts]", postsErr);
+          // 카운트 실패는 치명적이지 않으니 0으로 렌더링
+        } else {
+          for (const p of posts ?? []) {
+            const k = p.category_id as string;
+            countByCategory.set(k, (countByCategory.get(k) ?? 0) + 1);
+          }
+        }
+      }
+
       setBriefingError(null);
 
-      const mapped: Array<BriefingOriginalCardModel & { count: number }> = (
-        data ?? []
-      ).map((s: any) => ({
-        key: s.key,
-        name: s.name,
-        description: s.description ?? null,
-        count: s.posts?.[0]?.count ?? 0,
-      }));
+      const mapped: Array<BriefingOriginalCardModel & { count: number }> =
+        categoriesTop.map((c) => ({
+          key: c.key,
+          name: c.name,
+          description: c.description ?? null,
+          count: countByCategory.get(c.id) ?? 0,
+        }));
 
       setBriefingOriginal(mapped);
     })();
@@ -218,7 +274,7 @@ export default function HomePage() {
 
   return (
     <main className="min-h-screen bg-(--oboon-bg-page)">
-      <PageContainer className="pt-16 pb-20">
+      <PageContainer className="pt-40">
         <div className="flex flex-col gap-10">
           <HeroSection />
 
@@ -231,13 +287,13 @@ export default function HomePage() {
             />
 
             {loadError && (
-              <div className="text-[12px] text-red-500">
+              <div className="ob-typo-caption text-(--oboon-danger)">
                 데이터를 불러오지 못했어요. ({loadError})
               </div>
             )}
 
             {reviewOfferings.length === 0 ? (
-              <Card className="p-6 text-sm text-(--oboon-text-muted)">
+              <Card className="p-6 ob-typo-body text-(--oboon-text-muted)">
                 아직 등록된 감정평가사 한줄평이 없어요.
               </Card>
             ) : (
@@ -261,7 +317,7 @@ export default function HomePage() {
 
             <div className="mt-3">
               {popularOfferings.length === 0 ? (
-                <Card className="p-6 text-sm text-(--oboon-text-muted)">
+                <Card className="p-6 ob-typo-body text-(--oboon-text-muted)">
                   선택한 지역에서 보여줄 분양이 아직 없어요.
                 </Card>
               ) : (
@@ -275,48 +331,103 @@ export default function HomePage() {
           </section>
 
           {/* 오분 브리핑 */}
-          <section className="flex flex-col gap-2">
+          <section className="mt-10 flex flex-col gap-2">
             <SectionHeader
               title="오분 브리핑"
+              caption="핵심만 빠르게, 판단에 필요한 정보만 정리합니다."
               rightLink={{ href: "/briefing", label: "전체보기" }}
             />
 
             {briefingError ? (
-              <Card className="p-6 text-sm text-(--oboon-text-muted)">
-                {briefingError}
-              </Card>
-            ) : (
-              <Card>
-                <div className="-m-5 rounded-2xl bg-(--oboon-bg-subtle) p-3">
-                  <div className="grid gap-4 lg:grid-cols-4">
-                    {briefingPosts.length === 0 ? (
-                      <div className="text-[13px] text-(--oboon-text-muted)">
-                        아직 공개된 브리핑이 없습니다.
-                      </div>
-                    ) : (
-                      briefingPosts.map((post) => (
-                        <HomeBriefingCompactCard key={post.id} post={post} />
-                      ))
-                    )}
-                  </div>
-
-                  <div className="mt-4 grid gap-4 lg:grid-cols-4">
-                    {briefingOriginal.length === 0 ? (
-                      <div className="text-[13px] text-(--oboon-text-muted)">
-                        아직 공개된 시리즈가 없습니다.
-                      </div>
-                    ) : (
-                      briefingOriginal.map((s) => (
-                        <HomeBriefingCompactOriginalCard
-                          key={s.key}
-                          Original={s}
-                          count={s.count}
-                        />
-                      ))
-                    )}
-                  </div>
+              <Card className="p-6">
+                <div className="ob-typo-body text-(--oboon-text-muted)">
+                  {briefingError}
                 </div>
               </Card>
+            ) : (
+              <div className="grid gap-4 lg:grid-cols-2">
+                {/* 최신 브리핑 */}
+                <Card className="p-0 overflow-hidden">
+                  <div className="border-b border-(--oboon-border-default) px-5 py-4">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <div className="flex flex-col gap-1">
+                        <h3 className="ob-typo-h3 text-(--oboon-text-title)">
+                          최신 브리핑
+                        </h3>
+                        <p className="ob-typo-caption text-(--oboon-text-muted)">
+                          최근 공개된 콘텐츠를 확인하세요.
+                        </p>
+                      </div>
+
+                      <Link
+                        href="/briefing"
+                        className="shrink-0 ob-typo-caption text-(--oboon-text-muted) hover:text-(--oboon-primary)"
+                      >
+                        더보기
+                      </Link>
+                    </div>
+                  </div>
+
+                  <div className="p-4">
+                    {briefingPosts.length === 0 ? (
+                      <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-5">
+                        <div className="ob-typo-caption text-(--oboon-text-muted)">
+                          아직 공개된 브리핑이 없습니다.
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {briefingPosts.map((post) => (
+                          <HomeBriefingCompactCard key={post.id} post={post} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </Card>
+
+                {/* 오분 오리지널 */}
+                <Card className="p-0 overflow-hidden">
+                  <div className="border-b border-(--oboon-border-default) px-5 py-4">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <div className="flex flex-col gap-1">
+                        <div className="ob-typo-h3 text-(--oboon-text-title)">
+                          오분 오리지널
+                        </div>
+                        <p className="ob-typo-caption text-(--oboon-text-muted)">
+                          주제별로 모아보는 깊이 있는 시리즈.
+                        </p>
+                      </div>
+
+                      <Link
+                        href="/briefing/oboon-original"
+                        className="shrink-0 ob-typo-caption text-(--oboon-text-muted) hover:text-(--oboon-primary)"
+                      >
+                        시리즈 보기
+                      </Link>
+                    </div>
+                  </div>
+
+                  <div className="p-4">
+                    {briefingOriginal.length === 0 ? (
+                      <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-5">
+                        <div className="ob-typo-caption text-(--oboon-text-muted)">
+                          아직 공개된 시리즈가 없습니다.
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {briefingOriginal.map((s) => (
+                          <HomeBriefingCompactOriginalCard
+                            key={s.key}
+                            Original={s}
+                            count={s.count}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              </div>
             )}
           </section>
         </div>
@@ -330,13 +441,13 @@ function HeroSection() {
   return (
     <section className="flex flex-col items-center gap-7 text-center">
       <div className="space-y-5">
-        <h1 className="text-4xl font-bold leading-tight text-(--oboon-text-title) md:text-5xl">
+        <div className="ob-typo-display text-(--oboon-text-title)">
           오늘의 분양
           <br />
           데이터를 투명하게
-        </h1>
+        </div>
 
-        <p className="text-base leading-relaxed text-(--oboon-text-body) md:text-lg">
+        <p className="ob-typo-body text-(--oboon-text-body)">
           복잡한 공고문 대신 핵심만 간단하게 정리해 드립니다.
           <br />
           빅데이터 기반의 객관적인 분양 정보를 만나보세요.
@@ -370,20 +481,16 @@ function SectionHeader({
   return (
     <div className="mb-4 flex items-baseline justify-between gap-4">
       <div className="flex flex-col gap-1">
-        <h2 className="text-xl font-semibold tracking-tight text-(--oboon-text-title) md:text-2xl">
-          {title}
-        </h2>
+        <h2 className="ob-typo-h2 text-(--oboon-text-title)">{title}</h2>
         {caption && (
-          <p className="text-sm text-(--oboon-text-muted) md:text-base">
-            {caption}
-          </p>
+          <p className="ob-typo-caption text-(--oboon-text-muted)">{caption}</p>
         )}
       </div>
 
       {rightLink ? (
         <Link
           href={rightLink.href}
-          className="shrink-0 text-sm font-medium text-(--oboon-text-muted) hover:text-(--oboon-primary)"
+          className="shrink-0 ob-typo-caption text-(--oboon-text-muted) hover:text-(--oboon-primary)"
         >
           {rightLink.label}
         </Link>

@@ -147,10 +147,10 @@ export default function OfferingsPage({
       <PageContainer className="pb-16 pt-6">
         {/* Header */}
         <div className="mb-4">
-          <h1 className="text-[28px] font-semibold tracking-[-0.02em] text-(--oboon-text-title)">
+          <h1 className="ob-typo-h1 text-(--oboon-text-title)">
             분양 리스트
           </h1>
-          <p className="mt-1 text-[14px] leading-[1.6] text-(--oboon-text-muted)">
+          <p className="mt-1 ob-typo-body text-(--oboon-text-muted)">
             조건에 맞는 분양 정보를 빠르게 찾을 수 있어요.
           </p>
         </div>
@@ -162,7 +162,7 @@ export default function OfferingsPage({
 
         {/* Meta */}
         <div className="mb-4 flex items-center justify-between">
-          <div className="text-[14px] text-(--oboon-text-muted)">
+          <div className="ob-typo-body text-(--oboon-text-muted)">
             총{" "}
             <span className="font-semibold text-(--oboon-text-title)">
               {items.length}
@@ -171,7 +171,7 @@ export default function OfferingsPage({
           </div>
 
           {loadError && (
-            <div className="text-[12px] text-red-500">
+            <div className="ob-typo-caption text-(--oboon-danger)">
               데이터를 불러오지 못했어요. ({loadError})
             </div>
           )}

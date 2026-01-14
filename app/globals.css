@@ -1,645 +1,470 @@
+/* app/globals.css */
+
+/* Tailwind v4 */
 @import "tailwindcss";
 
-/* NOTE: SUIT는 next/font/local에서 --font-suit로 주입됨 (layout.tsx) */
-/* Chrome, Safari, Edge */
-input[type="number"]::-webkit-outer-spin-button,
-input[type="number"]::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
+/* =========================================================
+   Font Faces (SUIT: Thin~Heavy)
+   ========================================================= */
+
+@font-face {
+  font-family: "SUIT";
+  font-style: normal;
+  font-weight: 100;
+  font-display: swap;
+  src: url("/fonts/SUIT-Thin.woff2") format("woff2");
 }
 
-/* Firefox */
-input[type="number"] {
-  -moz-appearance: textfield;
+@font-face {
+  font-family: "SUIT";
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url("/fonts/SUIT-Light.woff2") format("woff2");
 }
 
-@layer components {
-  /* =========================
-     OBOON Button System
-     ========================= */
-  .ob-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 600;
-    transition: background-color 150ms ease, color 150ms ease,
-      border-color 150ms ease, opacity 150ms ease;
-    border: 1px solid var(--oboon-border-default);
-    white-space: nowrap;
-    user-select: none;
-  }
-
-  /* Sizes */
-  .ob-btn-sm {
-    height: 36px;
-    /* h-9 */
-    padding: 0 16px;
-    /* px-4 */
-    font-size: 14px;
-    line-height: 20px;
-  }
-
-  .ob-btn-md {
-    height: 44px;
-    /* h-11 */
-    padding: 0 16px;
-    /* px-4 */
-    font-size: 14px;
-    line-height: 20px;
-  }
-
-  /* Shapes */
-  .ob-btn-round {
-    border-radius: 10px;
-  }
-
-  .ob-btn-pill {
-    border-radius: 9999px;
-    /* rounded-full */
-  }
-
-  /* Variants (token-based) */
-  .ob-btn-secondary {
-    background: var(--oboon-bg-surface);
-    color: var(--oboon-text-body);
-  }
-
-  .ob-btn-secondary:hover {
-    background: var(--oboon-bg-subtle);
-  }
-
-  .ob-btn-primary {
-    background: var(--oboon-primary);
-    color: #ffffff;
-    border-color: transparent;
-  }
-
-  .ob-btn-primary:hover {
-    opacity: 0.9;
-  }
-
-  .ob-btn:disabled,
-  .ob-btn[aria-disabled="true"] {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-
-  .ob-alert {
-    border-radius: 12px;
-    border: 1px solid var(--oboon-border-default);
-    padding: 12px 14px;
-    font-size: 13px;
-    line-height: 18px;
-  }
-
-  .ob-alert-warning {
-    background: var(--oboon-warning-bg);
-    border-color: var(--oboon-warning-border);
-    color: var(--oboon-warning-text);
-  }
-
-  .ob-alert-danger {
-    background: var(--oboon-danger-bg);
-    border-color: var(--oboon-danger-border);
-    color: var(--oboon-danger-text);
-  }
+@font-face {
+  font-family: "SUIT";
+  font-style: normal;
+  font-weight: 350;
+  font-display: swap;
+  src: url("/fonts/SUIT-SemiLight.woff2") format("woff2");
 }
 
+@font-face {
+  font-family: "SUIT";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/SUIT-Regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "SUIT";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/SUIT-Medium.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "SUIT";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/SUIT-SemiBold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "SUIT";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/SUIT-Bold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "SUIT";
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url("/fonts/SUIT-ExtraBold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "SUIT";
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+  src: url("/fonts/SUIT-Heavy.woff2") format("woff2");
+}
+
+/* =========================================================
+   Base Reset / Defaults
+   ========================================================= */
 :root {
-  --font-sans: var(--font-suit), system-ui, -apple-system, BlinkMacSystemFont,
-    "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
-}
-
-:root {
-  /* ===== Typography Scale (Tokens) ===== */
-  --font-display: 70px;
-  --font-h1: 32px;
-  --font-h2: 24px;
-  --font-h3: 20px;
-  --font-h4: 16px;
-
-  --font-body: 15px;
-  --font-body2: 14px;
-  --font-caption: 13px;
-
-  --line-height-tight: 120%;
-  --line-height-normal: 150%;
-
-  /* letter-spacing presets */
-  --tracking-tight: -0.02em;
-  --tracking-normal: -0.01em;
-
-  /* font family chain (SUIT -> system fallback) */
-  --font-sans: var(--font-suit), system-ui, -apple-system, BlinkMacSystemFont,
-    "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
-}
-
-/* Secondary Button Tokens */
-:root {
-  --btn-secondary-bg: #f1f5f9;
-  --btn-secondary-bg-hover: #e2e8f0;
-  --btn-secondary-text: #475569;
-  --btn-secondary-border: #cbd5e1;
-}
-
-:root[data-theme="dark"] {
-  --btn-secondary-bg: #1f2937;
-  --btn-secondary-bg-hover: #374151;
-  --btn-secondary-text: #d1d5db;
-  --btn-secondary-border: #4b5563;
-}
-
-/* -----------------------------
-   기본: 라이트 모드
------------------------------ */
-:root {
-  /* OBOON Base Tokens - Light */
-  --oboon-bg-page: #f8fafc;
-  --oboon-bg-surface: #ffffff;
-  --oboon-bg-subtle: #f1f5f9;
-
-  --oboon-text-title: #0f172a;
-  --oboon-text-body: #334155;
-  --oboon-text-muted: #64748b;
-
-  --oboon-primary: #2360ff;
-  --oboon-primary-hover: #1d4fe0;
-
-  --oboon-border-default: #e2e8f0;
-  --oboon-shadow-card: 0 12px 32px rgba(15, 23, 42, 0.12);
-
-  --background: var(--oboon-bg-page);
-  --foreground: var(--oboon-text-body);
-
   color-scheme: light;
-
-  /* Card Tokens - Light */
-  --card-bg-surface: #ffffff;
-  --card-bg-gradient-from: #f1f5f9;
-  --card-bg-gradient-to: #e2e8f0;
-
-  --card-text-title: #0f172a;
-  --card-text-body: #334155;
-  --card-text-muted: #64748b;
-
-  --card-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
-
-  /* Badge Tokens - Light */
-  --badge-status-bg: #2360ff;
-  --badge-status-text: #ffffff;
-  --badge-type-bg: rgba(15, 23, 42, 0.08);
-  --badge-type-text: #0f172a;
-
-  /* Briefing Tokens - Light */
-  --briefing-bg-surface: #ffffff;
-  --briefing-text-title: #0f172a;
-  --briefing-text-body: #4b5563;
-  --briefing-text-muted: #9ca3af;
-  --briefing-border: #e5e7eb;
-  --briefing-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
-  --briefing-highlight-bg: #f9fafb;
-
-  /* Danger (error/destructive) */
-  --oboon-danger: #ef4444;
-  /* red-500 */
-  --oboon-danger-hover: #dc2626;
-  /* red-600 */
-  --oboon-danger-bg: #fef2f2;
-  /* red-50 */
-  --oboon-danger-bg-subtle: #fee2e2;
-  /* red-100 */
-  --oboon-danger-text: #991b1b;
-  /* red-800 */
-  --oboon-danger-border: #fca5a5;
-  /* red-300 */
-
-  /* Warning (caution) */
-  --oboon-warning: #f59e0b;
-  /* amber-500 */
-  --oboon-warning-hover: #d97706;
-  /* amber-600 */
-  --oboon-warning-bg: #fffbeb;
-  /* amber-50 */
-  --oboon-warning-bg-subtle: #fef3c7;
-  /* amber-100 */
-  --oboon-warning-text: #92400e;
-  /* amber-800 */
-  --oboon-warning-border: #fcd34d;
-  /* amber-300 */
-
-  /* 1) 지도 마커 컬러(마커 타입별) */
-  --oboon-marker-urgent: var(--oboon-primary);
-  /* 예: 모집중(urgent) */
-  --oboon-marker-upcoming: var(--oboon-warning);
-  /* 예: 모집예정(upcoming) */
-  --oboon-marker-remain: var(--oboon-text-muted);
-  /* 예: 종료/기타(remain) */
-
-  /* 2) 마커 테두리(지도 위에서 배경과 분리) */
-  --oboon-marker-stroke: var(--oboon-bg-surface);
-
-  /* 3) 선택/포커스 링(halo) */
-  /* 링은 primary 기반의 투명색으로: 라이트에서는 비교적 약하게 */
-  --oboon-focus-ring: color-mix(in srgb, var(--oboon-primary) 22%, transparent);
-
-  /* 4) 지도 마커 그림자(라이트는 그림자 강도 조금 낮게) */
-  --oboon-map-shadow-default: rgba(0, 0, 0, 0.22);
-  --oboon-map-shadow-strong: rgba(0, 0, 0, 0.32);
-
-  /* 5) 리스트 선택 뱃지 배경(= primary의 아주 연한 배경) */
-  --oboon-badge-selected-bg: color-mix(
-    in srgb,
-    var(--oboon-primary) 10%,
-    transparent
-  );
-
-  /* 6) 리스트 선택 뱃지 테두리(= primary) */
-  --oboon-badge-selected-border: var(--oboon-primary);
+  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* -----------------------------
-   다크 모드일 때 오버라이드
------------------------------ */
-:root[data-theme="dark"] {
-  /* OBOON Base Tokens - Dark */
-  --oboon-bg-page: #0b0f19;
-  --oboon-bg-surface: #111827;
-  --oboon-bg-subtle: #1f2937;
+* {
+  box-sizing: border-box;
+}
 
-  --oboon-text-title: #f8fafc;
-  --oboon-text-body: #cbd5e1;
-  --oboon-text-muted: #94a3b8;
-
-  --oboon-primary: #3b82f6;
-  --oboon-primary-hover: #2563eb;
-
-  --oboon-border-default: #1f2937;
-  --oboon-shadow-card: 0 18px 40px rgba(0, 0, 0, 0.55);
-
-  --background: var(--oboon-bg-page);
-  --foreground: var(--oboon-text-body);
-
-  color-scheme: dark;
-
-  /* Card Tokens - Dark */
-  --card-bg-surface: rgba(15, 23, 42, 0.98);
-  --card-bg-gradient-from: #dbeafe;
-  --card-bg-gradient-to: #9ca3af;
-
-  --card-text-title: #f8fafc;
-  --card-text-body: #cbd5e1;
-  --card-text-muted: #94a3b8;
-
-  --card-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
-
-  /* Badge Tokens - Dark */
-  --badge-status-bg: #3b82f6;
-  --badge-status-text: #0b0f19;
-  --badge-type-bg: rgba(148, 163, 184, 0.16);
-  --badge-type-text: #e2e8f0;
-
-  /* Briefing Tokens - Dark */
-  --briefing-bg-surface: #020617;
-  --briefing-text-title: #e5e7eb;
-  --briefing-text-body: #9ca3af;
-  --briefing-text-muted: #6b7280;
-  --briefing-border: #020617;
-  --briefing-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
-  --briefing-highlight-bg: #020617;
-
-  /* Danger */
-  --oboon-danger: #f87171;
-  /* red-400 */
-  --oboon-danger-hover: #ef4444;
-  /* red-500 */
-  --oboon-danger-bg: rgba(248, 113, 113, 0.12);
-  --oboon-danger-bg-subtle: rgba(248, 113, 113, 0.2);
-  --oboon-danger-text: #fecaca;
-  /* red-200 */
-  --oboon-danger-border: rgba(248, 113, 113, 0.4);
-
-  /* Warning */
-  --oboon-warning: #fbbf24;
-  /* amber-400 */
-  --oboon-warning-hover: #f59e0b;
-  /* amber-500 */
-  --oboon-warning-bg: rgba(251, 191, 36, 0.12);
-  --oboon-warning-bg-subtle: rgba(251, 191, 36, 0.2);
-  --oboon-warning-text: #fde68a;
-  /* amber-200 */
-  --oboon-warning-border: rgba(251, 191, 36, 0.4);
-
-  /* 1) 지도 마커 컬러(다크에서는 대비가 더 커야 해서 채도/명도 토큰을 쓰는 게 이상적)
-     프로젝트에 primary-strong 같은 토큰이 없으면 그대로 primary를 써도 됩니다. */
-  --oboon-marker-urgent: var(--oboon-primary);
-  --oboon-marker-upcoming: var(--oboon-warning);
-  --oboon-marker-remain: color-mix(
-    in srgb,
-    var(--oboon-text-muted) 85%,
-    white 15%
-  );
-
-  /* 2) 마커 테두리: 다크에서는 surface가 어둡기 때문에 테두리를 살짝 밝게 */
-  --oboon-marker-stroke: color-mix(
-    in srgb,
-    var(--oboon-bg-surface) 70%,
-    white 30%
-  );
-
-  /* 3) 선택 링: 다크에서는 링이 더 안 보이기 쉬워서 조금 더 진하게 */
-  --oboon-focus-ring: color-mix(in srgb, var(--oboon-primary) 32%, transparent);
-
-  /* 4) 지도 마커 그림자: 다크에서는 “그림자” 대신 글로우처럼 보이게 강도를 약간 올림 */
-  --oboon-map-shadow-default: rgba(0, 0, 0, 0.45);
-  --oboon-map-shadow-strong: rgba(0, 0, 0, 0.6);
-
-  /* 5) 선택 뱃지 배경: 다크에서는 너무 탁해지지 않도록 조금 더 올림 */
-  --oboon-badge-selected-bg: color-mix(
-    in srgb,
-    var(--oboon-primary) 16%,
-    transparent
-  );
-
-  /* 6) 선택 뱃지 테두리 */
-  --oboon-badge-selected-border: var(--oboon-primary);
+html,
+body {
+  height: 100%;
 }
 
 body {
-  background-color: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans);
+  margin: 0;
+  font-family: var(
+    --oboon-font-family-base,
+    system-ui,
+    -apple-system,
+    sans-serif
+  );
+  background: var(--oboon-bg-default);
+  color: var(--oboon-text-body);
 }
 
-/* --------------------------------------------------
-   Typography Presets (Utilities)
--------------------------------------------------- */
-@layer utilities {
-  /* Headings */
-  .ob-typo-display {
-    font-size: var(--font-display);
-    line-height: var(--line-height-tight);
-    letter-spacing: var(--tracking-tight);
-    font-weight: 800;
-  }
-  .ob-typo-h1 {
-    font-size: var(--font-h1);
-    line-height: var(--line-height-tight);
-    letter-spacing: var(--tracking-tight);
-    font-weight: 800;
-  }
-  .ob-typo-h2 {
-    font-size: var(--font-h2);
-    line-height: var(--line-height-tight);
-    letter-spacing: var(--tracking-tight);
-    font-weight: 700;
-  }
-  .ob-typo-h3 {
-    font-size: var(--font-h3);
-    line-height: var(--line-height-normal);
-    letter-spacing: var(--tracking-normal);
-    font-weight: 600;
-  }
-  .ob-typo-h4 {
-    font-size: var(--font-h4);
-    line-height: var(--line-height-normal);
-    letter-spacing: var(--tracking-normal);
-    font-weight: 600;
-  }
-
-  /* Body */
-  .ob-typo-body {
-    font-size: var(--font-body);
-    line-height: var(--line-height-normal);
-    letter-spacing: var(--tracking-normal);
-    font-weight: 400;
-  }
-  .ob-typo-body2 {
-    font-size: var(--font-body2);
-    line-height: var(--line-height-normal);
-    letter-spacing: var(--tracking-normal);
-    font-weight: 400;
-  }
-  .ob-typo-caption {
-    font-size: var(--font-caption);
-    line-height: var(--line-height-normal);
-    letter-spacing: 0;
-    font-weight: 400;
-  }
-
-  /* Card-specific presets (OBOON UI에 자주 쓰는 조합) */
-  .ob-typo-card-title {
-    font-size: var(--font-body);
-    line-height: 145%;
-    letter-spacing: var(--tracking-normal);
-    font-weight: 600;
-  }
-  .ob-typo-card-title-sm {
-    font-size: var(--font-h3);
-    line-height: 145%;
-    letter-spacing: var(--tracking-normal);
-    font-weight: 600;
-  }
-  .ob-typo-meta {
-    font-size: 15px;
-    line-height: 150%;
-    letter-spacing: 0;
-    font-weight: 400;
-  }
-  .ob-typo-cta {
-    font-size: 15px;
-    line-height: 150%;
-    letter-spacing: 0;
-    font-weight: 500;
-  }
-
-  .ob-typo-nav {
-    font-size: var(--font-nav);
-    line-height: 150%;
-    letter-spacing: var(--tracking-normal);
-    font-weight: 500;
-  }
-
-  .ob-typo-button {
-    font-size: var(--font-button);
-    line-height: 150%;
-    letter-spacing: var(--tracking-normal);
-    font-weight: 600;
-  }
-}
-/* --------------------------------------------------
-   3) 공통 컴포넌트 스타일
--------------------------------------------------- */
-
-.input-basic {
-  @apply w-full px-4 py-3 rounded-xl bg-white text-slate-900 border border-slate-300 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500;
+/* Links */
+a {
+  color: inherit;
+  text-decoration: none;
 }
 
-.input-readonly {
-  @apply w-full px-4 py-3 rounded-xl bg-slate-100 text-slate-700 border border-slate-200;
+/* =========================================================
+   OBOON Core Tokens (Semantic)
+   - These tokens are referenced across UI components
+   ========================================================= */
+:root {
+  /* Font family (SSOT) */
+  --oboon-font-family-base: "SUIT";
+
+  /* Core surfaces */
+  --oboon-bg-default: #0b0c10;
+  --oboon-bg-surface: #0f1117;
+  --oboon-bg-subtle: rgba(255, 255, 255, 0.06);
+  --oboon-overlay: rgba(0, 0, 0, 0.6);
+
+  /* Text */
+  --oboon-text-title: rgba(255, 255, 255, 0.92);
+  --oboon-text-body: rgba(255, 255, 255, 0.82);
+  --oboon-text-muted: rgba(255, 255, 255, 0.6);
+
+  /* Borders / shadows */
+  --oboon-border-default: rgba(255, 255, 255, 0.1);
+  --oboon-border-strong: rgba(255, 255, 255, 0.2);
+  --oboon-shadow-card: 0 10px 30px rgba(0, 0, 0, 0.35);
+
+  /* Brand */
+  --oboon-primary: #5b8cff;
+  --oboon-primary-hover: #1d4fe0;
+  --oboon-accent: #5b8cff;
+  --oboon-on-primary: #ffffff;
+  --oboon-on-accent: #ffffff;
+
+  /* Feedback tokens */
+  --oboon-danger: #ef4444;
+  --oboon-danger-hover: #dc2626;
+  --oboon-danger-border: rgba(239, 68, 68, 0.35);
+  --oboon-danger-bg: rgba(239, 68, 68, 0.12);
+  --oboon-on-danger: #ffffff;
+  --oboon-spinner-ring: rgba(255, 255, 255, 0.3);
+  --oboon-spinner-head: rgba(255, 255, 255, 0.8);
+
+  --oboon-warning: #f59e0b;
+  --oboon-warning-bg: rgba(245, 158, 11, 0.12);
+  --oboon-warning-bg-subtle: rgba(245, 158, 11, 0.18);
+  --oboon-warning-text: rgba(255, 255, 255, 0.9);
+  --oboon-warning-border: rgba(245, 158, 11, 0.35);
+  --oboon-warning-hover: rgba(245, 158, 11, 0.22);
+
+  /* Optional: map */
+  --oboon-map-shadow-default: 0 12px 32px rgba(0, 0, 0, 0.25);
+  --oboon-map-shadow-strong: 0 18px 45px rgba(0, 0, 0, 0.35);
+
+  /* Optional: badge selected */
+  --oboon-badge-selected-bg: rgba(91, 140, 255, 0.16);
+  --oboon-badge-selected-border: rgba(91, 140, 255, 0.35);
+
+  /* Optional: marker system (used dynamically: var(--oboon-marker-${type})) */
+  --oboon-marker-stroke: rgba(255, 255, 255, 0.85);
 }
 
-.input-label {
-  @apply text-xs text-slate-400;
+/* Light theme (if you use .light or data-theme="light") */
+:root[data-theme="light"],
+.light {
+  color-scheme: light;
+
+  --oboon-bg-default: #f6f7fb;
+  --oboon-bg-surface: #ffffff;
+  --oboon-bg-subtle: rgba(15, 23, 42, 0.05);
+  --oboon-overlay: rgba(15, 23, 42, 0.35);
+
+  --oboon-text-title: rgba(15, 23, 42, 0.92);
+  --oboon-text-body: rgba(15, 23, 42, 0.78);
+  --oboon-text-muted: rgba(15, 23, 42, 0.55);
+
+  --oboon-border-default: rgba(15, 23, 42, 0.1);
+  --oboon-border-strong: rgba(15, 23, 42, 0.2);
+  --oboon-shadow-card: 0 10px 26px rgba(15, 23, 42, 0.08);
+
+  --oboon-primary: #2563eb;
+  --oboon-accent: #2563eb;
+  --oboon-on-primary: #ffffff;
+  --oboon-on-accent: #ffffff;
+
+  --oboon-danger: #ef4444;
+  --oboon-danger-hover: #dc2626;
+  --oboon-danger-border: rgba(239, 68, 68, 0.25);
+  --oboon-danger-bg: rgba(239, 68, 68, 0.12);
+  --oboon-on-danger: #ffffff;
+  --oboon-spinner-ring: rgba(255, 255, 255, 0.3);
+  --oboon-spinner-head: rgba(255, 255, 255, 0.8);
+
+  --oboon-warning: #f59e0b;
+  --oboon-warning-bg: rgba(245, 158, 11, 0.12);
+  --oboon-warning-bg-subtle: rgba(245, 158, 11, 0.18);
+  --oboon-warning-text: rgba(15, 23, 42, 0.92);
+  --oboon-warning-border: rgba(245, 158, 11, 0.28);
+  --oboon-warning-hover: rgba(245, 158, 11, 0.2);
 }
 
-/* 버튼 기본 스타일 */
-.btn-primary {
-  @apply px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-500;
+/* Dark theme (if you use .dark or data-theme="dark") */
+:root[data-theme="dark"],
+.dark {
+  color-scheme: dark;
 }
 
-/* 제출 버튼 */
-.btn-submit {
-  @apply w-full p-3 rounded font-bold bg-emerald-500 text-black hover:bg-emerald-600;
+/* =========================================================
+   Typography SSOT (from Figma variables)
+   - sizes / weights / line-heights / tracking are centralized
+   ========================================================= */
+:root {
+  /* font sizes (px) */
+  --oboon-font-size-display: 70px;
+  --oboon-font-size-h1: 32px;
+  --oboon-font-size-h2: 24px;
+  --oboon-font-size-h3: 20px;
+  --oboon-font-size-subtitle: 16px;
+  --oboon-font-size-body: 15px;
+  --oboon-font-size-caption: 13px;
+
+  /* font weights */
+  --oboon-font-weight-thin: 100;
+  --oboon-font-weight-light: 300;
+  --oboon-font-weight-semilight: 350;
+  --oboon-font-weight-regular: 400;
+  --oboon-font-weight-medium: 500;
+  --oboon-font-weight-semibold: 600;
+  --oboon-font-weight-bold: 700;
+  --oboon-font-weight-extrabold: 800;
+  --oboon-font-weight-heavy: 900;
+
+  /* line heights (Figma percent → CSS unitless) */
+  --oboon-line-height-tight: 1.2; /* 120% */
+  --oboon-line-height-base: 1.5; /* 150% */
+  --oboon-line-height-loose: 1.7; /* 170% */
+
+  /* letter spacing (Figma number → em) */
+  --oboon-letter-spacing-tight: -0.01em;
+  --oboon-letter-spacing-base: 0em;
+  --oboon-letter-spacing-wide: 0.02em;
+
+  /* paragraph spacing (optional, for markdown) */
+  --oboon-paragraph-spacing: 8px;
 }
 
-/* 삭제 버튼 */
-.btn-danger {
-  @apply px-4 py-2 rounded-xl bg-red-100 text-red-600 hover:bg-red-200;
+/* =========================================================
+   Typography Role Classes (SSOT)
+   - Only typography: family / size / weight / line-height / tracking
+   - Color is NOT included: use text tokens in markup.
+   ========================================================= */
+.ob-typo-display {
+  font-family: var(--oboon-font-family-base);
+  font-size: var(--oboon-font-size-display);
+  font-weight: var(--oboon-font-weight-bold);
+  line-height: var(--oboon-line-height-tight);
+  letter-spacing: var(--oboon-letter-spacing-tight);
 }
 
-/* Select 기본 스타일 */
-.select-basic {
-  @apply w-full p-2 mb-2 rounded-lg bg-white text-slate-900 border border-slate-300 dark:bg-slate-800 dark:text-white dark:border-slate-700;
+.ob-typo-h1 {
+  font-family: var(--oboon-font-family-base);
+  font-size: var(--oboon-font-size-h1);
+  font-weight: var(--oboon-font-weight-bold);
+  line-height: var(--oboon-line-height-tight);
+  letter-spacing: var(--oboon-letter-spacing-tight);
 }
 
-/* Textarea 기본 */
-.textarea-basic {
-  @apply w-full p-2 mb-2 rounded-lg bg-white text-slate-900 border border-slate-300 dark:bg-slate-800 dark:text-white dark:border-slate-700;
+.ob-typo-h2 {
+  font-family: var(--oboon-font-family-base);
+  font-size: var(--oboon-font-size-h2);
+  font-weight: var(--oboon-font-weight-semibold);
+  line-height: var(--oboon-line-height-tight);
+  letter-spacing: var(--oboon-letter-spacing-tight);
 }
 
-/* 보조 버튼 */
-.btn-secondary {
-  @apply px-4 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200;
+.ob-typo-h3 {
+  font-family: var(--oboon-font-family-base);
+  font-size: var(--oboon-font-size-h3);
+  font-weight: var(--oboon-font-weight-semibold);
+  line-height: var(--oboon-line-height-tight);
+  letter-spacing: var(--oboon-letter-spacing-base);
 }
 
-/* 저장 (확정) 버튼 – w-full 없음 */
-.btn-save {
-  @apply px-4 py-2 rounded-md font-semibold bg-emerald-500 text-black hover:bg-emerald-600 transition;
+.ob-typo-subtitle {
+  font-family: var(--oboon-font-family-base);
+  font-size: var(--oboon-font-size-subtitle);
+  font-weight: var(--oboon-font-weight-medium);
+  line-height: var(--oboon-line-height-base);
+  letter-spacing: var(--oboon-letter-spacing-base);
 }
 
-/* date input 달력 아이콘 흰색 */
-input[type="date"]::-webkit-calendar-picker-indicator {
-  filter: invert(1);
-  opacity: 0.8;
-  cursor: pointer;
+.ob-typo-body {
+  font-family: var(--oboon-font-family-base);
+  font-size: var(--oboon-font-size-body);
+  font-weight: var(--oboon-font-weight-regular);
+  line-height: var(--oboon-line-height-base);
+  letter-spacing: var(--oboon-letter-spacing-base);
 }
 
-/* Markdown preview: Tailwind preflight로 사라진 기본 문서 스타일 복원 */
-@layer utilities {
-  .ob-md {
-    color: var(--oboon-text-body);
-  }
-
-  .ob-md h1 {
-    font-size: 22px;
-    line-height: 1.25;
-    font-weight: 700;
-    margin: 0 0 12px 0;
-    color: var(--oboon-text-title);
-  }
-  .ob-md h2 {
-    font-size: 18px;
-    line-height: 1.3;
-    font-weight: 700;
-    margin: 20px 0 8px 0;
-    color: var(--oboon-text-title);
-  }
-  .ob-md h3 {
-    font-size: 16px;
-    line-height: 1.35;
-    font-weight: 700;
-    margin: 16px 0 6px 0;
-    color: var(--oboon-text-title);
-  }
-
-  .ob-md p {
-    margin: 8px 0;
-    line-height: 1.85;
-  }
-
-  /* 핵심: list-style 복원 */
-  .ob-md ul {
-    list-style: disc;
-    padding-left: 1.25rem; /* 20px */
-    margin: 8px 0;
-  }
-  .ob-md ol {
-    list-style: decimal;
-    padding-left: 1.25rem;
-    margin: 8px 0;
-  }
-  .ob-md li {
-    margin: 4px 0;
-  }
-
-  .ob-md hr {
-    border: 0;
-    border-top: 1px solid var(--oboon-border-default);
-    margin: 20px 0;
-  }
-
-  .ob-md blockquote {
-    margin: 12px 0;
-    padding-left: 12px;
-    border-left: 2px solid var(--oboon-border-default);
-    color: var(--oboon-text-muted);
-  }
-
-  .ob-md code {
-    border: 1px solid var(--oboon-border-default);
-    background: var(--oboon-bg-subtle);
-    border-radius: 8px;
-    padding: 0.1rem 0.35rem;
-    font-size: 12px;
-  }
-  .ob-md pre {
-    margin: 12px 0;
-    padding: 12px;
-    border: 1px solid var(--oboon-border-default);
-    background: var(--oboon-bg-subtle);
-    border-radius: 14px;
-    overflow: auto;
-  }
-  .ob-md pre code {
-    border: 0;
-    background: transparent;
-    padding: 0;
-    font-size: 12px;
-  }
-
-  /* GFM table */
-  .ob-md table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 12px 0;
-    font-size: 13px;
-  }
-  .ob-md th,
-  .ob-md td {
-    border: 1px solid var(--oboon-border-default);
-    padding: 8px 10px;
-    vertical-align: top;
-  }
-  .ob-md th {
-    background: var(--oboon-bg-subtle);
-    font-weight: 600;
-    color: var(--oboon-text-title);
-  }
+.ob-typo-body2 {
+  font-family: var(--oboon-font-family-base);
+  font-size: var(--oboon-font-size-body);
+  font-weight: var(--oboon-font-weight-medium);
+  line-height: var(--oboon-line-height-base);
+  letter-spacing: var(--oboon-letter-spacing-base);
 }
 
-/* OBOON Header Logo */
+.ob-typo-caption {
+  font-family: var(--oboon-font-family-base);
+  font-size: var(--oboon-font-size-caption);
+  font-weight: var(--oboon-font-weight-regular);
+  line-height: var(--oboon-line-height-base);
+  letter-spacing: var(--oboon-letter-spacing-base);
+}
+
+.ob-typo-button {
+  font-family: var(--oboon-font-family-base);
+  font-size: var(--oboon-font-size-subtitle);
+  font-weight: var(--oboon-font-weight-semilight);
+  line-height: var(--oboon-line-height-tight);
+  letter-spacing: var(--oboon-letter-spacing-base);
+}
+
+.ob-typo-nav {
+  font-family: var(--oboon-font-family-base);
+  font-size: var(--oboon-font-size-subtitle);
+  font-weight: var(--oboon-font-weight-medium);
+  line-height: var(--oboon-line-height-tight);
+  letter-spacing: var(--oboon-letter-spacing-base);
+}
+
+/* Optional: enforce HTML heading defaults to align with roles */
+h1,
+h2,
+h3 {
+  margin: 0;
+}
+
+h1 {
+  font-family: var(--oboon-font-family-base);
+  font-size: var(--oboon-font-size-h1);
+  font-weight: var(--oboon-font-weight-bold);
+  line-height: var(--oboon-line-height-tight);
+  letter-spacing: var(--oboon-letter-spacing-tight);
+}
+
+h2 {
+  font-family: var(--oboon-font-family-base);
+  font-size: var(--oboon-font-size-h2);
+  font-weight: var(--oboon-font-weight-semibold);
+  line-height: var(--oboon-line-height-tight);
+  letter-spacing: var(--oboon-letter-spacing-tight);
+}
+
+h3 {
+  font-family: var(--oboon-font-family-base);
+  font-size: var(--oboon-font-size-h3);
+  font-weight: var(--oboon-font-weight-semibold);
+  line-height: var(--oboon-line-height-tight);
+  letter-spacing: var(--oboon-letter-spacing-base);
+}
+
+/* =========================================================
+   Feature / Component Reserved Tokens (REVIEW — keep)
+   ========================================================= */
+
+/* Briefing reserved tokens (may be used by CMS/markdown in future) */
+:root {
+  --briefing-bg-surface: var(--oboon-bg-surface);
+  --briefing-text-title: var(--oboon-text-title);
+  --briefing-text-body: var(--oboon-text-body);
+  --briefing-text-muted: var(--oboon-text-muted);
+  --briefing-border: var(--oboon-border-default);
+  --briefing-shadow: var(--oboon-shadow-card);
+  --briefing-highlight-bg: rgba(91, 140, 255, 0.14);
+}
+
+/* Card reserved tokens (future theming layer) */
+:root {
+  --card-bg-surface: var(--oboon-bg-surface);
+  --card-bg-gradient-from: rgba(91, 140, 255, 0.1);
+  --card-bg-gradient-to: rgba(0, 0, 0, 0);
+  --card-text-title: var(--oboon-text-title);
+  --card-text-body: var(--oboon-text-body);
+  --card-text-muted: var(--oboon-text-muted);
+}
+
+/* =========================================================
+   Logo (existing pattern: .oboon-logo)
+   - Source: /public/logo.svg
+   - Light: primary / Dark: white
+   ========================================================= */
+
+:root {
+  --oboon-logo-color: #ffffff; /* dark default */
+}
+
+:root[data-theme="light"],
+.light {
+  --oboon-logo-color: var(--oboon-primary);
+}
+
+:root[data-theme="dark"],
+.dark {
+  --oboon-logo-color: #ffffff;
+}
+
+/* 기존 Header.tsx에서 쓰는 클래스명 유지: .oboon-logo */
 .oboon-logo {
-  width: 24px;
-  height: 24px;
   display: inline-block;
+  width: 22px; /* 필요하면 조절 */
+  height: 22px; /* 필요하면 조절 */
+  background-color: var(--oboon-logo-color);
 
-  background-color: var(--oboon-primary);
+  /* SVG를 마스크로 사용 (단일 파일) */
+  -webkit-mask-image: url("/logo.svg");
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
 
-  -webkit-mask: url("/logo.svg") no-repeat center / contain;
-  mask: url("/logo.svg") no-repeat center / contain;
+  mask-image: url("/logo.svg");
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
 }
 
-/* Dark mode */
-[data-theme="dark"] .oboon-logo {
-  background-color: #ffffff;
+/* =========================================================
+   Legacy Utility Classes (deprecated)
+   - Do NOT add new usage.
+   - Prefer components/ui (Button/Input/etc.)
+   ========================================================= */
+.btn-primary,
+.btn-secondary,
+.btn-submit,
+.btn-danger,
+.btn-save,
+.input-label,
+.input-readonly,
+.select-basic,
+.textarea-basic,
+.ob-alert-warning {
+  /* Intentionally left as-is placeholder.
+     If you still rely on these somewhere, keep the real styles here.
+     Otherwise, safe to delete AFTER a repo-wide search confirms 0 usage. */
+  display: revert;
+}
+
+/* =========================================================
+   react-datepicker minimal baseline (optional)
+   - your DatePicker component already injects styles via jsx global,
+     so this section can stay minimal.
+   ========================================================= */
+.react-datepicker__triangle {
+  display: none !important;
 }

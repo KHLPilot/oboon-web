@@ -161,7 +161,7 @@ export default async function BriefingPage() {
       <PageContainer className="pt-10 pb-20">
         {/* ===== HERO (OBOON Original) ===== */}
         <div className="mb-10">
-          <Card className="p-5 overflow-hidden shadow-none h-[500px]">
+          <Card className="p-5 overflow-hidden shadow-none h-125">
             <div className="grid grid-cols-1 md:grid-cols-2 h-full gap-5">
               {/* left */}
               <div className="relative h-full">
@@ -172,7 +172,7 @@ export default async function BriefingPage() {
                       <span
                         key={t.key}
                         className={cx(
-                          "inline-flex items-center rounded-full border px-3 py-1 text-[12px] font-medium",
+                          "inline-flex items-center rounded-full border px-3 py-1 ob-typo-caption",
                           "border-(--oboon-border-default) bg-(--oboon-bg-subtle) text-(--oboon-text-muted)"
                         )}
                       >
@@ -226,7 +226,7 @@ export default async function BriefingPage() {
                       <Button
                         size="sm"
                         shape="pill"
-                        className="w-[140px] h-10 mb-2.5"
+                        className="w-35 h-10 mb-2.5"
                       >
                         보러가기
                       </Button>
@@ -254,7 +254,7 @@ export default async function BriefingPage() {
               일반 브리핑
             </div>
           </div>
-          <div className="mt-1 ob-typo-meta text-(--oboon-text-muted)">
+          <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
             단일 주제로 정리된 최신 브리핑 글입니다.
           </div>
         </div>

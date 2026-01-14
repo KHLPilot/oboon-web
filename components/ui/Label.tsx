@@ -9,8 +9,7 @@ export default function Label({ className = "", ...props }: LabelProps) {
   return (
     <label
       className={[
-        "text-sm font-medium text-(--oboon-text-title)",
-        "leading-none",
+        "ob-typo-caption text-(--oboon-text-title)",
         className,
       ].join(" ")}
       {...props}

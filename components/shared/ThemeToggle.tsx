@@ -45,7 +45,7 @@ export default function ThemeToggle() {
   // 마운트 전에는 placeholder 렌더링
   if (!mounted) {
     return (
-      <div className="flex h-9 w-9 items-center justify-center rounded-full border border-(--oboon-border-default) bg-white/5">
+      <div className="flex h-8 w-8 items-center justify-center rounded-full border border-(--oboon-border-default) bg-white/5">
         <div className="h-4 w-4" />
       </div>
     );
@@ -57,7 +57,7 @@ export default function ThemeToggle() {
     <button
       type="button"
       onClick={toggleTheme}
-      className="flex h-9 w-9 items-center justify-center rounded-full border border-(--oboon-border-default) bg-white/5 text-(--oboon-text-muted) transition hover:bg-white/10"
+      className="flex h-8 w-8 items-center justify-center rounded-full border border-(--oboon-border-default) bg-white/5 text-(--oboon-text-muted) transition hover:bg-white/10"
       aria-label={isDark ? "라이트 모드로 전환" : "다크 모드로 전환"}
     >
       {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}

@@ -119,7 +119,7 @@ export default function BriefingCardGrid({
                       <Badge variant="status">{badge}</Badge>
                     </div>
 
-                    <div className="ob-typo-card-title-sm text-(--oboon-text-title) line-clamp-2">
+                    <div className="ob-typo-h3 text-(--oboon-text-title) line-clamp-2">
                       {p.title}
                     </div>
 
@@ -132,7 +132,7 @@ export default function BriefingCardGrid({
                     </div>
                   </div>
 
-                  <div className="w-[150px] shrink-0">
+                  <div className="w-37.5 shrink-0">
                     <div className="h-full w-full overflow-hidden rounded-2xl border border-(--oboon-border-default)">
                       <Cover
                         mode="fill"

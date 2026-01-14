@@ -280,7 +280,7 @@ export default async function OboonOriginalPostPage({
       <PageContainer className="pt-10 pb-20">
         {/* ===== Hero ===== */}
         <div className="mb-8">
-          <Card className="p-5 overflow-hidden shadow-none h-[500px]">
+          <Card className="p-5 overflow-hidden shadow-none h-125">
             <div className="grid grid-cols-1 md:grid-cols-2 h-full gap-5">
               {/* left */}
               <div className="relative full">
@@ -403,7 +403,7 @@ export default async function OboonOriginalPostPage({
 
         {/* ===== 관련 블록 (카테고리 카드 + 관련 글 리스트) ===== */}
         <Card className="mt-40 shadow-none overflow-hidden p-0">
-          <div className="grid h-[500px] grid-cols-1 lg:grid-cols-2">
+          <div className="grid h-124 grid-cols-1 lg:grid-cols-2">
             <div className="bg-(--oboon-bg-subtle)">
               <div className="h-full rounded-2xl bg-(--oboon-bg-surface) p-10">
                 <div className="mb-4 grid grid-cols-[1fr_auto] items-end">
@@ -458,7 +458,7 @@ export default async function OboonOriginalPostPage({
             </div>
 
             {/* ===== 우측 패널 (subtle) ===== */}
-            <div className="bg-(--oboon-bg-subtle)">
+            <div className="bg-(--oboon-bg-surface)">
               <div className="h-full bg-(--oboon-bg-subtle) p-5">
                 <div className="space-y-5">
                   {(relatedData ?? []).map((r: any) => {
@@ -470,7 +470,7 @@ export default async function OboonOriginalPostPage({
 
                     return (
                       <Link key={r.id} href={href} className="block">
-                        <Card className="p-5 h-[140px] shadow-none bg-(--oboon-bg-surface) hover:bg-(--oboon-bg-subtle) transition-colors">
+                        <Card className="p-5 h-35 shadow-none bg-(--oboon-bg-surface) hover:bg-(--oboon-bg-subtle) transition-colors">
                           <div className="ob-typo-h3 text-(--oboon-text-title) line-clamp-2">
                             {r.title}
                           </div>

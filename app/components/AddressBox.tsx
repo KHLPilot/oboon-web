@@ -21,19 +21,19 @@ export default function AddressBox({ roadAddress, jibunAddress }: Props) {
   return (
     <div
       className="rounded-lg p-3 space-y-3
-      bg-slate-100 dark:bg-slate-800
-      border border-slate-200 dark:border-slate-700"
+      bg-(--oboon-bg-subtle)
+      border border-(--oboon-border-default)"
     >
       {/* 도로명주소 */}
       <div className="space-y-1">
         <div className="flex items-center justify-between">
-          <span className="text-sm text-slate-500 dark:text-slate-400">
+          <span className="text-sm text-(--oboon-text-muted)">
             도로명주소
           </span>
           <button
             onClick={() => copy("road", roadAddress)}
             className="text-xs flex items-center gap-1
-            text-slate-500 hover:text-slate-900 dark:hover:text-white"
+            text-(--oboon-text-muted) hover:text-(--oboon-text-title)"
           >
             {copied === "road" ? (
               <>
@@ -47,7 +47,7 @@ export default function AddressBox({ roadAddress, jibunAddress }: Props) {
           </button>
         </div>
 
-        <div className="font-semibold text-slate-900 dark:text-white">
+        <div className="font-semibold text-(--oboon-text-title)">
           {roadAddress}
         </div>
       </div>
@@ -56,13 +56,13 @@ export default function AddressBox({ roadAddress, jibunAddress }: Props) {
       {jibunAddress && (
         <div className="space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-slate-500 dark:text-slate-400">
+            <span className="text-sm text-(--oboon-text-muted)">
               지번주소
             </span>
             <button
               onClick={() => copy("jibun", jibunAddress)}
               className="text-xs flex items-center gap-1
-              text-slate-500 hover:text-slate-900 dark:hover:text-white"
+              text-(--oboon-text-muted) hover:text-(--oboon-text-title)"
             >
               {copied === "jibun" ? (
                 <>
@@ -76,7 +76,7 @@ export default function AddressBox({ roadAddress, jibunAddress }: Props) {
             </button>
           </div>
 
-          <div className="font-semibold text-slate-900 dark:text-white">
+          <div className="font-semibold text-(--oboon-text-title)">
             {jibunAddress}
           </div>
         </div>

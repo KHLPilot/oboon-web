@@ -60,7 +60,7 @@ export default function OfferingCard({ offering }: { offering: Offering }) {
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="absolute inset-0 bg-linear-to-br from-(--oboon-bg-subtle) to-(--oboon-border-default) opacity-40" />
-                  <span className="relative text-sm text-(--oboon-text-muted)">
+                  <span className="relative ob-typo-caption text-(--oboon-text-muted)">
                     {UXCopy.imagePlaceholder}
                   </span>
                 </div>
@@ -91,20 +91,20 @@ export default function OfferingCard({ offering }: { offering: Offering }) {
 
           {/* 텍스트/배지 영역 */}
           <div className="px-5 pt-4 pb-5">
-            <h3 className="text-base font-semibold text-(--oboon-text-title) line-clamp-2">
+            <h3 className="ob-typo-h3 text-(--oboon-text-title) line-clamp-2">
               {offering.title}
             </h3>
 
-            <p className="mt-1 text-sm text-(--oboon-text-muted)">
+            <p className="mt-1 ob-typo-body text-(--oboon-text-muted)">
               {offering.addressShort}
             </p>
 
             <div className="mt-4 flex items-end justify-between gap-3">
               <div>
-                <p className="text-base font-semibold text-(--oboon-text-title)">
+                <p className="ob-typo-subtitle text-(--oboon-text-title)">
                   {priceRange}
                 </p>
-                <p className="mt-0.5 text-xs text-(--oboon-text-muted)">
+                <p className="mt-0.5 ob-typo-caption text-(--oboon-text-muted)">
                   분양가 기준
                 </p>
               </div>

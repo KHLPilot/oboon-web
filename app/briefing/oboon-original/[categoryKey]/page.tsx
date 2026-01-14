@@ -157,7 +157,7 @@ export default async function OboonOriginalCategoryPage({
       <PageContainer className="pt-10 pb-20">
         {/* ===== HERO (OBOON Original) ===== */}
         <div className="mb-10">
-          <Card className="p-5 overflow-hidden shadow-none h-[500px]">
+          <Card className="p-5 overflow-hidden shadow-none h-125">
             <div className="grid grid-cols-1 md:grid-cols-2 h-full gap-5">
               {/* left */}
               <div className="relative h-full">

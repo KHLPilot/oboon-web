@@ -52,7 +52,7 @@ export default function BriefingOriginalCard({ original, count, href }: Props) {
             {original.name}
           </div>
 
-          <div className="mt-3 ob-typo-meta text-(--oboon-text-muted)">
+          <div className="mt-3 ob-typo-caption text-(--oboon-text-muted)">
             브리핑 {count}개
           </div>
         </div>
