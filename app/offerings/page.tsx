@@ -1,6 +1,7 @@
 "use client";
 // app/offerings/page.tsx
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import FilterBar from "@/features/offerings/FilterBar";
 import OfferingCard from "@/features/offerings/OfferingCard";
 import { createSupabaseClient } from "@/lib/supabaseClient";
@@ -31,6 +32,7 @@ type SearchParams = {
   q?: string;
   budgetMin?: string; // 억 단위
   budgetMax?: string; // 억 단위
+  purpose?: string;
 };
 
 function isRegionTab(v: string): v is OfferingRegionTab {
@@ -87,11 +89,20 @@ function filterOfferings(all: Offering[], sp: SearchParams) {
  * Page
  * ================================ */
 
-export default function OfferingsPage({
-  searchParams,
-}: {
-  searchParams?: SearchParams;
-}) {
+export default function OfferingsPage() {
+  const sp = useSearchParams();
+
+  const searchParams: SearchParams = useMemo(() => {
+    return {
+      region: sp.get("region") ?? undefined,
+      status: sp.get("status") ?? undefined,
+      q: sp.get("q") ?? undefined,
+      budgetMin: sp.get("budgetMin") ?? undefined,
+      budgetMax: sp.get("budgetMax") ?? undefined,
+      purpose: sp.get("purpose") ?? undefined,
+    };
+  }, [sp]);
+
   const supabase = useMemo(() => createSupabaseClient(), []);
   const [rows, setRows] = useState<PropertyRow[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -136,7 +147,7 @@ export default function OfferingsPage({
   }, [rows, fallback]);
 
   const items = useMemo(
-    () => filterOfferings(allOfferings, searchParams ?? {}),
+    () => filterOfferings(allOfferings, searchParams),
     [allOfferings, searchParams]
   );
 

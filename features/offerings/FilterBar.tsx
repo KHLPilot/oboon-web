@@ -181,7 +181,6 @@ function FilterBarBody({
     (region !== "전체" ? 1 : 0) +
     (status !== "전체" ? 1 : 0) +
     (purpose ? 1 : 0) +
-    (urlQ ? 1 : 0) +
     (urlBudgetMin || urlBudgetMax ? 1 : 0);
 
   const minVal = parseEok(budgetMin);
@@ -230,7 +229,7 @@ function FilterBarBody({
               id="q_mobile"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="지역, 단지명으로 검색"
+              placeholder="단지명으로 검색"
               className={cx(
                 "h-10 w-full rounded-full px-5 ob-typo-body",
                 "outline-none focus:ring-2 focus:ring-(--oboon-primary)/30"
@@ -290,7 +289,7 @@ function FilterBarBody({
             id="q"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="지역, 단지명으로 검색"
+            placeholder="단지명으로 검색"
             className={cx(
               "h-11 w-full rounded-xl px-4 ob-typo-body",
               "outline-none focus:ring-2 focus:ring-(--oboon-primary)/30"
