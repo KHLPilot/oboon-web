@@ -83,7 +83,11 @@ export default function SignupPage() {
 
     pollingIntervalRef.current = setInterval(async () => {
       try {
-        const response = await fetch(`/api/auth/check-verification?token=${verificationToken}`);
+        const response = await fetch('/api/auth/check-verification', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: verificationToken })
+        });
         const data = await response.json();
 
         if (data.verified) {
@@ -260,7 +264,11 @@ export default function SignupPage() {
 
     setLoading(true);
     try {
-      const response = await fetch(`/api/auth/check-verification?token=${verificationToken}`);
+      const response = await fetch('/api/auth/check-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: verificationToken })
+      });
       const data = await response.json();
 
       if (data.verified) {

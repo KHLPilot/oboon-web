@@ -1,6 +1,5 @@
 "use server";
 
-import { createSupabaseServer } from "@/lib/supabaseServer";
 import { createClient } from "@supabase/supabase-js";
 
 // Admin Client (서버 전용)
@@ -15,8 +14,8 @@ const supabaseAdmin = createClient(
 export async function approveAgent(formData: FormData) {
     const userId = formData.get("userId") as string;
 
-    const supabase = createSupabaseServer();
-    const { error } = await supabase
+    // supabaseAdmin 사용 (RLS 우회하여 다른 사용자 프로필 수정 가능)
+    const { error } = await supabaseAdmin
         .from("profiles")
         .update({ role: "agent" })
         .eq("id", userId);

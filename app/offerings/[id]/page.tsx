@@ -25,7 +25,10 @@ export default async function OfferingDetailPage({
 
         {/* 우측 스티키는 레이아웃에서만 제어 */}
         <div className="lg:sticky lg:top-32 lg:h-fit">
-          <OfferingDetailRight />
+          <OfferingDetailRight
+            propertyId={property.id}
+            propertyName={property.name}
+          />
         </div>
       </div>
     </PageContainer>

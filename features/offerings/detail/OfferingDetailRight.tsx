@@ -8,7 +8,15 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import BookingModal from "@/features/offerings/detail/BookingModal";
 
-export default function OfferingDetailRight() {
+interface OfferingDetailRightProps {
+  propertyId?: number;
+  propertyName?: string;
+}
+
+export default function OfferingDetailRight({
+  propertyId,
+  propertyName
+}: OfferingDetailRightProps) {
   const [isBookingOpen, setIsBookingOpen] = useState(false);
 
   return (
@@ -49,6 +57,8 @@ export default function OfferingDetailRight() {
       <BookingModal
         isOpen={isBookingOpen}
         onClose={() => setIsBookingOpen(false)}
+        propertyId={propertyId}
+        propertyName={propertyName}
       />
     </>
   );
