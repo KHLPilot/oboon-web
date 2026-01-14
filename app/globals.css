@@ -439,6 +439,25 @@ h3 {
   mask-size: contain;
 }
 
+/* =========================
+   Mobile Typography Scale
+   ========================= */
+@media (max-width: 640px) {
+  :root {
+    /* Display / Hero */
+    --oboon-font-size-display: 32px;
+
+    /* Headings */
+    --oboon-font-size-h1: 24px;
+    --oboon-font-size-h2: 20px;
+    --oboon-font-size-h3: 18px;
+
+    /* Body / Caption */
+    --oboon-font-size-body: 15px;
+    --oboon-font-size-caption: 13px;
+  }
+}
+
 /* =========================================================
    Legacy Utility Classes (deprecated)
    - Do NOT add new usage.

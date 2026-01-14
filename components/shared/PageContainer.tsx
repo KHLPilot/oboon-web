@@ -15,7 +15,18 @@ export default function PageContainer({
   return (
     <div
       className={cn(
-        "mx-auto w-full max-w-[1200px] px-5 pt-10 pb-10",
+        // layout
+        "mx-auto w-full",
+
+        // max width
+        "max-w-240 lg:max-w-300",
+
+        // horizontal padding
+        "px-4 sm:px-5",
+
+        // vertical padding (mobile first)
+        "py-8 sm:py-10",
+
         className
       )}
     >

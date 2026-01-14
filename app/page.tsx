@@ -269,17 +269,17 @@ export default function HomePage() {
         ? offerings
         : offerings.filter((o) => o.region === selectedRegion);
 
-    return base.filter((o) => !reviewIds.has(o.id));
+    return base;
   }, [offerings, selectedRegion, reviewIds]);
 
   return (
     <main className="min-h-screen bg-(--oboon-bg-page)">
-      <PageContainer className="pt-40">
+      <PageContainer className="pt-20 sm:pt-24 md:pt-40">
         <div className="flex flex-col gap-10">
           <HeroSection />
 
           {/* 감정평가사 한줄평 */}
-          <section className="mt-10 flex flex-col gap-2">
+          <section className="mt-8 sm:mt-10 flex flex-col gap-2">
             <SectionHeader
               title="감정평가사 한줄평"
               caption="전문가들이 직접 남긴 솔직한 평가를 확인해보세요."
@@ -297,18 +297,17 @@ export default function HomePage() {
                 아직 등록된 감정평가사 한줄평이 없어요.
               </Card>
             ) : (
-              <ProjectRow>
-                {reviewOfferings.map((offering) => (
-                  <OfferingCard key={offering.id} offering={offering} />
-                ))}
-              </ProjectRow>
+              <ResponsiveOfferingRow items={reviewOfferings} />
             )}
           </section>
 
           {/* 지역별 인기 분양 */}
-          <section className="mt-10 flex flex-col gap-2">
-            <SectionHeader title="지역별 인기 분양" />
-            <div className="mt-2">
+          <section className="mt-8 sm:mt-10 flex flex-col gap-2">
+            <SectionHeader
+              title="지역별 인기 분양"
+              caption="지역별로 인기있는 분양 현장을 확인해보세요."
+            />
+            <div>
               <RegionFilterRow
                 value={selectedRegion}
                 onChange={setSelectedRegion}
@@ -321,17 +320,13 @@ export default function HomePage() {
                   선택한 지역에서 보여줄 분양이 아직 없어요.
                 </Card>
               ) : (
-                <ProjectRow>
-                  {popularOfferings.map((offering) => (
-                    <OfferingCard key={offering.id} offering={offering} />
-                  ))}
-                </ProjectRow>
+                <ResponsiveOfferingRow items={popularOfferings} />
               )}
             </div>
           </section>
 
           {/* 오분 브리핑 */}
-          <section className="mt-10 flex flex-col gap-2">
+          <section className="mt-8 sm:mt-10 flex flex-col gap-2">
             <SectionHeader
               title="오분 브리핑"
               caption="핵심만 빠르게, 판단에 필요한 정보만 정리합니다."
@@ -376,11 +371,27 @@ export default function HomePage() {
                         </div>
                       </div>
                     ) : (
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        {briefingPosts.map((post) => (
-                          <HomeBriefingCompactCard key={post.id} post={post} />
-                        ))}
-                      </div>
+                      <>
+                        {/* Mobile: 2개만 */}
+                        <div className="grid gap-3 sm:hidden">
+                          {briefingPosts.slice(0, 2).map((post) => (
+                            <HomeBriefingCompactCard
+                              key={post.id}
+                              post={post}
+                            />
+                          ))}
+                        </div>
+
+                        {/* Tablet/Desktop: 기존대로(최대 4개) */}
+                        <div className="hidden sm:grid gap-3 sm:grid-cols-2">
+                          {briefingPosts.map((post) => (
+                            <HomeBriefingCompactCard
+                              key={post.id}
+                              post={post}
+                            />
+                          ))}
+                        </div>
+                      </>
                     )}
                   </div>
                 </Card>
@@ -415,16 +426,30 @@ export default function HomePage() {
                         </div>
                       </div>
                     ) : (
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        {briefingOriginal.map((s) => (
-                          <HomeBriefingCompactOriginalCard
-                            key={s.key}
-                            Original={s}
-                            count={s.count}
-                          />
-                        ))}
-                      </div>
-                    )}
+                      <>
+                        {/* Mobile: 2개만 */}
+                        <div className="grid gap-3 sm:hidden">
+                          {briefingOriginal.slice(0, 2).map((s) => (
+                            <HomeBriefingCompactOriginalCard
+                              key={s.key}
+                              Original={s}
+                              count={s.count}
+                            />
+                          ))}
+                        </div>
+
+                        {/* Tablet/Desktop: 기존대로(최대 4개) */}
+                        <div className="hidden sm:grid gap-3 sm:grid-cols-2">
+                          {briefingOriginal.map((s) => (
+                            <HomeBriefingCompactOriginalCard
+                              key={s.key}
+                              Original={s}
+                              count={s.count}
+                            />
+                          ))}
+                        </div>
+                      </>
+                    )}{" "}
                   </div>
                 </Card>
               </div>
@@ -439,7 +464,7 @@ export default function HomePage() {
 /* ---------- Hero ---------- */
 function HeroSection() {
   return (
-    <section className="flex flex-col items-center gap-7 text-center">
+    <section className="pt-20 pb-10 sm:pt-20 flex flex-col items-center gap-6 sm:gap-7 text-center">
       <div className="space-y-5">
         <div className="ob-typo-display text-(--oboon-text-title)">
           오늘의 분양
@@ -453,13 +478,20 @@ function HeroSection() {
           빅데이터 기반의 객관적인 분양 정보를 만나보세요.
         </p>
       </div>
-
-      <div className="mt-3 flex flex-wrap items-center justify-center gap-4">
-        <Button size="lg" variant="primary">
+      <div className="mt-4 flex w-full max-w-18 flex-row justify-center gap-3">
+        <Button
+          size="lg"
+          variant="primary"
+          className="flex-1 sm:flex-none sm:min-w-55"
+        >
           내 청약조건 분석하기
         </Button>
-        <Link href="/offerings">
-          <Button size="lg" variant="secondary">
+        <Link href="/offerings" className="flex-1 sm:flex-none">
+          <Button
+            size="lg"
+            variant="secondary"
+            className="w-full sm:w-auto sm:min-w-55"
+          >
             지도에서 보기
           </Button>
         </Link>
@@ -479,7 +511,7 @@ function SectionHeader({
   rightLink?: { href: string; label: string };
 }) {
   return (
-    <div className="mb-4 flex items-baseline justify-between gap-4">
+    <div className="mb-3 sm:mb-4 flex items-baseline justify-between gap-4">
       <div className="flex flex-col gap-1">
         <h2 className="ob-typo-h2 text-(--oboon-text-title)">{title}</h2>
         {caption && (
@@ -500,7 +532,65 @@ function SectionHeader({
 }
 
 function ProjectRow({ children }: { children: React.ReactNode }) {
-  return <div className="grid gap-4 md:grid-cols-4">{children}</div>;
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{children}</div>
+  );
+}
+
+/**
+ * Home 전용: 모바일에서는 가로 스크롤(슬라이드), sm 이상에서는 기존 그리드
+ * - 카드 컴포넌트(OfferingCard)는 그대로 사용
+ * - 모바일에서만 카드 폭을 고정(shrink-0)해서 좌우 스크롤이 자연스럽게 되도록 처리
+ */
+
+function ResponsiveOfferingRow({ items }: { items: Offering[] }) {
+  return (
+    <>
+      {/* Mobile */}
+      <div className="sm:hidden">
+        {/* PageContainer(px-4) 밖으로 빼서 스크롤이 화면 끝까지 자연스럽게 */}
+        <div className="-mx-4">
+          <div className="relative">
+            <div
+              className={[
+                "flex gap-3 overflow-x-auto pb-3 px-4",
+                "snap-x snap-mandatory",
+                "[-webkit-overflow-scrolling:touch]",
+                "[scrollbar-width:none] [-ms-overflow-style:none]",
+                "scroll-pl-4 scroll-pr-4",
+              ].join(" ")}
+            >
+              <style jsx>{`
+                div::-webkit-scrollbar {
+                  display: none;
+                }
+              `}</style>
+
+              {items.map((offering) => (
+                <div key={offering.id} className="w-70 shrink-0 snap-start">
+                  <OfferingCard offering={offering} />
+                </div>
+              ))}
+
+              <div className="shrink-0 w-4" />
+            </div>
+
+            <div className="pointer-events-none absolute inset-y-0 left-0 w-8 z-10 bg-linear-to-r from-(--oboon-bg-page) to-transparent" />
+            <div className="pointer-events-none absolute inset-y-0 right-0 w-8 z-10 bg-linear-to-l from-(--oboon-bg-page) to-transparent" />
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop/Tablets: grid */}
+      <div className="hidden sm:block">
+        <ProjectRow>
+          {items.map((offering) => (
+            <OfferingCard key={offering.id} offering={offering} />
+          ))}
+        </ProjectRow>
+      </div>
+    </>
+  );
 }
 
 /* ---------- Region Filter ---------- */
@@ -512,23 +602,54 @@ function RegionFilterRow({
   onChange: (v: OfferingRegionTab) => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-2">
-      {OFFERING_REGION_TABS.map((region) => {
-        const isActive = value === region;
+    <>
+      {/* Mobile: horizontal scroll chips */}
+      <div className="sm:hidden -mx-4 px-4">
+        <div className="flex gap-2 overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch]">
+          <style jsx>{`
+            div::-webkit-scrollbar {
+              display: none;
+            }
+          `}</style>
 
-        return (
-          <Button
-            key={region}
-            type="button"
-            size="sm"
-            shape="pill"
-            variant={isActive ? "primary" : "secondary"}
-            onClick={() => onChange(region)}
-          >
-            {region}
-          </Button>
-        );
-      })}
-    </div>
+          {OFFERING_REGION_TABS.map((region) => {
+            const isActive = value === region;
+            return (
+              <Button
+                key={region}
+                type="button"
+                size="sm"
+                shape="pill"
+                variant={isActive ? "primary" : "secondary"}
+                onClick={() => onChange(region)}
+                className="shrink-0"
+                aria-pressed={isActive}
+              >
+                {region}
+              </Button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Tablet/Desktop: 기존 버튼 UI 유지 */}
+      <div className="hidden sm:flex flex-wrap gap-2">
+        {OFFERING_REGION_TABS.map((region) => {
+          const isActive = value === region;
+          return (
+            <Button
+              key={region}
+              type="button"
+              size="sm"
+              shape="pill"
+              variant={isActive ? "primary" : "secondary"}
+              onClick={() => onChange(region)}
+            >
+              {region}
+            </Button>
+          );
+        })}
+      </div>
+    </>
   );
 }
