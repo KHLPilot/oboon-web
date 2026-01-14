@@ -23,7 +23,6 @@ export default function OfferingBadge({
   value,
   className,
 }: OfferingBadgeProps) {
-  // ✅ 오버로드 매칭을 위해 type을 좁혀서 호출
   const config =
     type === "status"
       ? getOfferingBadgeConfig("status", value)

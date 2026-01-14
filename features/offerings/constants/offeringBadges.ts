@@ -45,9 +45,9 @@ export function getOfferingBadgeConfig(
         label,
         className: [
           base,
-          "border-[color:var(--oboon-accent)]/30",
-          "bg-[color:var(--oboon-accent)]/10",
-          "text-[color:var(--oboon-accent)]",
+          "border-(--oboon-border-default)",
+          "bg-(--oboon-bg-surface)",
+          "text-(--oboon-text-title)",
         ].join(" "),
       };
     }
@@ -57,9 +57,8 @@ export function getOfferingBadgeConfig(
         label,
         className: [
           base,
-          "border-(--oboon-border-default)",
-          "bg-(--oboon-bg-subtle)",
-          "text-(--oboon-text-body)",
+          "bg-(--oboon-bg-surface)",
+          "text-(--oboon-text-title)",
         ].join(" "),
       };
     }
@@ -70,7 +69,7 @@ export function getOfferingBadgeConfig(
         className: [
           base,
           "border-(--oboon-border-default)",
-          "bg-(--oboon-bg-subtle)",
+          "bg-(--oboon-bg-surface)",
           "text-(--oboon-text-muted)",
         ].join(" "),
       };
@@ -81,7 +80,7 @@ export function getOfferingBadgeConfig(
       className: [
         base,
         "border-(--oboon-border-default)",
-        "bg-(--oboon-bg-subtle)",
+        "bg-(--oboon-bg-surface)",
         "text-(--oboon-text-muted)",
       ].join(" "),
     };

@@ -37,11 +37,11 @@ export default function BriefingPostCard({
             />
 
             <div className="absolute left-3 top-3">
-              <Badge variant="status">{getBriefingPostBadgeText(post)}</Badge>
+              <Badge variant="default">{getBriefingPostBadgeText(post)}</Badge>
             </div>
           </div>
 
-          <div className="p-5 flex flex-col h-[116px]">
+          <div className="p-5 flex flex-col h-29">
             <div
               className={cx(
                 "ob-typo-h3 text-(--oboon-text-title)",
