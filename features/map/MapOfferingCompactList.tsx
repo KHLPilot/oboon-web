@@ -1,7 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import OfferingBadge from "@/features/offerings/OfferingBadges";
 import type { OfferingStatusValue } from "@/features/offerings/domain/offering.types";
+import { ChevronRight } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 export type MapOfferingCompactItem = {
   id: number;
@@ -17,22 +20,33 @@ export default function MapOfferingCompactList({
   focusedId,
   onHover,
   onSelect,
+  compact = true,
+  hideCounter = false,
 }: {
   items: MapOfferingCompactItem[];
   hoveredId?: number | null;
   focusedId?: number | null;
   onHover?: (id: number | null) => void;
   onSelect?: (id: number) => void;
+
+  /** 재사용 옵션 */
+  compact?: boolean;
+  hideCounter?: boolean;
 }) {
+  const router = useRouter();
+  const rowPad = compact ? "px-4 py-3" : "px-5 py-4";
+
   return (
     <section className="mt-6">
-      <div className="mb-2 text-sm text-(--oboon-text-muted)">
-        현재 화면에{" "}
-        <span className="font-semibold text-(--oboon-text-title)">
-          {items.length}
-        </span>
-        개
-      </div>
+      {!hideCounter ? (
+        <div className="mb-2 text-sm text-(--oboon-text-muted)">
+          현재 화면에{" "}
+          <span className="font-semibold text-(--oboon-text-title)">
+            {items.length}
+          </span>
+          개
+        </div>
+      ) : null}
 
       <ul className="overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) divide-y divide-(--oboon-border-default)">
         {items.map((item) => {
@@ -47,30 +61,49 @@ export default function MapOfferingCompactList({
               onMouseLeave={() => onHover?.(null)}
               onClick={() => onSelect?.(item.id)}
               className={[
-                "px-4 py-3 cursor-pointer transition-colors",
+                rowPad,
+                "cursor-pointer transition-colors",
                 "hover:bg-(--oboon-bg-subtle)",
                 isFocused ? "bg-(--oboon-bg-subtle)" : "",
                 isHovered && !isFocused ? "bg-(--oboon-bg-subtle)" : "",
               ].join(" ")}
             >
-              <div className="flex items-center gap-2">
-                <OfferingBadge
-                  type="status"
-                  value={item.statusValue ?? undefined}
-                  className={
-                    isFocused
-                      ? "border-(--oboon-page) bg-(--oboon-page) text-(--oboon-text-title)"
-                      : ""
-                  }
-                />
-
-                <span className="text-sm font-semibold text-(--oboon-text-title) line-clamp-1">
-                  {item.title}
-                </span>
+              {/* [수정] 상단: 뱃지 + 제목 + 화살표 버튼 */}
+              <div className="flex items-center justify-between mb-1">
+                {/* 좌측: 뱃지와 제목 */}
+                <div className="flex items-center gap-2 overflow-hidden">
+                  <OfferingBadge
+                    type="status"
+                    value={item.statusValue ?? undefined}
+                  />
+                  <span className="ob-typo-h3 text-(--oboon-text-title)">
+                    {item.title}
+                  </span>
+                </div>
+                <Link
+                  href={`/offerings/${item.id}`}
+                  onClick={(e) => e.stopPropagation()} // row 선택과 분리
+                  aria-label="현장 상세 보기"
+                  className={[
+                    "inline-flex items-center justify-center",
+                    "h-8 w-8 rounded-full",
+                    "border border-(--oboon-border-default)",
+                    "bg-(--oboon-bg-surface)",
+                    "text-(--oboon-text-muted)",
+                    "hover:text-(--oboon-text-title)",
+                    "hover:bg-(--oboon-bg-subtle)",
+                    "transition-colors",
+                    "shrink-0",
+                  ].join(" ")}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Link>
               </div>
-
-              <div className="mt-1 text-sm text-(--oboon-text-muted) line-clamp-1">
-                {item.region} · {item.priceRange}
+              <div className="flex flex-col ml-2 gap-0.5">
+                <div className="mt-1 ob-typo-body text-(--oboon-text-muted)">
+                  {item.region}
+                </div>
+                <div className="mt-1 ob-typo-h4">{item.priceRange}</div>
               </div>
             </li>
           );

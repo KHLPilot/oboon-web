@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Search, SlidersHorizontal } from "lucide-react";
 import type {
@@ -81,6 +81,33 @@ function cx(...v: (string | false | null | undefined)[]) {
 
 function isRegionTab(v: string): v is OfferingRegionTab {
   return (OFFERING_REGION_TABS as readonly string[]).includes(v);
+}
+
+// 예산 입력 정규화
+function normalizeBudgetInput(raw: string) {
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+
+  // iOS 등에서 소수점 콤마 입력 가능성 대비
+  const v = trimmed.replace(/,/g, ".");
+
+  // 음수 입력 즉시 제거
+  if (v.startsWith("-")) return "";
+
+  // 숫자/점만 남기기
+  const cleaned = v.replace(/[^0-9.]/g, "");
+
+  // 점 1개만 허용
+  const parts = cleaned.split(".");
+  if (parts.length <= 1) return cleaned;
+  return `${parts[0]}.${parts.slice(1).join("")}`;
+}
+
+function blockNegativeNumberKeys(e: React.KeyboardEvent<HTMLInputElement>) {
+  // number input에서 흔한 문제: -, +, e/E 입력 가능(지수 표기)
+  if (e.key === "-" || e.key === "+" || e.key === "e" || e.key === "E") {
+    e.preventDefault();
+  }
 }
 
 function parseEok(v: string) {
@@ -229,7 +256,7 @@ function FilterBarBody({
               id="q_mobile"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="단지명으로 검색"
+              placeholder="지역, 단지명으로 검색"
               className={cx(
                 "h-10 w-full rounded-full px-5 ob-typo-body",
                 "outline-none focus:ring-2 focus:ring-(--oboon-primary)/30"
@@ -279,49 +306,63 @@ function FilterBarBody({
         </div>
       </div>
 
-      {/* ---------------- Desktop: 기존(검색/초기화 버튼) 유지 ---------------- */}
-      <div className="hidden sm:flex items-center justify-between gap-3">
-        <div className="flex-1">
-          <Label className="sr-only" htmlFor="q">
-            검색
-          </Label>
-          <Input
-            id="q"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="단지명으로 검색"
-            className={cx(
-              "h-11 w-full rounded-xl px-4 ob-typo-body",
-              "outline-none focus:ring-2 focus:ring-(--oboon-primary)/30"
-            )}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                pushParams({ q });
-              }
-            }}
-          />
-        </div>
-
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            className="h-11 rounded-xl px-4 ob-typo-button"
-            onClick={() => pushParams({ q })}
-          >
-            검색
-          </Button>
+      {/* ---------------- Desktop: 스샷처럼 (검색 인풋 + 아이콘 버튼) ---------------- */}
+      <div className="hidden sm:block">
+        <div className="flex items-center gap-2">
+          <div className="flex-1">
+            <Label className="sr-only" htmlFor="q">
+              검색
+            </Label>
+            <Input
+              id="q"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="지역, 단지명으로 검색"
+              className={cx(
+                "h-10 w-full rounded-full px-5 ob-typo-body",
+                "outline-none focus:ring-2 focus:ring-(--oboon-primary)/30"
+              )}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  pushParams({ q });
+                }
+              }}
+            />
+          </div>
 
           <Button
             type="button"
             variant="secondary"
+            shape="pill"
             size="md"
-            className="h-11 rounded-xl px-4 ob-typo-button"
-            onClick={resetAll}
+            className="h-10 w-10 rounded-full p-0"
+            onClick={() => pushParams({ q })}
+            aria-label="검색"
           >
-            초기화
+            <Search className="h-4 w-4" />
+          </Button>
+
+          <Button
+            type="button"
+            variant={open ? "primary" : "secondary"}
+            shape="pill"
+            size="md"
+            className="h-10 w-10 rounded-full p-0"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            aria-label="필터"
+          >
+            <SlidersHorizontal
+              className={cn(
+                "h-4 w-4 transition-colors",
+                open && activeCount > 0
+                  ? "text-(--oboon-text-inverse)"
+                  : activeCount > 0
+                  ? "text-(--oboon-primary)"
+                  : "text-(--oboon-text-muted)"
+              )}
+            />
           </Button>
         </div>
       </div>
@@ -329,17 +370,15 @@ function FilterBarBody({
       {/* ---------------- Filter Panel ---------------- */}
       <div
         className={cx(
-          !open && "hidden sm:block",
-          // Mobile: 카드형 패널(스샷)
-          "sm:mt-0",
-          "rounded-3xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-5",
-          // Desktop: 상위 Card에 들어가므로 과한 카드감 제거
-          "sm:rounded-none sm:border-none sm:bg-transparent sm:p-0"
+          // Mobile/desktop 공통: open=false면 숨김 (데스크탑도 접기/펼치기 가능)
+          !open && "hidden",
+          // Desktop도 스샷처럼 '박스' 유지
+          "mt-4 rounded-3xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-5"
         )}
       >
-        {/* Mobile panel top row: reset */}
-        <div className="sm:hidden flex items-center justify-between pb-3">
-          <div className="ob-typo-caption text-(--oboon-text-muted)">
+        {/* Panel top row: 안내 + 초기화 (Desktop에서도 우측에 노출) */}
+        <div className="flex items-center justify-between pb-3">
+          <div className="ob-typo-body text-(--oboon-text-muted)">
             조건을 선택해보세요.
           </div>
           <Button
@@ -352,7 +391,6 @@ function FilterBarBody({
             초기화
           </Button>
         </div>
-
         {/* 지역 */}
         <div className="space-y-2">
           <div className="ob-typo-subtitle text-(--oboon-text-title)">지역</div>
@@ -536,10 +574,17 @@ function FilterBarBody({
               <Input
                 type="number"
                 inputMode="decimal"
+                min={0}
+                step={0.1}
                 placeholder="최소"
                 value={budgetMin}
-                onChange={(e) => setBudgetMin(e.target.value)}
-                onKeyDown={onBudgetEnter}
+                onKeyDown={(e) => {
+                  blockNegativeNumberKeys(e);
+                  onBudgetEnter(e);
+                }}
+                onChange={(e) =>
+                  setBudgetMin(normalizeBudgetInput(e.target.value))
+                }
                 className={cx(
                   "h-11 w-full rounded-full px-4 pr-16 ob-typo-body",
                   budgetError
@@ -558,10 +603,17 @@ function FilterBarBody({
               <Input
                 type="number"
                 inputMode="decimal"
+                min={0}
+                step={0.1}
                 placeholder="최대"
                 value={budgetMax}
-                onChange={(e) => setBudgetMax(e.target.value)}
-                onKeyDown={onBudgetEnter}
+                onKeyDown={(e) => {
+                  blockNegativeNumberKeys(e);
+                  onBudgetEnter(e);
+                }}
+                onChange={(e) =>
+                  setBudgetMax(normalizeBudgetInput(e.target.value))
+                }
                 className={cx(
                   "h-11 w-full rounded-full px-4 pr-16 ob-typo-body",
                   budgetError
@@ -579,6 +631,7 @@ function FilterBarBody({
               disabled={applyDisabled}
               onClick={applyBudget}
               variant="primary"
+              shape="pill"
               size="md"
               className={cx(
                 "h-11 rounded-full px-4 ob-typo-button",
@@ -664,7 +717,20 @@ function FilterBarBody({
 
 export default function FilterBar() {
   const sp = useSearchParams();
+  // 기본값: 모바일 닫힘 / 데스크탑 열림
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    // SSR 안전: client에서만 실행
+    const mq = window.matchMedia("(min-width: 640px)"); // sm
+    // 첫 진입 시 데스크탑이면 열어둠
+    if (mq.matches) setOpen(true);
+
+    // 뷰포트 변경 시에도 자연스럽게 동작(선택 사항이지만 UX 안정적)
+    const onChange = (e: MediaQueryListEvent) => setOpen(e.matches);
+    mq.addEventListener?.("change", onChange);
+    return () => mq.removeEventListener?.("change", onChange);
+  }, []);
   const urlQ = sp.get("q") ?? "";
   const urlBudgetMin = sp.get("budgetMin") ?? "";
   const urlBudgetMax = sp.get("budgetMax") ?? "";

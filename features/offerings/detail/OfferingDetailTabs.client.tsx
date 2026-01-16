@@ -1,7 +1,6 @@
-// /features/offerings/detail/OfferingDetailTabs.client.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Button from "@/components/ui/Button";
 
 type Tab = {
@@ -12,15 +11,20 @@ type Tab = {
 export default function OfferingDetailTabs() {
   const tabs: Tab[] = useMemo(
     () => [
-      { id: "basic", label: "기본정보" },
+      { id: "basic", label: "기본 정보" },
       { id: "memo", label: "감정평가사 메모" },
-      { id: "prices", label: "분양가표" },
+      { id: "prices", label: "분양가 표" },
       { id: "timeline", label: "일정" },
     ],
     []
   );
 
-  const [activeId, setActiveId] = useState<string>("summary");
+  const [activeId, setActiveId] = useState<string>(tabs[0]?.id ?? "basic");
+  const itemRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  // ✅ 탭 클릭으로 스크롤 이동 중인지 잠금
+  const programmaticScrollRef = useRef(false);
+  const programmaticTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     const elements = tabs
@@ -29,10 +33,11 @@ export default function OfferingDetailTabs() {
 
     if (elements.length === 0) return;
 
-    // 화면 상단에서 "어느 섹션이 현재 구간에 들어왔는지"를 감지하기 위해 rootMargin을 조정
     const observer = new IntersectionObserver(
       (entries) => {
-        // intersecting 중에서 화면 상단에 가장 가까운 섹션을 active로 선정
+        // ✅ 탭 클릭으로 이동 중이면 observer가 activeId 덮어쓰지 않도록
+        if (programmaticScrollRef.current) return;
+
         const visible = entries
           .filter((e) => e.isIntersecting)
           .sort(
@@ -46,46 +51,109 @@ export default function OfferingDetailTabs() {
       },
       {
         root: null,
-        // 헤더가 있는 레이아웃에서 탭이 늦게 바뀌는 문제를 피하기 위한 여유값
         rootMargin: "-20% 0px -70% 0px",
         threshold: [0, 0.1, 0.25],
       }
     );
 
     elements.forEach((el) => observer.observe(el));
-
     return () => observer.disconnect();
   }, [tabs]);
 
   const scrollTo = (id: string) => {
     const el = document.getElementById(id);
     if (!el) return;
-    el.scrollIntoView({ behavior: "smooth", block: "start" });
 
-    // 클릭 즉시 UX 피드백(Observer 업데이트가 약간 늦게 오는 경우 대비)
+    // ✅ 클릭 즉시 active 표시
     setActiveId(id);
 
-    // URL hash 업데이트(선택)
+    // ✅ observer 잠금 (smooth scroll 동안 덮어쓰기 방지)
+    programmaticScrollRef.current = true;
+    if (programmaticTimerRef.current) {
+      window.clearTimeout(programmaticTimerRef.current);
+    }
+
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
     history.replaceState(null, "", `#${id}`);
+
+    // ✅ smooth scroll이 끝난 뒤 잠금 해제 (환경별로 약간 여유)
+    programmaticTimerRef.current = window.setTimeout(() => {
+      programmaticScrollRef.current = false;
+    }, 600);
   };
 
-  return (
-    <div className="mt-6 flex flex-wrap gap-2">
-      {tabs.map((t) => {
-        const isActive = activeId === t.id;
+  useEffect(() => {
+    const btn = itemRefs.current[activeId];
+    if (!btn) return;
+    btn.scrollIntoView({
+      behavior: "smooth",
+      inline: "center",
+      block: "nearest",
+    });
+  }, [activeId]);
 
-        return (
-          <Button
-            key={t.id}
-            variant={isActive ? "primary" : "secondary"}
-            size="sm"
-            shape="pill"
-            onClick={() => scrollTo(t.id)}
-          >
-            {t.label}
-          </Button>
-        );
-      })}
-    </div>
+  return (
+    <>
+      {/* Mobile: horizontal slider */}
+      <div className="relative md:hidden -mx-4">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 left-0 w-6"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 right-0 w-6"
+        />
+
+        <div
+          className={[
+            "flex items-center gap-2",
+            "overflow-x-auto whitespace-nowrap",
+            "[-webkit-overflow-scrolling:touch]",
+            "px-4",
+            "scrollbar-none",
+          ].join(" ")}
+        >
+          {tabs.map((t) => {
+            const isActive = activeId === t.id;
+
+            return (
+              <Button
+                key={t.id}
+                ref={(node) => {
+                  itemRefs.current[t.id] = node;
+                }}
+                variant={isActive ? "primary" : "secondary"}
+                size="sm"
+                shape="pill"
+                className="shrink-0"
+                onClick={() => scrollTo(t.id)}
+              >
+                {t.label}
+              </Button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Desktop */}
+      <div className="hidden md:flex md:flex-wrap md:gap-2">
+        {tabs.map((t) => {
+          const isActive = activeId === t.id;
+
+          return (
+            <Button
+              key={t.id}
+              variant={isActive ? "primary" : "secondary"}
+              size="sm"
+              shape="pill"
+              onClick={() => scrollTo(t.id)}
+            >
+              {t.label}
+            </Button>
+          );
+        })}
+      </div>
+    </>
   );
 }

@@ -1,7 +1,10 @@
 // features/map/mappers/mapOffering.mapper.ts
-import type { MarkerType } from "@/app/components/NaverMap";
+import type { MarkerType } from "@/features/map/marker/marker.type";
 import { UXCopy } from "@/shared/uxCopy";
-import { OFFERING_STATUS_VALUES, normalizeOfferingStatusValue } from "@/features/offerings/domain/offering.constants";
+import {
+  OFFERING_STATUS_VALUES,
+  normalizeOfferingStatusValue,
+} from "@/features/offerings/domain/offering.constants";
 import type { OfferingStatusValue } from "@/features/offerings/domain/offering.types";
 
 type PropertyLocationRow = {
@@ -39,6 +42,7 @@ export type DbOffering = {
   statusEnum: OfferingStatusValue | null;
   lat: number;
   lng: number;
+  imageUrl: string | null;
 };
 
 function toNumber(v: number | string | null | undefined): number | null {
@@ -91,10 +95,7 @@ export function mapPropertyRowsToDbOfferings(rows: MapPropertyRow[]) {
       const prices = (r.property_unit_types ?? []).flatMap((u) => {
         const min = toNumber(u.price_min);
         const max = toNumber(u.price_max);
-        return [
-          ...(min == null ? [] : [min]),
-          ...(max == null ? [] : [max]),
-        ];
+        return [...(min == null ? [] : [min]), ...(max == null ? [] : [max])];
       });
 
       const priceMin = prices.length ? Math.min(...prices) : null;
@@ -114,6 +115,7 @@ export function mapPropertyRowsToDbOfferings(rows: MapPropertyRow[]) {
         statusEnum,
         lat,
         lng,
+        imageUrl: r.image_url ?? null,
       } satisfies DbOffering;
     })
     .filter((v): v is DbOffering => Boolean(v));

@@ -10,8 +10,8 @@ const DETAIL_SELECT = `
     heating_type, amenities, builder, developer, floor_area_ratio),
   property_timeline ( id, properties_id, announcement_date, application_start, application_end, winner_announce,
     contract_start, contract_end, move_in_date ),
-  property_unit_types ( id, properties_id, type_name, exclusive_area, supply_area, rooms, bathrooms, orientation,
-    price_min, price_max, unit_count, image_url, floor_plan_url )
+  property_unit_types ( id, properties_id, type_name, exclusive_area, supply_area, rooms, bathrooms, building_layout, orientation,
+    price_min, price_max, unit_count, image_url, supply_count, floor_plan_url )
 `.trim();
 
 type RecordValue = Record<string, unknown>;

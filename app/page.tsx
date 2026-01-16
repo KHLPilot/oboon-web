@@ -574,9 +574,6 @@ function ResponsiveOfferingRow({ items }: { items: Offering[] }) {
 
               <div className="shrink-0 w-4" />
             </div>
-
-            <div className="pointer-events-none absolute inset-y-0 left-0 w-8 z-10 bg-linear-to-r from-(--oboon-bg-page) to-transparent" />
-            <div className="pointer-events-none absolute inset-y-0 right-0 w-8 z-10 bg-linear-to-l from-(--oboon-bg-page) to-transparent" />
           </div>
         </div>
       </div>
@@ -604,8 +601,8 @@ function RegionFilterRow({
   return (
     <>
       {/* Mobile: horizontal scroll chips */}
-      <div className="sm:hidden -mx-4 px-4">
-        <div className="flex gap-2 overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch]">
+      <div className="sm:hidden -mx-4 pl-4">
+        <div className="flex gap-2 overflow-x-auto pb-2 pr-4 [-webkit-overflow-scrolling:touch]">
           <style jsx>{`
             div::-webkit-scrollbar {
               display: none;
