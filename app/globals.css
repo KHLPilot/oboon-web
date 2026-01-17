@@ -170,6 +170,12 @@ a {
   /* Optional: badge selected */
   --oboon-badge-selected-bg: rgba(91, 140, 255, 0.16);
   --oboon-badge-selected-border: rgba(91, 140, 255, 0.35);
+
+  /* Layer (z-index) tokens */
+  --oboon-z-dropdown: 50;
+  --oboon-z-header: 60;
+  --oboon-z-modal: 1000;
+  --oboon-z-toast: 1100;
 }
 
 /* Light theme (if you use .light or data-theme="light") */

@@ -6,6 +6,7 @@ import localFont from "next/font/local";
 import ProfileChecker from "app/components/ProfileChecker";
 import Header from "@/components/shared/Header";
 import Footer from "@/components/shared/Footer";
+import Providers from "./providers";
 
 export const metadata: Metadata = {
   title: "OBOON 분양 플랫폼",
@@ -78,7 +79,9 @@ export default function RootLayout({
         />
         <ProfileChecker />
         <Header />
-        <main className="flex-1 relative">{children}</main>
+        <main className="flex-1 relative">
+          <Providers>{children}</Providers>
+        </main>
         <Footer />
       </body>
     </html>

@@ -1,182 +1,242 @@
+// app/auth/signup/page.tsx
 "use client";
 
-import { FormEvent, useState, useEffect, useRef } from "react";
-import { createSupabaseClient } from "@/lib/supabaseClient";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
-import { validateName, validateNickname, validatePhone, validatePassword, sanitizeInput } from "@/lib/validators/profileValidation";
+
+import { createSupabaseClient } from "@/lib/supabaseClient";
+import { validatePassword } from "@/lib/validators/profileValidation";
+
+import PageContainer from "@/components/shared/PageContainer";
+import Card from "@/components/ui/Card";
+import Button from "@/components/ui/Button";
+import Input from "@/components/ui/Input";
+import Label from "@/components/ui/Label";
+import Modal from "@/components/ui/Modal";
+import FieldErrorBubble, {
+  FieldErrorState,
+} from "@/components/ui/FieldErrorBubble";
+
+type VerificationState = {
+  isEmailSent: boolean;
+  token: string | null;
+};
+
+type Step1Field = "email" | "password" | "passwordConfirm" | "generic";
+
+function cx(...cls: Array<string | false | null | undefined>) {
+  return cls.filter(Boolean).join(" ");
+}
 
 export default function SignupPage() {
   const supabase = createSupabaseClient();
   const router = useRouter();
 
-  // 상태 관리
+  // Step1 fields
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
-  const [name, setName] = useState("");
-  const [nickname, setNickname] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [userType, setUserType] = useState<"personal" | "company">("personal");
 
-  // 프로세스 제어 상태
-  const [isEmailSent, setIsEmailSent] = useState(false);
-  const [isVerified, setIsVerified] = useState(false);
+  // UI state
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [fatalError, setFatalError] = useState<string | null>(null);
 
-  // 폴링 관련 상태
-  const [verificationToken, setVerificationToken] = useState<string | null>(null);
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  // 비밀번호 UI 상태
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
   const [capsLockOn, setCapsLockOn] = useState(false);
-  const [passwordMatch, setPasswordMatch] = useState(true);
 
-  // ✅ 검증 에러
-  const [errors, setErrors] = useState<{
-    name?: string;
-    nickname?: string;
-    phone?: string;
-    password?: string;
-  }>({});
+  // password validation (inline helper만 유지)
+  const [passwordError, setPasswordError] = useState<string | null>(null);
 
-  // 비밀번호 일치 확인
-  useEffect(() => {
-    if (passwordConfirm) {
-      setPasswordMatch(password === passwordConfirm);
-    } else {
-      setPasswordMatch(true);
+  // verification
+  const [verification, setVerification] = useState<VerificationState>({
+    isEmailSent: false,
+    token: null,
+  });
+
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // FieldErrorBubble
+  const cardWrapRef = useRef<HTMLDivElement | null>(null);
+  const emailRef = useRef<HTMLInputElement | null>(null);
+  const passwordRef = useRef<HTMLInputElement | null>(null);
+  const passwordConfirmRef = useRef<HTMLInputElement | null>(null);
+
+  const [fieldError, setFieldError] =
+    useState<FieldErrorState<Step1Field>>(null);
+  const fieldErrorTimerRef = useRef<number | null>(null);
+
+  const clearFieldError = () => {
+    setFieldError(null);
+    if (fieldErrorTimerRef.current) {
+      window.clearTimeout(fieldErrorTimerRef.current);
+      fieldErrorTimerRef.current = null;
     }
+  };
+
+  const openFieldError = (field: Step1Field, message: string) => {
+    const anchorEl =
+      field === "email"
+        ? emailRef.current
+        : field === "password"
+          ? passwordRef.current
+          : field === "passwordConfirm"
+            ? passwordConfirmRef.current
+            : null;
+
+    if (!anchorEl) return;
+
+    setFieldError({ field, message, anchorEl });
+
+    // 자동 dismiss (기존 toast 성격을 bubble로 흡수)
+    if (fieldErrorTimerRef.current)
+      window.clearTimeout(fieldErrorTimerRef.current);
+    fieldErrorTimerRef.current = window.setTimeout(() => {
+      setFieldError(null);
+      fieldErrorTimerRef.current = null;
+    }, 2600);
+
+    anchorEl.focus?.();
+  };
+
+  useEffect(() => {
+    return () => {
+      if (fieldErrorTimerRef.current) {
+        window.clearTimeout(fieldErrorTimerRef.current);
+        fieldErrorTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  const passwordMatch = useMemo(() => {
+    if (!passwordConfirm) return true;
+    return password === passwordConfirm;
   }, [password, passwordConfirm]);
 
-  // 페이지 로드 시 세션 체크
-  useEffect(() => {
-    async function checkSession() {
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (session) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("name, phone_number")
-          .eq("id", session.user.id)
-          .single();
-
-        if (profile && profile.name && profile.phone_number) {
-          router.replace("/");
-        } else {
-          router.replace("/auth/onboarding");
-        }
-      }
+  const stopPolling = () => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
     }
-    checkSession();
-  }, [supabase, router]);
+  };
 
-  // 토큰 기반 폴링
-  useEffect(() => {
-    if (!isEmailSent || !verificationToken || isVerified) return;
-
-    console.log("🔄 인증 폴링 시작...");
-
-    pollingIntervalRef.current = setInterval(async () => {
-      try {
-        const response = await fetch(`/api/auth/check-verification?token=${verificationToken}`);
-        const data = await response.json();
-
-        if (data.verified) {
-          console.log("✅ 이메일 인증 확인됨! 로그인 시도...");
-
-          const { error: signInError } = await supabase.auth.signInWithPassword({
-            email: email,
-            password: password,
-          });
-
-          if (!signInError) {
-            console.log("✅ 로그인 성공! 입력란 활성화");
-            setIsVerified(true);
-            setIsEmailSent(false);
-
-            if (pollingIntervalRef.current) {
-              clearInterval(pollingIntervalRef.current);
-            }
-          }
-        }
-      } catch (err) {
-        console.error("❌ 인증 확인 중 오류:", err);
-      }
-    }, 3000);
-
-    const timeout = setTimeout(() => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        setError("인증 시간이 초과되었습니다. 다시 시도해주세요.");
-        setIsEmailSent(false);
-      }
-    }, 10 * 60 * 1000);
-
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-      }
-      clearTimeout(timeout);
-    };
-  }, [isEmailSent, verificationToken, isVerified, supabase, email, password]);
-
-  // ✅ Caps Lock 감지
   function handleKeyEvent(e: React.KeyboardEvent) {
     setCapsLockOn(e.getModifierState("CapsLock"));
   }
 
-  // ✅ 실시간 입력 제한
-  const handleNameChange = (value: string) => {
-    const sanitized = sanitizeInput(value, "name");
-    setName(sanitized);
-    if (errors.name) {
-      setErrors(prev => ({ ...prev, name: undefined }));
+  function persistForStep2() {
+    // Step2 자동 로그인용: query로 비밀번호 절대 전달하지 않음
+    try {
+      sessionStorage.setItem("oboon_signup_email", email);
+      sessionStorage.setItem("oboon_signup_pw", password);
+    } catch {
+      // ignore
     }
-  };
+  }
 
-  const handleNicknameChange = (value: string) => {
-    const sanitized = sanitizeInput(value, "nickname");
-    setNickname(sanitized);
-    if (errors.nickname) {
-      setErrors(prev => ({ ...prev, nickname: undefined }));
+  function goStep2(token: string) {
+    persistForStep2();
+    router.replace(
+      `/auth/signup/profile?token=${encodeURIComponent(token)}&email=${encodeURIComponent(email)}`
+    );
+  }
+
+  // 이미 세션이 있으면 리다이렉트
+  useEffect(() => {
+    let ignore = false;
+
+    (async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (ignore) return;
+      if (session) router.replace("/");
+    })();
+
+    return () => {
+      ignore = true;
+    };
+  }, [supabase, router]);
+
+  // Polling: "인증 완료 후 Step2로 이동"
+  useEffect(() => {
+    if (!verification.isEmailSent || !verification.token) return;
+    const token = verification.token;
+
+    stopPolling();
+
+    const startedAt = Date.now();
+    const timeoutMs = 10 * 60 * 1000;
+
+    pollingIntervalRef.current = setInterval(async () => {
+      try {
+        if (Date.now() - startedAt > timeoutMs) {
+          stopPolling();
+          setVerification({ isEmailSent: false, token: null });
+          setFatalError("인증 시간이 초과되었습니다. 다시 시도해주세요.");
+          return;
+        }
+
+        const res = await fetch(
+          `/api/auth/check-verification?token=${encodeURIComponent(token)}`
+        );
+        const json = await res.json();
+
+        if (!json?.verified) return;
+
+        stopPolling();
+        goStep2(token);
+      } catch {
+        // 네트워크 오류는 조용히 계속
+      }
+    }, 3000);
+
+    return () => stopPolling();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verification.isEmailSent, verification.token]);
+
+  function validateStep1Inputs(): boolean {
+    // 입력 검증은 “필드 에러(bubble)” 우선, 시스템 오류(fatalError modal)는 최후에 사용
+    if (!email.trim()) {
+      openFieldError("email", "이메일을 입력해주세요.");
+      return false;
     }
-  };
 
-  const handlePhoneChange = (value: string) => {
-    const sanitized = sanitizeInput(value, "phone");
-    setPhoneNumber(sanitized);
-    if (errors.phone) {
-      setErrors(prev => ({ ...prev, phone: undefined }));
-    }
-  };
-
-  // ✅ 이메일 인증 메일 보내기
-  async function handleSendVerification() {
-    if (!email || !password) {
-      alert("이메일과 비밀번호를 먼저 입력해주세요.");
-      return;
+    if (!password) {
+      openFieldError("password", "비밀번호를 입력해주세요.");
+      return false;
     }
 
-    // ✅ 비밀번호 검증
-    const passwordError = validatePassword(password);
-    if (passwordError) {
-      setErrors(prev => ({ ...prev, password: passwordError }));
-      alert(passwordError);
-      return;
+    const pwErr = validatePassword(password);
+    if (pwErr) {
+      setPasswordError(pwErr);
+      openFieldError("password", pwErr);
+      return false;
+    }
+
+    if (!passwordConfirm) {
+      openFieldError("passwordConfirm", "비밀번호 확인을 입력해주세요.");
+      return false;
     }
 
     if (!passwordMatch) {
-      alert("비밀번호가 일치하지 않습니다.");
-      return;
+      openFieldError("passwordConfirm", "비밀번호가 일치하지 않습니다.");
+      return false;
     }
 
+    return true;
+  }
+
+  async function handleSendVerification() {
+    setFatalError(null);
+    setPasswordError(null);
+    clearFieldError();
+
+    if (!validateStep1Inputs()) return;
+
     setLoading(true);
-    setError(null);
 
     try {
       // 이메일 중복 체크
@@ -189,9 +249,9 @@ export default function SignupPage() {
       const { exists, confirmed } = await checkResponse.json();
 
       if (exists && confirmed) {
-        setError("이미 가입된 이메일입니다. 로그인해주세요.");
-        setLoading(false);
-        setTimeout(() => router.push("/auth/login"), 5000);
+        // 이 케이스는 UX상 modal로도 괜찮지만, 입력필드 관련 안내라 bubble 우선
+        openFieldError("email", "이미 가입된 이메일입니다. 로그인해주세요.");
+        setTimeout(() => router.push("/auth/login"), 800);
         return;
       }
 
@@ -203,406 +263,349 @@ export default function SignupPage() {
         });
       }
 
-      // 회원가입 시도
+      // signUp
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          data: {
-            user_type: userType
-          },
           emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       });
 
       if (signUpError) {
-        if (signUpError.message.includes("Email rate limit exceeded")) {
-          const match = signUpError.message.match(/(\d+)\s*second/);
-          const seconds = match ? match[1] : "60";
-          setError(`인증 요청이 너무 많습니다. ${seconds}초 후에 다시 시도해주세요.`);
-          return;
-        }
-
-        setError("인증 실패: " + signUpError.message);
+        setFatalError("인증 실패: " + signUpError.message);
         return;
       }
 
-      if (data.user) {
-        const tokenResponse = await fetch("/api/auth/create-verification-token", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userId: data.user.id,
-            email: data.user.email
-          }),
-        });
-
-        const { token } = await tokenResponse.json();
-        setVerificationToken(token);
-        setIsEmailSent(true);
-
-        alert(
-          "인증 메일이 발송되었습니다.\n\n" +
-          "📧 메일함을 확인하여 인증 링크를 클릭하세요.\n" +
-          "⚠️ 스팸함도 확인해주세요!"
-        );
+      if (!data.user?.id) {
+        setFatalError("유저 생성에 실패했습니다. 다시 시도해주세요.");
+        return;
       }
+
+      // verification token 생성
+      const tokenResponse = await fetch("/api/auth/create-verification-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: data.user.id,
+          email: data.user.email,
+        }),
+      });
+
+      const json = await tokenResponse.json();
+      const token: unknown = json?.token;
+
+      if (typeof token !== "string" || token.length === 0) {
+        setFatalError("인증 토큰 생성에 실패했습니다. 다시 시도해주세요.");
+        return;
+      }
+
+      setVerification({ isEmailSent: true, token });
     } catch (err: any) {
-      console.error(err);
-      setError("오류가 발생했습니다: " + err.message);
+      setFatalError(err?.message || "요청 중 오류가 발생했습니다.");
     } finally {
       setLoading(false);
     }
   }
 
   async function handleManualCheck() {
-    if (!verificationToken) return;
+    if (!verification.token) return;
+    const token = verification.token;
 
     setLoading(true);
-    try {
-      const response = await fetch(`/api/auth/check-verification?token=${verificationToken}`);
-      const data = await response.json();
-
-      if (data.verified) {
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: email,
-          password: password,
-        });
-
-        if (!signInError) {
-          setIsVerified(true);
-          setIsEmailSent(false);
-          alert("✅ 인증이 확인되었습니다!");
-        } else {
-          alert("로그인 중 오류가 발생했습니다: " + signInError.message);
-        }
-      } else {
-        alert("아직 인증이 완료되지 않았습니다. 메일함을 확인해주세요.");
-      }
-    } catch (err: any) {
-      alert("확인 중 오류가 발생했습니다: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // ✅ 최종 제출 (검증 추가)
-  async function handleFinalSubmit(e: FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
+    setFatalError(null);
+    clearFieldError();
 
     try {
-      // ✅ 검증
-      const newErrors: typeof errors = {};
+      const res = await fetch(
+        `/api/auth/check-verification?token=${encodeURIComponent(verification.token)}`
+      );
+      const json = await res.json();
 
-      const nameError = validateName(name);
-      if (nameError) newErrors.name = nameError;
-
-      if (nickname) {
-        const nicknameError = validateNickname(nickname);
-        if (nicknameError) newErrors.nickname = nicknameError;
-      }
-
-      const phoneError = validatePhone(phoneNumber);
-      if (phoneError) newErrors.phone = phoneError;
-
-      if (Object.keys(newErrors).length > 0) {
-        setErrors(newErrors);
-        setLoading(false);
-        alert("입력 정보를 확인해주세요.");
+      if (!json?.verified) {
+        // 진행 안내는 modal보다 bubble이 자연스러움(필드가 없으니 generic)
+        openFieldError(
+          "generic",
+          "아직 인증이 완료되지 않았습니다. 메일함을 확인해주세요."
+        );
         return;
       }
 
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("인증 세션이 만료되었습니다. 다시 시도해주세요.");
-
-      const { error: authUpdateError } = await supabase.auth.updateUser({
-        data: {
-          name: name,
-          full_name: name,
-          nickname: nickname || null,
-          phone_number: phoneNumber,
-          user_type: userType
-        }
-      });
-      if (authUpdateError) throw authUpdateError;
-
-      const { error: upsertError } = await supabase
-        .from("profiles")
-        .upsert({
-          id: user.id,
-          email: user.email,
-          name: name,
-          nickname: nickname || null,
-          phone_number: phoneNumber,
-          user_type: userType,
-          role: "user",
-        });
-
-      if (upsertError) throw upsertError;
-
-      alert("회원가입이 완료되었습니다!");
-      router.push("/");
-      router.refresh();
+      stopPolling();
+      goStep2(token);
     } catch (err: any) {
-      console.error(err);
-      setError("최종 등록 실패: " + err.message);
+      setFatalError(err?.message || "확인 중 오류가 발생했습니다.");
     } finally {
       setLoading(false);
     }
   }
 
+  const lockInputs = loading || verification.isEmailSent;
+  const bubbleId = "signup-step1-field-error";
+
   return (
-    <main className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: "var(--oboon-bg-page)" }}>
-      <div className="w-full max-w-md rounded-2xl border p-8 shadow-card" style={{ backgroundColor: "var(--oboon-bg-surface)", borderColor: "var(--oboon-border-default)" }}>
-        <h1 className="text-2xl font-bold text-center mb-1" style={{ color: "var(--oboon-text-title)" }}>회원가입</h1>
-        <p className="text-xs text-center mb-2" style={{ color: "var(--oboon-text-muted)" }}>이메일 인증 후 상세 정보를 입력해주세요</p>
-
-        <div className="text-center mb-6">
-          <span className="text-xs" style={{ color: "var(--oboon-text-muted)" }}>이미 계정이 있으신가요? </span>
-          <Link href="/auth/login" className="text-xs font-semibold hover:underline" style={{ color: "var(--oboon-primary)" }}>
-            로그인
-          </Link>
-        </div>
-
-        <div className="space-y-6">
-          <div className="space-y-3 p-4 rounded-xl border" style={{ backgroundColor: "var(--oboon-bg-subtle)", borderColor: "var(--oboon-border-default)" }}>
-            <div className="space-y-1">
-              <label className="text-xs ml-1 font-semibold" style={{ color: "var(--oboon-text-body)" }}>이메일 주소</label>
-              <div className="flex gap-2">
-                <input
-                  className="flex-1 rounded-lg border px-4 py-2 text-sm outline-none disabled:opacity-50"
-                  style={{
-                    backgroundColor: "var(--oboon-bg-surface)",
-                    borderColor: "var(--oboon-border-default)",
-                    color: "var(--oboon-text-body)"
-                  }}
-                  placeholder="example@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled={isVerified || isEmailSent}
-                />
-                <button
-                  type="button"
-                  onClick={handleSendVerification}
-                  disabled={isVerified || isEmailSent || loading}
-                  className="px-4 py-2 rounded-lg text-xs font-bold transition whitespace-nowrap ob-btn ob-btn-sm ob-btn-round ob-btn-primary"
-                >
-                  {isVerified ? "인증완료" : isEmailSent ? "인증중..." : "인증하기"}
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs ml-1 font-semibold" style={{ color: "var(--oboon-text-body)" }}>비밀번호 설정</label>
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  className="w-full rounded-lg border px-4 py-2 pr-10 text-sm outline-none disabled:opacity-50"
-                  style={{
-                    backgroundColor: "var(--oboon-bg-surface)",
-                    borderColor: "var(--oboon-border-default)",
-                    color: "var(--oboon-text-body)"
-                  }}
-                  placeholder="대소문자+숫자+특수문자 8자 이상"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  onKeyDown={handleKeyEvent}
-                  onKeyUp={handleKeyEvent}
-                  disabled={isVerified || isEmailSent}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors hover:opacity-70"
-                  style={{ color: "var(--oboon-text-muted)" }}
-                  disabled={isVerified || isEmailSent}
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-              {errors.password && (
-                <p className="text-[10px] ml-1" style={{ color: "var(--oboon-danger)" }}>
-                  ❌ {errors.password}
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs ml-1 font-semibold" style={{ color: "var(--oboon-text-body)" }}>비밀번호 확인</label>
-              <div className="relative">
-                <input
-                  type={showPasswordConfirm ? "text" : "password"}
-                  className="w-full rounded-lg border px-4 py-2 pr-10 text-sm outline-none disabled:opacity-50"
-                  style={{
-                    backgroundColor: "var(--oboon-bg-surface)",
-                    borderColor: passwordMatch ? "var(--oboon-border-default)" : "var(--oboon-danger)",
-                    color: "var(--oboon-text-body)"
-                  }}
-                  placeholder="••••••••"
-                  value={passwordConfirm}
-                  onChange={(e) => setPasswordConfirm(e.target.value)}
-                  onKeyDown={handleKeyEvent}
-                  onKeyUp={handleKeyEvent}
-                  disabled={isVerified || isEmailSent}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPasswordConfirm(!showPasswordConfirm)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors hover:opacity-70"
-                  style={{ color: "var(--oboon-text-muted)" }}
-                  disabled={isVerified || isEmailSent}
-                >
-                  {showPasswordConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-              {!passwordMatch && passwordConfirm && (
-                <p className="text-[10px] ml-1" style={{ color: "var(--oboon-danger)" }}>
-                  ❌ 비밀번호가 일치하지 않습니다
-                </p>
-              )}
-              {passwordMatch && passwordConfirm && (
-                <p className="text-[10px] ml-1" style={{ color: "var(--oboon-success)" }}>
-                  ✅ 비밀번호가 일치합니다
-                </p>
-              )}
-              <div className="h-4 ml-1">
-                {capsLockOn && (
-                  <p className="text-[10px] flex items-center gap-1" style={{ color: "var(--oboon-warning)" }}>
-                    ⚠️ Caps Lock이 켜져 있습니다
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {isEmailSent && !isVerified && (
-              <div className="space-y-3 mt-3">
-                <div className="flex items-center gap-2 text-[11px] animate-pulse" style={{ color: "var(--oboon-primary)" }}>
-                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: "var(--oboon-primary)" }}></span>
-                  이메일 인증 대기중... (자동으로 확인됩니다)
-                </div>
-
-                <div className="text-[10px] p-3 rounded-lg space-y-1" style={{ backgroundColor: "var(--oboon-bg-surface)", color: "var(--oboon-text-muted)" }}>
-                  <div>⚠️ <strong>스팸함도 확인</strong>해주세요!</div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleManualCheck}
-                  disabled={loading}
-                  className="w-full py-2 text-xs rounded-lg border transition hover:bg-opacity-80"
-                  style={{
-                    borderColor: "var(--oboon-border-default)",
-                    color: "var(--oboon-text-body)",
-                    backgroundColor: "var(--oboon-bg-surface)"
-                  }}
-                >
-                  ✅ 인증 완료했는데 안넘어가나요? 여기를 클릭하세요
-                </button>
-              </div>
-            )}
-          </div>
-
-          <form
-            onSubmit={handleFinalSubmit}
-            className={`space-y-4 transition-opacity duration-300 ${!isVerified ? "opacity-30 pointer-events-none" : "opacity-100"}`}
-          >
-            <div className="space-y-1">
-              <label className="text-xs ml-1 font-semibold" style={{ color: "var(--oboon-text-body)" }}>이름 (실명) *</label>
-              <input
-                className="w-full rounded-lg border px-4 py-2.5 text-sm outline-none"
-                style={{
-                  backgroundColor: "var(--oboon-bg-subtle)",
-                  borderColor: errors.name ? "var(--oboon-danger)" : "var(--oboon-border-default)",
-                  color: "var(--oboon-text-body)"
-                }}
-                placeholder="김오분 (한글/영문 2-20자)"
-                value={name}
-                onChange={(e) => handleNameChange(e.target.value)}
-                required={isVerified}
-                maxLength={20}
-              />
-              {errors.name && (
-                <p className="text-xs text-red-500 mt-1">{errors.name}</p>
-              )}
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs ml-1 font-semibold" style={{ color: "var(--oboon-text-body)" }}>
-                닉네임
-              </label>
-              <input
-                className="w-full rounded-lg border px-4 py-2.5 text-sm outline-none"
-                style={{
-                  backgroundColor: "var(--oboon-bg-subtle)",
-                  borderColor: errors.nickname ? "var(--oboon-danger)" : "var(--oboon-border-default)",
-                  color: "var(--oboon-text-body)"
-                }}
-                placeholder="오분이 (선택, 2-15자)"
-                value={nickname}
-                onChange={(e) => handleNicknameChange(e.target.value)}
-                maxLength={15}
-              />
-              {errors.nickname && (
-                <p className="text-xs text-red-500 mt-1">{errors.nickname}</p>
-              )}
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs ml-1 font-semibold" style={{ color: "var(--oboon-text-body)" }}>휴대폰 번호 *</label>
-              <input
-                className="w-full rounded-lg border px-4 py-2.5 text-sm outline-none"
-                style={{
-                  backgroundColor: "var(--oboon-bg-subtle)",
-                  borderColor: errors.phone ? "var(--oboon-danger)" : "var(--oboon-border-default)",
-                  color: "var(--oboon-text-body)"
-                }}
-                placeholder="01012345678"
-                value={phoneNumber}
-                onChange={(e) => handlePhoneChange(e.target.value)}
-                required={isVerified}
-                maxLength={13}
-              />
-              {errors.phone && (
-                <p className="text-xs text-red-500 mt-1">{errors.phone}</p>
-              )}
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs ml-1 font-semibold" style={{ color: "var(--oboon-text-body)" }}>회원 유형</label>
-              <select
-                className="w-full rounded-lg border px-4 py-2.5 text-sm outline-none"
-                style={{
-                  backgroundColor: "var(--oboon-bg-subtle)",
-                  borderColor: "var(--oboon-border-default)",
-                  color: "var(--oboon-text-body)"
-                }}
-                value={userType}
-                onChange={(e) => setUserType(e.target.value as any)}
-              >
-                <option value="personal">개인 회원</option>
-                <option value="company">기업 회원</option>
-              </select>
-            </div>
-
-            <button
-              type="submit"
-              disabled={!isVerified || loading}
-              className="w-full py-4 font-bold rounded-xl mt-6 transition-all active:scale-95 ob-btn ob-btn-md ob-btn-primary"
-              style={{ boxShadow: "var(--oboon-shadow-card)" }}
-            >
-              {loading ? "가입 처리 중..." : "가입 완료 후 시작하기"}
-            </button>
-          </form>
-        </div>
-
-        {error && (
-          <div className="mt-4 ob-alert ob-alert-danger text-center text-xs">
-            {error}
-          </div>
-        )}
+    <main className="min-h-dvh overflow-hidden bg-(--oboon-bg-page) text-(--oboon-text-title)">
+      <div className="pointer-events-none fixed inset-0">
+        <div className="absolute inset-0 bg-[radial-gradient(1200px_600px_at_50%_0%,rgba(64,112,255,0.18),transparent_60%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(800px_500px_at_50%_30%,rgba(0,200,180,0.10),transparent_65%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(900px_700px_at_50%_100%,rgba(255,255,255,0.06),transparent_55%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,transparent_40%,rgba(0,0,0,0.55)_100%)]" />
       </div>
+
+      <PageContainer className="relative flex min-h-dvh items-center justify-center pt-0 pb-0 overflow-hidden">
+        <div className="w-full max-w-105 -translate-y-4 sm:translate-y-0">
+          {/* Header */}
+          <div className="mb-4 sm:mb-5 text-center">
+            <div className="ob-typo-h1 tracking-[-0.02em] text-(--oboon-text-title)">
+              OBOON 회원가입
+            </div>
+            <p className="mt-0.5 sm:mt-1 ob-typo-h4 leading-[1.6] text-(--oboon-text-muted)">
+              이메일 인증 완료 후, 상세 정보를 입력합니다.
+            </p>
+            <div className="mt-4 text-center ob-typo-body text-(--oboon-text-muted)">
+              이미 계정이 있으신가요?
+              <button
+                type="button"
+                className="
+                  mx-1
+                  text-(--oboon-primary)
+                  underline
+                  underline-offset-4
+                  decoration-(--oboon-primary)
+                  hover:decoration-(--oboon-primary-hover)
+                  hover:text-(--oboon-primary-hover)
+                  transition-colors
+                "
+                onClick={() => router.push("/auth/login")}
+                disabled={loading}
+              >
+                로그인 하기
+              </button>
+            </div>
+          </div>
+
+          {/* Card wrapper (FieldErrorBubble positioning container) */}
+          <div ref={cardWrapRef} className="relative">
+            <Card className="p-6 border border-(--oboon-border-default)">
+              <div className="space-y-3">
+                {/* Email */}
+                <div>
+                  <Label className="block mb-2">이메일 주소</Label>
+                  <Input
+                    ref={emailRef}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    onFocus={clearFieldError}
+                    placeholder="example@email.com"
+                    autoComplete="email"
+                    disabled={lockInputs}
+                    className="h-11"
+                    aria-invalid={
+                      fieldError?.field === "email" ? "true" : undefined
+                    }
+                    aria-describedby={
+                      fieldError?.field === "email" ? bubbleId : undefined
+                    }
+                  />
+                </div>
+
+                {/* Password */}
+                <div>
+                  <Label className="block mb-2">비밀번호 설정</Label>
+                  <div className="relative">
+                    <Input
+                      ref={passwordRef}
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        setPasswordError(null);
+                      }}
+                      onKeyDown={handleKeyEvent}
+                      onKeyUp={handleKeyEvent}
+                      onFocus={clearFieldError}
+                      placeholder="대소문자 + 숫자 + 특수문자 포함 8자 이상"
+                      autoComplete="new-password"
+                      disabled={lockInputs}
+                      className="h-11"
+                      aria-invalid={
+                        fieldError?.field === "password" ? "true" : undefined
+                      }
+                      aria-describedby={
+                        fieldError?.field === "password" ? bubbleId : undefined
+                      }
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2"
+                      aria-label={
+                        showPassword ? "비밀번호 숨기기" : "비밀번호 보기"
+                      }
+                      disabled={lockInputs}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+
+                  {/* inline helper (정책상 bubble로도 충분하지만, 가이드성 텍스트는 유지) */}
+                  {passwordError ? (
+                    <div className="mt-1 flex items-center gap-2 ob-typo-caption leading-4 text-(--oboon-danger)">
+                      <span className="h-2 w-2 rounded-full bg-(--oboon-danger)" />
+                      {passwordError}
+                    </div>
+                  ) : null}
+
+                  {capsLockOn ? (
+                    <div className="mt-1 flex items-center gap-2 ob-typo-caption leading-4 text-(--oboon-danger)">
+                      <span className="h-2 w-2 rounded-full bg-(--oboon-warning)" />
+                      <p className="ob-typo-caption leading-4 text-(--oboon-warning)">
+                        Caps Lock이 켜져 있습니다.
+                      </p>
+                    </div>
+                  ) : null}
+                </div>
+
+                {/* Password confirm */}
+                <div>
+                  <Label className="block mb-2">비밀번호 확인</Label>
+                  <div className="relative">
+                    <Input
+                      ref={passwordConfirmRef}
+                      type={showPasswordConfirm ? "text" : "password"}
+                      value={passwordConfirm}
+                      onChange={(e) => setPasswordConfirm(e.target.value)}
+                      onKeyDown={handleKeyEvent}
+                      onKeyUp={handleKeyEvent}
+                      onFocus={clearFieldError}
+                      placeholder="••••••••"
+                      autoComplete="new-password"
+                      disabled={lockInputs}
+                      className={cx(
+                        "h-11",
+                        !passwordMatch && passwordConfirm
+                          ? "border-(--oboon-danger)"
+                          : ""
+                      )}
+                      aria-invalid={
+                        fieldError?.field === "passwordConfirm"
+                          ? "true"
+                          : undefined
+                      }
+                      aria-describedby={
+                        fieldError?.field === "passwordConfirm"
+                          ? bubbleId
+                          : undefined
+                      }
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPasswordConfirm((v) => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2"
+                      aria-label={
+                        showPasswordConfirm
+                          ? "비밀번호 확인 숨기기"
+                          : "비밀번호 확인 보기"
+                      }
+                      disabled={lockInputs}
+                    >
+                      {showPasswordConfirm ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+
+                  {passwordConfirm ? (
+                    <p
+                      className={cx(
+                        "text-[11px] leading-4",
+                        passwordMatch
+                          ? "text-(--oboon-success)"
+                          : "text-(--oboon-danger)"
+                      )}
+                    >
+                      {passwordMatch
+                        ? "비밀번호가 일치합니다."
+                        : "비밀번호가 일치하지 않습니다."}
+                    </p>
+                  ) : null}
+                </div>
+
+                {/* CTA */}
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="md"
+                  shape="pill"
+                  className="mt-1 w-full justify-center text-[14px]"
+                  onClick={handleSendVerification}
+                  disabled={loading || verification.isEmailSent}
+                  loading={loading}
+                >
+                  {verification.isEmailSent
+                    ? "인증 메일 발송됨"
+                    : "이메일 인증하기"}
+                </Button>
+
+                {/* Pending */}
+                {verification.isEmailSent ? (
+                  <div className="mt-2 rounded-xl border border-white/10 bg-white/5 p-3 text-[12px] text-white/60">
+                    이메일 인증 대기중입니다. 인증이 완료되면 자동으로 다음
+                    단계로 이동합니다.
+                    <div className="mt-2">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="md"
+                        shape="pill"
+                        className="w-full justify-center border border-white/10 bg-white/5 text-white hover:bg-white/10"
+                        onClick={handleManualCheck}
+                        disabled={loading}
+                      >
+                        인증 완료했는데 안 넘어가나요? 확인하기
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </Card>
+
+            <FieldErrorBubble
+              open={Boolean(fieldError)}
+              containerEl={cardWrapRef.current}
+              anchorEl={fieldError?.anchorEl ?? null}
+              id="signup-step1-field-error"
+              title="입력 오류"
+              message={fieldError?.message ?? ""}
+              onClose={clearFieldError}
+            />
+          </div>
+
+          <Modal open={Boolean(fatalError)} onClose={() => setFatalError(null)}>
+            <div className="space-y-2">
+              <div className="ob-typo-h2 text-(--oboon-text-title)">안내</div>
+              <div className="ob-typo-body text-(--oboon-text-muted)">
+                {fatalError}
+              </div>
+              <div className="mt-3">
+                <Button
+                  variant="primary"
+                  className="w-full justify-center"
+                  onClick={() => setFatalError(null)}
+                >
+                  확인
+                </Button>
+              </div>
+            </div>
+          </Modal>
+        </div>
+      </PageContainer>
     </main>
   );
 }

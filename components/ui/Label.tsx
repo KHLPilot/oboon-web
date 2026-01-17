@@ -8,10 +8,9 @@ type LabelProps = React.LabelHTMLAttributes<HTMLLabelElement>;
 export default function Label({ className = "", ...props }: LabelProps) {
   return (
     <label
-      className={[
-        "ob-typo-caption text-(--oboon-text-title)",
-        className,
-      ].join(" ")}
+      className={["ob-typo-body text-(--oboon-text-title)", className].join(
+        " "
+      )}
       {...props}
     />
   );

@@ -115,7 +115,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {children}
 
       {/* Viewport */}
-      <div className="fixed bottom-4 right-4 z-999999 flex w-[320px] max-w-[calc(100vw-2rem)] flex-col gap-2">
+      <div className="fixed bottom-4 right-4 z-(--oboon-z-toast) flex w-[320px] max-w-[calc(100vw-2rem)] flex-col gap-2">
         {items.map((t) => {
           const s = variantStyle(t.variant);
           return (
@@ -133,9 +133,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
                 <div className="min-w-0 flex-1">
                   {t.title ? (
-                    <div className={`ob-typo-body2 ${s.title}`}>
-                      {t.title}
-                    </div>
+                    <div className={`ob-typo-body2 ${s.title}`}>{t.title}</div>
                   ) : null}
                   <div className={`mt-0.5 ob-typo-body ${s.body}`}>
                     {t.message}

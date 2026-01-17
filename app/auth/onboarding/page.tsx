@@ -1,39 +1,124 @@
 "use client";
 
-import { FormEvent, useState, useEffect } from "react";
-import { createSupabaseClient } from "@/lib/supabaseClient";
+import React, { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { validateName, validateNickname, validatePhone, sanitizeInput } from "@/lib/validators/profileValidation";
+import { Check, ChevronDown } from "lucide-react";
+
+import { createSupabaseClient } from "@/lib/supabaseClient";
+import {
+  sanitizeInput,
+  validateName,
+  validateNickname,
+  validatePhone,
+} from "@/lib/validators/profileValidation";
+
+import PageContainer from "@/components/shared/PageContainer";
+import Card from "@/components/ui/Card";
+import Button from "@/components/ui/Button";
+import Input from "@/components/ui/Input";
+import Label from "@/components/ui/Label";
+import Modal from "@/components/ui/Modal";
+import FieldErrorBubble, {
+  FieldErrorState,
+} from "@/components/ui/FieldErrorBubble";
+
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/DropdownMenu";
+
+type UserType = "personal" | "company";
+
+type FieldKey = "name" | "nickname" | "phone" | "userType" | "generic";
+type FieldErrors = { name?: string; nickname?: string; phone?: string };
+
+function cx(...cls: Array<string | false | null | undefined>) {
+  return cls.filter(Boolean).join(" ");
+}
 
 export default function OnboardingPage() {
   const supabase = createSupabaseClient();
   const router = useRouter();
 
-  // 상태 관리
   const [userId, setUserId] = useState("");
   const [email, setEmail] = useState("");
+
   const [name, setName] = useState("");
   const [nickname, setNickname] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [userType, setUserType] = useState<"personal" | "company">("personal");
+  const [userType, setUserType] = useState<UserType>("personal");
+
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [fatalError, setFatalError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<FieldErrors>({});
 
-  // ✅ 검증 에러
-  const [errors, setErrors] = useState<{
-    name?: string;
-    nickname?: string;
-    phone?: string;
-  }>({});
-
-  // ✅ 닉네임 중복 체크
+  // 닉네임 중복 체크
   const [nicknameChecking, setNicknameChecking] = useState(false);
-  const [nicknameAvailable, setNicknameAvailable] = useState<boolean | null>(null);
+  const [nicknameAvailable, setNicknameAvailable] = useState<boolean | null>(
+    null
+  );
 
-  // ✅ 페이지 로드 시 유저 정보 가져오기
+  // FieldErrorBubble
+  const cardWrapRef = useRef<HTMLDivElement | null>(null);
+  const nameRef = useRef<HTMLInputElement | null>(null);
+  const nicknameRef = useRef<HTMLInputElement | null>(null);
+  const phoneRef = useRef<HTMLInputElement | null>(null);
+  const [fieldError, setFieldError] = useState<FieldErrorState<FieldKey>>(null);
+
+  const bubbleId = "onboarding-field-error";
+
+  const clearFieldError = () => setFieldError(null);
+
+  function openFieldError(field: FieldKey, message: string) {
+    const anchorEl =
+      field === "name"
+        ? nameRef.current
+        : field === "nickname"
+          ? nicknameRef.current
+          : field === "phone"
+            ? phoneRef.current
+            : null;
+
+    if (!anchorEl) return;
+    setFieldError({ field, message, anchorEl });
+    anchorEl.focus?.();
+  }
+
+  const setSanitized =
+    (field: "name" | "nickname" | "phone") => (value: string) => {
+      const sanitized = sanitizeInput(value, field);
+
+      if (field === "name") setName(sanitized);
+      if (field === "nickname") {
+        setNickname(sanitized);
+        setNicknameAvailable(null);
+      }
+      if (field === "phone") setPhoneNumber(sanitized);
+
+      setErrors((prev) => ({
+        ...prev,
+        [field === "phone" ? "phone" : field]: undefined,
+      }));
+
+      setFieldError((prev) => {
+        if (!prev) return prev;
+        const mapped = field === "phone" ? "phone" : field;
+        return prev.field === mapped ? null : prev;
+      });
+    };
+
+  // 유저 로드 + 기존 프로필 확인
   useEffect(() => {
-    async function loadUser() {
-      const { data: { user } } = await supabase.auth.getUser();
+    let ignore = false;
+
+    (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (ignore) return;
 
       if (!user) {
         router.replace("/auth/login");
@@ -43,68 +128,48 @@ export default function OnboardingPage() {
       setUserId(user.id);
       setEmail(user.email || "");
 
-      // 기존 프로필 확인
       const { data: profile } = await supabase
         .from("profiles")
         .select("name, nickname, phone_number, user_type")
         .eq("id", user.id)
         .single();
 
-      if (profile) {
-        // 이미 완성된 프로필 → 홈으로
-        if (profile.name && profile.phone_number) {
-          router.replace("/");
-          return;
-        }
+      if (!profile) return;
 
-        // NULL이 아닌 값만 미리 채우기
-        if (profile.name) setName(profile.name);
-        if (profile.nickname) setNickname(profile.nickname);
-        if (profile.phone_number) setPhoneNumber(profile.phone_number);
-        if (profile.user_type) setUserType(profile.user_type);
+      // 이미 완성된 프로필 → 홈
+      if (profile.name && profile.phone_number) {
+        router.replace("/");
+        return;
       }
-    }
 
-    loadUser();
+      // NULL이 아닌 값만 미리 채움
+      if (profile.name) setName(profile.name);
+      if (profile.nickname) setNickname(profile.nickname);
+      if (profile.phone_number) setPhoneNumber(profile.phone_number);
+      if (profile.user_type) setUserType(profile.user_type);
+    })();
+
+    return () => {
+      ignore = true;
+    };
   }, [supabase, router]);
 
-  // ✅ 실시간 입력 제한
-  const handleNameChange = (value: string) => {
-    const sanitized = sanitizeInput(value, "name");
-    setName(sanitized);
-    if (errors.name) {
-      setErrors(prev => ({ ...prev, name: undefined }));
-    }
-  };
+  const canSubmit = useMemo(() => Boolean(userId && email), [userId, email]);
 
-  const handleNicknameChange = (value: string) => {
-    const sanitized = sanitizeInput(value, "nickname");
-    setNickname(sanitized);
-    if (errors.nickname) {
-      setErrors(prev => ({ ...prev, nickname: undefined }));
-    }
-    setNicknameAvailable(null);
-  };
-
-  const handlePhoneChange = (value: string) => {
-    const sanitized = sanitizeInput(value, "phone");
-    setPhoneNumber(sanitized);
-    if (errors.phone) {
-      setErrors(prev => ({ ...prev, phone: undefined }));
-    }
-  };
-
-  // ✅ 닉네임 중복 체크
+  // 닉네임 중복 체크
   const checkNickname = async () => {
+    clearFieldError();
+
     if (!nickname || nickname.trim() === "") {
       setNicknameAvailable(null);
+      openFieldError("nickname", "닉네임을 입력해주세요.");
       return;
     }
 
-    // 먼저 형식 검증
     const nicknameError = validateNickname(nickname);
     if (nicknameError) {
-      setErrors(prev => ({ ...prev, nickname: nicknameError }));
+      setErrors((prev) => ({ ...prev, nickname: nicknameError }));
+      openFieldError("nickname", nicknameError);
       return;
     }
 
@@ -117,240 +182,334 @@ export default function OnboardingPage() {
         body: JSON.stringify({ nickname, currentUserId: userId }),
       });
 
-      const { available } = await response.json();
+      const json = await response.json();
+      const available = Boolean(json?.available);
+
       setNicknameAvailable(available);
 
       if (!available) {
-        setErrors(prev => ({ ...prev, nickname: "이미 사용 중인 닉네임입니다." }));
+        const msg = "이미 사용 중인 닉네임입니다.";
+        setErrors((prev) => ({ ...prev, nickname: msg }));
+        openFieldError("nickname", msg);
       }
-    } catch (err) {
-      console.error("닉네임 체크 오류:", err);
+    } catch {
+      setFatalError("닉네임 중복 확인 중 오류가 발생했습니다.");
     } finally {
       setNicknameChecking(false);
     }
   };
 
-  // ✅ 제출 (검증 추가)
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (!canSubmit) return;
+
     setLoading(true);
-    setError(null);
+    setFatalError(null);
+    clearFieldError();
 
     try {
-      // ✅ 검증
-      const newErrors: typeof errors = {};
+      const nextErrors: FieldErrors = {};
 
       const nameError = validateName(name);
-      if (nameError) newErrors.name = nameError;
+      if (nameError) nextErrors.name = nameError;
 
       if (nickname) {
         const nicknameError = validateNickname(nickname);
-        if (nicknameError) newErrors.nickname = nicknameError;
+        if (nicknameError) nextErrors.nickname = nicknameError;
       }
 
       const phoneError = validatePhone(phoneNumber);
-      if (phoneError) newErrors.phone = phoneError;
+      if (phoneError) nextErrors.phone = phoneError;
 
-      if (Object.keys(newErrors).length > 0) {
-        setErrors(newErrors);
-        setLoading(false);
-        alert("입력 정보를 확인해주세요.");
+      if (Object.keys(nextErrors).length) {
+        setErrors(nextErrors);
+
+        if (nextErrors.name) openFieldError("name", nextErrors.name);
+        else if (nextErrors.nickname)
+          openFieldError("nickname", nextErrors.nickname);
+        else if (nextErrors.phone) openFieldError("phone", nextErrors.phone);
+
         return;
       }
 
-      // ✅ 닉네임 중복 체크
-      if (nickname && nicknameAvailable === null) {
-        alert("닉네임 중복 확인을 먼저 해주세요.");
-        setLoading(false);
+      // 닉네임이 입력되어 있으면: 중복확인 완료를 요구 (기존 UX 유지)
+      if (nickname) {
+        if (nicknameAvailable === null) {
+          openFieldError("nickname", "닉네임 중복 확인을 먼저 해주세요.");
+          return;
+        }
+        if (nicknameAvailable === false) {
+          openFieldError("nickname", "이미 사용 중인 닉네임입니다.");
+          return;
+        }
+      }
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        setFatalError("인증 세션이 만료되었습니다. 다시 로그인해주세요.");
         return;
       }
 
-      if (nickname && nicknameAvailable === false) {
-        alert("이미 사용 중인 닉네임입니다.");
-        setLoading(false);
-        return;
-      }
-
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("인증 세션이 만료되었습니다. 다시 로그인해주세요.");
-
-      // Auth 메타데이터 업데이트
       const { error: authUpdateError } = await supabase.auth.updateUser({
         data: {
-          name: name,
+          name,
           full_name: name,
           nickname: nickname || null,
           phone_number: phoneNumber,
-          user_type: userType
-        }
+          user_type: userType,
+        },
       });
       if (authUpdateError) throw authUpdateError;
 
-      // Profiles 테이블 업데이트
-      const { error: upsertError } = await supabase
-        .from("profiles")
-        .upsert({
-          id: user.id,
-          email: user.email,
-          name: name,
-          nickname: nickname || null,
-          phone_number: phoneNumber,
-          user_type: userType,
-          role: "user",
-        });
-
+      const { error: upsertError } = await supabase.from("profiles").upsert({
+        id: user.id,
+        email: user.email,
+        name,
+        nickname: nickname || null,
+        phone_number: phoneNumber,
+        user_type: userType,
+        role: "user",
+      });
       if (upsertError) throw upsertError;
 
-      alert("프로필 설정이 완료되었습니다!");
-      router.push("/");
+      router.replace("/");
       router.refresh();
     } catch (err: any) {
-      console.error(err);
-      setError("프로필 저장 실패: " + err.message);
+      setFatalError("프로필 저장 실패: " + (err?.message ?? "알 수 없는 오류"));
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: "var(--oboon-bg-page)" }}>
-      <div className="w-full max-w-md rounded-2xl border p-8 shadow-card" style={{ backgroundColor: "var(--oboon-bg-surface)", borderColor: "var(--oboon-border-default)" }}>
-        <h1 className="text-2xl font-bold text-center mb-1" style={{ color: "var(--oboon-text-title)" }}>프로필 완성하기</h1>
-        <p className="text-xs text-center mb-8" style={{ color: "var(--oboon-text-muted)" }}>
-          서비스 이용을 위해 추가 정보를 입력해주세요
-        </p>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* 이메일 (읽기 전용) */}
-          <div className="space-y-1">
-            <label className="text-xs ml-1 font-semibold" style={{ color: "var(--oboon-text-body)" }}>이메일 주소</label>
-            <input
-              type="email"
-              className="w-full rounded-lg border px-4 py-2.5 text-sm outline-none"
-              style={{
-                backgroundColor: "var(--oboon-bg-subtle)",
-                borderColor: "var(--oboon-border-default)",
-                color: "var(--oboon-text-muted)"
-              }}
-              value={email}
-              disabled
-            />
-          </div>
-
-          {/* 이름 */}
-          <div className="space-y-1">
-            <label className="text-xs ml-1 font-semibold" style={{ color: "var(--oboon-text-body)" }}>이름 (실명) *</label>
-            <input
-              className="w-full rounded-lg border px-4 py-2.5 text-sm outline-none"
-              style={{
-                backgroundColor: "var(--oboon-bg-subtle)",
-                borderColor: errors.name ? "var(--oboon-danger)" : "var(--oboon-border-default)",
-                color: "var(--oboon-text-body)"
-              }}
-              placeholder="김오분 (한글/영문 2-20자)"
-              value={name}
-              onChange={(e) => handleNameChange(e.target.value)}
-              required
-              maxLength={20}
-            />
-            {errors.name && (
-              <p className="text-xs text-red-500 mt-1">{errors.name}</p>
-            )}
-          </div>
-
-          {/* 닉네임 */}
-          <div className="space-y-1">
-            <label className="text-xs ml-1 font-semibold" style={{ color: "var(--oboon-text-body)" }}>
-              닉네임
-            </label>
-            <div className="flex gap-2">
-              <input
-                className="flex-1 rounded-lg border px-4 py-2.5 text-sm outline-none"
-                style={{
-                  backgroundColor: "var(--oboon-bg-subtle)",
-                  borderColor: errors.nickname ? "var(--oboon-danger)" : "var(--oboon-border-default)",
-                  color: "var(--oboon-text-body)"
-                }}
-                placeholder="오분이 (선택, 2-15자)"
-                value={nickname}
-                onChange={(e) => handleNicknameChange(e.target.value)}
-                maxLength={15}
-              />
-              {nickname && (
-                <button
-                  type="button"
-                  onClick={checkNickname}
-                  disabled={nicknameChecking}
-                  className="px-4 py-2 rounded-lg text-xs font-bold transition whitespace-nowrap ob-btn ob-btn-sm ob-btn-secondary"
-                >
-                  {nicknameChecking ? "확인중..." : "중복확인"}
-                </button>
-              )}
-            </div>
-            {errors.nickname && (
-              <p className="text-xs text-red-500 mt-1">{errors.nickname}</p>
-            )}
-            {nicknameAvailable === true && (
-              <p className="text-xs text-green-500 mt-1">✅ 사용 가능한 닉네임입니다.</p>
-            )}
-          </div>
-
-          {/* 휴대폰 번호 */}
-          <div className="space-y-1">
-            <label className="text-xs ml-1 font-semibold" style={{ color: "var(--oboon-text-body)" }}>휴대폰 번호 *</label>
-            <input
-              className="w-full rounded-lg border px-4 py-2.5 text-sm outline-none"
-              style={{
-                backgroundColor: "var(--oboon-bg-subtle)",
-                borderColor: errors.phone ? "var(--oboon-danger)" : "var(--oboon-border-default)",
-                color: "var(--oboon-text-body)"
-              }}
-              placeholder="01012345678"
-              value={phoneNumber}
-              onChange={(e) => handlePhoneChange(e.target.value)}
-              required
-              maxLength={13}
-            />
-            {errors.phone && (
-              <p className="text-xs text-red-500 mt-1">{errors.phone}</p>
-            )}
-          </div>
-
-          {/* 회원 유형 */}
-          <div className="space-y-1">
-            <label className="text-xs ml-1 font-semibold" style={{ color: "var(--oboon-text-body)" }}>회원 유형</label>
-            <select
-              className="w-full rounded-lg border px-4 py-2.5 text-sm outline-none"
-              style={{
-                backgroundColor: "var(--oboon-bg-subtle)",
-                borderColor: "var(--oboon-border-default)",
-                color: "var(--oboon-text-body)"
-              }}
-              value={userType}
-              onChange={(e) => setUserType(e.target.value as any)}
-            >
-              <option value="personal">개인 회원</option>
-              <option value="company">기업 회원</option>
-            </select>
-          </div>
-
-          {/* 제출 버튼 */}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-4 font-bold rounded-xl mt-6 transition-all active:scale-95 ob-btn ob-btn-md ob-btn-primary"
-            style={{ boxShadow: "var(--oboon-shadow-card)" }}
-          >
-            {loading ? "저장 중..." : "저장하고 시작하기"}
-          </button>
-        </form>
-
-        {error && (
-          <div className="mt-4 ob-alert ob-alert-danger text-center text-xs">
-            {error}
-          </div>
-        )}
+    <main className="min-h-dvh overflow-hidden bg-(--oboon-bg-page) text-(--oboon-text-title)">
+      {/* 배경은 signup/profile과 동일 톤 (필요없으면 제거 가능) */}
+      <div className="pointer-events-none fixed inset-0">
+        <div className="absolute inset-0 bg-[radial-gradient(1200px_600px_at_50%_0%,rgba(64,112,255,0.18),transparent_60%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(800px_500px_at_50%_30%,rgba(0,200,180,0.10),transparent_65%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(900px_700px_at_50%_100%,rgba(255,255,255,0.06),transparent_55%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,transparent_40%,rgba(0,0,0,0.55)_100%)]" />
       </div>
+
+      <PageContainer className="relative flex min-h-dvh items-center justify-center pt-0 pb-0 overflow-hidden">
+        <div className="w-full max-w-105 -translate-y-4 sm:translate-y-0">
+          {/* Header */}
+          <div className="mb-4 sm:mb-5 text-center">
+            <div className="ob-typo-h1 tracking-[-0.02em] text-(--oboon-text-title)">
+              프로필 완성하기
+            </div>
+            <p className="mt-0.5 sm:mt-1 ob-typo-h4 leading-[1.6] text-(--oboon-text-muted)">
+              서비스 이용을 위해 추가 정보를 입력해주세요
+            </p>
+            {email ? (
+              <p className="mt-4 ob-typo-body text-(--oboon-text-title)">
+                {email}
+              </p>
+            ) : null}
+          </div>
+
+          {/* Card */}
+          <div ref={cardWrapRef} className="relative">
+            <Card className="p-5 border border-(--oboon-border-default)">
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {/* 이메일 (읽기 전용) */}
+                <div>
+                  <Label className="block mb-2">이메일 주소</Label>
+                  <Input
+                    value={email}
+                    disabled
+                    className="h-11 bg-(--oboon-bg-subtle) text-(--oboon-text-muted)"
+                  />
+                </div>
+
+                {/* 이름 */}
+                <div>
+                  <Label className="block mb-2">이름 (실명) *</Label>
+                  <Input
+                    ref={nameRef}
+                    value={name}
+                    onChange={(e) => setSanitized("name")(e.target.value)}
+                    onFocus={clearFieldError}
+                    placeholder="김오분"
+                    maxLength={20}
+                    disabled={!canSubmit || loading}
+                    className={cx(
+                      "h-11",
+                      errors.name ? "border-(--oboon-border-danger)" : ""
+                    )}
+                    aria-invalid={errors.name ? "true" : undefined}
+                    aria-describedby={
+                      fieldError?.field === "name" ? bubbleId : undefined
+                    }
+                  />
+                </div>
+
+                {/* 닉네임 + 중복확인 */}
+                <div>
+                  <Label className="block mb-2">닉네임 (선택)</Label>
+
+                  <div className="flex gap-2">
+                    <Input
+                      ref={nicknameRef}
+                      value={nickname}
+                      onChange={(e) => setSanitized("nickname")(e.target.value)}
+                      onFocus={clearFieldError}
+                      placeholder="오분이"
+                      maxLength={15}
+                      disabled={!canSubmit || loading}
+                      className={cx(
+                        "h-11 flex-1",
+                        errors.nickname ? "border-(--oboon-border-danger)" : ""
+                      )}
+                      aria-invalid={errors.nickname ? "true" : undefined}
+                      aria-describedby={
+                        fieldError?.field === "nickname" ? bubbleId : undefined
+                      }
+                    />
+
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="md"
+                      shape="pill"
+                      className="shrink-0 px-4"
+                      onClick={checkNickname}
+                      disabled={!nickname || nicknameChecking || loading}
+                      loading={nicknameChecking}
+                    >
+                      중복확인
+                    </Button>
+                  </div>
+
+                  {nickname ? (
+                    <div className="mt-2 ob-typo-caption text-(--oboon-text-muted)">
+                      {nicknameAvailable === true
+                        ? "사용 가능한 닉네임입니다."
+                        : nicknameAvailable === false
+                          ? "이미 사용 중인 닉네임입니다."
+                          : "닉네임 중복 확인을 진행해주세요."}
+                    </div>
+                  ) : null}
+                </div>
+
+                {/* 휴대폰 */}
+                <div>
+                  <Label className="block mb-2">휴대폰 번호 *</Label>
+                  <Input
+                    ref={phoneRef}
+                    value={phoneNumber}
+                    onChange={(e) => setSanitized("phone")(e.target.value)}
+                    onFocus={clearFieldError}
+                    placeholder="01012345678"
+                    maxLength={13}
+                    disabled={!canSubmit || loading}
+                    className={cx(
+                      "h-11",
+                      errors.phone ? "border-(--oboon-border-danger)" : ""
+                    )}
+                    aria-invalid={errors.phone ? "true" : undefined}
+                    aria-describedby={
+                      fieldError?.field === "phone" ? bubbleId : undefined
+                    }
+                  />
+                </div>
+
+                {/* 회원 유형 */}
+                <div>
+                  <Label className="block mb-2">회원 유형</Label>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        disabled={!canSubmit || loading}
+                        className={cx(
+                          "h-11 w-full rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3",
+                          "flex items-center justify-between",
+                          "outline-none",
+                          !canSubmit || loading
+                            ? "opacity-60"
+                            : "hover:bg-(--oboon-bg-subtle)/60"
+                        )}
+                      >
+                        {userType === "personal" ? "개인 회원" : "기업 회원"}
+                        <ChevronDown className="h-4 w-4 text-(--oboon-text-muted)" />
+                      </button>
+                    </DropdownMenuTrigger>
+
+                    <DropdownMenuContent align="start" className="min-w-60">
+                      <DropdownMenuItem onClick={() => setUserType("personal")}>
+                        <span className="flex w-full items-center justify-between">
+                          <span>개인 회원</span>
+                          {userType === "personal" ? (
+                            <Check className="h-4 w-4" />
+                          ) : null}
+                        </span>
+                      </DropdownMenuItem>
+
+                      <DropdownMenuItem onClick={() => setUserType("company")}>
+                        <span className="flex w-full items-center justify-between">
+                          <span>기업 회원</span>
+                          {userType === "company" ? (
+                            <Check className="h-4 w-4" />
+                          ) : null}
+                        </span>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+
+                {/* 제출 */}
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="md"
+                  shape="pill"
+                  className="w-full justify-center"
+                  disabled={!canSubmit || loading}
+                  loading={loading}
+                >
+                  저장하고 시작하기
+                </Button>
+              </form>
+            </Card>
+
+            <FieldErrorBubble
+              open={Boolean(fieldError)}
+              containerEl={cardWrapRef.current}
+              anchorEl={fieldError?.anchorEl ?? null}
+              id={bubbleId}
+              title="입력 오류"
+              message={fieldError?.message ?? ""}
+              onClose={clearFieldError}
+            />
+          </div>
+
+          <Modal
+            open={Boolean(fatalError)}
+            onClose={() => setFatalError(null)}
+            size="sm"
+          >
+            <div className="space-y-2">
+              <div className="ob-typo-h2 text-(--oboon-text-title)">안내</div>
+              <div className="ob-typo-body text-(--oboon-text-muted)">
+                {fatalError}
+              </div>
+              <div className="mt-3">
+                <Button
+                  variant="primary"
+                  className="w-full justify-center"
+                  onClick={() => setFatalError(null)}
+                >
+                  확인
+                </Button>
+              </div>
+            </div>
+          </Modal>
+        </div>
+      </PageContainer>
     </main>
   );
 }

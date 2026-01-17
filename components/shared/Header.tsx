@@ -36,7 +36,7 @@ export default function Header() {
     []
   );
 
-  // ✅ nickname 우선 표시
+  // nickname 우선 표시
   const loadUserData = async (currentUser: User | null) => {
     setUser(currentUser);
 
@@ -187,11 +187,16 @@ export default function Header() {
             {(userRole === "user" ||
               userRole === "agent_pending" ||
               !userRole) && (
-              <button className="ob-btn ob-btn-sm ob-btn-pill ob-btn-secondary flex items-center gap-2">
-                <Calendar className="w-4 h-4" />
+              <Button
+                variant="primary"
+                size="sm"
+                shape="pill"
+                className="flex items-center gap-2"
+                onClick={() => router.push("/company/properties")}
+              >
                 <span className="hidden sm:inline">상담 예약</span>
-                <span className="sm:hidden">상담</span>
-              </button>
+                <span className="sm:hidden ob-typo-caption">상담 예약</span>
+              </Button>
             )}
 
             {["admin", "builder", "developer"].includes(userRole || "") && (

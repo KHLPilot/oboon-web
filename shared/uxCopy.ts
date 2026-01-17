@@ -34,4 +34,25 @@ export const UXCopy = {
 
   // 기타
   typeCheckingShort: "타입 확인 중",
+
+  /* Validation Messages */
+  validation: {
+    required: "필수 입력 항목입니다.",
+    email: "올바른 이메일 형식을 입력해 주세요.",
+    passwordRequired: "비밀번호를 입력해 주세요.",
+    generic: "입력 값을 다시 확인해 주세요.",
+    // 필요하면 아래처럼 더 세분화
+    tooShort: (min: number) => `최소 ${min}자 이상 입력해 주세요.`,
+    tooLong: (max: number) => `최대 ${max}자까지 입력할 수 있어요.`,
+    pattern: "형식이 올바르지 않습니다.",
+    password: {
+      required: "비밀번호를 입력해주세요.",
+      length: "비밀번호는 8~20자 사이로 입력해주세요.",
+      needUpper: "비밀번호에 영문 대문자를 포함해주세요.",
+      needLower: "비밀번호에 영문 소문자를 포함해주세요.",
+      needNumber: "비밀번호에 숫자를 포함해주세요.",
+      needSpecial: "비밀번호에 특수문자를 포함해주세요.",
+      noWhitespace: "비밀번호에 공백을 사용할 수 없습니다.",
+    },
+  },
 } as const;

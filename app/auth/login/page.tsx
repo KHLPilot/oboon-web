@@ -1,24 +1,76 @@
 // app/auth/login/page.tsx
-
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseClient } from "@/lib/supabaseClient";
+
+import PageContainer from "@/components/shared/PageContainer";
+import Card from "@/components/ui/Card";
+import Button from "@/components/ui/Button";
+import Input from "@/components/ui/Input";
+import Label from "@/components/ui/Label";
+import Modal from "@/components/ui/Modal";
+import FieldErrorBubble, {
+  FieldErrorState,
+} from "@/components/ui/FieldErrorBubble";
+import { validationMessageFor } from "@/shared/validationMessage";
+
+type LoginField = "email" | "password" | "generic";
 
 export default function LoginPage() {
   const supabase = createSupabaseClient();
   const router = useRouter();
+  const lastInvalidToastAtRef = useRef(0);
+
+  const cardWrapRef = useRef<HTMLDivElement | null>(null);
+  const [fieldError, setFieldError] =
+    useState<FieldErrorState<LoginField>>(null);
+
+  const fieldErrorTimerRef = useRef<number | null>(null);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const clearFieldError = () => {
+    setFieldError(null);
+    if (fieldErrorTimerRef.current) {
+      window.clearTimeout(fieldErrorTimerRef.current);
+      fieldErrorTimerRef.current = null;
+    }
+  };
+
+  const showFieldErrorUnder = (
+    el: HTMLElement,
+    message: string,
+    field: LoginField
+  ) => {
+    setFieldError({ field, message, anchorEl: el });
+
+    if (fieldErrorTimerRef.current)
+      window.clearTimeout(fieldErrorTimerRef.current);
+    fieldErrorTimerRef.current = window.setTimeout(() => {
+      setFieldError(null);
+      fieldErrorTimerRef.current = null;
+    }, 2600);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (fieldErrorTimerRef.current) {
+        window.clearTimeout(fieldErrorTimerRef.current);
+        fieldErrorTimerRef.current = null;
+      }
+    };
+  }, []);
+
   async function handleLogin(e: FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    clearFieldError();
 
     try {
       const { data, error: loginError } =
@@ -37,8 +89,7 @@ export default function LoginPage() {
         }
       }
 
-      if (!data.session)
-        throw new Error("로그인 세션 생성에 실패했습니다.");
+      if (!data.session) throw new Error("로그인 세션 생성에 실패했습니다.");
 
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
@@ -46,10 +97,8 @@ export default function LoginPage() {
         .eq("id", data.user.id)
         .single();
 
-      // 1. 프로필 조회 에러 대응
       if (profileError) {
         console.error("Profile Error Detail:", profileError);
-        // 프로필이 진짜 없는 경우(PGRST116)만 온보딩으로
         if (profileError.code === "PGRST116") {
           router.replace("/auth/onboarding");
         } else {
@@ -63,21 +112,18 @@ export default function LoginPage() {
 
       setLoading(false);
 
-      // 2. 관리자: 관리자 페이지로 즉시 이동
       if (profile.role === "admin") {
         router.replace("/admin");
         setTimeout(() => router.refresh(), 100);
         return;
       }
 
-      // 3. 대행사 직원 대기 → 홈
       if (profile.role === "agent_pending") {
         router.replace("/");
         router.refresh();
         return;
       }
 
-      // 4. 일반 유저: 필수 정보 누락 체크
       const isMissingInfo =
         !profile.name || profile.name === "temp" || !profile.phone_number;
 
@@ -89,18 +135,19 @@ export default function LoginPage() {
       }
     } catch (err: any) {
       setLoading(false);
-      setError(err.message || "로그인 중 오류가 발생했습니다.");
+      setError(err?.message || "로그인 중 오류가 발생했습니다.");
     }
   }
 
   async function handleOAuthLogin(provider: "google") {
     setLoading(true);
     setError(null);
+    clearFieldError();
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: `${window.location.origin}/api/auth/google/callback`
+        redirectTo: `${window.location.origin}/api/auth/google/callback`,
       },
     });
 
@@ -111,161 +158,228 @@ export default function LoginPage() {
   }
 
   function handleNaverLogin() {
+    setLoading(true);
+    setError(null);
+    clearFieldError();
     window.location.href = "/api/auth/naver/login";
   }
 
+  const bubbleId = "login-field-error";
+
   return (
-    <main
-      className="min-h-screen flex items-center justify-center p-4"
-      style={{ backgroundColor: "var(--oboon-bg-page)" }}
-    >
-      <div
-        className="w-full max-w-md rounded-2xl border p-8 shadow-card"
-        style={{
-          backgroundColor: "var(--oboon-bg-surface)",
-          borderColor: "var(--oboon-border-default)",
-        }}
-      >
-        <h1
-          className="mb-2 text-2xl font-bold text-center"
-          style={{ color: "var(--oboon-text-title)" }}
-        >
-          로그인
-        </h1>
-        <p
-          className="mb-8 text-xs text-center"
-          style={{ color: "var(--oboon-text-muted)" }}
-        >
-          OBOON 분양 플랫폼에 로그인해주세요.
-        </p>
-
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div className="space-y-1">
-            <label
-              className="text-xs ml-1"
-              style={{ color: "var(--oboon-text-body)" }}
-            >
-              이메일
-            </label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="example@email.com"
-              className="w-full rounded-lg border px-4 py-2.5 text-sm outline-none transition-all"
-              style={{
-                backgroundColor: "var(--oboon-bg-subtle)",
-                borderColor: "var(--oboon-border-default)",
-                color: "var(--oboon-text-body)",
-              }}
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label
-              className="text-xs ml-1"
-              style={{ color: "var(--oboon-text-body)" }}
-            >
-              비밀번호
-            </label>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              className="w-full rounded-lg border px-4 py-2.5 text-sm outline-none transition-all"
-              style={{
-                backgroundColor: "var(--oboon-bg-subtle)",
-                borderColor: "var(--oboon-border-default)",
-                color: "var(--oboon-text-body)",
-              }}
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full ob-btn ob-btn-md ob-btn-round ob-btn-primary mt-2"
-          >
-            {loading ? "로그인 중..." : "로그인"}
-          </button>
-        </form>
-
-        {error && (
-          <div className="mt-4 p-3 rounded-lg text-center text-xs ob-alert ob-alert-danger">
-            {error}
-          </div>
-        )}
-
-        {/* 구분선 */}
-        <div className="relative my-8">
-          <div className="absolute inset-0 flex items-center">
-            <div
-              className="w-full border-t"
-              style={{ borderColor: "var(--oboon-border-default)" }}
-            ></div>
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span
-              className="px-2"
-              style={{
-                backgroundColor: "var(--oboon-bg-surface)",
-                color: "var(--oboon-text-muted)",
-              }}
-            >
-              Social Login
-            </span>
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <button
-            onClick={() => handleOAuthLogin("google")}
-            disabled={loading}
-            className="w-full rounded-lg border py-2.5 text-xs font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-            style={{
-              backgroundColor: "var(--oboon-bg-subtle)",
-              borderColor: "var(--oboon-border-default)",
-              color: "var(--oboon-text-body)",
-            }}
-          >
-            🔵 Google로 계속하기
-          </button>
-
-          <button
-            onClick={handleNaverLogin}
-            disabled={loading}
-            className="w-full rounded-lg border border-green-500/30 bg-green-500/10 py-2.5 text-xs font-medium text-green-200 hover:bg-green-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            🟢 네이버로 계속하기
-          </button>
-        </div>
-
-        <div
-          className="mt-8 text-center text-xs space-y-3"
-          style={{ color: "var(--oboon-text-muted)" }}
-        >
-          <p>
-            아직 계정이 없으신가요?{" "}
-            <button
-              onClick={() => router.push("/auth/signup")}
-              className="font-bold ml-1 underline-offset-4 hover:underline"
-              style={{ color: "var(--oboon-primary)" }}
-            >
-              회원가입
-            </button>
-          </p>
-          <button
-            onClick={() => router.push("/")}
-            className="transition-colors"
-            style={{ color: "var(--oboon-text-muted)" }}
-          >
-            ← 홈으로 돌아가기
-          </button>
-        </div>
+    <main className="min-h-dvh overflow-hidden bg-(--oboon-bg-page) text-(--oboon-text-title)">
+      <div className="pointer-events-none fixed inset-0">
+        <div className="absolute inset-0 bg-[radial-gradient(1200px_600px_at_50%_0%,rgba(64,112,255,0.18),transparent_60%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(800px_500px_at_50%_30%,rgba(0,200,180,0.10),transparent_65%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(900px_700px_at_50%_100%,rgba(255,255,255,0.06),transparent_55%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,transparent_40%,rgba(0,0,0,0.55)_100%)]" />
       </div>
+
+      <PageContainer className="relative flex min-h-dvh items-center justify-center pt-0 pb-0 overflow-hidden">
+        <div className="w-full max-w-105 -translate-y-4 sm:translate-y-0">
+          {/* Header */}
+          <div className="mb-4 sm:mb-5 text-center">
+            <div className="ob-typo-h1 tracking-[-0.02em] text-(--oboon-text-title)">
+              OBOON 로그인
+            </div>
+            <p className="mt-0.5 sm:mt-1 ob-typo-h4 leading-[1.6] text-(--oboon-text-muted)">
+              이메일이나 소셜 계정으로 로그인할 수 있습니다.
+            </p>
+          </div>
+
+          {/* Card wrapper: FieldErrorBubble positioning container */}
+          <div ref={cardWrapRef} className="relative">
+            <Card className="p-6 border border-(--oboon-border-default) relative">
+              <form
+                onSubmit={handleLogin}
+                className="space-y-3"
+                onInvalidCapture={(e) => {
+                  e.preventDefault();
+
+                  const now = Date.now();
+                  if (now - lastInvalidToastAtRef.current < 250) return;
+                  lastInvalidToastAtRef.current = now;
+
+                  const el = e.target as
+                    | HTMLInputElement
+                    | HTMLTextAreaElement
+                    | HTMLSelectElement;
+
+                  const field: LoginField =
+                    el.name === "email"
+                      ? "email"
+                      : el.name === "password"
+                        ? "password"
+                        : "generic";
+
+                  const msg = validationMessageFor(el, field);
+
+                  el.focus?.();
+                  showFieldErrorUnder(el, msg, field);
+                }}
+              >
+                <div>
+                  <Label className="block mb-2">이메일</Label>
+                  <Input
+                    name="email"
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="name@example.com"
+                    autoComplete="email"
+                    onFocus={clearFieldError}
+                    className="h-11"
+                    aria-invalid={
+                      fieldError?.field === "email" ? "true" : undefined
+                    }
+                    aria-describedby={
+                      fieldError?.field === "email" ? bubbleId : undefined
+                    }
+                  />
+                </div>
+
+                <div>
+                  <Label className="block mb-2">비밀번호</Label>
+                  <Input
+                    name="password"
+                    type="password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    autoComplete="current-password"
+                    onFocus={clearFieldError}
+                    className="h-11"
+                    aria-invalid={
+                      fieldError?.field === "password" ? "true" : undefined
+                    }
+                    aria-describedby={
+                      fieldError?.field === "password" ? bubbleId : undefined
+                    }
+                  />
+                </div>
+
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="md"
+                  shape="pill"
+                  className="mt-2 w-full justify-center"
+                  disabled={loading}
+                  loading={loading}
+                >
+                  로그인
+                </Button>
+
+                <div className="mt-4 text-center ob-typo-body text-(--oboon-text-muted)">
+                  <button
+                    type="button"
+                    className="hover:text-(--oboon-text-title) transition-colors"
+                    onClick={() => router.push("/")}
+                    disabled={loading}
+                  >
+                    로그인 없이 보기
+                  </button>
+                </div>
+              </form>
+
+              {/* Divider */}
+              <div className="mt-6 mb-4 flex items-center gap-3">
+                <div className="h-px flex-1 bg-(--oboon-border-default)" />
+                <div className="ob-typo-body uppercase text-(--oboon-text-muted)">
+                  Social
+                </div>
+                <div className="h-px flex-1 bg-(--oboon-border-default)" />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="md"
+                  shape="pill"
+                  className="w-full justify-center"
+                  onClick={() => handleOAuthLogin("google")}
+                  disabled={loading}
+                >
+                  Google로 로그인
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="md"
+                  shape="pill"
+                  className="w-full justify-center"
+                  onClick={handleNaverLogin}
+                  disabled={loading}
+                >
+                  네이버로 로그인
+                </Button>
+              </div>
+
+              <p className="mt-5 text-center ob-typo-caption text-(--oboon-text-muted)">
+                로그인 진행 시 서비스 이용약관 및 개인정보처리방침에 <br />
+                동의한 것으로 간주됩니다.
+              </p>
+            </Card>
+
+            {/* FieldErrorBubble */}
+            <FieldErrorBubble
+              open={Boolean(fieldError)}
+              containerEl={cardWrapRef.current}
+              anchorEl={fieldError?.anchorEl ?? null}
+              id={bubbleId}
+              title="입력 오류"
+              message={fieldError?.message ?? ""}
+              onClose={clearFieldError}
+            />
+          </div>
+
+          <div className="mt-4 text-center ob-typo-body text-(--oboon-text-muted)">
+            아직 오분 회원이 아닌가요?
+            <button
+              type="button"
+              className="
+                mx-1
+                text-(--oboon-primary)
+                underline
+                underline-offset-4
+                decoration-(--oboon-primary)
+                hover:decoration-(--oboon-primary-hover)
+                hover:text-(--oboon-primary-hover)
+                transition-colors
+              "
+              onClick={() => router.push("/auth/signup")}
+              disabled={loading}
+            >
+              회원가입 하기
+            </button>
+          </div>
+
+          <Modal open={Boolean(error)} onClose={() => setError(null)}>
+            <div className="space-y-2">
+              <div className="ob-typo-h2 text-(--oboon-text-title)">
+                로그인 오류
+              </div>
+              <div className="ob-typo-body text-(--oboon-text-muted)">
+                {error}
+              </div>
+              <div className="mt-5">
+                <Button
+                  variant="primary"
+                  shape="pill"
+                  className="w-full justify-center"
+                  onClick={() => setError(null)}
+                >
+                  확인
+                </Button>
+              </div>
+            </div>
+          </Modal>
+        </div>
+      </PageContainer>
     </main>
   );
 }

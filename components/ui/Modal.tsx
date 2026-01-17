@@ -1,22 +1,55 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
+
+export type ModalSize = "sm" | "md" | "lg";
+
+type ModalProps = {
+  open: boolean;
+  onClose: () => void;
+  children: React.ReactNode;
+
+  /** 기본값 true: 우상단 닫기(X) 표시 */
+  showCloseIcon?: boolean;
+
+  /**
+   * 패널 사이즈 프리셋
+   * - sm: 확인/오류 안내 (추천)
+   * - md: 기본
+   * - lg: 긴 본문/폼
+   */
+  size?: ModalSize;
+
+  /**
+   * 추가 패널 스타일 오버라이드(예: "p-8" 또는 "w-[min(100%-2rem,720px)]")
+   * size와 함께 적용되며, 뒤에 붙으므로 같은 속성은 panelClassName이 우선합니다.
+   */
+  panelClassName?: string;
+};
+
+/**
+ * 모바일에서도 좌우 여백(=2rem)을 확보하고,
+ * 데스크탑에서는 px 기준 max width로 제한합니다.
+ * - sm: min(100%-2rem, 420px)
+ * - md: min(100%-2rem, 480px)
+ * - lg: min(100%-2rem, 560px)
+ */
+const SIZE_CLASS: Record<ModalSize, string> = {
+  sm: "w-[min(100%-2rem,420px)]",
+  md: "w-[min(100%-2rem,480px)]",
+  lg: "w-[min(100%-2rem,560px)]",
+};
 
 export default function Modal({
   open,
   onClose,
   children,
   showCloseIcon = true,
+  size = "md",
   panelClassName,
-}: {
-  open: boolean;
-  onClose: () => void;
-  children: React.ReactNode;
-  showCloseIcon?: boolean;
-  panelClassName?: string;
-}) {
+}: ModalProps) {
   const [portalEl, setPortalEl] = useState<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -49,20 +82,26 @@ export default function Modal({
     };
   }, [open, portalEl, onClose]);
 
+  const panelSizeClass = useMemo(() => SIZE_CLASS[size], [size]);
+
   if (!open || !portalEl) return null;
 
   return createPortal(
     <div
-      className="fixed inset-0 z-999999 flex items-center justify-center bg-(--oboon-overlay) backdrop-blur"
+      className="fixed inset-0 z-(--oboon-z-modal) flex items-center justify-center bg-(--oboon-overlay) backdrop-blur"
       onMouseDown={(e) => {
+        // 배경 클릭 닫기 (패널 클릭은 무시)
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
         className={[
-          "relative w-full max-w-md rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-6 shadow-(--oboon-shadow-card)",
-          panelClassName ?? "max-w-md",
-        ].join(" ")}
+          "relative rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-6 shadow-(--oboon-shadow-card)",
+          panelSizeClass,
+          panelClassName ?? "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
       >
         {showCloseIcon ? (
           <button
@@ -73,7 +112,8 @@ export default function Modal({
           >
             <X className="h-4 w-4 text-(--oboon-text-muted)" />
           </button>
-        ) : null}{" "}
+        ) : null}
+
         {children}
       </div>
     </div>,
