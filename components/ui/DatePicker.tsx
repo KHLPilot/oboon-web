@@ -350,6 +350,15 @@ export default function OboonDatePicker({
           .react-datepicker__navigation-icon::before {
           border-color: var(--oboon-border-strong);
         }
+
+        .oboon-datepicker .react-datepicker__day--disabled {
+          color: var(--oboon-text-muted);
+          opacity: 0.4;
+          cursor: not-allowed;
+        }
+        .oboon-datepicker .react-datepicker__day--disabled:hover {
+          background: transparent;
+        }
       `}</style>
     </>
   );

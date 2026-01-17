@@ -8,6 +8,8 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Label from "@/components/ui/Label";
+import Link from "next/link";
+import { CalendarDays, ChevronRight } from "lucide-react";
 
 type Role = "user" | "agent_pending" | "agent" | "builder" | "developer" | "admin";
 
@@ -310,6 +312,26 @@ export default function ProfilePage() {
               추천해드립니다.
             </p>
           </section>
+
+          {/* 내 상담 예약 바로가기 */}
+          <Link href="/my/consultations">
+            <Card className="flex items-center justify-between hover:bg-(--oboon-bg-subtle) transition-colors cursor-pointer">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-(--oboon-primary)/10">
+                  <CalendarDays className="h-5 w-5 text-(--oboon-primary)" />
+                </div>
+                <div>
+                  <h2 className="text-base font-semibold text-(--oboon-text-title)">
+                    내 상담 예약
+                  </h2>
+                  <p className="text-sm text-(--oboon-text-muted)">
+                    예약한 상담 내역을 확인하고 관리합니다
+                  </p>
+                </div>
+              </div>
+              <ChevronRight className="h-5 w-5 text-(--oboon-text-muted)" />
+            </Card>
+          </Link>
 
           {/* 기본 정보 */}
           <Card>

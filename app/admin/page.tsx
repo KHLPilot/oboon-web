@@ -23,6 +23,23 @@ type Profile = {
   deleted_at: string | null;
 };
 
+type PropertyAgent = {
+  id: string;
+  property_id: number;
+  agent_id: string;
+  status: "pending" | "approved" | "rejected";
+  requested_at: string;
+  properties: {
+    id: number;
+    name: string;
+  };
+  profiles: {
+    id: string;
+    name: string;
+    email: string;
+  };
+};
+
 function roleLabel(role: string) {
   switch (role) {
     case "admin":
@@ -70,11 +87,17 @@ function AdminPageInner() {
 
   const [loading, setLoading] = useState(true);
   const [pendingAgents, setPendingAgents] = useState<Profile[]>([]);
+  const [pendingPropertyAgents, setPendingPropertyAgents] = useState<PropertyAgent[]>([]);
   const [deletedUsers, setDeletedUsers] = useState<Profile[]>([]);
   const [activeUsers, setActiveUsers] = useState<Profile[]>([]);
   const [roleSort, setRoleSort] = useState<"none" | "asc" | "desc">("none");
   const [confirm, setConfirm] = useState<ConfirmState>({ open: false });
   const [confirmLoading, setConfirmLoading] = useState(false);
+  const [propertyAgentAction, setPropertyAgentAction] = useState<{
+    id: string;
+    action: "approve" | "reject";
+    loading: boolean;
+  } | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -107,6 +130,32 @@ function AdminPageInner() {
       .order("created_at", { ascending: true });
 
     setPendingAgents(pending || []);
+
+    // 2-1) 현장 소속 승인 대기 목록
+    const { data: propertyAgentsPending } = await supabase
+      .from("property_agents")
+      .select(
+        `
+        id,
+        property_id,
+        agent_id,
+        status,
+        requested_at,
+        properties:property_id (
+          id,
+          name
+        ),
+        profiles:agent_id (
+          id,
+          name,
+          email
+        )
+      `
+      )
+      .eq("status", "pending")
+      .order("requested_at", { ascending: true });
+
+    setPendingPropertyAgents(propertyAgentsPending || []);
 
     // 3) 전체 유저 현황
     const { data: users } = await supabase
@@ -178,6 +227,57 @@ function AdminPageInner() {
       );
     } finally {
       setConfirmLoading(false);
+    }
+  };
+
+  const handlePropertyAgentApprove = async (propertyAgentId: string) => {
+    setPropertyAgentAction({ id: propertyAgentId, action: "approve", loading: true });
+    try {
+      const response = await fetch(`/api/property-agents/${propertyAgentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "approved" }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "승인에 실패했습니다");
+      }
+
+      toast.success("현장 소속이 승인되었습니다", "완료");
+      await loadData();
+    } catch (error: any) {
+      toast.error(error.message || "승인에 실패했습니다", "오류");
+    } finally {
+      setPropertyAgentAction(null);
+    }
+  };
+
+  const handlePropertyAgentReject = async (propertyAgentId: string) => {
+    const reason = prompt("거절 사유를 입력해주세요:");
+    if (!reason) return;
+
+    setPropertyAgentAction({ id: propertyAgentId, action: "reject", loading: true });
+    try {
+      const response = await fetch(`/api/property-agents/${propertyAgentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "rejected", rejection_reason: reason }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "거절에 실패했습니다");
+      }
+
+      toast.success("현장 소속이 거절되었습니다", "완료");
+      await loadData();
+    } catch (error: any) {
+      toast.error(error.message || "거절에 실패했습니다", "오류");
+    } finally {
+      setPropertyAgentAction(null);
     }
   };
 
@@ -296,6 +396,82 @@ function AdminPageInner() {
           ← 홈으로
         </Link>
       </div>
+
+      {/* Property Agent Pending */}
+      {pendingPropertyAgents.length > 0 && (
+        <Card className="p-6">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-[16px] font-semibold text-(--oboon-text-title)">
+                현장 소속 승인 대기
+              </h2>
+              <p className="mt-1 text-xs text-(--oboon-text-muted)">
+                상담사의 현장 소속 신청을 승인/거절합니다
+              </p>
+            </div>
+
+            <Badge variant="status">{pendingPropertyAgents.length}건</Badge>
+          </div>
+
+          <div className="mt-4">
+            <TableShell>
+              <thead>
+                <tr>
+                  <Th>상담사</Th>
+                  <Th>이메일</Th>
+                  <Th>현장</Th>
+                  <Th>신청일</Th>
+                  <Th className="text-right">작업</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingPropertyAgents.map((pa) => (
+                  <tr key={pa.id}>
+                    <Td>{pa.profiles.name || "-"}</Td>
+                    <Td className="text-(--oboon-text-muted)">
+                      {pa.profiles.email}
+                    </Td>
+                    <Td className="text-(--oboon-text-muted)">
+                      {pa.properties.name}
+                    </Td>
+                    <Td className="text-xs text-(--oboon-text-muted)">
+                      {new Date(pa.requested_at).toLocaleDateString()}
+                    </Td>
+                    <Td className="text-right">
+                      <div className="flex gap-2 justify-end">
+                        <Button
+                          size="sm"
+                          shape="pill"
+                          variant="primary"
+                          disabled={
+                            propertyAgentAction?.id === pa.id &&
+                            propertyAgentAction?.loading
+                          }
+                          onClick={() => handlePropertyAgentApprove(pa.id)}
+                        >
+                          승인
+                        </Button>
+                        <Button
+                          size="sm"
+                          shape="pill"
+                          variant="secondary"
+                          disabled={
+                            propertyAgentAction?.id === pa.id &&
+                            propertyAgentAction?.loading
+                          }
+                          onClick={() => handlePropertyAgentReject(pa.id)}
+                        >
+                          거절
+                        </Button>
+                      </div>
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </TableShell>
+          </div>
+        </Card>
+      )}
 
       {/* Pending */}
       <Card className="p-6">

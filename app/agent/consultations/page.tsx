@@ -257,21 +257,7 @@ export default function AgentConsultationsPage() {
                       <p className="font-semibold text-(--oboon-text-title)">
                         {consultation.customer.name}
                       </p>
-                      <p className="text-sm text-(--oboon-text-muted) mt-0.5">
-                        {consultation.customer.phone_number || consultation.customer.email}
-                      </p>
                     </div>
-
-                    {consultation.customer.phone_number && (
-                      <a
-                        href={`tel:${consultation.customer.phone_number}`}
-                        className="shrink-0"
-                      >
-                        <Button size="sm" variant="secondary">
-                          <Phone className="h-4 w-4" />
-                        </Button>
-                      </a>
-                    )}
                   </div>
 
                   {/* 분양 정보 */}
