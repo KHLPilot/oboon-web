@@ -1,12 +1,12 @@
 "use client";
 // app/offerings/page.tsx
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import FilterBar from "@/features/offerings/FilterBar";
 import OfferingCard from "@/features/offerings/OfferingCard";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import type { Offering } from "@/types/index";
 import PageContainer from "@/components/shared/PageContainer";
-import Card from "@/components/ui/Card";
 import { UXCopy } from "@/shared/uxCopy";
 import { fetchPropertiesForOfferings } from "@/features/offerings/services/offering.query";
 import {
@@ -32,6 +32,7 @@ type SearchParams = {
   q?: string;
   budgetMin?: string; // 억 단위
   budgetMax?: string; // 억 단위
+  purpose?: string;
 };
 
 function isRegionTab(v: string): v is OfferingRegionTab {
@@ -88,11 +89,20 @@ function filterOfferings(all: Offering[], sp: SearchParams) {
  * Page
  * ================================ */
 
-export default function OfferingsPage({
-  searchParams,
-}: {
-  searchParams?: SearchParams;
-}) {
+export default function OfferingsPage() {
+  const sp = useSearchParams();
+
+  const searchParams: SearchParams = useMemo(() => {
+    return {
+      region: sp.get("region") ?? undefined,
+      status: sp.get("status") ?? undefined,
+      q: sp.get("q") ?? undefined,
+      budgetMin: sp.get("budgetMin") ?? undefined,
+      budgetMax: sp.get("budgetMax") ?? undefined,
+      purpose: sp.get("purpose") ?? undefined,
+    };
+  }, [sp]);
+
   const supabase = useMemo(() => createSupabaseClient(), []);
   const [rows, setRows] = useState<PropertyRow[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -137,31 +147,27 @@ export default function OfferingsPage({
   }, [rows, fallback]);
 
   const items = useMemo(
-    () => filterOfferings(allOfferings, searchParams ?? {}),
+    () => filterOfferings(allOfferings, searchParams),
     [allOfferings, searchParams]
   );
 
   /* ---------- render ---------- */
   return (
     <main className="bg-(--oboon-bg-page)">
-      <PageContainer className="pb-16 pt-6">
+      <PageContainer>
         {/* Header */}
         <div className="mb-4">
-          <h1 className="ob-typo-h1 text-(--oboon-text-title)">
-            분양 리스트
-          </h1>
+          <h1 className="ob-typo-h1 text-(--oboon-text-title)">분양 리스트</h1>
           <p className="mt-1 ob-typo-body text-(--oboon-text-muted)">
             조건에 맞는 분양 정보를 빠르게 찾을 수 있어요.
           </p>
         </div>
 
         {/* Filter */}
-        <Card className="p-5 mb-6">
-          <FilterBar />
-        </Card>
+        <FilterBar />
 
         {/* Meta */}
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mt-4 mb-4 flex items-center justify-between">
           <div className="ob-typo-body text-(--oboon-text-muted)">
             총{" "}
             <span className="font-semibold text-(--oboon-text-title)">

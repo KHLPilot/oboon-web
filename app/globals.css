@@ -12,7 +12,7 @@
   font-style: normal;
   font-weight: 100;
   font-display: swap;
-  src: url("/fonts/SUIT-Thin.woff2") format("woff2");
+  src: url("/fonts/suit/SUIT-Thin.woff2") format("woff2");
 }
 
 @font-face {
@@ -20,7 +20,7 @@
   font-style: normal;
   font-weight: 300;
   font-display: swap;
-  src: url("/fonts/SUIT-Light.woff2") format("woff2");
+  src: url("/fonts/suit/SUIT-Light.woff2") format("woff2");
 }
 
 @font-face {
@@ -28,7 +28,7 @@
   font-style: normal;
   font-weight: 350;
   font-display: swap;
-  src: url("/fonts/SUIT-SemiLight.woff2") format("woff2");
+  src: url("/fonts/suit/SUIT-ExtraLight.woff2") format("woff2");
 }
 
 @font-face {
@@ -36,7 +36,7 @@
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url("/fonts/SUIT-Regular.woff2") format("woff2");
+  src: url("/fonts/suit/SUIT-Regular.woff2") format("woff2");
 }
 
 @font-face {
@@ -44,7 +44,7 @@
   font-style: normal;
   font-weight: 500;
   font-display: swap;
-  src: url("/fonts/SUIT-Medium.woff2") format("woff2");
+  src: url("/fonts/suit/SUIT-Medium.woff2") format("woff2");
 }
 
 @font-face {
@@ -52,7 +52,7 @@
   font-style: normal;
   font-weight: 600;
   font-display: swap;
-  src: url("/fonts/SUIT-SemiBold.woff2") format("woff2");
+  src: url("/fonts/suit/SUIT-SemiBold.woff2") format("woff2");
 }
 
 @font-face {
@@ -60,7 +60,7 @@
   font-style: normal;
   font-weight: 700;
   font-display: swap;
-  src: url("/fonts/SUIT-Bold.woff2") format("woff2");
+  src: url("/fonts/suit/SUIT-Bold.woff2") format("woff2");
 }
 
 @font-face {
@@ -68,7 +68,7 @@
   font-style: normal;
   font-weight: 800;
   font-display: swap;
-  src: url("/fonts/SUIT-ExtraBold.woff2") format("woff2");
+  src: url("/fonts/suit/SUIT-ExtraBold.woff2") format("woff2");
 }
 
 @font-face {
@@ -76,7 +76,7 @@
   font-style: normal;
   font-weight: 900;
   font-display: swap;
-  src: url("/fonts/SUIT-Heavy.woff2") format("woff2");
+  src: url("/fonts/suit/SUIT-Heavy.woff2") format("woff2");
 }
 
 /* =========================================================
@@ -170,9 +170,6 @@ a {
   /* Optional: badge selected */
   --oboon-badge-selected-bg: rgba(91, 140, 255, 0.16);
   --oboon-badge-selected-border: rgba(91, 140, 255, 0.35);
-
-  /* Optional: marker system (used dynamically: var(--oboon-marker-${type})) */
-  --oboon-marker-stroke: rgba(255, 255, 255, 0.85);
 }
 
 /* Light theme (if you use .light or data-theme="light") */
@@ -237,7 +234,7 @@ a {
   /* font weights */
   --oboon-font-weight-thin: 100;
   --oboon-font-weight-light: 300;
-  --oboon-font-weight-semilight: 350;
+  --oboon-font-weight-extraLight: 350;
   --oboon-font-weight-regular: 400;
   --oboon-font-weight-medium: 500;
   --oboon-font-weight-semibold: 600;
@@ -323,7 +320,7 @@ a {
 .ob-typo-caption {
   font-family: var(--oboon-font-family-base);
   font-size: var(--oboon-font-size-caption);
-  font-weight: var(--oboon-font-weight-regular);
+  font-weight: var(--oboon-font-weight-medium);
   line-height: var(--oboon-line-height-base);
   letter-spacing: var(--oboon-letter-spacing-base);
 }
@@ -331,7 +328,7 @@ a {
 .ob-typo-button {
   font-family: var(--oboon-font-family-base);
   font-size: var(--oboon-font-size-subtitle);
-  font-weight: var(--oboon-font-weight-semilight);
+  font-weight: var(--oboon-font-weight-regular);
   line-height: var(--oboon-line-height-tight);
   letter-spacing: var(--oboon-letter-spacing-base);
 }
@@ -439,6 +436,99 @@ h3 {
   mask-size: contain;
 }
 
+/* =========================================================
+   Map / Rich marker tokens
+   ========================================================= */
+
+:root {
+  /* Optional: marker system (used dynamically: var(--oboon-marker-${type})) */
+  --oboon-marker-stroke: rgba(255, 255, 255, 0.85);
+
+  /* Rich marker background (light) */
+  --oboon-marker-urgent-bg: color-mix(
+    in srgb,
+    var(--oboon-marker-urgent) 92%,
+    white
+  );
+  --oboon-marker-upcoming-bg: color-mix(
+    in srgb,
+    var(--oboon-marker-upcoming) 88%,
+    white
+  );
+  --oboon-marker-remain-bg: color-mix(
+    in srgb,
+    var(--oboon-text-title) 14%,
+    white
+  );
+
+  --oboon-marker-urgent-text: #ffffff;
+  --oboon-marker-upcoming-text: #111827; /* warning은 흰색보다 다크 텍스트가 더 안정적 */
+  --oboon-marker-remain-text: var(--oboon-text-title);
+
+  --oboon-marker-urgent: var(--oboon-danger); /* 빨강 */
+  --oboon-marker-upcoming: var(--oboon-primary); /* 파랑 */
+  --oboon-marker-remain: #10b981; /* 초록 (또는 원하시는 색상 코드) */
+
+  --oboon-marker-urgent-border: color-mix(
+    in srgb,
+    var(--oboon-marker-urgent) 55%,
+    black
+  );
+  --oboon-marker-upcoming-border: color-mix(
+    in srgb,
+    var(--oboon-marker-upcoming) 45%,
+    black
+  );
+  --oboon-marker-remain-border: color-mix(
+    in srgb,
+    var(--oboon-text-muted) 45%,
+    black
+  );
+}
+
+:root[data-theme="dark"] {
+  /* Rich marker background (dark) */
+  --oboon-marker-urgent-bg: color-mix(
+    in srgb,
+    var(--oboon-marker-urgent) 72%,
+    black
+  );
+  --oboon-marker-upcoming-bg: color-mix(
+    in srgb,
+    var(--oboon-marker-upcoming) 64%,
+    black
+  );
+  --oboon-marker-remain-bg: color-mix(
+    in srgb,
+    var(--oboon-text-muted) 22%,
+    black
+  );
+
+  --oboon-marker-urgent-text: #ffffff;
+  --oboon-marker-upcoming-text: #111827;
+  --oboon-marker-remain-text: var(--oboon-text-title);
+
+  --oboon-marker-urgent: var(--oboon-danger); /* 빨강 */
+  --oboon-marker-upcoming: var(--oboon-primary); /* 파랑 */
+  --oboon-marker-remain: #10b981; /* 초록 (또는 원하시는 색상 코드) */
+
+  --oboon-marker-urgent-border: color-mix(
+    in srgb,
+    var(--oboon-marker-urgent) 55%,
+    black
+  );
+  --oboon-marker-upcoming-border: color-mix(
+    in srgb,
+    var(--oboon-marker-upcoming) 45%,
+    black
+  );
+  --oboon-marker-remain-border: color-mix(
+    in srgb,
+    var(--oboon-text-muted) 40%,
+    black
+  );
+}
+
 /* =========================
    Mobile Typography Scale
    ========================= */
@@ -456,6 +546,15 @@ h3 {
     --oboon-font-size-body: 15px;
     --oboon-font-size-caption: 13px;
   }
+}
+
+/* hide scrollbar utility */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none; /* IE/Edge legacy */
+  scrollbar-width: none; /* Firefox */
 }
 
 /* =========================================================

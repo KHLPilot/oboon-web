@@ -11,16 +11,16 @@ export default function Footer() {
   if (pathname?.startsWith("/chat")) return null;
 
   return (
-    <footer className="mt-20 border-t border-(--oboon-border-default) bg-(--oboon-bg-surface)">
-      <div className="mx-auto max-w-240 lg:max-w-300 px-4 sm:px-5 lg:px-8 py-10 sm:py-12">
+    <footer className="lg:mt-10 border-t border-(--oboon-border-default) bg-(--oboon-bg-surface)">
+      <div className="mx-auto max-w-240 lg:max-w-300 px-4 sm:px-5 lg:px-8 py-8 sm:py-8">
         {/* Top grid */}
-        <div className="grid gap-10 md:grid-cols-4">
+        <div className="grid gap-6 md:grid-cols-4">
           {/* Brand */}
           <div className="space-y-3">
-            <div className="text-sm font-semibold tracking-tight text-(--oboon-text-default)">
+            <div className="ob-typo-h2 tracking-tight text-(--oboon-text-default)">
               OBOON
             </div>
-            <p className="max-w-xs text-xs leading-5 text-(--oboon-text-muted)">
+            <p className="max-w-xs ob-typo-caption leading-6 text-(--oboon-text-muted)">
               투명한 분양 시장의 시작.
               <br />
               데이터기반의 의사결정을 돕습니다.
@@ -29,10 +29,8 @@ export default function Footer() {
 
           {/* Service */}
           <div className="space-y-3">
-            <div className="text-xs font-semibold text-(--oboon-text-default)">
-              서비스
-            </div>
-            <ul className="space-y-2 text-xs text-(--oboon-text-muted)">
+            <div className="ob-typo-h4 text-(--oboon-text-title)">서비스</div>
+            <ul className="space-y-2 ob-typo-caption text-(--oboon-text-muted)">
               <li>
                 <Link
                   href="/offerings"
@@ -59,10 +57,10 @@ export default function Footer() {
 
           {/* Company */}
           <div className="space-y-3">
-            <div className="text-xs font-semibold text-(--oboon-text-default)">
+            <div className="ob-typo-h4 font-semibold text-(--oboon-text-title)">
               회사
             </div>
-            <ul className="space-y-2 text-xs text-(--oboon-text-muted)">
+            <ul className="space-y-2 ob-typo-caption text-(--oboon-text-muted)">
               <li>
                 <Link
                   href="/about"
@@ -92,10 +90,10 @@ export default function Footer() {
 
           {/* Support */}
           <div className="space-y-3">
-            <div className="text-xs font-semibold text-(--oboon-text-default)">
+            <div className="ob-typo-h4 font-semibold text-(--oboon-text-title)">
               고객지원
             </div>
-            <ul className="space-y-2 text-xs text-(--oboon-text-muted)">
+            <ul className="space-y-2 ob-typo-caption text-(--oboon-text-muted)">
               <li>
                 <Link
                   href="/notice"
@@ -125,7 +123,7 @@ export default function Footer() {
         <div className="mt-10 border-t border-(--oboon-border-default)" />
 
         {/* Bottom */}
-        <div className="pt-6 text-center text-[11px] leading-5 text-(--oboon-text-muted)">
+        <div className="pt-6 text-center ob-typo-caption leading-5 text-(--oboon-text-muted)">
           © {year} OBOON Inc. All rights reserved. Generated based on OBOON
           Guidelines v1.0.
         </div>

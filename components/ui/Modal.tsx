@@ -9,11 +9,13 @@ export default function Modal({
   onClose,
   children,
   showCloseIcon = true,
+  panelClassName,
 }: {
   open: boolean;
   onClose: () => void;
   children: React.ReactNode;
   showCloseIcon?: boolean;
+  panelClassName?: string;
 }) {
   const [portalEl, setPortalEl] = useState<HTMLDivElement | null>(null);
 
@@ -56,7 +58,12 @@ export default function Modal({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="relative w-full max-w-md rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-6 shadow-(--oboon-shadow-card)">
+      <div
+        className={[
+          "relative w-full max-w-md rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-6 shadow-(--oboon-shadow-card)",
+          panelClassName ?? "max-w-md",
+        ].join(" ")}
+      >
         {showCloseIcon ? (
           <button
             type="button"

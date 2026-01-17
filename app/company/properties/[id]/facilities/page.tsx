@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/Badge";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { FormField } from "@/app/components/FormField";
 import PrecisionDateInput from "@/components/ui/PercisionDateInput";
-import NaverMap from "@/app/components/NaverMap";
+import NaverMap from "@/features/map/NaverMap";
 
 const inputBase =
   "input-basic rounded-md border border-(--oboon-border-default) bg-(--oboon-bg-subtle)/70 px-3 py-2 transition focus:border-(--oboon-accent) focus:outline-none focus:ring-2 focus:ring-(--oboon-accent)/50 w-full";
@@ -123,16 +123,16 @@ export default function PropertyFacilitiesPage() {
           prev.map((f, i) =>
             i === index
               ? {
-                ...f,
-                road_address: data.roadAddress,
-                jibun_address: data.jibunAddress,
-                lat: geo.lat,
-                lng: geo.lng,
-                region_1depth: geo.region_1depth,
-                region_2depth: geo.region_2depth,
-                region_3depth: geo.region_3depth,
-                hasSelectedPosition: Boolean(geo.lat && geo.lng),
-              }
+                  ...f,
+                  road_address: data.roadAddress,
+                  jibun_address: data.jibunAddress,
+                  lat: geo.lat,
+                  lng: geo.lng,
+                  region_1depth: geo.region_1depth,
+                  region_2depth: geo.region_2depth,
+                  region_3depth: geo.region_3depth,
+                  hasSelectedPosition: Boolean(geo.lat && geo.lng),
+                }
               : f
           )
         );
@@ -198,9 +198,9 @@ export default function PropertyFacilitiesPage() {
 
       const { error } = f.id
         ? await supabase
-          .from("property_facilities")
-          .update(payload)
-          .eq("id", f.id)
+            .from("property_facilities")
+            .update(payload)
+            .eq("id", f.id)
         : await supabase.from("property_facilities").insert(payload);
 
       if (error) {
@@ -282,8 +282,8 @@ export default function PropertyFacilitiesPage() {
                   {f.type === "MODELHOUSE"
                     ? "모델하우스"
                     : f.type === "PROMOTION"
-                      ? "홍보관"
-                      : "팝업"}
+                    ? "홍보관"
+                    : "팝업"}
                 </Badge>
                 <span className="text-sm text-(--oboon-text-muted)">
                   {f.is_active ? "운영 중" : "미운영"}
@@ -382,14 +382,19 @@ export default function PropertyFacilitiesPage() {
               <div className="space-y-2">
                 <div className="h-64 relative rounded-xl overflow-hidden border">
                   {!f.hasSelectedPosition && (
-                    <div className="absolute inset-0 z-10 flex items-center justify-center text-sm font-medium bg-white/50 backdrop-blur pointer-events-none" style={{ color: "var(--oboon-text-body)" }}>
+                    <div
+                      className="absolute inset-0 z-10 flex items-center justify-center text-sm font-medium bg-white/50 backdrop-blur pointer-events-none"
+                      style={{ color: "var(--oboon-text-body)" }}
+                    >
                       지도에 위치를 찍어주세요.
                     </div>
                   )}
 
                   <NaverMap
                     onSelectPosition={async (lat, lng) => {
-                      const res = await fetch(`/api/geo/reverse?lat=${lat}&lng=${lng}`);
+                      const res = await fetch(
+                        `/api/geo/reverse?lat=${lat}&lng=${lng}`
+                      );
                       const geo = await res.json();
 
                       const composedRoadAddress = [
@@ -404,16 +409,16 @@ export default function PropertyFacilitiesPage() {
                         prev.map((x, i) =>
                           i === idx
                             ? {
-                              ...x,
-                              lat,
-                              lng,
-                              road_address: composedRoadAddress,
-                              jibun_address: "",
-                              region_1depth: geo.region_1depth,
-                              region_2depth: geo.region_2depth,
-                              region_3depth: geo.region_3depth,
-                              hasSelectedPosition: true,
-                            }
+                                ...x,
+                                lat,
+                                lng,
+                                road_address: composedRoadAddress,
+                                jibun_address: "",
+                                region_1depth: geo.region_1depth,
+                                region_2depth: geo.region_2depth,
+                                region_3depth: geo.region_3depth,
+                                hasSelectedPosition: true,
+                              }
                             : x
                         )
                       );
@@ -425,11 +430,7 @@ export default function PropertyFacilitiesPage() {
                   <input
                     className={inputBase}
                     readOnly
-                    value={[
-                      f.region_1depth,
-                      f.region_2depth,
-                      f.region_3depth,
-                    ]
+                    value={[f.region_1depth, f.region_2depth, f.region_3depth]
                       .filter(Boolean)
                       .join(" ")}
                     placeholder="지도에서 위치를 선택하세요"

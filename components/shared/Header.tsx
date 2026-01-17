@@ -118,12 +118,15 @@ export default function Header() {
       <header
         className={[
           "fixed top-0 left-0 right-0 z-100 w-full border-b",
-          "bg-oboon-surface/90 supports-backdrop-filter:backdrop-blur-md",
+          "supports-backdrop-filter:backdrop-blur-md",
         ].join(" ")}
         style={{
           borderColor: "var(--oboon-border-default)",
           height: HEADER_HEIGHT,
           paddingTop: "env(safe-area-inset-top)",
+          backgroundColor:
+            "color-mix(in srgb, var(--oboon-bg-surface) 90%, transparent)",
+
           WebkitBackdropFilter: "blur(12px)",
           backdropFilter: "blur(12px)",
         }}
@@ -210,7 +213,7 @@ export default function Header() {
                 onClick={() => router.push("/company/properties")}
               >
                 <span className="hidden sm:inline">현장 등록하기</span>
-                <span className="sm:hidden">현장 등록</span>
+                <span className="sm:hidden ob-typo-caption">현장 등록</span>
               </Button>
             )}
 

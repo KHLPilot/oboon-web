@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import { createSupabaseClient } from "@/lib/supabaseClient";
-import NaverMap from "@/app/components/NaverMap";
+import NaverMap from "@/features/map/NaverMap";
 
 type LocationForm = {
   road_address: string;
@@ -219,7 +219,9 @@ export default function PropertyLocationPage() {
 
           {site.road_address ? (
             <div className="space-y-1 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-2">
-              <div className="text-xs text-(--oboon-text-muted)">도로명주소</div>
+              <div className="text-xs text-(--oboon-text-muted)">
+                도로명주소
+              </div>
               <div className="text-sm font-medium text-(--oboon-text-title)">
                 {site.road_address}
               </div>
@@ -272,7 +274,10 @@ export default function PropertyLocationPage() {
 
               <div className="h-64 relative rounded-xl overflow-hidden border border-(--oboon-border-default)">
                 {!hasSelectedPosition && (
-                  <div className="absolute inset-0 z-10 flex items-center justify-center text-sm font-medium bg-white/50 backdrop-blur pointer-events-none" style={{ color: "var(--oboon-text-body)" }}>
+                  <div
+                    className="absolute inset-0 z-10 flex items-center justify-center text-sm font-medium bg-white/50 backdrop-blur pointer-events-none"
+                    style={{ color: "var(--oboon-text-body)" }}
+                  >
                     지도에 위치를 찍어주세요.
                   </div>
                 )}

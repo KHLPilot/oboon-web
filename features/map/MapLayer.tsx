@@ -2,14 +2,16 @@
 
 import { useState } from "react";
 import { Layers, ChevronDown, ChevronUp } from "lucide-react";
+import type { MarkerType } from "@/features/map/marker/marker.type";
+import {
+  MARKER_TYPES,
+  MARKER_TYPE_LABEL,
+} from "@/features/map/marker/marker.constants";
+import { markerVars } from "@/features/map/marker/marker.theme";
 
 interface LayerControlProps {
-  filters: {
-    urgent: boolean;
-    upcoming: boolean;
-    remain: boolean;
-  };
-  onToggle: (key: "urgent" | "upcoming" | "remain") => void;
+  filters: Record<MarkerType, boolean>;
+  onToggle: (key: MarkerType) => void;
 }
 
 export default function LayerControl({ filters, onToggle }: LayerControlProps) {
@@ -18,14 +20,13 @@ export default function LayerControl({ filters, onToggle }: LayerControlProps) {
   return (
     <div
       className="
-        absolute top-6 left-6 z-20 w-52
+        absolute top-1 left-1 z-20 w-40
         rounded-xl overflow-hidden
         border border-(--oboon-border-default)
         bg-(--oboon-bg-surface)
         shadow-sm
       "
     >
-      {/* 헤더 */}
       <button
         type="button"
         onClick={() => setIsOpen((v) => !v)}
@@ -50,30 +51,29 @@ export default function LayerControl({ filters, onToggle }: LayerControlProps) {
         )}
       </button>
 
-      {/* 구분선(열렸을 때만) */}
       {isOpen && <div className="h-px w-full bg-(--oboon-border-default)" />}
 
-      {/* 필터 */}
       {isOpen && (
         <div className="px-4 py-3 space-y-3">
-          {(
-            [
-              { key: "urgent", label: "선착순 분양" },
-              { key: "upcoming", label: "청약 예정" },
-              { key: "remain", label: "잔여 세대" },
-            ] as const
-          ).map(({ key, label }) => (
+          {MARKER_TYPES.map((key) => (
             <label
               key={key}
-              className="flex items-center gap-3 text-sm text-(--oboon-text-body) cursor-pointer select-none"
+              className="flex items-center gap-2 ob-typo-caption text-(--oboon-text-body) cursor-pointer select-none"
             >
               <input
                 type="checkbox"
-                checked={filters[key]}
+                checked={!!filters[key]}
                 onChange={() => onToggle(key)}
                 className="accent-(--oboon-primary)"
               />
-              {label}
+
+              {/* ✅ 타입별 dot 색상 */}
+              <span
+                className="w-2 h-2 rounded-full"
+                style={{ backgroundColor: markerVars(key).dot }}
+              />
+
+              {MARKER_TYPE_LABEL[key]}
             </label>
           ))}
         </div>
