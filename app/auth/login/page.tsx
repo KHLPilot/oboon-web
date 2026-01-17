@@ -259,30 +259,30 @@ export default function LoginPage() {
                     }
                   />
                 </div>
-
-                <Button
-                  type="submit"
-                  variant="primary"
-                  size="md"
-                  shape="pill"
-                  className="mt-2 w-full justify-center"
-                  disabled={loading}
-                  loading={loading}
-                >
-                  로그인
-                </Button>
-
-                <div className="mt-4 text-center ob-typo-body text-(--oboon-text-muted)">
-                  <button
-                    type="button"
-                    className="hover:text-(--oboon-text-title) transition-colors"
-                    onClick={() => router.push("/")}
-                    disabled={loading}
-                  >
-                    로그인 없이 보기
-                  </button>
-                </div>
               </form>
+              <Button
+                type="submit"
+                variant="primary"
+                size="md"
+                shape="pill"
+                className="mt-5 w-full justify-center"
+                disabled={loading}
+                loading={loading}
+              >
+                로그인
+              </Button>
+
+              <Button
+                type="button"
+                variant="secondary"
+                size="md"
+                shape="pill"
+                className="mt-2 w-full justify-center"
+                onClick={() => router.push("/")}
+                disabled={loading}
+              >
+                로그인 없이 보기
+              </Button>
 
               {/* Divider */}
               <div className="mt-6 mb-4 flex items-center gap-3">
