@@ -354,8 +354,12 @@ export default function MyConsultationsPage() {
                       <Button
                         size="sm"
                         variant="secondary"
-                        className="text-(--oboon-danger)"
-                        onClick={() => handleCancel(consultation.id)}
+                        className="text-(--oboon-danger) min-w-15"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleCancel(consultation.id);
+                        }}
                       >
                         취소
                       </Button>
