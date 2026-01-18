@@ -8,6 +8,8 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Label from "@/components/ui/Label";
+import Link from "next/link";
+import { CalendarDays, ChevronRight } from "lucide-react";
 
 type Role = "user" | "agent_pending" | "agent" | "builder" | "developer" | "admin";
 
@@ -298,23 +300,43 @@ export default function ProfilePage() {
   }
 
   return (
-    <main className="bg-(--oboon-bg-page)">
-      <PageContainer className="py-10">
-        <div className="mx-auto max-w-3xl space-y-10">
+    <main className="bg-(--oboon-bg-page) min-h-screen">
+      <PageContainer className="py-6 sm:py-10">
+        <div className="mx-auto max-w-3xl space-y-6 sm:space-y-8">
           <section>
-            <h1 className="text-2xl font-bold text-(--oboon-text-title) mb-2">
+            <h1 className="text-xl sm:text-2xl font-bold text-(--oboon-text-title) mb-1 sm:mb-2">
               프로필 설정
             </h1>
-            <p className="text-sm text-(--oboon-text-muted)">
+            <p className="text-xs sm:text-sm text-(--oboon-text-muted)">
               관심 조건을 설정하면, 나에게 맞는 분양 현장을 자동으로
               추천해드립니다.
             </p>
           </section>
 
+          {/* 내 상담 예약 바로가기 */}
+          <Link href="/my/consultations">
+            <Card className="flex items-center justify-between hover:bg-(--oboon-bg-subtle) transition-colors cursor-pointer p-4 sm:p-5">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-(--oboon-primary)/10 shrink-0">
+                  <CalendarDays className="h-4 w-4 sm:h-5 sm:w-5 text-(--oboon-primary)" />
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-sm sm:text-base font-semibold text-(--oboon-text-title)">
+                    내 상담 예약
+                  </h2>
+                  <p className="text-xs sm:text-sm text-(--oboon-text-muted) truncate">
+                    예약한 상담 내역을 확인하고 관리합니다
+                  </p>
+                </div>
+              </div>
+              <ChevronRight className="h-5 w-5 text-(--oboon-text-muted) shrink-0" />
+            </Card>
+          </Link>
+
           {/* 기본 정보 */}
-          <Card>
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold text-(--oboon-text-title)">
+          <Card className="p-4 sm:p-5">
+            <div className="flex justify-between items-center mb-3 sm:mb-4">
+              <h2 className="text-base sm:text-lg font-semibold text-(--oboon-text-title)">
                 기본 정보
               </h2>
               {!isEditing && (
@@ -425,28 +447,28 @@ export default function ProfilePage() {
           </Card>
 
           {/* 관심 지역 */}
-          <Card>
-            <h2 className="text-lg font-semibold text-(--oboon-text-title) mb-2">
+          <Card className="p-4 sm:p-5">
+            <h2 className="text-base sm:text-lg font-semibold text-(--oboon-text-title) mb-2">
               관심 지역
             </h2>
-            <p className="text-sm text-(--oboon-text-muted)">(지역 선택 UI 예정)</p>
+            <p className="text-xs sm:text-sm text-(--oboon-text-muted)">(지역 선택 UI 예정)</p>
           </Card>
 
           {/* 선호 분양 유형 */}
-          <Card>
-            <h2 className="text-lg font-semibold text-(--oboon-text-title) mb-4">
+          <Card className="p-4 sm:p-5">
+            <h2 className="text-base sm:text-lg font-semibold text-(--oboon-text-title) mb-3 sm:mb-4">
               선호 분양 유형
             </h2>
-            <div className="flex flex-wrap gap-4 text-sm">
+            <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:gap-4 text-sm">
               {["아파트", "오피스텔", "도시형생활주택", "생활형숙박시설"].map(
                 (t) => (
                   <label
                     key={t}
-                    className="flex items-center gap-2 text-(--oboon-text-body)"
+                    className="flex items-center gap-2 text-(--oboon-text-body) text-xs sm:text-sm"
                   >
                     <input
                       type="checkbox"
-                      className="accent-(--oboon-primary)"
+                      className="accent-(--oboon-primary) h-4 w-4"
                     />
                     {t}
                   </label>
@@ -456,12 +478,12 @@ export default function ProfilePage() {
           </Card>
 
           {/* 계정 유형 */}
-          <Card>
-            <h2 className="text-lg font-semibold text-(--oboon-text-title) mb-3">
+          <Card className="p-4 sm:p-5">
+            <h2 className="text-base sm:text-lg font-semibold text-(--oboon-text-title) mb-2 sm:mb-3">
               계정 유형
             </h2>
 
-            <p className="text-sm text-(--oboon-text-body) mb-4">
+            <p className="text-xs sm:text-sm text-(--oboon-text-body) mb-3 sm:mb-4">
               현재 계정 상태:{" "}
               <span className="font-semibold text-(--oboon-text-title)">
                 {role === "user" && "일반 사용자"}
@@ -476,7 +498,7 @@ export default function ProfilePage() {
             {role === "user" && (
               <Button
                 variant="secondary"
-                size="md"
+                size="sm"
                 onClick={requestAgent}
               >
                 분양대행사 직원 신청
@@ -484,24 +506,25 @@ export default function ProfilePage() {
             )}
 
             {role === "agent_pending" && (
-              <p className="text-sm" style={{ color: "var(--oboon-primary)" }}>
+              <p className="text-xs sm:text-sm" style={{ color: "var(--oboon-primary)" }}>
                 관리자 승인 후 사용 가능합니다.
               </p>
             )}
           </Card>
+
           {/* 계정 삭제 */}
-          <Card>
-            <h2 className="text-lg font-semibold text-red-600 mb-3">
+          <Card className="p-4 sm:p-5">
+            <h2 className="text-base sm:text-lg font-semibold text-red-600 mb-2 sm:mb-3">
               계정삭제
             </h2>
 
-            <p className="text-sm text-(--oboon-text-body) mb-4">
+            <p className="text-xs sm:text-sm text-(--oboon-text-body) mb-3 sm:mb-4">
               계정을 삭제하면 모든 개인정보가 삭제되며 복구할 수 없습니다.
             </p>
 
             <Button
               variant="secondary"
-              size="md"
+              size="sm"
               onClick={() => setShowDeleteModal(true)}
               className="bg-red-50 hover:bg-red-100 text-red-600 border-red-200"
             >
@@ -509,10 +532,10 @@ export default function ProfilePage() {
             </Button>
           </Card>
 
-          {/* ✅ 3. 계정 삭제 모달 (맨 아래) */}
+          {/* 계정 삭제 모달 */}
           {showDeleteModal && (
             <div
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+              className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-4"
               onClick={() => {
                 setShowDeleteModal(false);
                 setDeletePassword("");
@@ -520,49 +543,51 @@ export default function ProfilePage() {
               }}
             >
               <div
-                className="w-full max-w-md rounded-2xl border p-6 shadow-card bg-white"
+                className="w-full max-w-md rounded-2xl border p-5 sm:p-6 shadow-card bg-white safe-area-bottom"
                 onClick={(e) => e.stopPropagation()}
               >
-                <h3 className="text-lg font-semibold text-red-600 mb-4">
+                <h3 className="text-base sm:text-lg font-semibold text-red-600 mb-3 sm:mb-4">
                   ⚠️ 계정 삭제
                 </h3>
 
-                <div className="space-y-4 mb-6">
+                <div className="space-y-3 sm:space-y-4 mb-5 sm:mb-6">
                   <div className="p-3 rounded-lg bg-red-50 border border-red-200">
-                    <p className="text-sm text-red-800 space-y-1">
-                      <div>• 모든 개인정보가 삭제됩니다</div>
-                      <div>• 작성한 게시글은 "탈퇴한 사용자"로 표시됩니다</div>
-                      <div>• 이 작업은 되돌릴 수 없습니다</div>
+                    <p className="text-xs sm:text-sm text-red-800 space-y-1">
+                      <span className="block">• 모든 개인정보가 삭제됩니다</span>
+                      <span className="block">• 작성한 게시글은 &quot;탈퇴한 사용자&quot;로 표시됩니다</span>
+                      <span className="block">• 이 작업은 되돌릴 수 없습니다</span>
                     </p>
                   </div>
 
                   <div>
-                    <Label>비밀번호 확인</Label>
+                    <Label className="text-xs sm:text-sm">비밀번호 확인</Label>
                     <Input
                       type="password"
                       value={deletePassword}
                       onChange={(e) => setDeletePassword(e.target.value)}
                       placeholder="비밀번호를 입력하세요"
+                      className="text-sm"
                     />
                   </div>
 
                   <div>
-                    <Label>확인 문구 입력</Label>
+                    <Label className="text-xs sm:text-sm">확인 문구 입력</Label>
                     <Input
                       value={deleteConfirm}
                       onChange={(e) => setDeleteConfirm(e.target.value)}
                       placeholder="'계정삭제'를 입력하세요"
+                      className="text-sm"
                     />
                     <p className="text-xs text-(--oboon-text-muted) mt-1">
-                      정확히 '계정삭제'를 입력해주세요
+                      정확히 &apos;계정삭제&apos;를 입력해주세요
                     </p>
                   </div>
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex gap-2 sm:gap-3">
                   <Button
                     variant="primary"
-                    size="md"
+                    size="sm"
                     onClick={deleteAccount}
                     disabled={deleting || !deletePassword || deleteConfirm !== "계정삭제"}
                     loading={deleting}
@@ -572,7 +597,7 @@ export default function ProfilePage() {
                   </Button>
                   <Button
                     variant="secondary"
-                    size="md"
+                    size="sm"
                     onClick={() => {
                       setShowDeleteModal(false);
                       setDeletePassword("");

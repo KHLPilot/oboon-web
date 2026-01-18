@@ -25,7 +25,10 @@ export default async function OfferingDetailPage({
         </div>
 
         <div className="lg:sticky lg:top-32 lg:h-fit">
-          <OfferingDetailRight />
+          <OfferingDetailRight
+            propertyId={property.id}
+            propertyName={property.name}
+          />
         </div>
       </div>
     </PageContainer>

@@ -6,12 +6,12 @@ const supabaseAdmin = createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export async function GET(req: Request) {
+export async function POST(req: Request) {
     try {
-        const { searchParams } = new URL(req.url);
-        const token = searchParams.get("token");
+        const body = await req.json();
+        const token = body.token;
 
-        console.log("🔍 [API] 인증 확인 요청 - 토큰:", token);
+        console.log("🔍 [API] 인증 확인 요청 - 토큰:", token ? "있음" : "없음");
 
         if (!token) {
             console.log("❌ [API] 토큰 없음");

@@ -107,8 +107,8 @@ export default function Header() {
     router.refresh();
   };
 
-  // auth 페이지에서는 헤더 숨김
-  if (pathname?.startsWith("/auth")) return null;
+  // auth, chat 페이지에서는 헤더 숨김
+  if (pathname?.startsWith("/auth") || pathname?.startsWith("/chat")) return null;
 
   // iOS safe-area 포함 헤더 총 높이(스페이서에 동일하게 사용)
   const HEADER_HEIGHT = "calc(64px + env(safe-area-inset-top))";
@@ -174,14 +174,24 @@ export default function Header() {
           <div className="flex items-center gap-2 sm:gap-3">
             {/* Role actions */}
             {userRole === "agent" && (
-              <Link
-                href="/agent/register"
-                className="ob-btn ob-btn-sm ob-btn-pill ob-btn-primary flex items-center gap-2"
-              >
-                <UserPlus className="w-4 h-4" />
-                <span className="hidden sm:inline">소속 등록 신청</span>
-                <span className="sm:hidden">신청</span>
-              </Link>
+              <>
+                <Link
+                  href="/agent/consultations"
+                  className="ob-btn ob-btn-sm ob-btn-pill ob-btn-secondary flex items-center gap-2"
+                >
+                  <Calendar className="w-4 h-4" />
+                  <span className="hidden sm:inline">예약 관리</span>
+                  <span className="sm:hidden">예약</span>
+                </Link>
+                <Link
+                  href="/agent/properties"
+                  className="ob-btn ob-btn-sm ob-btn-pill ob-btn-primary flex items-center gap-2"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span className="hidden sm:inline">소속 등록 신청</span>
+                  <span className="sm:hidden">신청</span>
+                </Link>
+              </>
             )}
 
             {(userRole === "user" ||

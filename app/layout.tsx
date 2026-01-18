@@ -1,5 +1,5 @@
 // app/layout.tsx
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import "./globals.css";
 import localFont from "next/font/local";
@@ -11,6 +11,13 @@ import Providers from "./providers";
 export const metadata: Metadata = {
   title: "OBOON 분양 플랫폼",
   description: "Offerings · Briefing · Overview · Options · Navigation",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: "cover",
 };
 
 const suit = localFont({

@@ -5,7 +5,11 @@ import { usePathname } from "next/navigation";
 
 export default function Footer() {
   const pathname = usePathname();
-  if (pathname.startsWith("/auth/")) return null;
+
+  // auth, chat 페이지에서는 푸터 숨김
+  if (pathname?.startsWith("/auth/")) return null;
+  if (pathname?.startsWith("/chat")) return null;
+
   const year = new Date().getFullYear();
 
   return (
