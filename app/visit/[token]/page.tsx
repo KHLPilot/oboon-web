@@ -66,7 +66,7 @@ export default function VisitVerifyPage() {
   // GPS 방문 인증
   async function handleVerify() {
     setStatus("loading");
-    setErrorInfo(null);
+    // setErrorInfo(null);
 
     try {
       // 위치 가져오기
@@ -176,7 +176,7 @@ export default function VisitVerifyPage() {
     const pollInterval = setInterval(async () => {
       try {
         const response = await fetch(
-          `/api/visits/request-manual?requestId=${manualRequestId}`
+          `/api/visits/request-manual?requestId=${manualRequestId}`,
         );
         const data = await response.json();
 
@@ -248,8 +248,7 @@ export default function VisitVerifyPage() {
             </p>
             <Link href="/my/consultations">
               <Button variant="primary">
-                <ArrowLeft className="h-4 w-4" />
-                내 상담 예약으로 돌아가기
+                <ArrowLeft className="h-4 w-4" />내 상담 예약으로 돌아가기
               </Button>
             </Link>
           </Card>
@@ -269,8 +268,7 @@ export default function VisitVerifyPage() {
             </p>
             <Link href="/my/consultations">
               <Button variant="secondary">
-                <ArrowLeft className="h-4 w-4" />
-                내 상담 예약으로 돌아가기
+                <ArrowLeft className="h-4 w-4" />내 상담 예약으로 돌아가기
               </Button>
             </Link>
           </Card>
@@ -356,54 +354,55 @@ export default function VisitVerifyPage() {
             </Button>
 
             {/* 수동 확인 요청 섹션 */}
-            {status === "error" && canRequestManual() && (
-              <div className="mt-6 pt-6 border-t border-(--oboon-border-default)">
-                <p className="text-sm text-(--oboon-text-muted) text-center mb-4">
-                  GPS 인증이 어려운 경우
-                </p>
+            {(status === "error" || status === "requesting") &&
+              canRequestManual() && (
+                <div className="mt-6 pt-6 border-t border-(--oboon-border-default)">
+                  <p className="text-sm text-(--oboon-text-muted) text-center mb-4">
+                    GPS 인증이 어려운 경우
+                  </p>
 
-                {showReasonInput ? (
-                  <div className="space-y-3">
-                    <textarea
-                      className="w-full px-3 py-2 border border-(--oboon-border-default) rounded-lg bg-(--oboon-bg-page) text-(--oboon-text-body) text-sm resize-none focus:outline-none focus:ring-2 focus:ring-(--oboon-primary)"
-                      placeholder="사유를 입력해주세요 (선택)"
-                      rows={2}
-                      value={manualReason}
-                      onChange={(e) => setManualReason(e.target.value)}
-                    />
-                    <div className="flex gap-2">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => setShowReasonInput(false)}
-                      >
-                        취소
-                      </Button>
-                      <Button
-                        variant="warning"
-                        size="sm"
-                        className="flex-1"
-                        onClick={handleRequestManual}
-                        loading={status === "requesting"}
-                      >
-                        <User className="h-4 w-4" />
-                        요청하기
-                      </Button>
+                  {showReasonInput ? (
+                    <div className="space-y-3">
+                      <textarea
+                        className="w-full px-3 py-2 border border-(--oboon-border-default) rounded-lg bg-(--oboon-bg-page) text-(--oboon-text-body) text-sm resize-none focus:outline-none focus:ring-2 focus:ring-(--oboon-primary)"
+                        placeholder="사유를 입력해주세요 (선택)"
+                        rows={2}
+                        value={manualReason}
+                        onChange={(e) => setManualReason(e.target.value)}
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => setShowReasonInput(false)}
+                        >
+                          취소
+                        </Button>
+                        <Button
+                          variant="warning"
+                          size="sm"
+                          className="flex-1"
+                          onClick={handleRequestManual}
+                          loading={status === "requesting"}
+                        >
+                          <User className="h-4 w-4" />
+                          요청하기
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <Button
-                    variant="secondary"
-                    className="w-full"
-                    onClick={() => setShowReasonInput(true)}
-                  >
-                    <User className="h-4 w-4" />
-                    상담사 확인 요청
-                  </Button>
-                )}
-              </div>
-            )}
+                  ) : (
+                    <Button
+                      variant="secondary"
+                      className="w-full"
+                      onClick={() => setShowReasonInput(true)}
+                    >
+                      <User className="h-4 w-4" />
+                      상담사 확인 요청
+                    </Button>
+                  )}
+                </div>
+              )}
           </Card>
         )}
       </div>

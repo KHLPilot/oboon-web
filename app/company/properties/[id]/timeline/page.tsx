@@ -1,12 +1,14 @@
 // app/company/properties/[id]/timeline/page.tsx
-
 "use client";
 
-import { forwardRef, useEffect, useState } from "react";
+import { forwardRef, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { CalendarDays } from "lucide-react";
 
 import Button, { type ButtonProps } from "@/components/ui/Button";
+import Card from "@/components/ui/Card";
+import PageContainer from "@/components/shared/PageContainer";
+
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import OboonDatePicker from "@/components/ui/DatePicker";
 import PrecisionDateInput from "@/components/ui/PercisionDateInput";
@@ -37,49 +39,49 @@ const FIELDS: {
   placeholder?: string;
   policy: "day" | "month" | "both";
 }[] = [
-    {
-      key: "announcement_date",
-      label: "분양/청약 모집공고",
-      placeholder: "예) 2025-07-01",
-      policy: "day",
-    },
-    {
-      key: "application_start",
-      label: "청약 접수 시작",
-      placeholder: "예) 2025-07-12",
-      policy: "day",
-    },
-    {
-      key: "application_end",
-      label: "청약 접수 종료",
-      placeholder: "예) 2025-07-14",
-      policy: "day",
-    },
-    {
-      key: "winner_announce",
-      label: "당첨자 발표",
-      placeholder: "예) 2025-07-21",
-      policy: "day",
-    },
-    {
-      key: "contract_start",
-      label: "계약 시작",
-      placeholder: "예) 2025-07-25",
-      policy: "day",
-    },
-    {
-      key: "contract_end",
-      label: "계약 종료",
-      placeholder: "예) 2025-07-28",
-      policy: "day",
-    },
-    {
-      key: "move_in_date",
-      label: "입주 예정일",
-      placeholder: "예) 2026-03 또는 2026-03-01",
-      policy: "both",
-    },
-  ];
+  {
+    key: "announcement_date",
+    label: "분양/청약 모집공고",
+    placeholder: "예) 2025-07-01",
+    policy: "day",
+  },
+  {
+    key: "application_start",
+    label: "청약 접수 시작",
+    placeholder: "예) 2025-07-12",
+    policy: "day",
+  },
+  {
+    key: "application_end",
+    label: "청약 접수 종료",
+    placeholder: "예) 2025-07-14",
+    policy: "day",
+  },
+  {
+    key: "winner_announce",
+    label: "당첨자 발표",
+    placeholder: "예) 2025-07-21",
+    policy: "day",
+  },
+  {
+    key: "contract_start",
+    label: "계약 시작",
+    placeholder: "예) 2025-07-25",
+    policy: "day",
+  },
+  {
+    key: "contract_end",
+    label: "계약 종료",
+    placeholder: "예) 2025-07-28",
+    policy: "day",
+  },
+  {
+    key: "move_in_date",
+    label: "입주 예정일",
+    placeholder: "예) 2026-03 또는 2026-03-01",
+    policy: "both",
+  },
+];
 
 function parseYmdToLocalDate(ymd: string | null | undefined): Date | null {
   if (!ymd) return null;
@@ -119,7 +121,7 @@ const TimelineDateTrigger = forwardRef<HTMLButtonElement, ButtonProps>(
       <CalendarDays className="h-4 w-4" />
       <span className="sr-only">날짜 선택</span>
     </Button>
-  )
+  ),
 );
 TimelineDateTrigger.displayName = "TimelineDateTrigger";
 
@@ -132,8 +134,27 @@ export default function PropertyTimelinePage() {
   const [form, setForm] = useState<TimelineForm>(EMPTY_FORM);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [moveInPrecision, setMoveInPrecision] = useState<"day" | "month">("day");
+  const [moveInPrecision, setMoveInPrecision] = useState<"day" | "month">(
+    "day",
+  );
   const [timelineId, setTimelineId] = useState<number | null>(null);
+
+  // Input.tsx 룩에 맞춘 토큰 기반 입력 스타일 (DatePicker/PrecisionDateInput 용)
+  const INPUT_LIKE = useMemo(
+    () =>
+      [
+        "w-full",
+        "rounded-xl",
+        "border border-(--oboon-border-default)",
+        "bg-(--oboon-bg-surface)",
+        "px-4 py-3",
+        "ob-typo-body text-(--oboon-text-title)",
+        "placeholder:text-(--oboon-text-muted)",
+        "transition",
+        "focus:outline-none focus:ring-2 focus:ring-(--oboon-accent)/40 focus:border-(--oboon-accent)",
+      ].join(" "),
+    [],
+  );
 
   useEffect(() => {
     let alive = true;
@@ -157,8 +178,8 @@ export default function PropertyTimelinePage() {
         let moveInDate = data.move_in_date;
         let precision: "day" | "month" = "day";
 
-        if (moveInDate && typeof moveInDate === 'string') {
-          if (moveInDate.endsWith('-01')) {
+        if (moveInDate && typeof moveInDate === "string") {
+          if (moveInDate.endsWith("-01")) {
             precision = "month";
             moveInDate = moveInDate.substring(0, 7);
           } else {
@@ -190,19 +211,16 @@ export default function PropertyTimelinePage() {
     };
   }, [propertyId, supabase]);
 
-  // ✅ 정밀도 변경 핸들러
   const handlePrecisionChange = (newPrecision: "day" | "month") => {
     setMoveInPrecision(newPrecision);
 
-    // ✅ 월로 변경 시: 일자 제거 (YYYY-MM-DD → YYYY-MM)
     if (newPrecision === "month" && form.move_in_date) {
       const currentValue = form.move_in_date;
       if (/^\d{4}-\d{2}-\d{2}$/.test(currentValue)) {
-        const yearMonth = currentValue.substring(0, 7); // "2313-12-12" → "2313-12"
+        const yearMonth = currentValue.substring(0, 7);
         setForm((prev) => ({ ...prev, move_in_date: yearMonth }));
       }
     }
-    // ✅ 일로 변경 시: 그대로 유지 (사용자가 입력하도록)
   };
 
   async function handleSave() {
@@ -211,7 +229,7 @@ export default function PropertyTimelinePage() {
     const payload = {
       ...form,
       move_in_date: form.move_in_date
-        ? moveInPrecision === 'month'
+        ? moveInPrecision === "month"
           ? `${form.move_in_date}-01`
           : form.move_in_date
         : null,
@@ -247,152 +265,152 @@ export default function PropertyTimelinePage() {
 
   if (loading) {
     return (
-      <div className="px-4 py-8 text-sm text-(--oboon-text-muted)">
-        불러오는 중..
-      </div>
+      <main className="bg-(--oboon-bg-default)">
+        <PageContainer noHeaderOffset>
+          <div className="py-8">
+            <div className="ob-typo-body text-(--oboon-text-muted)">
+              불러오는 중..
+            </div>
+          </div>
+        </PageContainer>
+      </main>
     );
   }
 
-  const inputClassName = [
-    "input-basic rounded-md border border-(--oboon-border-default)",
-    "bg-(--oboon-bg-subtle)/70 px-3 py-2 transition",
-    "focus:border-(--oboon-accent) focus:outline-none focus:ring-2 focus:ring-(--oboon-accent)/50",
-    "w-full",
-  ].join(" ");
-
   return (
-    <div className="bg-(--oboon-bg-page) px-4 py-8 md:px-6 md:py-10">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-        <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="space-y-1 pt-1">
-            <p className="text-2xl font-bold text-(--oboon-text-title)">
-              분양 일정
-            </p>
-            <p className="text-sm text-(--oboon-text-muted)">
-              청약·계약·입주 주요 일정을 입력하세요.
-            </p>
-          </div>
+    <main className="bg-(--oboon-bg-default)">
+      <PageContainer noHeaderOffset>
+        <div className="py-8 md:py-0">
+          <div className="flex w-full flex-col gap-6">
+            {/* Header */}
+            <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="space-y-1 pt-1">
+                <p className="ob-typo-h1 text-(--oboon-text-title)">
+                  분양 일정
+                </p>
+                <p className="ob-typo-body text-(--oboon-text-muted)">
+                  청약·계약·입주 주요 일정을 입력하세요.
+                </p>
+              </div>
 
-          <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              shape="pill"
-              onClick={() => router.push(`/company/properties/${propertyId}`)}
-            >
-              취소
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              shape="pill"
-              onClick={handleSave}
-              loading={saving}
-            >
-              저장
-            </Button>
-          </div>
-        </header>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  shape="pill"
+                  onClick={() =>
+                    router.push(`/company/properties/${propertyId}`)
+                  }
+                >
+                  취소
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  shape="pill"
+                  onClick={handleSave}
+                  loading={saving}
+                >
+                  저장
+                </Button>
+              </div>
+            </header>
 
-        <section className="space-y-3 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-6 py-5 shadow-(--oboon-shadow-card)/30">
-          <h2 className="text-lg font-semibold text-(--oboon-text-title)">
-            일정 입력
-          </h2>
+            {/* Form Card */}
+            <Card className="p-6">
+              <h2 className="ob-typo-h3 text-(--oboon-text-title)">
+                일정 입력
+              </h2>
 
-          <div className="grid grid-cols-1 gap-4">
-            {FIELDS.map((field) => {
-              const isMoveIn = field.key === "move_in_date";
+              <div className="mt-4 grid grid-cols-1 gap-4">
+                {FIELDS.map((field) => {
+                  const isMoveIn = field.key === "move_in_date";
 
-              return (
-                <div key={field.key} className="space-y-2">
-                  <label className="text-sm font-medium text-(--oboon-text-title)">
-                    {field.label}
-                  </label>
+                  return (
+                    <div key={field.key} className="space-y-2">
+                      <label className="ob-typo-body text-(--oboon-text-title)">
+                        {field.label}
+                      </label>
 
-                  {isMoveIn && (
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xs text-(--oboon-text-muted)">입력 단위:</span>
-                      <Button
-                        variant={moveInPrecision === "month" ? "primary" : "secondary"}
-                        size="sm"
-                        shape="pill"
-                        onClick={() => handlePrecisionChange("month")}
-                        className="text-xs px-3 py-1"
-                      >
-                        월(YYYY-MM)
-                      </Button>
-                      <Button
-                        variant={moveInPrecision === "day" ? "primary" : "secondary"}
-                        size="sm"
-                        shape="pill"
-                        onClick={() => handlePrecisionChange("day")}
-                        className="text-xs px-3 py-1"
-                      >
-                        일(YYYY-MM-DD)
-                      </Button>
+                      {isMoveIn ? (
+                        <>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                              variant={
+                                moveInPrecision === "month"
+                                  ? "primary"
+                                  : "secondary"
+                              }
+                              size="sm"
+                              shape="pill"
+                              onClick={() => handlePrecisionChange("month")}
+                            >
+                              월(YYYY-MM)
+                            </Button>
+                            <Button
+                              variant={
+                                moveInPrecision === "day"
+                                  ? "primary"
+                                  : "secondary"
+                              }
+                              size="sm"
+                              shape="pill"
+                              onClick={() => handlePrecisionChange("day")}
+                            >
+                              일(YYYY-MM-DD)
+                            </Button>
+                          </div>
+
+                          <PrecisionDateInput
+                            value={form.move_in_date}
+                            onChange={(next) =>
+                              setForm((prev) => ({
+                                ...prev,
+                                move_in_date: next,
+                              }))
+                            }
+                            policy="both"
+                            defaultPrecision={moveInPrecision}
+                            inputClassName={INPUT_LIKE}
+                            placeholder={
+                              moveInPrecision === "month"
+                                ? "예) 2026-03"
+                                : "예) 2026-03-01"
+                            }
+                          />
+                        </>
+                      ) : (
+                        <div className="flex w-full items-center gap-2">
+                          <div className="flex-1 min-w-0">
+                            <OboonDatePicker
+                              selected={parseYmdToLocalDate(form[field.key])}
+                              onChange={(date: Date | null) =>
+                                handleDateChange(field.key, date)
+                              }
+                              dateFormat="yyyy-MM-dd"
+                              textFormat="yyyy-MM-dd"
+                              inputClassName={INPUT_LIKE}
+                              placeholder={field.placeholder}
+                              customTrigger={(props) => (
+                                <TimelineDateTrigger {...props} />
+                              )}
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  )}
+                  );
+                })}
+              </div>
 
-                  {isMoveIn ? (
-                    <PrecisionDateInput
-                      value={form.move_in_date}
-                      onChange={(next) =>
-                        setForm((prev) => ({ ...prev, move_in_date: next }))
-                      }
-                      policy="both"
-                      defaultPrecision={moveInPrecision}
-                      inputClassName={inputClassName}
-                      placeholder={
-                        moveInPrecision === "month"
-                          ? "예) 2026-03"
-                          : "예) 2026-03-01"
-                      }
-                    />
-                  ) : (
-                    <div className="flex w-full items-center gap-2">
-                      <div className="flex-1 min-w-0">
-                        <OboonDatePicker
-                          selected={parseYmdToLocalDate(form[field.key])}
-                          onChange={(date: Date | null) =>
-                            handleDateChange(field.key, date)
-                          }
-                          dateFormat="yyyy-MM-dd"
-                          textFormat="yyyy-MM-dd"
-                          inputClassName={inputClassName}
-                          placeholder={field.placeholder}
-                          customTrigger={(props) => <TimelineDateTrigger {...props} />}
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+              <p className="mt-4 ob-typo-caption text-(--oboon-text-muted)">
+                대부분의 일정은 YYYY-MM-DD 형식으로 입력합니다. 단, 입주
+                예정일은 월 또는 일 단위를 선택할 수 있습니다.
+              </p>
+            </Card>
           </div>
-
-          <p className="text-xs text-(--oboon-text-muted) pt-2">
-            💡 대부분의 일정은 YYYY-MM-DD 형식으로 입력합니다. 단, 입주 예정일은 월 또는 일 단위를 선택할 수 있습니다.
-          </p>
-        </section>
-
-        <div className="flex items-center justify-end gap-2">
-          <Button
-            variant="secondary"
-            size="md"
-            onClick={() => router.push(`/company/properties/${propertyId}`)}
-          >
-            취소
-          </Button>
-          <Button
-            variant="primary"
-            size="md"
-            onClick={handleSave}
-            loading={saving}
-          >
-            저장
-          </Button>
         </div>
-      </div>
-    </div>
+      </PageContainer>
+    </main>
   );
 }

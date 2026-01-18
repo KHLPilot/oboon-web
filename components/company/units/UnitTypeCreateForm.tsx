@@ -1,14 +1,13 @@
-// components/company/units/UnitTypeCreateForm.tsx
 "use client";
 
-import React from "react";
+import React, { useRef } from "react";
+import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
-// 아래 2개는 프로젝트에 따라 존재 여부가 다를 수 있음.
-// 없으면 기존에 쓰는 입력 컴포넌트로 import를 맞추세요.
 import Input from "@/components/ui/Input";
 import Label from "@/components/ui/Label";
 
 import type { UnitDraft } from "@/app/company/properties/[id]/units/types";
+import { uploadFloorPlan } from "@/app/company/properties/[id]/units/useUnitTypes";
 
 type Props = {
   value: UnitDraft;
@@ -19,8 +18,7 @@ type Props = {
 };
 
 function toNumberOrNull(v: string): number | null {
-  if (v == null) return null;
-  const s = v.trim();
+  const s = (v ?? "").trim();
   if (!s) return null;
   const n = Number(s.replaceAll(",", ""));
   return Number.isFinite(n) ? n : null;
@@ -33,215 +31,351 @@ export default function UnitTypeCreateForm({
   creating,
   pricePreview,
 }: Props) {
-  // ✅ 전용/공급 면적: 입력창에 보여줄 텍스트 상태 (소수 포함)
   const [exclusiveText, setExclusiveText] = React.useState("");
   const [supplyText, setSupplyText] = React.useState("");
+  const [floorUploading, setFloorUploading] = React.useState(false);
+  const [floorPlanFileName, setFloorPlanFileName] = React.useState<
+    string | null
+  >(null);
+  const floorPlanInputRef = useRef<HTMLInputElement | null>(null);
 
-  // 부모 value가 바뀔 때(초기 로딩/리셋 등) 텍스트도 동기화
   React.useEffect(() => {
     setExclusiveText(
-      value.exclusive_area != null ? String(value.exclusive_area) : ""
+      value.exclusive_area != null ? String(value.exclusive_area) : "",
     );
   }, [value.exclusive_area]);
 
   React.useEffect(() => {
-    setSupplyText(
-      value.supply_area != null ? String(value.supply_area) : ""
-    );
+    setSupplyText(value.supply_area != null ? String(value.supply_area) : "");
   }, [value.supply_area]);
 
+  async function handlePickFloorPlan(file: File) {
+    const propertyId = (value as any)?.properties_id;
+
+    if (!propertyId || !Number.isFinite(Number(propertyId))) {
+      alert("propertyId가 올바르지 않아 업로드할 수 없습니다.");
+      return;
+    }
+
+    try {
+      setFloorUploading(true);
+
+      const url = await uploadFloorPlan({
+        file,
+        propertyId: Number(propertyId),
+        unitTypeName: (value.type_name ?? "").trim() || undefined,
+      });
+
+      onChange({ ...value, floor_plan_url: url });
+    } catch (e: unknown) {
+      const msg =
+        e instanceof Error ? e.message : "평면도 업로드에 실패했습니다.";
+      alert(msg);
+    } finally {
+      setFloorUploading(false);
+    }
+  }
+
+  const disabled = Boolean(creating || floorUploading);
+
   return (
-    <section className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-card) p-6 shadow-sm">
+    <Card className="p-6">
       <div className="mb-6">
-        <h2 className="text-base font-semibold text-(--oboon-text-title)">
+        <h2 className="ob-typo-h3 text-(--oboon-text-title)">
           새 평면 타입 등록
         </h2>
-        <p className="mt-1 text-xs text-(--oboon-text-muted)">
+        <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
           타입명·전용/공급 면적·가격을 먼저 입력해 주세요.
         </p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {/* type_name */}
-        <div className="md:col-span-1">
+        <div>
           <Label>평면 타입 이름</Label>
-          <Input
-            placeholder="예: 76C"
-            value={value.type_name ?? ""}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              onChange({ ...value, type_name: e.target.value })
-            }
-          />
+          <div className="mt-2">
+            <Input
+              placeholder="예: 76C"
+              value={value.type_name ?? ""}
+              onChange={(e) =>
+                onChange({ ...value, type_name: e.target.value })
+              }
+            />
+          </div>
         </div>
 
         {/* exclusive_area */}
-        <div className="md:col-span-1">
+        <div>
           <Label>전용 면적 (㎡)</Label>
-          <Input
-            placeholder="예: 75.5"
-            value={exclusiveText} // ✅ 문자열 그대로 표시
-            inputMode="decimal"
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-              const raw = e.target.value;
-              setExclusiveText(raw); // 1) 텍스트 상태 유지
-              onChange({
-                // 2) 숫자로 변환해서 UnitDraft에 저장
-                ...value,
-                exclusive_area: toNumberOrNull(raw),
-              });
-            }}
-          />
+          <div className="mt-2">
+            <Input
+              placeholder="예: 75.5"
+              value={exclusiveText}
+              inputMode="decimal"
+              onChange={(e) => {
+                const raw = e.target.value;
+                setExclusiveText(raw);
+                onChange({ ...value, exclusive_area: toNumberOrNull(raw) });
+              }}
+            />
+          </div>
         </div>
 
         {/* supply_area */}
-        <div className="md:col-span-1">
+        <div>
           <Label>공급 면적 (㎡)</Label>
-          <Input
-            placeholder="예: 92.3"
-            value={supplyText} // ✅ 문자열 그대로 표시
-            inputMode="decimal"
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-              const raw = e.target.value;
-              setSupplyText(raw);
-              onChange({
-                ...value,
-                supply_area: toNumberOrNull(raw),
-              });
-            }}
-          />
+          <div className="mt-2">
+            <Input
+              placeholder="예: 92.3"
+              value={supplyText}
+              inputMode="decimal"
+              onChange={(e) => {
+                const raw = e.target.value;
+                setSupplyText(raw);
+                onChange({ ...value, supply_area: toNumberOrNull(raw) });
+              }}
+            />
+          </div>
         </div>
 
         {/* rooms */}
-        <div className="md:col-span-1">
+        <div>
           <Label>방 개수</Label>
-          <Input
-            value={value.rooms ?? ""}
-            inputMode="numeric"
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              onChange({ ...value, rooms: toNumberOrNull(e.target.value) })
-            }
-          />
+          <div className="mt-2">
+            <Input
+              value={value.rooms ?? ""}
+              inputMode="numeric"
+              onChange={(e) =>
+                onChange({ ...value, rooms: toNumberOrNull(e.target.value) })
+              }
+            />
+          </div>
         </div>
 
         {/* bathrooms */}
-        <div className="md:col-span-1">
+        <div>
           <Label>욕실 개수</Label>
-          <Input
-            value={value.bathrooms ?? ""}
-            inputMode="numeric"
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              onChange({ ...value, bathrooms: toNumberOrNull(e.target.value) })
-            }
-          />
+          <div className="mt-2">
+            <Input
+              value={value.bathrooms ?? ""}
+              inputMode="numeric"
+              onChange={(e) =>
+                onChange({
+                  ...value,
+                  bathrooms: toNumberOrNull(e.target.value),
+                })
+              }
+            />
+          </div>
         </div>
 
         {/* building_layout */}
-        <div className="md:col-span-1">
+        <div>
           <Label>구조</Label>
-          <Input
-            placeholder="예: 판상형"
-            value={value.building_layout ?? ""}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              onChange({ ...value, building_layout: e.target.value })
-            }
-          />
+          <div className="mt-2">
+            <Input
+              placeholder="예: 판상형"
+              value={value.building_layout ?? ""}
+              onChange={(e) =>
+                onChange({ ...value, building_layout: e.target.value })
+              }
+            />
+          </div>
         </div>
 
         {/* orientation */}
-        <div className="md:col-span-1">
+        <div>
           <Label>향</Label>
-          <Input
-            placeholder="예: 남향"
-            value={value.orientation ?? ""}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              onChange({ ...value, orientation: e.target.value })
-            }
-          />
+          <div className="mt-2">
+            <Input
+              placeholder="예: 남향"
+              value={value.orientation ?? ""}
+              onChange={(e) =>
+                onChange({ ...value, orientation: e.target.value })
+              }
+            />
+          </div>
         </div>
 
         {/* price_min */}
-        <div className="md:col-span-1">
+        <div>
           <Label>가격 하한 (원)</Label>
-          <Input
-            placeholder="예: 1032672000"
-            value={value.price_min ?? ""}
-            inputMode="numeric"
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              onChange({ ...value, price_min: toNumberOrNull(e.target.value) })
-            }
-          />
+          <div className="mt-2">
+            <Input
+              placeholder="예: 1032672000"
+              value={value.price_min ?? ""}
+              inputMode="numeric"
+              onChange={(e) =>
+                onChange({
+                  ...value,
+                  price_min: toNumberOrNull(e.target.value),
+                })
+              }
+            />
+          </div>
         </div>
 
         {/* price_max */}
-        <div className="md:col-span-1">
+        <div>
           <Label>가격 상한 (원)</Label>
-          <Input
-            placeholder="예: 1198191000"
-            value={value.price_max ?? ""}
-            inputMode="numeric"
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              onChange({ ...value, price_max: toNumberOrNull(e.target.value) })
-            }
-          />
+          <div className="mt-2">
+            <Input
+              placeholder="예: 1198191000"
+              value={value.price_max ?? ""}
+              inputMode="numeric"
+              onChange={(e) =>
+                onChange({
+                  ...value,
+                  price_max: toNumberOrNull(e.target.value),
+                })
+              }
+            />
+          </div>
         </div>
 
         {/* unit_count */}
-        <div className="md:col-span-1">
+        <div>
           <Label>세대수</Label>
-          <Input
-            value={value.unit_count ?? ""}
-            inputMode="numeric"
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              onChange({ ...value, unit_count: toNumberOrNull(e.target.value) })
-            }
-          />
+          <div className="mt-2">
+            <Input
+              value={value.unit_count ?? ""}
+              inputMode="numeric"
+              onChange={(e) =>
+                onChange({
+                  ...value,
+                  unit_count: toNumberOrNull(e.target.value),
+                })
+              }
+            />
+          </div>
         </div>
 
-        {/* floor_plan_url */}
+        {/* floor plan upload */}
         <div className="md:col-span-2">
-          <Label>평면도 URL</Label>
-          <Input
-            placeholder="https://..."
-            value={value.floor_plan_url ?? ""}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              onChange({ ...value, floor_plan_url: e.target.value })
-            }
-          />
+          <Label>평면도 이미지</Label>
+          <div className="mt-2 space-y-2">
+            <input
+              ref={floorPlanInputRef}
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              disabled={creating || floorUploading}
+              onChange={(e) => {
+                const f = e.target.files?.[0] ?? null;
+                // 같은 파일 재선택 가능
+                e.currentTarget.value = "";
+                if (!f) {
+                  setFloorPlanFileName(null);
+                  return;
+                }
+                setFloorPlanFileName(f.name);
+                void handlePickFloorPlan(f);
+              }}
+            />
+
+            {/* 트리거 + 파일명 */}
+            <div className="flex items-center gap-3">
+              <Button
+                variant="secondary"
+                size="sm"
+                shape="pill"
+                disabled={creating || floorUploading}
+                onClick={() => floorPlanInputRef.current?.click()}
+              >
+                파일 선택
+              </Button>
+
+              <p className="ob-typo-caption text-(--oboon-text-muted) truncate">
+                {floorPlanFileName ? (
+                  <>
+                    선택된 파일:{" "}
+                    <span className="text-(--oboon-text-title)">
+                      {floorPlanFileName}
+                    </span>
+                  </>
+                ) : (
+                  "선택된 파일 없음"
+                )}
+              </p>
+            </div>
+            <p className="ob-typo-caption text-(--oboon-text-muted)">
+              {floorUploading
+                ? "업로드 중..."
+                : "이미지 선택 시 자동 업로드됩니다."}
+            </p>
+
+            {value.floor_plan_url ? (
+              <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="ob-typo-caption text-(--oboon-text-muted) break-all">
+                      {value.floor_plan_url}
+                    </div>
+                  </div>
+
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    shape="pill"
+                    disabled={disabled}
+                    onClick={() => {
+                      onChange({ ...value, floor_plan_url: null });
+                      setFloorPlanFileName(null);
+                    }}
+                  >
+                    삭제
+                  </Button>
+                </div>
+
+                <div className="mt-3 overflow-hidden rounded-xl border border-(--oboon-border-default)">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={value.floor_plan_url}
+                    alt="floor plan preview"
+                    className="h-auto w-full object-cover"
+                  />
+                </div>
+              </div>
+            ) : null}
+          </div>
         </div>
 
-        {/* image_url */}
+        {/* image_url (유지) */}
         <div className="md:col-span-2">
           <Label>이미지 URL</Label>
-          <Input
-            placeholder="https://..."
-            value={value.image_url ?? ""}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              onChange({ ...value, image_url: e.target.value })
-            }
-          />
+          <div className="mt-2">
+            <Input
+              placeholder="https://..."
+              value={(value as any).image_url ?? ""}
+              onChange={(e) =>
+                onChange({ ...(value as any), image_url: e.target.value })
+              }
+            />
+          </div>
+          <p className="mt-2 ob-typo-caption text-(--oboon-text-muted)">
+            (선택) 카드 썸네일/대체 이미지를 별도로 쓰는 경우에만 입력하세요.
+          </p>
         </div>
       </div>
 
-      {/* ✅ 하단 버튼: 우하단 저장 1개만 */}
       <div className="mt-6 flex justify-end">
         <Button
           variant="primary"
           size="md"
           shape="pill"
           onClick={onSubmit}
-          disabled={creating}
+          disabled={disabled}
           className="min-w-[160px]"
         >
           저장
         </Button>
       </div>
 
-      {/* (선택) 가격 미리보기 */}
       {pricePreview ? (
-        <p className="mt-3 text-xs text-(--oboon-text-muted)">
+        <p className="mt-3 ob-typo-caption text-(--oboon-text-muted)">
           가격 미리보기: {pricePreview}
         </p>
       ) : null}
-    </section>
+    </Card>
   );
 }

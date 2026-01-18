@@ -38,7 +38,8 @@ export function useUnitTypes(propertyId: number | null) {
 
       setUnits((data ?? []) as UnitRow[]);
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "평면 타입을 불러오지 못했어요.";
+      const msg =
+        e instanceof Error ? e.message : "평면 타입을 불러오지 못했어요.";
       setErrorMsg(msg);
     } finally {
       setLoading(false);
@@ -71,7 +72,6 @@ export function useUnitTypes(propertyId: number | null) {
           building_layout: (draft.building_layout ?? "").trim() || null,
           orientation: (draft.orientation ?? "").trim() || null,
           floor_plan_url: (draft.floor_plan_url ?? "").trim() || null,
-          image_url: (draft.image_url ?? "").trim() || null,
         };
 
         const { data, error } = await supabase
@@ -90,7 +90,7 @@ export function useUnitTypes(propertyId: number | null) {
         return { ok: false as const, error: msg };
       }
     },
-    [propertyId, supabase]
+    [propertyId, supabase],
   );
 
   const updateUnit = useCallback(
@@ -110,7 +110,6 @@ export function useUnitTypes(propertyId: number | null) {
           unit_count: draft.unit_count,
           supply_count: draft.supply_count,
           floor_plan_url: (draft.floor_plan_url ?? "").trim() || null,
-          image_url: (draft.image_url ?? "").trim() || null,
         };
 
         const { data, error } = await supabase
@@ -131,7 +130,7 @@ export function useUnitTypes(propertyId: number | null) {
         return { ok: false as const, error: msg };
       }
     },
-    [supabase]
+    [supabase],
   );
 
   const deleteUnit = useCallback(
@@ -152,7 +151,7 @@ export function useUnitTypes(propertyId: number | null) {
         return { ok: false as const, error: msg };
       }
     },
-    [supabase]
+    [supabase],
   );
 
   return {
@@ -167,4 +166,52 @@ export function useUnitTypes(propertyId: number | null) {
 
     clearError: () => setErrorMsg(null),
   };
+}
+
+// app/company/properties/[id]/units/useUnitTypes.ts
+
+export async function uploadFloorPlan(args: {
+  file: File;
+  propertyId: number;
+  unitTypeName?: string;
+}): Promise<string> {
+  const { file, propertyId, unitTypeName } = args;
+
+  if (!file) throw new Error("업로드할 파일이 없습니다.");
+  if (!propertyId || !Number.isFinite(propertyId))
+    throw new Error("propertyId가 올바르지 않습니다.");
+
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("propertyId", String(propertyId));
+  fd.append("mode", "property_floor_plan");
+  if (unitTypeName) fd.append("unitType", unitTypeName);
+
+  const res = await fetch("/api/r2/upload", {
+    method: "POST",
+    body: fd,
+  });
+
+  // 서버가 json 에러를 내려주든 텍스트를 내려주든 안전 처리
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const j = await res.json();
+      detail = j?.error ? ` (${j.error})` : "";
+    } catch {
+      try {
+        detail = ` (${await res.text()})`;
+      } catch {}
+    }
+    throw new Error(`평면도 업로드 실패${detail}`);
+  }
+
+  const json = (await res.json()) as { url?: string };
+  if (!json.url) {
+    throw new Error(
+      "업로드 응답에 url이 없습니다. /api/r2/upload 응답을 확인해 주세요.",
+    );
+  }
+
+  return json.url;
 }

@@ -1,9 +1,11 @@
-﻿"use client";
+﻿// components/ui/DatePicker.tsx
+"use client";
 
 import React, {
   forwardRef,
   useMemo,
   useState,
+  useRef, // [추가] useRef 가져오기
   type ComponentPropsWithoutRef,
   type ReactElement,
 } from "react";
@@ -12,6 +14,7 @@ import { registerLocale } from "react-datepicker";
 import { CalendarDays } from "lucide-react";
 import "react-datepicker/dist/react-datepicker.css";
 import { ko } from "date-fns/locale";
+import { offset, flip, shift } from "@floating-ui/dom";
 
 import Button from "@/components/ui/Button";
 
@@ -41,7 +44,7 @@ export const CalendarIconButton = forwardRef<
     {...rest}
   >
     <CalendarDays className="h-4 w-4" />
-    <span className="sr-only">달력 열기</span>
+    <span className="sr-only">달력</span>
   </Button>
 ));
 CalendarIconButton.displayName = "CalendarIconButton";
@@ -63,7 +66,7 @@ export type OboonDatePickerProps = Omit<
 > & {
   onChange?: (
     date: Date | null,
-    event?: React.SyntheticEvent<HTMLElement>
+    event?: React.SyntheticEvent<HTMLElement>,
   ) => void;
 
   buttonProps?: CalendarIconButtonProps;
@@ -77,23 +80,29 @@ export type OboonDatePickerProps = Omit<
 };
 
 function getDaysInMonth(year: number, month: number): number {
+  // month: 1-12
   return new Date(year, month, 0).getDate();
 }
 
-// ✅ 커스텀 인풋 컴포넌트
+/**
+ * divCustomInput
+ * - 텍스트 입력(숫자 기반 포맷팅)만 담당
+ * - "input 클릭/포커스로 달력 열기"를 막기 위해 DatePicker가 주입하는 onClick/onFocus를 input에 연결하지 않습니다.
+ */
 const CustomInput = forwardRef<
   HTMLInputElement,
   {
     value?: string;
+    // DatePicker가 주입할 수 있지만 사용하지 않음 (중요)
     onClick?: () => void;
+    onFocus?: () => void;
     onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
     placeholder?: string;
     className?: string;
     disabled?: boolean;
     onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   }
->(({ value, onClick, onChange, placeholder, className, disabled, onKeyDown }, ref) => {
-  // ✅ 숫자만 입력 + 자동 포맷팅
+>(({ value, onChange, placeholder, className, disabled, onKeyDown }, ref) => {
   const handleInput = (e: React.FormEvent<HTMLInputElement>) => {
     const raw = (e.target as HTMLInputElement).value;
     const digitsOnly = raw.replace(/[^\d]/g, "");
@@ -108,9 +117,7 @@ const CustomInput = forwardRef<
 
       if (month.length === 1) {
         const firstDigit = parseInt(month[0], 10);
-        if (firstDigit > 1) {
-          month = `0${firstDigit}`;
-        }
+        if (firstDigit > 1) month = `0${firstDigit}`;
       } else if (month.length === 2) {
         const monthNum = parseInt(month, 10);
         if (monthNum > 12) month = "12";
@@ -152,7 +159,6 @@ const CustomInput = forwardRef<
 
     (e.target as HTMLInputElement).value = formatted;
 
-    // onChange 이벤트 발생
     if (onChange) {
       const syntheticEvent = {
         ...e,
@@ -168,7 +174,7 @@ const CustomInput = forwardRef<
       ref={ref}
       type="text"
       value={value}
-      onClick={onClick}
+      // div핵심: onClick/onFocus를 연결하지 않음
       onInput={handleInput}
       onChange={onChange}
       onKeyDown={onKeyDown}
@@ -197,49 +203,53 @@ export default function OboonDatePicker({
 }: OboonDatePickerProps) {
   const [open, setOpen] = useState(false);
 
+  // [추가] 버튼 영역을 감지하기 위한 Ref
+  const triggerRef = useRef<HTMLDivElement>(null);
+
   const trigger = useMemo(() => {
     const triggerProps: CalendarIconButtonProps = {
       ...buttonProps,
       onClick: (e: React.MouseEvent<HTMLButtonElement>) => {
         buttonProps?.onClick?.(e);
-        if (!disabled) setOpen(true);
+        if (disabled) return;
+        setOpen((v) => !v); // 토글 동작
       },
       disabled: disabled ?? buttonProps?.disabled,
+      "aria-expanded": open,
+      "aria-label": open ? "달력 닫기" : "달력 열기",
     };
 
-    if (customTrigger) {
-      return customTrigger(triggerProps);
-    }
-
+    if (customTrigger) return customTrigger(triggerProps);
     return <CalendarIconButton {...triggerProps} />;
-  }, [buttonProps, disabled, customTrigger]);
+  }, [buttonProps, disabled, customTrigger, open]);
 
   const handleChange = (
     date: Date | Date[] | [Date | null, Date | null] | null,
-    event?: React.MouseEvent<HTMLElement> | React.KeyboardEvent<HTMLElement>
+    event?: React.MouseEvent<HTMLElement> | React.KeyboardEvent<HTMLElement>,
   ) => {
+    // 날짜 선택 시에는 항상 닫기
     setOpen(false);
-    const next = Array.isArray(date) ? date[0] ?? null : date ?? null;
-    onChange?.(next, event);
+    const next = Array.isArray(date) ? (date[0] ?? null) : (date ?? null);
+    onChange?.(next, event as unknown as React.SyntheticEvent<HTMLElement>);
   };
 
   const handleRaw = (
-    event?: React.MouseEvent<HTMLElement> | React.KeyboardEvent<HTMLElement>
+    event?: React.MouseEvent<HTMLElement> | React.KeyboardEvent<HTMLElement>,
   ) => {
     if (!allowTextInput) return;
 
-    const raw = (event?.target as HTMLInputElement | null)?.value?.toString() ?? "";
+    const raw =
+      (event?.target as HTMLInputElement | null)?.value?.toString() ?? "";
     if (!raw.trim()) {
-      onChange?.(null, event);
+      onChange?.(null, event as unknown as React.SyntheticEvent<HTMLElement>);
       return;
     }
 
-    // YYYY-MM-DD 완성 시 Date 객체로 변환
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw.trim());
     if (m) {
-      const [_, y, mo, d] = m;
-      const date = new Date(Number(y), Number(mo) - 1, Number(d));
-      onChange?.(date, event);
+      const [, y, mo, d] = m;
+      const parsed = new Date(Number(y), Number(mo) - 1, Number(d));
+      onChange?.(parsed, event as unknown as React.SyntheticEvent<HTMLElement>);
     }
   };
 
@@ -248,16 +258,33 @@ export default function OboonDatePicker({
     locale: "ko",
     disabled,
     open,
-    onCalendarOpen: () => setOpen(true),
-    onCalendarClose: () => setOpen(false),
-    onClickOutside: () => setOpen(false),
+    popperPlacement: "bottom-end",
+    popperModifiers: [
+      offset({ mainAxis: 8, crossAxis: 0 }), // 아래로 8px
+      shift({ padding: 8 }), // 화면 밖으로 나가지 않게
+      flip({ fallbackPlacements: ["top-end", "bottom-end"] }), // 위로 뒤집힐 때도 end 유지
+    ],
+
+    onClickOutside: (event) => {
+      if (
+        triggerRef.current &&
+        event.target instanceof Node &&
+        triggerRef.current.contains(event.target)
+      ) {
+        return;
+      }
+      setOpen(false);
+    },
+
     onChange: handleChange,
     onChangeRaw: handleRaw,
     dateFormat: textFormat,
     placeholderText: placeholder,
+
     calendarClassName: calendarClassName ?? "oboon-datepicker",
     popperClassName: popperClassName ?? "oboon-datepicker-popper",
     wrapperClassName: "w-full",
+
     customInput: <CustomInput className={inputClassName} />,
     ...(showMonthYearDropdown ? { showMonthYearDropdown: true } : {}),
   };
@@ -269,17 +296,25 @@ export default function OboonDatePicker({
           <DatePicker {...pickerProps} />
         </div>
 
-        {trigger}
+        {/* [수정] Ref 연결을 위해 div로 감싸기 */}
+        <div ref={triggerRef} className="shrink-0">
+          {trigger}
+        </div>
       </div>
 
       <style jsx global>{`
+        /* =========================
+        * Wrapper / Popper
+        * ========================= */
         .react-datepicker-wrapper {
           width: 100% !important;
           display: block;
         }
+
         .react-datepicker__input-container {
           width: 100% !important;
         }
+
         .react-datepicker__input-container input {
           width: 100%;
         }
@@ -288,16 +323,33 @@ export default function OboonDatePicker({
           z-index: 50;
         }
 
+        /* =========================
+        * DatePicker Container
+        * ========================= */
         .oboon-datepicker {
           background: var(--oboon-bg-surface);
           border: 1px solid var(--oboon-border-default);
-          border-radius: 12px;
+          border-radius: 16px;
           color: var(--oboon-text-body);
+
+          /* div헤더 잔상 / 이중 라인 방지 */
+          overflow: hidden;
         }
 
+        /* =========================
+        * Header (상단 라인 정리)
+        * ========================= */
         .oboon-datepicker .react-datepicker__header {
           background: var(--oboon-bg-surface);
           border-bottom: 1px solid var(--oboon-border-default);
+
+          /* ❌ 기본 inset shadow / hairline 제거 */
+          border-top: 0 !important;
+          box-shadow: none !important;
+        }
+
+        .oboon-datepicker .react-datepicker__month-container {
+          box-shadow: none !important;
         }
 
         .oboon-datepicker .react-datepicker__current-month,
@@ -306,58 +358,84 @@ export default function OboonDatePicker({
           font-weight: 600;
         }
 
-        .oboon-datepicker .react-datepicker__day-name,
-        .oboon-datepicker .react-datepicker__day,
-        .oboon-datepicker .react-datepicker__month-text,
-        .oboon-datepicker .react-datepicker__quarter-text,
-        .oboon-datepicker .react-datepicker__year-text {
+        /* =========================
+        * Day / Weekday Typography
+        * ========================= */
+        .oboon-datepicker .react-datepicker__day-name {
+          color: var(--oboon-text-muted);
+          font-weight: 500;
+        }
+
+        .oboon-datepicker .react-datepicker__day {
           color: var(--oboon-text-body);
         }
 
-        .oboon-datepicker .react-datepicker__day:hover,
-        .oboon-datepicker .react-datepicker__month-text:hover,
-        .oboon-datepicker .react-datepicker__quarter-text:hover,
-        .oboon-datepicker .react-datepicker__year-text:hover {
-          background: var(--oboon-bg-subtle);
-          border-radius: 8px;
+        /* =========================
+        * Day Cell Layout (원형)
+        * ========================= */
+        .oboon-datepicker .react-datepicker__day,
+        .oboon-datepicker .react-datepicker__day-name {
+          width: 2rem;
+          line-height: 2rem;
+          margin: 0.125rem;
+          text-align: center;
         }
 
+        /* 기본 상태도 원형으로 */
+        .oboon-datepicker .react-datepicker__day {
+          border-radius: 9999px !important;
+        }
+
+        /* =========================
+        * Hover
+        * ========================= */
+        .oboon-datepicker .react-datepicker__day:hover {
+          background: var(--oboon-bg-subtle);
+          border-radius: 9999px !important;
+        }
+
+        /* =========================
+        * Selected / Keyboard Selected
+        * ========================= */
         .oboon-datepicker .react-datepicker__day--selected,
-        .oboon-datepicker .react-datepicker__day--keyboard-selected,
-        .oboon-datepicker .react-datepicker__month-text--selected,
-        .oboon-datepicker .react-datepicker__month-text--keyboard-selected,
-        .oboon-datepicker .react-datepicker__quarter-text--selected,
-        .oboon-datepicker .react-datepicker__quarter-text--keyboard-selected,
-        .oboon-datepicker .react-datepicker__year-text--selected,
-        .oboon-datepicker .react-datepicker__year-text--keyboard-selected {
+        .oboon-datepicker .react-datepicker__day--keyboard-selected {
           background: var(--oboon-primary);
           color: var(--oboon-on-primary);
-          border-radius: 8px;
+          border-radius: 9999px !important;
         }
 
-        .oboon-datepicker .react-datepicker__day--today,
-        .oboon-datepicker .react-datepicker__month-text--today,
-        .oboon-datepicker .react-datepicker__year-text--today {
+        /* =========================
+        * Today
+        * ========================= */
+        .oboon-datepicker .react-datepicker__day--today {
           border: 1px solid var(--oboon-primary);
-          border-radius: 8px;
+          border-radius: 9999px !important;
         }
 
-        .oboon-datepicker .react-datepicker__navigation-icon::before {
-          border-color: var(--oboon-border-default);
-        }
-        .oboon-datepicker
-          .react-datepicker__navigation:hover
-          .react-datepicker__navigation-icon::before {
-          border-color: var(--oboon-border-strong);
-        }
-
+        /* =========================
+        * Disabled Day
+        * ========================= */
         .oboon-datepicker .react-datepicker__day--disabled {
           color: var(--oboon-text-muted);
           opacity: 0.4;
           cursor: not-allowed;
         }
+
         .oboon-datepicker .react-datepicker__day--disabled:hover {
           background: transparent;
+        }
+
+        /* =========================
+        * Navigation (‹ ›)
+        * ========================= */
+        .oboon-datepicker .react-datepicker__navigation-icon::before {
+          border-color: var(--oboon-border-default);
+        }
+
+        .oboon-datepicker
+          .react-datepicker__navigation:hover
+          .react-datepicker__navigation-icon::before {
+          border-color: var(--oboon-border-strong);
         }
       `}</style>
     </>

@@ -24,7 +24,7 @@ interface PropertyAgent {
   approved_at?: string;
   rejected_at?: string;
   rejection_reason?: string;
-  properties: Property;
+  properties: Property[];
 }
 
 export default function AgentPropertiesPage() {
@@ -66,7 +66,10 @@ export default function AgentPropertiesPage() {
         .eq("id", currentUser.id)
         .single();
 
-      if (!profileData || (profileData.role !== "agent" && profileData.role !== "admin")) {
+      if (
+        !profileData ||
+        (profileData.role !== "agent" && profileData.role !== "admin")
+      ) {
         alert("상담사만 접근할 수 있습니다");
         router.push("/");
         return;
@@ -93,7 +96,7 @@ export default function AgentPropertiesPage() {
             image_url,
             status
           )
-        `
+        `,
         )
         .eq("agent_id", currentUser.id)
         .order("requested_at", { ascending: false });
@@ -235,50 +238,56 @@ export default function AgentPropertiesPage() {
             내 소속 신청 현황
           </h2>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {myRequests.map((request) => (
-              <Card key={request.id} className="p-4">
-                <div className="flex items-start gap-3">
-                  <div className="h-16 w-16 overflow-hidden rounded-lg bg-(--oboon-bg-subtle) shrink-0">
-                    {request.properties.image_url ? (
-                      <img
-                        src={request.properties.image_url}
-                        alt={request.properties.name}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="h-full w-full flex items-center justify-center">
-                        <Building2 className="h-6 w-6 text-(--oboon-text-muted)" />
+            {myRequests.map((request) => {
+              const property = request.properties?.[0];
+              return (
+                <Card key={request.id} className="p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="h-16 w-16 overflow-hidden rounded-lg bg-(--oboon-bg-subtle) shrink-0">
+                      {property?.image_url ? (
+                        <img
+                          src={property.image_url}
+                          alt={property.name}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="h-full w-full flex items-center justify-center">
+                          <Building2 className="h-6 w-6 text-(--oboon-text-muted)" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="mb-2">
+                        {getStatusBadge(request.status)}
                       </div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="mb-2">{getStatusBadge(request.status)}</div>
-                    <h3 className="font-semibold text-(--oboon-text-title) mb-1">
-                      {request.properties.name}
-                    </h3>
-                    <p className="text-xs text-(--oboon-text-muted)">
-                      신청일:{" "}
-                      {new Date(request.requested_at).toLocaleDateString()}
-                    </p>
-                    {request.status === "rejected" && request.rejection_reason && (
-                      <p className="mt-2 text-xs text-(--oboon-danger) bg-(--oboon-danger)/10 p-2 rounded">
-                        거절 사유: {request.rejection_reason}
+                      <h3 className="font-semibold text-(--oboon-text-title) mb-1">
+                        {property?.name}
+                      </h3>
+                      <p className="text-xs text-(--oboon-text-muted)">
+                        신청일:{" "}
+                        {new Date(request.requested_at).toLocaleDateString()}
                       </p>
-                    )}
-                    {request.status === "pending" && (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        className="mt-2 w-full"
-                        onClick={() => handleCancel(request.id)}
-                      >
-                        신청 취소
-                      </Button>
-                    )}
+                      {request.status === "rejected" &&
+                        request.rejection_reason && (
+                          <p className="mt-2 text-xs text-(--oboon-danger) bg-(--oboon-danger)/10 p-2 rounded">
+                            거절 사유: {request.rejection_reason}
+                          </p>
+                        )}
+                      {request.status === "pending" && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="mt-2 w-full"
+                          onClick={() => handleCancel(request.id)}
+                        >
+                          신청 취소
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </Card>
-            ))}
+                </Card>
+              );
+            })}
           </div>
         </div>
       )}
@@ -291,14 +300,17 @@ export default function AgentPropertiesPage() {
 
         {hasApprovedProperty && (
           <div className="mb-4 rounded-xl border border-(--oboon-primary) bg-(--oboon-primary)/10 px-4 py-3 text-sm text-(--oboon-primary)">
-            이미 승인된 현장이 있습니다. 한 명의 상담사는 한 곳의 현장에만 소속될 수 있습니다.
+            이미 승인된 현장이 있습니다. 한 명의 상담사는 한 곳의 현장에만
+            소속될 수 있습니다.
           </div>
         )}
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {properties.map((property) => {
             const requestStatus = getRequestStatus(property.id);
-            const canApply = !hasApprovedProperty && (!requestStatus || requestStatus.status === "rejected");
+            const canApply =
+              !hasApprovedProperty &&
+              (!requestStatus || requestStatus.status === "rejected");
 
             return (
               <Card key={property.id} className="p-4">
@@ -318,7 +330,9 @@ export default function AgentPropertiesPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     {requestStatus && (
-                      <div className="mb-2">{getStatusBadge(requestStatus.status)}</div>
+                      <div className="mb-2">
+                        {getStatusBadge(requestStatus.status)}
+                      </div>
                     )}
                     <h3 className="font-semibold text-(--oboon-text-title) mb-1">
                       {property.name}

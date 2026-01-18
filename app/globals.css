@@ -148,20 +148,30 @@ a {
   --oboon-on-accent: #ffffff;
 
   /* Feedback tokens */
+
+  /* Danger */
   --oboon-danger: #ef4444;
   --oboon-danger-hover: #dc2626;
-  --oboon-danger-border: rgba(239, 68, 68, 0.35);
   --oboon-danger-bg: rgba(239, 68, 68, 0.12);
+  --oboon-danger-bg-subtle: rgba(239, 68, 68, 0.18);
+  --oboon-danger-border: rgba(239, 68, 68, 0.35);
   --oboon-on-danger: #ffffff;
-  --oboon-spinner-ring: rgba(255, 255, 255, 0.3);
-  --oboon-spinner-head: rgba(255, 255, 255, 0.8);
 
+  /* Warning */
   --oboon-warning: #f59e0b;
+  --oboon-warning-hover: #d97706;
   --oboon-warning-bg: rgba(245, 158, 11, 0.12);
   --oboon-warning-bg-subtle: rgba(245, 158, 11, 0.18);
-  --oboon-warning-text: rgba(255, 255, 255, 0.9);
   --oboon-warning-border: rgba(245, 158, 11, 0.35);
-  --oboon-warning-hover: rgba(245, 158, 11, 0.22);
+  --oboon-on-warning: #ffffff;
+
+  /* Safe */
+  --oboon-safe: #22c55e;
+  --oboon-safe-hover: #16a34a;
+  --oboon-safe-bg: rgba(34, 197, 94, 0.12);
+  --oboon-safe-bg-subtle: rgba(34, 197, 94, 0.18);
+  --oboon-safe-border: rgba(34, 197, 94, 0.35);
+  --oboon-on-safe: #ffffff;
 
   /* Optional: map */
   --oboon-map-shadow-default: 0 12px 32px rgba(0, 0, 0, 0.25);
@@ -200,21 +210,6 @@ a {
   --oboon-accent: #2563eb;
   --oboon-on-primary: #ffffff;
   --oboon-on-accent: #ffffff;
-
-  --oboon-danger: #ef4444;
-  --oboon-danger-hover: #dc2626;
-  --oboon-danger-border: rgba(239, 68, 68, 0.25);
-  --oboon-danger-bg: rgba(239, 68, 68, 0.12);
-  --oboon-on-danger: #ffffff;
-  --oboon-spinner-ring: rgba(255, 255, 255, 0.3);
-  --oboon-spinner-head: rgba(255, 255, 255, 0.8);
-
-  --oboon-warning: #f59e0b;
-  --oboon-warning-bg: rgba(245, 158, 11, 0.12);
-  --oboon-warning-bg-subtle: rgba(245, 158, 11, 0.18);
-  --oboon-warning-text: rgba(15, 23, 42, 0.92);
-  --oboon-warning-border: rgba(245, 158, 11, 0.28);
-  --oboon-warning-hover: rgba(245, 158, 11, 0.2);
 }
 
 /* Dark theme (if you use .dark or data-theme="dark") */

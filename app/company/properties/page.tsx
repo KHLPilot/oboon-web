@@ -3,13 +3,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 import Button from "@/components/ui/Button";
-import { Router } from "next/router";
+import PageContainer from "@/components/shared/PageContainer";
 
 const ALLOWED_ROLES = ["builder", "developer", "admin"];
 
@@ -134,7 +133,7 @@ export default function PropertyListPage() {
     }
 
     const ok = window.confirm(
-      "이 현장을 삭제할까요? 이 작업은 되돌릴 수 없습니다."
+      "이 현장을 삭제할까요? 이 작업은 되돌릴 수 없습니다.",
     );
     if (!ok) return;
 
@@ -219,7 +218,7 @@ export default function PropertyListPage() {
             move_in_date
           ),
           property_unit_types(id)
-        `
+        `,
         )
         .order("id", { ascending: false });
 
@@ -265,7 +264,7 @@ export default function PropertyListPage() {
 
   const incompleteCount = useMemo(
     () => rows.filter((r) => getInternalProgress(r).isIncomplete).length,
-    [rows]
+    [rows],
   );
 
   const filteredRows = useMemo(() => {
@@ -284,181 +283,188 @@ export default function PropertyListPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 py-8">
-      {/* 헤더 */}
-      <div className="mb-6 flex flex-col gap-3">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-3">
-            <h1 className="ob-typo-h1 text-(--oboon-text-title)">현장 목록</h1>
+    <PageContainer noHeaderOffset>
+      <div>
+        {/* 헤더 */}
+        <div className="mb-6 flex flex-col gap-3">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="ob-typo-h1 text-(--oboon-text-title)">
+                현장 목록
+              </div>
 
-            <Badge variant="status" className="ob-typo-caption px-2.5 py-1">
-              미완 {incompleteCount}건
-            </Badge>
-          </div>
+              <Badge variant="status" className="ob-typo-caption px-2.5 py-1">
+                미완 {incompleteCount}건
+              </Badge>
+            </div>
 
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setShowIncompleteOnly((v) => !v)}
-              className={[
-                "inline-flex h-10 items-center gap-2 rounded-xl px-4",
-                "bg-transparent text-(--oboon-text-body)",
-                "transition-colors",
-                "ob-typo-button",
-              ].join(" ")}
-              aria-pressed={showIncompleteOnly}
-            >
-              <span
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setShowIncompleteOnly((v) => !v)}
                 className={[
-                  "inline-flex h-5 w-9 items-center rounded-full border px-0.5",
-                  showIncompleteOnly
-                    ? "justify-end border-(--oboon-primary) bg-(--oboon-bg-surface)"
-                    : "justify-start border-(--oboon-border-default) bg-(--oboon-bg-surface)",
+                  "inline-flex h-10 items-center gap-2 rounded-xl px-4",
+                  "bg-transparent text-(--oboon-text-body)",
+                  "transition-colors",
+                  "ob-typo-button",
                 ].join(" ")}
-                aria-hidden="true"
+                aria-pressed={showIncompleteOnly}
               >
                 <span
                   className={[
-                    "h-4 w-4 rounded-full",
+                    "inline-flex h-5 w-9 items-center rounded-full border px-0.5",
                     showIncompleteOnly
-                      ? "bg-(--oboon-primary)"
-                      : "bg-(--oboon-text-muted)",
+                      ? "justify-end border-(--oboon-primary) bg-(--oboon-bg-surface)"
+                      : "justify-start border-(--oboon-border-default) bg-(--oboon-bg-surface)",
                   ].join(" ")}
-                />
-              </span>
-              <span className="ob-typo-body">미완 현장만</span>
-            </button>
+                  aria-hidden="true"
+                >
+                  <span
+                    className={[
+                      "h-4 w-4 rounded-full",
+                      showIncompleteOnly
+                        ? "bg-(--oboon-primary)"
+                        : "bg-(--oboon-text-muted)",
+                    ].join(" ")}
+                  />
+                </span>
+                <span className="ob-typo-body">미완 현장만</span>
+              </button>
 
-            <Button
-              variant="primary"
-              size="md"
-              shape="default"
-              onClick={() => router.push("/company/properties/new")}
-            >
-              + 새 현장 등록
-            </Button>
+              <Button
+                variant="primary"
+                size="md"
+                shape="default"
+                onClick={() => router.push("/company/properties/new")}
+              >
+                + 새 현장 등록
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* 목록 없음 */}
-      {filteredRows.length === 0 && (
-        <div
-          className={[
-            "rounded-2xl border border-(--oboon-border-default)",
-            "bg-(--oboon-bg-surface)",
-            "p-6",
-            "ob-typo-body text-(--oboon-text-muted)",
-          ].join(" ")}
-        >
-          {showIncompleteOnly
-            ? "입력 미완 현장이 없습니다."
-            : "등록된 현장이 없습니다."}
+        {/* 목록 없음 */}
+        {filteredRows.length === 0 && (
+          <div
+            className={[
+              "rounded-2xl border border-(--oboon-border-default)",
+              "bg-(--oboon-bg-surface)",
+              "p-6",
+              "ob-typo-body text-(--oboon-text-muted)",
+            ].join(" ")}
+          >
+            {showIncompleteOnly
+              ? "입력 미완 현장이 없습니다."
+              : "등록된 현장이 없습니다."}
+          </div>
+        )}
+
+        {/* 2열 그리드 */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          {filteredRows.map((row) => {
+            const { inputCount, totalCount, missingLabels } =
+              getInternalProgress(row);
+
+            const canEdit =
+              currentUserRole === "admin" || row.created_by === currentUserId;
+
+            const profile = row.profiles
+              ? Array.isArray(row.profiles)
+                ? row.profiles[0]
+                : row.profiles
+              : null;
+
+            const getDisplayName = (prof: ProfileRow | null) => {
+              if (!prof) return "작성자 알 수 없음";
+
+              let roleSuffix = "";
+              if (prof.role === "admin") roleSuffix = "오분";
+              else if (prof.role === "builder") roleSuffix = "시공사";
+              else if (prof.role === "developer") roleSuffix = "시행사";
+              else roleSuffix = prof.role;
+
+              return `${prof.name} / ${roleSuffix}`;
+            };
+
+            const displayName = getDisplayName(profile);
+
+            const MAX_PILLS = 3;
+            const visibleMissing = missingLabels.slice(0, MAX_PILLS);
+            const hiddenCount = Math.max(0, missingLabels.length - MAX_PILLS);
+
+            return (
+              <div
+                key={row.id}
+                className={[
+                  "h-full flex flex-col",
+                  "rounded-2xl border border-(--oboon-border-default)",
+                  "bg-(--oboon-bg-surface)",
+                  "p-6 shadow-none",
+                ].join(" ")}
+              >
+                {/* 상단: 제목 + 상태 배지 */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="ob-typo-h3 text-(--oboon-text-title) truncate">
+                      {row.name}
+                    </div>
+                    <p className="ob-typo-caption text-(--oboon-text-muted) mt-1">
+                      작성자: {displayName}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <StatusChip
+                      inputCount={inputCount}
+                      totalCount={totalCount}
+                    />
+
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(row.id, canEdit)}
+                        aria-label="삭제"
+                        className={[
+                          "rounded-full p-1",
+                          "text-(--oboon-danger)",
+                          "hover:bg-(--oboon-danger-bg)",
+                          "focus:outline-none focus:ring-2 focus:ring-(--oboon-danger)/30",
+                        ].join(" ")}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* 중단: 미입력 칩 */}
+                {missingLabels.length > 0 ? (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {visibleMissing.map((label) => (
+                      <MissingPill key={label} label={label} />
+                    ))}
+                    {hiddenCount > 0 && <MorePill count={hiddenCount} />}
+                  </div>
+                ) : (
+                  <div className="mt-4">
+                    <span className="ob-typo-caption text-(--oboon-primary)">
+                      모든 데이터가 입력되었습니다.
+                    </span>
+                  </div>
+                )}
+
+                {/* 하단: 수정 버튼 */}
+                <div className="mt-auto pt-5 flex items-center justify-end gap-2">
+                  <EditButton
+                    href={`/company/properties/${row.id}`}
+                    disabled={!canEdit}
+                  />
+                </div>
+              </div>
+            );
+          })}
         </div>
-      )}
-
-      {/* 2열 그리드 */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        {filteredRows.map((row) => {
-          const { inputCount, totalCount, missingLabels } =
-            getInternalProgress(row);
-
-          const canEdit =
-            currentUserRole === "admin" || row.created_by === currentUserId;
-
-          const profile = row.profiles
-            ? Array.isArray(row.profiles)
-              ? row.profiles[0]
-              : row.profiles
-            : null;
-
-          const getDisplayName = (prof: ProfileRow | null) => {
-            if (!prof) return "작성자 알 수 없음";
-
-            let roleSuffix = "";
-            if (prof.role === "admin") roleSuffix = "오분";
-            else if (prof.role === "builder") roleSuffix = "시공사";
-            else if (prof.role === "developer") roleSuffix = "시행사";
-            else roleSuffix = prof.role;
-
-            return `${prof.name} / ${roleSuffix}`;
-          };
-
-          const displayName = getDisplayName(profile);
-
-          const MAX_PILLS = 3;
-          const visibleMissing = missingLabels.slice(0, MAX_PILLS);
-          const hiddenCount = Math.max(0, missingLabels.length - MAX_PILLS);
-
-          return (
-            <div
-              key={row.id}
-              className={[
-                "h-full flex flex-col",
-                "rounded-2xl border border-(--oboon-border-default)",
-                "bg-(--oboon-bg-surface)",
-                "p-6 shadow-none",
-              ].join(" ")}
-            >
-              {/* 상단: 제목 + 상태 배지 */}
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <h2 className="ob-typo-h3 text-(--oboon-text-title) truncate">
-                    {row.name}
-                  </h2>
-                  <p className="ob-typo-caption text-(--oboon-text-muted) mt-1">
-                    작성자: {displayName}
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2 shrink-0">
-                  <StatusChip inputCount={inputCount} totalCount={totalCount} />
-
-                  {canEdit && (
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(row.id, canEdit)}
-                      aria-label="삭제"
-                      className={[
-                        "rounded-full p-1",
-                        "text-(--oboon-danger)",
-                        "hover:bg-(--oboon-danger-bg)",
-                        "focus:outline-none focus:ring-2 focus:ring-(--oboon-danger)/30",
-                      ].join(" ")}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* 중단: 미입력 칩 */}
-              {missingLabels.length > 0 ? (
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {visibleMissing.map((label) => (
-                    <MissingPill key={label} label={label} />
-                  ))}
-                  {hiddenCount > 0 && <MorePill count={hiddenCount} />}
-                </div>
-              ) : (
-                <div className="mt-4">
-                  <span className="ob-typo-caption text-(--oboon-primary)">
-                    모든 데이터가 입력되었습니다.
-                  </span>
-                </div>
-              )}
-
-              {/* 하단: 수정 버튼 */}
-              <div className="mt-auto pt-5 flex items-center justify-end gap-2">
-                <EditButton
-                  href={`/company/properties/${row.id}`}
-                  disabled={!canEdit}
-                />
-              </div>
-            </div>
-          );
-        })}
       </div>
-    </div>
+    </PageContainer>
   );
 }

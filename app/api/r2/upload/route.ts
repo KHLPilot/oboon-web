@@ -1,3 +1,5 @@
+// app/api/r2/upload/route.ts
+
 import { NextResponse } from "next/server";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 
@@ -11,6 +13,14 @@ const r2 = new S3Client({
     secretAccessKey: process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY!,
   },
 });
+
+function safeSeg(input: string) {
+  return (input ?? "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-zA-Z0-9_-]/g, "")
+    .slice(0, 40);
+}
 
 function safeExt(fileName: string) {
   const ext = fileName.split(".").pop()?.toLowerCase() || "jpg";
@@ -28,6 +38,7 @@ export async function POST(req: Request) {
     const propertyId = form.get("propertyId") as string | null;
     const postId = (form.get("postId") as string | null)?.trim() || null;
     const mode = ((form.get("mode") as string | null) ?? "").trim();
+    const unitType = (form.get("unitType") as string | null)?.trim() || "";
 
     if (!file) {
       return NextResponse.json({ error: "file required" }, { status: 400 });
@@ -42,7 +53,7 @@ export async function POST(req: Request) {
       if (!propertyId) {
         return NextResponse.json(
           { error: "propertyId required" },
-          { status: 400 }
+          { status: 400 },
         );
       }
 
@@ -57,9 +68,37 @@ export async function POST(req: Request) {
           Key: key,
           Body: body,
           ContentType: file.type || "application/octet-stream",
-        })
+        }),
       );
 
+      const publicUrl = `${process.env.CLOUDFLARE_R2_PUBLIC_URL}/${key}`;
+      return NextResponse.json({ url: publicUrl });
+    }
+
+    if (resolvedMode === "property_floor_plan") {
+      if (!propertyId) {
+        return NextResponse.json(
+          { error: "propertyId required" },
+          { status: 400 },
+        );
+      }
+
+      const seg = safeSeg(unitType) || "floorplan";
+      const key = `properties/${propertyId}/floor-plans/${randomKeySegment()}_${seg}.${ext}`;
+
+      const arrayBuffer = await file.arrayBuffer();
+      const body = Buffer.from(arrayBuffer);
+
+      await r2.send(
+        new PutObjectCommand({
+          Bucket: process.env.CLOUDFLARE_R2_BUCKET_NAME!,
+          Key: key,
+          Body: body,
+          ContentType: file.type || "application/octet-stream",
+        }),
+      );
+
+      // ✅ 누락되어 있던 반환 추가
       const publicUrl = `${process.env.CLOUDFLARE_R2_PUBLIC_URL}/${key}`;
       return NextResponse.json({ url: publicUrl });
     }
@@ -80,7 +119,7 @@ export async function POST(req: Request) {
           Key: key,
           Body: body,
           ContentType: file.type || "application/octet-stream",
-        })
+        }),
       );
 
       const publicUrl = `${process.env.CLOUDFLARE_R2_PUBLIC_URL}/${key}`;
@@ -103,7 +142,7 @@ export async function POST(req: Request) {
           Key: key,
           Body: body,
           ContentType: file.type || "application/octet-stream",
-        })
+        }),
       );
 
       const publicUrl = `${process.env.CLOUDFLARE_R2_PUBLIC_URL}/${key}`;
@@ -113,14 +152,14 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         error:
-          "invalid mode (property_main | briefing_cover | briefing_content)",
+          "invalid mode (property_main | property_floor_plan | briefing_cover | briefing_content)",
       },
-      { status: 400 }
+      { status: 400 },
     );
   } catch (e: any) {
     return NextResponse.json(
       { error: e?.message ?? "upload failed" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

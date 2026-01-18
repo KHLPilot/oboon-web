@@ -27,7 +27,7 @@ export default function PrecisionDateInput({
   policy,
   defaultPrecision = "day",
   disabled = false,
-  inputClassName = "",
+  inputClassName = "h-11",
   placeholder,
 }: Props) {
   const [displayValue, setDisplayValue] = useState("");
@@ -117,7 +117,10 @@ export default function PrecisionDateInput({
 
     // 유효성 검증 후 onChange 호출
     if (policy === "both") {
-      if (/^\d{4}-\d{2}$/.test(formatted) || /^\d{4}-\d{2}-\d{2}$/.test(formatted)) {
+      if (
+        /^\d{4}-\d{2}$/.test(formatted) ||
+        /^\d{4}-\d{2}-\d{2}$/.test(formatted)
+      ) {
         onChange(formatted);
       } else if (formatted === "") {
         onChange(null);
@@ -148,7 +151,9 @@ export default function PrecisionDateInput({
     if (!form) return;
 
     const inputs = Array.from(
-      form.querySelectorAll("input:not([type='hidden']), button, select, textarea")
+      form.querySelectorAll(
+        "input:not([type='hidden']), button, select, textarea",
+      ),
     );
     const currentIndex = inputs.indexOf(inputRef.current!);
     const nextInput = inputs[currentIndex + 1] as HTMLElement;

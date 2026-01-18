@@ -25,32 +25,35 @@ export type NaverMapHandle = {
 };
 
 type NaverMapInstance = any;
+type MapMode = "base" | "expanded" | "select";
 
 const NaverMap = forwardRef<
   NaverMapHandle,
   {
-    markers: MapMarker[];
-    hoveredId: number | null;
-    focusedId: number | null;
+    markers?: MapMarker[];
+    hoveredId?: number | null;
+    focusedId?: number | null;
     onMarkerSelect?: (id: number) => void;
-    onHoverChange: (id: number | null) => void;
+    onHoverChange?: (id: number | null) => void;
     onVisibleIdsChange?: (ids: number[]) => void;
     onClearFocus?: () => void;
-    mode?: "base" | "expanded";
+    mode?: MapMode;
+    onSelectPosition?: (lat: number, lng: number) => void | Promise<void>;
   }
 >(
   (
     {
-      markers,
-      hoveredId,
-      focusedId,
+      markers = [],
+      hoveredId = null,
+      focusedId = null,
       onMarkerSelect,
-      onHoverChange,
+      onHoverChange = () => {},
       onVisibleIdsChange,
       onClearFocus,
       mode = "base",
+      onSelectPosition,
     },
-    ref
+    ref,
   ) => {
     const mapContainerRef = useRef<HTMLDivElement>(null);
     const mapRef = useRef<NaverMapInstance>(null);
@@ -82,6 +85,8 @@ const NaverMap = forwardRef<
       onHoverChange,
       onVisibleIdsChange,
       onClearFocus,
+      onSelectPosition,
+      mode,
     });
 
     useEffect(() => {
@@ -90,6 +95,8 @@ const NaverMap = forwardRef<
         onHoverChange,
         onVisibleIdsChange,
         onClearFocus,
+        onSelectPosition,
+        mode,
       };
     });
 
@@ -111,8 +118,8 @@ const NaverMap = forwardRef<
       const state: MarkerState = isFocused
         ? "focus"
         : isHovered
-        ? "hover"
-        : "default";
+          ? "hover"
+          : "default";
       const isRich = shouldBeRich(m);
 
       const icon = iconFor({
@@ -220,10 +227,10 @@ const NaverMap = forwardRef<
             callbacksRef.current.onMarkerSelect?.(m.id);
           });
           naver.maps.Event.addListener(mk, "mouseover", () =>
-            callbacksRef.current.onHoverChange(m.id)
+            callbacksRef.current.onHoverChange?.(m.id),
           );
           naver.maps.Event.addListener(mk, "mouseout", () =>
-            callbacksRef.current.onHoverChange(null)
+            callbacksRef.current.onHoverChange?.(null),
           );
 
           markerByIdRef.current.set(m.id, mk);
@@ -270,7 +277,7 @@ const NaverMap = forwardRef<
         if (!naver?.maps) return;
         // 강제 전체 리프레시가 필요할 때만 호출
         markerByIdRef.current.forEach((_mk, id) =>
-          applyMarkerStyleById(naver, id)
+          applyMarkerStyleById(naver, id),
         );
       },
     }));
@@ -293,16 +300,29 @@ const NaverMap = forwardRef<
 
         if (markers.length > 0) upsertMarkers(markers, map, naver);
 
-        const clickListener = naver.maps.Event.addListener(map, "click", () => {
-          callbacksRef.current.onClearFocus?.();
-        });
-
+        const clickListener = naver.maps.Event.addListener(
+          map,
+          "click",
+          (e: any) => {
+            if (callbacksRef.current.mode === "select") {
+              const lat =
+                e?.coord?.lat?.() ?? e?.latlng?.lat?.() ?? e?.latlng?.lat;
+              const lng =
+                e?.coord?.lng?.() ?? e?.latlng?.lng?.() ?? e?.latlng?.lng;
+              if (typeof lat === "number" && typeof lng === "number") {
+                callbacksRef.current.onSelectPosition?.(lat, lng);
+              }
+              return;
+            }
+            callbacksRef.current.onClearFocus?.();
+          },
+        );
         const dragStartListener = naver.maps.Event.addListener(
           map,
           "dragstart",
           () => {
             isInteractingRef.current = true;
-          }
+          },
         );
 
         const idleListener = naver.maps.Event.addListener(map, "idle", () => {
@@ -320,14 +340,14 @@ const NaverMap = forwardRef<
             // 현 정책상 focused만 갱신하면 충분
             const fid = focusedIdRef.current;
             if (fid) applyMarkerStyleById(naver, fid);
-          }
+          },
         );
 
         listenersRef.current.push(
           clickListener,
           dragStartListener,
           idleListener,
-          zoomListener
+          zoomListener,
         );
       });
 
@@ -336,7 +356,7 @@ const NaverMap = forwardRef<
         const naver = (window as any).naver;
         if (naver?.maps) {
           listenersRef.current.forEach((l) =>
-            naver.maps.Event.removeListener(l)
+            naver.maps.Event.removeListener(l),
           );
         }
       };
@@ -382,7 +402,7 @@ const NaverMap = forwardRef<
         const targetOffset = proj.fromCoordToOffset(targetLatLng);
         const newCenterOffset = new naver.maps.Point(
           targetOffset.x,
-          targetOffset.y + mapSize.height * 0.05
+          targetOffset.y + mapSize.height * 0.05,
         );
 
         const newCenter = proj.fromOffsetToCoord(newCenterOffset);
@@ -399,7 +419,7 @@ const NaverMap = forwardRef<
         <div ref={mapContainerRef} className="w-full h-full" />
       </div>
     );
-  }
+  },
 );
 
 NaverMap.displayName = "NaverMap";

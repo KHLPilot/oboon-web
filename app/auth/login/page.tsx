@@ -45,7 +45,7 @@ export default function LoginPage() {
   const showFieldErrorUnder = (
     el: HTMLElement,
     message: string,
-    field: LoginField
+    field: LoginField,
   ) => {
     setFieldError({ field, message, anchorEl: el });
 
@@ -103,7 +103,7 @@ export default function LoginPage() {
           router.replace("/auth/onboarding");
         } else {
           setError(
-            `권한 오류: ${profileError.message} (관리자에게 문의하세요)`
+            `권한 오류: ${profileError.message} (관리자에게 문의하세요)`,
           );
         }
         setLoading(false);
@@ -259,30 +259,30 @@ export default function LoginPage() {
                     }
                   />
                 </div>
-              </form>
-              <Button
-                type="submit"
-                variant="primary"
-                size="md"
-                shape="pill"
-                className="mt-5 w-full justify-center"
-                disabled={loading}
-                loading={loading}
-              >
-                로그인
-              </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="md"
+                  shape="pill"
+                  className="mt-5 w-full justify-center"
+                  disabled={loading}
+                  loading={loading}
+                >
+                  로그인
+                </Button>
 
-              <Button
-                type="button"
-                variant="secondary"
-                size="md"
-                shape="pill"
-                className="mt-2 w-full justify-center"
-                onClick={() => router.push("/")}
-                disabled={loading}
-              >
-                로그인 없이 보기
-              </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="md"
+                  shape="pill"
+                  className="w-full justify-center"
+                  onClick={() => router.push("/")}
+                  disabled={loading}
+                >
+                  로그인 없이 보기
+                </Button>
+              </form>
 
               {/* Divider */}
               <div className="mt-6 mb-4 flex items-center gap-3">

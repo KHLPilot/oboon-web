@@ -42,6 +42,9 @@ export type PropertyProgressRow = {
   property_specs?: SpecsRow | SpecsRow[] | null;
   property_timeline?: TimelineRow | TimelineRow[] | null;
   property_unit_types?: RelationRow[] | null;
+  confirmed_comment?: string | null;
+  estimated_comment?: string | null;
+  pending_comment?: string | null;
 };
 
 function hasMany(v?: RelationRow[] | null) {
@@ -49,10 +52,11 @@ function hasMany(v?: RelationRow[] | null) {
 }
 
 function statusFromValues(
-  vals: (string | number | null | undefined)[]
+  vals: (string | number | null | undefined)[],
 ): SectionStatus {
-  const filled = vals.filter((v) => v !== null && v !== undefined && v !== "")
-    .length;
+  const filled = vals.filter(
+    (v) => v !== null && v !== undefined && v !== "",
+  ).length;
   if (filled === 0) return "none";
   if (filled === vals.length) return "full";
   return "partial";
@@ -61,13 +65,13 @@ function statusFromValues(
 function getSpecsRow(row: PropertyProgressRow) {
   return Array.isArray(row.property_specs)
     ? row.property_specs[0]
-    : row.property_specs ?? null;
+    : (row.property_specs ?? null);
 }
 
 function getTimelineRow(row: PropertyProgressRow) {
   return Array.isArray(row.property_timeline)
     ? row.property_timeline[0]
-    : row.property_timeline ?? null;
+    : (row.property_timeline ?? null);
 }
 
 export function getPropertySectionStatus(row: PropertyProgressRow) {
@@ -86,36 +90,42 @@ export function getPropertySectionStatus(row: PropertyProgressRow) {
 
   const specsStatus: SectionStatus = specsRow
     ? statusFromValues([
-      specsRow.sale_type,
-      specsRow.trust_company,
-      specsRow.developer,
-      specsRow.builder,
-      specsRow.site_area,
-      specsRow.building_area,
-      specsRow.building_coverage_ratio,
-      specsRow.floor_area_ratio,
-      specsRow.floor_ground,
-      specsRow.floor_underground,
-      specsRow.building_count,
-      specsRow.household_total,
-      specsRow.parking_total,
-      specsRow.parking_per_household,
-      specsRow.heating_type,
-      specsRow.amenities,
-    ])
+        specsRow.sale_type,
+        specsRow.trust_company,
+        specsRow.developer,
+        specsRow.builder,
+        specsRow.site_area,
+        specsRow.building_area,
+        specsRow.building_coverage_ratio,
+        specsRow.floor_area_ratio,
+        specsRow.floor_ground,
+        specsRow.floor_underground,
+        specsRow.building_count,
+        specsRow.household_total,
+        specsRow.parking_total,
+        specsRow.parking_per_household,
+        specsRow.heating_type,
+        specsRow.amenities,
+      ])
     : "none";
 
   const timelineStatus: SectionStatus = timelineRow
     ? statusFromValues([
-      timelineRow.announcement_date,
-      timelineRow.application_start,
-      timelineRow.application_end,
-      timelineRow.winner_announce,
-      timelineRow.contract_start,
-      timelineRow.contract_end,
-      timelineRow.move_in_date,
-    ])
+        timelineRow.announcement_date,
+        timelineRow.application_start,
+        timelineRow.application_end,
+        timelineRow.winner_announce,
+        timelineRow.contract_start,
+        timelineRow.contract_end,
+        timelineRow.move_in_date,
+      ])
     : "none";
+
+  const commentStatus: SectionStatus = statusFromValues([
+    row.confirmed_comment,
+    row.estimated_comment,
+    row.pending_comment,
+  ]);
 
   const specsRequiredFields = [
     specsRow?.sale_type,
@@ -139,6 +149,7 @@ export function getPropertySectionStatus(row: PropertyProgressRow) {
     specsStatus,
     timelineStatus,
     unitStatus,
+    commentStatus,
     specsRequiredMet,
     timelineRequiredMet,
   };
@@ -151,6 +162,7 @@ export function getPropertyProgress(row: PropertyProgressRow) {
     specsStatus,
     timelineStatus,
     unitStatus,
+    commentStatus,
     specsRequiredMet,
     timelineRequiredMet,
   } = getPropertySectionStatus(row);
@@ -161,13 +173,14 @@ export function getPropertyProgress(row: PropertyProgressRow) {
     { label: "일정", status: timelineStatus, requiredMet: timelineRequiredMet },
     { label: "평면 타입", status: unitStatus },
     { label: "홍보시설", status: facilityStatus },
+    { label: "감정평가사 메모", status: commentStatus },
   ];
 
   const shouldCountSection = (status: SectionStatus, requiredMet?: boolean) =>
     status !== "none" && (requiredMet ?? true);
 
   const inputCount = sections.filter((s) =>
-    shouldCountSection(s.status, s.requiredMet)
+    shouldCountSection(s.status, s.requiredMet),
   ).length;
   const fullCount = sections.filter((s) => s.status === "full").length;
   const totalCount = sections.length;
@@ -182,6 +195,7 @@ export function getPropertyProgress(row: PropertyProgressRow) {
     specsStatus,
     timelineStatus,
     unitStatus,
+    commentStatus,
     specsRequiredMet,
     timelineRequiredMet,
     inputCount,

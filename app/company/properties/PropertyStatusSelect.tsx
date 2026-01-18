@@ -43,10 +43,7 @@ export default function PropertyStatusSelect({
         </Button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent
-        align="start"
-        className="w-(--radix-trigger-width,240px)"
-      >
+      <DropdownMenuContent align="start" className="min-w-60 max-w-90">
         {PROPERTY_STATUS_OPTIONS.map((opt) => (
           <DropdownMenuItem key={opt.value} onClick={() => onChange(opt.value)}>
             {opt.label}

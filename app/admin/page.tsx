@@ -29,15 +29,15 @@ type PropertyAgent = {
   agent_id: string;
   status: "pending" | "approved" | "rejected";
   requested_at: string;
-  properties: {
+  properties: Array<{
     id: number;
     name: string;
-  };
-  profiles: {
+  }>;
+  profiles: Array<{
     id: string;
     name: string;
     email: string;
-  };
+  }>;
 };
 
 function roleLabel(role: string) {
@@ -87,7 +87,9 @@ function AdminPageInner() {
 
   const [loading, setLoading] = useState(true);
   const [pendingAgents, setPendingAgents] = useState<Profile[]>([]);
-  const [pendingPropertyAgents, setPendingPropertyAgents] = useState<PropertyAgent[]>([]);
+  const [pendingPropertyAgents, setPendingPropertyAgents] = useState<
+    PropertyAgent[]
+  >([]);
   const [deletedUsers, setDeletedUsers] = useState<Profile[]>([]);
   const [activeUsers, setActiveUsers] = useState<Profile[]>([]);
   const [roleSort, setRoleSort] = useState<"none" | "asc" | "desc">("none");
@@ -150,7 +152,7 @@ function AdminPageInner() {
           name,
           email
         )
-      `
+      `,
       )
       .eq("status", "pending")
       .order("requested_at", { ascending: true });
@@ -223,7 +225,7 @@ function AdminPageInner() {
         confirm.kind === "approve"
           ? "승인이 완료되었습니다."
           : "복구가 완료되었습니다.",
-        "완료"
+        "완료",
       );
     } finally {
       setConfirmLoading(false);
@@ -231,7 +233,11 @@ function AdminPageInner() {
   };
 
   const handlePropertyAgentApprove = async (propertyAgentId: string) => {
-    setPropertyAgentAction({ id: propertyAgentId, action: "approve", loading: true });
+    setPropertyAgentAction({
+      id: propertyAgentId,
+      action: "approve",
+      loading: true,
+    });
     try {
       const response = await fetch(`/api/property-agents/${propertyAgentId}`, {
         method: "PATCH",
@@ -258,7 +264,11 @@ function AdminPageInner() {
     const reason = prompt("거절 사유를 입력해주세요:");
     if (!reason) return;
 
-    setPropertyAgentAction({ id: propertyAgentId, action: "reject", loading: true });
+    setPropertyAgentAction({
+      id: propertyAgentId,
+      action: "reject",
+      loading: true,
+    });
     try {
       const response = await fetch(`/api/property-agents/${propertyAgentId}`, {
         method: "PATCH",
@@ -287,7 +297,7 @@ function AdminPageInner() {
 
   const toggleRoleSort = () => {
     setRoleSort((prev) =>
-      prev === "none" ? "asc" : prev === "asc" ? "desc" : "none"
+      prev === "none" ? "asc" : prev === "asc" ? "desc" : "none",
     );
   };
 
@@ -296,7 +306,7 @@ function AdminPageInner() {
     const dir = roleSort === "asc" ? 1 : -1;
     return [...activeUsers].sort(
       (a, b) =>
-        roleSortKey(a.role).localeCompare(roleSortKey(b.role), "ko-KR") * dir
+        roleSortKey(a.role).localeCompare(roleSortKey(b.role), "ko-KR") * dir,
     );
   }, [activeUsers, roleSort]);
 
@@ -427,12 +437,12 @@ function AdminPageInner() {
               <tbody>
                 {pendingPropertyAgents.map((pa) => (
                   <tr key={pa.id}>
-                    <Td>{pa.profiles.name || "-"}</Td>
+                    <Td>{pa.profiles?.[0]?.name || "-"}</Td>
                     <Td className="text-(--oboon-text-muted)">
-                      {pa.profiles.email}
+                      {pa.profiles?.[0]?.email}
                     </Td>
                     <Td className="text-(--oboon-text-muted)">
-                      {pa.properties.name}
+                      {pa.properties?.[0]?.name}
                     </Td>
                     <Td className="text-xs text-(--oboon-text-muted)">
                       {new Date(pa.requested_at).toLocaleDateString()}
@@ -625,8 +635,8 @@ function AdminPageInner() {
                         {roleSort === "none"
                           ? "-"
                           : roleSort === "asc"
-                          ? "▲"
-                          : "▼"}
+                            ? "▲"
+                            : "▼"}
                       </span>
                     </button>
                   </Th>

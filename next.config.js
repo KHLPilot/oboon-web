@@ -8,9 +8,10 @@ const nextConfig = {
         hostname: "pub-56f7c3092c7c48db80f9ca5633923e68.r2.dev",
         pathname: "/**",
       },
-      { protocol: "https", hostname: "cdn.quv.kr" },
-      { protocol: "https", hostname: "reby24.com" },
-      { protocol: "https", hostname: "cdn.imweb.me" },
+      { protocol: "https", hostname: "www.xi.co.kr", pathname: "/**" },
+      { protocol: "https", hostname: "cdn.quv.kr", pathname: "/**" },
+      { protocol: "https", hostname: "reby24.com", pathname: "/**" },
+      { protocol: "https", hostname: "cdn.imweb.me", pathname: "/**" },
     ],
   },
 

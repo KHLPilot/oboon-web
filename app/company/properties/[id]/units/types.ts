@@ -20,10 +20,9 @@ export type UnitRow = {
   price_max: number | null;
 
   unit_count: number | null;
-  supply_count: number | null; // ✅ 추가: 일반 청약 공급 세대수
+  supply_count: number | null;
 
   floor_plan_url: string | null;
-  image_url: string | null;
 };
 
 export type UnitDraft = Omit<UnitRow, "id" | "created_at">;

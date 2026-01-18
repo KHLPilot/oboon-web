@@ -1,11 +1,12 @@
-﻿// components/company/units/UnitTypeCard.tsx
-"use client";
+﻿"use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
+import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
+import Input from "@/components/ui/Input";
+import Label from "@/components/ui/Label";
 import { Badge } from "@/components/ui/Badge";
-import { FormField } from "@/app/components/FormField";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -27,47 +28,54 @@ import {
   formatPriceRange,
 } from "@/app/company/properties/[id]/units/utils";
 
+import { uploadFloorPlan } from "@/app/company/properties/[id]/units/useUnitTypes";
+
 function StatusBadge({ status }: { status: UnitStatus | "수정 중" }) {
   if (status === "수정 중") {
     return (
-      <Badge
-        variant="default"
-        className="shrink-0 border border-(--oboon-accent)/35 bg-(--oboon-bg-surface) text-(--oboon-text-title)"
-      >
+      <Badge variant="status" className="ob-typo-caption">
         수정 중
       </Badge>
     );
   }
-
   if (status === "미입력") {
     return (
       <Badge
         variant="default"
-        className="shrink-0 border border-(--oboon-border-default) bg-(--oboon-bg-surface) text-(--oboon-text-muted)"
+        className="ob-typo-caption text-(--oboon-text-muted)"
       >
         미입력
       </Badge>
     );
   }
-
   if (status === "입력 중") {
     return (
-      <Badge
-        variant="default"
-        className="shrink-0 border border-(--oboon-border-default) bg-(--oboon-bg-surface) text-(--oboon-text-title)"
-      >
+      <Badge variant="status" className="ob-typo-caption">
         입력 중
       </Badge>
     );
   }
-
   return (
-    <Badge
-      variant="default"
-      className="shrink-0 border border-(--oboon-border-default) bg-(--oboon-bg-surface) text-(--oboon-text-title)"
-    >
+    <Badge variant="default" className="ob-typo-caption">
       완료
     </Badge>
+  );
+}
+
+function Field({
+  label,
+  children,
+  className,
+}: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("space-y-2", className)}>
+      <Label className="ob-typo-body text-(--oboon-text-title)">{label}</Label>
+      {children}
+    </div>
   );
 }
 
@@ -94,96 +102,103 @@ export default function UnitTypeCard({
   onSave: () => void;
   onChange: <K extends keyof UnitDraft>(key: K, value: UnitDraft[K]) => void;
 }) {
-  const inputClass =
-    "w-full rounded-md border border-(--oboon-border-default) bg-(--oboon-bg-subtle)/40 px-3 py-2 text-sm text-(--oboon-text-title) placeholder:text-(--oboon-text-muted) focus:outline-none focus:ring-2 focus:ring-(--oboon-accent)/40";
-
-  const cardTone =
-    "bg-(--oboon-bg-surface) shadow-[0_10px_30px_rgba(0,0,0,0.06)]";
-
   const title = isEditing
     ? draft?.type_name || unit.type_name || "-"
     : unit.type_name || "-";
 
   const summaryPrice = formatPriceRange(
     isEditing ? draft?.price_min : unit.price_min,
-    isEditing ? draft?.price_max : unit.price_max
+    isEditing ? draft?.price_max : unit.price_max,
   );
+
   const inlinePreview = draft
     ? formatPriceRange(draft.price_min, draft.price_max)
     : null;
 
-  // ✅ 인라인 수정 시 전용/공급 면적 입력 텍스트 (소수 허용)
   const [exclusiveText, setExclusiveText] = useState("");
   const [supplyText, setSupplyText] = useState("");
+  const [floorUploading, setFloorUploading] = useState(false);
+  const [floorPlanFileName, setFloorPlanFileName] = useState<string | null>(
+    null,
+  );
+  const floorPlanInputRef = useRef<HTMLInputElement | null>(null);
 
-  // 편집 시작/초기 로딩 시 draft 값 → 텍스트로 동기화
   useEffect(() => {
     if (isEditing && draft) {
       setExclusiveText(
-        draft.exclusive_area != null ? String(draft.exclusive_area) : ""
+        draft.exclusive_area != null ? String(draft.exclusive_area) : "",
       );
-      setSupplyText(
-        draft.supply_area != null ? String(draft.supply_area) : ""
-      );
+      setSupplyText(draft.supply_area != null ? String(draft.supply_area) : "");
     } else {
       setExclusiveText("");
       setSupplyText("");
+      setFloorPlanFileName(null);
     }
   }, [isEditing, draft?.exclusive_area, draft?.supply_area]);
 
+  async function handlePickFloorPlan(file: File) {
+    if (!draft) return;
+
+    try {
+      setFloorUploading(true);
+
+      const url = await uploadFloorPlan({
+        file,
+        propertyId: unit.properties_id,
+        unitTypeName: (draft.type_name ?? "").trim() || undefined,
+      });
+
+      onChange("floor_plan_url", url);
+    } catch (e: unknown) {
+      const msg =
+        e instanceof Error ? e.message : "평면도 업로드에 실패했습니다.";
+      alert(msg);
+    } finally {
+      setFloorUploading(false);
+    }
+  }
+
+  const disabled = Boolean(saving || floorUploading);
+
   return (
-    <div
-      className={cn(
-        "relative flex flex-col gap-4 rounded-2xl px-5 py-4",
-        cardTone,
-        isEditing && "md:col-span-2 md:col-start-1 bg-(--oboon-bg-surface)"
-      )}
+    <Card
+      className={cn("p-5", isEditing ? "md:col-span-2 md:col-start-1" : "")}
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-base font-semibold text-(--oboon-text-title)">
+          <p className="ob-typo-h3 text-(--oboon-text-title) truncate">
             {title}
           </p>
-          <p className="mt-1 text-xs text-(--oboon-text-muted)">
+          <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
             전용{" "}
             {formatM2(isEditing ? draft?.exclusive_area : unit.exclusive_area)}
             ㎡ · 공급{" "}
             {formatM2(isEditing ? draft?.supply_area : unit.supply_area)}㎡
           </p>
-          <p className="mt-1 text-xs text-(--oboon-text-muted)">
+          <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
             {summarizeRoomsBaths(unit.rooms, unit.bathrooms)}
           </p>
         </div>
 
-        <div className="flex items-center justify-end gap-2 shrink-0">
-          <StatusBadge status={status} />
+        <div className="flex items-center gap-2 shrink-0">
+          <StatusBadge status={isEditing ? "수정 중" : status} />
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 size="sm"
                 shape="pill"
-                className="inline-flex h-8 w-8 min-w-8 items-center justify-center px-0 text-(--oboon-text-muted) hover:bg-(--oboon-bg-subtle) focus-visible:ring-2 focus-visible:ring-(--oboon-accent)/40 shrink-0"
+                className="h-8 w-8 px-0 text-(--oboon-text-muted)"
               >
                 ⋮
               </Button>
             </DropdownMenuTrigger>
 
-            <DropdownMenuContent
-              align="end"
-              className="min-w-[160px] rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-1 shadow-lg data-[side=bottom]:mt-2 data-[side=top]:mb-2 data-[side=left]:mr-2 data-[side=right]:ml-2"
-            >
-              <DropdownMenuItem
-                className="rounded-lg px-3 py-2 text-sm"
-                onClick={onStartEdit}
-              >
-                수정
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="rounded-lg px-3 py-2 text-sm"
-                onClick={onDelete}
-              >
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={onStartEdit}>수정</DropdownMenuItem>
+              <DropdownMenuItem destructive onClick={onDelete}>
                 삭제
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -192,185 +207,261 @@ export default function UnitTypeCard({
       </div>
 
       {/* Summary */}
-      <div className="text-sm text-(--oboon-text-title)">
+      <div className="mt-4">
         {summaryPrice ? (
-          <p>{summaryPrice}</p>
+          <p className="ob-typo-body text-(--oboon-text-title)">
+            {summaryPrice}
+          </p>
         ) : (
-          <p className="text-(--oboon-text-muted)">가격 정보 없음</p>
+          <p className="ob-typo-body text-(--oboon-text-muted)">
+            가격 정보 없음
+          </p>
         )}
       </div>
 
-      {/* EditPanel */}
+      {/* Edit Panel */}
       {isEditing && draft ? (
-        <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-default) p-4">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <FormField label="평면 타입 이름">
-              <input
-                className={inputClass}
+        <div className="mt-4 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-default) p-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Field label="평면 타입 이름">
+              <Input
                 value={draft.type_name ?? ""}
                 onChange={(e) => onChange("type_name", e.target.value)}
               />
-            </FormField>
+            </Field>
 
-            <FormField label="전용 면적 (㎡)">
-              <input
-                className={inputClass}
-                value={exclusiveText} // ✅ 문자열 그대로
+            <Field label="전용 면적 (㎡)">
+              <Input
+                value={exclusiveText}
+                inputMode="decimal"
                 onChange={(e) => {
                   const raw = e.target.value;
                   setExclusiveText(raw);
-                  onChange("exclusive_area", toNumberOrNull(raw)); // ✅ 숫자만 draft에 저장
+                  onChange("exclusive_area", toNumberOrNull(raw));
                 }}
-                inputMode="decimal"
               />
-            </FormField>
+            </Field>
 
-            <FormField label="공급 면적 (㎡)">
-              <input
-                className={inputClass}
+            <Field label="공급 면적 (㎡)">
+              <Input
                 value={supplyText}
+                inputMode="decimal"
                 onChange={(e) => {
                   const raw = e.target.value;
                   setSupplyText(raw);
                   onChange("supply_area", toNumberOrNull(raw));
                 }}
-                inputMode="decimal"
               />
-            </FormField>
+            </Field>
 
-            <div className="grid grid-cols-2 gap-3">
-              <FormField label="방 개수">
-                <input
-                  className={inputClass}
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="방 개수">
+                <Input
                   value={draft.rooms ?? ""}
+                  inputMode="numeric"
                   onChange={(e) =>
                     onChange("rooms", toNumberOrNull(e.target.value))
                   }
-                  inputMode="numeric"
                 />
-              </FormField>
-              <FormField label="욕실">
-                <input
-                  className={inputClass}
+              </Field>
+              <Field label="욕실">
+                <Input
                   value={draft.bathrooms ?? ""}
+                  inputMode="numeric"
                   onChange={(e) =>
                     onChange("bathrooms", toNumberOrNull(e.target.value))
                   }
-                  inputMode="numeric"
                 />
-              </FormField>
+              </Field>
             </div>
 
-            <FormField label="구조">
-              <input
-                className={inputClass}
+            <Field label="구조">
+              <Input
                 value={draft.building_layout ?? ""}
                 onChange={(e) => onChange("building_layout", e.target.value)}
               />
-            </FormField>
+            </Field>
 
-            <FormField label="향">
-              <input
-                className={inputClass}
+            <Field label="향">
+              <Input
                 value={draft.orientation ?? ""}
                 onChange={(e) => onChange("orientation", e.target.value)}
               />
-            </FormField>
+            </Field>
 
-            {/* 가격 + 미리보기 */}
-            <div className="space-y-2 md:col-span-2">
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <FormField label="가격 하한 (원)">
-                  <input
-                    className={inputClass}
+            {/* 가격 */}
+            <div className="md:col-span-2 space-y-2">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Field label="가격 하한 (원)">
+                  <Input
                     value={
                       draft.price_min != null
                         ? numberWithCommas(draft.price_min)
                         : ""
                     }
+                    inputMode="numeric"
                     onChange={(e) =>
                       onChange("price_min", toNumberOrNull(e.target.value))
                     }
-                    inputMode="numeric"
                   />
-                </FormField>
-                <FormField label="가격 상한 (원)">
-                  <input
-                    className={inputClass}
+                </Field>
+                <Field label="가격 상한 (원)">
+                  <Input
                     value={
                       draft.price_max != null
                         ? numberWithCommas(draft.price_max)
                         : ""
                     }
+                    inputMode="numeric"
                     onChange={(e) =>
                       onChange("price_max", toNumberOrNull(e.target.value))
                     }
-                    inputMode="numeric"
                   />
-                </FormField>
+                </Field>
               </div>
 
               {inlinePreview ? (
-                <div className="text-xs text-(--oboon-text-muted)">
+                <p className="ob-typo-caption text-(--oboon-text-muted)">
                   가격 미리보기 · {inlinePreview}
-                </div>
+                </p>
               ) : null}
             </div>
 
-            <FormField label="세대수">
-              <input
-                className={inputClass}
+            <Field label="세대수">
+              <Input
                 value={draft.unit_count ?? ""}
+                inputMode="numeric"
                 onChange={(e) =>
                   onChange("unit_count", toNumberOrNull(e.target.value))
                 }
-                inputMode="numeric"
               />
-            </FormField>
+            </Field>
 
-            <FormField label="평면도 URL" className="md:col-span-2">
-              <input
-                className={inputClass}
-                value={draft.floor_plan_url ?? ""}
-                onChange={(e) => onChange("floor_plan_url", e.target.value)}
-                placeholder="https://..."
-              />
-            </FormField>
+            {/* 평면도 업로드 */}
+            <div className="md:col-span-2">
+              <Field label="평면도 이미지">
+                <div className="space-y-2">
+                  <input
+                    ref={floorPlanInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    disabled={saving || floorUploading}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] ?? null;
+                      e.currentTarget.value = "";
+                      if (!f) {
+                        setFloorPlanFileName(null);
+                        return;
+                      }
+                      setFloorPlanFileName(f.name);
+                      void handlePickFloorPlan(f);
+                    }}
+                  />
 
-            <FormField label="이미지 URL" className="md:col-span-2">
-              <input
-                className={inputClass}
-                value={draft.image_url ?? ""}
-                onChange={(e) => onChange("image_url", e.target.value)}
+                  {/* 트리거 + 파일명 */}
+                  <div className="flex items-center gap-3">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      shape="pill"
+                      disabled={saving || floorUploading}
+                      onClick={() => {
+                        onChange("floor_plan_url", null);
+                        setFloorPlanFileName(null);
+                      }}
+                    >
+                      파일 선택
+                    </Button>
+
+                    <p className="ob-typo-caption text-(--oboon-text-muted) truncate">
+                      {floorPlanFileName ? (
+                        <>
+                          선택된 파일:{" "}
+                          <span className="text-(--oboon-text-title)">
+                            {floorPlanFileName}
+                          </span>
+                        </>
+                      ) : (
+                        "선택된 파일 없음"
+                      )}
+                    </p>
+                  </div>
+
+                  <p className="ob-typo-caption text-(--oboon-text-muted)">
+                    {floorUploading
+                      ? "업로드 중..."
+                      : "이미지 선택 시 자동 업로드됩니다."}
+                  </p>
+
+                  {draft.floor_plan_url ? (
+                    <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="ob-typo-caption text-(--oboon-text-muted) break-all">
+                            {draft.floor_plan_url}
+                          </p>
+                        </div>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          shape="pill"
+                          disabled={disabled}
+                          onClick={() => onChange("floor_plan_url", null)}
+                        >
+                          삭제
+                        </Button>
+                      </div>
+
+                      <div className="mt-3 overflow-hidden rounded-xl border border-(--oboon-border-default)">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={draft.floor_plan_url}
+                          alt="floor plan preview"
+                          className="h-auto w-full object-cover"
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              </Field>
+            </div>
+
+            {/* image_url (유지) */}
+            <Field label="이미지 URL" className="md:col-span-2">
+              <Input
+                value={(draft as any).image_url ?? ""}
                 placeholder="https://..."
+                onChange={(e) =>
+                  onChange("image_url" as any, e.target.value as any)
+                }
               />
-            </FormField>
+            </Field>
           </div>
 
-          <div className="mt-4 flex justify-end gap-2">
+          <div className="mt-5 flex justify-end gap-2">
             <Button
               variant="secondary"
               size="sm"
               shape="pill"
+              disabled={disabled}
               onClick={onCancel}
-              disabled={saving}
             >
               취소
             </Button>
-
             <Button
               variant="primary"
               size="sm"
               shape="pill"
-              onClick={onSave}
-              disabled={saving}
+              disabled={disabled}
               loading={saving}
+              onClick={onSave}
             >
               저장
             </Button>
           </div>
         </div>
       ) : null}
-    </div>
+    </Card>
   );
 }

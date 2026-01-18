@@ -1,7 +1,7 @@
 // app/company/properties/new/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import Button from "@/components/ui/Button";
@@ -25,8 +25,6 @@ type PropertyForm = {
   phone_number: string;
   status: PropertyStatus;
   description: string;
-  image_url: string;
-
   confirmed_comment: string;
   estimated_comment: string;
   pending_comment: string;
@@ -35,6 +33,14 @@ type PropertyForm = {
 function cn(...classes: Array<string | undefined | false | null>) {
   return classes.filter(Boolean).join(" ");
 }
+
+// textarea: 디자인시스템/토큰 기반으로 통일
+const TEXTAREA_BASE = cn(
+  "w-full rounded-xl border border-(--oboon-border-default)",
+  "bg-(--oboon-bg-surface) px-4 py-3",
+  "text-sm text-(--oboon-text-title) placeholder:text-(--oboon-text-muted)",
+  "focus:outline-none focus:ring-2 focus:ring-(--oboon-primary)/25",
+);
 
 export default function PropertyCreatePage() {
   const supabase = createSupabaseClient();
@@ -47,7 +53,6 @@ export default function PropertyCreatePage() {
     phone_number: "",
     status: defaultStatus ?? PROPERTY_STATUS_OPTIONS[0].value,
     description: "",
-    image_url: "",
     confirmed_comment: "",
     estimated_comment: "",
     pending_comment: "",
@@ -57,16 +62,23 @@ export default function PropertyCreatePage() {
   const [error, setError] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
 
-  const textareaClass = useMemo(
-    () =>
-      cn(
-        "w-full rounded-xl border border-(--oboon-border-default)",
-        "bg-(--oboon-bg-surface) px-4 py-3 text-sm",
-        "placeholder:text-(--oboon-text-muted)",
-        "focus:outline-none focus:ring-2 focus:ring-(--oboon-primary)/25"
-      ),
-    []
+  // 대표 이미지 파일 + 미리보기
+  const [mainImageFile, setMainImageFile] = useState<File | null>(null);
+  const [mainImagePreview, setMainImagePreview] = useState<string | null>(null);
+  const [mainImageFileName, setMainImageFileName] = useState<string | null>(
+    null,
   );
+  const mainImageInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (!mainImageFile) {
+      setMainImagePreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(mainImageFile);
+    setMainImagePreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [mainImageFile]);
 
   // 로그인 유저 확인
   useEffect(() => {
@@ -74,6 +86,7 @@ export default function PropertyCreatePage() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
+
       if (!user) {
         alert("로그인이 필요합니다.");
         router.replace("/");
@@ -83,6 +96,8 @@ export default function PropertyCreatePage() {
     }
     checkUser();
   }, [supabase, router]);
+
+  const disabled = useMemo(() => loading, [loading]);
 
   async function handleSubmit() {
     if (loading) return;
@@ -106,13 +121,11 @@ export default function PropertyCreatePage() {
       phone_number: form.phone_number.trim() || null,
       status: form.status || null,
       description: form.description.trim() || null,
-      image_url: form.image_url.trim() || null,
-
       confirmed_comment: form.confirmed_comment.trim() || null,
       estimated_comment: form.estimated_comment.trim() || null,
       pending_comment: form.pending_comment.trim() || null,
 
-      created_by: userId, // 🔥 핵심!
+      created_by: userId,
     };
 
     const { data, error } = await supabase
@@ -130,80 +143,187 @@ export default function PropertyCreatePage() {
 
     if (!data?.id) {
       setError(
-        "등록은 되었지만 id가 돌아오지 않았습니다. 잠시 뒤 다시 시도해주세요."
+        "등록은 되었지만 id가 돌아오지 않았습니다. 잠시 뒤 다시 시도해주세요.",
       );
       return;
     }
 
-    router.push(`/company/properties/${data.id}`);
+    const propertyId = data.id as number;
+
+    // 대표 이미지 업로드 (선택)
+    if (mainImageFile) {
+      const fd = new FormData();
+      fd.append("file", mainImageFile);
+      fd.append("propertyId", String(propertyId));
+      fd.append("mode", "property_main");
+
+      const res = await fetch("/api/r2/upload", {
+        method: "POST",
+        body: fd,
+      });
+
+      if (!res.ok) {
+        throw new Error("대표 이미지 업로드에 실패했습니다.");
+      }
+
+      const { url } = (await res.json()) as { url?: string };
+      if (!url) {
+        throw new Error("대표 이미지 업로드 응답에 url이 없습니다.");
+      }
+
+      const { error: updateErr } = await supabase
+        .from("properties")
+        .update({ image_url: url })
+        .eq("id", propertyId);
+
+      if (updateErr) {
+        throw new Error("대표 이미지 저장에 실패했습니다.");
+      }
+    }
+
+    router.push(`/company/properties/${propertyId}`);
   }
 
   // 유저 확인 중
   if (userId === null) {
-    return (
-      <div className="p-6" style={{ color: "var(--oboon-text-muted)" }}>
-        불러오는 중...
-      </div>
-    );
+    return <div className="p-6 text-(--oboon-text-muted)">불러오는 중...</div>;
   }
 
   return (
-    <main style={{ backgroundColor: "var(--oboon-bg-page)" }}>
-      <PageContainer className="pt-10 pb-10">
+    <main className="bg-(--oboon-bg-page)">
+      <PageContainer noHeaderOffset>
         <div className="mx-auto w-full max-w-3xl space-y-6">
+          {/* Header */}
           <div className="flex items-center justify-between">
             <div className="space-y-1">
-              <h1
-                className="text-2xl font-bold"
-                style={{ color: "var(--oboon-text-title)" }}
-              >
+              <div className="ob-typo-h1 text-(--oboon-text-title)">
                 새 현장 등록
-              </h1>
-              <p
-                className="text-sm"
-                style={{ color: "var(--oboon-text-muted)" }}
-              >
+              </div>
+              <p className="ob-typo-body text-(--oboon-text-muted)">
                 기본 정보만 입력하면 나머지 세부 정보는 단계별로 채울 수
                 있습니다.
               </p>
             </div>
 
-            <Badge variant="status" className="text-[12px]">
-              기본 정보
-            </Badge>
+            <Badge variant="status">기본 정보</Badge>
           </div>
 
-          <Card className="space-y-4">
-            <Field
-              label="현장명"
-              required
-              helper="예) 더샵 아르테 미사, 힐스테이트 광안"
-            >
+          {/* Form */}
+          <Card className="space-y-4 p-5">
+            <div className="ob-typo-h3 font-semibold text-(--oboon-text-title)">
+              기본 정보
+            </div>
+            <Field label="현장명" required>
               <Input
                 className="h-11"
                 value={form.name}
+                placeholder="예) 더샵 아르테 미사, 힐스테이트 광안"
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 autoFocus
+                disabled={loading}
               />
             </Field>
 
-            <Field label="분양 유형" helper="예) 아파트 / 오피스텔 / 상업시설">
+            {/* 대표 이미지 업로드 */}
+            <Field label="대표 이미지" helper="">
+              <div className="space-y-2">
+                {/* 실제 file input은 숨김 (브라우저 기본 '선택된 파일 없음' UI 제거) */}
+                <input
+                  ref={mainImageInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  disabled={disabled}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] ?? null;
+                    // 같은 파일 재선택 가능하도록 초기화
+                    e.currentTarget.value = "";
+                    setMainImageFile(f);
+                    setMainImageFileName(f ? f.name : null);
+                  }}
+                />
+
+                {/* 트리거 + 파일명 */}
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    shape="pill"
+                    disabled={disabled}
+                    onClick={() => mainImageInputRef.current?.click()}
+                  >
+                    파일 선택
+                  </Button>
+
+                  <p className="ob-typo-caption text-(--oboon-text-muted) truncate">
+                    {mainImageFileName ? (
+                      <>
+                        선택된 파일:{" "}
+                        <span className="text-(--oboon-text-title)">
+                          {mainImageFileName}
+                        </span>
+                      </>
+                    ) : (
+                      "선택된 파일 없음"
+                    )}
+                  </p>
+                </div>
+
+                {mainImagePreview ? (
+                  <div className="space-y-2">
+                    {/* 이미지 카드 */}
+                    <div className="overflow-hidden rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)">
+                      <img
+                        src={mainImagePreview}
+                        alt="대표 이미지 미리보기"
+                        className="h-auto w-full object-cover"
+                      />
+                    </div>
+
+                    {/* 액션 영역 (카드 외부) */}
+                    <div className="flex justify-between items-center">
+                      <div className="ob-typo-caption text-(--oboon-text-muted)">
+                        이미지를 선택하면 등록 시 자동으로 업로드됩니다.
+                      </div>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        shape="pill"
+                        disabled={disabled}
+                        onClick={() => {
+                          setMainImageFile(null);
+                          setMainImageFileName(null);
+                        }}
+                      >
+                        선택 해제
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </Field>
+
+            <Field label="분양 유형">
               <Input
                 className="h-11"
+                placeholder="예) 아파트 / 오피스텔 / 상업시설"
                 value={form.property_type}
                 onChange={(e) =>
                   setForm({ ...form, property_type: e.target.value })
                 }
+                disabled={loading}
               />
             </Field>
 
-            <Field label="대표 연락처" helper="예) 1661-0000">
+            <Field label="대표 연락처">
               <Input
                 className="h-11"
+                placeholder="예) 1661-0000"
                 value={form.phone_number}
                 onChange={(e) =>
                   setForm({ ...form, phone_number: e.target.value })
                 }
+                disabled={loading}
               />
             </Field>
 
@@ -215,70 +335,33 @@ export default function PropertyCreatePage() {
               />
             </Field>
 
-            <Field label="설명" helper="현장의 주요 특장점과 간단 설명">
+            <Field label="설명">
               <textarea
-                className={cn(textareaClass, "min-h-[100px]")}
+                className={cn(TEXTAREA_BASE, "min-h-25")}
+                placeholder="현장의 주요 특장점과 간단 설명"
                 value={form.description}
                 onChange={(e) =>
                   setForm({ ...form, description: e.target.value })
                 }
+                disabled={loading}
               />
             </Field>
 
-            <div className="pt-2">
-              <div
-                className="text-sm font-semibold"
-                style={{ color: "var(--oboon-text-title)" }}
-              >
-                감정평가사 메모
-              </div>
-
-              <div className="mt-3 space-y-4">
-                <Field label="확정 내용">
-                  <textarea
-                    className={cn(textareaClass, "min-h-[90px]")}
-                    value={form.confirmed_comment}
-                    onChange={(e) =>
-                      setForm({ ...form, confirmed_comment: e.target.value })
-                    }
-                  />
-                </Field>
-
-                <Field label="추정 내용">
-                  <textarea
-                    className={cn(textareaClass, "min-h-[90px]")}
-                    value={form.estimated_comment}
-                    onChange={(e) =>
-                      setForm({ ...form, estimated_comment: e.target.value })
-                    }
-                  />
-                </Field>
-
-                <Field label="미정 내용">
-                  <textarea
-                    className={cn(textareaClass, "min-h-[90px]")}
-                    value={form.pending_comment}
-                    onChange={(e) =>
-                      setForm({ ...form, pending_comment: e.target.value })
-                    }
-                  />
-                </Field>
-              </div>
-            </div>
-
+            {/* Error */}
             {error && (
               <div className="rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-500">
                 {error}
               </div>
             )}
 
+            {/* Actions */}
             <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:justify-end">
               <Button
                 variant="secondary"
                 size="md"
                 shape="pill"
                 onClick={() => router.push("/company/properties")}
-                disabled={loading}
+                disabled={disabled}
                 className="w-full justify-center sm:w-auto"
               >
                 취소
@@ -316,17 +399,17 @@ function Field({
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
-        <Label>{label}</Label>
-        {required && (
-          <span style={{ color: "var(--oboon-primary)" }}>*</span>
-        )}
+        <Label className="text-(--oboon-text-title)">{label}</Label>
+        {required ? (
+          <span className="ob-typo-caption text-(--oboon-primary)">*</span>
+        ) : null}
       </div>
+
       {children}
-      {helper && (
-        <p className="text-xs" style={{ color: "var(--oboon-text-muted)" }}>
-          {helper}
-        </p>
-      )}
+
+      {helper ? (
+        <p className="ob-typo-caption text-(--oboon-text-muted)">{helper}</p>
+      ) : null}
     </div>
   );
 }

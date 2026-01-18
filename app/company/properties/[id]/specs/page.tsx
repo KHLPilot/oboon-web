@@ -1,10 +1,13 @@
 // app/company/properties/[id]/specs/page.tsx
-
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+
 import Button from "@/components/ui/Button";
+import Card from "@/components/ui/Card";
+import Input from "@/components/ui/Input";
+import PageContainer from "@/components/shared/PageContainer";
 import { FormField } from "@/app/components/FormField";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 
@@ -40,7 +43,9 @@ export default function PropertySpecsPage() {
   const [saving, setSaving] = useState(false);
 
   // ✅ 평면 타입 세대수 목록
-  const [unitTypes, setUnitTypes] = useState<{ unit_count: number | null }[]>([]);
+  const [unitTypes, setUnitTypes] = useState<{ unit_count: number | null }[]>(
+    [],
+  );
 
   useEffect(() => {
     if (!Number.isFinite(propertyId)) return;
@@ -62,13 +67,13 @@ export default function PropertySpecsPage() {
     fetchUnitTypes();
   }, [propertyId, supabase]);
 
-  const calculatedHouseholdTotal = unitTypes.reduce(
-    (sum, u) => sum + (u.unit_count ?? 0),
-    0
-  );
+  const calculatedHouseholdTotal = useMemo(() => {
+    return unitTypes.reduce((sum, u) => sum + (u.unit_count ?? 0), 0);
+  }, [unitTypes]);
 
   useEffect(() => {
     let alive = true;
+
     async function load() {
       if (!Number.isFinite(propertyId)) {
         setLoading(false);
@@ -76,6 +81,7 @@ export default function PropertySpecsPage() {
       }
 
       setLoading(true);
+
       const { data, error } = await supabase
         .from("property_specs")
         .select("*")
@@ -88,14 +94,11 @@ export default function PropertySpecsPage() {
 
       if (error) {
         console.error(error);
-        const empty = { properties_id: propertyId };
-        setForm(empty);
+        setForm({ properties_id: propertyId });
       } else if (data) {
-        const next = { ...data, properties_id: propertyId };
-        setForm(next);
+        setForm({ ...data, properties_id: propertyId });
       } else {
-        const empty = { properties_id: propertyId };
-        setForm(empty);
+        setForm({ properties_id: propertyId });
       }
 
       setLoading(false);
@@ -133,7 +136,7 @@ export default function PropertySpecsPage() {
       floor_ground: form.floor_ground ?? null,
       floor_underground: form.floor_underground ?? null,
       building_count: form.building_count ?? null,
-      household_total: calculatedHouseholdTotal, // ← 자동 계산된 값 저장
+      household_total: calculatedHouseholdTotal, // 자동 합계 저장
       parking_total: form.parking_total ?? null,
       parking_per_household: form.parking_per_household ?? null,
       heating_type: form.heating_type ?? null,
@@ -151,17 +154,20 @@ export default function PropertySpecsPage() {
       return;
     }
 
-    // ✅ 저장 성공 후 자동으로 뒤로 가기
     router.push(`/company/properties/${propertyId}`);
   }
 
-  const inputBase =
-    "input-basic rounded-md border border-(--oboon-border-default) bg-(--oboon-bg-subtle)/70 px-3 py-2 transition focus:border-(--oboon-accent) focus:outline-none focus:ring-2 focus:ring-(--oboon-accent)/50";
-  const labelStrong = "text-sm font-medium text-(--oboon-text-title)";
-
   if (loading) {
     return (
-      <div className="p-6 text-sm text-(--oboon-text-muted)">불러오는 중..</div>
+      <main className="bg-(--oboon-bg-default)">
+        <PageContainer noHeaderOffset>
+          <div className="py-8">
+            <div className="ob-typo-body text-(--oboon-text-muted)">
+              불러오는 중..
+            </div>
+          </div>
+        </PageContainer>
+      </main>
     );
   }
 
@@ -170,240 +176,238 @@ export default function PropertySpecsPage() {
     onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
       updateNumber(
         key,
-        Number.isNaN(e.target.valueAsNumber) ? null : e.target.valueAsNumber
+        Number.isNaN(e.target.valueAsNumber) ? null : e.target.valueAsNumber,
       ),
   });
 
+  const labelStrong = "ob-typo-body text-(--oboon-text-title)";
+
   return (
-    <div className="bg-(--oboon-bg-page) px-4 py-8 md:px-6 md:py-10">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-        <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-col gap-2">
-            <div className="space-y-1 pt-1">
-              <p className="text-2xl font-bold text-(--oboon-text-title)">
-                건물 스펙
-              </p>
-              <p className="text-sm text-(--oboon-text-muted)">
-                규모·구조·주차 등 주요 스펙을 입력하세요.
-              </p>
-            </div>
-          </div>
-          {/* ✅ 상단 버튼: 취소 + 저장 */}
-          <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              shape="pill"
-              onClick={() => router.push(`/company/properties/${propertyId}`)}
-            >
-              취소
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              shape="pill"
-              onClick={handleSave}
-              loading={saving}
-            >
-              저장
-            </Button>
-          </div>
-        </header>
+    <main className="bg-(--oboon-bg-default)">
+      <PageContainer>
+        <div className="mb-8">
+          <div className="flex w-full flex-col gap-6">
+            {/* Header */}
+            <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="space-y-1">
+                <p className="ob-typo-h1 text-(--oboon-text-title)">
+                  건물 스펙
+                </p>
+                <p className="ob-typo-body text-(--oboon-text-muted)">
+                  규모·구조·주차 등 주요 스펙을 입력하세요.
+                </p>
+              </div>
 
-        {/* 분양·사업 정보 */}
-        <section className="space-y-3 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-6 py-5 ">
-          <h2 className="text-lg font-semibold text-(--oboon-text-title)">
-            분양·사업 정보
-          </h2>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <FormField label="분양 유형" labelClassName={labelStrong}>
-              <input
-                className={inputBase}
-                value={form.sale_type ?? ""}
-                onChange={(e) => update("sale_type", e.target.value)}
-                placeholder="예) 민간분양, 임대 등"
-              />
-            </FormField>
-            <FormField label="신탁사" labelClassName={labelStrong}>
-              <input
-                className={inputBase}
-                value={form.trust_company ?? ""}
-                onChange={(e) => update("trust_company", e.target.value)}
-                placeholder="예) OO신탁"
-              />
-            </FormField>
-            <FormField label="시행사" labelClassName={labelStrong}>
-              <input
-                className={inputBase}
-                value={form.developer ?? ""}
-                onChange={(e) => update("developer", e.target.value)}
-                placeholder="예) OO디벨로퍼"
-              />
-            </FormField>
-            <FormField label="시공사" labelClassName={labelStrong}>
-              <input
-                className={inputBase}
-                value={form.builder ?? ""}
-                onChange={(e) => update("builder", e.target.value)}
-                placeholder="예) OO건설"
-              />
-            </FormField>
-          </div>
-        </section>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  shape="pill"
+                  onClick={() =>
+                    router.push(`/company/properties/${propertyId}`)
+                  }
+                >
+                  취소
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  shape="pill"
+                  onClick={handleSave}
+                  loading={saving}
+                >
+                  저장
+                </Button>
+              </div>
+            </header>
 
-        {/* 면적·비율 */}
-        <section className="space-y-3 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-6 py-5 ">
-          <h2 className="text-lg font-semibold text-(--oboon-text-title)">
-            면적·비율
-          </h2>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <FormField label="대지면적(㎡)" labelClassName={labelStrong}>
-              <input
-                type="number"
-                className={inputBase}
-                placeholder="예) 1234"
-                {...numberInputProps("site_area")}
-              />
-            </FormField>
-            <FormField label="건축면적(㎡)" labelClassName={labelStrong}>
-              <input
-                type="number"
-                className={inputBase}
-                placeholder="예) 500"
-                {...numberInputProps("building_area")}
-              />
-            </FormField>
-            <FormField label="건폐율(%)" labelClassName={labelStrong}>
-              <input
-                type="number"
-                className={inputBase}
-                placeholder="예) 25"
-                {...numberInputProps("building_coverage_ratio")}
-              />
-            </FormField>
-            <FormField label="용적률(%)" labelClassName={labelStrong}>
-              <input
-                type="number"
-                className={inputBase}
-                placeholder="예) 240"
-                {...numberInputProps("floor_area_ratio")}
-              />
-            </FormField>
-          </div>
-        </section>
+            {/* 분양·사업 정보 */}
+            <Card className="p-6">
+              <div className="ob-typo-h3 text-(--oboon-text-title)">
+                분양·사업 정보
+              </div>
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                <FormField label="분양 유형" labelClassName={labelStrong}>
+                  <Input
+                    value={form.sale_type ?? ""}
+                    className="h-11"
+                    onChange={(e) => update("sale_type", e.target.value)}
+                    placeholder="예) 민간분양, 임대 등"
+                  />
+                </FormField>
 
-        {/* 규모 */}
-        <section className="space-y-3 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-6 py-5 ">
-          <h2 className="text-lg font-semibold text-(--oboon-text-title)">
-            규모
-          </h2>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <FormField label="지상층수" labelClassName={labelStrong}>
-              <input
-                type="number"
-                className={inputBase}
-                placeholder="예) 29"
-                {...numberInputProps("floor_ground")}
-              />
-            </FormField>
-            <FormField label="지하층수" labelClassName={labelStrong}>
-              <input
-                type="number"
-                className={inputBase}
-                placeholder="예) 2"
-                {...numberInputProps("floor_underground")}
-              />
-            </FormField>
-            <FormField label="건물 동수" labelClassName={labelStrong}>
-              <input
-                type="number"
-                className={inputBase}
-                placeholder="예) 4"
-                {...numberInputProps("building_count")}
-              />
-            </FormField>
-            <FormField
-              label={
-                <span className="flex items-center gap-2">
-                  총 세대수
-                  <span className="text-xs text-(--oboon-text-muted)">
-                    (※ 평면타입 입력 시 자동 합계)
-                  </span>
-                </span>
-              }
-              labelClassName={labelStrong}
-            >
-              <input
-                type="text"
-                className={inputBase}
-                value={`${calculatedHouseholdTotal.toLocaleString()} 세대`}
-                disabled
-              />
-            </FormField>
-          </div>
-        </section>
+                <FormField label="신탁사" labelClassName={labelStrong}>
+                  <Input
+                    value={form.trust_company ?? ""}
+                    className="h-11"
+                    onChange={(e) => update("trust_company", e.target.value)}
+                    placeholder="예) OO신탁"
+                  />
+                </FormField>
 
-        {/* 주차·난방·기타 */}
-        <section className="space-y-3 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-6 py-5 ">
-          <h2 className="text-lg font-semibold text-(--oboon-text-title)">
-            주차·난방·기타
-          </h2>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <FormField label="총 주차대수" labelClassName={labelStrong}>
-              <input
-                type="number"
-                className={inputBase}
-                placeholder="예) 400"
-                {...numberInputProps("parking_total")}
-              />
-            </FormField>
-            <FormField label="세대당 주차대수" labelClassName={labelStrong}>
-              <input
-                type="number"
-                className={inputBase}
-                placeholder="예) 1.2"
-                step="0.1"
-                {...numberInputProps("parking_per_household")}
-              />
-            </FormField>
-            <FormField label="난방방식" labelClassName={labelStrong}>
-              <input
-                className={inputBase}
-                placeholder="예) 지역난방, 개별난방"
-                value={form.heating_type ?? ""}
-                onChange={(e) => update("heating_type", e.target.value)}
-              />
-            </FormField>
-            <FormField label="어메니티" labelClassName={labelStrong}>
-              <input
-                className={inputBase}
-                placeholder="예) 커뮤니티센터, 피트니스 등"
-                value={form.amenities ?? ""}
-                onChange={(e) => update("amenities", e.target.value)}
-              />
-            </FormField>
-          </div>
-        </section>
+                <FormField label="시행사" labelClassName={labelStrong}>
+                  <Input
+                    value={form.developer ?? ""}
+                    className="h-11"
+                    onChange={(e) => update("developer", e.target.value)}
+                    placeholder="예) OO디벨로퍼"
+                  />
+                </FormField>
 
-        {/* ✅ 하단 버튼: 취소 + 저장 */}
-        <div className="flex items-center justify-end gap-2">
-          <Button
-            variant="secondary"
-            size="md"
-            onClick={() => router.push(`/company/properties/${propertyId}`)}
-          >
-            취소
-          </Button>
-          <Button
-            variant="primary"
-            size="md"
-            onClick={handleSave}
-            loading={saving}
-          >
-            저장
-          </Button>
+                <FormField label="시공사" labelClassName={labelStrong}>
+                  <Input
+                    value={form.builder ?? ""}
+                    onChange={(e) => update("builder", e.target.value)}
+                    placeholder="예) OO건설"
+                    className="h-11"
+                  />
+                </FormField>
+              </div>
+            </Card>
+
+            {/* 면적·비율 */}
+            <Card className="p-6">
+              <div className="ob-typo-h3 text-(--oboon-text-title)">
+                면적·비율
+              </div>
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                <FormField label="대지면적(㎡)" labelClassName={labelStrong}>
+                  <Input
+                    type="number"
+                    placeholder="예) 1234"
+                    className="h-11"
+                    {...numberInputProps("site_area")}
+                  />
+                </FormField>
+
+                <FormField label="건축면적(㎡)" labelClassName={labelStrong}>
+                  <Input
+                    type="number"
+                    placeholder="예) 500"
+                    className="h-11"
+                    {...numberInputProps("building_area")}
+                  />
+                </FormField>
+
+                <FormField label="건폐율(%)" labelClassName={labelStrong}>
+                  <Input
+                    type="number"
+                    placeholder="예) 25"
+                    className="h-11"
+                    {...numberInputProps("building_coverage_ratio")}
+                  />
+                </FormField>
+
+                <FormField label="용적률(%)" labelClassName={labelStrong}>
+                  <Input
+                    type="number"
+                    placeholder="예) 240"
+                    className="h-11"
+                    {...numberInputProps("floor_area_ratio")}
+                  />
+                </FormField>
+              </div>
+            </Card>
+
+            {/* 규모 */}
+            <Card className="p-6">
+              <div className="ob-typo-h3 text-(--oboon-text-title)">규모</div>
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                <FormField label="지상층수" labelClassName={labelStrong}>
+                  <Input
+                    type="number"
+                    placeholder="예) 29"
+                    className="h-11"
+                    {...numberInputProps("floor_ground")}
+                  />
+                </FormField>
+
+                <FormField label="지하층수" labelClassName={labelStrong}>
+                  <Input
+                    type="number"
+                    placeholder="예) 2"
+                    className="h-11"
+                    {...numberInputProps("floor_underground")}
+                  />
+                </FormField>
+
+                <FormField label="건물 동수" labelClassName={labelStrong}>
+                  <Input
+                    type="number"
+                    placeholder="예) 4"
+                    className="h-11"
+                    {...numberInputProps("building_count")}
+                  />
+                </FormField>
+
+                <FormField
+                  label={
+                    <span className="flex items-center gap-2">
+                      총 세대수
+                      <span className="ob-typo-caption text-(--oboon-text-muted)">
+                        (※ 평면타입 입력 시 자동 합계)
+                      </span>
+                    </span>
+                  }
+                  labelClassName={labelStrong}
+                >
+                  <Input
+                    type="text"
+                    className="h-11"
+                    value={`${calculatedHouseholdTotal.toLocaleString()} 세대`}
+                    disabled
+                  />
+                </FormField>
+              </div>
+            </Card>
+
+            {/* 주차·난방·기타 */}
+            <Card className="p-6">
+              <div className="ob-typo-h3 text-(--oboon-text-title)">
+                주차·난방·기타
+              </div>
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                <FormField label="총 주차대수" labelClassName={labelStrong}>
+                  <Input
+                    type="number"
+                    placeholder="예) 400"
+                    className="h-11"
+                    {...numberInputProps("parking_total")}
+                  />
+                </FormField>
+
+                <FormField label="세대당 주차대수" labelClassName={labelStrong}>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    placeholder="예) 1.2"
+                    className="h-11"
+                    {...numberInputProps("parking_per_household")}
+                  />
+                </FormField>
+
+                <FormField label="난방방식" labelClassName={labelStrong}>
+                  <Input
+                    placeholder="예) 지역난방, 개별난방"
+                    value={form.heating_type ?? ""}
+                    className="h-11"
+                    onChange={(e) => update("heating_type", e.target.value)}
+                  />
+                </FormField>
+
+                <FormField label="어메니티" labelClassName={labelStrong}>
+                  <Input
+                    placeholder="예) 커뮤니티센터, 피트니스 등"
+                    value={form.amenities ?? ""}
+                    className="h-11"
+                    onChange={(e) => update("amenities", e.target.value)}
+                  />
+                </FormField>
+              </div>
+            </Card>
+          </div>
         </div>
-      </div>
-    </div>
+      </PageContainer>
+    </main>
   );
 }

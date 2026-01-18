@@ -4,7 +4,7 @@ import React from "react";
 
 interface BadgeProps {
   children: React.ReactNode;
-  variant?: "default" | "status";
+  variant?: "default" | "status" | "success" | "warning" | "danger";
   className?: string;
 }
 
@@ -20,6 +20,21 @@ export const Badge = ({
       variantStyles =
         "bg-(--oboon-bg-subtle) text-(--oboon-text-body) " +
         "border border-(--oboon-border-default)";
+      break;
+
+    case "success":
+      variantStyles =
+        "bg-(--oboon-primary) text-white border border-transparent";
+      break;
+
+    case "warning":
+      variantStyles =
+        "bg-(--oboon-warning-bg) text-(--oboon-warning-text) border border-(--oboon-warning-border)";
+      break;
+
+    case "danger":
+      variantStyles =
+        "bg-(--oboon-danger-bg) text-(--oboon-danger-text) border border-(--oboon-danger-border)";
       break;
 
     case "default":

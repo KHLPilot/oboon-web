@@ -26,9 +26,9 @@ export default function PageContainer({
 
         // vertical padding
         !noHeaderOffset && "pt-22 sm:pt-24 md:pt-24",
-        "pb-8 sm:pb-10",
+        "pt-10 pb-8 sm:pb-10",
 
-        className
+        className,
       )}
     >
       {children}
