@@ -88,7 +88,7 @@ export default function Modal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-(--oboon-z-modal) flex items-center justify-center bg-(--oboon-overlay) backdrop-blur"
+      className="fixed inset-0 z-(--oboon-z-modal) flex items-center justify-center bg-(--oboon-overlay) backdrop-blur overflow-y-auto py-4"
       onMouseDown={(e) => {
         // 배경 클릭 닫기 (패널 클릭은 무시)
         if (e.target === e.currentTarget) onClose();
@@ -96,7 +96,7 @@ export default function Modal({
     >
       <div
         className={[
-          "relative rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-6 shadow-(--oboon-shadow-card)",
+          "relative rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-6 shadow-(--oboon-shadow-card) my-auto max-h-[calc(100dvh-2rem)] overflow-y-auto",
           panelSizeClass,
           panelClassName ?? "",
         ]
@@ -108,7 +108,7 @@ export default function Modal({
             type="button"
             onClick={onClose}
             aria-label="닫기"
-            className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full bg-(--oboon-bg-surface) hover:bg-(--oboon-bg-subtle)"
+            className="absolute right-4 top-4 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full bg-(--oboon-bg-surface) hover:bg-(--oboon-bg-subtle)"
           >
             <X className="h-4 w-4 text-(--oboon-text-muted)" />
           </button>
