@@ -102,7 +102,7 @@ export async function POST(req: Request) {
         token_id: visitToken.id,
         property_id: visitToken.property_id,
         agent_id: visitToken.agent_id,
-        consultation_id: visitToken.consultation_id,
+        consultation_id: visitToken.consultation_id || null,
         customer_id: user?.id || null,
         status: "pending",
         reason: reason || "GPS 인증 실패",
