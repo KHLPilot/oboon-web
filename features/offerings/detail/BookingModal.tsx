@@ -179,8 +179,14 @@ export default function BookingModal({
       if (!selectedDate) {
         throw new Error("날짜를 선택해주세요");
       }
-      const dateStr = selectedDate.toISOString().split('T')[0];
-      const scheduledAt = new Date(`${dateStr}T${selectedTime}:00`);
+      // 로컬 날짜를 YYYY-MM-DD 형식으로 추출 (UTC 변환 없이)
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+
+      // 한국 시간 기준으로 ISO 문자열 생성
+      const scheduledAtStr = `${dateStr}T${selectedTime}:00+09:00`;
 
       const response = await fetch("/api/consultations", {
         method: "POST",
@@ -188,7 +194,7 @@ export default function BookingModal({
         body: JSON.stringify({
           agent_id: selectedAgent.id,
           property_id: propertyId,
-          scheduled_at: scheduledAt.toISOString(),
+          scheduled_at: scheduledAtStr,
         }),
       });
 

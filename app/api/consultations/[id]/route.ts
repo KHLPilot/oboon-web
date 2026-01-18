@@ -169,6 +169,10 @@ export async function PATCH(
             updateData.visited_at = new Date().toISOString();
         }
 
+        if (status === "cancelled") {
+            updateData.cancelled_at = new Date().toISOString();
+        }
+
         // 예약 상태 업데이트
         const { data: updatedConsultation, error: updateError } = await adminSupabase
             .from("consultations")
@@ -199,7 +203,8 @@ export async function PATCH(
     }
 }
 
-// 예약 삭제 (취소와 다름 - 완전 삭제)
+// 예약 숨기기 (소프트 삭제 - 각자 화면에서만 숨김)
+// 둘 다 숨기면 DB에서 완전 삭제
 export async function DELETE(
     req: Request,
     { params }: { params: Promise<{ id: string }> }
@@ -229,34 +234,99 @@ export async function DELETE(
             );
         }
 
-        // 관리자만 삭제 가능
+        // 예약 조회
+        const { data: consultation, error: fetchError } = await adminSupabase
+            .from("consultations")
+            .select("*")
+            .eq("id", id)
+            .single();
+
+        if (fetchError || !consultation) {
+            return NextResponse.json(
+                { error: "예약을 찾을 수 없습니다" },
+                { status: 404 }
+            );
+        }
+
+        // 권한 체크
         const { data: profile } = await adminSupabase
             .from("profiles")
             .select("role")
             .eq("id", user.id)
             .single();
 
-        if (profile?.role !== "admin") {
+        const isAdmin = profile?.role === "admin";
+        const isCustomer = consultation.customer_id === user.id;
+        const isAgent = consultation.agent_id === user.id;
+
+        if (!isAdmin && !isCustomer && !isAgent) {
             return NextResponse.json(
-                { error: "관리자만 예약을 삭제할 수 있습니다" },
+                { error: "접근 권한이 없습니다" },
                 { status: 403 }
             );
         }
 
-        const { error } = await adminSupabase
+        // 취소된 예약만 숨기기 가능 (관리자 제외)
+        if (!isAdmin && consultation.status !== "cancelled") {
+            return NextResponse.json(
+                { error: "취소된 예약만 삭제할 수 있습니다" },
+                { status: 400 }
+            );
+        }
+
+        // 관리자는 바로 삭제
+        if (isAdmin) {
+            const { error } = await adminSupabase
+                .from("consultations")
+                .delete()
+                .eq("id", id);
+
+            if (error) {
+                console.error("예약 삭제 오류:", error);
+                return NextResponse.json(
+                    { error: "예약 삭제에 실패했습니다" },
+                    { status: 500 }
+                );
+            }
+            return NextResponse.json({ success: true, deleted: true });
+        }
+
+        // 소프트 삭제: 해당 사용자의 hidden 필드만 업데이트
+        const updateData: Record<string, boolean> = {};
+        if (isCustomer) {
+            updateData.hidden_by_customer = true;
+        }
+        if (isAgent) {
+            updateData.hidden_by_agent = true;
+        }
+
+        const { error: updateError } = await adminSupabase
             .from("consultations")
-            .delete()
+            .update(updateData)
             .eq("id", id);
 
-        if (error) {
-            console.error("예약 삭제 오류:", error);
+        if (updateError) {
+            console.error("예약 숨기기 오류:", updateError);
             return NextResponse.json(
-                { error: "예약 삭제에 실패했습니다" },
+                { error: "삭제에 실패했습니다" },
                 { status: 500 }
             );
         }
 
-        return NextResponse.json({ success: true });
+        // 둘 다 숨겼으면 완전 삭제
+        const newHiddenByCustomer = isCustomer ? true : consultation.hidden_by_customer;
+        const newHiddenByAgent = isAgent ? true : consultation.hidden_by_agent;
+
+        if (newHiddenByCustomer && newHiddenByAgent) {
+            await adminSupabase
+                .from("consultations")
+                .delete()
+                .eq("id", id);
+
+            return NextResponse.json({ success: true, deleted: true });
+        }
+
+        return NextResponse.json({ success: true, hidden: true });
 
     } catch (err: any) {
         console.error("예약 삭제 API 오류:", err);

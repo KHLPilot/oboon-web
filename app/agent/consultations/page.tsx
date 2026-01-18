@@ -7,12 +7,12 @@ import {
   Clock,
   MapPin,
   MessageCircle,
-  Phone,
   User,
   Check,
   X,
   Loader2,
-  QrCode
+  QrCode,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -28,6 +28,7 @@ interface Consultation {
   status: string;
   qr_code: string;
   visited_at: string | null;
+  cancelled_at: string | null;
   created_at: string;
   customer: {
     id: string;
@@ -48,7 +49,30 @@ interface Consultation {
   };
 }
 
-const STATUS_LABELS: Record<string, { label: string; variant: "default" | "status" }> = {
+// 취소된 예약 삭제까지 남은 시간 계산 (3일 후 삭제)
+function getTimeUntilDeletion(cancelledAt: string): string {
+  const cancelDate = new Date(cancelledAt);
+  const deleteDate = new Date(cancelDate);
+  deleteDate.setDate(deleteDate.getDate() + 3);
+  const now = new Date();
+  const diffTime = deleteDate.getTime() - now.getTime();
+
+  if (diffTime <= 0) return "곧 자동 삭제됩니다";
+
+  const diffHours = Math.ceil(diffTime / (1000 * 60 * 60));
+
+  if (diffHours <= 24) {
+    return `약 ${diffHours}시간 후 자동 삭제`;
+  }
+
+  const diffDays = Math.ceil(diffHours / 24);
+  return `약 ${diffDays}일 후 자동 삭제`;
+}
+
+const STATUS_LABELS: Record<
+  string,
+  { label: string; variant: "default" | "status" }
+> = {
   pending: { label: "승인 대기", variant: "default" },
   confirmed: { label: "예약 확정", variant: "status" },
   visited: { label: "방문 완료", variant: "status" },
@@ -71,7 +95,9 @@ export default function AgentConsultationsPage() {
 
       try {
         // 로그인 체크
-        const { data: { user } } = await supabase.auth.getUser();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
         if (!user) {
           router.push("/auth/login");
           return;
@@ -93,9 +119,10 @@ export default function AgentConsultationsPage() {
         setIsAgent(true);
 
         // 예약 목록 조회
-        const url = filter === "all"
-          ? "/api/consultations?role=agent"
-          : `/api/consultations?role=agent&status=${filter}`;
+        const url =
+          filter === "all"
+            ? "/api/consultations?role=agent"
+            : `/api/consultations?role=agent&status=${filter}`;
 
         const response = await fetch(url);
         const data = await response.json();
@@ -125,8 +152,8 @@ export default function AgentConsultationsPage() {
       });
 
       if (response.ok) {
-        setConsultations(prev =>
-          prev.map(c =>
+        setConsultations((prev) =>
+          prev.map((c) =>
             c.id === consultationId ? { ...c, status: "confirmed" } : c
           )
         );
@@ -153,12 +180,18 @@ export default function AgentConsultationsPage() {
       });
 
       if (response.ok) {
-        setConsultations(prev =>
-          prev.map(c =>
-            c.id === consultationId ? { ...c, status: "cancelled" } : c
+        setConsultations((prev) =>
+          prev.map((c) =>
+            c.id === consultationId
+              ? {
+                  ...c,
+                  status: "cancelled",
+                  cancelled_at: new Date().toISOString(),
+                }
+              : c
           )
         );
-        alert("예약이 취소되었습니다");
+        alert("예약이 취소되었습니다. 3일 후 자동으로 삭제됩니다.");
       } else {
         const data = await response.json();
         alert(data.error || "취소에 실패했습니다");
@@ -166,6 +199,28 @@ export default function AgentConsultationsPage() {
     } catch (err) {
       console.error("예약 취소 오류:", err);
       alert("취소 중 오류가 발생했습니다");
+    }
+  }
+
+  // 예약 삭제
+  async function handleDelete(consultationId: string) {
+    if (!confirm("이 예약을 완전히 삭제하시겠습니까?\n삭제된 예약은 복구할 수 없습니다.")) return;
+
+    try {
+      const response = await fetch(`/api/consultations/${consultationId}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        setConsultations((prev) => prev.filter((c) => c.id !== consultationId));
+        alert("예약이 삭제되었습니다.");
+      } else {
+        const data = await response.json();
+        alert(data.error || "삭제에 실패했습니다");
+      }
+    } catch (err) {
+      console.error("예약 삭제 오류:", err);
+      alert("삭제 중 오류가 발생했습니다");
     }
   }
 
@@ -229,7 +284,9 @@ export default function AgentConsultationsPage() {
           <Card className="text-center py-12">
             <CalendarDays className="h-12 w-12 mx-auto text-(--oboon-text-muted) mb-4" />
             <p className="text-(--oboon-text-muted)">
-              {filter === "all" ? "예약 내역이 없습니다" : "해당 상태의 예약이 없습니다"}
+              {filter === "all"
+                ? "예약 내역이 없습니다"
+                : "해당 상태의 예약이 없습니다"}
             </p>
           </Card>
         ) : (
@@ -238,13 +295,26 @@ export default function AgentConsultationsPage() {
             {consultations.map((consultation) => (
               <Card key={consultation.id} className="overflow-hidden">
                 {/* 상태 바 */}
-                <div className="flex items-center justify-between px-4 py-2 bg-(--oboon-bg-subtle) border-b border-(--oboon-border-default)">
-                  <Badge variant={STATUS_LABELS[consultation.status]?.variant || "default"}>
-                    {STATUS_LABELS[consultation.status]?.label || consultation.status}
-                  </Badge>
-                  <span className="text-xs text-(--oboon-text-muted)">
-                    {formatDate(consultation.scheduled_at)}
-                  </span>
+                <div className="px-4 py-2 bg-(--oboon-bg-subtle) border-b border-(--oboon-border-default)">
+                  <div className="flex items-center justify-between">
+                    <Badge
+                      variant={
+                        STATUS_LABELS[consultation.status]?.variant || "default"
+                      }
+                    >
+                      {STATUS_LABELS[consultation.status]?.label ||
+                        consultation.status}
+                    </Badge>
+                    <span className="text-xs text-(--oboon-text-muted)">
+                      {formatDate(consultation.scheduled_at)}
+                    </span>
+                  </div>
+                  {/* 취소된 예약: 삭제 예정 안내 */}
+                  {consultation.status === "cancelled" && consultation.cancelled_at && (
+                    <p className="text-xs text-red-500 mt-1">
+                      {getTimeUntilDeletion(consultation.cancelled_at)}
+                    </p>
+                  )}
                 </div>
 
                 <div className="p-4">
@@ -296,7 +366,7 @@ export default function AgentConsultationsPage() {
                           className="flex-1"
                           onClick={() => handleConfirm(consultation.id)}
                         >
-                          <Check className="h-4 w-4 mr-1" />
+                          <Check className="h-4 w-4" />
                           승인
                         </Button>
                         <Button
@@ -305,7 +375,7 @@ export default function AgentConsultationsPage() {
                           className="flex-1"
                           onClick={() => handleCancel(consultation.id)}
                         >
-                          <X className="h-4 w-4 mr-1" />
+                          <X className="h-4 w-4" />
                           거절
                         </Button>
                       </>
@@ -318,8 +388,21 @@ export default function AgentConsultationsPage() {
                         className="flex-1"
                         onClick={() => router.push(`/agent/scan`)}
                       >
-                        <QrCode className="h-4 w-4 mr-1" />
-                        QR 스캔
+                        <QrCode className="h-4 w-4" />
+                        QR 보기
+                      </Button>
+                    )}
+
+                    {/* 취소된 예약: 삭제 버튼 */}
+                    {consultation.status === "cancelled" && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="flex-1 text-red-600 border-red-200 hover:bg-red-50"
+                        onClick={() => handleDelete(consultation.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        삭제
                       </Button>
                     )}
 
@@ -329,7 +412,7 @@ export default function AgentConsultationsPage() {
                       className="flex-1"
                       onClick={() => router.push(`/chat/${consultation.id}`)}
                     >
-                      <MessageCircle className="h-4 w-4 mr-1" />
+                      <MessageCircle className="h-4 w-4" />
                       채팅
                     </Button>
                   </div>

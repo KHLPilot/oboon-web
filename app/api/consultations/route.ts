@@ -151,11 +151,11 @@ export async function GET(req: Request) {
             `)
             .order("scheduled_at", { ascending: true });
 
-        // 역할에 따라 필터링
+        // 역할에 따라 필터링 + 숨김 처리된 예약 제외
         if (role === "agent") {
-            query = query.eq("agent_id", user.id);
+            query = query.eq("agent_id", user.id).or("hidden_by_agent.is.null,hidden_by_agent.eq.false");
         } else {
-            query = query.eq("customer_id", user.id);
+            query = query.eq("customer_id", user.id).or("hidden_by_customer.is.null,hidden_by_customer.eq.false");
         }
 
         // 상태 필터
@@ -173,7 +173,59 @@ export async function GET(req: Request) {
             );
         }
 
-        return NextResponse.json({ consultations });
+        // 취소된 예약 중 3일 지난 것은 제외하고, 정렬 (활성 예약 먼저, 취소된 예약 나중에)
+        const now = new Date();
+        const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+
+        // 3일 지난 취소 예약은 백그라운드에서 삭제 (비동기, 응답 대기 안함)
+        const oldCancelledIds = (consultations || [])
+            .filter((c: any) => {
+                if (c.status === "cancelled" && c.cancelled_at) {
+                    const cancelledAt = new Date(c.cancelled_at);
+                    return cancelledAt < threeDaysAgo;
+                }
+                return false;
+            })
+            .map((c: any) => c.id);
+
+        if (oldCancelledIds.length > 0) {
+            // 비동기로 삭제 (응답 대기 안함)
+            adminSupabase
+                .from("consultations")
+                .delete()
+                .in("id", oldCancelledIds)
+                .then(() => {
+                    console.log(`${oldCancelledIds.length}개의 오래된 취소 예약이 자동 삭제되었습니다.`);
+                })
+                .catch((err) => {
+                    console.error("오래된 취소 예약 자동 삭제 오류:", err);
+                });
+        }
+
+        const filteredConsultations = (consultations || [])
+            .filter((c: any) => {
+                // 취소된 예약이 3일 넘었으면 제외
+                if (c.status === "cancelled" && c.cancelled_at) {
+                    const cancelledAt = new Date(c.cancelled_at);
+                    if (cancelledAt < threeDaysAgo) {
+                        return false;
+                    }
+                }
+                return true;
+            })
+            .sort((a: any, b: any) => {
+                // 취소된 예약은 맨 아래로
+                const aIsCancelled = a.status === "cancelled";
+                const bIsCancelled = b.status === "cancelled";
+
+                if (aIsCancelled && !bIsCancelled) return 1;
+                if (!aIsCancelled && bIsCancelled) return -1;
+
+                // 같은 그룹 내에서는 예약일시 기준 정렬
+                return new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime();
+            });
+
+        return NextResponse.json({ consultations: filteredConsultations });
 
     } catch (err: any) {
         console.error("예약 목록 API 오류:", err);

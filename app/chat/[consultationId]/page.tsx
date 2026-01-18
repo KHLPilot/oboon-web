@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Send, Loader2 } from "lucide-react";
+import { ArrowLeft, Send, Loader2, MoreVertical, Trash2 } from "lucide-react";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import PageContainer from "@/components/shared/PageContainer";
 import Button from "@/components/ui/Button";
@@ -44,6 +44,8 @@ export default function ChatPage() {
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [consultation, setConsultation] = useState<ConsultationInfo | null>(null);
   const [chatRoomId, setChatRoomId] = useState<string | null>(null);
@@ -195,6 +197,35 @@ export default function ChatPage() {
     }
   };
 
+  // 채팅 내역 삭제
+  const handleDeleteChat = async () => {
+    if (!confirm("채팅 내역을 삭제하시겠습니까?\n\n삭제된 내역은 본인에게만 보이지 않으며, 상대방에게는 계속 표시됩니다.")) {
+      return;
+    }
+
+    setDeleting(true);
+    setShowMenu(false);
+
+    try {
+      const res = await fetch(`/api/chat/${consultationId}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "삭제에 실패했습니다");
+      }
+
+      setMessages([]);
+      alert("채팅 내역이 삭제되었습니다.");
+    } catch (err: any) {
+      console.error("채팅 삭제 오류:", err);
+      alert(err.message);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   // 시간 포맷
   const formatTime = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -273,6 +304,33 @@ export default function ChatPage() {
               <p className="text-xs text-(--oboon-text-muted) truncate">
                 {consultation?.property.name}
               </p>
+            </div>
+            {/* 메뉴 버튼 */}
+            <div className="relative">
+              <button
+                onClick={() => setShowMenu(!showMenu)}
+                className="p-2 rounded-lg hover:bg-(--oboon-bg-subtle) active:bg-(--oboon-bg-subtle) transition-colors"
+              >
+                <MoreVertical className="h-5 w-5 text-(--oboon-text-muted)" />
+              </button>
+              {showMenu && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setShowMenu(false)}
+                  />
+                  <div className="absolute right-0 top-full mt-1 z-20 w-40 rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) shadow-lg overflow-hidden">
+                    <button
+                      onClick={handleDeleteChat}
+                      disabled={deleting}
+                      className="flex items-center gap-2 w-full px-4 py-3 text-sm text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      {deleting ? "삭제 중..." : "채팅 내역 삭제"}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </PageContainer>
