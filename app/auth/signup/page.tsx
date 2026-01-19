@@ -179,9 +179,11 @@ export default function SignupPage() {
           return;
         }
 
-        const res = await fetch(
-          `/api/auth/check-verification?token=${encodeURIComponent(token)}`
-        );
+        const res = await fetch(`/api/auth/check-verification`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token }),
+        });
         const json = await res.json();
 
         if (!json?.verified) return;
@@ -317,9 +319,11 @@ export default function SignupPage() {
     clearFieldError();
 
     try {
-      const res = await fetch(
-        `/api/auth/check-verification?token=${encodeURIComponent(verification.token)}`
-      );
+      const res = await fetch(`/api/auth/check-verification`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: verification.token }),
+      });
       const json = await res.json();
 
       if (!json?.verified) {

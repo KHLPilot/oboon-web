@@ -24,7 +24,7 @@ interface PropertyAgent {
   approved_at?: string;
   rejected_at?: string;
   rejection_reason?: string;
-  properties: Property[];
+  property: Property | null;
 }
 
 export default function AgentPropertiesPage() {
@@ -38,6 +38,7 @@ export default function AgentPropertiesPage() {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [hasApprovedProperty, setHasApprovedProperty] = useState(false);
+  const [hasPendingRequest, setHasPendingRequest] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -88,24 +89,40 @@ export default function AgentPropertiesPage() {
           requested_at,
           approved_at,
           rejected_at,
-          rejection_reason,
-          properties:property_id (
-            id,
-            name,
-            property_type,
-            image_url,
-            status
-          )
+          rejection_reason
         `,
         )
         .eq("agent_id", currentUser.id)
         .order("requested_at", { ascending: false });
 
-      setMyRequests(requests || []);
+      // 관계 데이터를 별도로 조회
+      let enrichedRequests: PropertyAgent[] = [];
+      if (requests && requests.length > 0) {
+        const propertyIds = [...new Set(requests.map((r) => r.property_id))];
+        const { data: propertiesData } = await supabase
+          .from("properties")
+          .select("id, name, property_type, image_url, status")
+          .in("id", propertyIds);
+
+        const propertiesMap = new Map(
+          (propertiesData || []).map((p) => [p.id, p])
+        );
+
+        enrichedRequests = requests.map((r) => ({
+          ...r,
+          property: propertiesMap.get(r.property_id) || null,
+        }));
+      }
+
+      setMyRequests(enrichedRequests);
 
       // 승인된 현장이 있는지 확인
       const hasApproved = (requests || []).some((r) => r.status === "approved");
       setHasApprovedProperty(hasApproved);
+
+      // 대기 중인 신청이 있는지 확인
+      const hasPending = (requests || []).some((r) => r.status === "pending");
+      setHasPendingRequest(hasPending);
 
       // 전체 현장 목록 조회
       const { data: propertiesData } = await supabase
@@ -239,7 +256,7 @@ export default function AgentPropertiesPage() {
           </h2>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {myRequests.map((request) => {
-              const property = request.properties?.[0];
+              const property = request.property;
               return (
                 <Card key={request.id} className="p-4">
                   <div className="flex items-start gap-3">
@@ -261,7 +278,7 @@ export default function AgentPropertiesPage() {
                         {getStatusBadge(request.status)}
                       </div>
                       <h3 className="font-semibold text-(--oboon-text-title) mb-1">
-                        {property?.name}
+                        {property?.name || "-"}
                       </h3>
                       <p className="text-xs text-(--oboon-text-muted)">
                         신청일:{" "}
@@ -305,11 +322,19 @@ export default function AgentPropertiesPage() {
           </div>
         )}
 
+        {!hasApprovedProperty && hasPendingRequest && (
+          <div className="mb-4 rounded-xl border border-(--oboon-warning-border) bg-(--oboon-warning)/10 px-4 py-3 text-sm text-(--oboon-warning)">
+            현재 승인 대기 중인 신청이 있습니다. 승인 또는 거절 후 다른 현장에
+            신청할 수 있습니다.
+          </div>
+        )}
+
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {properties.map((property) => {
             const requestStatus = getRequestStatus(property.id);
             const canApply =
               !hasApprovedProperty &&
+              !hasPendingRequest &&
               (!requestStatus || requestStatus.status === "rejected");
 
             return (
@@ -361,6 +386,11 @@ export default function AgentPropertiesPage() {
                     {hasApprovedProperty && !requestStatus && (
                       <div className="text-xs text-(--oboon-text-muted) text-center">
                         이미 다른 현장에 소속됨
+                      </div>
+                    )}
+                    {!hasApprovedProperty && hasPendingRequest && !requestStatus && (
+                      <div className="text-xs text-(--oboon-text-muted) text-center">
+                        다른 현장 승인 대기 중
                       </div>
                     )}
                   </div>

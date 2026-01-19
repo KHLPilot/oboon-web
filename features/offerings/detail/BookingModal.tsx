@@ -56,10 +56,15 @@ export default function BookingModal({
     return { minDate: today, maxDate };
   }, []);
 
-  const TIMES = useMemo(() => ["10:00", "11:00", "13:00", "14:00", "15:00", "16:00", "17:00"], []);
+  const TIMES = useMemo(() => [
+    "01:00", "02:00", "03:00", "04:00", "05:00", "06:00",
+    "07:00", "08:00", "09:00", "10:00", "11:00", "12:00",
+    "13:00", "14:00", "15:00", "16:00", "17:00", "18:00",
+    "19:00", "20:00", "21:00", "22:00", "23:00", "00:00",
+  ], []);
 
   const [selectedDate, setSelectedDate] = useState<Date | null>(dateRange.minDate);
-  const [selectedTime, setSelectedTime] = useState(TIMES[2] || TIMES[0]);
+  const [selectedTime, setSelectedTime] = useState(TIMES[9] || TIMES[0]); // 기본값 10:00
   const [agents, setAgents] = useState<Agent[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [loading, setLoading] = useState(false);

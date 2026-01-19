@@ -154,7 +154,7 @@ export async function POST(req: Request) {
     }
 
     // 7. 응답
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     const visitUrl = `${baseUrl}/visit/${token}`;
 
     return NextResponse.json({

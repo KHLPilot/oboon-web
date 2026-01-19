@@ -29,15 +29,15 @@ type PropertyAgent = {
   agent_id: string;
   status: "pending" | "approved" | "rejected";
   requested_at: string;
-  properties: Array<{
+  properties: {
     id: number;
     name: string;
-  }>;
-  profiles: Array<{
+  } | null;
+  profiles: {
     id: string;
     name: string;
     email: string;
-  }>;
+  } | null;
 };
 
 function roleLabel(role: string) {
@@ -134,7 +134,7 @@ function AdminPageInner() {
     setPendingAgents(pending || []);
 
     // 2-1) 현장 소속 승인 대기 목록
-    const { data: propertyAgentsPending } = await supabase
+    const { data: propertyAgentsPending, error: paError } = await supabase
       .from("property_agents")
       .select(
         `
@@ -142,22 +142,34 @@ function AdminPageInner() {
         property_id,
         agent_id,
         status,
-        requested_at,
-        properties:property_id (
-          id,
-          name
-        ),
-        profiles:agent_id (
-          id,
-          name,
-          email
-        )
+        requested_at
       `,
       )
       .eq("status", "pending")
       .order("requested_at", { ascending: true });
 
-    setPendingPropertyAgents(propertyAgentsPending || []);
+    // 관계 데이터를 별도로 조회
+    let enrichedPropertyAgents: PropertyAgent[] = [];
+    if (propertyAgentsPending && propertyAgentsPending.length > 0) {
+      const propertyIds = [...new Set(propertyAgentsPending.map((pa) => pa.property_id))];
+      const agentIds = [...new Set(propertyAgentsPending.map((pa) => pa.agent_id))];
+
+      const [{ data: propertiesData }, { data: profilesData }] = await Promise.all([
+        supabase.from("properties").select("id, name").in("id", propertyIds),
+        supabase.from("profiles").select("id, name, email").in("id", agentIds),
+      ]);
+
+      const propertiesMap = new Map((propertiesData || []).map((p) => [p.id, p]));
+      const profilesMap = new Map((profilesData || []).map((p) => [p.id, p]));
+
+      enrichedPropertyAgents = propertyAgentsPending.map((pa) => ({
+        ...pa,
+        properties: propertiesMap.get(pa.property_id) || null,
+        profiles: profilesMap.get(pa.agent_id) || null,
+      }));
+    }
+
+    setPendingPropertyAgents(enrichedPropertyAgents);
 
     // 3) 전체 유저 현황
     const { data: users } = await supabase
@@ -437,12 +449,12 @@ function AdminPageInner() {
               <tbody>
                 {pendingPropertyAgents.map((pa) => (
                   <tr key={pa.id}>
-                    <Td>{pa.profiles?.[0]?.name || "-"}</Td>
+                    <Td>{pa.profiles?.name || "-"}</Td>
                     <Td className="text-(--oboon-text-muted)">
-                      {pa.profiles?.[0]?.email}
+                      {pa.profiles?.email || "-"}
                     </Td>
                     <Td className="text-(--oboon-text-muted)">
-                      {pa.properties?.[0]?.name}
+                      {pa.properties?.name || "-"}
                     </Td>
                     <Td className="text-xs text-(--oboon-text-muted)">
                       {new Date(pa.requested_at).toLocaleDateString()}

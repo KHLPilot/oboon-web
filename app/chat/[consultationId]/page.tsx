@@ -127,8 +127,8 @@ export default function ChatPage() {
           // 새 메시지가 도착하면 sender 정보와 함께 추가
           const newMsg = payload.new as any;
 
-          // 이미 로컬에 있는 메시지인지 확인 (내가 보낸 메시지)
-          if (messages.some((m) => m.id === newMsg.id)) {
+          // 내가 보낸 메시지는 이미 로컬에 추가되어 있으므로 무시
+          if (newMsg.sender_id === currentUserId) {
             return;
           }
 
@@ -147,7 +147,13 @@ export default function ChatPage() {
             sender: sender || { id: newMsg.sender_id, name: "알 수 없음" },
           };
 
-          setMessages((prev) => [...prev, messageWithSender]);
+          setMessages((prev) => {
+            // 중복 체크 (혹시 모를 경우를 대비)
+            if (prev.some((m) => m.id === newMsg.id)) {
+              return prev;
+            }
+            return [...prev, messageWithSender];
+          });
         }
       )
       .subscribe();
@@ -155,7 +161,7 @@ export default function ChatPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [chatRoomId, supabase, messages]);
+  }, [chatRoomId, supabase, currentUserId]);
 
   // 메시지 전송
   const handleSendMessage = async () => {
