@@ -31,9 +31,9 @@ import {
 import { createSupabaseClient } from "@/lib/supabaseClient";
 
 const INITIAL_FILTERS: Record<MarkerType, boolean> = {
-  urgent: true,
-  upcoming: true,
-  remain: true,
+  ready: true,
+  open: true,
+  closed: true,
 };
 
 function toMarker(m: DbOffering): MapMarker {

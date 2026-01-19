@@ -61,18 +61,18 @@ function pickFirstNonEmpty(...values: Array<string | null | undefined>) {
 
 function toMarkerType(status: string | null): MarkerType {
   const s = normalizeOfferingStatusValue(status);
-  const [readyStatus, openStatus] = OFFERING_STATUS_VALUES;
+  const [readyStatus, openStatus, closedStatus] = OFFERING_STATUS_VALUES;
 
-  if (s === openStatus) return "urgent";
-  if (s === readyStatus) return "upcoming";
-  return "remain";
+  if (s === openStatus) return "ready";
+  if (s === readyStatus) return "open";
+  return "closed";
 }
 
 function getRegionLabel(loc0: PropertyLocationRow | null) {
   const r = pickFirstNonEmpty(
     loc0?.region_3depth,
     loc0?.region_2depth,
-    loc0?.region_1depth
+    loc0?.region_1depth,
   );
   return r ?? UXCopy.regionShort;
 }

@@ -446,41 +446,41 @@ h3 {
   --oboon-marker-stroke: rgba(255, 255, 255, 0.85);
 
   /* Rich marker background (light) */
-  --oboon-marker-urgent-bg: color-mix(
+  --oboon-marker-ready-bg: color-mix(
     in srgb,
-    var(--oboon-marker-urgent) 92%,
+    var(--oboon-marker-ready) 92%,
     white
   );
-  --oboon-marker-upcoming-bg: color-mix(
+  --oboon-marker-open-bg: color-mix(
     in srgb,
-    var(--oboon-marker-upcoming) 88%,
+    var(--oboon-marker-open) 88%,
     white
   );
-  --oboon-marker-remain-bg: color-mix(
+  --oboon-marker-closed-bg: color-mix(
     in srgb,
     var(--oboon-text-title) 14%,
     white
   );
 
-  --oboon-marker-urgent-text: #ffffff;
-  --oboon-marker-upcoming-text: #111827; /* warning은 흰색보다 다크 텍스트가 더 안정적 */
-  --oboon-marker-remain-text: var(--oboon-text-title);
+  --oboon-marker-ready-text: #ffffff;
+  --oboon-marker-open-text: #111827; /* warning은 흰색보다 다크 텍스트가 더 안정적 */
+  --oboon-marker-closed-text: var(--oboon-text-title);
 
-  --oboon-marker-urgent: var(--oboon-danger); /* 빨강 */
-  --oboon-marker-upcoming: var(--oboon-primary); /* 파랑 */
-  --oboon-marker-remain: #10b981; /* 초록 (또는 원하시는 색상 코드) */
+  --oboon-marker-ready: var(--oboon-danger); /* 빨강 */
+  --oboon-marker-open: var(--oboon-primary); /* 파랑 */
+  --oboon-marker-closed: var(--oboon-safe); /* 초록 (또는 원하시는 색상 코드) */
 
-  --oboon-marker-urgent-border: color-mix(
+  --oboon-marker-ready-border: color-mix(
     in srgb,
-    var(--oboon-marker-urgent) 55%,
+    var(--oboon-marker-ready) 55%,
     black
   );
-  --oboon-marker-upcoming-border: color-mix(
+  --oboon-marker-open-border: color-mix(
     in srgb,
-    var(--oboon-marker-upcoming) 45%,
+    var(--oboon-marker-open) 45%,
     black
   );
-  --oboon-marker-remain-border: color-mix(
+  --oboon-marker-closed-border: color-mix(
     in srgb,
     var(--oboon-text-muted) 45%,
     black
@@ -489,41 +489,43 @@ h3 {
 
 :root[data-theme="dark"] {
   /* Rich marker background (dark) */
-  --oboon-marker-urgent-bg: color-mix(
+  --oboon-marker-ready-bg: color-mix(
     in srgb,
-    var(--oboon-marker-urgent) 72%,
+    var(--oboon-marker-ready) 72%,
     black
   );
-  --oboon-marker-upcoming-bg: color-mix(
+  --oboon-marker-open-bg: color-mix(
     in srgb,
-    var(--oboon-marker-upcoming) 64%,
+    var(--oboon-marker-open) 64%,
     black
   );
-  --oboon-marker-remain-bg: color-mix(
+  --oboon-marker-closed-bg: color-mix(
     in srgb,
     var(--oboon-text-muted) 22%,
     black
   );
 
-  --oboon-marker-urgent-text: #ffffff;
-  --oboon-marker-upcoming-text: #111827;
-  --oboon-marker-remain-text: var(--oboon-text-title);
+  --oboon-marker-ready-text: #ffffff;
+  --oboon-marker-open-text: #111827;
+  --oboon-marker-closed-text: var(--oboon-text-title);
 
-  --oboon-marker-urgent: var(--oboon-danger); /* 빨강 */
-  --oboon-marker-upcoming: var(--oboon-primary); /* 파랑 */
-  --oboon-marker-remain: #10b981; /* 초록 (또는 원하시는 색상 코드) */
+  --oboon-marker-ready: var(--oboon-safe); /* 빨강 */
+  --oboon-marker-open: var(--oboon-primary); /* 파랑 */
+  --oboon-marker-closed: var(
+    --oboon-danger
+  ); /* 초록 (또는 원하시는 색상 코드) */
 
-  --oboon-marker-urgent-border: color-mix(
+  --oboon-marker-ready-border: color-mix(
     in srgb,
-    var(--oboon-marker-urgent) 55%,
+    var(--oboon-marker-ready) 55%,
     black
   );
-  --oboon-marker-upcoming-border: color-mix(
+  --oboon-marker-open-border: color-mix(
     in srgb,
-    var(--oboon-marker-upcoming) 45%,
+    var(--oboon-marker-open) 45%,
     black
   );
-  --oboon-marker-remain-border: color-mix(
+  --oboon-marker-closed-border: color-mix(
     in srgb,
     var(--oboon-text-muted) 40%,
     black

@@ -30,11 +30,6 @@ import type {
   BriefingOriginalCardModel,
 } from "@/features/briefing/types";
 
-/**
- * Board key SSOT (DB: briefing_boards.key)
- * - OBOON_ORIGINAL은 너가 확인한 값으로 확정
- * - GENERAL_BRIEFING은 프로젝트 DB에 맞게 필요 시 교체
- */
 const BOARD_KEYS = {
   GENERAL_BRIEFING: "general",
   OBOON_ORIGINAL: "oboon_original",
@@ -54,7 +49,7 @@ export default function HomePage() {
 
   /* ---------- Briefing state ---------- */
   const [briefingPosts, setBriefingPosts] = useState<BriefingPostCardModel[]>(
-    []
+    [],
   );
   const [briefingOriginal, setBriefingOriginal] = useState<
     Array<BriefingOriginalCardModel & { count: number }>
@@ -106,7 +101,7 @@ export default function HomePage() {
           external_url,
           board:briefing_boards!inner(key),
           category:briefing_categories(key,name)
-        `
+        `,
         )
         .eq("status", "published")
         .order("published_at", { ascending: false, nullsFirst: false })
@@ -169,7 +164,7 @@ export default function HomePage() {
             sort_order,
             is_active
           )
-        `
+        `,
         )
         .eq("key", BOARD_KEYS.OBOON_ORIGINAL)
         .single();
@@ -244,12 +239,12 @@ export default function HomePage() {
       addressShort: UXCopy.addressShort,
       regionShort: UXCopy.regionShort,
     }),
-    []
+    [],
   );
 
   const offerings: Offering[] = useMemo(
     () => rows.map((row) => mapPropertyRowToOffering(row, fallback)),
-    [rows, fallback]
+    [rows, fallback],
   );
 
   const reviewOfferings: Offering[] = useMemo(() => {
@@ -260,7 +255,7 @@ export default function HomePage() {
 
   const reviewIds = useMemo(
     () => new Set(reviewOfferings.map((o) => o.id)),
-    [reviewOfferings]
+    [reviewOfferings],
   );
 
   const popularOfferings: Offering[] = useMemo(() => {
@@ -478,20 +473,18 @@ function HeroSection() {
           빅데이터 기반의 객관적인 분양 정보를 만나보세요.
         </p>
       </div>
+
       <div className="mt-4 flex w-full max-w-18 flex-row justify-center gap-3">
-        <Button
-          size="lg"
-          variant="primary"
-          className="flex-1 sm:flex-none sm:min-w-55"
-        >
-          내 청약조건 분석하기
-        </Button>
+        {/* 내 청약조건 분석하기 → 분양 리스트 */}
         <Link href="/offerings" className="flex-1 sm:flex-none">
-          <Button
-            size="lg"
-            variant="secondary"
-            className="w-full sm:w-auto sm:min-w-55"
-          >
+          <Button size="lg" variant="primary" className="w-full sm:min-w-55">
+            내 청약조건 분석하기
+          </Button>
+        </Link>
+
+        {/* 지도에서 보기 → 지도 페이지 */}
+        <Link href="/map" className="flex-1 sm:flex-none">
+          <Button size="lg" variant="secondary" className="w-full sm:min-w-55">
             지도에서 보기
           </Button>
         </Link>

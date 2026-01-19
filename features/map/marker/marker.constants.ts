@@ -2,13 +2,13 @@
 import type { MarkerType } from "./marker.type";
 
 export const MARKER_TYPES = [
-  "urgent",
-  "upcoming",
-  "remain",
+  "ready",
+  "open",
+  "closed",
 ] as const satisfies ReadonlyArray<MarkerType>;
 
 export const MARKER_TYPE_LABEL: Record<MarkerType, string> = {
-  urgent: "선착순 분양",
-  upcoming: "청약 예정",
-  remain: "잔여 세대",
+  ready: "분양 예정",
+  open: "분양 중",
+  closed: "분양 종료",
 };
