@@ -298,6 +298,32 @@ const NaverMap = forwardRef<
         });
         mapRef.current = map;
 
+        /**
+         * iOS Safari / WKWebView(Whale 등)에서 초기 레이아웃 타이밍 때문에
+         * 오버레이(HTML content marker)가 첫 렌더에서 보이지 않는 케이스가 있어,
+         * 초기 2-RAF + 짧은 setTimeout으로 resize를 강제한다.
+         */
+        const triggerInitialResize = () => {
+          // 2-RAF: 레이아웃/페인트/합성 이후로 미룸
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              if (!mapRef.current) return;
+              naver.maps.Event.trigger(mapRef.current, "resize");
+              // resize 직후 가시영역/스타일 동기화
+              scheduleVisibleSync();
+              applyFocusHoverDeltaStyles(naver);
+            });
+          });
+          // 일부 iOS에서 1회 더 필요할 때가 있어 보수적으로 1번만 추가
+          window.setTimeout(() => {
+            if (!mapRef.current) return;
+            naver.maps.Event.trigger(mapRef.current, "resize");
+            scheduleVisibleSync();
+            applyFocusHoverDeltaStyles(naver);
+          }, 250);
+        };
+        triggerInitialResize();
+
         if (markers.length > 0) upsertMarkers(markers, map, naver);
 
         const clickListener = naver.maps.Event.addListener(

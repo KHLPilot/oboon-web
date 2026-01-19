@@ -109,7 +109,7 @@ export default function MapPage() {
               price_min,
               price_max
             )
-          `
+          `,
           )
           .order("id", { ascending: false })
           .limit(200);
@@ -189,7 +189,16 @@ export default function MapPage() {
         </div>
 
         <div className="relative w-full h-130">
-          <div className="absolute inset-0 border border-(--oboon-border-default) rounded-xl">
+          {/* 
+            iOS Safari + NaverMap HTML Marker(content) 조합에서
+            지도 컨테이너에 border/radius가 걸리면 마커가 클리핑되어 안 보이는 케이스가 있어,
+            "지도 DOM"과 "UI 프레임(border/radius)"를 분리한다.
+          */}
+          {/* UI 프레임(클릭 방해 금지) */}
+          <div className="absolute inset-0 pointer-events-none rounded-xl border border-(--oboon-border-default)" />
+
+          {/* 지도 DOM(clip-free) */}
+          <div className="absolute inset-0">
             <NaverMap
               ref={mapApiRef}
               markers={markers}
