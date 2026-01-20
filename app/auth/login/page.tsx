@@ -4,6 +4,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseClient } from "@/lib/supabaseClient";
+import { detectInAppBrowser, InAppBrowserInfo } from "@/lib/inAppBrowser";
 
 import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
@@ -15,6 +16,7 @@ import FieldErrorBubble, {
   FieldErrorState,
 } from "@/components/ui/FieldErrorBubble";
 import { validationMessageFor } from "@/shared/validationMessage";
+import { AlertCircle, ExternalLink } from "lucide-react";
 
 type LoginField = "email" | "password" | "generic";
 
@@ -33,6 +35,12 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [inAppInfo, setInAppInfo] = useState<InAppBrowserInfo | null>(null);
+
+  // 인앱 브라우저 감지
+  useEffect(() => {
+    setInAppInfo(detectInAppBrowser());
+  }, []);
 
   const clearFieldError = () => {
     setFieldError(null);
@@ -162,6 +170,19 @@ export default function LoginPage() {
     setError(null);
     clearFieldError();
     window.location.href = "/api/auth/naver/login";
+  }
+
+  // 외부 브라우저로 열기
+  function handleOpenExternal() {
+    const currentUrl = window.location.href;
+
+    if (inAppInfo?.isIOS) {
+      navigator.clipboard?.writeText(currentUrl);
+      alert("주소가 복사되었습니다. Safari를 열고 주소창에 붙여넣기 해주세요.");
+    } else if (inAppInfo?.isAndroid) {
+      const intentUrl = `intent://${currentUrl.replace(/^https?:\/\//, "")}#Intent;scheme=https;package=com.android.chrome;end`;
+      window.location.href = intentUrl;
+    }
   }
 
   const bubbleId = "login-field-error";
@@ -294,17 +315,44 @@ export default function LoginPage() {
               </div>
 
               <div className="flex flex-col gap-2">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="md"
-                  shape="pill"
-                  className="w-full justify-center"
-                  onClick={() => handleOAuthLogin("google")}
-                  disabled={loading}
-                >
-                  Google로 로그인
-                </Button>
+                {inAppInfo?.isInApp ? (
+                  // 인앱 브라우저: Google OAuth 차단 안내
+                  <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="h-5 w-5 text-orange-500 shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-sm text-orange-700 font-medium">
+                          {inAppInfo.browser || "인앱 브라우저"}에서는 Google 로그인이 제한됩니다
+                        </p>
+                        <p className="text-xs text-orange-600 mt-1">
+                          {inAppInfo.isIOS ? "Safari" : "Chrome"}에서 열어주세요
+                        </p>
+                        <Button
+                          type="button"
+                          variant="warning"
+                          size="sm"
+                          className="mt-2 w-full justify-center"
+                          onClick={handleOpenExternal}
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                          {inAppInfo.isIOS ? "Safari" : "Chrome"}에서 열기
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="md"
+                    shape="pill"
+                    className="w-full justify-center"
+                    onClick={() => handleOAuthLogin("google")}
+                    disabled={loading}
+                  >
+                    Google로 로그인
+                  </Button>
+                )}
 
                 <Button
                   type="button"
