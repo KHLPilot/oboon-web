@@ -318,6 +318,11 @@ const NaverMap = forwardRef<
           window.setTimeout(() => {
             if (!mapRef.current) return;
             naver.maps.Event.trigger(mapRef.current, "resize");
+
+            markerByIdRef.current.forEach((_mk, id) => {
+              applyMarkerStyleById(naver, id);
+            });
+
             scheduleVisibleSync();
             applyFocusHoverDeltaStyles(naver);
           }, 250);
