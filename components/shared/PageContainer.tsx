@@ -4,14 +4,21 @@ import { cn } from "@/app/company/properties/[id]/units/utils";
 type PageContainerProp = {
   children: React.ReactNode;
   className?: string;
-  noHeaderOffset?: boolean;
+  variant?: "default" | "full";
 };
 
 export default function PageContainer({
   children,
   className,
-  noHeaderOffset,
+  variant = "default",
 }: PageContainerProp) {
+  const layoutClass =
+    variant === "full" ? "min-h-dvh flex items-center justify-center" : "";
+  const paddingClass =
+    variant === "full"
+      ? "pt-0 pb-0 -mt-[var(--oboon-header-offset)]"
+      : "pt-6 sm:pt-10 md:pt-10 pb-8 sm:pb-10";
+
   return (
     <div
       className={cn(
@@ -25,8 +32,8 @@ export default function PageContainer({
         "px-4 sm:px-5",
 
         // vertical padding
-        !noHeaderOffset && "pt-22 sm:pt-24 md:pt-24",
-        "pt-10 pb-8 sm:pb-10",
+        layoutClass,
+        paddingClass,
 
         className,
       )}

@@ -77,7 +77,7 @@ export default function ConsultationQRPage() {
 
   if (loading) {
     return (
-      <PageContainer className="py-8">
+      <PageContainer className="pb-8">
         <div className="flex justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-(--oboon-primary)" />
         </div>
@@ -90,7 +90,7 @@ export default function ConsultationQRPage() {
   }
 
   return (
-    <PageContainer className="py-8">
+    <PageContainer className="pb-8">
       <div className="max-w-md mx-auto">
         {/* 헤더 */}
         <div className="flex items-center gap-3 mb-6">

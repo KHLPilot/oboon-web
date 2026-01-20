@@ -292,7 +292,7 @@ export default function ProfilePage() {
   if (loading) {
     return (
       <main className="bg-(--oboon-bg-page)">
-        <PageContainer className="py-10">
+        <PageContainer className="pb-10">
           <div className="text-center text-(--oboon-text-muted)">로딩 중...</div>
         </PageContainer>
       </main>
@@ -301,7 +301,7 @@ export default function ProfilePage() {
 
   return (
     <main className="bg-(--oboon-bg-page) min-h-screen">
-      <PageContainer className="py-6 sm:py-10">
+      <PageContainer className="pb-6 sm:pb-10">
         <div className="mx-auto max-w-3xl space-y-6 sm:space-y-8">
           <section>
             <h1 className="text-xl sm:text-2xl font-bold text-(--oboon-text-title) mb-1 sm:mb-2">

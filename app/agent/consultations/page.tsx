@@ -241,7 +241,7 @@ export default function AgentConsultationsPage() {
   }
 
   return (
-    <PageContainer className="py-8">
+    <PageContainer className="pb-8">
       <div className="max-w-3xl mx-auto">
         {/* 헤더 */}
         <div className="mb-6">

@@ -86,7 +86,10 @@ export default function RootLayout({
         />
         <ProfileChecker />
         <Header />
-        <main className="flex-1 relative">
+        <main
+          className="flex-1 relative"
+          style={{ paddingTop: "var(--oboon-header-offset)" }}
+        >
           <Providers>{children}</Providers>
         </main>
         <Footer />

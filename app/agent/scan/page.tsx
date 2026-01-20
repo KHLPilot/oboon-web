@@ -288,7 +288,7 @@ export default function AgentScanPage() {
 
   if (loading) {
     return (
-      <PageContainer className="py-8">
+      <PageContainer className="pb-8">
         <div className="flex justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-(--oboon-primary)" />
         </div>
@@ -301,7 +301,7 @@ export default function AgentScanPage() {
   }
 
   return (
-    <PageContainer className="py-8">
+    <PageContainer className="pb-8">
       <div className="max-w-lg mx-auto space-y-6">
         {/* 헤더 */}
         <div>

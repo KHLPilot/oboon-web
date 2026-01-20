@@ -230,7 +230,7 @@ export default function VisitVerifyPage() {
   }
 
   return (
-    <PageContainer className="py-8">
+    <PageContainer className="pb-8">
       <div className="max-w-md mx-auto">
         {/* 성공 화면 */}
         {(status === "success" || status === "approved") && (

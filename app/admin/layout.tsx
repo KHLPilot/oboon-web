@@ -24,5 +24,5 @@ export default async function AdminLayout({
 
   if (!profile || profile.role !== "admin") redirect("/");
 
-  return <PageContainer className="pt-8 pb-12">{children}</PageContainer>;
+  return <PageContainer className="pb-12">{children}</PageContainer>;
 }

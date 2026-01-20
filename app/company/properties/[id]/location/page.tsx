@@ -213,7 +213,7 @@ export default function PropertyLocationPage() {
 
   return (
     <main className="bg-(--oboon-bg-dafault)">
-      <PageContainer noHeaderOffset>
+      <PageContainer>
         <div className="py-8 md:py-0">
           <div className="flex w-full flex-col gap-6">
             {/* Header */}

@@ -266,7 +266,7 @@ export default function PropertyTimelinePage() {
   if (loading) {
     return (
       <main className="bg-(--oboon-bg-default)">
-        <PageContainer noHeaderOffset>
+        <PageContainer>
           <div className="py-8">
             <div className="ob-typo-body text-(--oboon-text-muted)">
               불러오는 중..
@@ -279,7 +279,7 @@ export default function PropertyTimelinePage() {
 
   return (
     <main className="bg-(--oboon-bg-default)">
-      <PageContainer noHeaderOffset>
+      <PageContainer>
         <div className="py-8 md:py-0">
           <div className="flex w-full flex-col gap-6">
             {/* Header */}

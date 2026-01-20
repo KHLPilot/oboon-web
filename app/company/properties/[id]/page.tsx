@@ -392,7 +392,7 @@ export default function PropertyDetailPage() {
 
   return (
     <main className="bg-(--oboon-bg-page)">
-      <PageContainer className="py-10">
+      <PageContainer className="pb-10">
         <div className="flex w-full flex-col gap-6">
           {/* 헤더 섹션 */}
           <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">

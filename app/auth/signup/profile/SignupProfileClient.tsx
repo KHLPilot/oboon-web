@@ -296,7 +296,7 @@ export default function SignupProfileClient() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,transparent_40%,rgba(0,0,0,0.55)_100%)]" />
       </div>
 
-      <PageContainer className="relative flex min-h-dvh items-center justify-center pt-0 pb-0 overflow-hidden">
+      <PageContainer variant="full" className="relative overflow-hidden">
         <div className="w-full max-w-105 -translate-y-4 sm:translate-y-0">
           {/* Header */}
           <div className="mb-4 sm:mb-5 text-center">
