@@ -68,7 +68,7 @@ export default function PostEditorClient({ bootstrap, onCreate }: Props) {
   // board -> category options
   const catsForBoard = useMemo(
     () => bootstrap.categories.filter((c) => c.board_id === boardId),
-    [bootstrap.categories, boardId]
+    [bootstrap.categories, boardId],
   );
 
   // 보드 변경 시 카테고리 자동 교정
@@ -81,12 +81,12 @@ export default function PostEditorClient({ bootstrap, onCreate }: Props) {
 
   const selectedBoard = useMemo(
     () => bootstrap.boards.find((b) => b.id === boardId) ?? null,
-    [bootstrap.boards, boardId]
+    [bootstrap.boards, boardId],
   );
 
   const selectedCategory = useMemo(
     () => catsForBoard.find((c) => c.id === categoryId) ?? null,
-    [catsForBoard, categoryId]
+    [catsForBoard, categoryId],
   );
 
   const isGeneralBoard = selectedBoard?.key === "general";
@@ -116,7 +116,7 @@ export default function PostEditorClient({ bootstrap, onCreate }: Props) {
 
   const selectedTag = useMemo(
     () => tags.find((t) => t.id === selectedTagId) ?? null,
-    [tags, selectedTagId]
+    [tags, selectedTagId],
   );
 
   const filteredTags = useMemo(() => {
@@ -290,7 +290,7 @@ export default function PostEditorClient({ bootstrap, onCreate }: Props) {
         <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2">
           {/* board dropdown */}
           <div>
-            <Label className="block mb-2">보드</Label>
+            <Label>보드</Label>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -338,7 +338,7 @@ export default function PostEditorClient({ bootstrap, onCreate }: Props) {
           {/* category dropdown */}
           {!hideCategoryUI ? (
             <div>
-              <Label className="block mb-2">카테고리</Label>
+              <Label>카테고리</Label>
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -392,7 +392,7 @@ export default function PostEditorClient({ bootstrap, onCreate }: Props) {
 
           {/* title */}
           <div className="md:col-span-2">
-            <Label className="block mb-2">제목</Label>
+            <Label>제목</Label>
             <Input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -403,7 +403,7 @@ export default function PostEditorClient({ bootstrap, onCreate }: Props) {
 
           {/* cover */}
           <div>
-            <Label className="block mb-2">커버 이미지 URL</Label>
+            <Label>커버 이미지 URL</Label>
             <Input
               value={coverImageUrl}
               onChange={(e) => setCoverImageUrl(e.target.value)}
@@ -414,7 +414,7 @@ export default function PostEditorClient({ bootstrap, onCreate }: Props) {
 
           {/* tag */}
           <div>
-            <Label className="block mb-2">태그</Label>
+            <Label>태그</Label>
 
             <div className="flex flex-wrap items-center gap-2">
               {selectedTag ? (

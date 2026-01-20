@@ -1,3 +1,4 @@
+// app/my/consultations/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -144,8 +145,8 @@ export default function MyConsultationsPage() {
                   status: "cancelled",
                   cancelled_at: new Date().toISOString(),
                 }
-              : c
-          )
+              : c,
+          ),
         );
         alert("예약이 취소되었습니다. 3일 후 자동으로 삭제됩니다.");
       } else {
@@ -193,20 +194,20 @@ export default function MyConsultationsPage() {
   }
 
   return (
-    <PageContainer className="pb-8">
-      <div className="max-w-2xl mx-auto">
+    <PageContainer>
+      <div className="mx-auto w-full max-w-3xl space-y-6">
         {/* 헤더 */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-(--oboon-text-title)">
+        <header className="space-y-1">
+          <div className="ob-typo-h1 text-(--oboon-text-title)">
             내 상담 예약
-          </h1>
-          <p className="mt-1 text-sm text-(--oboon-text-muted)">
+          </div>
+          <p className="ob-typo-body text-(--oboon-text-muted)">
             예약한 상담 내역을 확인하고 관리할 수 있습니다
           </p>
-        </div>
+        </header>
 
         {/* 필터 */}
-        <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+        <div className="flex gap-2 overflow-x-auto pb-2">
           {[
             { key: "all", label: "전체" },
             { key: "pending", label: "대기중" },
@@ -228,20 +229,20 @@ export default function MyConsultationsPage() {
 
         {/* 로딩 */}
         {loading ? (
-          <div className="flex justify-center py-12">
+          <Card className="flex items-center justify-center py-16">
             <Loader2 className="h-8 w-8 animate-spin text-(--oboon-primary)" />
-          </div>
+          </Card>
         ) : consultations.length === 0 ? (
           /* 빈 상태 */
-          <Card className="text-center py-12">
-            <CalendarDays className="h-12 w-12 mx-auto text-(--oboon-text-muted) mb-4" />
-            <p className="text-(--oboon-text-muted)">
+          <Card className="p-10 text-center space-y-4">
+            <CalendarDays className="mx-auto h-12 w-12 text-(--oboon-text-muted)" />
+            <p className="ob-typo-body text-(--oboon-text-muted)">
               {filter === "all"
                 ? "예약 내역이 없습니다"
                 : "해당 상태의 예약이 없습니다"}
             </p>
             <Link href="/offerings">
-              <Button variant="primary" className="mt-4">
+              <Button variant="primary" className="mx-auto">
                 분양 둘러보기
               </Button>
             </Link>
@@ -261,18 +262,18 @@ export default function MyConsultationsPage() {
                     {STATUS_LABELS[consultation.status]?.label ||
                       consultation.status}
                   </Badge>
-                  <span className="text-xs text-(--oboon-text-muted)">
+                  <span className="ob-typo-caption text-(--oboon-text-muted)">
                     예약번호: {consultation.id.slice(0, 8)}
                   </span>
                 </div>
 
-                <div className="p-4">
+                <div className="space-y-4 p-4">
                   {/* 분양 정보 */}
                   <Link
                     href={`/offerings/${consultation.property.id}`}
-                    className="flex items-center gap-3 mb-4 hover:bg-(--oboon-bg-subtle) rounded-lg p-2 -m-2 transition-colors"
+                    className="group flex items-center gap-3 rounded-xl p-2 -m-2 transition-colors hover:bg-(--oboon-bg-subtle)"
                   >
-                    <div className="h-16 w-16 rounded-lg bg-(--oboon-bg-subtle) overflow-hidden shrink-0">
+                    <div className="h-16 w-16 rounded-xl bg-(--oboon-bg-subtle) overflow-hidden shrink-0">
                       {consultation.property.image_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
@@ -287,31 +288,32 @@ export default function MyConsultationsPage() {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-(--oboon-text-title) truncate">
+                      <p className="ob-typo-body font-semibold text-(--oboon-text-title) truncate">
                         {consultation.property.name}
                       </p>
-                      <p className="text-xs text-(--oboon-text-muted) mt-1">
+                      <p className="ob-typo-caption text-(--oboon-text-muted) mt-1">
                         상담사: {consultation.agent.name}
                       </p>
                     </div>
-                    <ChevronRight className="h-5 w-5 text-(--oboon-text-muted) shrink-0" />
+                    <ChevronRight className="h-5 w-5 text-(--oboon-text-muted) shrink-0 transition-colors group-hover:text-(--oboon-text-title)" />
                   </Link>
 
                   {/* 예약 일시 */}
-                  <div className="flex items-center gap-2 text-sm text-(--oboon-text-body)">
+                  <div className="flex items-center gap-2 ob-typo-body text-(--oboon-text-body)">
                     <Clock className="h-4 w-4 text-(--oboon-text-muted)" />
                     <span>{formatDate(consultation.scheduled_at)}</span>
                   </div>
 
                   {/* 취소된 예약: 삭제 예정 안내 */}
-                  {consultation.status === "cancelled" && consultation.cancelled_at && (
-                    <p className="text-xs text-red-500 mt-2">
-                      {getTimeUntilDeletion(consultation.cancelled_at)}
-                    </p>
-                  )}
+                  {consultation.status === "cancelled" &&
+                    consultation.cancelled_at && (
+                      <p className="ob-typo-caption text-(--oboon-danger)">
+                        {getTimeUntilDeletion(consultation.cancelled_at)}
+                      </p>
+                    )}
 
                   {/* 액션 버튼 */}
-                  <div className="flex gap-2 mt-4">
+                  <div className="flex flex-wrap gap-2">
                     {consultation.status === "confirmed" && (
                       <Button
                         size="sm"
@@ -331,7 +333,7 @@ export default function MyConsultationsPage() {
                       <Button
                         size="sm"
                         variant="secondary"
-                        className="flex-1 text-red-600 border-red-200 hover:bg-red-50"
+                        className="flex-1 text-(--oboon-danger) border-(--oboon-danger-border) hover:bg-(--oboon-danger-bg)"
                         onClick={() => handleDelete(consultation.id)}
                       >
                         <Trash2 className="h-4 w-4" />
@@ -354,7 +356,7 @@ export default function MyConsultationsPage() {
                       <Button
                         size="sm"
                         variant="secondary"
-                        className="text-(--oboon-danger) min-w-15"
+                        className="min-w-15 text-(--oboon-danger) border-(--oboon-danger-border) hover:bg-(--oboon-danger-bg)"
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();

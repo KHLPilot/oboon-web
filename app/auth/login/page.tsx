@@ -240,7 +240,7 @@ export default function LoginPage() {
                 }}
               >
                 <div>
-                  <Label className="block mb-2">이메일</Label>
+                  <Label>이메일</Label>
                   <Input
                     name="email"
                     type="email"
@@ -261,7 +261,7 @@ export default function LoginPage() {
                 </div>
 
                 <div>
-                  <Label className="block mb-2">비밀번호</Label>
+                  <Label>비밀번호</Label>
                   <Input
                     name="password"
                     type="password"
@@ -322,7 +322,8 @@ export default function LoginPage() {
                       <AlertCircle className="h-5 w-5 text-orange-500 shrink-0 mt-0.5" />
                       <div className="flex-1">
                         <p className="text-sm text-orange-700 font-medium">
-                          {inAppInfo.browser || "인앱 브라우저"}에서는 Google 로그인이 제한됩니다
+                          {inAppInfo.browser || "인앱 브라우저"}에서는 Google
+                          로그인이 제한됩니다
                         </p>
                         <p className="text-xs text-orange-600 mt-1">
                           {inAppInfo.isIOS ? "Safari" : "Chrome"}에서 열어주세요
