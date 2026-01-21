@@ -137,7 +137,7 @@ export default function AuthCallbackClient() {
   }, [router, searchParams, supabase, type]);
 
   return (
-    <main className="min-h-dvh overflow-hidden bg-(--oboon-bg-page) text-(--oboon-text-title)">
+    <main className="min-h-dvh overflow-x-hidden bg-(--oboon-bg-page) text-(--oboon-text-title)">
       <div className="pointer-events-none fixed inset-0">
         <div className="absolute inset-0 bg-[radial-gradient(1200px_600px_at_50%_0%,rgba(64,112,255,0.18),transparent_60%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(800px_500px_at_50%_30%,rgba(0,200,180,0.10),transparent_65%)]" />

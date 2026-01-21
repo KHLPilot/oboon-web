@@ -148,7 +148,7 @@ export default function Header() {
         }}
       >
         <div className="mx-auto flex h-16 max-w-240 lg:max-w-300 items-center justify-between px-4 sm:px-5 lg:px-8">
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-10">
             {/* Logo */}
             <Link
               href="/"
@@ -160,7 +160,7 @@ export default function Header() {
             </Link>
 
             {/* Desktop nav */}
-            <nav className="mt-1 hidden items-center gap-8 ob-typo-nav md:flex">
+            <nav className="mt-1.5 hidden items-center gap-8 ob-typo-nav md:flex">
               {NAV_ITEMS.map((item) => {
                 const active = pathname.startsWith(item.href);
                 return (

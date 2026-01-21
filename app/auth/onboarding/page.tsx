@@ -285,7 +285,7 @@ export default function OnboardingPage() {
   }
 
   return (
-    <main className="min-h-dvh overflow-hidden bg-(--oboon-bg-page) text-(--oboon-text-title)">
+    <main className="min-h-dvh overflow-x-hidden bg-(--oboon-bg-page) text-(--oboon-text-title)">
       {/* 배경은 signup/profile과 동일 톤 (필요없으면 제거 가능) */}
       <div className="pointer-events-none fixed inset-0">
         <div className="absolute inset-0 bg-[radial-gradient(1200px_600px_at_50%_0%,rgba(64,112,255,0.18),transparent_60%)]" />
