@@ -343,7 +343,7 @@ export default function PropertyFacilitiesPage() {
 
   return (
     <main className="bg-(--oboon-bg-default)">
-      <PageContainer noHeaderOffset>
+      <PageContainer>
         <div className="py-8 md:py-0">
           <div className="flex w-full flex-col gap-6">
             {/* Top */}

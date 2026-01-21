@@ -57,7 +57,7 @@ export default async function BriefingPostNewPage() {
   if (!defaultBoard) {
     return (
       <main className="bg-(--oboon-bg-page)">
-        <PageContainer className="pt-10 pb-20">
+        <PageContainer className="pb-20">
           <Card className="shadow-none">
             <div className="ob-typo-body text-(--oboon-text-title)">
               활성화된 briefing_boards가 없습니다.
@@ -187,7 +187,7 @@ export default async function BriefingPostNewPage() {
 
   return (
     <main className="bg-(--oboon-bg-page)">
-      <PageContainer className="pt-10 pb-20">
+      <PageContainer className="pb-20">
         <PostEditorClient bootstrap={bootstrap} onCreate={createPostAction} />
       </PageContainer>
     </main>

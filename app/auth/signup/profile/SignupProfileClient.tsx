@@ -74,7 +74,7 @@ export default function SignupProfileClient() {
 
   const canSubmit = useMemo(
     () => verified && Boolean(email),
-    [verified, email]
+    [verified, email],
   );
 
   const setSanitized =
@@ -112,7 +112,7 @@ export default function SignupProfileClient() {
 
       try {
         const res = await fetch(
-          `/api/auth/check-verification?token=${encodeURIComponent(token)}`
+          `/api/auth/check-verification?token=${encodeURIComponent(token)}`,
         );
         const json = await res.json();
 
@@ -168,7 +168,7 @@ export default function SignupProfileClient() {
 
         if (error) {
           setFatalError(
-            "자동 로그인에 실패했습니다. 로그인 후 다시 진행해주세요."
+            "자동 로그인에 실패했습니다. 로그인 후 다시 진행해주세요.",
           );
           return;
         }
@@ -296,7 +296,7 @@ export default function SignupProfileClient() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,transparent_40%,rgba(0,0,0,0.55)_100%)]" />
       </div>
 
-      <PageContainer className="relative flex min-h-dvh items-center justify-center pt-0 pb-0 overflow-hidden">
+      <PageContainer variant="full" className="relative overflow-hidden">
         <div className="w-full max-w-105 -translate-y-4 sm:translate-y-0">
           {/* Header */}
           <div className="mb-4 sm:mb-5 text-center">
@@ -346,7 +346,7 @@ export default function SignupProfileClient() {
 
                   <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                      <Label className="block mb-2">이름 (실명) *</Label>
+                      <Label>이름 (실명) *</Label>
                       <Input
                         ref={nameRef}
                         value={name}
@@ -357,7 +357,7 @@ export default function SignupProfileClient() {
                         disabled={!canSubmit || loading}
                         className={cx(
                           "h-11",
-                          errors.name ? "border-(--oboon-border-danger)" : ""
+                          errors.name ? "border-(--oboon-border-danger)" : "",
                         )}
                         aria-invalid={errors.name ? "true" : undefined}
                         aria-describedby={
@@ -367,7 +367,7 @@ export default function SignupProfileClient() {
                     </div>
 
                     <div>
-                      <Label className="block mb-2">닉네임 (선택)</Label>
+                      <Label>닉네임 (선택)</Label>
                       <Input
                         ref={nicknameRef}
                         value={nickname}
@@ -382,7 +382,7 @@ export default function SignupProfileClient() {
                           "h-11",
                           errors.nickname
                             ? "border-(--oboon-border-danger)"
-                            : ""
+                            : "",
                         )}
                         aria-invalid={errors.nickname ? "true" : undefined}
                         aria-describedby={
@@ -394,7 +394,7 @@ export default function SignupProfileClient() {
                     </div>
 
                     <div>
-                      <Label className="block mb-2">휴대폰 번호 *</Label>
+                      <Label>휴대폰 번호 *</Label>
                       <Input
                         ref={phoneRef}
                         value={phoneNumber}
@@ -405,7 +405,7 @@ export default function SignupProfileClient() {
                         disabled={!canSubmit || loading}
                         className={cx(
                           "h-11",
-                          errors.phone ? "border-(--oboon-border-danger)" : ""
+                          errors.phone ? "border-(--oboon-border-danger)" : "",
                         )}
                         aria-invalid={errors.phone ? "true" : undefined}
                         aria-describedby={
@@ -413,7 +413,7 @@ export default function SignupProfileClient() {
                         }
                       />
                     </div>
-                    <Label className="block mb-2">회원 유형</Label>
+                    <Label>회원 유형</Label>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <button
@@ -425,7 +425,7 @@ export default function SignupProfileClient() {
                             "outline-none",
                             !canSubmit || loading
                               ? "opacity-60"
-                              : "hover:bg-(--oboon-bg-subtle)/60"
+                              : "hover:bg-(--oboon-bg-subtle)/60",
                           )}
                         >
                           {userType === "personal" ? "개인 회원" : "기업 회원"}

@@ -57,7 +57,7 @@ export default function OnboardingPage() {
   // 닉네임 중복 체크
   const [nicknameChecking, setNicknameChecking] = useState(false);
   const [nicknameAvailable, setNicknameAvailable] = useState<boolean | null>(
-    null
+    null,
   );
 
   // FieldErrorBubble
@@ -294,7 +294,7 @@ export default function OnboardingPage() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,transparent_40%,rgba(0,0,0,0.55)_100%)]" />
       </div>
 
-      <PageContainer className="relative flex min-h-dvh items-center justify-center pt-0 pb-0 overflow-hidden">
+      <PageContainer variant="full" className="relative overflow-hidden">
         <div className="w-full max-w-105 -translate-y-4 sm:translate-y-0">
           {/* Header */}
           <div className="mb-4 sm:mb-5 text-center">
@@ -317,7 +317,7 @@ export default function OnboardingPage() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 {/* 이메일 (읽기 전용) */}
                 <div>
-                  <Label className="block mb-2">이메일 주소</Label>
+                  <Label>이메일 주소</Label>
                   <Input
                     value={email}
                     disabled
@@ -327,7 +327,7 @@ export default function OnboardingPage() {
 
                 {/* 이름 */}
                 <div>
-                  <Label className="block mb-2">이름 (실명) *</Label>
+                  <Label>이름 (실명) *</Label>
                   <Input
                     ref={nameRef}
                     value={name}
@@ -338,7 +338,7 @@ export default function OnboardingPage() {
                     disabled={!canSubmit || loading}
                     className={cx(
                       "h-11",
-                      errors.name ? "border-(--oboon-border-danger)" : ""
+                      errors.name ? "border-(--oboon-border-danger)" : "",
                     )}
                     aria-invalid={errors.name ? "true" : undefined}
                     aria-describedby={
@@ -349,7 +349,7 @@ export default function OnboardingPage() {
 
                 {/* 닉네임 + 중복확인 */}
                 <div>
-                  <Label className="block mb-2">닉네임 (선택)</Label>
+                  <Label>닉네임 (선택)</Label>
 
                   <div className="flex gap-2">
                     <Input
@@ -362,7 +362,7 @@ export default function OnboardingPage() {
                       disabled={!canSubmit || loading}
                       className={cx(
                         "h-11 flex-1",
-                        errors.nickname ? "border-(--oboon-border-danger)" : ""
+                        errors.nickname ? "border-(--oboon-border-danger)" : "",
                       )}
                       aria-invalid={errors.nickname ? "true" : undefined}
                       aria-describedby={
@@ -397,7 +397,7 @@ export default function OnboardingPage() {
 
                 {/* 휴대폰 */}
                 <div>
-                  <Label className="block mb-2">휴대폰 번호 *</Label>
+                  <Label>휴대폰 번호 *</Label>
                   <Input
                     ref={phoneRef}
                     value={phoneNumber}
@@ -408,7 +408,7 @@ export default function OnboardingPage() {
                     disabled={!canSubmit || loading}
                     className={cx(
                       "h-11",
-                      errors.phone ? "border-(--oboon-border-danger)" : ""
+                      errors.phone ? "border-(--oboon-border-danger)" : "",
                     )}
                     aria-invalid={errors.phone ? "true" : undefined}
                     aria-describedby={
@@ -419,7 +419,7 @@ export default function OnboardingPage() {
 
                 {/* 회원 유형 */}
                 <div>
-                  <Label className="block mb-2">회원 유형</Label>
+                  <Label>회원 유형</Label>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button
@@ -431,7 +431,7 @@ export default function OnboardingPage() {
                           "outline-none",
                           !canSubmit || loading
                             ? "opacity-60"
-                            : "hover:bg-(--oboon-bg-subtle)/60"
+                            : "hover:bg-(--oboon-bg-subtle)/60",
                         )}
                       >
                         {userType === "personal" ? "개인 회원" : "기업 회원"}

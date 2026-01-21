@@ -283,7 +283,7 @@ export default function PropertyListPage() {
   }
 
   return (
-    <PageContainer noHeaderOffset>
+    <PageContainer>
       <div>
         {/* 헤더 */}
         <div className="mb-6 flex flex-col gap-3">

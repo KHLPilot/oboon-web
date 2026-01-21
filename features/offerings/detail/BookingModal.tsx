@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { CalendarDays, Star, Loader2, MessageCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import DatePicker, { registerLocale } from "react-datepicker";
@@ -56,15 +56,17 @@ export default function BookingModal({
     return { minDate: today, maxDate };
   }, []);
 
-  const TIMES = useMemo(() => [
-    "01:00", "02:00", "03:00", "04:00", "05:00", "06:00",
-    "07:00", "08:00", "09:00", "10:00", "11:00", "12:00",
-    "13:00", "14:00", "15:00", "16:00", "17:00", "18:00",
-    "19:00", "20:00", "21:00", "22:00", "23:00", "00:00",
-  ], []);
+  interface SlotInfo {
+    time: string;
+    available: boolean;
+    reason?: string;
+  }
+
+  const [availableSlots, setAvailableSlots] = useState<SlotInfo[]>([]);
+  const [slotsLoading, setSlotsLoading] = useState(false);
 
   const [selectedDate, setSelectedDate] = useState<Date | null>(dateRange.minDate);
-  const [selectedTime, setSelectedTime] = useState(TIMES[9] || TIMES[0]); // 기본값 10:00
+  const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [loading, setLoading] = useState(false);
@@ -157,6 +159,75 @@ export default function BookingModal({
 
     fetchData();
   }, [isOpen, supabase, propertyId]);
+
+  // 슬롯 조회 함수 (폴링에서도 사용)
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const isInitialFetch = useRef(true);
+
+  const fetchSlots = useCallback(async (showLoading = true) => {
+    if (!selectedDate || !selectedAgent) return;
+
+    if (showLoading) setSlotsLoading(true);
+    try {
+      const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, "0")}-${String(selectedDate.getDate()).padStart(2, "0")}`;
+      const res = await fetch(`/api/agent/slots?agentId=${selectedAgent.id}&date=${dateStr}`);
+      const data = await res.json();
+
+      const newSlots = data.slots || [];
+      setAvailableSlots(newSlots);
+
+      // 선택한 시간이 더 이상 예약 불가능하면 선택 해제
+      if (selectedTime) {
+        const selectedSlot = newSlots.find((s: SlotInfo) => s.time === selectedTime);
+        if (!selectedSlot || !selectedSlot.available) {
+          setSelectedTime(null);
+        }
+      }
+    } catch (err) {
+      console.error("슬롯 조회 오류:", err);
+      if (showLoading) setAvailableSlots([]);
+    } finally {
+      if (showLoading) setSlotsLoading(false);
+    }
+  }, [selectedDate, selectedAgent, selectedTime]);
+
+  // 날짜 또는 상담사 변경 시 슬롯 조회 + 폴링 시작
+  useEffect(() => {
+    if (!selectedDate || !selectedAgent) {
+      setAvailableSlots([]);
+      setSelectedTime(null);
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+      return;
+    }
+
+    // 초기 로딩
+    isInitialFetch.current = true;
+    fetchSlots(true);
+    isInitialFetch.current = false;
+
+    // 5초마다 폴링 (로딩 표시 없이 백그라운드 업데이트)
+    pollingRef.current = setInterval(() => {
+      fetchSlots(false);
+    }, 5000);
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [selectedDate, selectedAgent, fetchSlots]);
+
+  // 모달 닫힐 때 폴링 정리
+  useEffect(() => {
+    if (!isOpen && pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+  }, [isOpen]);
 
   // 예약 제출
   async function handleSubmit() {
@@ -391,23 +462,40 @@ export default function BookingModal({
               <div className="text-xs font-medium text-(--oboon-text-muted) mb-2">
                 시간 선택
               </div>
-              <div className="grid grid-cols-4 gap-2">
-                {TIMES.map((t) => {
-                  const active = selectedTime === t;
-                  return (
-                    <Button
-                      key={t}
-                      size="sm"
-                      shape="pill"
-                      variant={active ? "primary" : "secondary"}
-                      className="w-full"
-                      onClick={() => setSelectedTime(t)}
-                    >
-                      {t}
-                    </Button>
-                  );
-                })}
-              </div>
+              {slotsLoading ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="h-5 w-5 animate-spin text-(--oboon-primary)" />
+                </div>
+              ) : availableSlots.length === 0 ? (
+                <div className="text-center py-4 text-sm text-(--oboon-text-muted)">
+                  {selectedAgent ? "선택한 날짜에 예약 가능한 시간이 없습니다" : "상담사를 먼저 선택해주세요"}
+                </div>
+              ) : (
+                <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto">
+                  {availableSlots.map((slot) => {
+                    const active = selectedTime === slot.time;
+                    const isDisabled = !slot.available;
+                    return (
+                      <button
+                        key={slot.time}
+                        className={`
+                          py-2 px-3 rounded-lg border text-sm font-medium transition-all
+                          ${active
+                            ? "bg-(--oboon-primary) text-white border-(--oboon-primary) ring-2 ring-(--oboon-primary) ring-offset-1"
+                            : isDisabled
+                              ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+                              : "bg-(--oboon-primary) text-white border-(--oboon-primary) hover:opacity-90"
+                          }
+                        `}
+                        onClick={() => !isDisabled && setSelectedTime(slot.time)}
+                        disabled={isDisabled}
+                      >
+                        {slot.time}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
@@ -451,7 +539,7 @@ export default function BookingModal({
           <div className="mt-3 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-4 py-3 text-xs text-(--oboon-text-muted)">
             선택:{" "}
             <span className="font-medium text-(--oboon-text-title)">
-              {selectedDate ? `${selectedDate.getFullYear()}.${(selectedDate.getMonth() + 1).toString().padStart(2, '0')}.${selectedDate.getDate().toString().padStart(2, '0')}` : '-'} {selectedTime}
+              {selectedDate ? `${selectedDate.getFullYear()}.${(selectedDate.getMonth() + 1).toString().padStart(2, '0')}.${selectedDate.getDate().toString().padStart(2, '0')}` : '-'} {selectedTime || '-'}
             </span>
             {selectedAgent && (
               <>

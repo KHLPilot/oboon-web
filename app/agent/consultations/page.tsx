@@ -128,7 +128,28 @@ export default function AgentConsultationsPage() {
         const data = await response.json();
 
         if (response.ok) {
-          setConsultations(data.consultations || []);
+          // 정렬: 최근 날짜 우선, 같은 날짜/시간이면 상태 순서대로
+          const statusOrder: Record<string, number> = {
+            pending: 0,
+            confirmed: 1,
+            visited: 2,
+            contracted: 3,
+            cancelled: 4,
+          };
+
+          const sorted = (data.consultations || []).sort(
+            (a: Consultation, b: Consultation) => {
+              // 1. 최근 날짜가 위로
+              const dateA = new Date(a.scheduled_at).getTime();
+              const dateB = new Date(b.scheduled_at).getTime();
+              if (dateB !== dateA) return dateB - dateA;
+
+              // 2. 같은 날짜/시간이면 상태 순서대로
+              return (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99);
+            }
+          );
+
+          setConsultations(sorted);
         } else {
           console.error("예약 목록 조회 실패:", data.error);
         }
@@ -241,7 +262,7 @@ export default function AgentConsultationsPage() {
   }
 
   return (
-    <PageContainer className="py-8">
+    <PageContainer className="pb-8">
       <div className="max-w-3xl mx-auto">
         {/* 헤더 */}
         <div className="mb-6">
@@ -406,15 +427,19 @@ export default function AgentConsultationsPage() {
                       </Button>
                     )}
 
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      className="flex-1"
-                      onClick={() => router.push(`/chat/${consultation.id}`)}
-                    >
-                      <MessageCircle className="h-4 w-4" />
-                      채팅
-                    </Button>
+                    {/* 채팅: 방문 인증 완료 후에만 표시 */}
+                    {(consultation.status === "visited" ||
+                      consultation.status === "contracted") && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="flex-1"
+                        onClick={() => router.push(`/chat/${consultation.id}`)}
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                        채팅
+                      </Button>
+                    )}
                   </div>
                 </div>
               </Card>

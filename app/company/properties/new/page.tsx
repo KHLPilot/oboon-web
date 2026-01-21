@@ -191,7 +191,7 @@ export default function PropertyCreatePage() {
 
   return (
     <main className="bg-(--oboon-bg-page)">
-      <PageContainer noHeaderOffset>
+      <PageContainer>
         <div className="mx-auto w-full max-w-3xl space-y-6">
           {/* Header */}
           <div className="flex items-center justify-between">

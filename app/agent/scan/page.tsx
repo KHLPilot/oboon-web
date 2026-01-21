@@ -171,14 +171,46 @@ export default function AgentScanPage() {
     }
   }, []);
 
+  // 초기 로드 + Realtime 구독
   useEffect(() => {
-    if (isAgent) {
-      fetchPendingRequests();
-      // 10초마다 갱신
-      const interval = setInterval(fetchPendingRequests, 10000);
-      return () => clearInterval(interval);
-    }
-  }, [isAgent, fetchPendingRequests]);
+    if (!isAgent) return;
+
+    // 초기 로드
+    fetchPendingRequests();
+
+    // Realtime 구독 - 새 요청이 들어오면 즉시 갱신
+    const channel = supabase
+      .channel("visit_confirm_requests_realtime")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "visit_confirm_requests",
+        },
+        () => {
+          // 새 요청이 들어오면 목록 갱신
+          fetchPendingRequests();
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "visit_confirm_requests",
+        },
+        () => {
+          // 상태가 변경되면 목록 갱신
+          fetchPendingRequests();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isAgent, supabase, fetchPendingRequests]);
 
   // 남은 시간 카운트다운
   useEffect(() => {
@@ -288,7 +320,7 @@ export default function AgentScanPage() {
 
   if (loading) {
     return (
-      <PageContainer className="py-8">
+      <PageContainer className="pb-8">
         <div className="flex justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-(--oboon-primary)" />
         </div>
@@ -301,7 +333,7 @@ export default function AgentScanPage() {
   }
 
   return (
-    <PageContainer className="py-8">
+    <PageContainer className="pb-8">
       <div className="max-w-lg mx-auto space-y-6">
         {/* 헤더 */}
         <div>

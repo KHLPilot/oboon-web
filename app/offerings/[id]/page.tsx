@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import OfferingDetailLeft from "@/features/offerings/detail/OfferingDetailLeft";
 import OfferingDetailRight from "@/features/offerings/detail/OfferingDetailRight";
 import PageContainer from "@/components/shared/PageContainer";
-import { fetchOfferingDetail } from "@/features/offerings/services/offeringDetail.service";
+import { fetchOfferingDetail, hasApprovedAgent } from "@/features/offerings/services/offeringDetail.service";
 
 // app/offerings/[id]/page.tsx
 export default async function OfferingDetailPage({
@@ -14,7 +14,10 @@ export default async function OfferingDetailPage({
   const id = Number(params.id);
   if (!Number.isFinite(id)) notFound();
 
-  const property = await fetchOfferingDetail(id);
+  const [property, hasAgent] = await Promise.all([
+    fetchOfferingDetail(id),
+    hasApprovedAgent(id),
+  ]);
   if (!property) notFound();
 
   return (
@@ -28,6 +31,7 @@ export default async function OfferingDetailPage({
           <OfferingDetailRight
             propertyId={property.id}
             propertyName={property.name}
+            hasApprovedAgent={hasAgent}
           />
         </div>
       </div>

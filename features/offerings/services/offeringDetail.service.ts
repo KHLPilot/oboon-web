@@ -96,3 +96,16 @@ export async function fetchOfferingDetail(
 
   return data;
 }
+
+// 해당 현장에 승인된 상담사가 있는지 확인
+export async function hasApprovedAgent(propertyId: number): Promise<boolean> {
+  const supabase = createSupabaseServer();
+  const { count, error } = await supabase
+    .from("property_agents")
+    .select("id", { count: "exact", head: true })
+    .eq("property_id", propertyId)
+    .eq("status", "approved");
+
+  if (error) return false;
+  return (count ?? 0) > 0;
+}

@@ -9,11 +9,13 @@ import BookingModal from "@/features/offerings/detail/BookingModal";
 interface OfferingDetailRightProps {
   propertyId?: number;
   propertyName?: string;
+  hasApprovedAgent?: boolean;
 }
 
 export default function OfferingDetailRight({
   propertyId,
-  propertyName
+  propertyName,
+  hasApprovedAgent = false
 }: OfferingDetailRightProps) {
   const [isBookingOpen, setIsBookingOpen] = useState(false);
 
@@ -32,13 +34,19 @@ export default function OfferingDetailRight({
           </div>
 
           <div className="mt-4 space-y-2">
-            <Button
-              className="w-full"
-              variant="primary"
-              onClick={() => setIsBookingOpen(true)}
-            >
-              상담 신청하기
-            </Button>
+            {hasApprovedAgent ? (
+              <Button
+                className="w-full"
+                variant="primary"
+                onClick={() => setIsBookingOpen(true)}
+              >
+                상담 신청하기
+              </Button>
+            ) : (
+              <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-2.5 text-center text-xs text-(--oboon-text-muted)">
+                현재 상담 가능한 상담사가 없습니다
+              </div>
+            )}
 
             <Button className="w-full" variant="secondary">
               공고문/자료 요청
@@ -74,13 +82,19 @@ export default function OfferingDetailRight({
         >
           <div className="mx-auto w-full max-w-300 px-5 py-3">
             <div className="flex items-center gap-2">
-              <Button
-                className="flex-1"
-                variant="primary"
-                onClick={() => setIsBookingOpen(true)}
-              >
-                상담 신청
-              </Button>
+              {hasApprovedAgent ? (
+                <Button
+                  className="flex-1"
+                  variant="primary"
+                  onClick={() => setIsBookingOpen(true)}
+                >
+                  상담 신청
+                </Button>
+              ) : (
+                <div className="flex-1 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-2.5 text-center text-xs text-(--oboon-text-muted)">
+                  상담사 없음
+                </div>
+              )}
 
               <Button variant="secondary" className="shrink-0" size="md">
                 자료

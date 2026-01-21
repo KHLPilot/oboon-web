@@ -44,7 +44,7 @@ export async function GET(
                 *,
                 customer:profiles!consultations_customer_id_fkey(id, name, email, phone_number),
                 agent:profiles!consultations_agent_id_fkey(id, name, email, phone_number),
-                property:properties(id, name, image_url, property_type),
+                property:properties(id, name, image_url, property_type, property_facilities(id, lat, lng, road_address, type, is_active)),
                 chat_rooms(id)
             `)
             .eq("id", id)
@@ -266,10 +266,11 @@ export async function DELETE(
             );
         }
 
-        // 취소된 예약만 숨기기 가능 (관리자 제외)
-        if (!isAdmin && consultation.status !== "cancelled") {
+        // 취소됨, 방문완료, 계약완료 상태만 숨기기 가능 (관리자 제외)
+        const deletableStatuses = ["cancelled", "visited", "contracted"];
+        if (!isAdmin && !deletableStatuses.includes(consultation.status)) {
             return NextResponse.json(
-                { error: "취소된 예약만 삭제할 수 있습니다" },
+                { error: "취소됨, 방문완료, 계약완료 상태의 예약만 삭제할 수 있습니다" },
                 { status: 400 }
             );
         }

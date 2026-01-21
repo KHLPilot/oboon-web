@@ -160,7 +160,7 @@ export default function PropertySpecsPage() {
   if (loading) {
     return (
       <main className="bg-(--oboon-bg-default)">
-        <PageContainer noHeaderOffset>
+        <PageContainer>
           <div className="py-8">
             <div className="ob-typo-body text-(--oboon-text-muted)">
               불러오는 중..

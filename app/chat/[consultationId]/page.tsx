@@ -267,7 +267,7 @@ export default function ChatPage() {
   if (loading) {
     return (
       <main className="bg-(--oboon-bg-page) min-h-screen">
-        <PageContainer className="py-10">
+        <PageContainer className="pb-10">
           <div className="flex items-center justify-center h-64">
             <Loader2 className="h-8 w-8 animate-spin text-(--oboon-primary)" />
           </div>
@@ -279,7 +279,7 @@ export default function ChatPage() {
   if (error) {
     return (
       <main className="bg-(--oboon-bg-page) min-h-screen">
-        <PageContainer className="py-10">
+        <PageContainer className="pb-10">
           <div className="text-center">
             <p className="text-(--oboon-danger) mb-4">{error}</p>
             <Button variant="secondary" onClick={() => router.back()}>
@@ -344,7 +344,7 @@ export default function ChatPage() {
 
       {/* 메시지 영역 */}
       <div className="flex-1 overflow-y-auto min-h-0">
-        <PageContainer className="py-4">
+        <PageContainer className="pb-4">
           <div className="space-y-4">
             {messages.length === 0 ? (
               <div className="text-center py-10">

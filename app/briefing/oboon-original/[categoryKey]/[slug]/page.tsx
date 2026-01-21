@@ -277,7 +277,7 @@ export default async function OboonOriginalPostPage({
 
   return (
     <main className="bg-(--oboon-bg-page)">
-      <PageContainer className="pt-10 pb-20">
+      <PageContainer className="pb-20">
         {/* ===== Hero ===== */}
         <div className="mb-8">
           <Card className="p-5 overflow-hidden shadow-none h-125">

@@ -119,7 +119,7 @@ export default function PropertycommentPage() {
 
   return (
     <main className="bg-(--oboon-bg-page)">
-      <PageContainer noHeaderOffset>
+      <PageContainer>
         <div className="flex w-full flex-col gap-6">
           <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="space-y-1">

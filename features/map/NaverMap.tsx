@@ -318,6 +318,11 @@ const NaverMap = forwardRef<
           window.setTimeout(() => {
             if (!mapRef.current) return;
             naver.maps.Event.trigger(mapRef.current, "resize");
+
+            markerByIdRef.current.forEach((_mk, id) => {
+              applyMarkerStyleById(naver, id);
+            });
+
             scheduleVisibleSync();
             applyFocusHoverDeltaStyles(naver);
           }, 250);
@@ -387,6 +392,31 @@ const NaverMap = forwardRef<
         }
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // [1-1] iOS Safari BFCache / 탭 복귀 대응
+    useEffect(() => {
+      const naver = (window as any).naver;
+
+      const forceRefresh = () => {
+        if (!mapRef.current || !naver?.maps) return;
+
+        // 지도 사이즈 재계산
+        naver.maps.Event.trigger(mapRef.current, "resize");
+
+        // 🔴 핵심: HTML content marker 재부착
+        markerByIdRef.current.forEach((_mk, id) => {
+          applyMarkerStyleById(naver, id);
+        });
+      };
+
+      window.addEventListener("pageshow", forceRefresh);
+      document.addEventListener("visibilitychange", forceRefresh);
+
+      return () => {
+        window.removeEventListener("pageshow", forceRefresh);
+        document.removeEventListener("visibilitychange", forceRefresh);
+      };
     }, []);
 
     // [2] markers 변경 시: 전체 재생성 금지 → diff upsert

@@ -158,7 +158,7 @@ export default async function BriefingPage() {
 
   return (
     <main className="bg-(--oboon-bg-page)">
-      <PageContainer className="pt-10 pb-20">
+      <PageContainer className="pb-20">
         {/* ===== HERO (OBOON Original) ===== */}
         <div className="mb-10">
           <Card className="p-5 overflow-hidden shadow-none h-125">

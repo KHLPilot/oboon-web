@@ -186,6 +186,12 @@ a {
   --oboon-z-header: 60;
   --oboon-z-modal: 1000;
   --oboon-z-toast: 1100;
+
+  /* Header sizing */
+  --oboon-header-height: 64px;
+  --oboon-header-offset: calc(
+    var(--oboon-header-height) + env(safe-area-inset-top)
+  );
 }
 
 /* Light theme (if you use .light or data-theme="light") */

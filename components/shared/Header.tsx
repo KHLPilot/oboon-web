@@ -108,10 +108,26 @@ export default function Header() {
   };
 
   // auth, chat 페이지에서는 헤더 숨김
-  if (pathname?.startsWith("/auth") || pathname?.startsWith("/chat")) return null;
+  const isHidden =
+    pathname?.startsWith("/auth") || pathname?.startsWith("/chat");
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (isHidden) {
+      root.style.setProperty("--oboon-header-offset", "0px");
+    } else {
+      root.style.removeProperty("--oboon-header-offset");
+    }
+
+    return () => {
+      root.style.removeProperty("--oboon-header-offset");
+    };
+  }, [isHidden]);
+
+  if (isHidden) return null;
 
   // iOS safe-area 포함 헤더 총 높이(스페이서에 동일하게 사용)
-  const HEADER_HEIGHT = "calc(64px + env(safe-area-inset-top))";
+  const HEADER_HEIGHT = "var(--oboon-header-offset)";
 
   return (
     <>
@@ -202,7 +218,7 @@ export default function Header() {
                 size="sm"
                 shape="pill"
                 className="flex items-center gap-2"
-                onClick={() => router.push("/company/properties")}
+                onClick={() => router.push(user ? "/my/consultations" : "/offerings")}
               >
                 <span className="hidden sm:inline">상담 예약</span>
                 <span className="sm:hidden ob-typo-caption">상담 예약</span>
@@ -350,7 +366,7 @@ export default function Header() {
       </header>
 
       {/* fixed 헤더 높이만큼 본문이 가려지지 않도록 스페이서 */}
-      <div aria-hidden style={{ height: HEADER_HEIGHT }} />
+
     </>
   );
 }

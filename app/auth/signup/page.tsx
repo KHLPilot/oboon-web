@@ -138,7 +138,7 @@ export default function SignupPage() {
   function goStep2(token: string) {
     persistForStep2();
     router.replace(
-      `/auth/signup/profile?token=${encodeURIComponent(token)}&email=${encodeURIComponent(email)}`
+      `/auth/signup/profile?token=${encodeURIComponent(token)}&email=${encodeURIComponent(email)}`,
     );
   }
 
@@ -330,7 +330,7 @@ export default function SignupPage() {
         // 진행 안내는 modal보다 bubble이 자연스러움(필드가 없으니 generic)
         openFieldError(
           "generic",
-          "아직 인증이 완료되지 않았습니다. 메일함을 확인해주세요."
+          "아직 인증이 완료되지 않았습니다. 메일함을 확인해주세요.",
         );
         return;
       }
@@ -356,7 +356,7 @@ export default function SignupPage() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,transparent_40%,rgba(0,0,0,0.55)_100%)]" />
       </div>
 
-      <PageContainer className="relative flex min-h-dvh items-center justify-center pt-0 pb-0 overflow-hidden">
+      <PageContainer variant="full" className="relative overflow-hidden">
         <div className="w-full max-w-105 -translate-y-4 sm:translate-y-0">
           {/* Header */}
           <div className="mb-4 sm:mb-5 text-center">
@@ -394,7 +394,7 @@ export default function SignupPage() {
               <div className="space-y-3">
                 {/* Email */}
                 <div>
-                  <Label className="block mb-2">이메일 주소</Label>
+                  <Label>이메일 주소</Label>
                   <Input
                     ref={emailRef}
                     value={email}
@@ -415,7 +415,7 @@ export default function SignupPage() {
 
                 {/* Password */}
                 <div>
-                  <Label className="block mb-2">비밀번호 설정</Label>
+                  <Label>비밀번호 설정</Label>
                   <div className="relative">
                     <Input
                       ref={passwordRef}
@@ -476,7 +476,7 @@ export default function SignupPage() {
 
                 {/* Password confirm */}
                 <div>
-                  <Label className="block mb-2">비밀번호 확인</Label>
+                  <Label>비밀번호 확인</Label>
                   <div className="relative">
                     <Input
                       ref={passwordConfirmRef}
@@ -493,7 +493,7 @@ export default function SignupPage() {
                         "h-11",
                         !passwordMatch && passwordConfirm
                           ? "border-(--oboon-danger)"
-                          : ""
+                          : "",
                       )}
                       aria-invalid={
                         fieldError?.field === "passwordConfirm"
@@ -531,7 +531,7 @@ export default function SignupPage() {
                         "text-[11px] leading-4",
                         passwordMatch
                           ? "text-(--oboon-success)"
-                          : "text-(--oboon-danger)"
+                          : "text-(--oboon-danger)",
                       )}
                     >
                       {passwordMatch

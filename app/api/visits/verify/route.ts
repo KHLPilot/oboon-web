@@ -110,14 +110,18 @@ export async function POST(req: Request) {
       );
     }
 
-    // 7. 모델하우스 위치 조회
-    const { data: propertyLocation, error: locationError } = await adminSupabase
-      .from("property_locations")
+    // 7. 모델하우스 위치 조회 (property_facilities에서 MODELHOUSE 타입)
+    const { data: facilities, error: facilityError } = await adminSupabase
+      .from("property_facilities")
       .select("lat, lng")
-      .eq("properties_id", visitToken.property_id)
-      .single();
+      .eq("property_id", visitToken.property_id)
+      .eq("type", "MODELHOUSE")
+      .eq("is_active", true)
+      .limit(1);
 
-    if (locationError || !propertyLocation) {
+    const modelHouse = facilities?.[0];
+
+    if (facilityError || !modelHouse || !modelHouse.lat || !modelHouse.lng) {
       return NextResponse.json(
         {
           error: "모델하우스 위치 정보를 찾을 수 없습니다",
@@ -131,8 +135,8 @@ export async function POST(req: Request) {
     const distance = calculateDistance(
       lat,
       lng,
-      Number(propertyLocation.lat),
-      Number(propertyLocation.lng)
+      Number(modelHouse.lat),
+      Number(modelHouse.lng)
     );
 
     if (distance > ALLOWED_RADIUS_METERS) {

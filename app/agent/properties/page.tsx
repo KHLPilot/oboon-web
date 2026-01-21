@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, Loader2, CheckCircle, Clock, XCircle } from "lucide-react";
+import { Building2, Loader2, CheckCircle, Clock, XCircle, Calendar } from "lucide-react";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -298,6 +298,17 @@ export default function AgentPropertiesPage() {
                           onClick={() => handleCancel(request.id)}
                         >
                           신청 취소
+                        </Button>
+                      )}
+                      {request.status === "approved" && (
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          className="mt-2 w-full flex items-center justify-center gap-2"
+                          onClick={() => router.push(`/agent/schedule?propertyId=${request.property_id}`)}
+                        >
+                          <Calendar className="h-4 w-4" />
+                          스케줄 관리
                         </Button>
                       )}
                     </div>
