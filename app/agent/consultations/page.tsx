@@ -275,7 +275,7 @@ export default function AgentConsultationsPage() {
         </div>
 
         {/* 필터 */}
-        <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+        <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-none">
           {[
             { key: "all", label: "전체" },
             { key: "pending", label: "승인 대기" },

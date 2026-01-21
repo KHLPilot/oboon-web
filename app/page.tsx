@@ -549,16 +549,10 @@ function ResponsiveOfferingRow({ items }: { items: Offering[] }) {
                 "flex gap-3 overflow-x-auto pb-3 px-4",
                 "snap-x snap-mandatory",
                 "[-webkit-overflow-scrolling:touch]",
-                "[scrollbar-width:none] [-ms-overflow-style:none]",
+                "scrollbar-none",
                 "scroll-pl-4 scroll-pr-4",
               ].join(" ")}
             >
-              <style jsx>{`
-                div::-webkit-scrollbar {
-                  display: none;
-                }
-              `}</style>
-
               {items.map((offering) => (
                 <div key={offering.id} className="w-70 shrink-0 snap-start">
                   <OfferingCard offering={offering} />
@@ -595,12 +589,7 @@ function RegionFilterRow({
     <>
       {/* Mobile: horizontal scroll chips */}
       <div className="sm:hidden -mx-4 pl-4">
-        <div className="flex gap-2 overflow-x-auto pb-2 pr-4 [-webkit-overflow-scrolling:touch]">
-          <style jsx>{`
-            div::-webkit-scrollbar {
-              display: none;
-            }
-          `}</style>
+        <div className="flex gap-2 overflow-x-auto pb-2 pr-4 [-webkit-overflow-scrolling:touch] scrollbar-none">
 
           {OFFERING_REGION_TABS.map((region) => {
             const isActive = value === region;

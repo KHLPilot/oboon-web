@@ -54,15 +54,10 @@ function MobileChipRow({
         <div
           className={cn(
             "flex gap-2 overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch]",
-            "[scrollbar-width:none] [-ms-overflow-style:none]",
+            "scrollbar-none",
             "scroll-pl-5 scroll-pr-5"
           )}
         >
-          <style jsx>{`
-            div::-webkit-scrollbar {
-              display: none;
-            }
-          `}</style>
           {children}
           <div className="shrink-0 w-3" />
         </div>

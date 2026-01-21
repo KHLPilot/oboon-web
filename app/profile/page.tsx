@@ -1,7 +1,7 @@
 // app/profile/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type KeyboardEvent } from "react";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import {
   validateName,
@@ -15,8 +15,8 @@ import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import Input from "@/components/ui/Input";
 import Label from "@/components/ui/Label";
-import Link from "next/link";
 import { CalendarDays, ChevronRight } from "lucide-react";
+import MyConsultationsModal from "@/features/consultations/components/MyConsultationsModal.client";
 
 type Role =
   | "user"
@@ -25,6 +25,25 @@ type Role =
   | "builder"
   | "developer"
   | "admin";
+
+const interestRegions = [
+  "서울 서초구",
+  "서울 강남구",
+  "서울 송파구",
+  "서울 광진구",
+  "경기 과천",
+  "용인 수지구",
+  "경기 김포",
+  "인천 서구",
+  "경기 일산서구",
+];
+
+const preferredTypes = [
+  "아파트",
+  "오피스텔",
+  "도시형생활주택",
+  "생활형숙박시설",
+];
 
 export default function ProfilePage() {
   const supabase = createSupabaseClient();
@@ -58,11 +77,16 @@ export default function ProfilePage() {
   const [deletePassword, setDeletePassword] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [showConsultationsModal, setShowConsultationsModal] = useState(false);
 
   const closeDeleteModal = () => {
     setShowDeleteModal(false);
     setDeletePassword("");
     setDeleteConfirm("");
+  };
+
+  const openConsultationsModal = () => {
+    setShowConsultationsModal(true);
   };
 
   /* =====================
@@ -335,251 +359,289 @@ export default function ProfilePage() {
   }
 
   return (
-    <main className="bg-(--oboon-bg-page) min-h-screen">
-      <PageContainer className="pb-6 sm:pb-10">
-        <div className="w-full space-y-6 sm:space-y-8">
+    <main className="bg-(--oboon-bg-page) min-h-full">
+      <PageContainer className="pb-6">
+        <div className="w-full space-y-4">
           <section className="space-y-1">
-            <h1 className="ob-typo-h1 text-(--oboon-text-title)">
-              프로필 설정
-            </h1>
-            <p className="ob-typo-body text-(--oboon-text-muted)">
+            <h1 className="ob-typo-h1 text-(--oboon-text-title)">마이페이지</h1>
+            <p className="mt-1 ob-typo-body text-(--oboon-text-muted)">
               관심 조건을 설정하면, 나에게 맞는 분양 현장을 자동으로
               추천해드립니다.
             </p>
           </section>
 
-          {/* 내 상담 예약 바로가기 */}
-          <Link href="/my/consultations">
-            <Card className="mb-4 group flex items-center justify-between p-5 transition-colors hover:bg-(--oboon-bg-subtle) cursor-pointer">
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-(--oboon-primary)/10 shrink-0">
-                  <CalendarDays className="h-4 w-4 sm:h-5 sm:w-5 text-(--oboon-primary)" />
-                </div>
-                <div className="min-w-0">
-                  <div className="ob-typo-body font-semibold text-(--oboon-text-title)">
-                    내 상담 예약
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <div className="order-1 lg:order-1 lg:col-span-2">
+              <Card className="p-5 sm:p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="ob-typo-h3 text-(--oboon-text-title)">
+                    기본 정보
                   </div>
-                  <p className="ob-typo-caption text-(--oboon-text-muted) truncate">
-                    예약한 상담 내역을 확인하고 관리합니다
-                  </p>
-                </div>
-              </div>
-              <ChevronRight className="h-5 w-5 text-(--oboon-text-muted) shrink-0 transition-colors group-hover:text-(--oboon-text-title)" />
-            </Card>
-          </Link>
-
-          {/* 기본 정보 */}
-          <Card className="p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div className="ob-typo-h3 text-(--oboon-text-title)">
-                기본 정보
-              </div>
-              {!isEditing && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsEditing(true)}
-                >
-                  수정하기
-                </Button>
-              )}
-            </div>
-
-            <div className="space-y-4">
-              {/* 이름 */}
-              <div className="space-y-2">
-                <Label>이름 *</Label>
-                <Input
-                  value={name}
-                  disabled={!isEditing}
-                  onChange={(e) => handleNameChange(e.target.value)}
-                  placeholder="김오분 (한글/영문 2-20자)"
-                  maxLength={20}
-                  className={
-                    errors.name ? "border-(--oboon-danger-border)" : ""
-                  }
-                />
-                {errors.name && (
-                  <p className="ob-typo-caption text-(--oboon-danger) mt-1">
-                    {errors.name}
-                  </p>
-                )}
-              </div>
-
-              {/* 닉네임 */}
-              <div>
-                <Label>닉네임</Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={nickname}
-                    disabled={!isEditing}
-                    onChange={(e) => handleNicknameChange(e.target.value)}
-                    placeholder="오분이 (선택, 2-15자)"
-                    maxLength={15}
-                    className={`flex-1 ${errors.nickname ? "border-(--oboon-danger-border)" : ""}`}
-                  />
-                  {isEditing && nickname && nickname !== originalNickname && (
+                  {!isEditing && (
                     <Button
-                      variant="secondary"
+                      variant="ghost"
                       size="sm"
-                      onClick={checkNickname}
-                      disabled={nicknameChecking}
+                      className="text-(--oboon-text-muted) hover:text-(--oboon-text-title)"
+                      onClick={() => setIsEditing(true)}
                     >
-                      {nicknameChecking ? "확인중..." : "중복확인"}
+                      정보 수정
                     </Button>
                   )}
                 </div>
-                {errors.nickname && (
-                  <p className="ob-typo-caption text-(--oboon-danger) mt-1">
-                    {errors.nickname}
-                  </p>
+
+                <div className="space-y-4">
+                  {/* 이름 */}
+                  <div className="space-y-2">
+                    <Label>이름 *</Label>
+                    <Input
+                      value={name}
+                      disabled={!isEditing}
+                      onChange={(e) => handleNameChange(e.target.value)}
+                      placeholder="김오분 (한글/영문 2-20자)"
+                      maxLength={20}
+                      className={
+                        errors.name ? "border-(--oboon-danger-border)" : ""
+                      }
+                    />
+                    {errors.name && (
+                      <p className="ob-typo-caption text-(--oboon-danger) mt-1">
+                        {errors.name}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* 닉네임 */}
+                  <div>
+                    <Label>닉네임</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={nickname}
+                        disabled={!isEditing}
+                        onChange={(e) => handleNicknameChange(e.target.value)}
+                        placeholder="오분이 (선택, 2-15자)"
+                        maxLength={15}
+                        className={`flex-1 ${errors.nickname ? "border-(--oboon-danger-border)" : ""}`}
+                      />
+                      {isEditing &&
+                        nickname &&
+                        nickname !== originalNickname && (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={checkNickname}
+                            disabled={nicknameChecking}
+                          >
+                            {nicknameChecking ? "확인중..." : "중복확인"}
+                          </Button>
+                        )}
+                    </div>
+                    {errors.nickname && (
+                      <p className="ob-typo-caption text-(--oboon-danger) mt-1">
+                        {errors.nickname}
+                      </p>
+                    )}
+                    {nicknameAvailable === true &&
+                      nickname !== originalNickname && (
+                        <p className="ob-typo-caption text-(--oboon-safe) mt-1">
+                          사용 가능한 닉네임입니다.
+                        </p>
+                      )}
+                  </div>
+
+                  {/* 연락처 */}
+                  <div>
+                    <Label>연락처 *</Label>
+                    <Input
+                      value={phone}
+                      disabled={!isEditing}
+                      onChange={(e) => handlePhoneChange(e.target.value)}
+                      placeholder="01012345678"
+                      maxLength={13}
+                      className={
+                        errors.phone ? "border-(--oboon-danger-border)" : ""
+                      }
+                    />
+                    {errors.phone && (
+                      <p className="ob-typo-caption text-(--oboon-danger) mt-1">
+                        {errors.phone}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* 이메일 */}
+                  <div>
+                    <Label>이메일</Label>
+                    <Input
+                      value={email}
+                      disabled
+                      className="bg-(--oboon-bg-subtle)"
+                    />
+                  </div>
+                </div>
+
+                {isEditing && (
+                  <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                    <Button
+                      variant="primary"
+                      size="md"
+                      onClick={saveProfile}
+                      className="flex-1"
+                    >
+                      저장하기
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="md"
+                      onClick={() => {
+                        setIsEditing(false);
+                        setErrors({});
+                        setNicknameAvailable(null);
+                      }}
+                    >
+                      취소
+                    </Button>
+                  </div>
                 )}
-                {nicknameAvailable === true &&
-                  nickname !== originalNickname && (
-                    <p className="ob-typo-caption text-(--oboon-safe) mt-1">
-                      사용 가능한 닉네임입니다.
+
+                <div className="mt-6 border-t border-(--oboon-border-default) pt-4">
+                  <div className="ob-typo-subtitle text-(--oboon-text-title) mb-1">
+                    계정 유형
+                  </div>
+                  <p className="ob-typo-body text-(--oboon-text-body)">
+                    현재 계정 상태:{" "}
+                    <span className="font-semibold text-(--oboon-text-title)">
+                      {role === "user" && "일반 사용자"}
+                      {role === "agent_pending" &&
+                        "분양대행사 직원 (승인 대기)"}
+                      {role === "agent" && "분양대행사 직원"}
+                      {role === "builder" && "시공사"}
+                      {role === "developer" && "시행사"}
+                      {role === "admin" && "관리자"}
+                    </span>
+                  </p>
+
+                  {role === "user" && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="mt-3"
+                      onClick={requestAgent}
+                    >
+                      분양대행사 직원 신청
+                    </Button>
+                  )}
+
+                  {role === "agent_pending" && (
+                    <p className="ob-typo-body text-(--oboon-primary) mt-2">
+                      관리자 승인 후 사용 가능합니다.
                     </p>
                   )}
-              </div>
+                </div>
+              </Card>
+            </div>
 
-              {/* 연락처 */}
-              <div>
-                <Label>연락처 *</Label>
-                <Input
-                  value={phone}
-                  disabled={!isEditing}
-                  onChange={(e) => handlePhoneChange(e.target.value)}
-                  placeholder="01012345678"
-                  maxLength={13}
-                  className={
-                    errors.phone ? "border-(--oboon-danger-border)" : ""
+            <div className="order-2 lg:order-2 space-y-4">
+              {/* 내 상담 예약 바로가기 */}
+              <div
+                role="button"
+                tabIndex={0}
+                className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--oboon-accent)/30"
+                onClick={openConsultationsModal}
+                onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    openConsultationsModal();
                   }
-                />
-                {errors.phone && (
-                  <p className="ob-typo-caption text-(--oboon-danger) mt-1">
-                    {errors.phone}
-                  </p>
-                )}
+                }}
+              >
+                <Card className="group flex items-center justify-between p-4 sm:p-5 transition-colors hover:bg-(--oboon-bg-subtle) cursor-pointer">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-(--oboon-primary)/10 shrink-0">
+                      <CalendarDays className="h-4 w-4 sm:h-5 sm:w-5 text-(--oboon-primary)" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="ob-typo-body font-semibold text-(--oboon-text-title)">
+                        내 상담 예약
+                      </div>
+                      <p className="ob-typo-caption text-(--oboon-text-muted) truncate">
+                        예약한 상담 내역을 확인하고 관리합니다
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-(--oboon-text-muted) shrink-0 transition-colors group-hover:text-(--oboon-text-title)" />
+                </Card>
               </div>
 
-              {/* 이메일 */}
-              <div>
-                <Label>이메일</Label>
-                <Input
-                  value={email}
-                  disabled
-                  className="bg-(--oboon-bg-subtle)"
-                />
-              </div>
-            </div>
-
-            {isEditing && (
-              <div className="mt-6 flex gap-3">
-                <Button
-                  variant="primary"
-                  size="md"
-                  onClick={saveProfile}
-                  className="flex-1"
-                >
-                  저장하기
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="md"
-                  onClick={() => {
-                    setIsEditing(false);
-                    setErrors({});
-                    setNicknameAvailable(null);
-                  }}
-                >
-                  취소
-                </Button>
-              </div>
-            )}
-          </Card>
-
-          {/* 관심 지역 */}
-          <Card className="p-4 sm:p-5">
-            <div className="ob-typo-h3 text-(--oboon-text-title) mb-2">
-              관심 지역
-            </div>
-            <p className="ob-typo-caption text-(--oboon-text-muted)">
-              (지역 선택 UI 예정)
-            </p>
-          </Card>
-
-          {/* 선호 분양 유형 */}
-          <Card className="p-4 sm:p-5">
-            <div className="ob-typo-h3 text-(--oboon-text-title) mb-3 sm:mb-4">
-              선호 분양 유형
-            </div>
-            <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:gap-4">
-              {["아파트", "오피스텔", "도시형생활주택", "생활형숙박시설"].map(
-                (t) => (
-                  <label
-                    key={t}
-                    className="flex items-center gap-2 ob-typo-caption text-(--oboon-text-body)"
+              {/* 관심 지역 */}
+              <Card className="p-4 sm:p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="ob-typo-h3 text-(--oboon-text-title)">
+                    관심 지역 (추후 UI 수정 예정)
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-(--oboon-text-muted) hover:text-(--oboon-text-title)"
                   >
-                    <input
-                      type="checkbox"
-                      className="accent-(--oboon-primary) h-4 w-4"
-                    />
-                    {t}
-                  </label>
-                ),
-              )}
+                    지역 추가
+                  </Button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {interestRegions.map((region) => (
+                    <span
+                      key={region}
+                      className="rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-1 ob-typo-caption text-(--oboon-text-body)"
+                    >
+                      {region}
+                    </span>
+                  ))}
+                </div>
+              </Card>
+
+              {/* 선호 분양 유형 */}
+              <Card className="p-4 sm:p-5">
+                <div className="ob-typo-h3 text-(--oboon-text-title) mb-3">
+                  선호 분양 유형
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  {preferredTypes.map((type) => (
+                    <label
+                      key={type}
+                      className="flex items-center gap-2 ob-typo-caption text-(--oboon-text-body)"
+                    >
+                      <input
+                        type="checkbox"
+                        className="accent-(--oboon-primary) h-4 w-4"
+                      />
+                      {type}
+                    </label>
+                  ))}
+                </div>
+              </Card>
             </div>
-          </Card>
+          </div>
 
-          {/* 계정 유형 */}
-          <Card className="p-4 sm:p-5">
-            <div className="ob-typo-h3 text-(--oboon-text-title) mb-2 sm:mb-3">
-              계정 유형
-            </div>
-
-            <p className="ob-typo-body text-(--oboon-text-body) mb-3 sm:mb-4">
-              현재 계정 상태:{" "}
-              <span className="font-semibold text-(--oboon-text-title)">
-                {role === "user" && "일반 사용자"}
-                {role === "agent_pending" && "분양대행사 직원 (승인 대기)"}
-                {role === "agent" && "분양대행사 직원"}
-                {role === "builder" && "시공사"}
-                {role === "developer" && "시행사"}
-                {role === "admin" && "관리자"}
-              </span>
-            </p>
-
-            {role === "user" && (
-              <Button variant="secondary" size="sm" onClick={requestAgent}>
-                분양대행사 직원 신청
-              </Button>
-            )}
-
-            {role === "agent_pending" && (
-              <p className="ob-typo-caption text-(--oboon-primary)">
-                관리자 승인 후 사용 가능합니다.
-              </p>
-            )}
-          </Card>
-
-          {/* 계정 삭제 */}
-          <Card className="p-4 sm:p-5">
-            <div className="ob-typo-h3 text-(--oboon-danger) mb-2 sm:mb-3">
-              계정삭제
-            </div>
-
-            <p className="ob-typo-body text-(--oboon-text-muted) mb-3 sm:mb-4">
-              계정을 삭제하면 모든 개인정보가 삭제되며 복구할 수 없습니다.
-            </p>
-
-            <Button
-              variant="danger"
-              size="sm"
-              onClick={() => setShowDeleteModal(true)}
-            >
-              계정 삭제
-            </Button>
-          </Card>
+          <div className="border-t border-(--oboon-border-default) pt-4">
+            <Card className="p-4 sm:p-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="space-y-1">
+                  <div className="ob-typo-h2 text-(--oboon-danger)">
+                    계정 삭제
+                  </div>
+                  <p className="ob-typo-body text-(--oboon-text-muted)">
+                    계정을 삭제하면 모든 개인정보가 삭제되며 복구할 수 없습니다.
+                  </p>
+                </div>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={() => setShowDeleteModal(true)}
+                >
+                  계정 삭제
+                </Button>
+              </div>
+            </Card>
+          </div>
 
           {/* 계정 삭제 모달 */}
           <Modal open={showDeleteModal} onClose={closeDeleteModal} size="sm">
@@ -647,6 +709,11 @@ export default function ProfilePage() {
               </div>
             </div>
           </Modal>
+
+          <MyConsultationsModal
+            open={showConsultationsModal}
+            onClose={() => setShowConsultationsModal(false)}
+          />
         </div>
       </PageContainer>
     </main>

@@ -33,7 +33,7 @@ export default function Header() {
       { label: "지도", href: "/map" },
       { label: "브리핑", href: "/briefing" },
     ],
-    []
+    [],
   );
 
   // nickname 우선 표시
@@ -73,7 +73,7 @@ export default function Header() {
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         loadUserData(session?.user ?? null);
-      }
+      },
     );
 
     return () => listener.subscription.unsubscribe();
@@ -148,65 +148,73 @@ export default function Header() {
         }}
       >
         <div className="mx-auto flex h-16 max-w-240 lg:max-w-300 items-center justify-between px-4 sm:px-5 lg:px-8">
-          {/* Logo */}
-          <Link
-            href="/"
-            className="flex items-center gap-1 ob-typo-h2"
-            style={{ color: "var(--oboon-text-title)" }}
-          >
-            <span className="oboon-logo" aria-hidden />
-            <span>OBOON</span>
-          </Link>
+          <div className="flex items-center gap-6">
+            {/* Logo */}
+            <Link
+              href="/"
+              className="flex items-center gap-1 ob-typo-h2"
+              style={{ color: "var(--oboon-text-title)" }}
+            >
+              <span className="oboon-logo" aria-hidden />
+              <span>OBOON</span>
+            </Link>
 
-          {/* Desktop nav */}
-          <nav className="mt-1 hidden items-center gap-8 ob-typo-nav md:flex">
-            {NAV_ITEMS.map((item) => {
-              const active = pathname.startsWith(item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`border-b-2 pb-0.5 transition-colors ${
-                    active
-                      ? ""
-                      : "border-transparent hover:text-oboon-text-title"
-                  }`}
-                  style={{
-                    borderColor: active
-                      ? "var(--oboon-primary)"
-                      : "transparent",
-                    color: active
-                      ? "var(--oboon-primary)"
-                      : "var(--oboon-text-muted)",
-                  }}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
+            {/* Desktop nav */}
+            <nav className="mt-1 hidden items-center gap-8 ob-typo-nav md:flex">
+              {NAV_ITEMS.map((item) => {
+                const active = pathname.startsWith(item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`border-b-2 pb-0.5 transition-colors ${
+                      active
+                        ? ""
+                        : "border-transparent hover:text-oboon-text-title"
+                    }`}
+                    style={{
+                      borderColor: active
+                        ? "var(--oboon-primary)"
+                        : "transparent",
+                      color: active
+                        ? "var(--oboon-primary)"
+                        : "var(--oboon-text-muted)",
+                    }}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
 
           {/* Right actions */}
           <div className="flex items-center gap-2 sm:gap-3">
             {/* Role actions */}
             {userRole === "agent" && (
               <>
-                <Link
-                  href="/agent/consultations"
-                  className="ob-btn ob-btn-sm ob-btn-pill ob-btn-secondary flex items-center gap-2"
+                <Button
+                  variant="secondary"
+                  size="md"
+                  shape="pill"
+                  className="flex items-center gap-2"
+                  onClick={() => router.push("/agent/consultations")}
                 >
                   <Calendar className="w-4 h-4" />
                   <span className="hidden sm:inline">예약 관리</span>
                   <span className="sm:hidden">예약</span>
-                </Link>
-                <Link
-                  href="/agent/properties"
-                  className="ob-btn ob-btn-sm ob-btn-pill ob-btn-primary flex items-center gap-2"
+                </Button>
+                <Button
+                  variant="primary"
+                  size="md"
+                  shape="pill"
+                  className="flex items-center gap-2"
+                  onClick={() => router.push("/agent/properties")}
                 >
                   <UserPlus className="w-4 h-4" />
                   <span className="hidden sm:inline">소속 등록 신청</span>
                   <span className="sm:hidden">신청</span>
-                </Link>
+                </Button>
               </>
             )}
 
@@ -218,7 +226,9 @@ export default function Header() {
                 size="sm"
                 shape="pill"
                 className="flex items-center gap-2"
-                onClick={() => router.push(user ? "/my/consultations" : "/offerings")}
+                onClick={() =>
+                  router.push(user ? "/my/consultations" : "/offerings")
+                }
               >
                 <span className="hidden sm:inline">상담 예약</span>
                 <span className="sm:hidden ob-typo-caption">상담 예약</span>
@@ -278,7 +288,7 @@ export default function Header() {
                     </button>
                   </DropdownMenuTrigger>
 
-                  <DropdownMenuContent align="start" className="mt-2 w-40 p-1">
+                  <DropdownMenuContent align="end" className="mt-4 w-40 p-1">
                     <DropdownMenuItem onClick={() => router.push("/profile")}>
                       프로필 설정
                     </DropdownMenuItem>
@@ -366,7 +376,6 @@ export default function Header() {
       </header>
 
       {/* fixed 헤더 높이만큼 본문이 가려지지 않도록 스페이서 */}
-
     </>
   );
 }

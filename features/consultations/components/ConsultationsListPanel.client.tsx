@@ -1,0 +1,431 @@
+﻿"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  CalendarDays,
+  Clock,
+  User,
+  MapPin,
+  MessageCircle,
+  QrCode,
+  Loader2,
+  ChevronRight,
+  Trash2,
+} from "lucide-react";
+import Link from "next/link";
+
+import Card from "@/components/ui/Card";
+import Button from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
+import { createSupabaseClient } from "@/lib/supabaseClient";
+
+interface Consultation {
+  id: string;
+  scheduled_at: string;
+  status: string;
+  qr_code: string;
+  visited_at: string | null;
+  cancelled_at: string | null;
+  created_at: string;
+  customer: {
+    id: string;
+    name: string;
+    email: string;
+    phone_number: string;
+  };
+  agent: {
+    id: string;
+    name: string;
+    email: string;
+    phone_number: string;
+  };
+  property: {
+    id: number;
+    name: string;
+    image_url: string | null;
+  };
+}
+
+// 취소된 예약 삭제까지 남은 시간 계산 (3일 후 삭제)
+function getTimeUntilDeletion(cancelledAt: string): string {
+  const cancelDate = new Date(cancelledAt);
+  const deleteDate = new Date(cancelDate);
+  deleteDate.setDate(deleteDate.getDate() + 3);
+  const now = new Date();
+  const diffTime = deleteDate.getTime() - now.getTime();
+
+  if (diffTime <= 0) return "곧 자동 삭제됩니다";
+
+  const diffHours = Math.ceil(diffTime / (1000 * 60 * 60));
+
+  if (diffHours <= 24) {
+    return `약 ${diffHours}시간 후 자동 삭제`;
+  }
+
+  const diffDays = Math.ceil(diffHours / 24);
+  return `약 ${diffDays}일 후 자동 삭제`;
+}
+
+const STATUS_LABELS: Record<
+  string,
+  { label: string; variant: "default" | "status" }
+> = {
+  pending: { label: "예약 대기", variant: "default" },
+  confirmed: { label: "예약 확정", variant: "status" },
+  visited: { label: "방문 완료", variant: "status" },
+  contracted: { label: "계약 완료", variant: "status" },
+  cancelled: { label: "취소됨", variant: "default" },
+};
+
+type ConsultationsListPanelProps = {
+  embedded?: boolean;
+  onOpenQR?: (consultationId: string) => void;
+  onNavigate?: () => void;
+};
+
+export default function ConsultationsListPanel({
+  embedded = false,
+  onOpenQR,
+  onNavigate,
+}: ConsultationsListPanelProps) {
+  const router = useRouter();
+  const supabase = createSupabaseClient();
+
+  const [consultations, setConsultations] = useState<Consultation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<string>("all");
+
+  const handleNavigate = useCallback(
+    (href: string) => {
+      onNavigate?.();
+      router.push(href);
+    },
+    [onNavigate, router],
+  );
+
+  const fetchConsultations = useCallback(async () => {
+    setLoading(true);
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        handleNavigate("/auth/login");
+        return;
+      }
+
+      const url =
+        filter === "all"
+          ? "/api/consultations"
+          : `/api/consultations?status=${filter}`;
+
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (response.ok) {
+        const statusOrder: Record<string, number> = {
+          pending: 0,
+          confirmed: 1,
+          visited: 2,
+          contracted: 3,
+          cancelled: 4,
+        };
+
+        const sorted = (data.consultations || []).sort(
+          (a: Consultation, b: Consultation) => {
+            const dateA = new Date(a.scheduled_at).getTime();
+            const dateB = new Date(b.scheduled_at).getTime();
+            if (dateB !== dateA) return dateB - dateA;
+
+            return (
+              (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99)
+            );
+          },
+        );
+
+        setConsultations(sorted);
+      } else {
+        console.error("예약 목록 조회 실패:", data.error);
+      }
+    } catch (err) {
+      console.error("예약 목록 조회 오류:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [filter, supabase, handleNavigate]);
+
+  useEffect(() => {
+    fetchConsultations();
+  }, [fetchConsultations]);
+
+  async function handleCancel(consultationId: string) {
+    if (!confirm("예약을 취소하시겠습니까?")) return;
+
+    try {
+      const response = await fetch(`/api/consultations/${consultationId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "cancelled" }),
+      });
+
+      if (response.ok) {
+        setConsultations((prev) =>
+          prev.map((c) =>
+            c.id === consultationId
+              ? {
+                  ...c,
+                  status: "cancelled",
+                  cancelled_at: new Date().toISOString(),
+                }
+              : c,
+          ),
+        );
+        alert("예약이 취소되었습니다. 3일 후 자동 삭제됩니다");
+      } else {
+        const data = await response.json();
+        alert(data.error || "취소에 실패했습니다");
+      }
+    } catch (err) {
+      console.error("예약 취소 오류:", err);
+      alert("취소 중 오류가 발생했습니다");
+    }
+  }
+
+  async function handleDelete(consultationId: string) {
+    if (!confirm("해당 예약을 삭제하시겠습니까?")) return;
+
+    try {
+      const response = await fetch(`/api/consultations/${consultationId}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        setConsultations((prev) => prev.filter((c) => c.id !== consultationId));
+        alert("예약이 삭제되었습니다");
+      } else {
+        const data = await response.json();
+        alert(data.error || "삭제에 실패했습니다");
+      }
+    } catch (err) {
+      console.error("예약 삭제 오류:", err);
+      alert("삭제 중 오류가 발생했습니다");
+    }
+  }
+
+  function formatDate(dateStr: string) {
+    const date = new Date(dateStr);
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    const dayNames = ["일", "월", "화", "수", "목", "금", "토"];
+    const dayName = dayNames[date.getDay()];
+    const hours = date.getHours().toString().padStart(2, "0");
+    const minutes = date.getMinutes().toString().padStart(2, "0");
+    return `${month}월 ${day}일(${dayName}) ${hours}:${minutes}`;
+  }
+
+  const containerClassName = embedded ? "space-y-4" : "space-y-5 sm:space-y-6";
+
+  return (
+    <div className={containerClassName}>
+      <div className="-mx-4 pl-4 flex gap-2 overflow-x-auto pb-2 px-2 sm:mx-0 sm:px-0 scrollbar-none">
+        {[
+          { key: "all", label: "전체" },
+          { key: "pending", label: "대기중" },
+          { key: "confirmed", label: "확정" },
+          { key: "visited", label: "방문 완료" },
+          { key: "contracted", label: "계약 완료" },
+        ].map((f) => (
+          <Button
+            key={f.key}
+            size="sm"
+            shape="pill"
+            variant={filter === f.key ? "primary" : "secondary"}
+            onClick={() => setFilter(f.key)}
+          >
+            {f.label}
+          </Button>
+        ))}
+      </div>
+
+      {loading ? (
+        <Card className="flex items-center justify-center py-12 sm:py-16">
+          <Loader2 className="h-8 w-8 animate-spin text-(--oboon-primary)" />
+        </Card>
+      ) : consultations.length === 0 ? (
+        <Card className="p-8 sm:p-10 text-center space-y-4">
+          <CalendarDays className="mx-auto h-10 w-10 sm:h-12 sm:w-12 text-(--oboon-text-muted)" />
+          <p className="ob-typo-body text-(--oboon-text-muted)">
+            {filter === "all"
+              ? "예약 내역이 없습니다"
+              : "해당 상태의 예약이 없습니다"}
+          </p>
+          <Link href="/offerings" onClick={() => onNavigate?.()}>
+            <Button variant="primary" className="mx-auto">
+              분양 둘러보기
+            </Button>
+          </Link>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {consultations.map((consultation) => (
+            <Card key={consultation.id} className="overflow-hidden">
+              <div className="flex items-center justify-between px-3 sm:px-4 py-2 bg-(--oboon-bg-subtle) border-b border-(--oboon-border-default)">
+                <Badge
+                  variant={
+                    STATUS_LABELS[consultation.status]?.variant || "default"
+                  }
+                >
+                  {STATUS_LABELS[consultation.status]?.label ||
+                    consultation.status}
+                </Badge>
+                <span className="ob-typo-caption text-(--oboon-text-muted)">
+                  예약번호: {consultation.id.slice(0, 8)}
+                </span>
+              </div>
+
+              <div className="space-y-3 sm:space-y-4 p-3 sm:p-4">
+                <Link
+                  href={`/offerings/${consultation.property.id}`}
+                  className="group flex items-center gap-3 sm:gap-4 rounded-xl p-2 transition-colors hover:bg-(--oboon-bg-subtle)"
+                  onClick={() => onNavigate?.()}
+                >
+                  {/* 썸네일 */}
+                  <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-(--oboon-bg-subtle)">
+                    {consultation.property.image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={consultation.property.image_url}
+                        alt={consultation.property.name}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center">
+                        <MapPin className="h-5 w-5 sm:h-6 sm:w-6 text-(--oboon-text-muted)" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 텍스트 영역 */}
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <p className="ob-typo-h3 truncate text-(--oboon-text-title)">
+                      {consultation.property.name}
+                    </p>
+
+                    {/* 일정 */}
+                    <div className="flex items-center gap-2 ob-typo-body text-(--oboon-text-body)">
+                      <Clock className="h-4 w-4 text-(--oboon-text-muted)" />
+                      <span className="text-(--oboon-text-muted)">
+                        {formatDate(consultation.scheduled_at)}
+                      </span>
+                    </div>
+
+                    {/* 상담사 */}
+                    <div className="flex items-center gap-2 ob-typo-body text-(--oboon-text-muted)">
+                      <User className="h-4 w-4" />
+                      <span>상담사: {consultation.agent.name}</span>
+                    </div>
+                  </div>
+
+                  {/* Chevron */}
+                  <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 shrink-0 text-(--oboon-text-muted) transition-colors group-hover:text-(--oboon-text-title)" />
+                </Link>
+
+                {consultation.status === "pending" && (
+                  <p className="ob-typo-body text-(--oboon-warning) mt-2">
+                    상담사 확인 대기중입니다
+                  </p>
+                )}
+
+                {consultation.status === "cancelled" &&
+                  consultation.cancelled_at && (
+                    <p className="ob-typo-caption text-(--oboon-danger)">
+                      {getTimeUntilDeletion(consultation.cancelled_at)}
+                    </p>
+                  )}
+
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                  {consultation.status === "confirmed" && (
+                    <Button
+                      size="md"
+                      variant="secondary"
+                      className="w-full sm:flex-1"
+                      onClick={() => {
+                        if (onOpenQR) {
+                          onOpenQR(consultation.id);
+                          return;
+                        }
+                        handleNavigate(
+                          `/my/consultations/${consultation.id}/qr`,
+                        );
+                      }}
+                    >
+                      <QrCode className="h-5 w-5" />
+                      QR 스캔
+                    </Button>
+                  )}
+
+                  {(consultation.status === "pending" ||
+                    consultation.status === "confirmed" ||
+                    consultation.status === "visited" ||
+                    consultation.status === "contracted") && (
+                    <Button
+                      size="md"
+                      variant="secondary"
+                      className="w-full sm:flex-1 inline-flex items-center justify-center gap-2"
+                      onClick={() => handleNavigate(`/chat/${consultation.id}`)}
+                    >
+                      <MessageCircle className="h-5 w-5 shrink-0" />
+                      <span className="leading-none">채팅</span>
+                    </Button>
+                  )}
+
+                  {(consultation.status === "cancelled" ||
+                    consultation.status === "visited" ||
+                    consultation.status === "contracted") && (
+                    <Button
+                      size="md"
+                      variant="danger"
+                      className="w-full sm:flex-1"
+                      onClick={() => handleDelete(consultation.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      삭제
+                    </Button>
+                  )}
+
+                  {(consultation.status === "pending" ||
+                    consultation.status === "confirmed") && (
+                    <Button
+                      size="md"
+                      variant="danger"
+                      className="w-full sm:flex-1 sm:min-w-15 "
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleCancel(consultation.id);
+                      }}
+                    >
+                      예약 취소
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {!loading && consultations.length > 0 && (
+        <Button
+          variant="secondary"
+          className="w-full"
+          onClick={() => void fetchConsultations()}
+        >
+          더보기
+        </Button>
+      )}
+    </div>
+  );
+}

@@ -331,7 +331,7 @@ function AdminPageInner() {
   }
 
   const TableShell = ({ children }: { children: React.ReactNode }) => (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto scrollbar-none">
       <table className="w-full min-w-[720px] text-sm border-collapse">
         {children}
       </table>
