@@ -22,6 +22,7 @@ import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 
+import { showAlert } from "@/shared/alert";
 interface Consultation {
   id: string;
   scheduled_at: string;
@@ -111,7 +112,7 @@ export default function AgentConsultationsPage() {
           .single();
 
         if (profile?.role !== "agent" && profile?.role !== "admin") {
-          alert("상담사 권한이 필요합니다");
+          showAlert("상담사 권한이 필요합니다");
           router.push("/");
           return;
         }
@@ -145,8 +146,10 @@ export default function AgentConsultationsPage() {
               if (dateB !== dateA) return dateB - dateA;
 
               // 2. 같은 날짜/시간이면 상태 순서대로
-              return (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99);
-            }
+              return (
+                (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99)
+              );
+            },
           );
 
           setConsultations(sorted);
@@ -175,17 +178,17 @@ export default function AgentConsultationsPage() {
       if (response.ok) {
         setConsultations((prev) =>
           prev.map((c) =>
-            c.id === consultationId ? { ...c, status: "confirmed" } : c
-          )
+            c.id === consultationId ? { ...c, status: "confirmed" } : c,
+          ),
         );
-        alert("예약이 확정되었습니다");
+        showAlert("예약이 확정되었습니다");
       } else {
         const data = await response.json();
-        alert(data.error || "확정에 실패했습니다");
+        showAlert(data.error || "확정에 실패했습니다");
       }
     } catch (err) {
       console.error("예약 확정 오류:", err);
-      alert("확정 중 오류가 발생했습니다");
+      showAlert("확정 중 오류가 발생했습니다");
     }
   }
 
@@ -209,23 +212,28 @@ export default function AgentConsultationsPage() {
                   status: "cancelled",
                   cancelled_at: new Date().toISOString(),
                 }
-              : c
-          )
+              : c,
+          ),
         );
-        alert("예약이 취소되었습니다. 3일 후 자동으로 삭제됩니다.");
+        showAlert("예약이 취소되었습니다. 3일 후 자동으로 삭제됩니다.");
       } else {
         const data = await response.json();
-        alert(data.error || "취소에 실패했습니다");
+        showAlert(data.error || "취소에 실패했습니다");
       }
     } catch (err) {
       console.error("예약 취소 오류:", err);
-      alert("취소 중 오류가 발생했습니다");
+      showAlert("취소 중 오류가 발생했습니다");
     }
   }
 
   // 예약 삭제
   async function handleDelete(consultationId: string) {
-    if (!confirm("이 예약을 완전히 삭제하시겠습니까?\n삭제된 예약은 복구할 수 없습니다.")) return;
+    if (
+      !confirm(
+        "이 예약을 완전히 삭제하시겠습니까?\n삭제된 예약은 복구할 수 없습니다.",
+      )
+    )
+      return;
 
     try {
       const response = await fetch(`/api/consultations/${consultationId}`, {
@@ -234,18 +242,18 @@ export default function AgentConsultationsPage() {
 
       if (response.ok) {
         setConsultations((prev) => prev.filter((c) => c.id !== consultationId));
-        alert("예약이 삭제되었습니다.");
+        showAlert("예약이 삭제되었습니다.");
       } else {
         const data = await response.json();
-        alert(data.error || "삭제에 실패했습니다");
+        showAlert(data.error || "삭제에 실패했습니다");
       }
     } catch (err) {
       console.error("예약 삭제 오류:", err);
-      alert("삭제 중 오류가 발생했습니다");
+      showAlert("삭제 중 오류가 발생했습니다");
     }
   }
 
-  // 날짜 포맷
+  // ?좎쭨 ?щ㎎
   function formatDate(dateStr: string) {
     const date = new Date(dateStr);
     const month = date.getMonth() + 1;
@@ -331,11 +339,12 @@ export default function AgentConsultationsPage() {
                     </span>
                   </div>
                   {/* 취소된 예약: 삭제 예정 안내 */}
-                  {consultation.status === "cancelled" && consultation.cancelled_at && (
-                    <p className="text-xs text-red-500 mt-1">
-                      {getTimeUntilDeletion(consultation.cancelled_at)}
-                    </p>
-                  )}
+                  {consultation.status === "cancelled" &&
+                    consultation.cancelled_at && (
+                      <p className="text-xs text-red-500 mt-1">
+                        {getTimeUntilDeletion(consultation.cancelled_at)}
+                      </p>
+                    )}
                 </div>
 
                 <div className="p-4">

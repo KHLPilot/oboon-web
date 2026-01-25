@@ -12,6 +12,8 @@ import Label from "@/components/ui/Label";
 import PageContainer from "@/components/shared/PageContainer";
 
 import { createSupabaseClient } from "@/lib/supabaseClient";
+import { validateRequiredOrShowModal } from "@/shared/validationMessage";
+import { showAlert } from "@/shared/alert";
 
 import PropertyStatusSelect from "@/app/company/properties/PropertyStatusSelect";
 import {
@@ -34,11 +36,10 @@ function cn(...classes: Array<string | undefined | false | null>) {
   return classes.filter(Boolean).join(" ");
 }
 
-// textarea: 디자인시스템/토큰 기반으로 통일
 const TEXTAREA_BASE = cn(
   "w-full rounded-xl border border-(--oboon-border-default)",
   "bg-(--oboon-bg-surface) px-4 py-3",
-  "text-sm text-(--oboon-text-title) placeholder:text-(--oboon-text-muted)",
+  "ob-typo-body text-(--oboon-text-title) placeholder:text-(--oboon-text-muted)",
   "focus:outline-none focus:ring-2 focus:ring-(--oboon-primary)/25",
 );
 
@@ -88,7 +89,7 @@ export default function PropertyCreatePage() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        alert("로그인이 필요합니다.");
+        showAlert("로그인이 필요합니다.");
         router.replace("/");
         return;
       }
@@ -103,10 +104,7 @@ export default function PropertyCreatePage() {
     if (loading) return;
     setError(null);
 
-    if (!form.name.trim()) {
-      setError("현장명은 필수 입력 항목입니다.");
-      return;
-    }
+    if (!validateRequiredOrShowModal(form.name, "현장명")) return;
 
     if (!userId) {
       setError("사용자 정보를 확인할 수 없습니다. 다시 로그인해주세요.");
@@ -192,7 +190,7 @@ export default function PropertyCreatePage() {
   return (
     <main className="bg-(--oboon-bg-page)">
       <PageContainer>
-        <div className="mx-auto w-full max-w-3xl space-y-6">
+        <div className="w-full space-y-6">
           {/* Header */}
           <div className="flex items-center justify-between">
             <div className="space-y-1">
@@ -204,8 +202,6 @@ export default function PropertyCreatePage() {
                 있습니다.
               </p>
             </div>
-
-            <Badge variant="status">기본 정보</Badge>
           </div>
 
           {/* Form */}
@@ -349,7 +345,7 @@ export default function PropertyCreatePage() {
 
             {/* Error */}
             {error && (
-              <div className="rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-500">
+              <div className="rounded-xl border border-(--oboon-danger-border) bg-(--oboon-danger-bg) px-4 py-3 ob-typo-body text-(--oboon-danger)">
                 {error}
               </div>
             )}

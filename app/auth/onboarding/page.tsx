@@ -11,6 +11,7 @@ import {
   validateNickname,
   validatePhone,
 } from "@/lib/validators/profileValidation";
+import { validateRequiredOrShowModal } from "@/shared/validationMessage";
 
 import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
@@ -160,9 +161,8 @@ export default function OnboardingPage() {
   const checkNickname = async () => {
     clearFieldError();
 
-    if (!nickname || nickname.trim() === "") {
+    if (!validateRequiredOrShowModal(nickname, "닉네임")) {
       setNicknameAvailable(null);
-      openFieldError("nickname", "닉네임을 입력해주세요.");
       return;
     }
 

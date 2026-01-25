@@ -5,6 +5,7 @@ import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
 
 import { createSupabaseServer } from "@/lib/supabaseServer";
+import { validateRequired } from "@/shared/validationMessage";
 import PostEditorClient, { type EditorBootstrap } from "./PostEditor.client";
 
 type BoardRow = { id: string; key: string; name: string };
@@ -115,7 +116,10 @@ export default async function BriefingPostNewPage() {
 
       if (!boardId || !categoryId)
         return { ok: false, message: "보드/카테고리를 선택해주세요." };
-      if (!title) return { ok: false, message: "제목을 입력해주세요." };
+      const titleRequiredError = validateRequired(title, "제목");
+      if (titleRequiredError) {
+        return { ok: false, message: titleRequiredError };
+      }
 
       // 카테고리 조작 방지 (보드 소속/활성 확인)
       const { data: cat, error: catErr } = await supabase

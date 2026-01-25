@@ -18,6 +18,7 @@ import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { detectInAppBrowser, InAppBrowserInfo } from "@/lib/inAppBrowser";
+import { showAlert } from "@/shared/alert";
 
 type PageStatus =
   | "idle"
@@ -80,7 +81,7 @@ export default function VisitScanPage() {
     const pollInterval = setInterval(async () => {
       try {
         const response = await fetch(
-          `/api/visits/request-manual?requestId=${manualRequestId}`
+          `/api/visits/request-manual?requestId=${manualRequestId}`,
         );
         const data = await response.json();
 
@@ -164,13 +165,15 @@ export default function VisitScanPage() {
         switch (err.code) {
           case 1:
             setErrorInfo({
-              message: "위치 권한이 거부되었습니다. 브라우저 설정에서 위치 권한을 허용해주세요.",
+              message:
+                "위치 권한이 거부되었습니다. 브라우저 설정에서 위치 권한을 허용해주세요.",
               code: "PERMISSION_DENIED",
             });
             break;
           case 2:
             setErrorInfo({
-              message: "위치 정보를 가져올 수 없습니다. GPS 신호가 약하거나 실내에 있을 수 있습니다.",
+              message:
+                "위치 정보를 가져올 수 없습니다. GPS 신호가 약하거나 실내에 있을 수 있습니다.",
               code: "POSITION_UNAVAILABLE",
             });
             break;
@@ -181,7 +184,9 @@ export default function VisitScanPage() {
             });
             break;
           default:
-            setErrorInfo({ message: err.message || "위치를 가져오는 중 오류가 발생했습니다" });
+            setErrorInfo({
+              message: err.message || "위치를 가져오는 중 오류가 발생했습니다",
+            });
         }
       } else {
         setErrorInfo({ message: err.message || "인증 중 오류가 발생했습니다" });
@@ -245,18 +250,26 @@ export default function VisitScanPage() {
             setErrorInfo({ message: "유효하지 않은 QR 코드입니다" });
           }
         },
-        () => {}
+        () => {},
       );
     } catch (err: any) {
       console.error("카메라 오류:", err);
       setStatus("error");
 
       if (err.name === "NotAllowedError") {
-        setErrorInfo({ message: "카메라 권한이 거부되었습니다.", code: "CAMERA_DENIED" });
+        setErrorInfo({
+          message: "카메라 권한이 거부되었습니다.",
+          code: "CAMERA_DENIED",
+        });
       } else if (err.name === "NotFoundError") {
-        setErrorInfo({ message: "카메라를 찾을 수 없습니다.", code: "CAMERA_NOT_FOUND" });
+        setErrorInfo({
+          message: "카메라를 찾을 수 없습니다.",
+          code: "CAMERA_NOT_FOUND",
+        });
       } else {
-        setErrorInfo({ message: err.message || "카메라를 시작할 수 없습니다." });
+        setErrorInfo({
+          message: err.message || "카메라를 시작할 수 없습니다.",
+        });
       }
     }
   }
@@ -302,7 +315,9 @@ export default function VisitScanPage() {
     const currentUrl = window.location.href;
     if (inAppInfo?.isIOS) {
       navigator.clipboard?.writeText(currentUrl);
-      alert("주소가 복사되었습니다. Safari를 열고 주소창에 붙여넣기 해주세요.");
+      showAlert(
+        "주소가 복사되었습니다. Safari를 열고 주소창에 붙여넣기 해주세요.",
+      );
     } else if (inAppInfo?.isAndroid) {
       const intentUrl = `intent://${currentUrl.replace(/^https?:\/\//, "")}#Intent;scheme=https;package=com.android.chrome;end`;
       window.location.href = intentUrl;
@@ -311,8 +326,16 @@ export default function VisitScanPage() {
 
   // 수동 확인 요청 가능 여부
   function canRequestManual() {
-    const allowedCodes = ["OUT_OF_RANGE", "ACCURACY_TOO_LOW", "PERMISSION_DENIED", "POSITION_UNAVAILABLE", "TIMEOUT"];
-    return scannedToken && errorInfo?.code && allowedCodes.includes(errorInfo.code);
+    const allowedCodes = [
+      "OUT_OF_RANGE",
+      "ACCURACY_TOO_LOW",
+      "PERMISSION_DENIED",
+      "POSITION_UNAVAILABLE",
+      "TIMEOUT",
+    ];
+    return (
+      scannedToken && errorInfo?.code && allowedCodes.includes(errorInfo.code)
+    );
   }
 
   // 에러 안내 메시지
@@ -340,19 +363,29 @@ export default function VisitScanPage() {
             <div className="w-16 h-16 mx-auto bg-orange-100 rounded-full flex items-center justify-center mb-4">
               <AlertCircle className="h-8 w-8 text-orange-600" />
             </div>
-            <h1 className="text-xl font-bold text-(--oboon-text-title) mb-2">외부 브라우저 필요</h1>
+            <h1 className="text-xl font-bold text-(--oboon-text-title) mb-2">
+              외부 브라우저 필요
+            </h1>
             <p className="text-sm text-(--oboon-text-muted) mb-4">
-              {inAppInfo.browser || "인앱 브라우저"}에서는 카메라 사용이 제한됩니다.
+              {inAppInfo.browser || "인앱 브라우저"}에서는 카메라 사용이
+              제한됩니다.
               <br />
               {inAppInfo.isIOS ? "Safari" : "Chrome"}에서 열어주세요.
             </p>
-            <Button variant="primary" size="lg" className="w-full mb-3" onClick={handleOpenExternal}>
+            <Button
+              variant="primary"
+              size="lg"
+              className="w-full mb-3"
+              onClick={handleOpenExternal}
+            >
               <ExternalLink className="h-5 w-5" />
               {inAppInfo.isIOS ? "Safari" : "Chrome"}에서 열기
             </Button>
 
             <div className="mt-6 pt-6 border-t border-(--oboon-border-default)">
-              <p className="text-sm text-(--oboon-text-muted) mb-3">또는 토큰을 직접 입력하세요</p>
+              <p className="text-sm text-(--oboon-text-muted) mb-3">
+                또는 토큰을 직접 입력하세요
+              </p>
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -381,14 +414,17 @@ export default function VisitScanPage() {
             <div className="w-20 h-20 mx-auto bg-green-100 rounded-full flex items-center justify-center mb-4">
               <CheckCircle2 className="h-10 w-10 text-green-600" />
             </div>
-            <h1 className="text-2xl font-bold text-(--oboon-text-title) mb-2">방문 인증 완료</h1>
+            <h1 className="text-2xl font-bold text-(--oboon-text-title) mb-2">
+              방문 인증 완료
+            </h1>
             <p className="text-(--oboon-text-muted) mb-6">
-              {status === "manual_approved" ? "상담사가 방문을 확인했습니다" : "GPS 인증이 완료되었습니다"}
+              {status === "manual_approved"
+                ? "상담사가 방문을 확인했습니다"
+                : "GPS 인증이 완료되었습니다"}
             </p>
             <Link href="/my/consultations">
               <Button variant="primary">
-                <ArrowLeft className="h-4 w-4" />
-                내 상담 예약으로
+                <ArrowLeft className="h-4 w-4" />내 상담 예약으로
               </Button>
             </Link>
           </Card>
@@ -406,8 +442,12 @@ export default function VisitScanPage() {
             <div className="w-20 h-20 mx-auto bg-orange-100 rounded-full flex items-center justify-center mb-4">
               <Loader2 className="h-10 w-10 text-orange-600 animate-spin" />
             </div>
-            <h1 className="text-2xl font-bold text-(--oboon-text-title) mb-2">상담사 확인 대기 중</h1>
-            <p className="text-(--oboon-text-muted) mb-4">상담사가 방문을 확인하면 자동으로 완료됩니다</p>
+            <h1 className="text-2xl font-bold text-(--oboon-text-title) mb-2">
+              상담사 확인 대기 중
+            </h1>
+            <p className="text-(--oboon-text-muted) mb-4">
+              상담사가 방문을 확인하면 자동으로 완료됩니다
+            </p>
             <div className="flex items-center justify-center gap-2 text-sm text-(--oboon-text-muted)">
               <Loader2 className="h-4 w-4 animate-spin" />
               확인 중...
@@ -427,8 +467,12 @@ export default function VisitScanPage() {
             <div className="w-20 h-20 mx-auto bg-red-100 rounded-full flex items-center justify-center mb-4">
               <X className="h-10 w-10 text-red-600" />
             </div>
-            <h1 className="text-2xl font-bold text-(--oboon-text-title) mb-2">요청이 거절되었습니다</h1>
-            <p className="text-(--oboon-text-muted) mb-6">상담사에게 문의해주세요</p>
+            <h1 className="text-2xl font-bold text-(--oboon-text-title) mb-2">
+              요청이 거절되었습니다
+            </h1>
+            <p className="text-(--oboon-text-muted) mb-6">
+              상담사에게 문의해주세요
+            </p>
             <Button variant="secondary" onClick={handleReset}>
               <ArrowLeft className="h-4 w-4" />
               처음으로
@@ -448,8 +492,12 @@ export default function VisitScanPage() {
             <div className="w-16 h-16 mx-auto bg-(--oboon-bg-subtle) rounded-full flex items-center justify-center mb-4">
               <Camera className="h-8 w-8 text-(--oboon-primary)" />
             </div>
-            <h1 className="text-xl font-bold text-(--oboon-text-title)">방문 인증</h1>
-            <p className="text-sm text-(--oboon-text-muted) mt-1">상담사의 QR 코드를 스캔하여 방문 인증하세요</p>
+            <h1 className="text-xl font-bold text-(--oboon-text-title)">
+              방문 인증
+            </h1>
+            <p className="text-sm text-(--oboon-text-muted) mt-1">
+              상담사의 QR 코드를 스캔하여 방문 인증하세요
+            </p>
           </div>
 
           {/* QR 스캐너 */}
@@ -474,12 +522,18 @@ export default function VisitScanPage() {
               <div className="flex items-start gap-3">
                 <AlertCircle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <p className="text-sm text-red-700 font-medium">{errorInfo.message}</p>
+                  <p className="text-sm text-red-700 font-medium">
+                    {errorInfo.message}
+                  </p>
                   {errorInfo.distance && (
-                    <p className="text-xs text-red-600 mt-1">현재 거리: {errorInfo.distance}m (허용: 150m)</p>
+                    <p className="text-xs text-red-600 mt-1">
+                      현재 거리: {errorInfo.distance}m (허용: 150m)
+                    </p>
                   )}
                   {getErrorGuidance(errorInfo.code) && (
-                    <p className="text-xs text-red-600 mt-2">{getErrorGuidance(errorInfo.code)}</p>
+                    <p className="text-xs text-red-600 mt-2">
+                      {getErrorGuidance(errorInfo.code)}
+                    </p>
                   )}
                 </div>
               </div>
@@ -487,30 +541,51 @@ export default function VisitScanPage() {
           )}
 
           {/* 버튼 영역 */}
-          {(status === "idle" || status === "error") && !status.includes("manual") && (
-            <>
-              {status === "error" && scannedToken ? (
-                <div className="space-y-2">
-                  <Button variant="primary" size="lg" className="w-full" onClick={handleRetry}>
-                    <Navigation className="h-5 w-5" />
-                    다시 인증하기
-                  </Button>
-                  <Button variant="secondary" size="lg" className="w-full" onClick={handleReset}>
+          {(status === "idle" || status === "error") &&
+            !status.includes("manual") && (
+              <>
+                {status === "error" && scannedToken ? (
+                  <div className="space-y-2">
+                    <Button
+                      variant="primary"
+                      size="lg"
+                      className="w-full"
+                      onClick={handleRetry}
+                    >
+                      <Navigation className="h-5 w-5" />
+                      다시 인증하기
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="lg"
+                      className="w-full"
+                      onClick={handleReset}
+                    >
+                      <Camera className="h-5 w-5" />
+                      QR 다시 스캔
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    variant="primary"
+                    size="lg"
+                    className="w-full"
+                    onClick={startScanning}
+                  >
                     <Camera className="h-5 w-5" />
-                    QR 다시 스캔
+                    QR 스캔 시작
                   </Button>
-                </div>
-              ) : (
-                <Button variant="primary" size="lg" className="w-full" onClick={startScanning}>
-                  <Camera className="h-5 w-5" />
-                  QR 스캔 시작
-                </Button>
-              )}
-            </>
-          )}
+                )}
+              </>
+            )}
 
           {status === "scanning" && (
-            <Button variant="secondary" size="lg" className="w-full" onClick={handleStopScanning}>
+            <Button
+              variant="secondary"
+              size="lg"
+              className="w-full"
+              onClick={handleStopScanning}
+            >
               <X className="h-5 w-5" />
               스캔 중지
             </Button>
@@ -519,7 +594,9 @@ export default function VisitScanPage() {
           {/* 수동 확인 요청 */}
           {status === "error" && canRequestManual() && (
             <div className="mt-6 pt-6 border-t border-(--oboon-border-default)">
-              <p className="text-sm text-(--oboon-text-muted) text-center mb-4">GPS 인증이 어려운 경우</p>
+              <p className="text-sm text-(--oboon-text-muted) text-center mb-4">
+                GPS 인증이 어려운 경우
+              </p>
               {showReasonInput ? (
                 <div className="space-y-3">
                   <textarea
@@ -530,7 +607,12 @@ export default function VisitScanPage() {
                     onChange={(e) => setManualReason(e.target.value)}
                   />
                   <div className="flex gap-2">
-                    <Button variant="secondary" size="sm" className="flex-1" onClick={() => setShowReasonInput(false)}>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => setShowReasonInput(false)}
+                    >
                       취소
                     </Button>
                     <Button
@@ -545,7 +627,11 @@ export default function VisitScanPage() {
                   </div>
                 </div>
               ) : (
-                <Button variant="secondary" className="w-full" onClick={() => setShowReasonInput(true)}>
+                <Button
+                  variant="secondary"
+                  className="w-full"
+                  onClick={() => setShowReasonInput(true)}
+                >
                   <User className="h-4 w-4" />
                   상담사 확인 요청
                 </Button>
@@ -556,7 +642,9 @@ export default function VisitScanPage() {
           {/* 수동 토큰 입력 */}
           {(status === "idle" || (status === "error" && !scannedToken)) && (
             <div className="mt-6 pt-6 border-t border-(--oboon-border-default)">
-              <p className="text-sm text-(--oboon-text-muted) text-center mb-3">QR 스캔이 안 되나요?</p>
+              <p className="text-sm text-(--oboon-text-muted) text-center mb-3">
+                QR 스캔이 안 되나요?
+              </p>
               <div className="flex gap-2">
                 <input
                   type="text"

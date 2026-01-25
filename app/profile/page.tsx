@@ -1,22 +1,26 @@
 // app/profile/page.tsx
 "use client";
 
-import { useEffect, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { createSupabaseClient } from "@/lib/supabaseClient";
+import { syncAvatarFromSocialIfEmpty } from "@/lib/auth/syncAvatarFromSocialIfEmpty";
 import {
   validateName,
   validateNickname,
   validatePhone,
   sanitizeInput,
 } from "@/lib/validators/profileValidation";
+import { validateRequiredOrShowModal } from "@/shared/validationMessage";
 import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import Input from "@/components/ui/Input";
 import Label from "@/components/ui/Label";
+import { useToast } from "@/components/ui/Toast";
 import { CalendarDays, ChevronRight } from "lucide-react";
 import MyConsultationsModal from "@/features/consultations/components/MyConsultationsModal.client";
+import { showAlert } from "@/shared/alert";
 
 type Role =
   | "user"
@@ -47,6 +51,7 @@ const preferredTypes = [
 
 export default function ProfilePage() {
   const supabase = createSupabaseClient();
+  const toast = useToast();
 
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
@@ -57,6 +62,9 @@ export default function ProfilePage() {
   const [nickname, setNickname] = useState("");
   const [phone, setPhone] = useState("");
   const [role, setRole] = useState<Role>("user");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // ✅ 검증 에러
   const [errors, setErrors] = useState<{
@@ -104,7 +112,7 @@ export default function ProfilePage() {
 
       const { data } = await supabase
         .from("profiles")
-        .select("name, nickname, phone_number, role")
+        .select("name, nickname, phone_number, role, avatar_url")
         .eq("id", user.id)
         .single();
 
@@ -114,6 +122,22 @@ export default function ProfilePage() {
         setOriginalNickname(data.nickname ?? ""); // 원래 닉네임 저장
         setPhone(data.phone_number ?? "");
         setRole(data.role as Role);
+        setAvatarUrl(data.avatar_url ?? null);
+        syncAvatarFromSocialIfEmpty(supabase)
+          .then(async () => {
+            if ((data.avatar_url ?? "").trim()) return;
+            const { data: refreshed } = await supabase
+              .from("profiles")
+              .select("avatar_url")
+              .eq("id", user.id)
+              .single();
+            if (refreshed?.avatar_url) {
+              setAvatarUrl(refreshed.avatar_url);
+            }
+          })
+          .catch((error) => {
+            console.error("social avatar sync error:", error);
+          });
       }
 
       setLoading(false);
@@ -201,6 +225,90 @@ export default function ProfilePage() {
   };
 
   /* =====================
+     아바타 업로드
+     ===================== */
+  const handleAvatarSelect = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0] ?? null;
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("이미지 파일만 업로드할 수 있습니다.", "업로드 실패");
+      event.target.value = "";
+      return;
+    }
+
+    const maxBytes = 5 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      toast.error("5MB 이하의 이미지만 업로드할 수 있습니다.", "업로드 실패");
+      event.target.value = "";
+      return;
+    }
+
+    if (!userId) {
+      toast.error("로그인 후 이용해주세요.", "업로드 실패");
+      event.target.value = "";
+      return;
+    }
+
+    setAvatarUploading(true);
+
+    const extFromName = file.name.split(".").pop()?.toLowerCase();
+    const extFromType = file.type.includes("/")
+      ? file.type.split("/")[1]?.toLowerCase()
+      : undefined;
+    const ext = extFromName || extFromType || "png";
+    const filePath = `${userId}/avatar-${Date.now()}.${ext}`;
+
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, file, {
+          upsert: true,
+          contentType: file.type,
+        });
+
+      if (uploadError) {
+        toast.error(uploadError.message, "업로드 실패");
+        return;
+      }
+
+      const { data: publicData } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(filePath);
+      const publicUrl = publicData?.publicUrl;
+
+      if (!publicUrl) {
+        toast.error(
+          "avatars 버킷이 public이 아니면 이미지가 표시되지 않을 수 있습니다.",
+          "업로드 실패",
+        );
+        return;
+      }
+
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ avatar_url: publicUrl })
+        .eq("id", userId);
+
+      if (updateError) {
+        toast.error(updateError.message, "업데이트 실패");
+        return;
+      }
+
+      setAvatarUrl(publicUrl);
+      toast.success("프로필 이미지가 업데이트되었습니다.", "완료");
+    } catch (error) {
+      console.error("avatar upload error:", error);
+      toast.error("업로드 중 오류가 발생했습니다.", "업로드 실패");
+    } finally {
+      setAvatarUploading(false);
+      event.target.value = "";
+    }
+  };
+
+  /* =====================
      기본 정보 저장
      ===================== */
   const saveProfile = async () => {
@@ -220,7 +328,7 @@ export default function ProfilePage() {
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
-      alert("입력 정보를 확인해주세요.");
+      showAlert("입력 정보를 확인해주세요.");
       return;
     }
 
@@ -230,7 +338,7 @@ export default function ProfilePage() {
       nickname !== originalNickname &&
       nicknameAvailable === null
     ) {
-      alert("닉네임 중복 확인을 먼저 해주세요.");
+      showAlert("닉네임 중복 확인을 먼저 해주세요.");
       return;
     }
 
@@ -239,7 +347,7 @@ export default function ProfilePage() {
       nickname !== originalNickname &&
       nicknameAvailable === false
     ) {
-      alert("이미 사용 중인 닉네임입니다.");
+      showAlert("이미 사용 중인 닉네임입니다.");
       return;
     }
 
@@ -254,11 +362,11 @@ export default function ProfilePage() {
       .eq("id", userId);
 
     if (error) {
-      alert("저장 중 오류가 발생했습니다: " + error.message);
+      showAlert("저장 중 오류가 발생했습니다: " + error.message);
       return;
     }
 
-    alert("기본 정보가 저장되었습니다.");
+    showAlert("기본 정보가 저장되었습니다.");
     setOriginalNickname(nickname); // 저장 후 원래 닉네임 업데이트
     window.location.reload();
   };
@@ -268,14 +376,11 @@ export default function ProfilePage() {
      ===================== */
   const deleteAccount = async () => {
     // 1. 비밀번호 확인
-    if (!deletePassword) {
-      alert("비밀번호를 입력해주세요.");
-      return;
-    }
+    if (!validateRequiredOrShowModal(deletePassword, "비밀번호")) return;
 
     // 2. 확인 문구 체크
     if (deleteConfirm !== "계정삭제") {
-      alert("'계정삭제'를 정확히 입력해주세요.");
+      showAlert("'계정삭제'를 정확히 입력해주세요.");
       return;
     }
 
@@ -299,7 +404,7 @@ export default function ProfilePage() {
       });
 
       if (pwError) {
-        alert("비밀번호가 올바르지 않습니다.");
+        showAlert("비밀번호가 올바르지 않습니다.");
         setDeleting(false);
         return;
       }
@@ -322,11 +427,11 @@ export default function ProfilePage() {
 
       // 6. 로그아웃 및 로그인 페이지로 이동
       await supabase.auth.signOut();
-      alert("계정이 삭제되었습니다. 그동안 이용해주셔서 감사합니다.");
+      showAlert("계정이 삭제되었습니다. 그동안 이용해주셔서 감사합니다.");
       window.location.href = "/";
     } catch (err: any) {
       console.error("계정 삭제 오류:", err);
-      alert("계정 삭제 중 오류가 발생했습니다: " + err.message);
+      showAlert("계정 삭제 중 오류가 발생했습니다: " + err.message);
     } finally {
       setDeleting(false);
     }
@@ -363,7 +468,9 @@ export default function ProfilePage() {
       <PageContainer className="pb-6">
         <div className="w-full space-y-4">
           <section className="space-y-1">
-            <h1 className="ob-typo-h1 text-(--oboon-text-title)">마이페이지</h1>
+            <div className="ob-typo-h1 text-(--oboon-text-title)">
+              마이페이지
+            </div>
             <p className="mt-1 ob-typo-body text-(--oboon-text-muted)">
               관심 조건을 설정하면, 나에게 맞는 분양 현장을 자동으로
               추천해드립니다.
@@ -390,6 +497,59 @@ export default function ProfilePage() {
                 </div>
 
                 <div className="space-y-4">
+                  {/* 프로필 이미지 */}
+                  <div className="space-y-2">
+                    <Label>프로필 이미지</Label>
+                    <div className="flex items-center gap-4">
+                      <div className="h-16 w-16 rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle) overflow-hidden flex items-center justify-center">
+                        {avatarUrl ? (
+                          <img
+                            src={avatarUrl}
+                            alt="프로필 이미지"
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <span className="ob-typo-body text-(--oboon-text-muted)">
+                            {(nickname || name || email || "U")
+                              .slice(0, 1)
+                              .toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleAvatarSelect}
+                        />
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={avatarUploading}
+                          loading={avatarUploading}
+                        >
+                          이미지 업로드
+                        </Button>
+                        {avatarUrl && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={avatarUploading}
+                          >
+                            변경
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    <p className="ob-typo-caption text-(--oboon-text-muted)">
+                      5MB 이하의 이미지 파일만 업로드할 수 있습니다.
+                    </p>
+                  </div>
+
                   {/* 이름 */}
                   <div className="space-y-2">
                     <Label>이름 *</Label>

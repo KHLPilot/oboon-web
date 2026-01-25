@@ -1,5 +1,7 @@
 // app/company/properties/[id]/units/validation.ts
 
+import { validateRequired } from "@/shared/validationMessage";
+
 export type UnitDraftLike = {
   type_name?: string | null;
   exclusive_area?: number | null;
@@ -13,18 +15,22 @@ export type UnitDraftLike = {
 export function validateUnitDraft(draft: UnitDraftLike) {
   const fieldErrors: Record<string, string> = {};
 
-  // 필수: type_name
-  if (!draft.type_name || !draft.type_name.trim()) {
-    fieldErrors.type_name = "평면 타입 이름을 입력해 주세요.";
+  // ?꾩닔: type_name
+  const typeNameRequiredError = validateRequired(
+    draft.type_name ?? "",
+    "평면 타입명"
+  );
+  if (typeNameRequiredError) {
+    fieldErrors.type_name = typeNameRequiredError;
   }
 
-  // (선택) 가격 min/max 관계 검증
+  // (?좏깮) 媛寃?min/max 愿怨?寃利?
   if (
     draft.price_min != null &&
     draft.price_max != null &&
     draft.price_min > draft.price_max
   ) {
-    fieldErrors.price_max = "가격 상한은 가격 하한보다 크거나 같아야 해요.";
+    fieldErrors.price_max = "媛寃??곹븳? 媛寃??섑븳蹂대떎 ?ш굅??媛숈븘???댁슂.";
   }
 
   return {

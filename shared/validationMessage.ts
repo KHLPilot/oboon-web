@@ -1,6 +1,47 @@
+import { showAlert } from "@/shared/alert";
 import { UXCopy } from "@/shared/uxCopy";
 
 type FieldName = "email" | "password" | "generic";
+
+function topicParticle(label: string) {
+  const lastChar = label.charCodeAt(label.length - 1);
+  const isHangul = lastChar >= 0xac00 && lastChar <= 0xd7a3;
+  if (!isHangul) return "";
+
+  const hasJong = (lastChar - 0xac00) % 28 !== 0;
+  return hasJong ? "은" : "는";
+}
+
+export function requiredMessage(label?: string) {
+  if (label && label.trim() !== "") {
+    const trimmed = label.trim();
+    const particle = topicParticle(trimmed);
+    return particle
+      ? `${trimmed}${particle} ${UXCopy.validation.required}`
+      : `${trimmed} ${UXCopy.validation.required}`;
+  }
+  return UXCopy.validation.required;
+}
+
+export function validateRequired(value: string, label?: string): string | null {
+  if (!value || value.trim() === "") {
+    return requiredMessage(label);
+  }
+  return null;
+}
+
+export function validateRequiredOrShowModal(
+  value: string,
+  label?: string,
+  title: string = "입력 오류"
+): boolean {
+  const message = validateRequired(value, label);
+  if (message) {
+    showAlert(message, title);
+    return false;
+  }
+  return true;
+}
 
 export function validationMessageFor(
   el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,

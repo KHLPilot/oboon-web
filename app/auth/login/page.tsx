@@ -17,6 +17,7 @@ import FieldErrorBubble, {
 } from "@/components/ui/FieldErrorBubble";
 import { validationMessageFor } from "@/shared/validationMessage";
 import { AlertCircle, ExternalLink } from "lucide-react";
+import { showAlert } from "@/shared/alert";
 
 type LoginField = "email" | "password" | "generic";
 
@@ -178,7 +179,9 @@ export default function LoginPage() {
 
     if (inAppInfo?.isIOS) {
       navigator.clipboard?.writeText(currentUrl);
-      alert("주소가 복사되었습니다. Safari를 열고 주소창에 붙여넣기 해주세요.");
+      showAlert(
+        "주소가 복사되었습니다. Safari를 열고 주소창에 붙여넣기 해주세요.",
+      );
     } else if (inAppInfo?.isAndroid) {
       const intentUrl = `intent://${currentUrl.replace(/^https?:\/\//, "")}#Intent;scheme=https;package=com.android.chrome;end`;
       window.location.href = intentUrl;

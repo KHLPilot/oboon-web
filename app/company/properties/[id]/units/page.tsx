@@ -20,6 +20,7 @@ import {
 } from "./utils";
 import { validateUnitDraft } from "./validation";
 import { mapSupabaseErrorToKorean } from "./errors";
+import { showAlert } from "@/shared/alert";
 
 import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
@@ -146,7 +147,7 @@ export default function UnitTypesPage() {
     const v = validateUnitDraft(inlineDraft);
     if (!v.ok) {
       const first = Object.values(v.fieldErrors)[0];
-      alert(first ?? "입력값을 확인해 주세요.");
+      showAlert(first ?? "입력값을 확인해 주세요.");
       return;
     }
 
@@ -156,7 +157,7 @@ export default function UnitTypesPage() {
 
     if (!res.ok) {
       const appErr = mapSupabaseErrorToKorean({ message: res.error });
-      alert(appErr.description ?? appErr.title);
+      showAlert(appErr.description ?? appErr.title);
       return;
     }
 
@@ -180,7 +181,7 @@ export default function UnitTypesPage() {
     } catch (e: unknown) {
       const msg =
         e instanceof Error ? e.message : "평면도 업로드에 실패했어요.";
-      alert(msg);
+      showAlert(msg);
     } finally {
       setFloorPlanUploading(false);
     }
@@ -204,7 +205,7 @@ export default function UnitTypesPage() {
 
     if (!res.ok) {
       const appErr = mapSupabaseErrorToKorean({ message: res.error });
-      alert(appErr.description ?? appErr.title);
+      showAlert(appErr.description ?? appErr.title);
       return;
     }
 

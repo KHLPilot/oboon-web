@@ -2,7 +2,15 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Calendar, Clock, ChevronLeft, Pencil, Check, X } from "lucide-react";
+import {
+  Loader2,
+  Calendar,
+  Clock,
+  ChevronLeft,
+  Pencil,
+  Check,
+  X,
+} from "lucide-react";
 import DatePicker, { registerLocale } from "react-datepicker";
 import { ko } from "date-fns/locale";
 import "react-datepicker/dist/react-datepicker.css";
@@ -12,6 +20,7 @@ import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { createSupabaseClient } from "@/lib/supabaseClient";
+import { showAlert } from "@/shared/alert";
 
 registerLocale("ko", ko);
 
@@ -54,7 +63,7 @@ export default function AgentSchedulePage() {
         .single();
 
       if (profile?.role !== "agent" && profile?.role !== "admin") {
-        alert("상담사만 접근할 수 있습니다");
+        showAlert("상담사만 접근할 수 있습니다");
         router.push("/");
         return;
       }
@@ -78,7 +87,7 @@ export default function AgentSchedulePage() {
 
         // API로 슬롯 조회
         const res = await fetch(
-          `/api/agent/slots?agentId=${userId}&date=${dateStr}`
+          `/api/agent/slots?agentId=${userId}&date=${dateStr}`,
         );
         const data = await res.json();
 
@@ -102,8 +111,8 @@ export default function AgentSchedulePage() {
       prev.map((s) =>
         s.time === time && s.reason !== "booked" && s.reason !== "past"
           ? { ...s, isOpen: !s.isOpen }
-          : s
-      )
+          : s,
+      ),
     );
     setHasChanges(true);
   }
@@ -119,7 +128,11 @@ export default function AgentSchedulePage() {
       // 변경된 슬롯만 저장
       const changedSlots = slots.filter((slot, index) => {
         const original = originalSlots[index];
-        return slot.isOpen !== original?.isOpen && slot.reason !== "booked" && slot.reason !== "past";
+        return (
+          slot.isOpen !== original?.isOpen &&
+          slot.reason !== "booked" &&
+          slot.reason !== "past"
+        );
       });
 
       // 각 변경사항을 API로 전송
@@ -138,10 +151,10 @@ export default function AgentSchedulePage() {
       setOriginalSlots(JSON.parse(JSON.stringify(slots)));
       setIsEditMode(false);
       setHasChanges(false);
-      alert("저장되었습니다.");
+      showAlert("저장되었습니다.");
     } catch (err) {
       console.error("저장 오류:", err);
-      alert("저장에 실패했습니다.");
+      showAlert("저장에 실패했습니다.");
     } finally {
       setSaving(false);
     }
@@ -220,7 +233,8 @@ export default function AgentSchedulePage() {
             <div className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-(--oboon-text-muted)" />
               <span className="font-medium">
-                {selectedDate.getMonth() + 1}월 {selectedDate.getDate()}일 시간 슬롯
+                {selectedDate.getMonth() + 1}월 {selectedDate.getDate()}일 시간
+                슬롯
               </span>
             </div>
 
@@ -294,20 +308,23 @@ export default function AgentSchedulePage() {
           ) : (
             <div className="grid grid-cols-4 gap-3 p-1">
               {slots.map((slot) => (
-                  <button
-                    key={slot.time}
-                    className={`
+                <button
+                  key={slot.time}
+                  className={`
                       py-2.5 px-3 rounded-lg border text-sm font-medium transition-all
                       ${getSlotStyle(slot)}
                       ${isEditMode && slot.reason !== "booked" && slot.reason !== "past" ? "ring-offset-1 focus:ring-2 focus:ring-(--oboon-primary)" : ""}
                     `}
-                    disabled={!isEditMode || slot.reason === "booked" || slot.reason === "past"}
-                    onClick={() => isEditMode && toggleSlot(slot.time)}
-                  >
-                    {getSlotLabel(slot)}
-                  </button>
-                )
-              )}
+                  disabled={
+                    !isEditMode ||
+                    slot.reason === "booked" ||
+                    slot.reason === "past"
+                  }
+                  onClick={() => isEditMode && toggleSlot(slot.time)}
+                >
+                  {getSlotLabel(slot)}
+                </button>
+              ))}
             </div>
           )}
 

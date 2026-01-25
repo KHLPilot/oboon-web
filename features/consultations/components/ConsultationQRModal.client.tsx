@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import {
   useState,
@@ -32,6 +32,7 @@ import { createSupabaseClient } from "@/lib/supabaseClient";
 import { detectInAppBrowser, InAppBrowserInfo } from "@/lib/inAppBrowser";
 import { loadNaverMaps } from "@/features/map/naver.loader";
 
+import { showAlert } from "@/shared/alert";
 interface PropertyFacility {
   id: number;
   lat: number | null;
@@ -254,13 +255,13 @@ export function ConsultationQRPanel({
       setShowMapModal(true);
     } catch (err: any) {
       if (err.code === 1) {
-        alert(
+        showAlert(
           "위치 권한이 거부되었습니다. 브라우저 설정에서 위치 권한을 허용해주세요.",
         );
       } else if (err.message?.includes("Naver")) {
-        alert("지도를 불러오는데 실패했습니다. 잠시 후 다시 시도해주세요.");
+        showAlert("지도를 불러오는데 실패했습니다. 잠시 후 다시 시도해주세요.");
       } else {
-        alert("위치 정보를 가져올 수 없습니다.");
+        showAlert("위치 정보를 가져올 수 없습니다.");
       }
     } finally {
       setMapLoading(false);
@@ -463,7 +464,7 @@ export function ConsultationQRPanel({
     const currentUrl = window.location.href;
     if (inAppInfo?.isIOS) {
       navigator.clipboard?.writeText(currentUrl);
-      alert("주소가 복사되었습니다. Safari에서 주소창에 붙여넣기 해주세요.");
+      showAlert("주소가 복사되었습니다. Safari에서 주소창에 붙여넣기 해주세요.");
     } else if (inAppInfo?.isAndroid) {
       const intentUrl = `intent://${currentUrl.replace(
         /^https?:\/\//,

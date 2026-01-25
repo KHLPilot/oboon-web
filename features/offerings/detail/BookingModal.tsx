@@ -13,6 +13,7 @@ import Card from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 
+import { showAlert } from "@/shared/alert";
 registerLocale("ko", ko);
 
 interface Agent {
@@ -42,7 +43,7 @@ export default function BookingModal({
   isOpen,
   onClose,
   propertyId,
-  propertyName
+  propertyName,
 }: BookingModalProps) {
   const router = useRouter();
   const supabase = createSupabaseClient();
@@ -65,7 +66,9 @@ export default function BookingModal({
   const [availableSlots, setAvailableSlots] = useState<SlotInfo[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
 
-  const [selectedDate, setSelectedDate] = useState<Date | null>(dateRange.minDate);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(
+    dateRange.minDate,
+  );
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
@@ -73,7 +76,8 @@ export default function BookingModal({
   const [submitting, setSubmitting] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
-  const [existingConsultation, setExistingConsultation] = useState<ExistingConsultation | null>(null);
+  const [existingConsultation, setExistingConsultation] =
+    useState<ExistingConsultation | null>(null);
 
   // 사용자 정보 및 상담사 목록 조회
   useEffect(() => {
@@ -86,7 +90,9 @@ export default function BookingModal({
 
       try {
         // 현재 사용자 확인
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        const {
+          data: { user: currentUser },
+        } = await supabase.auth.getUser();
         setUser(currentUser);
 
         // 해당 현장의 승인된 상담사 목록 조회
@@ -100,12 +106,14 @@ export default function BookingModal({
         if (currentUser) {
           const { data: existingData } = await supabase
             .from("consultations")
-            .select(`
+            .select(
+              `
               id,
               status,
               scheduled_at,
               agent:profiles!consultations_agent_id_fkey(name)
-            `)
+            `,
+            )
             .eq("property_id", propertyId)
             .eq("customer_id", currentUser.id)
             .in("status", ["pending", "confirmed"])
@@ -130,7 +138,7 @@ export default function BookingModal({
               email,
               phone_number
             )
-          `
+          `,
           )
           .eq("property_id", propertyId)
           .eq("status", "approved");
@@ -164,32 +172,39 @@ export default function BookingModal({
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialFetch = useRef(true);
 
-  const fetchSlots = useCallback(async (showLoading = true) => {
-    if (!selectedDate || !selectedAgent) return;
+  const fetchSlots = useCallback(
+    async (showLoading = true) => {
+      if (!selectedDate || !selectedAgent) return;
 
-    if (showLoading) setSlotsLoading(true);
-    try {
-      const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, "0")}-${String(selectedDate.getDate()).padStart(2, "0")}`;
-      const res = await fetch(`/api/agent/slots?agentId=${selectedAgent.id}&date=${dateStr}`);
-      const data = await res.json();
+      if (showLoading) setSlotsLoading(true);
+      try {
+        const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, "0")}-${String(selectedDate.getDate()).padStart(2, "0")}`;
+        const res = await fetch(
+          `/api/agent/slots?agentId=${selectedAgent.id}&date=${dateStr}`,
+        );
+        const data = await res.json();
 
-      const newSlots = data.slots || [];
-      setAvailableSlots(newSlots);
+        const newSlots = data.slots || [];
+        setAvailableSlots(newSlots);
 
-      // 선택한 시간이 더 이상 예약 불가능하면 선택 해제
-      if (selectedTime) {
-        const selectedSlot = newSlots.find((s: SlotInfo) => s.time === selectedTime);
-        if (!selectedSlot || !selectedSlot.available) {
-          setSelectedTime(null);
+        // 선택한 시간이 더 이상 예약 불가능하면 선택 해제
+        if (selectedTime) {
+          const selectedSlot = newSlots.find(
+            (s: SlotInfo) => s.time === selectedTime,
+          );
+          if (!selectedSlot || !selectedSlot.available) {
+            setSelectedTime(null);
+          }
         }
+      } catch (err) {
+        console.error("슬롯 조회 오류:", err);
+        if (showLoading) setAvailableSlots([]);
+      } finally {
+        if (showLoading) setSlotsLoading(false);
       }
-    } catch (err) {
-      console.error("슬롯 조회 오류:", err);
-      if (showLoading) setAvailableSlots([]);
-    } finally {
-      if (showLoading) setSlotsLoading(false);
-    }
-  }, [selectedDate, selectedAgent, selectedTime]);
+    },
+    [selectedDate, selectedAgent, selectedTime],
+  );
 
   // 날짜 또는 상담사 변경 시 슬롯 조회 + 폴링 시작
   useEffect(() => {
@@ -232,18 +247,18 @@ export default function BookingModal({
   // 예약 제출
   async function handleSubmit() {
     if (!user) {
-      alert("로그인이 필요합니다");
+      showAlert("로그인이 필요합니다");
       router.push("/auth/login");
       return;
     }
 
     if (!selectedAgent) {
-      alert("상담사를 선택해주세요");
+      showAlert("상담사를 선택해주세요");
       return;
     }
 
     if (!propertyId) {
-      alert("분양 정보가 없습니다");
+      showAlert("분양 정보가 없습니다");
       return;
     }
 
@@ -257,8 +272,8 @@ export default function BookingModal({
       }
       // 로컬 날짜를 YYYY-MM-DD 형식으로 추출 (UTC 변환 없이)
       const year = selectedDate.getFullYear();
-      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-      const day = String(selectedDate.getDate()).padStart(2, '0');
+      const month = String(selectedDate.getMonth() + 1).padStart(2, "0");
+      const day = String(selectedDate.getDate()).padStart(2, "0");
       const dateStr = `${year}-${month}-${day}`;
 
       // 한국 시간 기준으로 ISO 문자열 생성
@@ -280,13 +295,14 @@ export default function BookingModal({
         throw new Error(data.error || "예약에 실패했습니다");
       }
 
-      const formattedDate = `${selectedDate.getFullYear()}.${(selectedDate.getMonth() + 1).toString().padStart(2, '0')}.${selectedDate.getDate().toString().padStart(2, '0')}`;
-      alert(`예약이 완료되었습니다!\n\n예약 일시: ${formattedDate} ${selectedTime}\n상담사: ${selectedAgent.name}`);
+      const formattedDate = `${selectedDate.getFullYear()}.${(selectedDate.getMonth() + 1).toString().padStart(2, "0")}.${selectedDate.getDate().toString().padStart(2, "0")}`;
+      showAlert(
+        `예약이 완료되었습니다!\n\n예약 일시: ${formattedDate} ${selectedTime}\n상담사: ${selectedAgent.name}`,
+      );
       onClose();
 
       // 내 예약 페이지로 이동
       router.push("/my/consultations");
-
     } catch (err: any) {
       console.error("예약 오류:", err);
       setError(err.message || "예약에 실패했습니다");
@@ -295,7 +311,8 @@ export default function BookingModal({
     }
   }
 
-  const canSubmit = selectedAgent && selectedDate && selectedTime && !submitting;
+  const canSubmit =
+    selectedAgent && selectedDate && selectedTime && !submitting;
 
   return (
     <Modal open={isOpen} onClose={onClose}>
@@ -341,20 +358,31 @@ export default function BookingModal({
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-(--oboon-text-muted)">상태</span>
-                <Badge variant={existingConsultation.status === "confirmed" ? "success" : "status"}>
-                  {existingConsultation.status === "confirmed" ? "확정" : "대기중"}
+                <Badge
+                  variant={
+                    existingConsultation.status === "confirmed"
+                      ? "success"
+                      : "status"
+                  }
+                >
+                  {existingConsultation.status === "confirmed"
+                    ? "확정"
+                    : "대기중"}
                 </Badge>
               </div>
               <div className="flex justify-between">
                 <span className="text-(--oboon-text-muted)">예약일시</span>
                 <span className="text-(--oboon-text-title) font-medium">
-                  {new Date(existingConsultation.scheduled_at).toLocaleString("ko-KR", {
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
+                  {new Date(existingConsultation.scheduled_at).toLocaleString(
+                    "ko-KR",
+                    {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    },
+                  )}
                 </span>
               </div>
             </div>
@@ -468,7 +496,9 @@ export default function BookingModal({
                 </div>
               ) : availableSlots.length === 0 ? (
                 <div className="text-center py-4 text-sm text-(--oboon-text-muted)">
-                  {selectedAgent ? "선택한 날짜에 예약 가능한 시간이 없습니다" : "상담사를 먼저 선택해주세요"}
+                  {selectedAgent
+                    ? "선택한 날짜에 예약 가능한 시간이 없습니다"
+                    : "상담사를 먼저 선택해주세요"}
                 </div>
               ) : (
                 <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto">
@@ -480,14 +510,17 @@ export default function BookingModal({
                         key={slot.time}
                         className={`
                           py-2 px-3 rounded-lg border text-sm font-medium transition-all
-                          ${active
-                            ? "bg-(--oboon-primary) text-white border-(--oboon-primary) ring-2 ring-(--oboon-primary) ring-offset-1"
-                            : isDisabled
-                              ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
-                              : "bg-(--oboon-primary) text-white border-(--oboon-primary) hover:opacity-90"
+                          ${
+                            active
+                              ? "bg-(--oboon-primary) text-white border-(--oboon-primary) ring-2 ring-(--oboon-primary) ring-offset-1"
+                              : isDisabled
+                                ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+                                : "bg-(--oboon-primary) text-white border-(--oboon-primary) hover:opacity-90"
                           }
                         `}
-                        onClick={() => !isDisabled && setSelectedTime(slot.time)}
+                        onClick={() =>
+                          !isDisabled && setSelectedTime(slot.time)
+                        }
                         disabled={isDisabled}
                       >
                         {slot.time}
@@ -539,7 +572,10 @@ export default function BookingModal({
           <div className="mt-3 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-4 py-3 text-xs text-(--oboon-text-muted)">
             선택:{" "}
             <span className="font-medium text-(--oboon-text-title)">
-              {selectedDate ? `${selectedDate.getFullYear()}.${(selectedDate.getMonth() + 1).toString().padStart(2, '0')}.${selectedDate.getDate().toString().padStart(2, '0')}` : '-'} {selectedTime || '-'}
+              {selectedDate
+                ? `${selectedDate.getFullYear()}.${(selectedDate.getMonth() + 1).toString().padStart(2, "0")}.${selectedDate.getDate().toString().padStart(2, "0")}`
+                : "-"}{" "}
+              {selectedTime || "-"}
             </span>
             {selectedAgent && (
               <>

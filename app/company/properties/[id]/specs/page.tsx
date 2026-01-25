@@ -10,6 +10,7 @@ import Input from "@/components/ui/Input";
 import PageContainer from "@/components/shared/PageContainer";
 import { FormField } from "@/app/components/FormField";
 import { createSupabaseClient } from "@/lib/supabaseClient";
+import { showAlert } from "@/shared/alert";
 
 type SpecsForm = {
   id?: number;
@@ -150,7 +151,7 @@ export default function PropertySpecsPage() {
     setSaving(false);
 
     if (error) {
-      alert("저장 실패: " + error.message);
+      showAlert("저장 실패: " + error.message);
       return;
     }
 

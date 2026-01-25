@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 import Button from "@/components/ui/Button";
 import PageContainer from "@/components/shared/PageContainer";
+import { showAlert } from "@/shared/alert";
 
 const ALLOWED_ROLES = ["builder", "developer", "admin"];
 
@@ -128,7 +129,7 @@ export default function PropertyListPage() {
   // 삭제 처리
   async function handleDelete(id: number, canEdit: boolean) {
     if (!canEdit) {
-      alert("본인이 작성한 현장만 삭제할 수 있습니다.");
+      showAlert("본인이 작성한 현장만 삭제할 수 있습니다.");
       return;
     }
 
@@ -140,7 +141,7 @@ export default function PropertyListPage() {
     const { error } = await supabase.from("properties").delete().eq("id", id);
 
     if (error) {
-      alert("삭제에 실패했습니다.");
+      showAlert("삭제에 실패했습니다.");
       console.error(error);
       return;
     }
@@ -175,7 +176,7 @@ export default function PropertyListPage() {
 
       setCurrentUserRole(profile.role);
 
-      // 3. 데이터 로드
+      // 3. ?곗씠??濡쒕뱶
       setLoading(true);
 
       const { data, error } = await supabase
@@ -359,7 +360,7 @@ export default function PropertyListPage() {
           </div>
         )}
 
-        {/* 2열 그리드 */}
+        {/* 2??洹몃━??*/}
         <div className="grid gap-4 sm:grid-cols-2">
           {filteredRows.map((row) => {
             const { inputCount, totalCount, missingLabels } =

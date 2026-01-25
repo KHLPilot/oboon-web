@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useEffect, useRef, useState } from "react";
 
@@ -30,6 +30,7 @@ import {
 
 import { uploadFloorPlan } from "@/app/company/properties/[id]/units/useUnitTypes";
 
+import { showAlert } from "@/shared/alert";
 function StatusBadge({ status }: { status: UnitStatus | "수정 중" }) {
   if (status === "수정 중") {
     return (
@@ -152,7 +153,7 @@ export default function UnitTypeCard({
     } catch (e: unknown) {
       const msg =
         e instanceof Error ? e.message : "평면도 업로드에 실패했습니다.";
-      alert(msg);
+      showAlert(msg);
     } finally {
       setFloorUploading(false);
     }

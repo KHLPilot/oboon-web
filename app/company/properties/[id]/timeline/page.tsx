@@ -10,6 +10,7 @@ import Card from "@/components/ui/Card";
 import PageContainer from "@/components/shared/PageContainer";
 
 import { createSupabaseClient } from "@/lib/supabaseClient";
+import { showAlert } from "@/shared/alert";
 import OboonDatePicker from "@/components/ui/DatePicker";
 import PrecisionDateInput from "@/components/ui/PercisionDateInput";
 
@@ -139,7 +140,6 @@ export default function PropertyTimelinePage() {
   );
   const [timelineId, setTimelineId] = useState<number | null>(null);
 
-  // Input.tsx 룩에 맞춘 토큰 기반 입력 스타일 (DatePicker/PrecisionDateInput 용)
   const INPUT_LIKE = useMemo(
     () =>
       [
@@ -254,7 +254,7 @@ export default function PropertyTimelinePage() {
     if (!error) {
       router.push(`/company/properties/${propertyId}`);
     } else {
-      alert(`저장 실패: ${error.message}`);
+      showAlert(`저장 실패: ${error.message}`);
     }
   }
 

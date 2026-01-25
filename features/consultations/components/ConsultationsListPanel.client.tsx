@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -20,6 +20,7 @@ import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 
+import { showAlert } from "@/shared/alert";
 interface Consultation {
   id: string;
   scheduled_at: string;
@@ -182,14 +183,14 @@ export default function ConsultationsListPanel({
               : c,
           ),
         );
-        alert("예약이 취소되었습니다. 3일 후 자동 삭제됩니다");
+        showAlert("예약이 취소되었습니다. 3일 후 자동 삭제됩니다");
       } else {
         const data = await response.json();
-        alert(data.error || "취소에 실패했습니다");
+        showAlert(data.error || "취소에 실패했습니다");
       }
     } catch (err) {
       console.error("예약 취소 오류:", err);
-      alert("취소 중 오류가 발생했습니다");
+      showAlert("취소 중 오류가 발생했습니다");
     }
   }
 
@@ -203,14 +204,14 @@ export default function ConsultationsListPanel({
 
       if (response.ok) {
         setConsultations((prev) => prev.filter((c) => c.id !== consultationId));
-        alert("예약이 삭제되었습니다");
+        showAlert("예약이 삭제되었습니다");
       } else {
         const data = await response.json();
-        alert(data.error || "삭제에 실패했습니다");
+        showAlert(data.error || "삭제에 실패했습니다");
       }
     } catch (err) {
       console.error("예약 삭제 오류:", err);
-      alert("삭제 중 오류가 발생했습니다");
+      showAlert("삭제 중 오류가 발생했습니다");
     }
   }
 

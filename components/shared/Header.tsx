@@ -32,6 +32,7 @@ export default function Header() {
       { label: "분양 리스트", href: "/offerings" },
       { label: "지도", href: "/map" },
       { label: "브리핑", href: "/briefing" },
+      { label: "커뮤니티", href: "/community" },
     ],
     [],
   );
@@ -292,6 +293,11 @@ export default function Header() {
                     <DropdownMenuItem onClick={() => router.push("/profile")}>
                       프로필 설정
                     </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => router.push("/community/profile")}
+                    >
+                      커뮤니티 프로필
+                    </DropdownMenuItem>
 
                     {userRole === "admin" && (
                       <DropdownMenuItem onClick={() => router.push("/admin")}>
@@ -349,6 +355,11 @@ export default function Header() {
                     <>
                       <DropdownMenuItem onClick={() => router.push("/profile")}>
                         프로필 설정
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => router.push("/community/profile")}
+                      >
+                        커뮤니티 프로필
                       </DropdownMenuItem>
 
                       {userRole === "admin" ? (

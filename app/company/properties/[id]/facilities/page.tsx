@@ -13,7 +13,9 @@ import PageContainer from "@/components/shared/PageContainer";
 import { Badge } from "@/components/ui/Badge";
 
 import { createSupabaseClient } from "@/lib/supabaseClient";
+import { validateRequiredOrShowModal } from "@/shared/validationMessage";
 import { FormField } from "@/app/components/FormField";
+import { showAlert } from "@/shared/alert";
 import PrecisionDateInput from "@/components/ui/PercisionDateInput";
 import NaverMap from "@/features/map/NaverMap";
 
@@ -276,13 +278,10 @@ export default function PropertyFacilitiesPage() {
   async function saveFacility(f: FacilityForm) {
     if (loading) return;
 
-    if (!f.name.trim()) {
-      alert("시설명을 입력해주세요.");
-      return;
-    }
+    if (!validateRequiredOrShowModal(f.name, "시설명")) return;
 
     if (!f.lat || !f.lng) {
-      alert("주소를 검색하거나 지도에서 위치를 선택해주세요.");
+      showAlert("주소를 검색하거나 지도에서 위치를 선택해주세요.");
       return;
     }
 
@@ -313,12 +312,12 @@ export default function PropertyFacilitiesPage() {
         : await supabase.from("property_facilities").insert(payload);
 
       if (error) {
-        alert(error.message);
+        showAlert(error.message);
         return;
       }
 
       await fetchFacilities(propertyId);
-      alert("저장되었습니다.");
+      showAlert("저장되었습니다.");
     } finally {
       setLoading(false);
     }

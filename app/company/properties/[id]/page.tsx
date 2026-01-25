@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 
 import { createSupabaseClient } from "@/lib/supabaseClient";
+import { validateRequiredOrShowModal } from "@/shared/validationMessage";
 
 import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -38,6 +39,7 @@ import {
   isPropertyStatus,
 } from "@/app/company/properties/propertyStatus";
 import { getPropertySectionStatus } from "@/features/property/mappers/propertyProgress";
+import { showAlert } from "@/shared/alert";
 
 /* ==================================================
    타입 정의
@@ -303,6 +305,8 @@ export default function PropertyDetailPage() {
   // 기본 정보 저장
   async function saveBasicInfo() {
     if (!form) return;
+    if (!validateRequiredOrShowModal(form.name, "현장명")) return;
+    if (!validateRequiredOrShowModal(form.phone_number ?? "", "연락처")) return;
     setSaving(true);
     const { error } = await supabase
       .from("properties")
@@ -310,7 +314,7 @@ export default function PropertyDetailPage() {
       .eq("id", id);
     setSaving(false);
 
-    if (error) return alert("저장 실패: " + error.message);
+    if (error) return showAlert("저장 실패: " + error.message);
 
     setLocalPreview(null);
     setImageFileName(null);
@@ -335,7 +339,7 @@ export default function PropertyDetailPage() {
       await supabase.from("properties").delete().eq("id", id);
       router.push("/company/properties");
     } catch (err) {
-      alert(
+      showAlert(
         "삭제 실패: " +
           (err instanceof Error ? err.message : "알 수 없는 오류"),
       );
@@ -348,7 +352,7 @@ export default function PropertyDetailPage() {
     if (!file || !form) return;
 
     if (file.size > 5 * 1024 * 1024)
-      return alert("이미지는 5MB 이하만 가능합니다.");
+      return showAlert("이미지는 5MB 이하만 가능합니다.");
 
     setLocalPreview(URL.createObjectURL(file));
     setImageFileName(file.name);
@@ -368,7 +372,9 @@ export default function PropertyDetailPage() {
 
       setForm({ ...form, image_url: result.url });
     } catch (err) {
-      alert("업로드 실패: " + (err instanceof Error ? err.message : "오류"));
+      showAlert(
+        "업로드 실패: " + (err instanceof Error ? err.message : "오류"),
+      );
       setImageFileName(null);
     }
   }

@@ -9,6 +9,7 @@ import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import PageContainer from "@/components/shared/PageContainer";
 import { FormField } from "@/app/components/FormField";
+import { showAlert } from "@/shared/alert";
 
 import NaverMap from "@/features/map/NaverMap";
 import { createSupabaseClient } from "@/lib/supabaseClient";
@@ -165,7 +166,7 @@ export default function PropertyLocationPage() {
 
   async function handleSave() {
     if (!site.lat || !site.lng) {
-      alert("주소를 검색하거나 지도에서 위치를 선택해주세요.");
+      showAlert("주소를 검색하거나 지도에서 위치를 선택해주세요.");
       return;
     }
 
@@ -205,7 +206,7 @@ export default function PropertyLocationPage() {
       router.push(`/company/properties/${propertyId}`);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "알 수 없는 오류";
-      alert("저장 실패: " + message);
+      showAlert("저장 실패: " + message);
     } finally {
       setLoading(false);
     }

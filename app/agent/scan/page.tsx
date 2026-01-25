@@ -19,6 +19,7 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { createSupabaseClient } from "@/lib/supabaseClient";
+import { showAlert } from "@/shared/alert";
 
 interface Property {
   id: number;
@@ -77,14 +78,14 @@ export default function AgentScanPage() {
   // 소속 현장 목록
   const [properties, setProperties] = useState<Property[]>([]);
   const [selectedPropertyId, setSelectedPropertyId] = useState<number | null>(
-    null
+    null,
   );
 
   // 확정된 예약 목록
   const [consultations, setConsultations] = useState<Consultation[]>([]);
-  const [selectedConsultationId, setSelectedConsultationId] = useState<string | null>(
-    null
-  );
+  const [selectedConsultationId, setSelectedConsultationId] = useState<
+    string | null
+  >(null);
 
   // QR 토큰 상태
   const [qrToken, setQrToken] = useState<string | null>(null);
@@ -96,7 +97,7 @@ export default function AgentScanPage() {
   // 수동 승인 요청 목록
   const [pendingRequests, setPendingRequests] = useState<ManualRequest[]>([]);
   const [processingRequestId, setProcessingRequestId] = useState<string | null>(
-    null
+    null,
   );
 
   // 초기 데이터 로드
@@ -119,7 +120,7 @@ export default function AgentScanPage() {
           .single();
 
         if (profile?.role !== "agent" && profile?.role !== "admin") {
-          alert("상담사 권한이 필요합니다");
+          showAlert("상담사 권한이 필요합니다");
           router.push("/");
           return;
         }
@@ -143,7 +144,9 @@ export default function AgentScanPage() {
         }
 
         // 오늘 확정된 예약 목록 조회
-        const response = await fetch("/api/consultations?role=agent&status=confirmed");
+        const response = await fetch(
+          "/api/consultations?role=agent&status=confirmed",
+        );
         const consultData = await response.json();
         if (response.ok && consultData.consultations) {
           setConsultations(consultData.consultations);
@@ -191,7 +194,7 @@ export default function AgentScanPage() {
         () => {
           // 새 요청이 들어오면 목록 갱신
           fetchPendingRequests();
-        }
+        },
       )
       .on(
         "postgres_changes",
@@ -203,7 +206,7 @@ export default function AgentScanPage() {
         () => {
           // 상태가 변경되면 목록 갱신
           fetchPendingRequests();
-        }
+        },
       )
       .subscribe();
 
@@ -220,7 +223,7 @@ export default function AgentScanPage() {
       const now = new Date();
       const remaining = Math.max(
         0,
-        Math.floor((expiresAt.getTime() - now.getTime()) / 1000)
+        Math.floor((expiresAt.getTime() - now.getTime()) / 1000),
       );
       setRemainingSeconds(remaining);
 
@@ -237,13 +240,13 @@ export default function AgentScanPage() {
   // QR 토큰 생성
   async function generateToken(consultationId?: string) {
     const consultation = consultationId
-      ? consultations.find(c => c.id === consultationId)
+      ? consultations.find((c) => c.id === consultationId)
       : null;
 
     const propertyId = consultation?.property.id || selectedPropertyId;
 
     if (!propertyId) {
-      alert("현장을 선택해주세요");
+      showAlert("현장을 선택해주세요");
       return;
     }
 
@@ -266,11 +269,11 @@ export default function AgentScanPage() {
         setExpiresAt(new Date(data.expiresAt));
         setRemainingSeconds(TOKEN_TTL_SECONDS);
       } else {
-        alert(data.error || "토큰 생성에 실패했습니다");
+        showAlert(data.error || "토큰 생성에 실패했습니다");
       }
     } catch (err) {
       console.error("토큰 생성 오류:", err);
-      alert("토큰 생성 중 오류가 발생했습니다");
+      showAlert("토큰 생성 중 오류가 발생했습니다");
     } finally {
       setGenerating(false);
     }
@@ -279,7 +282,7 @@ export default function AgentScanPage() {
   // 수동 승인/거절 처리
   async function handleManualAction(
     requestId: string,
-    action: "approve" | "reject"
+    action: "approve" | "reject",
   ) {
     setProcessingRequestId(requestId);
     try {
@@ -292,18 +295,18 @@ export default function AgentScanPage() {
       const data = await response.json();
 
       if (response.ok) {
-        alert(
+        showAlert(
           action === "approve"
             ? "방문 인증이 승인되었습니다"
-            : "요청이 거절되었습니다"
+            : "요청이 거절되었습니다",
         );
         fetchPendingRequests();
       } else {
-        alert(data.error || "처리에 실패했습니다");
+        showAlert(data.error || "처리에 실패했습니다");
       }
     } catch (err) {
       console.error("수동 처리 오류:", err);
-      alert("처리 중 오류가 발생했습니다");
+      showAlert("처리 중 오류가 발생했습니다");
     } finally {
       setProcessingRequestId(null);
     }
@@ -443,11 +446,12 @@ export default function AgentScanPage() {
                 <Button
                   variant="secondary"
                   className="mt-4"
-                  onClick={() => generateToken(selectedConsultationId || undefined)}
+                  onClick={() =>
+                    generateToken(selectedConsultationId || undefined)
+                  }
                   loading={generating}
                 >
-                  <RefreshCw className="h-4 w-4" />
-                  새 QR 생성
+                  <RefreshCw className="h-4 w-4" />새 QR 생성
                 </Button>
               </div>
             ) : (
@@ -463,9 +467,15 @@ export default function AgentScanPage() {
                 <Button
                   variant="primary"
                   size="lg"
-                  onClick={() => generateToken(selectedConsultationId || undefined)}
+                  onClick={() =>
+                    generateToken(selectedConsultationId || undefined)
+                  }
                   loading={generating}
-                  disabled={consultations.length > 0 ? !selectedConsultationId : !selectedPropertyId}
+                  disabled={
+                    consultations.length > 0
+                      ? !selectedConsultationId
+                      : !selectedPropertyId
+                  }
                 >
                   <QrCode className="h-5 w-5" />
                   QR 코드 생성
@@ -509,7 +519,9 @@ export default function AgentScanPage() {
                       <Button
                         size="sm"
                         variant="primary"
-                        onClick={() => handleManualAction(request.id, "approve")}
+                        onClick={() =>
+                          handleManualAction(request.id, "approve")
+                        }
                         loading={processingRequestId === request.id}
                         disabled={processingRequestId !== null}
                       >

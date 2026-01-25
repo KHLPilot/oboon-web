@@ -6,6 +6,7 @@ import { ArrowLeft, Send, Loader2, MoreVertical, Trash2 } from "lucide-react";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import PageContainer from "@/components/shared/PageContainer";
 import Button from "@/components/ui/Button";
+import { showAlert } from "@/shared/alert";
 
 interface Message {
   id: string;
@@ -47,7 +48,9 @@ export default function ChatPage() {
   const [deleting, setDeleting] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [consultation, setConsultation] = useState<ConsultationInfo | null>(null);
+  const [consultation, setConsultation] = useState<ConsultationInfo | null>(
+    null,
+  );
   const [chatRoomId, setChatRoomId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -76,7 +79,9 @@ export default function ChatPage() {
         setCurrentUserId(user.id);
 
         // 상담 정보 조회
-        const consultationRes = await fetch(`/api/consultations/${consultationId}`);
+        const consultationRes = await fetch(
+          `/api/consultations/${consultationId}`,
+        );
         if (!consultationRes.ok) {
           const data = await consultationRes.json();
           throw new Error(data.error || "상담 정보를 불러올 수 없습니다");
@@ -90,7 +95,8 @@ export default function ChatPage() {
           const data = await messagesRes.json();
           throw new Error(data.error || "메시지를 불러올 수 없습니다");
         }
-        const { messages: messagesData, chatRoomId: roomId } = await messagesRes.json();
+        const { messages: messagesData, chatRoomId: roomId } =
+          await messagesRes.json();
         setMessages(messagesData);
         setChatRoomId(roomId);
       } catch (err: any) {
@@ -154,7 +160,7 @@ export default function ChatPage() {
             }
             return [...prev, messageWithSender];
           });
-        }
+        },
       )
       .subscribe();
 
@@ -189,7 +195,7 @@ export default function ChatPage() {
     } catch (err: any) {
       console.error("메시지 전송 오류:", err);
       setNewMessage(messageContent); // 실패 시 메시지 복원
-      alert(err.message);
+      showAlert(err.message);
     } finally {
       setSending(false);
     }
@@ -205,7 +211,11 @@ export default function ChatPage() {
 
   // 채팅 내역 삭제
   const handleDeleteChat = async () => {
-    if (!confirm("채팅 내역을 삭제하시겠습니까?\n\n삭제된 내역은 본인에게만 보이지 않으며, 상대방에게는 계속 표시됩니다.")) {
+    if (
+      !confirm(
+        "채팅 내역을 삭제하시겠습니까?\n\n삭제된 내역은 본인에게만 보이지 않으며, 상대방에게는 계속 표시됩니다.",
+      )
+    ) {
       return;
     }
 
@@ -223,10 +233,10 @@ export default function ChatPage() {
       }
 
       setMessages([]);
-      alert("채팅 내역이 삭제되었습니다.");
+      showAlert("채팅 내역이 삭제되었습니다.");
     } catch (err: any) {
       console.error("채팅 삭제 오류:", err);
-      alert(err.message);
+      showAlert(err.message);
     } finally {
       setDeleting(false);
     }
@@ -253,7 +263,10 @@ export default function ChatPage() {
   };
 
   // 날짜 구분선 표시 여부
-  const shouldShowDateDivider = (currentMsg: Message, prevMsg: Message | null) => {
+  const shouldShowDateDivider = (
+    currentMsg: Message,
+    prevMsg: Message | null,
+  ) => {
     if (!prevMsg) return true;
     const currentDate = new Date(currentMsg.created_at).toDateString();
     const prevDate = new Date(prevMsg.created_at).toDateString();
@@ -262,7 +275,9 @@ export default function ChatPage() {
 
   // 상대방 정보
   const otherParty =
-    currentUserId === consultation?.customer.id ? consultation?.agent : consultation?.customer;
+    currentUserId === consultation?.customer.id
+      ? consultation?.agent
+      : consultation?.customer;
 
   if (loading) {
     return (
@@ -350,15 +365,17 @@ export default function ChatPage() {
               <div className="text-center py-10">
                 <p className="text-sm text-(--oboon-text-muted)">
                   아직 메시지가 없습니다.
-                  <br />
-                  첫 메시지를 보내보세요!
+                  <br />첫 메시지를 보내보세요!
                 </p>
               </div>
             ) : (
               messages.map((message, index) => {
                 const isMe = message.sender_id === currentUserId;
                 const prevMessage = index > 0 ? messages[index - 1] : null;
-                const showDateDivider = shouldShowDateDivider(message, prevMessage);
+                const showDateDivider = shouldShowDateDivider(
+                  message,
+                  prevMessage,
+                );
 
                 return (
                   <div key={message.id}>
@@ -369,7 +386,9 @@ export default function ChatPage() {
                         </div>
                       </div>
                     )}
-                    <div className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
+                    <div
+                      className={`flex ${isMe ? "justify-end" : "justify-start"}`}
+                    >
                       <div
                         className={`max-w-[85%] sm:max-w-[75%] ${isMe ? "order-2" : "order-1"}`}
                       >

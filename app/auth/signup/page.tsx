@@ -7,6 +7,7 @@ import { Eye, EyeOff } from "lucide-react";
 
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { validatePassword } from "@/lib/validators/profileValidation";
+import { validateRequiredOrShowModal } from "@/shared/validationMessage";
 
 import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
@@ -201,15 +202,8 @@ export default function SignupPage() {
 
   function validateStep1Inputs(): boolean {
     // 입력 검증은 “필드 에러(bubble)” 우선, 시스템 오류(fatalError modal)는 최후에 사용
-    if (!email.trim()) {
-      openFieldError("email", "이메일을 입력해주세요.");
-      return false;
-    }
-
-    if (!password) {
-      openFieldError("password", "비밀번호를 입력해주세요.");
-      return false;
-    }
+    if (!validateRequiredOrShowModal(email, "이메일")) return false;
+    if (!validateRequiredOrShowModal(password, "비밀번호")) return false;
 
     const pwErr = validatePassword(password);
     if (pwErr) {
@@ -218,10 +212,8 @@ export default function SignupPage() {
       return false;
     }
 
-    if (!passwordConfirm) {
-      openFieldError("passwordConfirm", "비밀번호 확인을 입력해주세요.");
+    if (!validateRequiredOrShowModal(passwordConfirm, "비밀번호 확인"))
       return false;
-    }
 
     if (!passwordMatch) {
       openFieldError("passwordConfirm", "비밀번호가 일치하지 않습니다.");

@@ -2,11 +2,19 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, Loader2, CheckCircle, Clock, XCircle, Calendar } from "lucide-react";
+import {
+  Building2,
+  Loader2,
+  CheckCircle,
+  Clock,
+  XCircle,
+  Calendar,
+} from "lucide-react";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { showAlert } from "@/shared/alert";
 
 interface Property {
   id: number;
@@ -71,7 +79,7 @@ export default function AgentPropertiesPage() {
         !profileData ||
         (profileData.role !== "agent" && profileData.role !== "admin")
       ) {
-        alert("상담사만 접근할 수 있습니다");
+        showAlert("상담사만 접근할 수 있습니다");
         router.push("/");
         return;
       }
@@ -105,7 +113,7 @@ export default function AgentPropertiesPage() {
           .in("id", propertyIds);
 
         const propertiesMap = new Map(
-          (propertiesData || []).map((p) => [p.id, p])
+          (propertiesData || []).map((p) => [p.id, p]),
         );
 
         enrichedRequests = requests.map((r) => ({
@@ -159,11 +167,11 @@ export default function AgentPropertiesPage() {
         throw new Error(data.error || "신청에 실패했습니다");
       }
 
-      alert(data.message);
+      showAlert(data.message);
       fetchData(); // 목록 새로고침
     } catch (error: any) {
       console.error("소속 신청 오류:", error);
-      alert(error.message || "신청에 실패했습니다");
+      showAlert(error.message || "신청에 실패했습니다");
     } finally {
       setSubmitting(null);
     }
@@ -185,11 +193,11 @@ export default function AgentPropertiesPage() {
         throw new Error(data.error || "취소에 실패했습니다");
       }
 
-      alert(data.message);
+      showAlert(data.message);
       fetchData(); // 목록 새로고침
     } catch (error: any) {
       console.error("신청 취소 오류:", error);
-      alert(error.message || "취소에 실패했습니다");
+      showAlert(error.message || "취소에 실패했습니다");
     }
   }
 
@@ -305,7 +313,11 @@ export default function AgentPropertiesPage() {
                           size="sm"
                           variant="primary"
                           className="mt-2 w-full flex items-center justify-center gap-2"
-                          onClick={() => router.push(`/agent/schedule?propertyId=${request.property_id}`)}
+                          onClick={() =>
+                            router.push(
+                              `/agent/schedule?propertyId=${request.property_id}`,
+                            )
+                          }
                         >
                           <Calendar className="h-4 w-4" />
                           스케줄 관리
@@ -399,11 +411,13 @@ export default function AgentPropertiesPage() {
                         이미 다른 현장에 소속됨
                       </div>
                     )}
-                    {!hasApprovedProperty && hasPendingRequest && !requestStatus && (
-                      <div className="text-xs text-(--oboon-text-muted) text-center">
-                        다른 현장 승인 대기 중
-                      </div>
-                    )}
+                    {!hasApprovedProperty &&
+                      hasPendingRequest &&
+                      !requestStatus && (
+                        <div className="text-xs text-(--oboon-text-muted) text-center">
+                          다른 현장 승인 대기 중
+                        </div>
+                      )}
                   </div>
                 </div>
               </Card>

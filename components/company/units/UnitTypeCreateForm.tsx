@@ -9,6 +9,7 @@ import Label from "@/components/ui/Label";
 import type { UnitDraft } from "@/app/company/properties/[id]/units/types";
 import { uploadFloorPlan } from "@/app/company/properties/[id]/units/useUnitTypes";
 
+import { showAlert } from "@/shared/alert";
 type Props = {
   value: UnitDraft;
   onChange: (next: UnitDraft) => void;
@@ -53,7 +54,7 @@ export default function UnitTypeCreateForm({
     const propertyId = (value as any)?.properties_id;
 
     if (!propertyId || !Number.isFinite(Number(propertyId))) {
-      alert("propertyId가 올바르지 않아 업로드할 수 없습니다.");
+      showAlert("propertyId가 올바르지 않아 업로드할 수 없습니다.");
       return;
     }
 
@@ -70,7 +71,7 @@ export default function UnitTypeCreateForm({
     } catch (e: unknown) {
       const msg =
         e instanceof Error ? e.message : "평면도 업로드에 실패했습니다.";
-      alert(msg);
+      showAlert(msg);
     } finally {
       setFloorUploading(false);
     }
@@ -81,9 +82,9 @@ export default function UnitTypeCreateForm({
   return (
     <Card className="p-6">
       <div className="mb-6">
-        <h2 className="ob-typo-h3 text-(--oboon-text-title)">
+        <div className="ob-typo-h3 text-(--oboon-text-title)">
           새 평면 타입 등록
-        </h2>
+        </div>
         <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
           타입명·전용/공급 면적·가격을 먼저 입력해 주세요.
         </p>
@@ -220,7 +221,7 @@ export default function UnitTypeCreateForm({
           <Label>가격 상한 (원)</Label>
           <div className="mt-2">
             <Input
-              placeholder="예: 1198191000"
+              placeholder="?? 1198191000"
               value={value.price_max ?? ""}
               inputMode="numeric"
               onChange={(e) =>
@@ -367,7 +368,7 @@ export default function UnitTypeCreateForm({
           disabled={disabled}
           className="min-w-[160px]"
         >
-          저장
+          ???
         </Button>
       </div>
 
