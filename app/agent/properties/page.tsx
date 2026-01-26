@@ -15,6 +15,7 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { showAlert } from "@/shared/alert";
+import PageContainer from "@/components/shared/PageContainer";
 
 interface Property {
   id: number;
@@ -178,18 +179,15 @@ export default function AgentPropertiesPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl">
+    <PageContainer className="py-8">
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
-          <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-(--oboon-bg-subtle)">
-            <Building2 className="h-5 w-5 text-(--oboon-text-title)" />
-          </div>
-          <h1 className="text-2xl font-bold text-(--oboon-text-title)">
+          <div className="ob-typo-h1 text-(--oboon-text-title)">
             현장 소속 관리
-          </h1>
+          </div>
         </div>
-        <p className="text-sm text-(--oboon-text-muted)">
+        <p className="ob-typo-body text-(--oboon-text-muted)">
           현장에 소속을 신청하고 관리할 수 있습니다
         </p>
       </div>
@@ -197,9 +195,9 @@ export default function AgentPropertiesPage() {
       {/* 내 소속 신청 현황 */}
       {myRequests.length > 0 && (
         <div className="mb-8">
-          <h2 className="text-lg font-semibold text-(--oboon-text-title) mb-4">
+          <div className="ob-typo-h3 text-(--oboon-text-title) mb-4">
             내 소속 신청 현황
-          </h2>
+          </div>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {myRequests.map((request) => {
               const property = request.property;
@@ -226,13 +224,13 @@ export default function AgentPropertiesPage() {
                       <h3 className="font-semibold text-(--oboon-text-title) mb-1">
                         {property?.name || "-"}
                       </h3>
-                      <p className="text-xs text-(--oboon-text-muted)">
+                      <p className="ob-typo-caption text-(--oboon-text-muted)">
                         신청일:{" "}
                         {new Date(request.requested_at).toLocaleDateString()}
                       </p>
                       {request.status === "rejected" &&
                         request.rejection_reason && (
-                          <p className="mt-2 text-xs text-(--oboon-danger) bg-(--oboon-danger)/10 p-2 rounded">
+                          <p className="mt-2 ob-typo-caption text-(--oboon-danger) bg-(--oboon-danger)/10 p-2 rounded">
                             거절 사유: {request.rejection_reason}
                           </p>
                         )}
@@ -272,19 +270,19 @@ export default function AgentPropertiesPage() {
 
       {/* 전체 현장 목록 */}
       <div>
-        <h2 className="text-lg font-semibold text-(--oboon-text-title) mb-4">
+        <h2 className="ob-typo-h3 text-(--oboon-text-title) mb-4">
           전체 현장 목록
         </h2>
 
         {hasApprovedProperty && (
-          <div className="mb-4 rounded-xl border border-(--oboon-primary) bg-(--oboon-primary)/10 px-4 py-3 text-sm text-(--oboon-primary)">
+          <div className="mb-4 rounded-xl border border-(--oboon-primary) bg-(--oboon-primary)/10 px-4 py-3 ob-typo-caption text-(--oboon-primary)">
             이미 승인된 현장이 있습니다. 한 명의 상담사는 한 곳의 현장에만
             소속될 수 있습니다.
           </div>
         )}
 
         {!hasApprovedProperty && hasPendingRequest && (
-          <div className="mb-4 rounded-xl border border-(--oboon-warning-border) bg-(--oboon-warning)/10 px-4 py-3 text-sm text-(--oboon-warning)">
+          <div className="mb-4 rounded-xl border border-(--oboon-warning-border) bg-(--oboon-warning)/10 px-4 py-3 ob-typo-caption text-(--oboon-warning)">
             현재 승인 대기 중인 신청이 있습니다. 승인 또는 거절 후 다른 현장에
             신청할 수 있습니다.
           </div>
@@ -323,7 +321,7 @@ export default function AgentPropertiesPage() {
                     <h3 className="font-semibold text-(--oboon-text-title) mb-1">
                       {property.name}
                     </h3>
-                    <p className="text-xs text-(--oboon-text-muted) mb-3">
+                    <p className="ob-typo-caption text-(--oboon-text-muted) mb-3">
                       {property.property_type}
                     </p>
                     {canApply && (
@@ -345,14 +343,14 @@ export default function AgentPropertiesPage() {
                       </Button>
                     )}
                     {hasApprovedProperty && !requestStatus && (
-                      <div className="text-xs text-(--oboon-text-muted) text-center">
+                      <div className="ob-typo-caption text-(--oboon-text-muted) text-center">
                         이미 다른 현장에 소속됨
                       </div>
                     )}
                     {!hasApprovedProperty &&
                       hasPendingRequest &&
                       !requestStatus && (
-                        <div className="text-xs text-(--oboon-text-muted) text-center">
+                        <div className="ob-typo-caption text-(--oboon-text-muted) text-center">
                           다른 현장 승인 대기 중
                         </div>
                       )}
@@ -369,6 +367,6 @@ export default function AgentPropertiesPage() {
           </div>
         )}
       </div>
-    </div>
+    </PageContainer>
   );
 }

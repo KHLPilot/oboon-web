@@ -54,7 +54,7 @@ function toCompactItem(m: DbOffering): MapOfferingCompactItem {
   return {
     id: m.id,
     title: m.title,
-    region: m.region,
+    address: m.addressFull,
     priceRange: formatPriceRange(m.priceMinWon, m.priceMaxWon, {
       unknownLabel: UXCopy.priceRangeShort,
     }),
@@ -140,8 +140,8 @@ export default function MapPageClient() {
   }, [filtered, visibleIds]);
 
   const markers = useMemo(() => {
-    return visible.map(toMarker);
-  }, [visible]);
+    return filtered.map(toMarker);
+  }, [filtered]);
 
   const compactItems = useMemo(() => {
     return visible.map(toCompactItem);
@@ -152,48 +152,61 @@ export default function MapPageClient() {
   };
 
   return (
-    <main className="min-h-screen bg-(--oboon-bg-page)">
-      <PageContainer variant="full">
-        <div className="relative min-h-[calc(100dvh-72px)]">
-          <div className="absolute inset-0">
-            <NaverMap
-              ref={mapApiRef}
-              markers={markers}
-              hoveredId={hoveredId}
-              focusedId={focusedId}
-              onVisibleIdsChange={setVisibleIds}
-              onHoverChange={setHoveredId}
-              onMarkerSelect={(id) => setFocusedId(id)}
-              onClearFocus={() => setFocusedId(null)}
-            />
+    <main className="bg-(--oboon-bg-page)">
+      <PageContainer>
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="ob-typo-h1 text-(--oboon-text-title)">지도</div>
+              <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+                상담 지도에서 위치를 보고, 하단에서 현장을 빠르게 비교하세요.
+              </p>
+            </div>
+          </div>
 
-            <div className="pointer-events-none absolute bottom-6 left-4 flex flex-col gap-2 sm:left-6">
+          <div className="relative h-[360px] overflow-hidden rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) sm:h-[420px] md:h-[480px]">
+            <div className="absolute inset-0">
+              <NaverMap
+                ref={mapApiRef}
+                markers={markers}
+                hoveredId={hoveredId}
+                focusedId={focusedId}
+                onVisibleIdsChange={setVisibleIds}
+                onHoverChange={setHoveredId}
+                onMarkerSelect={(id) => setFocusedId(id)}
+                onClearFocus={() => setFocusedId(null)}
+              />
+            </div>
+
+            <LayerControl filters={filters} onToggle={handleToggleLayer} />
+
+            <div className="pointer-events-none absolute right-4 top-4 flex flex-col gap-2">
               <Button
                 type="button"
+                shape="pill"
                 size="sm"
                 variant="secondary"
-                className="pointer-events-auto h-10 w-10 rounded-full"
+                className="pointer-events-auto h-10 w-10 bg-(--oboon-bg-surface)/50"
                 onClick={() => mapApiRef.current?.zoomIn()}
               >
                 <Plus className="h-4 w-4" />
               </Button>
               <Button
                 type="button"
+                shape="pill"
                 size="sm"
                 variant="secondary"
-                className="pointer-events-auto h-10 w-10 rounded-full"
+                className="pointer-events-auto h-10 w-10 bg-(--oboon-bg-surface)/50"
                 onClick={() => mapApiRef.current?.zoomOut()}
               >
                 <Minus className="h-4 w-4" />
               </Button>
-            </div>
-
-            <div className="pointer-events-none absolute bottom-6 right-4 sm:right-6">
               <Button
                 type="button"
+                shape="pill"
                 size="sm"
                 variant="secondary"
-                className="pointer-events-auto h-10 w-10 rounded-full"
+                className="pointer-events-auto h-10 w-10 bg-(--oboon-bg-surface)/50"
                 onClick={() => setOverlayOpen(true)}
               >
                 <Expand className="h-4 w-4" />
@@ -201,37 +214,18 @@ export default function MapPageClient() {
             </div>
           </div>
 
-          <div className="relative z-10 flex min-h-[calc(100dvh-72px)] flex-col gap-4 pt-6">
-            <div className="flex items-center justify-between">
-              <h1 className="ob-typo-h1 text-(--oboon-text-title)">
-                지도에서 분양 찾기
-              </h1>
-              <div className="hidden sm:block">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => router.push("/offerings")}
-                >
-                  리스트로 보기
-                </Button>
-              </div>
-            </div>
-
-            <LayerControl filters={filters} onToggle={handleToggleLayer} />
-
-            <MapOfferingCompactList
-              items={compactItems}
-              hoveredId={hoveredId}
-              focusedId={focusedId}
-              onHover={setHoveredId}
-              onSelect={setFocusedId}
-            />
-          </div>
+          <MapOfferingCompactList
+            items={compactItems}
+            hoveredId={hoveredId}
+            focusedId={focusedId}
+            onHover={setHoveredId}
+            onSelect={setFocusedId}
+          />
 
           <FullscreenMapOverlay
             open={overlayOpen}
             markers={markers}
-            offerings={visible}
+            offerings={filtered}
             hoveredId={hoveredId}
             focusedId={focusedId}
             onHoverChange={setHoveredId}

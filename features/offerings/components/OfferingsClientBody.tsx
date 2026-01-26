@@ -206,6 +206,14 @@ export default function OfferingsClientBody() {
   return (
     <main className="bg-(--oboon-bg-page)">
       <PageContainer>
+        <div className="flex items-center gap-3 mb-1">
+          <div className="ob-typo-h1 text-(--oboon-text-title)">
+            분양 리스트
+          </div>
+        </div>
+        <p className="ob-typo-body text-(--oboon-text-muted) mb-4">
+          조건에 맞는 분양 정보를 빠르게 찾을 수 있어요.
+        </p>
         <div className="flex flex-col gap-5">
           <FilterBar />
 

@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation";
 export type MapOfferingCompactItem = {
   id: number;
   title: string;
-  region: string;
+  address: string;
   priceRange: string;
   statusValue: OfferingStatusValue | null;
 };
@@ -101,7 +101,7 @@ export default function MapOfferingCompactList({
               </div>
               <div className="flex flex-col ml-2 gap-0.5">
                 <div className="mt-1 ob-typo-body text-(--oboon-text-muted)">
-                  {item.region}
+                  {item.address}
                 </div>
                 <div className="mt-1 ob-typo-h4">{item.priceRange}</div>
               </div>

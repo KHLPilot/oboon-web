@@ -37,6 +37,7 @@ export type DbOffering = {
   title: string;
   region: string;
   address: string;
+  addressFull: string;
   priceMinWon: number | null;
   priceMaxWon: number | null;
   statusEnum: OfferingStatusValue | null;
@@ -83,6 +84,11 @@ function getAddressShort(loc0: PropertyLocationRow | null) {
   return addr.length > 26 ? `${addr.slice(0, 26)}…` : addr;
 }
 
+function getAddressFull(loc0: PropertyLocationRow | null) {
+  const addr = pickFirstNonEmpty(loc0?.road_address, loc0?.jibun_address);
+  return addr ?? UXCopy.addressShort;
+}
+
 export function mapPropertyRowsToDbOfferings(rows: MapPropertyRow[]) {
   return rows
     .map((r) => {
@@ -110,6 +116,7 @@ export function mapPropertyRowsToDbOfferings(rows: MapPropertyRow[]) {
         title: r.name,
         region: getRegionLabel(loc0),
         address: getAddressShort(loc0),
+        addressFull: getAddressFull(loc0),
         priceMinWon: priceMin,
         priceMaxWon: priceMax,
         statusEnum,
