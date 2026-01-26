@@ -166,7 +166,7 @@ export default function CommunityWriteModal({
               size="md"
               shape="pill"
               className="mt-4 w-full justify-center"
-              onClick={() => console.log("community:login")}
+              onClick={() => {}}
             >
               로그인하고 기록 남기기
             </Button>

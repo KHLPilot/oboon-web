@@ -30,8 +30,6 @@ export async function POST(req: Request) {
 
         const { data: { user } } = await supabase.auth.getUser();
 
-        console.log("[approve-agent] 현재 사용자:", user?.id);
-
         if (!user) {
             return NextResponse.json({ error: "인증되지 않은 요청입니다" }, { status: 401 });
         }
@@ -42,13 +40,9 @@ export async function POST(req: Request) {
             .eq("id", user.id)
             .single();
 
-        console.log("[approve-agent] 요청자 역할:", requesterProfile?.role);
-
         if (requesterProfile?.role !== "admin") {
             return NextResponse.json({ error: "관리자 권한이 필요합니다" }, { status: 403 });
         }
-
-        console.log("[approve-agent] 승인 대상 userId:", userId);
 
         const { error } = await adminSupabase
             .from("profiles")

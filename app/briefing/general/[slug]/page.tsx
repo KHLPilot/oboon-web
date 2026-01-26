@@ -10,10 +10,14 @@ import Card from "@/components/ui/Card";
 
 import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { createSupabaseServer } from "@/lib/supabaseServer";
-import { Cover, cx } from "@/features/briefing/briefing.ui";
+import {
+  deleteGeneralBriefingPost,
+  ensureGeneralBriefingAdmin,
+  fetchGeneralPostPageData,
+} from "@/features/briefing/services/briefing.general.post";
+import { Cover, cx } from "@/features/briefing/components/briefing.ui";
 import { redirect } from "next/navigation";
-import AdminPostActions from "@/components/briefing/AdminPostActions.client";
+import AdminPostActions from "@/features/briefing/components/AdminPostActions.client";
 
 type AuthorProfile = {
   id: string;
@@ -42,6 +46,23 @@ type PostRow = {
       }[]
     | null;
 };
+
+function normalizeAuthorProfile(
+  author: AuthorProfile | AuthorProfile[] | null | undefined,
+) {
+  if (Array.isArray(author)) return author[0] ?? null;
+  return author ?? null;
+}
+
+function normalizePostRow(raw: any): PostRow {
+  return {
+    ...raw,
+    author_profile: normalizeAuthorProfile(raw?.author_profile),
+    post_tags: (raw?.post_tags ?? []).map((pt: any) => ({
+      tag: Array.isArray(pt?.tag) ? pt.tag[0] ?? null : pt?.tag ?? null,
+    })),
+  };
+}
 
 function formatDateLong(iso: string) {
   const d = new Date(iso);
@@ -103,21 +124,6 @@ function makeBulletLines(md: string | null, maxLines = 3) {
 }
 
 // 관리자 체크 코드
-async function getIsAdmin() {
-  const supabase = createSupabaseServer();
-  const { data: auth } = await supabase.auth.getUser();
-  const user = auth.user;
-  if (!user) return { isAdmin: false, userId: null as string | null };
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("id, role, deleted_at")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  const isAdmin = !!profile && !profile.deleted_at && profile.role === "admin";
-  return { isAdmin, userId: user.id };
-}
 
 export default async function GeneralPostPage({
   params,
@@ -125,101 +131,30 @@ export default async function GeneralPostPage({
   params: { slug: string };
 }) {
   const slug = decodeURIComponent(params.slug);
-  const supabase = createSupabaseServer();
 
-  // board_id 확보 (general)
-  const { data: board, error: boardError } = await supabase
-    .from("briefing_boards")
-    .select("id")
-    .eq("key", "general")
-    .single();
-  if (boardError) throw boardError;
-  const boardId = board.id as string;
+  const { isAdmin, post: data, relatedPosts } =
+    await fetchGeneralPostPageData(slug);
 
-  const { data, error } = await supabase
-    .from("briefing_posts")
-    .select(
-      `
-       id,
-       slug,
-       title,
-       content_md,
-       created_at,
-       published_at,
-       cover_image_url,
-       author_profile:profiles(
-         id,
-         name,
-         nickname,
-         role
-       ),
-       post_tags:briefing_post_tags(
-         tag:briefing_tags(id,name,sort_order,is_active)
-       )
-    `
-    )
-    .eq("status", "published")
-    .eq("slug", slug)
-    .eq("board_id", boardId)
-    .maybeSingle();
-
-  if (error) throw error;
   if (!data) notFound();
-
-  const post = data as any as PostRow;
-  const createdAt = (post.published_at ?? post.created_at) as string;
+  const post = normalizePostRow(data);
 
   const author = post.author_profile;
-  const authorName = author?.nickname?.trim() || author?.name || "알 수 없음";
+  const authorName = author?.nickname ?? author?.name ?? "익명";
+  const createdAt = (post.published_at ?? post.created_at) as string;
+  const badgeLabel = "일반";
+  const postId = post.id;
 
-  const primaryTagName = pickPrimaryTagName(post);
-  const badgeLabel = primaryTagName ?? "일반 브리핑";
-
-  const { data: relatedData, error: relErr } = await supabase
-    .from("briefing_posts")
-    .select("id, slug, title, content_md")
-    .eq("status", "published")
-    .eq("board_id", boardId)
-    .neq("slug", slug)
-    .order("published_at", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false })
-    .limit(3);
-  if (relErr) throw relErr;
-
-  const { isAdmin, userId } = await getIsAdmin();
+  const relatedData = relatedPosts;
 
   async function deletePostAction() {
     "use server";
 
-    const supabase = createSupabaseServer();
-
-    const { data: auth } = await supabase.auth.getUser();
-    const user = auth.user;
-    if (!user) redirect("/briefing");
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("id, role, deleted_at")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    const adminOk =
-      !!profile && !profile.deleted_at && profile.role === "admin";
+    const adminOk = await ensureGeneralBriefingAdmin();
     if (!adminOk) redirect("/briefing");
 
-    // 태그 조인 테이블 먼저 삭제( FK 설정에 따라 CASCADE면 생략 가능 )
-    await supabase.from("briefing_post_tags").delete().eq("post_id", post.id);
+    const { error } = await deleteGeneralBriefingPost(postId);
+    if (error) throw error;
 
-    const { error } = await supabase
-      .from("briefing_posts")
-      .delete()
-      .eq("id", post.id);
-    if (error) {
-      // UX: 필요하면 throw로 에러 페이지 or 메시지 처리
-      throw error;
-    }
-
-    // 삭제 후 이동(오리지널이면 해당 카테고리 목록, 일반이면 /briefing)
     redirect("/briefing");
   }
 

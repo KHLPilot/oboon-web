@@ -4,8 +4,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createSupabaseClient } from "@/lib/supabaseClient";
 import { approveAgent, restoreAccount } from "./serverActions";
+import { fetchAdminDashboardData } from "@/features/admin/services/admin.dashboard";
 
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -83,8 +83,6 @@ export default function AdminPage() {
 function AdminPageInner() {
   const router = useRouter();
   const toast = useToast();
-  const supabase = useMemo(() => createSupabaseClient(), []);
-
   const [loading, setLoading] = useState(true);
   const [pendingAgents, setPendingAgents] = useState<Profile[]>([]);
   const [pendingPropertyAgents, setPendingPropertyAgents] = useState<
@@ -104,87 +102,24 @@ function AdminPageInner() {
   const loadData = useCallback(async () => {
     setLoading(true);
 
-    // 1) 관리자 체크
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
+    const data = await fetchAdminDashboardData();
+
+    if (!data.user) {
       router.push("/");
       return;
     }
 
-    const { data: adminProfile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-
-    if (adminProfile?.role !== "admin") {
+    if (data.role !== "admin") {
       router.push("/");
       return;
     }
 
-    // 2) 승인 대기 목록
-    const { data: pending } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("role", "agent_pending")
-      .order("created_at", { ascending: true });
-
-    setPendingAgents(pending || []);
-
-    // 2-1) 현장 소속 승인 대기 목록
-    const { data: propertyAgentsPending, error: paError } = await supabase
-      .from("property_agents")
-      .select(
-        `
-        id,
-        property_id,
-        agent_id,
-        status,
-        requested_at
-      `,
-      )
-      .eq("status", "pending")
-      .order("requested_at", { ascending: true });
-
-    // 관계 데이터를 별도로 조회
-    let enrichedPropertyAgents: PropertyAgent[] = [];
-    if (propertyAgentsPending && propertyAgentsPending.length > 0) {
-      const propertyIds = [...new Set(propertyAgentsPending.map((pa) => pa.property_id))];
-      const agentIds = [...new Set(propertyAgentsPending.map((pa) => pa.agent_id))];
-
-      const [{ data: propertiesData }, { data: profilesData }] = await Promise.all([
-        supabase.from("properties").select("id, name").in("id", propertyIds),
-        supabase.from("profiles").select("id, name, email").in("id", agentIds),
-      ]);
-
-      const propertiesMap = new Map((propertiesData || []).map((p) => [p.id, p]));
-      const profilesMap = new Map((profilesData || []).map((p) => [p.id, p]));
-
-      enrichedPropertyAgents = propertyAgentsPending.map((pa) => ({
-        ...pa,
-        properties: propertiesMap.get(pa.property_id) || null,
-        profiles: profilesMap.get(pa.agent_id) || null,
-      }));
-    }
-
-    setPendingPropertyAgents(enrichedPropertyAgents);
-
-    // 3) 전체 유저 현황
-    const { data: users } = await supabase
-      .from("profiles")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    const deleted = (users || []).filter((u) => u.deleted_at !== null);
-    const active = (users || []).filter((u) => u.deleted_at === null);
-
-    setDeletedUsers(deleted);
-    setActiveUsers(active);
-
+    setPendingAgents(data.pendingAgents);
+    setPendingPropertyAgents(data.pendingPropertyAgents);
+    setDeletedUsers(data.deletedUsers);
+    setActiveUsers(data.activeUsers);
     setLoading(false);
-  }, [router, supabase]);
+  }, [router]);
 
   const closeConfirm = () => {
     if (confirmLoading) return;

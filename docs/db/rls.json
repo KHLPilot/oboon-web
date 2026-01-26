@@ -1,0 +1,147 @@
+[
+  {
+    "table_name": "agent_slot_overrides",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "agent_working_hours",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "briefing_boards",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "briefing_categories",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "briefing_post_tags",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "briefing_posts",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "briefing_slug_counters",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "briefing_tags",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "chat_messages",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "chat_rooms",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "community_bookmarks",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "community_comments",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "community_likes",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "community_posts",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "consultations",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "contracts",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "profiles",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "properties",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "property_agents",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "property_facilities",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "property_locations",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "property_specs",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "property_timeline",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "property_unit_types",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "public_profiles",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "verification_tokens",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "visit_confirm_requests",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "visit_logs",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "visit_tokens",
+    "rls_enabled": true,
+    "rls_forced": false
+  }
+]

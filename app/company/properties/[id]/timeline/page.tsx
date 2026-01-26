@@ -9,7 +9,7 @@ import Button, { type ButtonProps } from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import PageContainer from "@/components/shared/PageContainer";
 
-import { createSupabaseClient } from "@/lib/supabaseClient";
+import { fetchPropertyTimeline, savePropertyTimeline } from "@/features/company/services/property.timeline";
 import { showAlert } from "@/shared/alert";
 import OboonDatePicker from "@/components/ui/DatePicker";
 import PrecisionDateInput from "@/components/ui/PercisionDateInput";
@@ -127,7 +127,6 @@ const TimelineDateTrigger = forwardRef<HTMLButtonElement, ButtonProps>(
 TimelineDateTrigger.displayName = "TimelineDateTrigger";
 
 export default function PropertyTimelinePage() {
-  const supabase = createSupabaseClient();
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const propertyId = Number(params?.id);
@@ -164,11 +163,7 @@ export default function PropertyTimelinePage() {
 
       setLoading(true);
 
-      const { data, error } = await supabase
-        .from("property_timeline")
-        .select("*")
-        .eq("properties_id", propertyId)
-        .maybeSingle();
+      const { data, error } = await fetchPropertyTimeline(propertyId);
 
       if (!alive) return;
 
@@ -209,7 +204,7 @@ export default function PropertyTimelinePage() {
     return () => {
       alive = false;
     };
-  }, [propertyId, supabase]);
+  }, [propertyId]);
 
   const handlePrecisionChange = (newPrecision: "day" | "month") => {
     setMoveInPrecision(newPrecision);
@@ -235,20 +230,11 @@ export default function PropertyTimelinePage() {
         : null,
     };
 
-    let error;
-    if (timelineId) {
-      const { error: updateError } = await supabase
-        .from("property_timeline")
-        .update(payload)
-        .eq("id", timelineId);
-      error = updateError;
-    } else {
-      const { error: insertError } = await supabase
-        .from("property_timeline")
-        .insert({ properties_id: propertyId, ...payload });
-      error = insertError;
-    }
-
+    const { error } = await savePropertyTimeline(
+      propertyId,
+      payload,
+      timelineId,
+    );
     setSaving(false);
 
     if (!error) {

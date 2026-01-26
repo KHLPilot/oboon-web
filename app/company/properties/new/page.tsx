@@ -11,7 +11,8 @@ import Input from "@/components/ui/Input";
 import Label from "@/components/ui/Label";
 import PageContainer from "@/components/shared/PageContainer";
 
-import { createSupabaseClient } from "@/lib/supabaseClient";
+import { fetchCompanyUserId } from "@/features/company/services/company.auth";
+import { createProperty, updatePropertyImage } from "@/features/company/services/property.create";
 import { validateRequiredOrShowModal } from "@/shared/validationMessage";
 import { showAlert } from "@/shared/alert";
 
@@ -19,7 +20,7 @@ import PropertyStatusSelect from "@/app/company/properties/PropertyStatusSelect"
 import {
   PROPERTY_STATUS_OPTIONS,
   type PropertyStatus,
-} from "@/app/company/properties/propertyStatus";
+} from "@/features/property/domain/propertyStatus";
 
 type PropertyForm = {
   name: string;
@@ -44,7 +45,6 @@ const TEXTAREA_BASE = cn(
 );
 
 export default function PropertyCreatePage() {
-  const supabase = createSupabaseClient();
   const router = useRouter();
   const defaultStatus = PROPERTY_STATUS_OPTIONS[0]?.value;
 
@@ -84,19 +84,17 @@ export default function PropertyCreatePage() {
   // 로그인 유저 확인
   useEffect(() => {
     async function checkUser() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const userId = await fetchCompanyUserId();
 
-      if (!user) {
-        showAlert("로그인이 필요합니다.");
+      if (!userId) {
+        showAlert("로그인이 필요합니다");
         router.replace("/");
         return;
       }
-      setUserId(user.id);
+      setUserId(userId);
     }
     checkUser();
-  }, [supabase, router]);
+  }, [router]);
 
   const disabled = useMemo(() => loading, [loading]);
 
@@ -126,11 +124,7 @@ export default function PropertyCreatePage() {
       created_by: userId,
     };
 
-    const { data, error } = await supabase
-      .from("properties")
-      .insert(payload)
-      .select("id")
-      .single();
+    const { data, error } = await createProperty(payload);
 
     setLoading(false);
 
@@ -169,10 +163,7 @@ export default function PropertyCreatePage() {
         throw new Error("대표 이미지 업로드 응답에 url이 없습니다.");
       }
 
-      const { error: updateErr } = await supabase
-        .from("properties")
-        .update({ image_url: url })
-        .eq("id", propertyId);
+      const { error: updateErr } = await updatePropertyImage(propertyId, url);
 
       if (updateErr) {
         throw new Error("대표 이미지 저장에 실패했습니다.");

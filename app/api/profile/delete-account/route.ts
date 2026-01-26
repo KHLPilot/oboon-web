@@ -19,8 +19,6 @@ export async function POST(req: Request) {
             );
         }
 
-        console.log("🔍 계정 삭제 시작:", userId);
-
         // 1. 사용자 확인
         const { data: user } = await supabaseAdmin.auth.admin.getUserById(userId);
 
@@ -51,8 +49,6 @@ export async function POST(req: Request) {
             );
         }
 
-        console.log("✅ Profile 익명화 완료");
-
         // 3. auth.users에서 비활성화 (삭제 대신)
         // Supabase Auth는 ban 기능 제공
         const { error: banError } = await supabaseAdmin.auth.admin.updateUserById(
@@ -64,8 +60,6 @@ export async function POST(req: Request) {
             console.error("❌ 유저 비활성화 실패:", banError);
             // 실패해도 계속 진행 (로그아웃으로 대체)
         }
-
-        console.log("✅ 유저 비활성화 완료");
 
         return NextResponse.json({
             success: true,

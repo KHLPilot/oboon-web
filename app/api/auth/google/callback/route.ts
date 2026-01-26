@@ -32,8 +32,6 @@ export async function GET(req: Request) {
     );
 
     try {
-        console.log("📧 구글 코드 수신:", code.substring(0, 10) + "...");
-
         // 2. 코드로 세션 교환 (PKCE 자동 처리)
         const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
@@ -43,8 +41,6 @@ export async function GET(req: Request) {
         }
 
         const user = data.user;
-        console.log("✅ 구글 로그인 성공:", user.email);
-
         // 3. profiles 확인 (anon key로 조회)
         const { data: profile } = await supabase
             .from("profiles")
@@ -52,23 +48,14 @@ export async function GET(req: Request) {
             .eq("id", user.id)
             .single();
 
-        console.log("📋 프로필 조회 결과:", {
-            exists: !!profile,
-            name: profile?.name,
-            phone_number: profile?.phone_number,
-            role: profile?.role
-        });
-
         let redirectPath = "/";
 
         // 4. profiles 없으면 온보딩
         if (!profile) {
-            console.log("🆕 신규 유저 - 온보딩으로");
             redirectPath = "/auth/onboarding";
         } else {
             // 5. role 체크
             if (profile.role === "admin") {
-                console.log("👑 관리자 - 관리자 페이지로");
                 redirectPath = "/admin";
             } else {
                 // 6. 프로필 완성 체크
@@ -78,25 +65,13 @@ export async function GET(req: Request) {
                     !profile.phone_number ||
                     profile.phone_number === "temp";
 
-                console.log("🔍 프로필 완성 체크:", {
-                    name: profile.name,
-                    name_is_temp: profile.name === "temp",
-                    phone_number: profile.phone_number,
-                    phone_is_temp: profile.phone_number === "temp",
-                    isMissing: isMissing
-                });
-
                 if (isMissing) {
-                    console.log("🔄 프로필 미완성 - 온보딩으로");
                     redirectPath = "/auth/onboarding";
                 } else {
-                    console.log("✅ 프로필 완성 - 홈으로");
                     redirectPath = "/";
                 }
             }
         }
-
-        console.log(`✅ ${redirectPath}로 리다이렉트`);
 
         // 7. 리다이렉트 (쿠키는 이미 설정됨)
         return NextResponse.redirect(new URL(redirectPath, process.env.NEXT_PUBLIC_SITE_URL!));

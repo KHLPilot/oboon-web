@@ -35,7 +35,6 @@ export async function restoreAccount(formData: FormData) {
     const userId = formData.get("userId") as string;
 
     try {
-        console.log("🔄 계정 복구 시작:", userId);
 
         // 1. profiles 복구
         const { error: updateError } = await supabaseAdmin
@@ -62,7 +61,6 @@ export async function restoreAccount(formData: FormData) {
             return { error: "정지 해제 실패" };
         }
 
-        console.log("✅ 계정 복구 완료");
 
         return { success: true };  // ← 클라이언트에서 처리
     } catch (err: any) {

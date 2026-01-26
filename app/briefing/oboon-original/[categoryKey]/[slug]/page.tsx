@@ -10,12 +10,16 @@ import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import AdminPostActions from "@/components/briefing/AdminPostActions.client";
+import AdminPostActions from "@/features/briefing/components/AdminPostActions.client";
 
-import BriefingOriginalCard from "@/features/briefing/oboon-original/BriefingOriginalCard";
-import { Cover, cx } from "@/features/briefing/briefing.ui";
+import BriefingOriginalCard from "@/features/briefing/components/oboon-original/BriefingOriginalCard";
+import { Cover, cx } from "@/features/briefing/components/briefing.ui";
 
-import { createSupabaseServer } from "@/lib/supabaseServer";
+import {
+  deleteBriefingPost,
+  ensureBriefingAdmin,
+  fetchOboonOriginalPostPageData,
+} from "@/features/briefing/services/briefing.original.post";
 
 type AuthorProfile = {
   id: string;
@@ -44,6 +48,23 @@ type PostRow = {
       }[]
     | null;
 };
+
+function normalizeAuthorProfile(
+  author: AuthorProfile | AuthorProfile[] | null | undefined,
+) {
+  if (Array.isArray(author)) return author[0] ?? null;
+  return author ?? null;
+}
+
+function normalizePostRow(raw: any): PostRow {
+  return {
+    ...raw,
+    author_profile: normalizeAuthorProfile(raw?.author_profile),
+    post_tags: (raw?.post_tags ?? []).map((pt: any) => ({
+      tag: Array.isArray(pt?.tag) ? pt.tag[0] ?? null : pt?.tag ?? null,
+    })),
+  };
+}
 
 function formatDateLong(iso: string) {
   const d = new Date(iso);
@@ -76,164 +97,42 @@ export default async function OboonOriginalPostPage({
 }) {
   const categoryKey = decodeURIComponent(params.categoryKey);
   const slug = decodeURIComponent(params.slug);
-  const supabase = createSupabaseServer();
 
   // 관리자 체크
-  async function getIsAdmin() {
-    const supabase = createSupabaseServer();
-    const { data: auth } = await supabase.auth.getUser();
-    const user = auth.user;
-    if (!user) return { isAdmin: false, userId: null as string | null };
+  const {
+    isAdmin,
+    boardId,
+    category: cat,
+    post: data,
+    relatedPosts,
+    recCats,
+    recCounts,
+  } = await fetchOboonOriginalPostPageData({ categoryKey, slug });
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("id, role, deleted_at")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    const isAdmin =
-      !!profile && !profile.deleted_at && profile.role === "admin";
-    return { isAdmin, userId: user.id };
-  }
-  // board_id 확보
-  const { data: board, error: boardError } = await supabase
-    .from("briefing_boards")
-    .select("id")
-    .eq("key", "oboon_original")
-    .single();
-  if (boardError) throw boardError;
-  const boardId = board.id as string;
-
-  // category_id 확보
-  const { data: cat, error: catErr } = await supabase
-    .from("briefing_categories")
-    .select("id,key,name,description")
-    .eq("board_id", boardId)
-    .eq("key", categoryKey)
-    .eq("is_active", true)
-    .maybeSingle();
-  if (catErr) throw catErr;
   if (!cat) notFound();
-
-  // 본문 (+ 태그 조인)
-  const { data, error } = await supabase
-    .from("briefing_posts")
-    .select(
-      `
-    id,
-    slug,
-    title,
-    content_md,
-    created_at,
-    published_at,
-    cover_image_url,
-    author_profile:profiles(
-      id,
-      name,
-      nickname,
-      role
-    ),
-    post_tags:briefing_post_tags(
-      tag:briefing_tags(id,name,sort_order,is_active)
-    )
-  `
-    )
-    .eq("status", "published")
-    .eq("slug", slug)
-    .eq("board_id", boardId)
-    .eq("category_id", cat.id)
-    .maybeSingle();
-
-  if (error) throw error;
   if (!data) notFound();
+  const post = normalizePostRow(data);
 
-  const post = data as any as PostRow;
-  const createdAt = (post.published_at ?? post.created_at) as string;
-
+  const relatedData = relatedPosts;
   const author = post.author_profile;
-  const authorName = author?.nickname?.trim() || author?.name || "알 수 없음";
-
-  // 사이드바 배지: 글 대표 태그(없으면 카테고리)
-  const primaryTagName = pickPrimaryTagName(post);
-  const badgeLabel = primaryTagName ?? cat.name ?? "카테고리명";
-
-  const { data: relatedData, error: relErr } = await supabase
-    .from("briefing_posts")
-    .select("id, slug, title, content_md")
-    .eq("status", "published")
-    .eq("board_id", boardId)
-    .eq("category_id", cat.id)
-    .neq("slug", slug)
-    .order("published_at", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false })
-    .limit(3);
-
-  if (relErr) throw relErr;
-
-  const { isAdmin } = await getIsAdmin();
+  const authorName = author?.nickname ?? author?.name ?? "익명";
+  const createdAt = (post.published_at ?? post.created_at) as string;
+  const primaryTagName = pickPrimaryTagName(post) ?? cat.name;
+  const badgeLabel = primaryTagName;
+  const postId = post.id;
 
   async function deletePostAction() {
     "use server";
 
-    const supabase = createSupabaseServer();
-    const { data: auth } = await supabase.auth.getUser();
-    const user = auth.user;
-    if (!user) redirect("/briefing");
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("id, role, deleted_at")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    const adminOk =
-      !!profile && !profile.deleted_at && profile.role === "admin";
+    const adminOk = await ensureBriefingAdmin();
     if (!adminOk) redirect("/briefing");
 
-    await supabase.from("briefing_post_tags").delete().eq("post_id", post.id);
-    const { error } = await supabase
-      .from("briefing_posts")
-      .delete()
-      .eq("id", post.id);
+    const { error } = await deleteBriefingPost(postId);
     if (error) throw error;
 
     redirect(`/briefing/oboon-original/${encodeURIComponent(categoryKey)}`);
   }
   // 추천 오리지널 시리즈(카테고리 3개)
-  const { data: recCats, error: recErr } = await supabase
-    .from("briefing_categories")
-    .select("id,key,name")
-    .eq("board_id", boardId)
-    .eq("is_active", true)
-    .neq("key", categoryKey)
-    .order("sort_order", { ascending: true })
-    .limit(3);
-  if (recErr) throw recErr;
-
-  // 추천 시리즈 count(간단 집계)
-  const recCounts = new Map<string, number>();
-  if ((recCats ?? []).length > 0) {
-    const idToKey = new Map<string, string>(
-      (recCats ?? []).map((c: any) => [c.id, c.key])
-    );
-    const recCategoryIds = (recCats ?? []).map((c: any) => c.id);
-
-    const { data: rows, error: rowsErr } = await supabase
-      .from("briefing_posts")
-      .select("category_id")
-      .eq("status", "published")
-      .eq("board_id", boardId)
-      .in("category_id", recCategoryIds);
-
-    if (rowsErr) throw rowsErr;
-
-    (rows ?? []).forEach((r: any) => {
-      const k = idToKey.get(r.category_id);
-      if (!k) return;
-      recCounts.set(k, (recCounts.get(k) ?? 0) + 1);
-    });
-  }
-
   function stripMdToText(md: string) {
     return md
       .replace(/```[\s\S]*?```/g, " ")

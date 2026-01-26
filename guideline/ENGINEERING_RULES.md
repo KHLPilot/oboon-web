@@ -1,32 +1,71 @@
-# ENGINEERING_RULES.md
+# ENGINEERING RULES
 
-본 문서는 반드시 지켜야 할 **엔지니어링 최소 규칙**을 정의한다.
-
----
-
-## Must
-
-- Supabase 접근은 services에서만
-- page.tsx에서 DB 접근 금지
-- UI는 components/ui, components/shared 우선 사용
-- 모든 페이지는 PageContainer 사용
-- pnpm만 사용
-- build / typecheck / lint 통과 필수
-- 오류는 사용자에게 반드시 노출
+본 문서는 ARCHITECTURE.md를 실제 코드 작업에 적용하기 위한 **실행 규칙**이다.
 
 ---
 
-## Should
+## 1. 추측 금지 (No Guessing Rule)
 
-- 재사용 가능한 UI는 공용화 검토
-- 데이터 로드와 변환 분리
-- 디자인 토큰 우선 사용
-- 컴포넌트 단일 책임 유지
+- 의도가 불명확한 코드/타입/데이터는 추측하지 않는다.
+- 필요한 정보가 없으면 작업을 멈추고 질문한다.
+- AI가 “알아서” 판단하는 행위는 금지된다.
+
+---
+
+## 2. 작업 단위 규칙 (Atomic Change Rule)
+
+- 하나의 작업은 하나의 목적만 가진다.
+- 다음을 동시에 수행하지 않는다:
+  - 구조 변경
+  - 로직 변경
+  - 타입 변경
+- 리팩터링 작업은 **동작 변경을 포함해서는 안 된다**.
 
 ---
 
-## Exceptions
+## 3. Console Logging Policy
 
-- 예외는 PR에 명시 + 합의 필요
+### 제거 대상
+
+- `console.log`
+- `console.debug`
+- `console.info`
+
+### 유지 대상
+
+- `console.warn`
+- `console.error`
+
+### 규칙
+
+- 로그 제거 시 기능, 조건식, 반환값을 변경하지 않는다.
+- 로그가 포함된 주석은 수정하지 않는다.
+- formatter / prettier 는 실행하지 않는다.
 
 ---
+
+## 4. Supabase / 외부 접근 규칙
+
+- app 레이어에서 Supabase 직접 접근 금지
+- 모든 DB 접근은 features/services 를 통해서만 수행한다.
+- services 는 **데이터 접근만** 담당한다.
+
+---
+
+## 5. 변경 후 검증 규칙
+
+- TypeScript 에러 여부를 반드시 확인한다.
+- 타입 에러, 런타임 위험이 있으면 명시적으로 보고한다.
+- “문제 없음”이라는 결론에는 근거를 함께 제시한다.
+
+---
+
+## 6. 한글 / 인코딩 보호
+
+- 한글 문자열은 절대 임의 수정하지 않는다.
+- 깨진 문자열은 의미를 복원한 후 수정한다.
+- 인코딩 변경(BOM 추가 등)은 금지된다.
+
+---
+
+본 규칙은 **AI 자동 수정 작업에도 동일하게 적용**된다.

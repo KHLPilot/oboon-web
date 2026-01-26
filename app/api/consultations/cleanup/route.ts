@@ -89,8 +89,6 @@ export async function POST(req: Request) {
       );
     }
 
-    console.log(`${idsToDelete.length}개의 오래된 취소 예약이 삭제되었습니다.`);
-
     return NextResponse.json({
       success: true,
       message: `${idsToDelete.length}개의 예약이 삭제되었습니다`,

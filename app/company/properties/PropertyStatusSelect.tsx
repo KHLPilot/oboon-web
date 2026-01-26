@@ -10,11 +10,11 @@ import {
 } from "@/components/ui/DropdownMenu";
 
 import Button from "@/components/ui/Button";
-import type { PropertyStatus } from "./propertyStatus";
+import type { PropertyStatus } from "@/features/property/domain/propertyStatus";
 import {
   PROPERTY_STATUS_OPTIONS,
   PROPERTY_STATUS_LABEL,
-} from "./propertyStatus";
+} from "@/features/property/domain/propertyStatus";
 
 export default function PropertyStatusSelect({
   value,

@@ -106,8 +106,6 @@ export async function POST(req: Request) {
 
     // 7. 토큰 유효성 확인
     const visitToken = request.token;
-    console.log("visitToken:", JSON.stringify(visitToken, null, 2));
-
     if (visitToken.used_at) {
       return NextResponse.json(
         { error: "이미 사용된 토큰입니다" },

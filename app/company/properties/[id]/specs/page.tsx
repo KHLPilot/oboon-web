@@ -8,8 +8,8 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import PageContainer from "@/components/shared/PageContainer";
-import { FormField } from "@/app/components/FormField";
-import { createSupabaseClient } from "@/lib/supabaseClient";
+import { FormField } from "@/components/shared/FormField";
+import { fetchPropertySpecs, fetchPropertyUnitTypes, upsertPropertySpecs } from "@/features/company/services/property.specs";
 import { showAlert } from "@/shared/alert";
 
 type SpecsForm = {
@@ -34,7 +34,6 @@ type SpecsForm = {
 };
 
 export default function PropertySpecsPage() {
-  const supabase = createSupabaseClient();
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const propertyId = Number(params?.id);
@@ -52,10 +51,7 @@ export default function PropertySpecsPage() {
     if (!Number.isFinite(propertyId)) return;
 
     const fetchUnitTypes = async () => {
-      const { data, error } = await supabase
-        .from("property_unit_types")
-        .select("unit_count")
-        .eq("properties_id", propertyId);
+      const { data, error } = await fetchPropertyUnitTypes(propertyId);
 
       if (error) {
         console.error("unit types error", error);
@@ -66,7 +62,7 @@ export default function PropertySpecsPage() {
     };
 
     fetchUnitTypes();
-  }, [propertyId, supabase]);
+  }, [propertyId]);
 
   const calculatedHouseholdTotal = useMemo(() => {
     return unitTypes.reduce((sum, u) => sum + (u.unit_count ?? 0), 0);
@@ -83,13 +79,7 @@ export default function PropertySpecsPage() {
 
       setLoading(true);
 
-      const { data, error } = await supabase
-        .from("property_specs")
-        .select("*")
-        .eq("properties_id", propertyId)
-        .order("id", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const { data, error } = await fetchPropertySpecs(propertyId);
 
       if (!alive) return;
 
@@ -110,7 +100,7 @@ export default function PropertySpecsPage() {
     return () => {
       alive = false;
     };
-  }, [propertyId, supabase]);
+  }, [propertyId]);
 
   const update = <K extends keyof SpecsForm>(key: K, value: SpecsForm[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -144,10 +134,7 @@ export default function PropertySpecsPage() {
       amenities: form.amenities ?? null,
     };
 
-    const { error } = await supabase.from("property_specs").upsert(payload, {
-      onConflict: "properties_id",
-    });
-
+    const { error } = await upsertPropertySpecs(payload);
     setSaving(false);
 
     if (error) {

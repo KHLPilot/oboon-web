@@ -30,7 +30,7 @@ import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { detectInAppBrowser, InAppBrowserInfo } from "@/lib/inAppBrowser";
-import { loadNaverMaps } from "@/features/map/naver.loader";
+import { loadNaverMaps } from "@/features/map/services/naver.loader";
 
 import { showAlert } from "@/shared/alert";
 interface PropertyFacility {

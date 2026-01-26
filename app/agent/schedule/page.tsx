@@ -19,7 +19,7 @@ import Link from "next/link";
 import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
-import { createSupabaseClient } from "@/lib/supabaseClient";
+import { fetchAgentAccess } from "@/features/agent/services/agent.auth";
 import { showAlert } from "@/shared/alert";
 
 registerLocale("ko", ko);
@@ -33,7 +33,6 @@ interface SlotInfo {
 
 export default function AgentSchedulePage() {
   const router = useRouter();
-  const supabase = createSupabaseClient();
 
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [slots, setSlots] = useState<SlotInfo[]>([]);
@@ -47,32 +46,23 @@ export default function AgentSchedulePage() {
   // 사용자 확인
   useEffect(() => {
     async function checkUser() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
+      const access = await fetchAgentAccess();
+      if (!access.userId) {
         router.push("/auth/login");
         return;
       }
 
-      // 상담사 권한 확인
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-
-      if (profile?.role !== "agent" && profile?.role !== "admin") {
+      if (access.role !== "agent" && access.role !== "admin") {
         showAlert("상담사만 접근할 수 있습니다");
         router.push("/");
         return;
       }
 
-      setUserId(user.id);
+      setUserId(access.userId);
     }
 
     checkUser();
-  }, [supabase, router]);
+  }, [router]);
 
   // 선택한 날짜의 슬롯 상태 조회
   useEffect(() => {

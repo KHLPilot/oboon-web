@@ -12,12 +12,12 @@ import Label from "@/components/ui/Label";
 import PageContainer from "@/components/shared/PageContainer";
 import { Badge } from "@/components/ui/Badge";
 
-import { createSupabaseClient } from "@/lib/supabaseClient";
+import { deletePropertyFacility, fetchPropertyFacilities, savePropertyFacility } from "@/features/company/services/property.facilities";
 import { validateRequiredOrShowModal } from "@/shared/validationMessage";
-import { FormField } from "@/app/components/FormField";
+import { FormField } from "@/components/shared/FormField";
 import { showAlert } from "@/shared/alert";
 import PrecisionDateInput from "@/components/ui/PercisionDateInput";
-import NaverMap from "@/features/map/NaverMap";
+import NaverMap from "@/features/map/components/NaverMap";
 
 type DaumPostcodeResult = {
   roadAddress: string;
@@ -160,7 +160,6 @@ function FacilityMapSelect({
 }
 
 export default function PropertyFacilitiesPage() {
-  const supabase = createSupabaseClient();
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const propertyId = Number(params.id);
@@ -170,11 +169,7 @@ export default function PropertyFacilitiesPage() {
 
   const fetchFacilities = useCallback(
     async (id: number) => {
-      const { data, error } = await supabase
-        .from("property_facilities")
-        .select("*")
-        .eq("properties_id", id)
-        .order("created_at", { ascending: true });
+      const { data, error } = await fetchPropertyFacilities(id);
 
       if (error) {
         console.error(error);
@@ -203,7 +198,7 @@ export default function PropertyFacilitiesPage() {
         })),
       );
     },
-    [supabase],
+    [],
   );
 
   useEffect(() => {
@@ -304,12 +299,7 @@ export default function PropertyFacilitiesPage() {
         is_active: f.is_active,
       };
 
-      const { error } = f.id
-        ? await supabase
-            .from("property_facilities")
-            .update(payload)
-            .eq("id", f.id)
-        : await supabase.from("property_facilities").insert(payload);
+      const { error } = await savePropertyFacility(payload, f.id);
 
       if (error) {
         showAlert(error.message);
@@ -325,7 +315,7 @@ export default function PropertyFacilitiesPage() {
 
   async function deleteFacility(f: FacilityForm) {
     if (f.id) {
-      await supabase.from("property_facilities").delete().eq("id", f.id);
+      await deletePropertyFacility(f.id);
     }
     setFacilities((prev) => prev.filter((x) => x !== f));
   }

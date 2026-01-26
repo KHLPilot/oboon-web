@@ -60,8 +60,6 @@ export async function POST(req: Request) {
     // 3. 요청 바디 파싱
     const body = await req.json();
     const { propertyId, consultationId } = body;
-    console.log("토큰 생성 요청:", { propertyId, consultationId });
-
     if (!propertyId) {
       return NextResponse.json(
         { error: "propertyId가 필요합니다" },

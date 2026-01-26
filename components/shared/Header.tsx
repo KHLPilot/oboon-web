@@ -196,7 +196,7 @@ export default function Header() {
               <>
                 <Button
                   variant="secondary"
-                  size="md"
+                  size="sm"
                   shape="pill"
                   className="flex items-center gap-2"
                   onClick={() => router.push("/agent/consultations")}
@@ -207,7 +207,7 @@ export default function Header() {
                 </Button>
                 <Button
                   variant="primary"
-                  size="md"
+                  size="sm"
                   shape="pill"
                   className="flex items-center gap-2"
                   onClick={() => router.push("/agent/properties")}

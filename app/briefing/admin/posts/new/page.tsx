@@ -2,9 +2,11 @@
 import { notFound } from "next/navigation";
 
 import PageContainer from "@/components/shared/PageContainer";
-import Card from "@/components/ui/Card";
-
-import { createSupabaseServer } from "@/lib/supabaseServer";
+import {
+  createBriefingPostWithSeq,
+  ensureBriefingAdminUser,
+  fetchBriefingAdminBootstrap,
+} from "@/features/briefing/services/briefing.admin";
 import { validateRequired } from "@/shared/validationMessage";
 import PostEditorClient, { type EditorBootstrap } from "./PostEditor.client";
 
@@ -17,78 +19,19 @@ type TagRow = {
   is_active: boolean;
 };
 
-async function requireAdmin() {
-  const supabase = createSupabaseServer();
-
-  const { data: authData, error: authErr } = await supabase.auth.getUser();
-  if (authErr) throw authErr;
-
-  const user = authData.user;
-  if (!user) notFound();
-
-  const { data: profile, error: profErr } = await supabase
-    .from("profiles")
-    .select("id, role, deleted_at")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (profErr) throw profErr;
-  if (!profile || profile.deleted_at) notFound();
-  if (profile.role !== "admin") notFound();
-
-  return { supabase, userId: user.id };
-}
 
 export default async function BriefingPostNewPage() {
-  const { supabase, userId } = await requireAdmin();
+  const bootstrapData = await fetchBriefingAdminBootstrap();
+  if (!bootstrapData) notFound();
 
-  // boards
-  const { data: boards, error: boardsErr } = await supabase
-    .from("briefing_boards")
-    .select("id,key,name")
-    .eq("is_active", true)
-    .order("sort_order", { ascending: true });
-
-  if (boardsErr) throw boardsErr;
-
+  const { boards, categories, tags } = bootstrapData;
   const defaultBoard =
-    (boards ?? []).find((b: any) => b.key === "oboon_original") ??
-    (boards?.[0] as any);
+    (boards ?? []).find((b: BoardRow) => b.key === "oboon_original") ??
+    (boards ?? [])[0];
 
   if (!defaultBoard) {
-    return (
-      <main className="bg-(--oboon-bg-page)">
-        <PageContainer className="pb-20">
-          <Card className="shadow-none">
-            <div className="ob-typo-body text-(--oboon-text-title)">
-              활성화된 briefing_boards가 없습니다.
-            </div>
-          </Card>
-        </PageContainer>
-      </main>
-    );
+    notFound();
   }
-
-  // categories (모든 보드)
-  const boardIds = (boards ?? []).map((b: any) => b.id);
-  const { data: categories, error: catsErr } = await supabase
-    .from("briefing_categories")
-    .select("id,key,name,board_id")
-    .in("board_id", boardIds)
-    .eq("is_active", true)
-    .order("sort_order", { ascending: true });
-
-  if (catsErr) throw catsErr;
-
-  // tags
-  const { data: tags, error: tagsErr } = await supabase
-    .from("briefing_tags")
-    .select("id,name,sort_order,is_active")
-    .eq("is_active", true)
-    .order("sort_order", { ascending: true })
-    .order("name", { ascending: true });
-
-  if (tagsErr) throw tagsErr;
 
   async function createPostAction(input: {
     board_id: string;
@@ -104,7 +47,12 @@ export default async function BriefingPostNewPage() {
     "use server";
 
     try {
-      const { supabase, userId } = await requireAdmin();
+      const admin = await ensureBriefingAdminUser();
+      if (!admin) {
+        return { ok: false, message: "관리자 권한이 필요합니다." };
+      }
+
+      const userId = admin.userId;
 
       const boardId = String(input.board_id ?? "").trim();
       const categoryId = String(input.category_id ?? "").trim();
@@ -121,50 +69,31 @@ export default async function BriefingPostNewPage() {
         return { ok: false, message: titleRequiredError };
       }
 
-      // 카테고리 조작 방지 (보드 소속/활성 확인)
-      const { data: cat, error: catErr } = await supabase
-        .from("briefing_categories")
-        .select("id, key, board_id, is_active")
-        .eq("id", categoryId)
-        .maybeSingle();
+      const result = await createBriefingPostWithSeq({
+        boardId,
+        categoryId,
+        title,
+        contentMd,
+        coverImageUrl,
+        intent,
+        tagId,
+        userId,
+      });
 
-      if (catErr) throw catErr;
-      if (!cat || cat.board_id !== boardId || !cat.is_active) {
-        return { ok: false, message: "유효하지 않은 카테고리입니다." };
+      if (!result.ok) {
+        return { ok: false, message: result.message };
       }
 
-      // slug 발급 규칙: board_key-category_key-000123 (DB/RPC에서 원자적으로 발급)
-      const { data: rpcData, error: rpcErr } = await supabase.rpc(
-        "create_briefing_post_with_seq",
-        {
-          p_board_id: boardId,
-          p_category_id: categoryId,
-          p_title: title,
-          p_content_md: contentMd,
-          p_cover_image_url: coverImageUrl,
-          p_intent: intent,
-          p_author_profile_id: userId,
-          p_tag_id: tagId,
-        }
-      );
-
-      if (rpcErr) {
-        return { ok: false, message: `저장에 실패했습니다: ${rpcErr.message}` };
+      const boardKey =
+        (boards ?? []).find((b: BoardRow) => b.id === boardId)?.key ?? "";
+      let redirectTo = "/briefing";
+      if (boardKey === "general") {
+        redirectTo = `/briefing/general/${encodeURIComponent(result.slug)}`;
+      } else if (boardKey === "oboon_original" && result.categoryKey) {
+        redirectTo = `/briefing/oboon-original/${encodeURIComponent(
+          result.categoryKey
+        )}/${encodeURIComponent(result.slug)}`;
       }
-
-      const inserted = Array.isArray(rpcData) ? rpcData[0] : rpcData;
-      const slug = inserted?.slug ? String(inserted.slug) : "";
-      if (!slug) {
-        return {
-          ok: false,
-          message:
-            "저장 결과에서 slug를 확인할 수 없습니다. RPC 반환 값을 점검해주세요.",
-        };
-      }
-
-      const redirectTo = `/briefing/oboon-original/${encodeURIComponent(
-        cat.key
-      )}/${encodeURIComponent(slug)}`;
 
       return { ok: true, redirectTo };
     } catch (e: any) {

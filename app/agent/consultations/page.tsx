@@ -20,7 +20,7 @@ import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { createSupabaseClient } from "@/lib/supabaseClient";
+import { fetchAgentAccess } from "@/features/agent/services/agent.auth";
 
 import { showAlert } from "@/shared/alert";
 interface Consultation {
@@ -83,7 +83,6 @@ const STATUS_LABELS: Record<
 
 export default function AgentConsultationsPage() {
   const router = useRouter();
-  const supabase = createSupabaseClient();
 
   const [consultations, setConsultations] = useState<Consultation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -96,22 +95,14 @@ export default function AgentConsultationsPage() {
 
       try {
         // 로그인 체크
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (!user) {
+        const access = await fetchAgentAccess();
+        if (!access.userId) {
           router.push("/auth/login");
           return;
         }
 
         // 상담사 권한 체크
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("id", user.id)
-          .single();
-
-        if (profile?.role !== "agent" && profile?.role !== "admin") {
+        if (access.role !== "agent" && access.role !== "admin") {
           showAlert("상담사 권한이 필요합니다");
           router.push("/");
           return;
@@ -164,7 +155,7 @@ export default function AgentConsultationsPage() {
     }
 
     fetchData();
-  }, [supabase, router, filter]);
+  }, [router, filter]);
 
   // 예약 확정
   async function handleConfirm(consultationId: string) {

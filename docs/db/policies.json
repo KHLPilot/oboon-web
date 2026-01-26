@@ -1,0 +1,1062 @@
+[
+  {
+    "schemaname": "public",
+    "tablename": "agent_slot_overrides",
+    "policyname": "Agent can manage own slot overrides",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "(agent_id = auth.uid())",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "agent_slot_overrides",
+    "policyname": "Anyone can read slot overrides",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "agent_working_hours",
+    "policyname": "Agent can manage own working hours",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "(agent_id = auth.uid())",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "agent_working_hours",
+    "policyname": "Anyone can read working hours",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "briefing_boards",
+    "policyname": "briefing_boards_select_public",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "((is_active = true) OR is_admin(auth.uid()))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "briefing_boards",
+    "policyname": "briefing_boards_write_admin",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "is_admin(auth.uid())",
+    "with_check_expression": "is_admin(auth.uid())"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "briefing_categories",
+    "policyname": "briefing_categories_select_public",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "((is_active = true) OR is_admin(auth.uid()))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "briefing_categories",
+    "policyname": "briefing_categories_write_admin",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "is_admin(auth.uid())",
+    "with_check_expression": "is_admin(auth.uid())"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "briefing_post_tags",
+    "policyname": "briefing_post_tags_select_public",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM briefing_posts p\n  WHERE ((p.id = briefing_post_tags.post_id) AND ((p.status = 'published'::content_status) OR is_admin(auth.uid())))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "briefing_post_tags",
+    "policyname": "briefing_post_tags_write_admin",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "is_admin(auth.uid())",
+    "with_check_expression": "is_admin(auth.uid())"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "briefing_posts",
+    "policyname": "briefing_posts_delete_admin",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "DELETE",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = 'admin'::text) AND (p.deleted_at IS NULL))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "briefing_posts",
+    "policyname": "briefing_posts_insert_admin",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "(EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = 'admin'::text) AND (p.deleted_at IS NULL))))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "briefing_posts",
+    "policyname": "briefing_posts_public_read_published",
+    "permissive": "PERMISSIVE",
+    "roles": "{anon,authenticated}",
+    "cmd": "SELECT",
+    "using_expression": "(status = 'published'::content_status)",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "briefing_posts",
+    "policyname": "briefing_posts_select_public",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "((status = 'published'::content_status) OR is_admin(auth.uid()))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "briefing_posts",
+    "policyname": "briefing_posts_select_public_or_admin",
+    "permissive": "PERMISSIVE",
+    "roles": "{anon,authenticated}",
+    "cmd": "SELECT",
+    "using_expression": "((status = 'published'::content_status) OR (EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = 'admin'::text) AND (p.deleted_at IS NULL)))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "briefing_posts",
+    "policyname": "briefing_posts_update_admin",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "UPDATE",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = 'admin'::text) AND (p.deleted_at IS NULL))))",
+    "with_check_expression": "(EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = 'admin'::text) AND (p.deleted_at IS NULL))))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "briefing_posts",
+    "policyname": "briefing_posts_write_admin",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "is_admin(auth.uid())",
+    "with_check_expression": "is_admin(auth.uid())"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "briefing_slug_counters",
+    "policyname": "briefing_slug_counters_insert",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "(EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "briefing_slug_counters",
+    "policyname": "briefing_slug_counters_select",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "briefing_slug_counters",
+    "policyname": "briefing_slug_counters_update",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "briefing_tags",
+    "policyname": "briefing_tags_select_public",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "((is_active = true) OR is_admin(auth.uid()))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "briefing_tags",
+    "policyname": "briefing_tags_write_admin",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "is_admin(auth.uid())",
+    "with_check_expression": "is_admin(auth.uid())"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "chat_messages",
+    "policyname": "chat_messages_delete",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "chat_messages",
+    "policyname": "chat_messages_insert",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "((sender_id = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM chat_rooms\n  WHERE ((chat_rooms.id = chat_messages.room_id) AND ((chat_rooms.customer_id = auth.uid()) OR (chat_rooms.agent_id = auth.uid()))))))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "chat_messages",
+    "policyname": "chat_messages_select",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "((EXISTS ( SELECT 1\n   FROM chat_rooms\n  WHERE ((chat_rooms.id = chat_messages.room_id) AND ((chat_rooms.customer_id = auth.uid()) OR (chat_rooms.agent_id = auth.uid()))))) OR (EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "chat_messages",
+    "policyname": "chat_messages_update",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM chat_rooms\n  WHERE ((chat_rooms.id = chat_messages.room_id) AND ((chat_rooms.customer_id = auth.uid()) OR (chat_rooms.agent_id = auth.uid())))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "chat_rooms",
+    "policyname": "chat_rooms_insert",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "true"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "chat_rooms",
+    "policyname": "chat_rooms_select",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "((customer_id = auth.uid()) OR (agent_id = auth.uid()) OR (EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "chat_rooms",
+    "policyname": "chat_rooms_update",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "using_expression": "((customer_id = auth.uid()) OR (agent_id = auth.uid()))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "community_bookmarks",
+    "policyname": "community_bookmarks_delete_own",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "using_expression": "((auth.uid() IS NOT NULL) AND (profile_id = auth.uid()))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "community_bookmarks",
+    "policyname": "community_bookmarks_insert_own",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "((auth.uid() IS NOT NULL) AND (profile_id = auth.uid()))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "community_bookmarks",
+    "policyname": "community_bookmarks_select_own",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "((auth.uid() IS NOT NULL) AND (profile_id = auth.uid()))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "community_comments",
+    "policyname": "community_comments_delete_own_or_admin",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "using_expression": "((auth.uid() IS NOT NULL) AND ((author_profile_id = auth.uid()) OR is_admin() OR is_admin(auth.uid())))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "community_comments",
+    "policyname": "community_comments_insert_own",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "((auth.uid() IS NOT NULL) AND (author_profile_id = auth.uid()))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "community_comments",
+    "policyname": "community_comments_select_public",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "community_comments",
+    "policyname": "community_comments_update_own_or_admin",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "using_expression": "((auth.uid() IS NOT NULL) AND ((author_profile_id = auth.uid()) OR is_admin() OR is_admin(auth.uid())))",
+    "with_check_expression": "((auth.uid() IS NOT NULL) AND ((author_profile_id = auth.uid()) OR is_admin() OR is_admin(auth.uid())))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "community_likes",
+    "policyname": "community_likes_delete_own",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "using_expression": "((auth.uid() IS NOT NULL) AND (profile_id = auth.uid()))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "community_likes",
+    "policyname": "community_likes_insert_own",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "((auth.uid() IS NOT NULL) AND (profile_id = auth.uid()))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "community_likes",
+    "policyname": "community_likes_select_own",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "((auth.uid() IS NOT NULL) AND (profile_id = auth.uid()))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "community_posts",
+    "policyname": "community_posts_delete_own_or_admin",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "using_expression": "((auth.uid() IS NOT NULL) AND ((author_profile_id = auth.uid()) OR is_admin() OR is_admin(auth.uid())))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "community_posts",
+    "policyname": "community_posts_insert_own",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "((auth.uid() IS NOT NULL) AND (author_profile_id = auth.uid()))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "community_posts",
+    "policyname": "community_posts_select_public",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "community_posts",
+    "policyname": "community_posts_update_own_or_admin",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "using_expression": "((auth.uid() IS NOT NULL) AND ((author_profile_id = auth.uid()) OR is_admin() OR is_admin(auth.uid())))",
+    "with_check_expression": "((auth.uid() IS NOT NULL) AND ((author_profile_id = auth.uid()) OR is_admin() OR is_admin(auth.uid())))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "consultations",
+    "policyname": "consultations_delete",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "consultations",
+    "policyname": "consultations_insert",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "(customer_id = auth.uid())"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "consultations",
+    "policyname": "consultations_select",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "((customer_id = auth.uid()) OR (agent_id = auth.uid()) OR (EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "consultations",
+    "policyname": "consultations_update",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "using_expression": "((customer_id = auth.uid()) OR (agent_id = auth.uid()) OR (EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "contracts",
+    "policyname": "contracts_insert",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "((agent_id = auth.uid()) OR (EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "contracts",
+    "policyname": "contracts_select",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "((customer_id = auth.uid()) OR (agent_id = auth.uid()) OR (EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "contracts",
+    "policyname": "contracts_update",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "using_expression": "((agent_id = auth.uid()) OR (EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "profiles",
+    "policyname": "admin_all_access",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "(is_admin() OR (auth.uid() = id))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "profiles",
+    "policyname": "profiles_insert_own",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "(auth.uid() = id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "profiles",
+    "policyname": "profiles_select_all",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "profiles",
+    "policyname": "profiles_select_own",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "(auth.uid() = id)",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "profiles",
+    "policyname": "profiles_select_policy",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "((auth.uid() = id) OR ((auth.jwt() ->> 'role'::text) = 'admin'::text))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "profiles",
+    "policyname": "profiles_update_own",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "using_expression": "(auth.uid() = id)",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "properties",
+    "policyname": "Admin full access",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "(( SELECT profiles.role\n   FROM profiles\n  WHERE (profiles.id = auth.uid())) = 'admin'::text)",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "properties",
+    "policyname": "Partners manage own data",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "((( SELECT profiles.role\n   FROM profiles\n  WHERE (profiles.id = auth.uid())) = ANY (ARRAY['developer'::text, 'builder'::text])) AND (created_by = auth.uid()))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "properties",
+    "policyname": "Public Read Access",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "properties",
+    "policyname": "properties_admin_all",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "properties",
+    "policyname": "properties_select_all",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_agents",
+    "policyname": "property_agents_delete",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_agents",
+    "policyname": "property_agents_insert",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "((agent_id = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = ANY (ARRAY['agent'::text, 'admin'::text]))))))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_agents",
+    "policyname": "property_agents_select",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "(((status)::text = 'approved'::text) OR (agent_id = auth.uid()) OR (EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_agents",
+    "policyname": "property_agents_update",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_facilities",
+    "policyname": "Admin full access",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "(( SELECT profiles.role\n   FROM profiles\n  WHERE (profiles.id = auth.uid())) = 'admin'::text)",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_facilities",
+    "policyname": "Partners manage own data",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "((( SELECT profiles.role\n   FROM profiles\n  WHERE (profiles.id = auth.uid())) = ANY (ARRAY['developer'::text, 'builder'::text])) AND (EXISTS ( SELECT 1\n   FROM properties\n  WHERE ((properties.id = property_facilities.properties_id) AND (properties.created_by = auth.uid())))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_facilities",
+    "policyname": "Public Read Access",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_facilities",
+    "policyname": "property_facilities_admin_all",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_facilities",
+    "policyname": "property_facilities_select_all",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_locations",
+    "policyname": "Admin full access",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "(( SELECT profiles.role\n   FROM profiles\n  WHERE (profiles.id = auth.uid())) = 'admin'::text)",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_locations",
+    "policyname": "Partners manage own data",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "((( SELECT profiles.role\n   FROM profiles\n  WHERE (profiles.id = auth.uid())) = ANY (ARRAY['developer'::text, 'builder'::text])) AND (EXISTS ( SELECT 1\n   FROM properties\n  WHERE ((properties.id = property_locations.properties_id) AND (properties.created_by = auth.uid())))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_locations",
+    "policyname": "Public Read Access",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_locations",
+    "policyname": "property_locations_admin_all",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_locations",
+    "policyname": "property_locations_select_all",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_specs",
+    "policyname": "Admin full access",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "(( SELECT profiles.role\n   FROM profiles\n  WHERE (profiles.id = auth.uid())) = 'admin'::text)",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_specs",
+    "policyname": "Partners manage own data",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "((( SELECT profiles.role\n   FROM profiles\n  WHERE (profiles.id = auth.uid())) = ANY (ARRAY['developer'::text, 'builder'::text])) AND (EXISTS ( SELECT 1\n   FROM properties\n  WHERE ((properties.id = property_specs.properties_id) AND (properties.created_by = auth.uid())))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_specs",
+    "policyname": "Public Read Access",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_specs",
+    "policyname": "property_specs_admin_all",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_specs",
+    "policyname": "property_specs_select_all",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_timeline",
+    "policyname": "Admin full access",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "(( SELECT profiles.role\n   FROM profiles\n  WHERE (profiles.id = auth.uid())) = 'admin'::text)",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_timeline",
+    "policyname": "Partners manage own data",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "((( SELECT profiles.role\n   FROM profiles\n  WHERE (profiles.id = auth.uid())) = ANY (ARRAY['developer'::text, 'builder'::text])) AND (EXISTS ( SELECT 1\n   FROM properties\n  WHERE ((properties.id = property_timeline.properties_id) AND (properties.created_by = auth.uid())))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_timeline",
+    "policyname": "Public Read Access",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_timeline",
+    "policyname": "property_timeline_admin_all",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_timeline",
+    "policyname": "property_timeline_select_all",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_unit_types",
+    "policyname": "Admin full access",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "(( SELECT profiles.role\n   FROM profiles\n  WHERE (profiles.id = auth.uid())) = 'admin'::text)",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_unit_types",
+    "policyname": "Partners manage own data",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "((( SELECT profiles.role\n   FROM profiles\n  WHERE (profiles.id = auth.uid())) = ANY (ARRAY['developer'::text, 'builder'::text])) AND (EXISTS ( SELECT 1\n   FROM properties\n  WHERE ((properties.id = property_unit_types.properties_id) AND (properties.created_by = auth.uid())))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_unit_types",
+    "policyname": "Public Read Access",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_unit_types",
+    "policyname": "property_unit_types_admin_all",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_unit_types",
+    "policyname": "property_unit_types_select_all",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "public_profiles",
+    "policyname": "public_profiles_delete_admin",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "using_expression": "is_admin()",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "public_profiles",
+    "policyname": "public_profiles_insert_own",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "((auth.uid() IS NOT NULL) AND (id = auth.uid()))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "public_profiles",
+    "policyname": "public_profiles_select_public",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "public_profiles",
+    "policyname": "public_profiles_update_own",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "using_expression": "((auth.uid() IS NOT NULL) AND (id = auth.uid()))",
+    "with_check_expression": "((auth.uid() IS NOT NULL) AND (id = auth.uid()))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "verification_tokens",
+    "policyname": "Service role can manage verification tokens",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "(auth.role() = 'service_role'::text)",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "verification_tokens",
+    "policyname": "verification_tokens_insert",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "true"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "verification_tokens",
+    "policyname": "verification_tokens_select",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "(user_id = auth.uid())",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "verification_tokens",
+    "policyname": "verification_tokens_update",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "visit_confirm_requests",
+    "policyname": "visit_confirm_requests_insert",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "(customer_id = auth.uid())"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "visit_confirm_requests",
+    "policyname": "visit_confirm_requests_select",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "((customer_id = auth.uid()) OR (agent_id = auth.uid()) OR (EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "visit_confirm_requests",
+    "policyname": "visit_confirm_requests_update",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "using_expression": "((agent_id = auth.uid()) OR (EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "visit_logs",
+    "policyname": "visit_logs_insert",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "true"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "visit_logs",
+    "policyname": "visit_logs_select",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "((agent_id = auth.uid()) OR (customer_id = auth.uid()) OR (EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "visit_tokens",
+    "policyname": "visit_tokens_insert",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "((agent_id = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = ANY (ARRAY['agent'::text, 'admin'::text]))))))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "visit_tokens",
+    "policyname": "visit_tokens_select",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "visit_tokens",
+    "policyname": "visit_tokens_update",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "using_expression": "((agent_id = auth.uid()) OR (EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))",
+    "with_check_expression": null
+  }
+]

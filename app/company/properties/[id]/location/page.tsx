@@ -8,11 +8,11 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import PageContainer from "@/components/shared/PageContainer";
-import { FormField } from "@/app/components/FormField";
+import { FormField } from "@/components/shared/FormField";
 import { showAlert } from "@/shared/alert";
 
-import NaverMap from "@/features/map/NaverMap";
-import { createSupabaseClient } from "@/lib/supabaseClient";
+import NaverMap from "@/features/map/components/NaverMap";
+import { fetchPropertyLocation, savePropertyLocation } from "@/features/company/services/property.location";
 
 type LocationForm = {
   road_address: string;
@@ -52,7 +52,6 @@ declare global {
 }
 
 export default function PropertyLocationPage() {
-  const supabase = createSupabaseClient();
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const propertyId = Number(params.id);
@@ -84,11 +83,7 @@ export default function PropertyLocationPage() {
 
   useEffect(() => {
     async function fetchLocation() {
-      const { data } = await supabase
-        .from("property_locations")
-        .select("*")
-        .eq("properties_id", propertyId)
-        .single();
+      const { data } = await fetchPropertyLocation(propertyId);
 
       if (!data) return;
 
@@ -106,7 +101,7 @@ export default function PropertyLocationPage() {
     }
 
     fetchLocation();
-  }, [propertyId, supabase]);
+  }, [propertyId]);
 
   // ✅ manualMode 진입 시: 오버레이 표시 → 2초 후 페이드아웃 → 제거
   useEffect(() => {
@@ -191,17 +186,7 @@ export default function PropertyLocationPage() {
 
     setLoading(true);
     try {
-      if (isEdit) {
-        await supabase
-          .from("property_locations")
-          .update(payload)
-          .eq("properties_id", propertyId);
-      } else {
-        await supabase.from("property_locations").insert({
-          ...payload,
-          properties_id: propertyId,
-        });
-      }
+      await savePropertyLocation(propertyId, payload, isEdit);
 
       router.push(`/company/properties/${propertyId}`);
     } catch (err: unknown) {

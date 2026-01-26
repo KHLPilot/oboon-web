@@ -1,5 +1,5 @@
 // components/layout/PageContainer.tsx
-import { cn } from "@/app/company/properties/[id]/units/utils";
+import { cn } from "@/lib/utils/cn";
 
 type PageContainerProp = {
   children: React.ReactNode;

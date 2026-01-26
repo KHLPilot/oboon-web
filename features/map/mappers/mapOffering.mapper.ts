@@ -1,5 +1,5 @@
 // features/map/mappers/mapOffering.mapper.ts
-import type { MarkerType } from "@/features/map/marker/marker.type";
+import type { MarkerType } from "@/features/map/domain/marker/marker.type";
 import { UXCopy } from "@/shared/uxCopy";
 import {
   OFFERING_STATUS_VALUES,

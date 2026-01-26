@@ -9,7 +9,7 @@ import Card from "@/components/ui/Card";
 import Label from "@/components/ui/Label";
 import FieldErrorBubble from "@/components/ui/FieldErrorBubble";
 import PageContainer from "@/components/shared/PageContainer";
-import { createSupabaseClient } from "@/lib/supabaseClient";
+import { fetchPropertyComments, updatePropertyComments } from "@/features/company/services/property.comment";
 
 type commentForm = {
   confirmed_comment: string;
@@ -35,7 +35,6 @@ const TEXTAREA_BASE = cn(
 );
 
 export default function PropertycommentPage() {
-  const supabase = createSupabaseClient();
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const propertyId = Number(params?.id);
@@ -54,11 +53,7 @@ export default function PropertycommentPage() {
       setLoading(true);
       setError(null);
 
-      const { data, error } = await supabase
-        .from("properties")
-        .select("confirmed_comment, estimated_comment, pending_comment")
-        .eq("id", propertyId)
-        .maybeSingle();
+      const { data, error } = await fetchPropertyComments(propertyId);
 
       if (!alive) return;
 
@@ -80,7 +75,7 @@ export default function PropertycommentPage() {
     return () => {
       alive = false;
     };
-  }, [propertyId, supabase]);
+  }, [propertyId]);
 
   async function handleSave() {
     if (!Number.isFinite(propertyId)) return;
@@ -94,10 +89,7 @@ export default function PropertycommentPage() {
       pending_comment: form.pending_comment.trim() || null,
     };
 
-    const { error } = await supabase
-      .from("properties")
-      .update(payload)
-      .eq("id", propertyId);
+    const { error } = await updatePropertyComments(propertyId, payload);
 
     setSaving(false);
 

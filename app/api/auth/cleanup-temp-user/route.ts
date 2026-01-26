@@ -14,8 +14,6 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "이메일 누락" }, { status: 400 });
         }
 
-        console.log("🔍 Temp 유저 확인 중:", email);
-
         // ✅ 수정: listUsers 대신 직접 조회
         const { data, error } = await supabaseAdmin.auth.admin.listUsers();
 
@@ -27,16 +25,8 @@ export async function POST(req: Request) {
         const targetUser = data.users.find(u => u.email === email);
 
         if (!targetUser) {
-            console.log("✅ 해당 이메일 유저 없음");
             return NextResponse.json({ success: true, message: "유저 없음" });
         }
-
-        console.log("📋 발견된 유저:", {
-            id: targetUser.id,
-            email: targetUser.email,
-            confirmed: targetUser.email_confirmed_at,
-            metadata: targetUser.user_metadata
-        });
 
         // ✅ 이메일 미인증 + temp 데이터인 경우만 삭제
         if (!targetUser.email_confirmed_at) {
@@ -44,8 +34,6 @@ export async function POST(req: Request) {
             const isTemp = metadata?.name === "temp" || metadata?.phone_number === "temp";
 
             if (isTemp) {
-                console.log("🗑️ Temp 유저 삭제 시도...");
-
                 const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(
                     targetUser.id
                 );
@@ -54,7 +42,6 @@ export async function POST(req: Request) {
                     console.error("❌ 유저 삭제 실패:", deleteError);
                     return NextResponse.json({ error: deleteError.message }, { status: 500 });
                 } else {
-                    console.log("✅ Temp 유저 삭제 완료:", email);
                     return NextResponse.json({
                         success: true,
                         message: "Temp 유저 삭제됨",
@@ -62,10 +49,8 @@ export async function POST(req: Request) {
                     });
                 }
             } else {
-                console.log("⚠️ Temp 유저 아님 (삭제 안함)");
             }
         } else {
-            console.log("⚠️ 이미 인증된 유저 (삭제 안함)");
         }
 
         return NextResponse.json({ success: true, deleted: false });

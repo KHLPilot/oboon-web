@@ -3,7 +3,8 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Send, Loader2, MoreVertical, Trash2 } from "lucide-react";
-import { createSupabaseClient } from "@/lib/supabaseClient";
+import { fetchCurrentUserId } from "@/features/chat/services/chat.auth";
+import { subscribeToChatRoom } from "@/features/chat/services/chat.realtime";
 import PageContainer from "@/components/shared/PageContainer";
 import Button from "@/components/ui/Button";
 import { showAlert } from "@/shared/alert";
@@ -39,7 +40,6 @@ export default function ChatPage() {
   const params = useParams();
   const router = useRouter();
   const consultationId = params.consultationId as string;
-  const supabase = createSupabaseClient();
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
@@ -69,14 +69,12 @@ export default function ChatPage() {
 
       try {
         // 현재 사용자 확인
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (!user) {
+        const userId = await fetchCurrentUserId();
+        if (!userId) {
           router.push("/auth/login");
           return;
         }
-        setCurrentUserId(user.id);
+        setCurrentUserId(userId);
 
         // 상담 정보 조회
         const consultationRes = await fetch(
@@ -108,7 +106,7 @@ export default function ChatPage() {
     }
 
     fetchData();
-  }, [consultationId, supabase, router]);
+  }, [consultationId, router]);
 
   // 스크롤 처리
   useEffect(() => {
@@ -119,55 +117,23 @@ export default function ChatPage() {
   useEffect(() => {
     if (!chatRoomId) return;
 
-    const channel = supabase
-      .channel(`chat_room_${chatRoomId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "chat_messages",
-          filter: `room_id=eq.${chatRoomId}`,
-        },
-        async (payload) => {
-          // 새 메시지가 도착하면 sender 정보와 함께 추가
-          const newMsg = payload.new as any;
-
-          // 내가 보낸 메시지는 이미 로컬에 추가되어 있으므로 무시
-          if (newMsg.sender_id === currentUserId) {
-            return;
+    const unsubscribe = subscribeToChatRoom({
+      roomId: chatRoomId,
+      currentUserId,
+      onMessage: (message) => {
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === message.id)) {
+            return prev;
           }
-
-          // sender 정보 조회
-          const { data: sender } = await supabase
-            .from("profiles")
-            .select("id, name")
-            .eq("id", newMsg.sender_id)
-            .single();
-
-          const messageWithSender: Message = {
-            id: newMsg.id,
-            content: newMsg.content,
-            sender_id: newMsg.sender_id,
-            created_at: newMsg.created_at,
-            sender: sender || { id: newMsg.sender_id, name: "알 수 없음" },
-          };
-
-          setMessages((prev) => {
-            // 중복 체크 (혹시 모를 경우를 대비)
-            if (prev.some((m) => m.id === newMsg.id)) {
-              return prev;
-            }
-            return [...prev, messageWithSender];
-          });
-        },
-      )
-      .subscribe();
+          return [...prev, message];
+        });
+      },
+    });
 
     return () => {
-      supabase.removeChannel(channel);
+      unsubscribe();
     };
-  }, [chatRoomId, supabase, currentUserId]);
+  }, [chatRoomId, currentUserId]);
 
   // 메시지 전송
   const handleSendMessage = async () => {

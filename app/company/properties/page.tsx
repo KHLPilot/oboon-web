@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
-import { createSupabaseClient } from "@/lib/supabaseClient";
+import { deletePropertyById, fetchPropertyListData } from "@/features/company/services/property.list";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 import Button from "@/components/ui/Button";
@@ -118,7 +118,6 @@ function EditButton({ href, disabled }: { href: string; disabled?: boolean }) {
 -------------------------------------------------- */
 export default function PropertyListPage() {
   const router = useRouter();
-  const supabase = createSupabaseClient();
 
   const [rows, setRows] = useState<PropertyRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -138,7 +137,7 @@ export default function PropertyListPage() {
     );
     if (!ok) return;
 
-    const { error } = await supabase.from("properties").delete().eq("id", id);
+    const { error } = await deletePropertyById(id);
 
     if (error) {
       showAlert("삭제에 실패했습니다.");
@@ -151,90 +150,35 @@ export default function PropertyListPage() {
 
   useEffect(() => {
     async function load() {
-      // 1. 로그인 체크
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
+      const data = await fetchPropertyListData();
+
+      if (!data.userId) {
         router.replace("/");
         return;
       }
 
-      setCurrentUserId(user.id);
+      setCurrentUserId(data.userId);
 
-      // 2. 권한 체크
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-
-      if (!profile || !ALLOWED_ROLES.includes(profile.role)) {
+      if (!data.role || !ALLOWED_ROLES.includes(data.role)) {
         router.replace("/");
         return;
       }
 
-      setCurrentUserRole(profile.role);
-
-      // 3. ?곗씠??濡쒕뱶
+      setCurrentUserRole(data.role);
       setLoading(true);
 
-      const { data, error } = await supabase
-        .from("properties")
-        .select(
-          `
-          id,
-          name,
-          created_by,
-          profiles (id, name, role),
-          property_locations(id),
-          property_facilities(id),
-          property_specs(
-            id,
-            sale_type,
-            trust_company,
-            developer,
-            builder,
-            site_area,
-            building_area,
-            building_coverage_ratio,
-            floor_area_ratio,
-            floor_ground,
-            floor_underground,
-            building_count,
-            household_total,
-            parking_total,
-            parking_per_household,
-            heating_type,
-            amenities
-          ),
-          property_timeline(
-            id,
-            announcement_date,
-            application_start,
-            application_end,
-            winner_announce,
-            contract_start,
-            contract_end,
-            move_in_date
-          ),
-          property_unit_types(id)
-        `,
-        )
-        .order("id", { ascending: false });
-
-      if (error) {
-        console.error("현장 목록 로드 실패:", error);
+      if (data.error) {
+        console.error("현장 목록 로드 실패:", data.error);
         setRows([]);
       } else {
-        setRows((data ?? []) as PropertyRow[]);
+        setRows(data.rows);
       }
 
       setLoading(false);
     }
 
     load();
-  }, [router, supabase]);
+  }, [router]);
 
   /* --------------------------------------------------
      핵심 로직: 진행 상황 체크

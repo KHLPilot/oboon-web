@@ -18,7 +18,7 @@ import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { createSupabaseClient } from "@/lib/supabaseClient";
+import { fetchAgentScanBootstrap, subscribeToVisitConfirmRequests } from "@/features/agent/services/agent.scan";
 import { showAlert } from "@/shared/alert";
 
 interface Property {
@@ -69,7 +69,6 @@ const TOKEN_TTL_SECONDS = 60;
 
 export default function AgentScanPage() {
   const router = useRouter();
-  const supabase = createSupabaseClient();
 
   // 인증 상태
   const [isAgent, setIsAgent] = useState(false);
@@ -104,53 +103,25 @@ export default function AgentScanPage() {
   useEffect(() => {
     async function init() {
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (!user) {
-          router.push("/auth/login");
-          return;
-        }
+      const data = await fetchAgentScanBootstrap();
 
-        // 상담사 권한 확인
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("id", user.id)
-          .single();
+      if (!data.userId) {
+        router.push("/auth/login");
+        return;
+      }
 
-        if (profile?.role !== "agent" && profile?.role !== "admin") {
-          showAlert("상담사 권한이 필요합니다");
-          router.push("/");
-          return;
-        }
+      if (data.role !== "agent" && data.role !== "admin") {
+        showAlert("상담사 권한이 필요합니다");
+        router.push("/");
+        return;
+      }
 
-        setIsAgent(true);
-
-        // 소속 현장 목록 조회
-        const { data: propertyAgents } = await supabase
-          .from("property_agents")
-          .select("property_id, properties(id, name)")
-          .eq("agent_id", user.id)
-          .eq("status", "approved");
-
-        if (propertyAgents && propertyAgents.length > 0) {
-          const props = propertyAgents.map((pa: any) => ({
-            id: pa.properties.id,
-            name: pa.properties.name,
-          }));
-          setProperties(props);
-          setSelectedPropertyId(props[0].id);
-        }
-
-        // 오늘 확정된 예약 목록 조회
-        const response = await fetch(
-          "/api/consultations?role=agent&status=confirmed",
-        );
-        const consultData = await response.json();
-        if (response.ok && consultData.consultations) {
-          setConsultations(consultData.consultations);
-        }
+      setIsAgent(true);
+      setProperties(data.properties);
+      if (data.properties.length > 0) {
+        setSelectedPropertyId(data.properties[0].id);
+      }
+      setConsultations(data.consultations);
       } catch (err) {
         console.error("초기화 오류:", err);
       } finally {
@@ -159,7 +130,7 @@ export default function AgentScanPage() {
     }
 
     init();
-  }, [supabase, router]);
+  }, [router]);
 
   // 수동 승인 요청 목록 조회
   const fetchPendingRequests = useCallback(async () => {
@@ -182,38 +153,12 @@ export default function AgentScanPage() {
     fetchPendingRequests();
 
     // Realtime 구독 - 새 요청이 들어오면 즉시 갱신
-    const channel = supabase
-      .channel("visit_confirm_requests_realtime")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "visit_confirm_requests",
-        },
-        () => {
-          // 새 요청이 들어오면 목록 갱신
-          fetchPendingRequests();
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "visit_confirm_requests",
-        },
-        () => {
-          // 상태가 변경되면 목록 갱신
-          fetchPendingRequests();
-        },
-      )
-      .subscribe();
+    const unsubscribe = subscribeToVisitConfirmRequests(fetchPendingRequests);
 
     return () => {
-      supabase.removeChannel(channel);
+      unsubscribe();
     };
-  }, [isAgent, supabase, fetchPendingRequests]);
+  }, [isAgent, fetchPendingRequests]);
 
   // 남은 시간 카운트다운
   useEffect(() => {

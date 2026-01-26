@@ -21,7 +21,7 @@ import {
   Loader2,
 } from "lucide-react";
 
-import { createSupabaseClient } from "@/lib/supabaseClient";
+import { deletePropertyCascade, fetchPropertyDetail, updatePropertyBasicInfo } from "@/features/company/services/property.detail";
 import { validateRequiredOrShowModal } from "@/shared/validationMessage";
 
 import Button from "@/components/ui/Button";
@@ -30,15 +30,15 @@ import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 
-import { FormField } from "@/app/components/FormField";
+import { FormField } from "@/components/shared/FormField";
 
 import PropertyStatusSelect from "@/app/company/properties/PropertyStatusSelect";
 import {
   PROPERTY_STATUS_LABEL,
   PROPERTY_STATUS_OPTIONS,
   isPropertyStatus,
-} from "@/app/company/properties/propertyStatus";
-import { getPropertySectionStatus } from "@/features/property/mappers/propertyProgress";
+} from "@/features/property/domain/propertyStatus";
+import { getPropertySectionStatus } from "@/features/property/components/propertyProgress";
 import { showAlert } from "@/shared/alert";
 
 /* ==================================================
@@ -205,7 +205,6 @@ function InfoRow({
    메인 페이지
 ================================================== */
 export default function PropertyDetailPage() {
-  const supabase = createSupabaseClient();
   const params = useParams();
   const router = useRouter();
   const id = Number(params.id);
@@ -224,20 +223,7 @@ export default function PropertyDetailPage() {
   // 데이터 로드
   const load = useCallback(async () => {
     setLoading(true);
-    const { data: res, error } = await supabase
-      .from("properties")
-      .select(
-        `
-        *,
-        property_locations(id),
-        property_facilities(id),
-        property_specs!properties_id(*),
-        property_timeline(*),
-        property_unit_types(id)
-      `,
-      )
-      .eq("id", id)
-      .single();
+    const { data: res, error } = await fetchPropertyDetail(id);
 
     if (!error && res) {
       setData(res as PropertyDetail);
@@ -255,7 +241,7 @@ export default function PropertyDetailPage() {
       });
     }
     setLoading(false);
-  }, [id, supabase]);
+  }, [id]);
 
   useEffect(() => {
     load();
@@ -308,10 +294,7 @@ export default function PropertyDetailPage() {
     if (!validateRequiredOrShowModal(form.name, "현장명")) return;
     if (!validateRequiredOrShowModal(form.phone_number ?? "", "연락처")) return;
     setSaving(true);
-    const { error } = await supabase
-      .from("properties")
-      .update({ ...form })
-      .eq("id", id);
+    const { error } = await updatePropertyBasicInfo(id, { ...form });
     setSaving(false);
 
     if (error) return showAlert("저장 실패: " + error.message);
@@ -326,17 +309,7 @@ export default function PropertyDetailPage() {
   async function handleDelete() {
     if (!confirm("정말 현장을 삭제할까요?\n복구할 수 없어요.")) return;
     try {
-      const tables = [
-        "property_locations",
-        "property_facilities",
-        "property_specs",
-        "property_timeline",
-        "property_unit_types",
-      ];
-      for (const table of tables) {
-        await supabase.from(table).delete().eq("properties_id", id);
-      }
-      await supabase.from("properties").delete().eq("id", id);
+      await deletePropertyCascade(id);
       router.push("/company/properties");
     } catch (err) {
       showAlert(

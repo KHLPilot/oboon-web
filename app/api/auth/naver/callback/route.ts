@@ -38,8 +38,6 @@ export async function GET(req: Request) {
       return NextResponse.redirect(new URL("/auth/login?error=no_email", process.env.NEXT_PUBLIC_SITE_URL!));
     }
 
-    console.log("📧 네이버 로그인:", email);
-
     // 3. 기존 유저 확인
     const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
     const existingUser = users.find((u) => u.email === email);
@@ -49,7 +47,6 @@ export async function GET(req: Request) {
     if (existingUser) {
       // 기존 유저
       userId = existingUser.id;
-      console.log("✅ 기존 유저:", email);
     } else {
       // 신규 유저 생성
       const { data, error } = await supabaseAdmin.auth.admin.createUser({
@@ -73,7 +70,6 @@ export async function GET(req: Request) {
         }
       } else {
         userId = data.user.id;
-        console.log("✅ 신규 유저 생성:", email);
       }
     }
 
@@ -94,7 +90,6 @@ export async function GET(req: Request) {
     redirectUrl.searchParams.set("token_hash", linkData.properties.hashed_token);
     redirectUrl.searchParams.set("email", email);
 
-    console.log("✅ /auth/callback으로 리다이렉트");
     return NextResponse.redirect(redirectUrl.toString());
 
   } catch (error: any) {

@@ -1,0 +1,22 @@
+[
+  {
+    "enum_name": "community_post_status",
+    "sort_order": 1,
+    "enum_value": "visited"
+  },
+  {
+    "enum_name": "community_post_status",
+    "sort_order": 2,
+    "enum_value": "thinking"
+  },
+  {
+    "enum_name": "content_status",
+    "sort_order": 1,
+    "enum_value": "draft"
+  },
+  {
+    "enum_name": "content_status",
+    "sort_order": 2,
+    "enum_value": "published"
+  }
+]

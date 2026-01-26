@@ -26,7 +26,7 @@ function CommunityEmpty({
   title = "?꾩쭅 泥?湲곕줉???놁뒿?덈떎",
   description = "?ㅻ????꾩옣?대굹 怨좊? 以묒씤 ?댁슜???④꺼蹂댁꽭??",
   actionLabel = "湲곕줉 ?④린湲?",
-  onAction = () => console.log("community:write"),
+  onAction = () => {},
 }: CommunityEmptyProps) {
   return (
     <Card className="p-5">

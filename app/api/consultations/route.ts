@@ -207,9 +207,6 @@ export async function GET(req: Request) {
 
         if (error) throw error;
 
-        console.log(
-          `${oldCancelledIds.length}개의 오래된 취소 예약이 자동 삭제되었습니다.`,
-        );
       })().catch((err) => {
         console.error("오래된 취소 예약 자동 삭제 오류:", err);
       });

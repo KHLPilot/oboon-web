@@ -14,8 +14,6 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "이메일 누락" }, { status: 400 });
         }
 
-        console.log("🔍 이메일 중복 체크:", email);
-
         // 전체 유저 목록에서 해당 이메일 찾기
         const { data, error } = await supabaseAdmin.auth.admin.listUsers();
 
@@ -27,7 +25,6 @@ export async function POST(req: Request) {
         const existingUser = data.users.find(u => u.email === email);
 
         if (!existingUser) {
-            console.log("✅ 사용 가능한 이메일");
             return NextResponse.json({
                 exists: false,
                 confirmed: false
@@ -35,12 +32,6 @@ export async function POST(req: Request) {
         }
 
         const isConfirmed = !!existingUser.email_confirmed_at;
-
-        console.log("📧 이메일 상태:", {
-            exists: true,
-            confirmed: isConfirmed,
-            email: existingUser.email
-        });
 
         return NextResponse.json({
             exists: true,

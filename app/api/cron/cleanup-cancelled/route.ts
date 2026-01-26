@@ -97,8 +97,6 @@ export async function GET(req: Request) {
             );
         }
 
-        console.log(`[Cron] ${consultationIds.length}개의 취소된 예약 삭제 완료`);
-
         return NextResponse.json({
             success: true,
             message: `${consultationIds.length}개의 예약이 삭제되었습니다`,

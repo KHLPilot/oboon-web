@@ -10,7 +10,7 @@ import {
   XCircle,
   Calendar,
 } from "lucide-react";
-import { createSupabaseClient } from "@/lib/supabaseClient";
+import { fetchAgentPropertyDashboard } from "@/features/agent/services/agent.properties";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -20,8 +20,8 @@ interface Property {
   id: number;
   name: string;
   property_type: string;
-  image_url?: string;
-  status?: string;
+  image_url?: string | null;
+  status?: string | null;
 }
 
 interface PropertyAgent {
@@ -29,15 +29,14 @@ interface PropertyAgent {
   property_id: number;
   status: "pending" | "approved" | "rejected";
   requested_at: string;
-  approved_at?: string;
-  rejected_at?: string;
-  rejection_reason?: string;
+  approved_at?: string | null;
+  rejected_at?: string | null;
+  rejection_reason?: string | null;
   property: Property | null;
 }
 
 export default function AgentPropertiesPage() {
   const router = useRouter();
-  const supabase = createSupabaseClient();
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState<number | null>(null);
@@ -56,89 +55,28 @@ export default function AgentPropertiesPage() {
     setLoading(true);
 
     try {
-      // 현재 사용자 확인
-      const {
-        data: { user: currentUser },
-      } = await supabase.auth.getUser();
+      const data = await fetchAgentPropertyDashboard();
 
-      if (!currentUser) {
+      if (!data.userId) {
         router.push("/auth/login");
         return;
       }
 
-      setUser(currentUser);
-
-      // 프로필 조회
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", currentUser.id)
-        .single();
-
-      if (
-        !profileData ||
-        (profileData.role !== "agent" && profileData.role !== "admin")
-      ) {
+      if (!data.profile || (data.role !== "agent" && data.role !== "admin")) {
         showAlert("상담사만 접근할 수 있습니다");
         router.push("/");
         return;
       }
 
-      setProfile(profileData);
+      setUser({ id: data.userId });
+      setProfile(data.profile);
+      setMyRequests(data.requests);
+      setProperties(data.properties);
 
-      // 내 소속 신청 내역 조회
-      const { data: requests } = await supabase
-        .from("property_agents")
-        .select(
-          `
-          id,
-          property_id,
-          status,
-          requested_at,
-          approved_at,
-          rejected_at,
-          rejection_reason
-        `,
-        )
-        .eq("agent_id", currentUser.id)
-        .order("requested_at", { ascending: false });
-
-      // 관계 데이터를 별도로 조회
-      let enrichedRequests: PropertyAgent[] = [];
-      if (requests && requests.length > 0) {
-        const propertyIds = [...new Set(requests.map((r) => r.property_id))];
-        const { data: propertiesData } = await supabase
-          .from("properties")
-          .select("id, name, property_type, image_url, status")
-          .in("id", propertyIds);
-
-        const propertiesMap = new Map(
-          (propertiesData || []).map((p) => [p.id, p]),
-        );
-
-        enrichedRequests = requests.map((r) => ({
-          ...r,
-          property: propertiesMap.get(r.property_id) || null,
-        }));
-      }
-
-      setMyRequests(enrichedRequests);
-
-      // 승인된 현장이 있는지 확인
-      const hasApproved = (requests || []).some((r) => r.status === "approved");
+      const hasApproved = data.requests.some((r) => r.status === "approved");
+      const hasPending = data.requests.some((r) => r.status === "pending");
       setHasApprovedProperty(hasApproved);
-
-      // 대기 중인 신청이 있는지 확인
-      const hasPending = (requests || []).some((r) => r.status === "pending");
       setHasPendingRequest(hasPending);
-
-      // 전체 현장 목록 조회
-      const { data: propertiesData } = await supabase
-        .from("properties")
-        .select("id, name, property_type, image_url, status")
-        .order("name");
-
-      setProperties(propertiesData || []);
     } catch (error) {
       console.error("데이터 조회 오류:", error);
     } finally {

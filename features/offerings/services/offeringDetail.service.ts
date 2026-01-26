@@ -1,5 +1,5 @@
 import { createSupabaseServer } from "@/lib/supabaseServer";
-import type { PropertyRow } from "@/features/offerings/detail/OfferingDetailLeft";
+import type { PropertyRow } from "@/features/offerings/components/detail/OfferingDetailLeft";
 
 const DETAIL_SELECT = `
   id, created_at, name, property_type, phone_number, status, description, image_url,
