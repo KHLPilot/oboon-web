@@ -13,6 +13,7 @@ const DEFAULT_START = "10:00";
 const DEFAULT_END = "17:00";
 const FULL_DAY_START = "09:00"; // 전체 표시 시작
 const FULL_DAY_END = "18:00"; // 전체 표시 끝
+const CLOSED_TIME = "00:00";
 
 // 슬롯 시간 생성 헬퍼
 function generateTimeSlots(startTime: string, endTime: string): string[] {
@@ -32,6 +33,23 @@ function generateTimeSlots(startTime: string, endTime: string): string[] {
   return slots;
 }
 
+function isValidTime(value: string | null | undefined) {
+  return typeof value === "string" && /^\d{2}:\d{2}$/.test(value);
+}
+
+function timeToMinutes(time: string) {
+  const [h, m] = time.split(":").map(Number);
+  return h * 60 + m;
+}
+
+function minutesToTime(value: number) {
+  const h = Math.floor(value / 60)
+    .toString()
+    .padStart(2, "0");
+  const m = (value % 60).toString().padStart(2, "0");
+  return `${h}:${m}`;
+}
+
 // GET: 특정 상담사의 열린 슬롯 조회
 export async function GET(req: Request) {
   try {
@@ -49,22 +67,54 @@ export async function GET(req: Request) {
     const targetDate = new Date(date + "T00:00:00+09:00");
     const dayOfWeek = targetDate.getDay();
 
+    const { data: holidayRow } = await adminSupabase
+      .from("agent_holidays")
+      .select("holiday_date")
+      .eq("agent_id", agentId)
+      .eq("holiday_date", date)
+      .maybeSingle();
+
+    const isHoliday = !!holidayRow?.holiday_date;
+
     // 1) 기본 운영시간 조회 (없으면 기본값 사용)
     const { data: workingHours } = await adminSupabase
       .from("agent_working_hours")
-      .select("start_time, end_time")
+      .select("start_time, end_time, is_enabled")
       .eq("agent_id", agentId)
       .eq("day_of_week", dayOfWeek)
       .single();
 
-    const defaultStartTime = workingHours?.start_time?.slice(0, 5) || DEFAULT_START;
-    const defaultEndTime = workingHours?.end_time?.slice(0, 5) || DEFAULT_END;
+    const rawStart = workingHours?.start_time?.slice(0, 5);
+    const rawEnd = workingHours?.end_time?.slice(0, 5);
+    const isWorkingEnabled =
+      typeof workingHours?.is_enabled === "boolean"
+        ? workingHours.is_enabled
+        : true;
 
-    // 2) 전체 슬롯 생성 (09:00~18:00)
-    const allSlots = generateTimeSlots(FULL_DAY_START, FULL_DAY_END);
+    const defaultStartTime =
+      isValidTime(rawStart) && rawStart !== CLOSED_TIME
+        ? rawStart
+        : DEFAULT_START;
+    const defaultEndTime =
+      isValidTime(rawEnd) && rawEnd !== CLOSED_TIME ? rawEnd : DEFAULT_END;
+
+    // 2) 전체 슬롯 생성 (기본 운영시간을 포함하도록 범위 확장)
+    const fullStartMinutes = Math.min(
+      timeToMinutes(FULL_DAY_START),
+      timeToMinutes(defaultStartTime),
+    );
+    const fullEndMinutes = Math.max(
+      timeToMinutes(FULL_DAY_END),
+      timeToMinutes(defaultEndTime),
+    );
+    const fullDayStart = minutesToTime(fullStartMinutes);
+    const fullDayEnd = minutesToTime(fullEndMinutes);
+    const allSlots = generateTimeSlots(fullDayStart, fullDayEnd);
 
     // 기본 운영시간 내 슬롯 목록
-    const defaultOpenSlots = generateTimeSlots(defaultStartTime, defaultEndTime);
+    const defaultOpenSlots = isWorkingEnabled
+      ? generateTimeSlots(defaultStartTime, defaultEndTime)
+      : [];
 
     // 3) 오버라이드 조회
     const { data: overrides } = await adminSupabase
@@ -133,6 +183,10 @@ export async function GET(req: Request) {
         return { time, available: false, reason: "past", isOpen };
       }
 
+      if (isHoliday) {
+        return { time, available: false, reason: "closed", isOpen: false };
+      }
+
       // 닫힌 경우
       if (!isOpen) {
         return { time, available: false, reason: "closed", isOpen: false };
@@ -184,6 +238,17 @@ export async function POST(req: Request) {
         { error: "date, time, is_open 필요" },
         { status: 400 }
       );
+    }
+
+    const { data: holidayRow } = await adminSupabase
+      .from("agent_holidays")
+      .select("holiday_date")
+      .eq("agent_id", user.id)
+      .eq("holiday_date", date)
+      .maybeSingle();
+
+    if (holidayRow?.holiday_date) {
+      return NextResponse.json({ error: "Holiday closed" }, { status: 409 });
     }
 
     // upsert

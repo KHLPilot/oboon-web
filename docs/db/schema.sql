@@ -1,4 +1,4 @@
-## 2. 테이블 목록 (Domain 기준)
+﻿## 2. 테이블 목록 (Domain 기준)
 ### 👤 사용자 / 권한
 
 - profiles
@@ -42,6 +42,7 @@
 
 - agent_working_hours
 - agent_slot_overrides
+- agent_holidays
 
 ---
 
@@ -224,6 +225,7 @@
 - FK: `agent_id` (uuid, NOT NULL)
 - 요일: `day_of_week` (int, NOT NULL)
 - 시간: `start_time` (time, default 09:00), `end_time` (time, default 18:00)
+- 상태: `is_enabled` (boolean, NOT NULL, default true)
 - timestamps: `created_at` (timestamptz, default now())
 
 #### agent_slot_overrides
@@ -232,6 +234,13 @@
 - FK: `agent_id` (uuid, NOT NULL)
 - 슬롯: `slot_date` (date, NOT NULL), `slot_time` (time, NOT NULL)
 - 오픈 여부: `is_open` (boolean, NOT NULL, default true)
+- timestamps: `created_at` (timestamptz, default now())
+
+#### agent_holidays
+
+- PK: `id` (uuid, default gen_random_uuid())
+- FK: `agent_id` (uuid, NOT NULL)
+- 휴무일: `holiday_date` (date, NOT NULL)
 - timestamps: `created_at` (timestamptz, default now())
 
 ---

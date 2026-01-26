@@ -187,6 +187,165 @@ const CustomInput = forwardRef<
 });
 CustomInput.displayName = "CustomInput";
 
+const OBOON_DATEPICKER_GLOBAL_STYLES = `
+  /* =========================
+  * Wrapper / Popper
+  * ========================= */
+  .react-datepicker-wrapper {
+    width: 100% !important;
+    display: block;
+  }
+
+  .react-datepicker__input-container {
+    width: 100% !important;
+  }
+
+  .react-datepicker__input-container input {
+    width: 100%;
+  }
+
+  .oboon-datepicker-popper {
+    z-index: 50;
+  }
+
+  /* =========================
+  * DatePicker Container
+  * ========================= */
+  .oboon-datepicker {
+    background: var(--oboon-bg-surface);
+    border: 1px solid var(--oboon-border-default);
+    border-radius: 16px;
+    color: var(--oboon-text-body);
+
+    /* div헤더 잔상 / 이중 라인 방지 */
+    overflow: hidden;
+  }
+
+  /* =========================
+  * Header (상단 라인 정리)
+  * ========================= */
+  .oboon-datepicker .react-datepicker__header {
+    background: var(--oboon-bg-surface);
+    border-bottom: 1px solid var(--oboon-border-default);
+
+    /* ❌ 기본 inset shadow / hairline 제거 */
+    border-top: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .oboon-datepicker .react-datepicker__month-container {
+    box-shadow: none !important;
+  }
+
+  .oboon-datepicker .react-datepicker__current-month,
+  .oboon-datepicker .react-datepicker__year-header {
+    color: var(--oboon-text-title);
+    font-weight: 600;
+  }
+
+  /* =========================
+  * Day / Weekday Typography
+  * ========================= */
+  .oboon-datepicker .react-datepicker__day-name {
+    color: var(--oboon-text-muted);
+    font-weight: 500;
+  }
+
+  .oboon-datepicker .react-datepicker__day {
+    color: var(--oboon-text-body);
+  }
+
+  /* =========================
+  * Day Cell Layout (원형)
+  * ========================= */
+  .oboon-datepicker .react-datepicker__day,
+  .oboon-datepicker .react-datepicker__day-name {
+    width: 2rem;
+    line-height: 2rem;
+    margin: 0.125rem;
+    text-align: center;
+  }
+
+  /* 기본 상태도 원형으로 */
+  .oboon-datepicker .react-datepicker__day {
+    border-radius: 9999px !important;
+  }
+
+  /* =========================
+  * Hover
+  * ========================= */
+  .oboon-datepicker .react-datepicker__day:hover {
+    background: var(--oboon-bg-subtle);
+    border-radius: 9999px !important;
+  }
+
+  /* =========================
+  * Selected / Keyboard Selected
+  * ========================= */
+  .oboon-datepicker .react-datepicker__day--selected,
+  .oboon-datepicker .react-datepicker__day--keyboard-selected {
+    background: var(--oboon-primary);
+    color: var(--oboon-on-primary);
+    border-radius: 9999px !important;
+  }
+
+  /* =========================
+  * Today
+  * ========================= */
+  .oboon-datepicker .react-datepicker__day--today {
+    border: 1px solid var(--oboon-primary);
+    border-radius: 9999px !important;
+  }
+
+  /* =========================
+  * Disabled Day
+  * ========================= */
+  .oboon-datepicker .react-datepicker__day--disabled {
+    color: var(--oboon-text-muted);
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .oboon-datepicker .react-datepicker__day--disabled:hover {
+    background: transparent;
+  }
+
+  /* =========================
+  * Navigation (‹ ›)
+  * ========================= */
+  .oboon-datepicker .react-datepicker__navigation-icon::before {
+    border-color: var(--oboon-border-default);
+  }
+
+  .oboon-datepicker
+    .react-datepicker__navigation:hover
+    .react-datepicker__navigation-icon::before {
+    border-color: var(--oboon-border-strong);
+  }
+`;
+
+export function OboonDatePickerStyles() {
+  return <style jsx global>{OBOON_DATEPICKER_GLOBAL_STYLES}</style>;
+}
+
+export function OboonInlineDatePicker({
+  calendarClassName,
+  locale,
+  ...rest
+}: NativeDatePickerProps) {
+  return (
+    <>
+      <DatePicker
+        {...rest}
+        inline
+        locale={locale ?? "ko"}
+        calendarClassName={calendarClassName ?? "oboon-datepicker"}
+      />
+      <OboonDatePickerStyles />
+    </>
+  );
+}
+
 export default function OboonDatePicker({
   buttonProps,
   onChange,
@@ -302,142 +461,7 @@ export default function OboonDatePicker({
         </div>
       </div>
 
-      <style jsx global>{`
-        /* =========================
-        * Wrapper / Popper
-        * ========================= */
-        .react-datepicker-wrapper {
-          width: 100% !important;
-          display: block;
-        }
-
-        .react-datepicker__input-container {
-          width: 100% !important;
-        }
-
-        .react-datepicker__input-container input {
-          width: 100%;
-        }
-
-        .oboon-datepicker-popper {
-          z-index: 50;
-        }
-
-        /* =========================
-        * DatePicker Container
-        * ========================= */
-        .oboon-datepicker {
-          background: var(--oboon-bg-surface);
-          border: 1px solid var(--oboon-border-default);
-          border-radius: 16px;
-          color: var(--oboon-text-body);
-
-          /* div헤더 잔상 / 이중 라인 방지 */
-          overflow: hidden;
-        }
-
-        /* =========================
-        * Header (상단 라인 정리)
-        * ========================= */
-        .oboon-datepicker .react-datepicker__header {
-          background: var(--oboon-bg-surface);
-          border-bottom: 1px solid var(--oboon-border-default);
-
-          /* ❌ 기본 inset shadow / hairline 제거 */
-          border-top: 0 !important;
-          box-shadow: none !important;
-        }
-
-        .oboon-datepicker .react-datepicker__month-container {
-          box-shadow: none !important;
-        }
-
-        .oboon-datepicker .react-datepicker__current-month,
-        .oboon-datepicker .react-datepicker__year-header {
-          color: var(--oboon-text-title);
-          font-weight: 600;
-        }
-
-        /* =========================
-        * Day / Weekday Typography
-        * ========================= */
-        .oboon-datepicker .react-datepicker__day-name {
-          color: var(--oboon-text-muted);
-          font-weight: 500;
-        }
-
-        .oboon-datepicker .react-datepicker__day {
-          color: var(--oboon-text-body);
-        }
-
-        /* =========================
-        * Day Cell Layout (원형)
-        * ========================= */
-        .oboon-datepicker .react-datepicker__day,
-        .oboon-datepicker .react-datepicker__day-name {
-          width: 2rem;
-          line-height: 2rem;
-          margin: 0.125rem;
-          text-align: center;
-        }
-
-        /* 기본 상태도 원형으로 */
-        .oboon-datepicker .react-datepicker__day {
-          border-radius: 9999px !important;
-        }
-
-        /* =========================
-        * Hover
-        * ========================= */
-        .oboon-datepicker .react-datepicker__day:hover {
-          background: var(--oboon-bg-subtle);
-          border-radius: 9999px !important;
-        }
-
-        /* =========================
-        * Selected / Keyboard Selected
-        * ========================= */
-        .oboon-datepicker .react-datepicker__day--selected,
-        .oboon-datepicker .react-datepicker__day--keyboard-selected {
-          background: var(--oboon-primary);
-          color: var(--oboon-on-primary);
-          border-radius: 9999px !important;
-        }
-
-        /* =========================
-        * Today
-        * ========================= */
-        .oboon-datepicker .react-datepicker__day--today {
-          border: 1px solid var(--oboon-primary);
-          border-radius: 9999px !important;
-        }
-
-        /* =========================
-        * Disabled Day
-        * ========================= */
-        .oboon-datepicker .react-datepicker__day--disabled {
-          color: var(--oboon-text-muted);
-          opacity: 0.4;
-          cursor: not-allowed;
-        }
-
-        .oboon-datepicker .react-datepicker__day--disabled:hover {
-          background: transparent;
-        }
-
-        /* =========================
-        * Navigation (‹ ›)
-        * ========================= */
-        .oboon-datepicker .react-datepicker__navigation-icon::before {
-          border-color: var(--oboon-border-default);
-        }
-
-        .oboon-datepicker
-          .react-datepicker__navigation:hover
-          .react-datepicker__navigation-icon::before {
-          border-color: var(--oboon-border-strong);
-        }
-      `}</style>
+      <OboonDatePickerStyles />
     </>
   );
 }

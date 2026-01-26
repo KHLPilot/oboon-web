@@ -131,10 +131,12 @@ export function DropdownMenuTrigger({
 export function DropdownMenuContent({
   children,
   align = "end",
+  matchTriggerWidth = false,
   className = "",
 }: {
   children: React.ReactNode;
   align?: Align;
+  matchTriggerWidth?: boolean;
   className?: string;
 }) {
   const { open, setOpen, triggerRef } = useDropdownMenu();
@@ -206,10 +208,20 @@ export function DropdownMenuContent({
   // 실제 좌표: end는 right 정렬이므로 transform으로 당김
   const style: React.CSSProperties =
     align === "start"
-      ? { top: pos.top, left: pos.left }
+      ? { top: pos.top, left: pos.left, width: matchTriggerWidth ? pos.width : undefined }
       : align === "center"
-      ? { top: pos.top, left: pos.left, transform: "translateX(-50%)" }
-      : { top: pos.top, left: pos.left, transform: "translateX(-100%)" };
+      ? {
+          top: pos.top,
+          left: pos.left,
+          transform: "translateX(-50%)",
+          width: matchTriggerWidth ? pos.width : undefined,
+        }
+      : {
+          top: pos.top,
+          left: pos.left,
+          transform: "translateX(-100%)",
+          width: matchTriggerWidth ? pos.width : undefined,
+        };
 
   return createPortal(
     <div

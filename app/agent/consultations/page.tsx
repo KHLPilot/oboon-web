@@ -4,23 +4,22 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   CalendarDays,
-  Clock,
-  MapPin,
   MessageCircle,
-  User,
   Check,
   X,
   Loader2,
   QrCode,
   Trash2,
+  Settings,
 } from "lucide-react";
-import Link from "next/link";
 
 import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
 import { fetchAgentAccess } from "@/features/agent/services/agent.auth";
+import AgentScheduleSettings from "@/features/agent/components/AgentScheduleSettings.client";
+import ConsultationCard from "@/features/consultations/components/ConsultationCard.client";
+import AgentBaseScheduleModal from "@/features/agent/components/AgentBaseScheduleModal.client";
 
 import { showAlert } from "@/shared/alert";
 interface Consultation {
@@ -88,6 +87,7 @@ export default function AgentConsultationsPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
   const [isAgent, setIsAgent] = useState(false);
+  const [showBaseScheduleModal, setShowBaseScheduleModal] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -244,7 +244,7 @@ export default function AgentConsultationsPage() {
     }
   }
 
-  // ?좎쭨 ?щ㎎
+  // 주의사항
   function formatDate(dateStr: string) {
     const date = new Date(dateStr);
     const month = date.getMonth() + 1;
@@ -256,197 +256,196 @@ export default function AgentConsultationsPage() {
     return `${month}월 ${day}일 (${dayName}) ${hours}:${minutes}`;
   }
 
-  if (!isAgent && !loading) {
+  const hasAnyConsultations = consultations.length > 0;
+
+  if (!isAgent && !loading && !hasAnyConsultations) {
     return null;
   }
 
   return (
     <PageContainer className="pb-8">
-      <div className="max-w-3xl mx-auto">
-        {/* 헤더 */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-(--oboon-text-title)">
-            예약 관리
-          </h1>
-          <p className="mt-1 text-sm text-(--oboon-text-muted)">
-            고객 상담 예약을 확인하고 관리할 수 있습니다
+      {/* 헤더 */}
+      <div className="mb-4">
+        <div className="ob-typo-h1 text-(--oboon-text-title)">예약 관리</div>
+        <p className="mt-1 ob-typo-body text-(--oboon-text-muted)">
+          상담 스케줄을 관리하고, 고객 상담 예약을 확인하고 관리할 수 있습니다
+        </p>
+      </div>
+
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="ob-typo-h2 text-(--oboon-text-title)">
+          예약 스케줄 설정
+        </div>
+        <Button
+          size="sm"
+          variant="secondary"
+          shape="pill"
+          onClick={() => setShowBaseScheduleModal(true)}
+        >
+          <Settings className="h-4 w-4" />
+          예약 기본 설정
+        </Button>
+      </div>
+      {isAgent && <AgentScheduleSettings showTitle={false} />}
+
+      <div className="ob-typo-h2 text-(--oboon-text-title) mb-4">예약 목록</div>
+
+      {/* 필터 */}
+      <div className="flex gap-2 mb-2 overflow-x-auto pb-2 scrollbar-none">
+        {[
+          { key: "all", label: "전체" },
+          { key: "pending", label: "승인 대기" },
+          { key: "confirmed", label: "확정" },
+          { key: "visited", label: "방문완료" },
+          { key: "contracted", label: "계약완료" },
+        ].map((f) => (
+          <Button
+            key={f.key}
+            size="sm"
+            shape="pill"
+            variant={filter === f.key ? "primary" : "secondary"}
+            onClick={() => setFilter(f.key)}
+          >
+            {f.label}
+          </Button>
+        ))}
+      </div>
+
+      {/* 로딩 */}
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-(--oboon-primary)" />
+        </div>
+      ) : consultations.length === 0 ? (
+        /* 빈 상태 */
+        <Card className="text-center py-12">
+          <CalendarDays className="h-12 w-12 mx-auto text-(--oboon-text-muted) mb-4" />
+          <p className="ob-typo-body text-(--oboon-text-muted)">
+            {filter === "all"
+              ? "예약 내역이 없습니다"
+              : "해당 상태의 예약이 없습니다"}
           </p>
-        </div>
-
-        {/* 필터 */}
-        <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-none">
-          {[
-            { key: "all", label: "전체" },
-            { key: "pending", label: "승인 대기" },
-            { key: "confirmed", label: "확정" },
-            { key: "visited", label: "방문완료" },
-            { key: "contracted", label: "계약완료" },
-          ].map((f) => (
-            <Button
-              key={f.key}
-              size="sm"
-              shape="pill"
-              variant={filter === f.key ? "primary" : "secondary"}
-              onClick={() => setFilter(f.key)}
-            >
-              {f.label}
-            </Button>
-          ))}
-        </div>
-
-        {/* 로딩 */}
-        {loading ? (
-          <div className="flex justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-(--oboon-primary)" />
-          </div>
-        ) : consultations.length === 0 ? (
-          /* 빈 상태 */
-          <Card className="text-center py-12">
-            <CalendarDays className="h-12 w-12 mx-auto text-(--oboon-text-muted) mb-4" />
-            <p className="text-(--oboon-text-muted)">
-              {filter === "all"
-                ? "예약 내역이 없습니다"
-                : "해당 상태의 예약이 없습니다"}
-            </p>
-          </Card>
-        ) : (
-          /* 예약 목록 */
-          <div className="space-y-4">
-            {consultations.map((consultation) => (
-              <Card key={consultation.id} className="overflow-hidden">
-                {/* 상태 바 */}
-                <div className="px-4 py-2 bg-(--oboon-bg-subtle) border-b border-(--oboon-border-default)">
-                  <div className="flex items-center justify-between">
-                    <Badge
-                      variant={
-                        STATUS_LABELS[consultation.status]?.variant || "default"
-                      }
-                    >
-                      {STATUS_LABELS[consultation.status]?.label ||
-                        consultation.status}
-                    </Badge>
-                    <span className="text-xs text-(--oboon-text-muted)">
-                      {formatDate(consultation.scheduled_at)}
-                    </span>
-                  </div>
-                  {/* 취소된 예약: 삭제 예정 안내 */}
-                  {consultation.status === "cancelled" &&
-                    consultation.cancelled_at && (
-                      <p className="text-xs text-red-500 mt-1">
-                        {getTimeUntilDeletion(consultation.cancelled_at)}
-                      </p>
-                    )}
-                </div>
-
-                <div className="p-4">
-                  {/* 고객 정보 */}
-                  <div className="flex items-start gap-3 mb-4">
-                    <div className="h-12 w-12 rounded-full bg-(--oboon-bg-subtle) flex items-center justify-center shrink-0">
-                      <User className="h-6 w-6 text-(--oboon-text-muted)" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-(--oboon-text-title)">
-                        {consultation.customer.name}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* 분양 정보 */}
-                  <Link
-                    href={`/offerings/${consultation.property.id}`}
-                    className="flex items-center gap-3 p-3 rounded-lg bg-(--oboon-bg-subtle) hover:bg-(--oboon-bg-subtle)/80 transition-colors"
-                  >
-                    <div className="h-12 w-12 rounded-lg bg-(--oboon-bg-page) overflow-hidden shrink-0">
-                      {consultation.property.image_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={consultation.property.image_url}
-                          alt={consultation.property.name}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <div className="h-full w-full flex items-center justify-center">
-                          <MapPin className="h-5 w-5 text-(--oboon-text-muted)" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-(--oboon-text-title) truncate">
-                        {consultation.property.name}
-                      </p>
-                    </div>
-                  </Link>
-
-                  {/* 액션 버튼 */}
-                  <div className="flex gap-2 mt-4">
-                    {consultation.status === "pending" && (
-                      <>
-                        <Button
-                          size="sm"
-                          variant="primary"
-                          className="flex-1"
-                          onClick={() => handleConfirm(consultation.id)}
-                        >
-                          <Check className="h-4 w-4" />
-                          승인
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          className="flex-1"
-                          onClick={() => handleCancel(consultation.id)}
-                        >
-                          <X className="h-4 w-4" />
-                          거절
-                        </Button>
-                      </>
-                    )}
-
-                    {consultation.status === "confirmed" && (
+        </Card>
+      ) : (
+        /* 예약 목록 */
+        <div className="grid gap-4 lg:grid-cols-2">
+          {consultations.map((consultation) => (
+            <ConsultationCard
+              key={consultation.id}
+              statusLabel={
+                STATUS_LABELS[consultation.status]?.label || consultation.status
+              }
+              statusVariant={
+                STATUS_LABELS[consultation.status]?.variant || "default"
+              }
+              reservationId={consultation.id.slice(0, 8)}
+              property={consultation.property}
+              scheduledAtLabel={formatDate(consultation.scheduled_at)}
+              note={
+                consultation.status === "cancelled" &&
+                consultation.cancelled_at ? (
+                  <p className="ob-typo-caption text-(--oboon-danger-text)">
+                    {getTimeUntilDeletion(consultation.cancelled_at)}
+                  </p>
+                ) : null
+              }
+              actions={
+                <>
+                  {consultation.status === "pending" && (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        shape="pill"
+                        className="flex-1 min-h-8"
+                        onClick={() => handleConfirm(consultation.id)}
+                      >
+                        <Check className="h-4 w-4" />
+                        승인
+                      </Button>
                       <Button
                         size="sm"
                         variant="secondary"
-                        className="flex-1"
+                        shape="pill"
+                        className="flex-1 min-h-8"
+                        onClick={() => handleCancel(consultation.id)}
+                      >
+                        <X className="h-4 w-4" />
+                        거절
+                      </Button>
+                    </>
+                  )}
+
+                  {consultation.status === "confirmed" && (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        shape="pill"
+                        className="flex-1 min-h-8"
                         onClick={() => router.push(`/agent/scan`)}
                       >
                         <QrCode className="h-4 w-4" />
-                        QR 보기
+                        QR 스캔
                       </Button>
-                    )}
-
-                    {/* 취소된 예약: 삭제 버튼 */}
-                    {consultation.status === "cancelled" && (
                       <Button
                         size="sm"
                         variant="secondary"
-                        className="flex-1 text-red-600 border-red-200 hover:bg-red-50"
-                        onClick={() => handleDelete(consultation.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        삭제
-                      </Button>
-                    )}
-
-                    {/* 채팅: 방문 인증 완료 후에만 표시 */}
-                    {(consultation.status === "visited" ||
-                      consultation.status === "contracted") && (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        className="flex-1"
+                        shape="pill"
+                        className="flex-1 min-h-8"
                         onClick={() => router.push(`/chat/${consultation.id}`)}
                       >
                         <MessageCircle className="h-4 w-4" />
                         채팅
                       </Button>
-                    )}
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        shape="pill"
+                        className="flex-1 min-h-8"
+                        onClick={() => handleCancel(consultation.id)}
+                      >
+                        예약 취소
+                      </Button>
+                    </>
+                  )}
+
+                  {consultation.status === "cancelled" && (
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      shape="pill"
+                      className="flex-1 min-h-8"
+                      onClick={() => handleDelete(consultation.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      삭제
+                    </Button>
+                  )}
+
+                  {(consultation.status === "visited" ||
+                    consultation.status === "contracted") && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      shape="pill"
+                      className="flex-1 min-h-8"
+                      onClick={() => router.push(`/chat/${consultation.id}`)}
+                    >
+                      <MessageCircle className="h-4 w-4" />
+                      채팅
+                    </Button>
+                  )}
+                </>
+              }
+            />
+          ))}
+        </div>
+      )}
+      <AgentBaseScheduleModal
+        open={showBaseScheduleModal}
+        onClose={() => setShowBaseScheduleModal(false)}
+      />
     </PageContainer>
   );
 }

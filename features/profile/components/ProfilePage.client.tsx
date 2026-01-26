@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import Link from "next/link";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { syncAvatarFromSocialIfEmpty } from "@/lib/auth/syncAvatarFromSocialIfEmpty";
 import {
@@ -667,7 +668,8 @@ export default function ProfilePage() {
                   <div className="ob-typo-subtitle text-(--oboon-text-title) mb-1">
                     계정 유형
                   </div>
-                  <p className="ob-typo-body text-(--oboon-text-body)">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="ob-typo-body text-(--oboon-text-body)">
                     현재 계정 상태:{" "}
                     <span className="font-semibold text-(--oboon-text-title)">
                       {role === "user" && "일반 사용자"}
@@ -678,7 +680,13 @@ export default function ProfilePage() {
                       {role === "developer" && "시행사"}
                       {role === "admin" && "관리자"}
                     </span>
-                  </p>
+                    </p>
+                    {role === "agent" && (
+                      <Button asChild size="sm" variant="secondary" shape="pill">
+                        <Link href="/agent/properties">소속관리</Link>
+                      </Button>
+                    )}
+                  </div>
 
                   {role === "user" && (
                     <Button

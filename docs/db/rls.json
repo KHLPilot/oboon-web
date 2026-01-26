@@ -143,5 +143,10 @@
     "table_name": "visit_tokens",
     "rls_enabled": true,
     "rls_forced": false
+  },
+  {
+    "table_name": "agent_holidays",
+    "rls_enabled": true,
+    "rls_forced": false
   }
 ]

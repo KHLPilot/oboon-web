@@ -1058,5 +1058,25 @@
     "cmd": "UPDATE",
     "using_expression": "((agent_id = auth.uid()) OR (EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))",
     "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "agent_holidays",
+    "policyname": "Agent can manage own holidays",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "(agent_id = auth.uid())",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "agent_holidays",
+    "policyname": "Anyone can read holidays",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
   }
 ]

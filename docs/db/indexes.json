@@ -383,5 +383,15 @@
     "table_name": "visit_tokens",
     "index_name": "visit_tokens_token_key",
     "definition": "CREATE UNIQUE INDEX visit_tokens_token_key ON public.visit_tokens USING btree (token)"
+  },
+  {
+    "table_name": "agent_holidays",
+    "index_name": "agent_holidays_agent_id_holiday_date_key",
+    "definition": "CREATE UNIQUE INDEX agent_holidays_agent_id_holiday_date_key ON public.agent_holidays USING btree (agent_id, holiday_date)"
+  },
+  {
+    "table_name": "agent_holidays",
+    "index_name": "agent_holidays_pkey",
+    "definition": "CREATE UNIQUE INDEX agent_holidays_pkey ON public.agent_holidays USING btree (id)"
   }
 ]

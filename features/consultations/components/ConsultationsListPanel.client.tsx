@@ -4,20 +4,16 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   CalendarDays,
-  Clock,
-  User,
-  MapPin,
   MessageCircle,
   QrCode,
   Loader2,
-  ChevronRight,
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
 
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
+import ConsultationCard from "@/features/consultations/components/ConsultationCard.client";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 
 import { showAlert } from "@/shared/alert";
@@ -271,87 +267,38 @@ export default function ConsultationsListPanel({
       ) : (
         <div className="space-y-4">
           {consultations.map((consultation) => (
-            <Card key={consultation.id} className="overflow-hidden">
-              <div className="flex items-center justify-between px-3 sm:px-4 py-2 bg-(--oboon-bg-subtle) border-b border-(--oboon-border-default)">
-                <Badge
-                  variant={
-                    STATUS_LABELS[consultation.status]?.variant || "default"
-                  }
-                >
-                  {STATUS_LABELS[consultation.status]?.label ||
-                    consultation.status}
-                </Badge>
-                <span className="ob-typo-caption text-(--oboon-text-muted)">
-                  예약번호: {consultation.id.slice(0, 8)}
-                </span>
-              </div>
-
-              <div className="space-y-3 sm:space-y-4 p-3 sm:p-4">
-                <Link
-                  href={`/offerings/${consultation.property.id}`}
-                  className="group flex items-center gap-3 sm:gap-4 rounded-xl p-2 transition-colors hover:bg-(--oboon-bg-subtle)"
-                  onClick={() => onNavigate?.()}
-                >
-                  {/* 썸네일 */}
-                  <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-(--oboon-bg-subtle)">
-                    {consultation.property.image_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={consultation.property.image_url}
-                        alt={consultation.property.name}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center">
-                        <MapPin className="h-5 w-5 sm:h-6 sm:w-6 text-(--oboon-text-muted)" />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* 텍스트 영역 */}
-                  <div className="flex-1 min-w-0 space-y-1">
-                    <p className="ob-typo-h3 truncate text-(--oboon-text-title)">
-                      {consultation.property.name}
-                    </p>
-
-                    {/* 일정 */}
-                    <div className="flex items-center gap-2 ob-typo-body text-(--oboon-text-body)">
-                      <Clock className="h-4 w-4 text-(--oboon-text-muted)" />
-                      <span className="text-(--oboon-text-muted)">
-                        {formatDate(consultation.scheduled_at)}
-                      </span>
-                    </div>
-
-                    {/* 상담사 */}
-                    <div className="flex items-center gap-2 ob-typo-body text-(--oboon-text-muted)">
-                      <User className="h-4 w-4" />
-                      <span>상담사: {consultation.agent.name}</span>
-                    </div>
-                  </div>
-
-                  {/* Chevron */}
-                  <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 shrink-0 text-(--oboon-text-muted) transition-colors group-hover:text-(--oboon-text-title)" />
-                </Link>
-
-                {consultation.status === "pending" && (
+            <ConsultationCard
+              key={consultation.id}
+              statusLabel={
+                STATUS_LABELS[consultation.status]?.label || consultation.status
+              }
+              statusVariant={
+                STATUS_LABELS[consultation.status]?.variant || "default"
+              }
+              reservationId={consultation.id.slice(0, 8)}
+              property={consultation.property}
+              scheduledAtLabel={formatDate(consultation.scheduled_at)}
+              onNavigate={() => onNavigate?.()}
+              meta={<span>상담사: {consultation.agent.name}</span>}
+              note={
+                consultation.status === "pending" ? (
                   <p className="ob-typo-body text-(--oboon-warning) mt-2">
                     상담사 확인 대기중입니다
                   </p>
-                )}
-
-                {consultation.status === "cancelled" &&
-                  consultation.cancelled_at && (
-                    <p className="ob-typo-caption text-(--oboon-danger)">
-                      {getTimeUntilDeletion(consultation.cancelled_at)}
-                    </p>
-                  )}
-
-                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                ) : consultation.status === "cancelled" &&
+                  consultation.cancelled_at ? (
+                  <p className="ob-typo-caption text-(--oboon-danger)">
+                    {getTimeUntilDeletion(consultation.cancelled_at)}
+                  </p>
+                ) : null
+              }
+              actions={
+                <>
                   {consultation.status === "confirmed" && (
                     <Button
                       size="md"
                       variant="secondary"
-                      className="w-full sm:flex-1"
+                      className="w-full sm:flex-1 min-h-8"
                       onClick={() => {
                         if (onOpenQR) {
                           onOpenQR(consultation.id);
@@ -374,7 +321,7 @@ export default function ConsultationsListPanel({
                     <Button
                       size="md"
                       variant="secondary"
-                      className="w-full sm:flex-1 inline-flex items-center justify-center gap-2"
+                      className="w-full sm:flex-1 min-h-8 inline-flex items-center justify-center gap-2"
                       onClick={() => handleNavigate(`/chat/${consultation.id}`)}
                     >
                       <MessageCircle className="h-5 w-5 shrink-0" />
@@ -388,7 +335,7 @@ export default function ConsultationsListPanel({
                     <Button
                       size="md"
                       variant="danger"
-                      className="w-full sm:flex-1"
+                      className="w-full sm:flex-1 min-h-8"
                       onClick={() => handleDelete(consultation.id)}
                     >
                       <Trash2 className="h-4 w-4" />
@@ -401,7 +348,7 @@ export default function ConsultationsListPanel({
                     <Button
                       size="md"
                       variant="danger"
-                      className="w-full sm:flex-1 sm:min-w-15 "
+                      className="w-full sm:flex-1 sm:min-w-15 min-h-8"
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -411,9 +358,9 @@ export default function ConsultationsListPanel({
                       예약 취소
                     </Button>
                   )}
-                </div>
-              </div>
-            </Card>
+                </>
+              }
+            />
           ))}
         </div>
       )}

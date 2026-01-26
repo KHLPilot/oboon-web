@@ -640,5 +640,23 @@
     "constraint_name": "visit_tokens_token_key",
     "constraint_type": "u",
     "definition": "UNIQUE (token)"
+  },
+  {
+    "table_name": "agent_holidays",
+    "constraint_name": "agent_holidays_agent_id_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (agent_id) REFERENCES profiles(id) ON DELETE CASCADE"
+  },
+  {
+    "table_name": "agent_holidays",
+    "constraint_name": "agent_holidays_pkey",
+    "constraint_type": "p",
+    "definition": "PRIMARY KEY (id)"
+  },
+  {
+    "table_name": "agent_holidays",
+    "constraint_name": "agent_holidays_agent_id_holiday_date_key",
+    "constraint_type": "u",
+    "definition": "UNIQUE (agent_id, holiday_date)"
   }
 ]

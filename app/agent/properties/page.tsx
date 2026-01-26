@@ -10,6 +10,7 @@ import {
   XCircle,
   Calendar,
 } from "lucide-react";
+
 import { fetchAgentPropertyDashboard } from "@/features/agent/services/agent.properties";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -34,6 +35,37 @@ interface PropertyAgent {
   rejected_at?: string | null;
   rejection_reason?: string | null;
   property: Property | null;
+}
+
+function formatKoreanDate(dateString: string) {
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleDateString("ko-KR");
+}
+
+function PropertyThumbnail({
+  src,
+  name,
+}: {
+  src?: string | null;
+  name?: string | null;
+}) {
+  return (
+    <div className="h-24 w-24 overflow-hidden rounded-xl bg-(--oboon-bg-subtle) shrink-0">
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          alt={name ?? ""}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <div className="h-full w-full flex items-center justify-center">
+          <Building2 className="h-6 w-6 text-(--oboon-text-muted)" />
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function AgentPropertiesPage() {
@@ -195,72 +227,65 @@ export default function AgentPropertiesPage() {
       {/* 내 소속 신청 현황 */}
       {myRequests.length > 0 && (
         <div className="mb-8">
-          <div className="ob-typo-h3 text-(--oboon-text-title) mb-4">
+          <div className="ob-typo-h2 text-(--oboon-text-title) mb-4">
             내 소속 신청 현황
           </div>
+
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {myRequests.map((request) => {
               const property = request.property;
+
               return (
-                <Card key={request.id} className="p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="h-16 w-16 overflow-hidden rounded-lg bg-(--oboon-bg-subtle) shrink-0">
-                      {property?.image_url ? (
-                        <img
-                          src={property.image_url}
-                          alt={property.name}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <div className="h-full w-full flex items-center justify-center">
-                          <Building2 className="h-6 w-6 text-(--oboon-text-muted)" />
+                <Card key={request.id} className="p-3">
+                  <div className="flex gap-4">
+                    <PropertyThumbnail
+                      src={property?.image_url}
+                      name={property?.name}
+                    />
+
+                    <div className="min-w-0 flex-1">
+                      {/* 1행: 현장명 + 상태 */}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="mt-1 ob-typo-h3 text-(--oboon-text-title) truncate">
+                            {property?.name || "-"}
+                          </div>
                         </div>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="mb-2">
-                        {getStatusBadge(request.status)}
+                        <div className="shrink-0">
+                          {getStatusBadge(request.status)}
+                        </div>
                       </div>
-                      <h3 className="font-semibold text-(--oboon-text-title) mb-1">
-                        {property?.name || "-"}
-                      </h3>
-                      <p className="ob-typo-caption text-(--oboon-text-muted)">
-                        신청일:{" "}
-                        {new Date(request.requested_at).toLocaleDateString()}
-                      </p>
-                      {request.status === "rejected" &&
-                        request.rejection_reason && (
-                          <p className="mt-2 ob-typo-caption text-(--oboon-danger) bg-(--oboon-danger)/10 p-2 rounded">
-                            거절 사유: {request.rejection_reason}
-                          </p>
-                        )}
-                      {request.status === "pending" && (
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          className="mt-2 w-full"
-                          onClick={() => handleCancel(request.id)}
-                        >
-                          신청 취소
-                        </Button>
-                      )}
-                      {request.status === "approved" && (
-                        <Button
-                          size="sm"
-                          variant="primary"
-                          className="mt-2 w-full flex items-center justify-center gap-2"
-                          onClick={() =>
-                            router.push(
-                              `/agent/schedule?propertyId=${request.property_id}`,
-                            )
-                          }
-                        >
-                          <Calendar className="h-4 w-4" />
-                          스케줄 관리
-                        </Button>
-                      )}
+
+                      {/* 2행: 신청일 */}
+                      <div className="mt-1 ob-typo-body text-(--oboon-text-muted)">
+                        신청일: {formatKoreanDate(request.requested_at)}
+                      </div>
+
+                      {/* 3행: (현장 타입) + (액션 슬롯) */}
+                      <div className="mt-2 flex items-center justify-end">
+                        <div className="shrink-0">
+                          {/* 3행/4행은 동시에 뜨지 않도록: pending일 때만 액션 */}
+                          {request.status === "pending" && (
+                            <Button
+                              size="sm"
+                              variant="danger"
+                              shape="pill"
+                              className="whitespace-nowrap"
+                              onClick={() => handleCancel(request.id)}
+                            >
+                              신청 취소
+                            </Button>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
+                  {request.status === "rejected" &&
+                    request.rejection_reason && (
+                      <div className="mt-3 rounded-xl border border-(--oboon-danger-border) bg-(--oboon-danger-bg) px-3 py-2 ob-typo-subtitle text-(--oboon-danger-text)">
+                        거절 사유 : {request.rejection_reason}
+                      </div>
+                    )}
                 </Card>
               );
             })}
@@ -270,12 +295,12 @@ export default function AgentPropertiesPage() {
 
       {/* 전체 현장 목록 */}
       <div>
-        <h2 className="ob-typo-h3 text-(--oboon-text-title) mb-4">
+        <div className="ob-typo-h2 text-(--oboon-text-title) mb-4">
           전체 현장 목록
-        </h2>
+        </div>
 
         {hasApprovedProperty && (
-          <div className="mb-4 rounded-xl border border-(--oboon-primary) bg-(--oboon-primary)/10 px-4 py-3 ob-typo-caption text-(--oboon-primary)">
+          <div className="mb-4 rounded-xl border border-(--oboon-warning) bg-(--oboon-warning)/10 px-3 py-2 ob-typo-subtitle text-(--oboon-warning)">
             이미 승인된 현장이 있습니다. 한 명의 상담사는 한 곳의 현장에만
             소속될 수 있습니다.
           </div>
@@ -291,69 +316,72 @@ export default function AgentPropertiesPage() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {properties.map((property) => {
             const requestStatus = getRequestStatus(property.id);
+
             const canApply =
               !hasApprovedProperty &&
               !hasPendingRequest &&
               (!requestStatus || requestStatus.status === "rejected");
 
+            // 3행/4행 슬롯: 버튼 또는 보조문구(둘 중 하나만)
+            const helperText =
+              hasApprovedProperty && !requestStatus
+                ? "이미 다른 현장에 소속됨"
+                : !hasApprovedProperty && hasPendingRequest && !requestStatus
+                  ? "다른 현장 승인 대기 중"
+                  : null;
+
             return (
-              <Card key={property.id} className="p-4">
-                <div className="flex items-start gap-3">
-                  <div className="h-16 w-16 overflow-hidden rounded-lg bg-(--oboon-bg-subtle) shrink-0">
-                    {property.image_url ? (
-                      <img
-                        src={property.image_url}
-                        alt={property.name}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="h-full w-full flex items-center justify-center">
-                        <Building2 className="h-6 w-6 text-(--oboon-text-muted)" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    {requestStatus && (
-                      <div className="mb-2">
-                        {getStatusBadge(requestStatus.status)}
-                      </div>
-                    )}
-                    <h3 className="font-semibold text-(--oboon-text-title) mb-1">
+              <Card key={property.id} className="px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <PropertyThumbnail
+                    src={property.image_url}
+                    name={property.name}
+                  />
+
+                  {/* 텍스트 묶음: 3행 구조 */}
+                  <div className="min-w-0 flex-1">
+                    {/* 1행: 현장명 */}
+                    <div className="mt-1 ob-typo-h3 text-(--oboon-text-title) truncate">
                       {property.name}
-                    </h3>
-                    <p className="ob-typo-caption text-(--oboon-text-muted) mb-3">
+                    </div>
+
+                    {/* 2행: 현장 타입 */}
+                    <div className="mt-0.5 ob-typo-subtitle text-(--oboon-text-muted) truncate">
                       {property.property_type}
-                    </p>
-                    {canApply && (
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        className="w-full"
-                        disabled={submitting === property.id}
-                        onClick={() => handleApply(property.id)}
-                      >
-                        {submitting === property.id ? (
-                          <span className="flex items-center gap-2">
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                            신청 중...
-                          </span>
-                        ) : (
-                          "소속 신청"
-                        )}
-                      </Button>
-                    )}
-                    {hasApprovedProperty && !requestStatus && (
-                      <div className="ob-typo-caption text-(--oboon-text-muted) text-center">
-                        이미 다른 현장에 소속됨
-                      </div>
-                    )}
-                    {!hasApprovedProperty &&
-                      hasPendingRequest &&
-                      !requestStatus && (
-                        <div className="ob-typo-caption text-(--oboon-text-muted) text-center">
+                    </div>
+
+                    {/* 3행: 액션 슬롯 (버튼 / 상태 / 보조 메시지 중 하나) */}
+                    <div className="mt-2 flex items-center justify-end">
+                      {requestStatus ? (
+                        getStatusBadge(requestStatus.status)
+                      ) : hasApprovedProperty ? (
+                        <span className="ob-typo-body text-(--oboon-warning)">
+                          이미 다른 현장에 소속됨
+                        </span>
+                      ) : hasPendingRequest ? (
+                        <span className="ob-typo-body text-(--oboon-warning)">
                           다른 현장 승인 대기 중
-                        </div>
-                      )}
+                        </span>
+                      ) : canApply ? (
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          shape="pill"
+                          className="h-8 whitespace-nowrap"
+                          disabled={submitting === property.id}
+                          onClick={() => handleApply(property.id)}
+                        >
+                          {submitting === property.id ? (
+                            <span className="flex items-center gap-2">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              신청 중...
+                            </span>
+                          ) : (
+                            "소속 신청"
+                          )}
+                        </Button>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
               </Card>
