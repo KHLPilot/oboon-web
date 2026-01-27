@@ -22,6 +22,7 @@ import { useToast } from "@/components/ui/Toast";
 import { CalendarDays, ChevronRight } from "lucide-react";
 import MyConsultationsModal from "@/features/consultations/components/MyConsultationsModal.client";
 import { showAlert } from "@/shared/alert";
+import { CommunityProfilePage } from "@/features/community";
 
 type Role =
   | "user"
@@ -478,8 +479,39 @@ export default function ProfilePage() {
             </p>
           </section>
 
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-            <div className="order-1 lg:order-1 lg:col-span-2">
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+            <div className="order-1 lg:order-1 space-y-4">
+              {/* 내 상담 예약 바로가기 */}
+              <div
+                role="button"
+                tabIndex={0}
+                className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--oboon-accent)/30"
+                onClick={openConsultationsModal}
+                onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    openConsultationsModal();
+                  }
+                }}
+              >
+                <Card className="group flex items-center justify-between p-4 sm:p-5 transition-colors hover:bg-(--oboon-bg-subtle) cursor-pointer">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="flex h-9 w-9 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-(--oboon-primary)/10 shrink-0">
+                      <CalendarDays className="h-4 w-4 sm:h-5 sm:w-5 text-(--oboon-primary)" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="ob-typo-h3 font-semibold text-(--oboon-text-title)">
+                        내 상담 예약
+                      </div>
+                      <p className="ob-typo-body text-(--oboon-text-muted) truncate">
+                        예약한 상담 내역을 확인하고 관리합니다
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-(--oboon-text-muted) shrink-0 transition-colors group-hover:text-(--oboon-text-title)" />
+                </Card>
+              </div>
+
               <Card className="p-5 sm:p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="ob-typo-h3 text-(--oboon-text-title)">
@@ -517,38 +549,31 @@ export default function ProfilePage() {
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={handleAvatarSelect}
-                        />
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => fileInputRef.current?.click()}
-                          disabled={avatarUploading}
-                          loading={avatarUploading}
-                        >
-                          이미지 업로드
-                        </Button>
-                        {avatarUrl && (
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2">
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleAvatarSelect}
+                          />
                           <Button
-                            variant="ghost"
+                            variant="secondary"
                             size="sm"
+                            shape="pill"
                             onClick={() => fileInputRef.current?.click()}
                             disabled={avatarUploading}
+                            loading={avatarUploading}
                           >
-                            변경
+                            이미지 업로드
                           </Button>
-                        )}
+                        </div>
+                        <p className="ob-typo-caption text-(--oboon-text-muted)">
+                          5MB 이하의 이미지 파일만 업로드할 수 있습니다.
+                        </p>
                       </div>
                     </div>
-                    <p className="ob-typo-caption text-(--oboon-text-muted)">
-                      5MB 이하의 이미지 파일만 업로드할 수 있습니다.
-                    </p>
                   </div>
 
                   {/* 이름 */}
@@ -665,11 +690,23 @@ export default function ProfilePage() {
                 )}
 
                 <div className="mt-6 border-t border-(--oboon-border-default) pt-4">
-                  <div className="ob-typo-subtitle text-(--oboon-text-title) mb-1">
-                    계정 유형
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="ob-typo-h3 text-(--oboon-text-title) mb-1">
+                      계정 유형
+                    </div>
+                    {role === "agent" && (
+                      <Button
+                        asChild
+                        size="sm"
+                        variant="secondary"
+                        shape="pill"
+                        className="shrink-0"
+                      >
+                        <Link href="/agent/properties">소속 관리</Link>
+                      </Button>
+                    )}
                   </div>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="ob-typo-body text-(--oboon-text-body)">
+                  <p className="ob-typo-body text-(--oboon-text-body) mt-2">
                     현재 계정 상태:{" "}
                     <span className="font-semibold text-(--oboon-text-title)">
                       {role === "user" && "일반 사용자"}
@@ -680,13 +717,7 @@ export default function ProfilePage() {
                       {role === "developer" && "시행사"}
                       {role === "admin" && "관리자"}
                     </span>
-                    </p>
-                    {role === "agent" && (
-                      <Button asChild size="sm" variant="secondary" shape="pill">
-                        <Link href="/agent/properties">소속관리</Link>
-                      </Button>
-                    )}
-                  </div>
+                  </p>
 
                   {role === "user" && (
                     <Button
@@ -709,37 +740,6 @@ export default function ProfilePage() {
             </div>
 
             <div className="order-2 lg:order-2 space-y-4">
-              {/* 내 상담 예약 바로가기 */}
-              <div
-                role="button"
-                tabIndex={0}
-                className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--oboon-accent)/30"
-                onClick={openConsultationsModal}
-                onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    openConsultationsModal();
-                  }
-                }}
-              >
-                <Card className="group flex items-center justify-between p-4 sm:p-5 transition-colors hover:bg-(--oboon-bg-subtle) cursor-pointer">
-                  <div className="flex items-center gap-2 sm:gap-3">
-                    <div className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-(--oboon-primary)/10 shrink-0">
-                      <CalendarDays className="h-4 w-4 sm:h-5 sm:w-5 text-(--oboon-primary)" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="ob-typo-body font-semibold text-(--oboon-text-title)">
-                        내 상담 예약
-                      </div>
-                      <p className="ob-typo-caption text-(--oboon-text-muted) truncate">
-                        예약한 상담 내역을 확인하고 관리합니다
-                      </p>
-                    </div>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-(--oboon-text-muted) shrink-0 transition-colors group-hover:text-(--oboon-text-title)" />
-                </Card>
-              </div>
-
               {/* 관심 지역 */}
               <Card className="p-4 sm:p-5">
                 <div className="flex items-center justify-between mb-3">
@@ -775,7 +775,7 @@ export default function ProfilePage() {
                   {preferredTypes.map((type) => (
                     <label
                       key={type}
-                      className="flex items-center gap-2 ob-typo-caption text-(--oboon-text-body)"
+                      className="flex items-center gap-2 ob-typo-body text-(--oboon-text-body)"
                     >
                       <input
                         type="checkbox"
@@ -787,6 +787,13 @@ export default function ProfilePage() {
                 </div>
               </Card>
             </div>
+          </div>
+
+          <div className="mt-6 space-y-3 border-t border-(--oboon-border-default) pt-4">
+            <div className="ob-typo-h2 text-(--oboon-text-title)">
+              커뮤니티 프로필
+            </div>
+            <CommunityProfilePage />
           </div>
 
           <div className="border-t border-(--oboon-border-default) pt-4">

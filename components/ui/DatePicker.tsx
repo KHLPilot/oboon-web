@@ -237,6 +237,74 @@ const OBOON_DATEPICKER_GLOBAL_STYLES = `
     box-shadow: none !important;
   }
 
+  /* =========================
+  * Full width / full height variant
+  * ========================= */
+  .oboon-datepicker--full,
+  .oboon-datepicker--full .react-datepicker,
+  .oboon-datepicker--full .react-datepicker__month-container,
+  .oboon-datepicker--full .react-datepicker__month {
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  .oboon-datepicker--full .react-datepicker__month {
+    margin: 0 !important;
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+  }
+
+  .oboon-datepicker--full .react-datepicker__day-names,
+  .oboon-datepicker--full .react-datepicker__week {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+
+  .oboon-datepicker--full .react-datepicker__week {
+    flex: 1 1 0;
+  }
+
+  .oboon-datepicker--full .react-datepicker__day,
+  .oboon-datepicker--full .react-datepicker__day-name {
+    width: 100% !important;
+    margin: 0;
+    aspect-ratio: 1 / 1;
+    display: grid;
+    place-items: center;
+    line-height: 1;
+  }
+
+  /* =========================
+  * Full width variant
+  * ========================= */
+  .oboon-datepicker--full,
+  .oboon-datepicker--full .react-datepicker,
+  .oboon-datepicker--full .react-datepicker__month-container,
+  .oboon-datepicker--full .react-datepicker__month {
+    width: 100% !important;
+  }
+
+  .oboon-datepicker--full .react-datepicker__day-names,
+  .oboon-datepicker--full .react-datepicker__week {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+
+  .oboon-datepicker--full .react-datepicker__day,
+  .oboon-datepicker--full .react-datepicker__day-name {
+    width: 100% !important;
+    margin: 0;
+  }
+
+  .oboon-datepicker--full .react-datepicker__day,
+  .oboon-datepicker--full .react-datepicker__day-name {
+    aspect-ratio: 1 / 1;
+    display: grid;
+    place-items: center;
+    line-height: 1;
+  }
+
   .oboon-datepicker .react-datepicker__current-month,
   .oboon-datepicker .react-datepicker__year-header {
     color: var(--oboon-text-title);
@@ -321,6 +389,52 @@ const OBOON_DATEPICKER_GLOBAL_STYLES = `
     .react-datepicker__navigation:hover
     .react-datepicker__navigation-icon::before {
     border-color: var(--oboon-border-strong);
+  }
+
+  /* =========================
+  * Full width / height layout fix
+  * ========================= */
+  .oboon-datepicker--full .react-datepicker__month-container {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .oboon-datepicker--full .react-datepicker__header {
+    flex: 0 0 auto;
+  }
+
+  .oboon-datepicker--full .react-datepicker__month {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .oboon-datepicker--full {
+    box-sizing: border-box;
+    padding-bottom: 0.25rem;
+  }
+
+  .oboon-datepicker--full .react-datepicker__day-names {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+
+  .oboon-datepicker--full .react-datepicker__week {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    flex: 1 1 0;
+  }
+
+  .oboon-datepicker--full .react-datepicker__day,
+  .oboon-datepicker--full .react-datepicker__day-name {
+    width: 100% !important;
+    height: 100% !important;
+    margin: 0 !important;
+    line-height: 1 !important;
+    display: grid;
+    place-items: center;
   }
 `;
 

@@ -42,18 +42,18 @@ export default function Bookmarks() {
   }, []);
 
   return (
-    <Card className="p-4">
+    <Card className="p-4 sm:p-5">
       <div className="ob-typo-h3 font-semibold text-(--oboon-text-title)">
         북마크한 기록
       </div>
       <div className="mt-3 space-y-3">
         {loading && (
-          <div className="ob-typo-caption text-(--oboon-text-muted)">
+          <div className="ob-typo-body text-(--oboon-text-muted)">
             불러오는 중...
           </div>
         )}
         {!loading && items.length === 0 && (
-          <div className="ob-typo-caption text-(--oboon-text-muted)">
+          <div className="ob-typo-body text-(--oboon-text-muted)">
             아직 북마크한 기록이 없습니다.
           </div>
         )}

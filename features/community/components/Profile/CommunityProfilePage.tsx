@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { COMMUNITY_PROFILE_TABS } from "../../domain/community";
 import type {
   CommunityProfileTabKey,
@@ -14,7 +15,7 @@ import {
 import { getCommunityProfile } from "../../services/community.profile";
 import {
   getCommunityCommentedPosts,
-  getCommunityFeed,
+  getCommunityProfileFeed,
 } from "../../services/community.posts";
 import CommunityPostCard from "../CommunityFeed/CommunityPostCard";
 import CommunityTabs from "../CommunityFeed/CommunityTabs";
@@ -61,41 +62,41 @@ function CommunityProfileHeader({
   const stats = profile?.stats ?? { posts: 0, comments: 0, bookmarks: 0 };
 
   return (
-    <Card className="p-4">
-      <div className="flex items-center gap-3">
-        <div className="h-11 w-11 rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle) flex items-center justify-center overflow-hidden">
-          {profile?.avatarUrl ? (
-            <img
-              src={profile.avatarUrl}
-              alt={profile.displayName}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <span className="ob-typo-caption text-(--oboon-text-body)">
-              {(profile?.displayName ?? "사용자").slice(0, 1)}
-            </span>
-          )}
+    <div className="flex items-center gap-3 mb-5">
+      <div className="h-14 w-14 rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle) flex items-center justify-center overflow-hidden">
+        {profile?.avatarUrl ? (
+          <img
+            src={profile.avatarUrl}
+            alt={profile.displayName}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <span className="ob-typo-h4 text-(--oboon-text-body)">
+            {(profile?.displayName ?? "사용자").slice(0, 1)}
+          </span>
+        )}
+      </div>
+      <div>
+        <div className="ob-typo-h4 font-semibold text-(--oboon-text-title)">
+          {profile?.displayName ?? "사용자"}
         </div>
-        <div>
-          <div className="ob-typo-body font-semibold text-(--oboon-text-title)">
-            {profile?.displayName ?? "사용자"}
-          </div>
-          <div className="ob-typo-caption text-(--oboon-text-muted)">
-            기록 {stats.posts} · 댓글 {stats.comments}
-          </div>
+        <div className="mt-1 ob-typo-body text-(--oboon-text-muted)">
+          기록 {stats.posts} · 댓글 {stats.comments}
         </div>
       </div>
-    </Card>
+    </div>
   );
 }
 
 export default function CommunityProfilePage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<CommunityProfileTabKey>("all");
   const [profile, setProfile] = useState<CommunityProfileViewModel | null>(
     null,
   );
   const [posts, setPosts] = useState<ReturnType<typeof mapCommunityPost>[]>([]);
   const [loading, setLoading] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(2);
 
   useEffect(() => {
     let isMounted = true;
@@ -113,20 +114,25 @@ export default function CommunityProfilePage() {
   useEffect(() => {
     let isMounted = true;
     setLoading(true);
+    setVisibleCount(2);
 
     const loadPosts = async () => {
+      if (!profile?.id) {
+        setPosts([]);
+        return;
+      }
+
       if (activeTab === "comments") {
-        if (!profile?.id) {
-          setPosts([]);
-          return;
-        }
         const rows = await getCommunityCommentedPosts(profile.id);
         if (!isMounted) return;
         setPosts(rows.map(mapCommunityPost));
         return;
       }
 
-      const rows = await getCommunityFeed(activeTab as CommunityTabKey);
+      const rows = await getCommunityProfileFeed(
+        profile.id,
+        activeTab as CommunityTabKey,
+      );
       if (!isMounted) return;
       setPosts(rows.map(mapCommunityPost));
     };
@@ -149,7 +155,7 @@ export default function CommunityProfilePage() {
   }, [activeTab, profile?.id]);
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
       <section className="min-w-0 space-y-3">
         <CommunityProfileHeader profile={profile} />
         <CommunityTabs
@@ -172,6 +178,7 @@ export default function CommunityProfilePage() {
                   : "로그인 후 댓글 기록을 확인할 수 있어요."
                 : "다녀온 현장이나 고민 중인 내용을 남겨보세요."
             }
+            onAction={() => router.push("/community?write=1")}
           />
         ) : (
           <div className="space-y-3">
@@ -182,9 +189,25 @@ export default function CommunityProfilePage() {
                 </div>
               </Card>
             )}
-            {posts.map((post) => (
+            {posts.slice(0, visibleCount).map((post) => (
               <CommunityPostCard key={post.id} post={post} />
             ))}
+            {!loading && posts.length > visibleCount && (
+              <div className="flex justify-center pt-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  shape="pill"
+                  onClick={() =>
+                    setVisibleCount((prev) =>
+                      Math.min(prev + 2, posts.length),
+                    )
+                  }
+                >
+                  더보기
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </section>

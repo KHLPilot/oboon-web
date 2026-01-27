@@ -309,14 +309,8 @@ export default function Header() {
 
                   <DropdownMenuContent align="end" className="mt-4 w-40 p-1">
                     <DropdownMenuItem onClick={() => router.push("/profile")}>
-                      프로필 설정
+                      마이페이지
                     </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => router.push("/community/profile")}
-                    >
-                      커뮤니티 프로필
-                    </DropdownMenuItem>
-
                     {userRole === "admin" && (
                       <DropdownMenuItem onClick={() => router.push("/admin")}>
                         관리자
@@ -372,14 +366,8 @@ export default function Header() {
                   {user ? (
                     <>
                       <DropdownMenuItem onClick={() => router.push("/profile")}>
-                        프로필 설정
+                      마이페이지
                       </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => router.push("/community/profile")}
-                      >
-                        커뮤니티 프로필
-                      </DropdownMenuItem>
-
                       {userRole === "admin" ? (
                         <DropdownMenuItem onClick={() => router.push("/admin")}>
                           관리자

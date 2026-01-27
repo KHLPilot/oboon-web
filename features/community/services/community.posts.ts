@@ -126,6 +126,32 @@ export async function getCommunityFeed(
   return (data ?? []).map((row) => mapPostRow(row as any));
 }
 
+export async function getCommunityProfileFeed(
+  profileId: string,
+  tabKey: CommunityTabKey,
+): Promise<CommunityPostRow[]> {
+  const supabase = createSupabaseClient();
+
+  let query = supabase
+    .from("community_posts_with_author")
+    .select(viewSelect)
+    .eq("author_profile_id", profileId)
+    .order("created_at", { ascending: false });
+
+  if (tabKey !== "all") {
+    query = query.eq("status", tabKey);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error("community profile feed load error:", error.message);
+    return [];
+  }
+
+  return (data ?? []).map((row) => mapPostRow(row as any));
+}
+
 export async function getCommunityTrendingPosts(
   limit = 4,
 ): Promise<CommunityPostRow[]> {

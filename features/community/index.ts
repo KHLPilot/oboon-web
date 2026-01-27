@@ -32,6 +32,7 @@ export type {
 } from "./domain/community";
 export {
   getCommunityFeed,
+  getCommunityProfileFeed,
   getCommunityTrendingPosts,
   getCommunityBookmarkedPosts,
   getCommunityCommentedPosts,

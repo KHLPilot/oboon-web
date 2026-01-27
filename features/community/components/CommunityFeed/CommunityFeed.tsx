@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Megaphone } from "lucide-react";
 
 import Button from "@/components/ui/Button";
@@ -51,6 +52,8 @@ function CommunityEmpty({
 }
 
 export default function CommunityFeed() {
+  const searchParams = useSearchParams();
+  const didAutoOpen = useRef(false);
   const [activeTab, setActiveTab] = useState<CommunityTabKey>("all");
   const [writeOpen, setWriteOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -88,6 +91,14 @@ export default function CommunityFeed() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (didAutoOpen.current) return;
+    const shouldOpen = searchParams.get("write");
+    if (shouldOpen !== "1") return;
+    didAutoOpen.current = true;
+    setWriteOpen(true);
+  }, [searchParams]);
 
   return (
     <div className="space-y-3">

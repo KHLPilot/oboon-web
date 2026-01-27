@@ -197,18 +197,18 @@ export default function AgentScheduleSettings({
               날짜 선택
             </span>
           </div>
-          <div className="flex items-center justify-center">
+          <div className="w-full aspect-square">
             <OboonInlineDatePicker
               selected={selectedDate}
               onChange={(date: Date | null) => date && setSelectedDate(date)}
               minDate={new Date()}
-              calendarClassName="oboon-datepicker mx-auto"
+              calendarClassName="oboon-datepicker oboon-datepicker--full w-full h-full"
             />
           </div>
         </Card>
 
         <Card className="p-5">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-(--oboon-text-muted)" />
               <span className="ob-typo-h3 text-(--oboon-text-title)">
@@ -285,7 +285,7 @@ export default function AgentScheduleSettings({
               해당 날짜에 설정된 슬롯이 없습니다
             </div>
           ) : (
-            <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 sm:gap-3 p-1">
+            <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 sm:gap-3">
               {slots.map((slot) => (
                 <button
                   key={slot.time}
@@ -311,7 +311,7 @@ export default function AgentScheduleSettings({
             </div>
           )}
 
-          <p className="mt-2 ob-typo-body text-(--oboon-text-muted)">
+          <p className="mt-4 ob-typo-body text-(--oboon-text-muted)">
             {isEditMode
               ? "슬롯을 클릭하여 열기/닫기를 전환한 후 '확인' 버튼을 눌러 저장하세요."
               : "'수정' 버튼을 눌러 슬롯 상태를 변경할 수 있습니다."}
