@@ -274,7 +274,7 @@ export default function Header() {
               {user ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="flex items-center gap-2 rounded-full transition-colors hover:bg-oboon-bg-subtle">
+                    <button className="flex items-center gap-2 rounded-full transition-colors hover:bg-oboon-bg-subtle cursor-pointer">
                       <div
                         className="h-8 w-8 rounded-full overflow-hidden border flex items-center justify-center"
                         style={{

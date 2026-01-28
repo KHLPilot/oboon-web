@@ -54,7 +54,7 @@ export default function ConsultationCard({
       <div className="space-y-3 sm:space-y-4 p-3 sm:p-4">
         <Link
           href={detailHref}
-          className="group flex items-center gap-3 sm:gap-4 rounded-xl p-2 transition-colors hover:bg-(--oboon-bg-subtle)"
+          className="group flex items-center gap-3 sm:gap-4 rounded-xl transition-colors hover:bg-(--oboon-bg-subtle)"
           onClick={() => onNavigate?.()}
         >
           <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-(--oboon-bg-subtle)">

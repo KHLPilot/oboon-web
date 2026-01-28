@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import OfferingBadge from "@/features/offerings/components/OfferingBadges";
@@ -20,7 +20,6 @@ export default function MapOfferingCompactList({
   focusedId,
   onHover,
   onSelect,
-  compact = true,
   hideCounter = false,
 }: {
   items: MapOfferingCompactItem[];
@@ -28,18 +27,15 @@ export default function MapOfferingCompactList({
   focusedId?: number | null;
   onHover?: (id: number | null) => void;
   onSelect?: (id: number) => void;
-
-  /** 재사용 옵션 */
-  compact?: boolean;
   hideCounter?: boolean;
 }) {
   const router = useRouter();
-  const rowPad = compact ? "px-4 py-3" : "px-5 py-4";
+  const rowPad = "p-3";
 
   return (
-    <section className="mt-6">
+    <section>
       {!hideCounter ? (
-        <div className="mb-2 text-sm text-(--oboon-text-muted)">
+        <div className="mb-2 ob-typo-subtitle text-(--oboon-text-muted)">
           현재 화면에{" "}
           <span className="font-semibold text-(--oboon-text-title)">
             {items.length}
@@ -71,12 +67,13 @@ export default function MapOfferingCompactList({
               {/* [수정] 상단: 뱃지 + 제목 + 화살표 버튼 */}
               <div className="flex items-center justify-between mb-1">
                 {/* 좌측: 뱃지와 제목 */}
-                <div className="flex items-center gap-2 overflow-hidden">
+                <div className="flex min-w-0 items-center gap-2">
                   <OfferingBadge
                     type="status"
                     value={item.statusValue ?? undefined}
+                    className="shrink-0 whitespace-nowrap"
                   />
-                  <span className="ob-typo-h3 text-(--oboon-text-title)">
+                  <span className="min-w-0 truncate ob-typo-h3 text-(--oboon-text-title)">
                     {item.title}
                   </span>
                 </div>

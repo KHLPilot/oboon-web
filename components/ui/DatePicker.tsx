@@ -217,8 +217,9 @@ const OBOON_DATEPICKER_GLOBAL_STYLES = `
     border-radius: 16px;
     color: var(--oboon-text-body);
 
-    /* div헤더 잔상 / 이중 라인 방지 */
+    /* 하단이 잘리지 않도록 overflow 허용 및 최소 높이 확보 */
     overflow: hidden;
+    height: auto !important;
   }
 
   /* =========================
@@ -242,14 +243,13 @@ const OBOON_DATEPICKER_GLOBAL_STYLES = `
   * ========================= */
   .oboon-datepicker--full,
   .oboon-datepicker--full .react-datepicker,
-  .oboon-datepicker--full .react-datepicker__month-container,
-  .oboon-datepicker--full .react-datepicker__month {
+  .oboon-datepicker--full .react-datepicker__month-container {
     width: 100% !important;
-    height: 100% !important;
   }
 
   .oboon-datepicker--full .react-datepicker__month {
-    margin: 0 !important;
+    width: 100% !important;
+    margin: 0.5rem 0 !important;
     display: flex;
     flex-direction: column;
     gap: 0.125rem;
@@ -259,10 +259,11 @@ const OBOON_DATEPICKER_GLOBAL_STYLES = `
   .oboon-datepicker--full .react-datepicker__week {
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
+    padding: 0 0.5rem;
   }
 
   .oboon-datepicker--full .react-datepicker__week {
-    flex: 1 1 0;
+    flex: none;
   }
 
   .oboon-datepicker--full .react-datepicker__day,
@@ -413,7 +414,7 @@ const OBOON_DATEPICKER_GLOBAL_STYLES = `
 
   .oboon-datepicker--full {
     box-sizing: border-box;
-    padding-bottom: 0.25rem;
+    padding-bottom: 0.5rem;
   }
 
   .oboon-datepicker--full .react-datepicker__day-names {
@@ -424,7 +425,7 @@ const OBOON_DATEPICKER_GLOBAL_STYLES = `
   .oboon-datepicker--full .react-datepicker__week {
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
-    flex: 1 1 0;
+    flex: none;
   }
 
   .oboon-datepicker--full .react-datepicker__day,
@@ -439,7 +440,11 @@ const OBOON_DATEPICKER_GLOBAL_STYLES = `
 `;
 
 export function OboonDatePickerStyles() {
-  return <style jsx global>{OBOON_DATEPICKER_GLOBAL_STYLES}</style>;
+  return (
+    <style jsx global>
+      {OBOON_DATEPICKER_GLOBAL_STYLES}
+    </style>
+  );
 }
 
 export function OboonInlineDatePicker({

@@ -111,11 +111,11 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 
     // asChild일 때는 disabled/type 같은 button 전용 속성이 <a>에 전달되면 깨질 수 있으니 분기 처리
     const sharedClassName = cn(
-      "inline-flex items-center justify-center gap-2 whitespace-nowrap",
+      "inline-flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer",
       "transition-colors",
       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--oboon-accent)/30",
       // button이 아닐 때도 비활성화가 먹도록 수동 처리
-      isDisabled ? "opacity-50 pointer-events-none" : "",
+      isDisabled ? "opacity-50 pointer-events-none cursor-not-allowed" : "",
       "ob-typo-button",
       getVariantClass(variant),
       getSizeClass(size),

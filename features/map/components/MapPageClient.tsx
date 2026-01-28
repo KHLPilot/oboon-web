@@ -173,7 +173,13 @@ export default function MapPageClient() {
                 focusedId={focusedId}
                 onVisibleIdsChange={setVisibleIds}
                 onHoverChange={setHoveredId}
-                onMarkerSelect={(id) => setFocusedId(id)}
+                onMarkerSelect={(id) => {
+                  if (focusedId === id) {
+                    router.push(`/offerings/${id}`);
+                    return;
+                  }
+                  setFocusedId(id);
+                }}
                 onClearFocus={() => setFocusedId(null)}
               />
             </div>
@@ -206,7 +212,7 @@ export default function MapPageClient() {
                 shape="pill"
                 size="sm"
                 variant="secondary"
-                className="pointer-events-auto h-10 w-10 bg-(--oboon-bg-surface)/50"
+                className="pointer-events-auto h-10 w-10 bg-(--oboon-bg-surface)/50 md:hidden"
                 onClick={() => setOverlayOpen(true)}
               >
                 <Expand className="h-4 w-4" />

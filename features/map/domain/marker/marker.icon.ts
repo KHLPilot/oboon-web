@@ -82,9 +82,9 @@ function richOverlay({
       background: ${v.bg};
       border: 1px solid ${v.border};
       border-radius: 14px;
-      padding: 8px 10px;
+      padding: 8px 12px;
       min-width: 92px;
-      max-width: 180px;
+      max-width: 240px;
       pointer-events: auto;
       position: relative; /* 내부 absolute 요소 기준점 */
     ">

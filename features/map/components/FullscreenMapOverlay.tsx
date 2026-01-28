@@ -194,6 +194,16 @@ export default function FullscreenMapOverlay({
                         alt=""
                         className="h-full w-full object-cover"
                       />
+                      <div className="absolute left-3 top-3 z-10">
+                        <OfferingBadge
+                          type="status"
+                          value={
+                            ((sheetOffering as any)
+                              .statusEnum as OfferingStatusValue | null) ??
+                            undefined
+                          }
+                        />
+                      </div>
                       <button
                         type="button"
                         onClick={() => {
@@ -240,15 +250,6 @@ export default function FullscreenMapOverlay({
                             { unknownLabel: "가격 미정" }
                           )}
                         </div>
-
-                        <OfferingBadge
-                          type="status"
-                          value={
-                            ((sheetOffering as any)
-                              .statusEnum as OfferingStatusValue | null) ??
-                            undefined
-                          }
-                        />
                       </div>
                     </div>
 

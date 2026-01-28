@@ -102,6 +102,12 @@ export async function POST(req: Request) {
 
     const rows = [
       {
+        day_of_week: 0,
+        start_time: weekdayStartTime,
+        end_time: weekdayEndTime,
+        is_enabled: weekdayEnabled,
+      },
+      {
         day_of_week: 1,
         start_time: weekdayStartTime,
         end_time: weekdayEndTime,
@@ -127,6 +133,12 @@ export async function POST(req: Request) {
       },
       {
         day_of_week: 5,
+        start_time: weekdayStartTime,
+        end_time: weekdayEndTime,
+        is_enabled: weekdayEnabled,
+      },
+      {
+        day_of_week: 6,
         start_time: weekdayStartTime,
         end_time: weekdayEndTime,
         is_enabled: weekdayEnabled,

@@ -46,17 +46,25 @@ function HeroSection() {
       </div>
 
       <div className="mt-4 flex w-full max-w-18 flex-row justify-center gap-3">
-        {/* 내 청약조건 분석하기 → 분양 리스트 */}
+        {/* 리스트로 보기 → 분양 리스트 */}
         <Link href="/offerings" className="flex-1 sm:flex-none">
-          <Button size="lg" variant="primary" className="w-full sm:min-w-55">
-            내 청약조건 분석하기
+          <Button
+            size="lg"
+            variant="primary"
+            className="w-full sm:min-w-55 cursor-pointer"
+          >
+            리스트로 보기
           </Button>
         </Link>
 
-        {/* 지도에서 보기 → 지도 페이지 */}
+        {/* 지도로 보기 → 지도 페이지 */}
         <Link href="/map" className="flex-1 sm:flex-none">
-          <Button size="lg" variant="secondary" className="w-full sm:min-w-55">
-            지도에서 보기
+          <Button
+            size="lg"
+            variant="secondary"
+            className="w-full sm:min-w-55 cursor-pointer"
+          >
+            지도로 보기
           </Button>
         </Link>
       </div>

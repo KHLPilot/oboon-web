@@ -458,7 +458,7 @@ const NaverMap = forwardRef<
         const targetOffset = proj.fromCoordToOffset(targetLatLng);
         const newCenterOffset = new naver.maps.Point(
           targetOffset.x,
-          targetOffset.y + mapSize.height * 0.05,
+          targetOffset.y + mapSize.height * 0.1,
         );
 
         const newCenter = proj.fromOffsetToCoord(newCenterOffset);
