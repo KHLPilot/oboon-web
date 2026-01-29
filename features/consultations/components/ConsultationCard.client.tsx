@@ -87,14 +87,18 @@ export default function ConsultationCard({
                 {meta}
               </div>
             ) : null}
+
+            {note ? (
+              <div>{note}</div>
+            ) : actions ? (
+              <div className="min-h-[20px]" />
+            ) : null}
           </div>
 
           {showChevron ? (
             <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 shrink-0 text-(--oboon-text-muted) transition-colors group-hover:text-(--oboon-text-title)" />
           ) : null}
         </Link>
-
-        {note}
 
         {actions ? (
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">

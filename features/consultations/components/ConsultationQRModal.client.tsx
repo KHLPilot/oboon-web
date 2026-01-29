@@ -464,7 +464,9 @@ export function ConsultationQRPanel({
     const currentUrl = window.location.href;
     if (inAppInfo?.isIOS) {
       navigator.clipboard?.writeText(currentUrl);
-      showAlert("주소가 복사되었습니다. Safari에서 주소창에 붙여넣기 해주세요.");
+      showAlert(
+        "주소가 복사되었습니다. Safari에서 주소창에 붙여넣기 해주세요.",
+      );
     } else if (inAppInfo?.isAndroid) {
       const intentUrl = `intent://${currentUrl.replace(
         /^https?:\/\//,

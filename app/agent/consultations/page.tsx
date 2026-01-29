@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -20,6 +20,7 @@ import { fetchAgentAccess } from "@/features/agent/services/agent.auth";
 import AgentScheduleSettings from "@/features/agent/components/AgentScheduleSettings.client";
 import ConsultationCard from "@/features/consultations/components/ConsultationCard.client";
 import AgentBaseScheduleModal from "@/features/agent/components/AgentBaseScheduleModal.client";
+import AgentScanModal from "@/features/agent/components/AgentScanModal.client";
 
 import { showAlert } from "@/shared/alert";
 interface Consultation {
@@ -88,6 +89,8 @@ export default function AgentConsultationsPage() {
   const [filter, setFilter] = useState<string>("all");
   const [isAgent, setIsAgent] = useState(false);
   const [showBaseScheduleModal, setShowBaseScheduleModal] = useState(false);
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [qrTargetId, setQrTargetId] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -344,7 +347,7 @@ export default function AgentConsultationsPage() {
               note={
                 consultation.status === "cancelled" &&
                 consultation.cancelled_at ? (
-                  <p className="ob-typo-caption text-(--oboon-danger-text)">
+                  <p className="ob-typo-body text-(--oboon-danger)">
                     {getTimeUntilDeletion(consultation.cancelled_at)}
                   </p>
                 ) : null
@@ -383,7 +386,10 @@ export default function AgentConsultationsPage() {
                         variant="secondary"
                         shape="pill"
                         className="flex-1 min-h-8"
-                        onClick={() => router.push(`/agent/scan`)}
+                        onClick={() => {
+                          setQrTargetId(consultation.id);
+                          setShowQrModal(true);
+                        }}
                       >
                         <QrCode className="h-4 w-4" />
                         QR 스캔
@@ -445,6 +451,14 @@ export default function AgentConsultationsPage() {
       <AgentBaseScheduleModal
         open={showBaseScheduleModal}
         onClose={() => setShowBaseScheduleModal(false)}
+      />
+      <AgentScanModal
+        open={showQrModal}
+        consultationId={qrTargetId}
+        onClose={() => {
+          setShowQrModal(false);
+          setQrTargetId(null);
+        }}
       />
     </PageContainer>
   );
