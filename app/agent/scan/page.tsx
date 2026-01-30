@@ -1,12 +1,10 @@
-﻿"use client";
-
-import { useSearchParams } from "next/navigation";
-
-import { AgentScanContent } from "@/features/agent/components/AgentScanModal.client";
+import { Suspense } from "react";
+import AgentScanClient from "./AgentScanClient";
 
 export default function AgentScanPage() {
-  const searchParams = useSearchParams();
-  const consultationId = searchParams.get("consultationId");
-
-  return <AgentScanContent initialConsultationId={consultationId} />;
+  return (
+    <Suspense fallback={null}>
+      <AgentScanClient />
+    </Suspense>
+  );
 }
