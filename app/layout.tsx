@@ -79,6 +79,21 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ko" className={suit.variable}>
+      <head>
+        {/* Google Analytics */}
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=G-XF92GCM2KV"
+          strategy="afterInteractive"
+        />
+        <Script id="gtag-init" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-XF92GCM2KV');
+          `}
+        </Script>
+      </head>
       <body className="min-h-dvh flex flex-col">
         <Script
           src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"
