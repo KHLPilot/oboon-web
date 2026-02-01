@@ -1,10 +1,11 @@
-// app/auth/login/page.tsx
+﻿// app/auth/login/page.tsx
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { detectInAppBrowser, InAppBrowserInfo } from "@/lib/inAppBrowser";
+import { trackEvent } from "@/lib/analytics";
 
 import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
@@ -77,6 +78,7 @@ export default function LoginPage() {
 
   async function handleLogin(e: FormEvent) {
     e.preventDefault();
+    trackEvent("login_click", { method: "email" });
     setLoading(true);
     setError(null);
     clearFieldError();
@@ -152,6 +154,7 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     clearFieldError();
+    trackEvent("login_click", { method: provider });
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
@@ -170,6 +173,7 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     clearFieldError();
+    trackEvent("login_click", { method: "naver" });
     window.location.href = "/api/auth/naver/login";
   }
 
@@ -301,7 +305,10 @@ export default function LoginPage() {
                   size="md"
                   shape="pill"
                   className="w-full justify-center"
-                  onClick={() => router.push("/")}
+                  onClick={() => {
+                    trackEvent("login_click", { method: "guest" });
+                    router.push("/");
+                  }}
                   disabled={loading}
                 >
                   로그인 없이 보기

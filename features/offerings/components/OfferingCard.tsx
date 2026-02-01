@@ -1,6 +1,7 @@
+// /features/offerings/OfferingCard.tsx
+
 "use client";
 
-// /features/offerings/OfferingCard.tsx
 import Image from "next/image";
 import Link from "next/link";
 
@@ -10,6 +11,7 @@ import { ROUTES } from "@/types/index";
 import Card from "@/components/ui/Card";
 import { UXCopy } from "@/shared/uxCopy";
 import { formatPriceRange } from "@/shared/price";
+import { trackEvent } from "@/lib/analytics";
 
 import OfferingBadge from "./OfferingBadges";
 
@@ -41,6 +43,7 @@ export default function OfferingCard({ offering }: { offering: Offering }) {
     <Link
       href={ROUTES.offerings.detail(offering.id)}
       className="group block h-full"
+      onClick={() => trackEvent("property_view", { property_id: offering.id })}
     >
       {/* hover shadow 책임은 Card로 (정책 일관성) */}
       <Card className="h-full p-0 overflow-hidden transition hover:shadow-md">

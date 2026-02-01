@@ -1,5 +1,5 @@
-// Google Analytics 이벤트 유틸
-// 사용법: trackEvent('reservation_click', { property_id: '123' })
+﻿// Google Analytics 커스텀 이벤트 추적 유틸.
+// 사용법은 docs/reference/analytics.md 참고.
 
 declare global {
   interface Window {

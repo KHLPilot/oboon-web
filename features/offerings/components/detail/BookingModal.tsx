@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { CalendarDays, Star, Loader2, MessageCircle } from "lucide-react";
@@ -12,6 +12,7 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { createSupabaseClient } from "@/lib/supabaseClient";
+import { trackEvent } from "@/lib/analytics";
 
 import { showAlert } from "@/shared/alert";
 registerLocale("ko", ko);
@@ -80,6 +81,13 @@ export default function BookingModal({
     useState<ExistingConsultation | null>(null);
 
   // 사용자 정보 및 상담사 목록 조회
+  const buildReservationEventParams = () => {
+    const params: Record<string, string | number> = {};
+    if (propertyId) params.property_id = propertyId;
+    if (selectedAgent?.id) params.agent_id = selectedAgent.id;
+    return Object.keys(params).length ? params : undefined;
+  };
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -246,6 +254,7 @@ export default function BookingModal({
 
   // 예약 제출
   async function handleSubmit() {
+    trackEvent("reservation_click", buildReservationEventParams());
     if (!user) {
       showAlert("로그인이 필요합니다");
       router.push("/auth/login");

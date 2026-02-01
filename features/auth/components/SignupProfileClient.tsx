@@ -5,6 +5,7 @@ import React, { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { createSupabaseClient } from "@/lib/supabaseClient";
+import { trackEvent } from "@/lib/analytics";
 import {
   sanitizeInput,
   validateName,
@@ -270,6 +271,8 @@ export default function SignupProfileClient() {
         role: "user",
       });
       if (upsertError) throw upsertError;
+
+      trackEvent("signup_complete", { user_type: userType });
 
       // cleanup
       try {

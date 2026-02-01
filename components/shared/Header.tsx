@@ -1,4 +1,4 @@
-// components/shared/Header.tsx
+﻿// components/shared/Header.tsx
 "use client";
 
 import Link from "next/link";
@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 
 import { createSupabaseClient } from "@/lib/supabaseClient";
+import { trackEvent } from "@/lib/analytics";
 import ThemeToggle from "./ThemeToggle";
 import Button from "../ui/Button";
 
@@ -33,7 +34,7 @@ export default function Header() {
     () => [
       { label: "분양 리스트", href: "/offerings" },
       { label: "지도", href: "/map" },
-      { label: "브리핑", href: "/briefing" },
+      // { label: "브리핑", href: "/briefing" },
       { label: "커뮤니티", href: "/community" },
     ],
     [],
@@ -326,6 +327,7 @@ export default function Header() {
                 <Link
                   href="/auth/login"
                   className="ob-typo-nav px-2 transition-colors"
+                  onClick={() => trackEvent("login_click", { method: "link" })}
                   style={{ color: "var(--oboon-text-muted)" }}
                 >
                   로그인
@@ -366,7 +368,7 @@ export default function Header() {
                   {user ? (
                     <>
                       <DropdownMenuItem onClick={() => router.push("/profile")}>
-                      마이페이지
+                        마이페이지
                       </DropdownMenuItem>
                       {userRole === "admin" ? (
                         <DropdownMenuItem onClick={() => router.push("/admin")}>
@@ -380,7 +382,10 @@ export default function Header() {
                     </>
                   ) : (
                     <DropdownMenuItem
-                      onClick={() => router.push("/auth/login")}
+                      onClick={() => {
+                        trackEvent("login_click", { method: "link" });
+                        router.push("/auth/login");
+                      }}
                     >
                       로그인
                     </DropdownMenuItem>

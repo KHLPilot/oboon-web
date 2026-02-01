@@ -1,10 +1,11 @@
-"use client";
+﻿"use client";
 
 // features/offerings/detail/OfferingDetailRight.tsx
 import { useState } from "react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import BookingModal from "@/features/offerings/components/detail/BookingModal";
+import { trackEvent } from "@/lib/analytics";
 
 interface OfferingDetailRightProps {
   propertyId?: number;
@@ -15,9 +16,17 @@ interface OfferingDetailRightProps {
 export default function OfferingDetailRight({
   propertyId,
   propertyName,
-  hasApprovedAgent = false
+  hasApprovedAgent = false,
 }: OfferingDetailRightProps) {
   const [isBookingOpen, setIsBookingOpen] = useState(false);
+
+  const handleConsultationClick = () => {
+    trackEvent(
+      "consultation_request",
+      propertyId ? { property_id: propertyId } : undefined,
+    );
+    setIsBookingOpen(true);
+  };
 
   return (
     <>
@@ -38,7 +47,7 @@ export default function OfferingDetailRight({
               <Button
                 className="w-full"
                 variant="primary"
-                onClick={() => setIsBookingOpen(true)}
+                onClick={handleConsultationClick}
               >
                 상담 신청하기
               </Button>
@@ -86,7 +95,7 @@ export default function OfferingDetailRight({
                 <Button
                   className="flex-1"
                   variant="primary"
-                  onClick={() => setIsBookingOpen(true)}
+                  onClick={handleConsultationClick}
                 >
                   상담 신청
                 </Button>
