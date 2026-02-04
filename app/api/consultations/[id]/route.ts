@@ -154,7 +154,7 @@ export async function PATCH(
         // 상태 변경 권한 체크
         // - confirmed: 상담사만 가능
         // - cancelled: 고객, 상담사 모두 가능
-        // - visited: QR 스캔 API에서만 변경 (여기서는 상담사만)
+        // - visited: 방문 완료 처리 (여기서는 상담사만)
         if (status === "confirmed" && !isAgent && !isAdmin) {
             return NextResponse.json(
                 { error: "상담사만 예약을 확정할 수 있습니다" },

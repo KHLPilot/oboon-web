@@ -8,7 +8,6 @@ import {
   Check,
   X,
   Loader2,
-  QrCode,
   Trash2,
   Settings,
 } from "lucide-react";
@@ -20,14 +19,12 @@ import { fetchAgentAccess } from "@/features/agent/services/agent.auth";
 import AgentScheduleSettings from "@/features/agent/components/AgentScheduleSettings.client";
 import ConsultationCard from "@/features/consultations/components/ConsultationCard.client";
 import AgentBaseScheduleModal from "@/features/agent/components/AgentBaseScheduleModal.client";
-import AgentScanModal from "@/features/agent/components/AgentScanModal.client";
 
 import { showAlert } from "@/shared/alert";
 interface Consultation {
   id: string;
   scheduled_at: string;
   status: string;
-  qr_code: string;
   visited_at: string | null;
   cancelled_at: string | null;
   created_at: string;
@@ -89,8 +86,6 @@ export default function AgentConsultationsPage() {
   const [filter, setFilter] = useState<string>("all");
   const [isAgent, setIsAgent] = useState(false);
   const [showBaseScheduleModal, setShowBaseScheduleModal] = useState(false);
-  const [showQrModal, setShowQrModal] = useState(false);
-  const [qrTargetId, setQrTargetId] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -386,19 +381,6 @@ export default function AgentConsultationsPage() {
                         variant="secondary"
                         shape="pill"
                         className="flex-1 min-h-8"
-                        onClick={() => {
-                          setQrTargetId(consultation.id);
-                          setShowQrModal(true);
-                        }}
-                      >
-                        <QrCode className="h-4 w-4" />
-                        QR 스캔
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        shape="pill"
-                        className="flex-1 min-h-8"
                         onClick={() => router.push(`/chat/${consultation.id}`)}
                       >
                         <MessageCircle className="h-4 w-4" />
@@ -451,14 +433,6 @@ export default function AgentConsultationsPage() {
       <AgentBaseScheduleModal
         open={showBaseScheduleModal}
         onClose={() => setShowBaseScheduleModal(false)}
-      />
-      <AgentScanModal
-        open={showQrModal}
-        consultationId={qrTargetId}
-        onClose={() => {
-          setShowQrModal(false);
-          setQrTargetId(null);
-        }}
       />
     </PageContainer>
   );

@@ -5,6 +5,7 @@ module.exports = {
     "./components/**/*.{js,ts,jsx,tsx}",
     "./features/**/*.{js,ts,jsx,tsx}",
   ],
+  safelist: ["sm:ob-typo-subtitle"],
   theme: {
     extend: {
       fontFamily: {

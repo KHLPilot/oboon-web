@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
-import { randomUUID } from "crypto";
 
 const adminSupabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -48,13 +47,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // QR 코드 생성 (UUID 기반)
-    const qrCode = randomUUID();
     const scheduledDate = new Date(scheduled_at);
-
-    // QR 유효기간: 예약일 + 1일
-    const qrExpiresAt = new Date(scheduledDate);
-    qrExpiresAt.setDate(qrExpiresAt.getDate() + 1);
 
     // 예약 생성
     const { data: consultation, error } = await adminSupabase
@@ -64,8 +57,6 @@ export async function POST(req: Request) {
         agent_id,
         property_id,
         scheduled_at: scheduledDate.toISOString(),
-        qr_code: qrCode,
-        qr_expires_at: qrExpiresAt.toISOString(),
         status: "pending",
       })
       .select()

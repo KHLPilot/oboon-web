@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import {
   CalendarDays,
   MessageCircle,
-  QrCode,
   Loader2,
   Trash2,
 } from "lucide-react";
@@ -21,7 +20,6 @@ interface Consultation {
   id: string;
   scheduled_at: string;
   status: string;
-  qr_code: string;
   visited_at: string | null;
   cancelled_at: string | null;
   created_at: string;
@@ -77,13 +75,11 @@ const STATUS_LABELS: Record<
 
 type ConsultationsListPanelProps = {
   embedded?: boolean;
-  onOpenQR?: (consultationId: string) => void;
   onNavigate?: () => void;
 };
 
 export default function ConsultationsListPanel({
   embedded = false,
-  onOpenQR,
   onNavigate,
 }: ConsultationsListPanelProps) {
   const router = useRouter();
@@ -294,26 +290,6 @@ export default function ConsultationsListPanel({
               }
               actions={
                 <>
-                  {consultation.status === "confirmed" && (
-                    <Button
-                      size="md"
-                      variant="secondary"
-                      className="w-full sm:flex-1 min-h-8"
-                      onClick={() => {
-                        if (onOpenQR) {
-                          onOpenQR(consultation.id);
-                          return;
-                        }
-                        handleNavigate(
-                          `/my/consultations/${consultation.id}/qr`,
-                        );
-                      }}
-                    >
-                      <QrCode className="h-5 w-5" />
-                      QR 스캔
-                    </Button>
-                  )}
-
                   {(consultation.status === "pending" ||
                     consultation.status === "confirmed" ||
                     consultation.status === "visited" ||

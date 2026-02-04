@@ -26,6 +26,7 @@ export default async function OfferingDetailPage({
           <OfferingDetailRight
             propertyId={property.id}
             propertyName={property.name}
+            propertyImageUrl={property.image_url ?? undefined}
             hasApprovedAgent={hasAgent}
           />
         </div>

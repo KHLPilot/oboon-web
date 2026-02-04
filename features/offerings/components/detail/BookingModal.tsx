@@ -1,21 +1,18 @@
 ﻿"use client";
 
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
-import { CalendarDays, Star, Loader2, MessageCircle } from "lucide-react";
+import { CalendarDays, Loader2, MessageCircle, User } from "lucide-react";
 import { useRouter } from "next/navigation";
-import DatePicker, { registerLocale } from "react-datepicker";
-import { ko } from "date-fns/locale";
-import "react-datepicker/dist/react-datepicker.css";
+import { OboonInlineDatePicker } from "@/components/ui/DatePicker";
 
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
+import MyConsultationsModal from "@/features/consultations/components/MyConsultationsModal.client";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { trackEvent } from "@/lib/analytics";
 
 import { showAlert } from "@/shared/alert";
-registerLocale("ko", ko);
 
 interface Agent {
   id: string;
@@ -38,6 +35,8 @@ interface BookingModalProps {
   onClose: () => void;
   propertyId?: number;
   propertyName?: string;
+  propertyImageUrl?: string;
+  defaultAgentId?: string;
 }
 
 export default function BookingModal({
@@ -45,6 +44,8 @@ export default function BookingModal({
   onClose,
   propertyId,
   propertyName,
+  propertyImageUrl,
+  defaultAgentId,
 }: BookingModalProps) {
   const router = useRouter();
   const supabase = createSupabaseClient();
@@ -75,10 +76,13 @@ export default function BookingModal({
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [user, setUser] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [existingConsultation, setExistingConsultation] =
     useState<ExistingConsultation | null>(null);
+  const [step, setStep] = useState<"agent" | "time" | "confirm">("agent");
+  const [isDesktop, setIsDesktop] = useState(false);
+  const [showMyConsultationsModal, setShowMyConsultationsModal] =
+    useState(false);
 
   // 사용자 정보 및 상담사 목록 조회
   const buildReservationEventParams = () => {
@@ -89,20 +93,26 @@ export default function BookingModal({
   };
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mediaQuery = window.matchMedia("(min-width: 1024px)");
+    const handleChange = () => setIsDesktop(mediaQuery.matches);
+    handleChange();
+    mediaQuery.addEventListener?.("change", handleChange);
+    return () => mediaQuery.removeEventListener?.("change", handleChange);
+  }, []);
+
+  useEffect(() => {
     if (!isOpen) return;
+    setShowMyConsultationsModal(false);
 
     async function fetchData() {
       setLoading(true);
       setError(null);
       setExistingConsultation(null);
+      setStep(isDesktop ? "time" : "agent");
 
       try {
         // 현재 사용자 확인
-        const {
-          data: { user: currentUser },
-        } = await supabase.auth.getUser();
-        setUser(currentUser);
-
         // 해당 현장의 승인된 상담사 목록 조회
         if (!propertyId) {
           setError("현장 정보가 없습니다");
@@ -111,6 +121,9 @@ export default function BookingModal({
         }
 
         // 이 현장에 이미 예약한 상담이 있는지 확인
+        const {
+          data: { user: currentUser },
+        } = await supabase.auth.getUser();
         if (currentUser) {
           const { data: existingData } = await supabase
             .from("consultations")
@@ -160,10 +173,15 @@ export default function BookingModal({
             .map((pa: any) => pa.profiles)
             .filter((profile: any) => profile !== null);
 
-          setAgents(agentList);
-          if (agentList.length > 0) {
-            setSelectedAgent(agentList[0]);
-          }
+        setAgents(agentList);
+        if (defaultAgentId) {
+          const preselected = agentList.find(
+            (agent) => agent.id === defaultAgentId,
+          );
+          setSelectedAgent(preselected ?? null);
+        } else {
+          setSelectedAgent(null);
+        }
         }
       } catch (err) {
         console.error("데이터 조회 오류:", err);
@@ -174,7 +192,14 @@ export default function BookingModal({
     }
 
     fetchData();
-  }, [isOpen, supabase, propertyId]);
+  }, [isOpen, supabase, propertyId, defaultAgentId, isDesktop]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (isDesktop) {
+      setStep("time");
+    }
+  }, [isDesktop, isOpen]);
 
   // 슬롯 조회 함수 (폴링에서도 사용)
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
@@ -255,12 +280,6 @@ export default function BookingModal({
   // 예약 제출
   async function handleSubmit() {
     trackEvent("reservation_click", buildReservationEventParams());
-    if (!user) {
-      showAlert("로그인이 필요합니다");
-      router.push("/auth/login");
-      return;
-    }
-
     if (!selectedAgent) {
       showAlert("상담사를 선택해주세요");
       return;
@@ -322,23 +341,27 @@ export default function BookingModal({
 
   const canSubmit =
     selectedAgent && selectedDate && selectedTime && !submitting;
+  const canGoNext = Boolean(selectedAgent && selectedDate && selectedTime);
+
+  const formatBookingDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return new Intl.DateTimeFormat("ko-KR", {
+      month: "long",
+      day: "numeric",
+      weekday: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(date);
+  };
 
   return (
-    <Modal open={isOpen} onClose={onClose}>
+    <>
+      <Modal open={isOpen} onClose={onClose} size="lg" panelClassName="p-6">
       {/* Title */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-(--oboon-bg-subtle)">
-            <CalendarDays className="h-4 w-4 text-(--oboon-text-title)" />
-          </div>
-          <div>
-            <div className="text-base font-semibold text-(--oboon-text-title)">
-              상담 예약
-            </div>
-            <div className="text-xs text-(--oboon-text-muted)">
-              {propertyName || "상담사와 날짜/시간을 선택해주세요"}
-            </div>
-          </div>
+        <div>
+          <div className="ob-typo-h2 text-(--oboon-text-title)">상담 예약</div>
         </div>
       </div>
 
@@ -348,209 +371,138 @@ export default function BookingModal({
         </div>
       ) : existingConsultation ? (
         /* 이미 예약이 있는 경우 */
-        <div className="mt-6">
-          <Card className="bg-(--oboon-primary)/5 border-2 border-(--oboon-primary)/20">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="h-10 w-10 rounded-full bg-(--oboon-primary)/10 flex items-center justify-center">
-                <MessageCircle className="h-5 w-5 text-(--oboon-primary)" />
+        <div className="mt-4 space-y-4">
+          <div className="rounded-xl border border-(--oboon-primary)/40 bg-(--oboon-primary)/15 px-4 py-2 ob-typo-caption text-(--oboon-text-title)">
+            이미 예약된 상담이 있습니다.
+          </div>
+
+          <Card className="bg-(--oboon-bg-surface) p-4">
+            <div className="flex items-center gap-3">
+              <div className="h-16 w-16 rounded-xl bg-(--oboon-bg-subtle) overflow-hidden flex items-center justify-center">
+                {propertyImageUrl ? (
+                  <img
+                    src={propertyImageUrl}
+                    alt={propertyName || "property"}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div
+                    className="h-full w-full bg-(--oboon-bg-subtle)"
+                    style={{
+                      WebkitMaskImage: "url(/logo.svg)",
+                      maskImage: "url(/logo.svg)",
+                      WebkitMaskRepeat: "no-repeat",
+                      maskRepeat: "no-repeat",
+                      WebkitMaskPosition: "center",
+                      maskPosition: "center",
+                      WebkitMaskSize: isDesktop ? "50%" : "40%",
+                      maskSize: isDesktop ? "50%" : "40%",
+                      backgroundColor: "var(--oboon-text-muted)",
+                    }}
+                    aria-hidden="true"
+                  />
+                )}
               </div>
               <div>
-                <p className="text-sm font-semibold text-(--oboon-text-title)">
-                  이미 예약된 상담이 있습니다
-                </p>
-                <p className="text-xs text-(--oboon-text-muted)">
-                  {existingConsultation.agent?.name} 상담사
-                </p>
+                <div className="ob-typo-h3 text-(--oboon-text-title)">
+                  {propertyName || "상담 예약"}
+                </div>
+                <div className="mt-1 flex items-center gap-2 ob-typo-caption text-(--oboon-text-muted)">
+                  <CalendarDays className="h-4 w-4" />
+                  {formatBookingDate(existingConsultation.scheduled_at)}
+                </div>
+                <div className="mt-1 flex items-center gap-2 ob-typo-caption text-(--oboon-text-muted)">
+                  <User className="h-4 w-4" />
+                  상담사: {existingConsultation.agent?.name}
+                </div>
               </div>
             </div>
 
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-(--oboon-text-muted)">상태</span>
-                <Badge
-                  variant={
-                    existingConsultation.status === "confirmed"
-                      ? "success"
-                      : "status"
-                  }
-                >
-                  {existingConsultation.status === "confirmed"
-                    ? "확정"
-                    : "대기중"}
-                </Badge>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-(--oboon-text-muted)">예약일시</span>
-                <span className="text-(--oboon-text-title) font-medium">
-                  {new Date(existingConsultation.scheduled_at).toLocaleString(
-                    "ko-KR",
-                    {
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    },
-                  )}
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-5 space-y-2">
+            <div className="mt-4 grid grid-cols-2 gap-3">
               <Button
                 className="w-full"
                 variant="primary"
-                size="lg"
+                size="md"
+                shape="pill"
                 onClick={() => {
                   onClose();
                   router.push(`/chat/${existingConsultation.id}`);
                 }}
               >
-                <MessageCircle className="h-4 w-4 mr-2" />
+                <MessageCircle className="h-4 w-4" />
                 채팅방으로 이동
               </Button>
               <Button
                 className="w-full"
                 variant="secondary"
-                size="lg"
+                size="md"
+                shape="pill"
                 onClick={() => {
                   onClose();
-                  router.push("/my/consultations");
+                  setShowMyConsultationsModal(true);
                 }}
               >
-                내 예약 목록 보기
+                내 예약 보기
               </Button>
             </div>
           </Card>
         </div>
-      ) : (
+      ) : !isDesktop && step === "agent" ? (
         <>
-          {/* 상담사 선택 */}
           <div className="mt-4">
-            <div className="text-xs font-medium text-(--oboon-text-muted) mb-2">
+            <div className="ob-typo-subtitle text-(--oboon-text-title) mb-2">
               상담사 선택
             </div>
 
             {agents.length === 0 ? (
-              <div className="text-center py-4 text-sm text-(--oboon-text-muted)">
+              <div className="text-center py-4 ob-typo-caption text-(--oboon-text-muted)">
                 현재 이용 가능한 상담사가 없습니다
               </div>
             ) : (
-              <div className="space-y-2 max-h-40 overflow-y-auto">
-                {agents.map((agent) => (
-                  <Card
-                    key={agent.id}
-                    className={`cursor-pointer transition-all ${
-                      selectedAgent?.id === agent.id
-                        ? "ring-2 ring-(--oboon-primary)"
-                        : "hover:bg-(--oboon-bg-subtle)"
-                    }`}
-                    onClick={() => setSelectedAgent(agent)}
-                  >
-                    <div className="flex items-center gap-3 p-1">
-                      <div className="h-10 w-10 overflow-hidden rounded-full bg-(--oboon-bg-subtle) shrink-0 flex items-center justify-center">
-                        <span className="text-sm font-medium text-(--oboon-text-title)">
-                          {agent.name?.charAt(0) || "?"}
-                        </span>
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          {selectedAgent?.id === agent.id && (
-                            <Badge variant="status">선택됨</Badge>
-                          )}
-                          <div className="inline-flex items-center gap-1 text-xs text-(--oboon-text-muted)">
-                            <Star className="h-3.5 w-3.5" />
-                            <span className="font-medium text-(--oboon-text-title)">
-                              4.9
-                            </span>
+              <div className="flex flex-col gap-3 max-h-72 overflow-y-auto">
+                {agents.map((agent) => {
+                  const isSelected = selectedAgent?.id === agent.id;
+                  return (
+                    <Card
+                      key={agent.id}
+                      className={[
+                        "cursor-pointer p-4 shadow-none overflow-hidden",
+                        isSelected
+                          ? "ring-1 ring-inset ring-(--oboon-primary) border-(--oboon-primary)"
+                          : "hover:bg-(--oboon-bg-subtle)",
+                      ].join(" ")}
+                      onClick={() =>
+                        setSelectedAgent((prev) =>
+                          prev?.id === agent.id ? null : agent,
+                        )
+                      }
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 shrink-0 rounded-full bg-(--oboon-bg-subtle) text-(--oboon-text-title) flex items-center justify-center ob-typo-subtitle">
+                          {agent.name?.slice(0, 1) || "상"}
+                        </div>
+                        <div>
+                          <div className="ob-typo-caption text-(--oboon-text-muted)">
+                            분양상담사
+                          </div>
+                          <div className="ob-typo-subtitle text-(--oboon-text-title)">
+                            {agent.name}
                           </div>
                         </div>
-                        <div className="mt-1 text-sm font-semibold text-(--oboon-text-title)">
-                          {agent.name}
-                        </div>
                       </div>
-                    </div>
-                  </Card>
-                ))}
+                      <div className="mt-3 ob-typo-caption text-(--oboon-text-muted)">
+                        상담사 설명 (기타 정보) 란
+                      </div>
+                    </Card>
+                  );
+                })}
               </div>
             )}
           </div>
 
-          {/* Date/Time */}
-          <div className="mt-5">
-            <div className="text-xs font-medium text-(--oboon-text-muted) mb-2">
-              날짜 선택
-            </div>
-
-            <div className="flex justify-center">
-              <DatePicker
-                selected={selectedDate}
-                onChange={(date: Date | null) => setSelectedDate(date)}
-                inline
-                locale="ko"
-                minDate={dateRange.minDate}
-                maxDate={dateRange.maxDate}
-                calendarClassName="oboon-datepicker"
-              />
-            </div>
-
-            <div className="mt-4">
-              <div className="text-xs font-medium text-(--oboon-text-muted) mb-2">
-                시간 선택
-              </div>
-              {slotsLoading ? (
-                <div className="flex justify-center py-4">
-                  <Loader2 className="h-5 w-5 animate-spin text-(--oboon-primary)" />
-                </div>
-              ) : availableSlots.length === 0 ? (
-                <div className="text-center py-4 text-sm text-(--oboon-text-muted)">
-                  {selectedAgent
-                    ? "선택한 날짜에 예약 가능한 시간이 없습니다"
-                    : "상담사를 먼저 선택해주세요"}
-                </div>
-              ) : (
-                <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto">
-                  {availableSlots.map((slot) => {
-                    const active = selectedTime === slot.time;
-                    const isDisabled = !slot.available;
-                    return (
-                      <button
-                        key={slot.time}
-                        className={`
-                          py-2 px-3 rounded-lg border text-sm font-medium transition-all
-                          ${
-                            active
-                              ? "bg-(--oboon-primary) text-white border-(--oboon-primary) ring-2 ring-(--oboon-primary) ring-offset-1"
-                              : isDisabled
-                                ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
-                                : "bg-(--oboon-primary) text-white border-(--oboon-primary) hover:opacity-90"
-                          }
-                        `}
-                        onClick={() =>
-                          !isDisabled && setSelectedTime(slot.time)
-                        }
-                        disabled={isDisabled}
-                      >
-                        {slot.time}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* 로그인 안내 */}
-          {!user && (
-            <div className="mt-4 rounded-xl border border-(--oboon-warning) bg-(--oboon-warning)/10 px-4 py-3 text-xs text-(--oboon-warning)">
-              예약을 하려면 로그인이 필요합니다
-            </div>
-          )}
-
           {/* 에러 메시지 */}
           {error && (
-            <div className="mt-4 rounded-xl border border-(--oboon-danger) bg-(--oboon-danger)/10 px-4 py-3 text-xs text-(--oboon-danger)">
+            <div className="mt-4 rounded-xl border border-(--oboon-danger) bg-(--oboon-danger)/10 px-4 py-3 ob-typo-caption text-(--oboon-danger)">
               {error}
             </div>
           )}
@@ -561,6 +513,234 @@ export default function BookingModal({
               className="w-full"
               variant="primary"
               size="lg"
+              shape="pill"
+              disabled={!selectedAgent}
+              onClick={() => setStep("time")}
+            >
+              다음 단계
+            </Button>
+          </div>
+        </>
+      ) : step === "time" ? (
+        <>
+          {/* 상담사 선택 (데스크탑에서만 표시) */}
+          {isDesktop && (
+            <div className="mt-4">
+              <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 overflow-hidden rounded-full bg-(--oboon-bg-subtle) shrink-0 flex items-center justify-center">
+                    <span className="ob-typo-subtitle text-(--oboon-text-title)">
+                      {selectedAgent?.name?.charAt(0) || "상"}
+                    </span>
+                  </div>
+                  <div>
+                    <div className="ob-typo-caption text-(--oboon-text-muted)">
+                      분양상담사
+                    </div>
+                    <div className="ob-typo-subtitle text-(--oboon-text-title)">
+                      {selectedAgent?.name || "상담사 선택"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Date/Time */}
+          <div className="mt-5">
+            <div className="ob-typo-h3 text-(--oboon-text-title) mb-2">
+              예약 일시
+            </div>
+
+            <div className="flex justify-center">
+              <OboonInlineDatePicker
+                selected={selectedDate}
+                onChange={(date: Date | null) => setSelectedDate(date)}
+                locale="ko"
+                minDate={dateRange.minDate}
+                maxDate={dateRange.maxDate}
+                calendarClassName="oboon-datepicker"
+              />
+            </div>
+
+            <div className="mt-4">
+              {availableSlots.length === 0 && !slotsLoading ? (
+                <div className="text-center py-4 ob-typo-caption text-(--oboon-text-muted)">
+                  {selectedAgent
+                    ? "선택한 날짜에 예약 가능한 시간이 없습니다"
+                    : "상담사를 먼저 선택해주세요"}
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto">
+                  {availableSlots.map((slot) => {
+                    const active = selectedTime === slot.time;
+                    const isDisabled = !slot.available;
+                    return (
+                      <button
+                        key={slot.time}
+                        className={[
+                          "py-2 px-3 rounded-xl border ob-typo-caption transition-colors",
+                          active
+                            ? "bg-(--oboon-primary) text-(--oboon-on-primary) border-(--oboon-primary"
+                            : isDisabled
+                              ? "bg-(--oboon-bg-subtle) text-(--oboon-text-muted) border-(--oboon-border-default) cursor-not-allowed"
+                              : "bg-(--oboon-bg-surface) text-(--oboon-text-title) border-(--oboon-border-default) hover:bg-(--oboon-bg-subtle)",
+                        ].join(" ")}
+                        onClick={() => {
+                          if (isDisabled) return;
+                          setSelectedTime((prev) =>
+                            prev === slot.time ? null : slot.time,
+                          );
+                        }}
+                        disabled={isDisabled}
+                      >
+                        {isDisabled ? "지남" : slot.time}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 에러 메시지 */}
+          {error && (
+            <div className="mt-4 rounded-xl border border-(--oboon-danger) bg-(--oboon-danger)/10 px-4 py-3 ob-typo-caption text-(--oboon-danger)">
+              {error}
+            </div>
+          )}
+          
+          <div
+            className={[
+              "mt-3",
+              isDesktop ? "" : "grid grid-cols-2 gap-3",
+            ].join(" ")}
+          >
+            {!isDesktop && (
+              <Button
+                className="w-full"
+                variant="secondary"
+                size="md"
+                shape="pill"
+                onClick={() => setStep("agent")}
+              >
+                이전 단계
+              </Button>
+            )}
+            <Button
+              className="w-full"
+              variant="primary"
+              size="md"
+              shape="pill"
+              disabled={!canGoNext}
+              onClick={() => setStep("confirm")}
+            >
+              다음 단계
+            </Button>
+          </div>
+        </>
+      ) : (
+        <>
+          <Card className="bg-(--oboon-bg-surface) p-2 sm:p-4 mt-4">
+            <div className="flex items-center gap-3">
+              <div className="h-16 w-16 rounded-xl bg-(--oboon-bg-subtle) overflow-hidden flex items-center justify-center">
+                {propertyImageUrl ? (
+                  <img
+                    src={propertyImageUrl}
+                    alt={propertyName || "property"}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div
+                    className="h-full w-full bg-(--oboon-bg-subtle)"
+                    style={{
+                      WebkitMaskImage: "url(/logo.svg)",
+                      maskImage: "url(/logo.svg)",
+                      WebkitMaskRepeat: "no-repeat",
+                      maskRepeat: "no-repeat",
+                      WebkitMaskPosition: "center",
+                      maskPosition: "center",
+                      WebkitMaskSize: isDesktop ? "50%" : "40%",
+                      maskSize: isDesktop ? "50%" : "40%",
+                      backgroundColor: "var(--oboon-text-muted)",
+                    }}
+                    aria-hidden="true"
+                  />
+                )}
+              </div>
+              <div className="min-w-0">
+                <div className="ob-typo-h3 text-(--oboon-text-title) truncate">
+                  {propertyName || "상담 예약"}
+                </div>
+                <div
+                  className={[
+                    "mt-1 flex items-center gap-2 text-(--oboon-text-muted)",
+                    isDesktop ? "ob-typo-body" : "ob-typo-caption",
+                  ].join(" ")}
+                >
+                  <CalendarDays className="h-4 w-4 shrink-0" />
+                  <span className="leading-none">
+                    {selectedDate && selectedTime
+                    ? formatBookingDate(
+                        `${selectedDate.getFullYear()}-${String(
+                          selectedDate.getMonth() + 1,
+                        ).padStart(2, "0")}-${String(
+                          selectedDate.getDate(),
+                        ).padStart(2, "0")}T${selectedTime}:00+09:00`,
+                      )
+                    : "-"}
+                  </span>
+                </div>
+                <div
+                  className={[
+                    "mt-1 flex items-center gap-2 text-(--oboon-text-muted)",
+                    isDesktop ? "ob-typo-body" : "ob-typo-caption",
+                    ].join(" ")}
+                >
+                  <User className="h-4 w-4 shrink-0" />
+                  <span className="leading-none">
+                    상담사: {selectedAgent?.name || "-"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          <div className="mt-6">
+            <div className="ob-typo-h3 text-(--oboon-text-title) mb-2">
+              예약 안내사항
+            </div>
+            <div className={[
+              "rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-4 py-4 text-(--oboon-text-muted)",
+              isDesktop ? "ob-typo-body" : "ob-typo-caption",
+            ].join(" ")}
+              >
+              예약금 관련 설명
+            </div>
+          </div>
+
+          {/* 에러 메시지 */}
+          {error && (
+            <div className="mt-4 rounded-xl border border-(--oboon-danger) bg-(--oboon-danger)/10 px-4 py-3 ob-typo-caption text-(--oboon-danger)">
+              {error}
+            </div>
+          )}
+
+          <div className="mt-6 grid grid-cols-2 gap-3">
+            <Button
+              className="w-full"
+              variant="secondary"
+              size="md"
+              shape="pill"
+              onClick={() => setStep("time")}
+            >
+              이전 단계
+            </Button>
+            <Button
+              className="w-full"
+              variant="primary"
+              size="md"
+              shape="pill"
               disabled={!canSubmit}
               onClick={handleSubmit}
             >
@@ -569,34 +749,19 @@ export default function BookingModal({
                   <Loader2 className="h-4 w-4 animate-spin" />
                   예약 중...
                 </span>
-              ) : user ? (
-                "예약 확정하기"
               ) : (
-                "로그인 후 예약하기"
+                "예약 신청"
               )}
             </Button>
           </div>
-
-          {/* 선택 정보 */}
-          <div className="mt-3 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-4 py-3 text-xs text-(--oboon-text-muted)">
-            선택:{" "}
-            <span className="font-medium text-(--oboon-text-title)">
-              {selectedDate
-                ? `${selectedDate.getFullYear()}.${(selectedDate.getMonth() + 1).toString().padStart(2, "0")}.${selectedDate.getDate().toString().padStart(2, "0")}`
-                : "-"}{" "}
-              {selectedTime || "-"}
-            </span>
-            {selectedAgent && (
-              <>
-                {" / "}
-                <span className="font-medium text-(--oboon-text-title)">
-                  {selectedAgent.name} 상담사
-                </span>
-              </>
-            )}
-          </div>
         </>
       )}
-    </Modal>
+      </Modal>
+
+      <MyConsultationsModal
+        open={showMyConsultationsModal}
+        onClose={() => setShowMyConsultationsModal(false)}
+      />
+    </>
   );
 }
