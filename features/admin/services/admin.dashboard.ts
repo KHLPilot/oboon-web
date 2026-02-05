@@ -32,6 +32,9 @@ export type AdminDashboardData = {
   role: string | null;
   pendingAgents: AdminProfileRow[];
   pendingPropertyAgents: PendingPropertyAgent[];
+  approvedPropertyAgentCount: number;
+  todayNewConsultations: number;
+  todayVisitConsultations: number;
   deletedUsers: AdminProfileRow[];
   activeUsers: AdminProfileRow[];
 };
@@ -49,6 +52,9 @@ export async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
       role: null,
       pendingAgents: [],
       pendingPropertyAgents: [],
+      approvedPropertyAgentCount: 0,
+      todayNewConsultations: 0,
+      todayVisitConsultations: 0,
       deletedUsers: [],
       activeUsers: [],
     };
@@ -111,6 +117,37 @@ export async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
     }));
   }
 
+  const { count: approvedPropertyAgentCount } = await supabase
+    .from("property_agents")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "approved");
+
+  const now = new Date();
+  const startOfToday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  );
+  const startOfTomorrow = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate() + 1,
+  );
+
+  const [{ count: todayNewConsultations }, { count: todayVisitConsultations }] =
+    await Promise.all([
+      supabase
+        .from("consultations")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", startOfToday.toISOString())
+        .lt("created_at", startOfTomorrow.toISOString()),
+      supabase
+        .from("consultations")
+        .select("id", { count: "exact", head: true })
+        .gte("scheduled_at", startOfToday.toISOString())
+        .lt("scheduled_at", startOfTomorrow.toISOString()),
+    ]);
+
   const { data: users } = await supabase
     .from("profiles")
     .select("*")
@@ -124,6 +161,9 @@ export async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
     role,
     pendingAgents: (pending || []) as AdminProfileRow[],
     pendingPropertyAgents: enrichedPropertyAgents,
+    approvedPropertyAgentCount: approvedPropertyAgentCount ?? 0,
+    todayNewConsultations: todayNewConsultations ?? 0,
+    todayVisitConsultations: todayVisitConsultations ?? 0,
     deletedUsers: deletedUsers as AdminProfileRow[],
     activeUsers: activeUsers as AdminProfileRow[],
   };

@@ -12,6 +12,15 @@ import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import Modal from "@/components/ui/Modal";
 import { ToastProvider, useToast } from "@/components/ui/Toast";
+import {
+  AlertTriangle,
+  ArrowRight,
+  Building2,
+  CalendarDays,
+  Plus,
+  UserCheck,
+  Users,
+} from "lucide-react";
 
 type Profile = {
   id: string;
@@ -88,6 +97,10 @@ function AdminPageInner() {
   const [pendingPropertyAgents, setPendingPropertyAgents] = useState<
     PropertyAgent[]
   >([]);
+  const [approvedPropertyAgentCount, setApprovedPropertyAgentCount] =
+    useState(0);
+  const [todayNewConsultations, setTodayNewConsultations] = useState(0);
+  const [todayVisitConsultations, setTodayVisitConsultations] = useState(0);
   const [deletedUsers, setDeletedUsers] = useState<Profile[]>([]);
   const [activeUsers, setActiveUsers] = useState<Profile[]>([]);
   const [roleSort, setRoleSort] = useState<"none" | "asc" | "desc">("none");
@@ -116,6 +129,9 @@ function AdminPageInner() {
 
     setPendingAgents(data.pendingAgents);
     setPendingPropertyAgents(data.pendingPropertyAgents);
+    setApprovedPropertyAgentCount(data.approvedPropertyAgentCount);
+    setTodayNewConsultations(data.todayNewConsultations);
+    setTodayVisitConsultations(data.todayVisitConsultations);
     setDeletedUsers(data.deletedUsers);
     setActiveUsers(data.activeUsers);
     setLoading(false);
@@ -257,9 +273,62 @@ function AdminPageInner() {
     );
   }, [activeUsers, roleSort]);
 
+  const userGrowth = useMemo(() => {
+    const total = activeUsers.length;
+    if (total === 0) {
+      return { total: 0, delta: 0, percent: 0 };
+    }
+    const now = new Date();
+    const startOfToday = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    );
+    const newToday = activeUsers.filter(
+      (u) => new Date(u.created_at) >= startOfToday,
+    ).length;
+    const yesterdayTotal = Math.max(total - newToday, 0);
+    const percent = yesterdayTotal
+      ? Math.round((newToday / yesterdayTotal) * 1000) / 10
+      : 0;
+    return { total, delta: newToday, percent };
+  }, [activeUsers]);
+
+  const tabs = [
+    { id: "summary", label: "요약" },
+    { id: "users", label: "사용자 관리" },
+    { id: "reservations", label: "예약 관리" },
+    { id: "properties", label: "현장 관리" },
+    { id: "settlements", label: "정산 관리" },
+  ] as const;
+
+  const [activeTab, setActiveTab] = useState<(typeof tabs)[number]["id"]>(
+    "summary",
+  );
+
+  const StatCard = ({
+    title,
+    value,
+    helper,
+  }: {
+    title: string;
+    value: string | number;
+    helper?: string;
+  }) => (
+    <Card className="p-4">
+      <div className="ob-typo-caption text-(--oboon-text-muted)">{title}</div>
+      <div className="mt-2 ob-typo-h3 text-(--oboon-text-title)">{value}</div>
+      {helper ? (
+        <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+          {helper}
+        </div>
+      ) : null}
+    </Card>
+  );
+
   if (loading) {
     return (
-      <div className="py-16 text-center text-sm text-(--oboon-text-muted)">
+      <div className="py-16 text-center ob-typo-body text-(--oboon-text-muted)">
         로딩 중...
       </div>
     );
@@ -267,7 +336,7 @@ function AdminPageInner() {
 
   const TableShell = ({ children }: { children: React.ReactNode }) => (
     <div className="overflow-x-auto scrollbar-none">
-      <table className="w-full min-w-[720px] text-sm border-collapse">
+      <table className="w-full min-w-[720px] ob-typo-body border-collapse">
         {children}
       </table>
     </div>
@@ -300,7 +369,7 @@ function AdminPageInner() {
   );
 
   return (
-    <div className="space-y-8">
+    <div className="bg-(--oboon-bg-default)">
       <Modal
         open={confirm.open}
         onClose={closeConfirm}
@@ -308,10 +377,10 @@ function AdminPageInner() {
       >
         {confirm.open && (
           <>
-            <div className="text-[16px] font-semibold text-(--oboon-text-title)">
+            <div className="ob-typo-subtitle text-(--oboon-text-title)">
               {confirm.title}
             </div>
-            <p className="mt-2 text-sm text-(--oboon-text-muted)">
+            <p className="mt-2 ob-typo-body text-(--oboon-text-muted)">
               {confirm.description}
             </p>
             <div className="mt-5 flex gap-2">
@@ -335,290 +404,505 @@ function AdminPageInner() {
           </>
         )}
       </Modal>
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="ob-typo-h2 font-semibold text-(--oboon-text-title)">
-            관리자 대시보드
-          </div>
-          <p className="mt-1 text-sm text-(--oboon-text-muted)">
-            승인/복구 및 사용자 현황을 관리합니다.
-          </p>
-        </div>
-
-        <Link
-          href="/"
-          className="text-sm text-(--oboon-text-muted) hover:text-(--oboon-text-title) transition-colors"
-        >
-          ← 홈으로
-        </Link>
-      </div>
-
-      {/* Property Agent Pending */}
-      {pendingPropertyAgents.length > 0 && (
-        <Card className="p-6">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-[16px] font-semibold text-(--oboon-text-title)">
-                현장 소속 승인 대기
-              </h2>
-              <p className="mt-1 text-xs text-(--oboon-text-muted)">
-                상담사의 현장 소속 신청을 승인/거절합니다
-              </p>
-            </div>
-
-            <Badge variant="status">{pendingPropertyAgents.length}건</Badge>
-          </div>
-
-          <div className="mt-4">
-            <TableShell>
-              <thead>
-                <tr>
-                  <Th>상담사</Th>
-                  <Th>이메일</Th>
-                  <Th>현장</Th>
-                  <Th>신청일</Th>
-                  <Th className="text-right">작업</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {pendingPropertyAgents.map((pa) => (
-                  <tr key={pa.id}>
-                    <Td>{pa.profiles?.name || "-"}</Td>
-                    <Td className="text-(--oboon-text-muted)">
-                      {pa.profiles?.email || "-"}
-                    </Td>
-                    <Td className="text-(--oboon-text-muted)">
-                      {pa.properties?.name || "-"}
-                    </Td>
-                    <Td className="text-xs text-(--oboon-text-muted)">
-                      {new Date(pa.requested_at).toLocaleDateString()}
-                    </Td>
-                    <Td className="text-right">
-                      <div className="flex gap-2 justify-end">
-                        <Button
-                          size="sm"
-                          shape="pill"
-                          variant="primary"
-                          disabled={
-                            propertyAgentAction?.id === pa.id &&
-                            propertyAgentAction?.loading
-                          }
-                          onClick={() => handlePropertyAgentApprove(pa.id)}
-                        >
-                          승인
-                        </Button>
-                        <Button
-                          size="sm"
-                          shape="pill"
-                          variant="secondary"
-                          disabled={
-                            propertyAgentAction?.id === pa.id &&
-                            propertyAgentAction?.loading
-                          }
-                          onClick={() => handlePropertyAgentReject(pa.id)}
-                        >
-                          거절
-                        </Button>
-                      </div>
-                    </Td>
-                  </tr>
-                ))}
-              </tbody>
-            </TableShell>
-          </div>
-        </Card>
-      )}
-
-      {/* Pending */}
-      <Card className="p-6">
-        <div className="flex items-center justify-between gap-3">
+      <div className="mx-auto w-full max-w-6xl px-4 pb-16">
+        <div className="mb-6 flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-[16px] font-semibold text-(--oboon-text-title)">
-              대행사 직원 승인 대기
-            </h2>
+            <div className="ob-typo-h1 text-(--oboon-text-title)">
+              관리자 대시보드
+            </div>
+            <p className="mt-1 ob-typo-body text-(--oboon-text-muted)">
+              승인/복구 및 사용자 현황을 관리합니다.
+            </p>
           </div>
 
-          <Badge variant="status">{pendingAgents.length}건</Badge>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              shape="pill"
+              onClick={() => loadData()}
+            >
+              새로고침
+            </Button>
+          </div>
         </div>
 
-        <div className="mt-4">
-          {pendingAgents.length === 0 ? (
-            <div className="text-sm text-(--oboon-text-muted)">
-              승인 대기 중인 요청이 없습니다.
-            </div>
-          ) : (
-            <TableShell>
-              <thead>
-                <tr>
-                  <Th>이름</Th>
-                  <Th>이메일</Th>
-                  <Th>연락처</Th>
-                  <Th className="text-right">작업</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {pendingAgents.map((agent) => (
-                  <tr key={agent.id}>
-                    <Td>{agent.name || "-"}</Td>
-                    <Td className="text-(--oboon-text-muted)">{agent.email}</Td>
-                    <Td className="text-(--oboon-text-muted)">
-                      {agent.phone_number || "-"}
-                    </Td>
-                    <Td className="text-right">
-                      <Button
-                        size="sm"
-                        shape="pill"
-                        variant="primary"
-                        onClick={() => openApproveConfirm(agent)}
-                      >
-                        승인
-                      </Button>
-                    </Td>
-                  </tr>
-                ))}
-              </tbody>
-            </TableShell>
-          )}
-        </div>
-      </Card>
-
-      {/* Deleted Users */}
-      {deletedUsers.length > 0 && (
-        <Card className="p-6 border-(--oboon-warning-border)">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-[16px] font-semibold text-(--oboon-text-title)">
-                탈퇴(비활성) 사용자
-              </h2>
-              <p className="mt-1 text-xs text-(--oboon-text-muted)">
-                복구 시 사용자는 로그인 후 프로필 정보를 다시 입력해야 할 수
-                있습니다.
-              </p>
-            </div>
-
-            <Badge variant="status">{deletedUsers.length}명</Badge>
-          </div>
-
-          <div className="mt-4">
-            <TableShell>
-              <thead>
-                <tr>
-                  <Th>이름</Th>
-                  <Th>이메일</Th>
-                  <Th>탈퇴일</Th>
-                  <Th className="text-right">작업</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {deletedUsers.map((u) => (
-                  <tr key={u.id}>
-                    <Td className="text-(--oboon-text-muted)">
-                      {u.name || "-"}
-                    </Td>
-                    <Td className="text-(--oboon-text-muted)">{u.email}</Td>
-                    <Td className="text-xs text-(--oboon-text-muted)">
-                      {u.deleted_at
-                        ? new Date(u.deleted_at).toLocaleDateString()
-                        : "-"}
-                    </Td>
-                    <Td className="text-right">
-                      <Button
-                        size="sm"
-                        shape="pill"
-                        variant="warning"
-                        onClick={() => openRestoreConfirm(u)}
-                      >
-                        복구
-                      </Button>
-                    </Td>
-                  </tr>
-                ))}
-              </tbody>
-            </TableShell>
-          </div>
-        </Card>
-      )}
-
-      {/* Active Users */}
-      <Card className="p-6">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-[16px] font-semibold text-(--oboon-text-title)">
-              전체 사용자 현황
-            </h2>
-          </div>
-
-          <Badge variant="status">{activeUsers.length}명</Badge>
-        </div>
-
-        <div className="mt-4">
-          {activeUsers.length === 0 ? (
-            <div className="text-sm text-(--oboon-text-muted)">
-              사용자가 없습니다.
-            </div>
-          ) : (
-            <TableShell>
-              <thead>
-                <tr>
-                  <Th>이름</Th>
-                  <Th>이메일</Th>
-                  <Th>
-                    <button
-                      type="button"
-                      onClick={toggleRoleSort}
-                      className="inline-flex items-center gap-1 hover:text-(--oboon-text-title)"
-                      title="계정 유형 정렬"
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[220px_1fr]">
+          <aside className="h-fit">
+            <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-2">
+              <div className="space-y-1">
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id)}
+                    className={[
+                      "w-full text-left px-3 py-2 rounded-xl ob-typo-body transition-colors relative",
+                      activeTab === tab.id
+                        ? "text-(--oboon-text-title)"
+                        : "text-(--oboon-text-muted) hover:text-(--oboon-text-title)",
+                    ].join(" ")}
+                  >
+                    {activeTab === tab.id && (
+                      <span className="absolute left-0 top-2 bottom-2 w-1 rounded-full bg-(--oboon-primary)" />
+                    )}
+                    <span
+                      className={[
+                        "block pl-3 pr-2 py-1 rounded-lg",
+                        activeTab === tab.id ? "bg-(--oboon-bg-subtle)" : "",
+                      ].join(" ")}
                     >
-                      계정 유형
-                      <span
-                        className={[
-                          "text-[11px]",
-                          roleSort === "none"
-                            ? "text-(--oboon-text-muted)"
-                            : "text-(--oboon-text-title)",
-                        ].join(" ")}
-                      >
-                        {roleSort === "none"
-                          ? "-"
-                          : roleSort === "asc"
-                            ? "▲"
-                            : "▼"}
-                      </span>
-                    </button>
-                  </Th>
-                  <Th>가입일</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedActiveUsers.map((u) => (
-                  <tr key={u.id}>
-                    <Td>{u.name || "-"}</Td>
-                    <Td className="text-(--oboon-text-muted)">{u.email}</Td>
-                    <Td>
-                      <Badge variant="status">{roleLabel(u.role)}</Badge>
-                    </Td>
-                    <Td className="text-xs text-(--oboon-text-muted)">
-                      {new Date(u.created_at).toLocaleDateString()}
-                    </Td>
-                  </tr>
+                      {tab.label}
+                    </span>
+                  </button>
                 ))}
-              </tbody>
-            </TableShell>
-          )}
-        </div>
-      </Card>
+              </div>
+            </div>
+          </aside>
 
-      {/* Footer actions */}
-      <div className="flex justify-end">
-        <Button
-          variant="secondary"
-          size="sm"
-          shape="pill"
-          onClick={() => loadData()}
-        >
-          새로고침
-        </Button>
+          <section className="space-y-4">
+            {activeTab === "summary" && (
+              <>
+                <Card className="p-5">
+                  <div className="ob-typo-caption text-(--oboon-text-muted)">
+                    OVERVIEW
+                  </div>
+                  <div className="mt-1 ob-typo-h3 text-(--oboon-text-title)">
+                    오늘의 운영 요약
+                  </div>
+                  <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+                    {new Date().toLocaleDateString("ko-KR", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                      weekday: "long",
+                    })}
+                  </div>
+                </Card>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Card className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-(--oboon-text-title)">
+                        <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-(--oboon-bg-subtle)">
+                          <Users className="h-4 w-4 text-(--oboon-primary)" />
+                        </span>
+                        <span className="ob-typo-subtitle">전체 사용자</span>
+                      </div>
+                      <ArrowRight className="h-4 w-4 text-(--oboon-text-muted)" />
+                    </div>
+                    <div className="mt-3 flex items-center gap-2">
+                      <div className="ob-typo-h2 text-(--oboon-text-title)">
+                        {userGrowth.total.toLocaleString()}
+                      </div>
+                      <span className="rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-2 py-0.5 ob-typo-caption text-(--oboon-text-muted)">
+                        ↗ +{userGrowth.delta}명
+                      </span>
+                    </div>
+                    <div className="mt-2 ob-typo-caption text-(--oboon-text-muted)">
+                      어제 대비 {userGrowth.percent}% 증가
+                    </div>
+                  </Card>
+                  <Card className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-(--oboon-text-title)">
+                        <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-(--oboon-bg-subtle)">
+                          <Building2 className="h-4 w-4 text-(--oboon-primary)" />
+                        </span>
+                        <span className="ob-typo-subtitle">현장 등록 현황</span>
+                      </div>
+                      <ArrowRight className="h-4 w-4 text-(--oboon-text-muted)" />
+                    </div>
+                    <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+                      <div>
+                        <div className="ob-typo-caption text-(--oboon-text-muted)">
+                          승인 대기
+                        </div>
+                        <div className="mt-1 ob-typo-h3 text-(--oboon-text-title)">
+                          {pendingPropertyAgents.length}
+                        </div>
+                      </div>
+                      <div className="h-10 w-px bg-(--oboon-border-default)" />
+                      <div>
+                        <div className="ob-typo-caption text-(--oboon-text-muted)">
+                          승인 완료
+                        </div>
+                        <div className="mt-1 ob-typo-h3 text-(--oboon-text-title)">
+                          {approvedPropertyAgentCount}
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                  <Card className="p-4 sm:col-span-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-(--oboon-text-title)">
+                        <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-(--oboon-bg-subtle)">
+                          <CalendarDays className="h-4 w-4 text-(--oboon-primary)" />
+                        </span>
+                        <span className="ob-typo-subtitle">오늘 예약</span>
+                      </div>
+                      <ArrowRight className="h-4 w-4 text-(--oboon-text-muted)" />
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div className="flex items-center justify-between rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-4 py-3">
+                        <div className="flex items-center gap-2 text-(--oboon-text-title)">
+                          <Plus className="h-4 w-4 text-(--oboon-primary)" />
+                          <span className="ob-typo-body">신규 예약</span>
+                        </div>
+                        <span className="ob-typo-subtitle text-(--oboon-text-title)">
+                          {todayNewConsultations}건
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-4 py-3">
+                        <div className="flex items-center gap-2 text-(--oboon-text-title)">
+                          <UserCheck className="h-4 w-4 text-(--oboon-primary)" />
+                          <span className="ob-typo-body">오늘 방문 예정</span>
+                        </div>
+                        <span className="ob-typo-subtitle text-(--oboon-text-title)">
+                          {todayVisitConsultations}건
+                        </span>
+                      </div>
+                    </div>
+                  </Card>
+                  <Card className="p-4 sm:col-span-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-(--oboon-text-title)">
+                        <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-(--oboon-bg-subtle)">
+                          <AlertTriangle className="h-4 w-4 text-(--oboon-danger)" />
+                        </span>
+                        <span className="ob-typo-subtitle">정산 처리 필요 목록</span>
+                      </div>
+                      <ArrowRight className="h-4 w-4 text-(--oboon-text-muted)" />
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      <div className="flex items-center justify-between rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-4 py-3">
+                        <div className="flex items-center gap-2 text-(--oboon-text-title)">
+                          <span className="h-2 w-2 rounded-full bg-(--oboon-danger)" />
+                          <span className="ob-typo-body">입금 확인 대기</span>
+                        </div>
+                        <span className="ob-typo-subtitle text-(--oboon-text-title)">
+                          0건
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-4 py-3">
+                        <div className="flex items-center gap-2 text-(--oboon-text-title)">
+                          <span className="h-2 w-2 rounded-full bg-(--oboon-danger)" />
+                          <span className="ob-typo-body">환급 대기</span>
+                        </div>
+                        <span className="ob-typo-subtitle text-(--oboon-text-title)">
+                          0건
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-4 py-3">
+                        <div className="flex items-center gap-2 text-(--oboon-text-title)">
+                          <span className="h-2 w-2 rounded-full bg-(--oboon-text-muted)" />
+                          <span className="ob-typo-body">노쇼 판정 필요</span>
+                        </div>
+                        <span className="ob-typo-subtitle text-(--oboon-text-title)">
+                          0건
+                        </span>
+                      </div>
+                    </div>
+                  </Card>
+                </div>
+              </>
+            )}
+
+            {activeTab === "users" && (
+              <>
+                <Card className="p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="ob-typo-h3 text-(--oboon-text-title)">
+                        사용자 관리
+                      </div>
+                      <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+                        승인 대기/탈퇴 사용자 및 전체 사용자 현황
+                      </p>
+                    </div>
+                  </div>
+                </Card>
+
+                <Card className="p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="ob-typo-body text-(--oboon-text-title)">
+                      대행사 직원 승인 대기
+                    </div>
+                    <Badge variant="status">{pendingAgents.length}건</Badge>
+                  </div>
+                  <div className="mt-4">
+                    {pendingAgents.length === 0 ? (
+                      <div className="ob-typo-body text-(--oboon-text-muted)">
+                        승인 대기 중인 요청이 없습니다.
+                      </div>
+                    ) : (
+                      <TableShell>
+                        <thead>
+                          <tr>
+                            <Th>이름</Th>
+                            <Th>이메일</Th>
+                            <Th>연락처</Th>
+                            <Th className="text-right">작업</Th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pendingAgents.map((agent) => (
+                            <tr key={agent.id}>
+                              <Td>{agent.name || "-"}</Td>
+                              <Td className="text-(--oboon-text-muted)">
+                                {agent.email}
+                              </Td>
+                              <Td className="text-(--oboon-text-muted)">
+                                {agent.phone_number || "-"}
+                              </Td>
+                              <Td className="text-right">
+                                <Button
+                                  size="sm"
+                                  shape="pill"
+                                  variant="primary"
+                                  onClick={() => openApproveConfirm(agent)}
+                                >
+                                  승인
+                                </Button>
+                              </Td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </TableShell>
+                    )}
+                  </div>
+                </Card>
+
+                {deletedUsers.length > 0 && (
+                  <Card className="p-5 border-(--oboon-warning-border)">
+                    <div className="flex items-center justify-between gap-3">
+                    <div className="ob-typo-body text-(--oboon-text-title)">
+                      탈퇴(비활성) 사용자
+                    </div>
+                      <Badge variant="status">{deletedUsers.length}명</Badge>
+                    </div>
+                    <div className="mt-4">
+                      <TableShell>
+                        <thead>
+                          <tr>
+                            <Th>이름</Th>
+                            <Th>이메일</Th>
+                            <Th>탈퇴일</Th>
+                            <Th className="text-right">작업</Th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {deletedUsers.map((u) => (
+                            <tr key={u.id}>
+                              <Td className="text-(--oboon-text-muted)">
+                                {u.name || "-"}
+                              </Td>
+                              <Td className="text-(--oboon-text-muted)">
+                                {u.email}
+                              </Td>
+                              <Td className="ob-typo-caption text-(--oboon-text-muted)">
+                                {u.deleted_at
+                                  ? new Date(
+                                      u.deleted_at,
+                                    ).toLocaleDateString()
+                                  : "-"}
+                              </Td>
+                              <Td className="text-right">
+                                <Button
+                                  size="sm"
+                                  shape="pill"
+                                  variant="warning"
+                                  onClick={() => openRestoreConfirm(u)}
+                                >
+                                  복구
+                                </Button>
+                              </Td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </TableShell>
+                    </div>
+                  </Card>
+                )}
+
+                <Card className="p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="ob-typo-body text-(--oboon-text-title)">
+                      전체 사용자 현황
+                    </div>
+                    <Badge variant="status">{activeUsers.length}명</Badge>
+                  </div>
+                  <div className="mt-4">
+                    {activeUsers.length === 0 ? (
+                      <div className="ob-typo-body text-(--oboon-text-muted)">
+                        사용자가 없습니다.
+                      </div>
+                    ) : (
+                      <TableShell>
+                        <thead>
+                          <tr>
+                            <Th>이름</Th>
+                            <Th>이메일</Th>
+                            <Th>
+                              <button
+                                type="button"
+                                onClick={toggleRoleSort}
+                                className="inline-flex items-center gap-1 hover:text-(--oboon-text-title)"
+                                title="계정 유형 정렬"
+                              >
+                                계정 유형
+                                <span
+                                  className={[
+                                    "ob-typo-caption",
+                                    roleSort === "none"
+                                      ? "text-(--oboon-text-muted)"
+                                      : "text-(--oboon-text-title)",
+                                  ].join(" ")}
+                                >
+                                  {roleSort === "none"
+                                    ? "-"
+                                    : roleSort === "asc"
+                                      ? "▲"
+                                      : "▼"}
+                                </span>
+                              </button>
+                            </Th>
+                            <Th>가입일</Th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {sortedActiveUsers.map((u) => (
+                            <tr key={u.id}>
+                              <Td>{u.name || "-"}</Td>
+                              <Td className="text-(--oboon-text-muted)">
+                                {u.email}
+                              </Td>
+                              <Td>
+                                <Badge variant="status">
+                                  {roleLabel(u.role)}
+                                </Badge>
+                              </Td>
+                              <Td className="ob-typo-caption text-(--oboon-text-muted)">
+                                {new Date(u.created_at).toLocaleDateString()}
+                              </Td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </TableShell>
+                    )}
+                  </div>
+                </Card>
+              </>
+            )}
+
+            {activeTab === "reservations" && (
+              <Card className="p-5">
+                <div className="ob-typo-h3 text-(--oboon-text-title)">
+                  예약 관리
+                </div>
+                <p className="mt-2 ob-typo-body text-(--oboon-text-muted)">
+                  예약 데이터 연동 후 표시됩니다.
+                </p>
+              </Card>
+            )}
+
+            {activeTab === "properties" && (
+              <Card className="p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="ob-typo-h3 text-(--oboon-text-title)">
+                    현장 관리
+                  </div>
+                  <Badge variant="status">
+                    {pendingPropertyAgents.length}건
+                  </Badge>
+                </div>
+                <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+                  상담사의 현장 소속 신청을 승인/거절합니다.
+                </p>
+                <div className="mt-4">
+                  {pendingPropertyAgents.length === 0 ? (
+                    <div className="ob-typo-body text-(--oboon-text-muted)">
+                      승인 대기 중인 현장이 없습니다.
+                    </div>
+                  ) : (
+                    <TableShell>
+                      <thead>
+                        <tr>
+                          <Th>상담사</Th>
+                          <Th>이메일</Th>
+                          <Th>현장</Th>
+                          <Th>신청일</Th>
+                          <Th className="text-right">작업</Th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pendingPropertyAgents.map((pa) => (
+                          <tr key={pa.id}>
+                            <Td>{pa.profiles?.name || "-"}</Td>
+                            <Td className="text-(--oboon-text-muted)">
+                              {pa.profiles?.email || "-"}
+                            </Td>
+                            <Td className="text-(--oboon-text-muted)">
+                              {pa.properties?.name || "-"}
+                            </Td>
+                            <Td className="ob-typo-caption text-(--oboon-text-muted)">
+                              {new Date(pa.requested_at).toLocaleDateString()}
+                            </Td>
+                            <Td className="text-right">
+                              <div className="flex gap-2 justify-end">
+                                <Button
+                                  size="sm"
+                                  shape="pill"
+                                  variant="primary"
+                                  disabled={
+                                    propertyAgentAction?.id === pa.id &&
+                                    propertyAgentAction?.loading
+                                  }
+                                  onClick={() =>
+                                    handlePropertyAgentApprove(pa.id)
+                                  }
+                                >
+                                  승인
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  shape="pill"
+                                  variant="secondary"
+                                  disabled={
+                                    propertyAgentAction?.id === pa.id &&
+                                    propertyAgentAction?.loading
+                                  }
+                                  onClick={() =>
+                                    handlePropertyAgentReject(pa.id)
+                                  }
+                                >
+                                  거절
+                                </Button>
+                              </div>
+                            </Td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </TableShell>
+                  )}
+                </div>
+              </Card>
+            )}
+
+            {activeTab === "settlements" && (
+              <Card className="p-5">
+                <div className="ob-typo-h3 text-(--oboon-text-title)">
+                  정산 관리
+                </div>
+                <p className="mt-2 ob-typo-body text-(--oboon-text-muted)">
+                  정산 데이터 연동 후 표시됩니다.
+                </p>
+              </Card>
+            )}
+          </section>
+        </div>
       </div>
     </div>
   );
