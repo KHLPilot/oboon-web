@@ -256,7 +256,7 @@ export default function Header() {
               </Button>
             )}
 
-            {["admin", "builder", "developer"].includes(userRole || "") && (
+            {["admin", "builder", "developer", "agent"].includes(userRole || "") && (
               <Button
                 variant="primary"
                 size="sm"

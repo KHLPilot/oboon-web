@@ -15,6 +15,7 @@
 - property_timeline
 - property_unit_types
 - property_agents
+- property_requests
 
 ---
 
@@ -22,6 +23,9 @@
 
 - consultations
 - contracts
+- consultation_money_ledger
+- payout_requests
+- profile_bank_accounts
 
 ---
 
@@ -172,6 +176,14 @@
 - 거절: `rejected_at` (timestamptz), `rejection_reason` (text)
 - timestamps: `created_at` (timestamptz, default now())
 
+#### property_requests
+
+- PK: `id` (bigint, identity)
+- FK: `property_id` (bigint, NOT NULL), `agent_id` (uuid, NOT NULL)
+- 상태: `status` (text, default 'pending')
+- 메타: `requested_by_role` (text), `rejection_reason` (text)
+- 요청/수정: `requested_at` (timestamptz, default now()), `updated_at` (timestamptz, default now())
+
 ---
 
 ### 🧑‍💼 상담 / 계약
@@ -182,8 +194,9 @@
 - FK: `customer_id` (uuid, NOT NULL), `agent_id` (uuid, NOT NULL), `property_id` (int, NOT NULL)
 - 일정: `scheduled_at` (timestamptz, NOT NULL)
 - QR: `qr_code` (varchar), `qr_expires_at` (timestamptz)
-- 상태: `status` (varchar, default 'pending')
-- 취소/방문: `cancelled_at` (timestamptz), `visited_at` (timestamptz)
+- 상태: `status` (varchar, default 'pending'; `pending/confirmed/visited/contracted/cancelled/no_show`)
+- 취소/방문: `cancelled_at` (timestamptz), `cancelled_by` (varchar, `customer/agent/admin`), `visited_at` (timestamptz)
+- 노쇼: `no_show_by` (varchar, `customer/agent`)
 - 숨김: `hidden_by_customer` (boolean, default false), `hidden_by_agent` (boolean, default false)
 - timestamps: `created_at` (timestamptz, default now())
 
@@ -193,6 +206,35 @@
 - FK: `consultation_id` (uuid), `customer_id` (uuid, NOT NULL), `agent_id` (uuid, NOT NULL), `property_id` (int, NOT NULL)
 - 상태: `status` (varchar, default 'pending')
 - 계약: `contract_date` (date), `contract_amount` (bigint), `notes` (text)
+- timestamps: `created_at` (timestamptz, default now())
+
+#### consultation_money_ledger
+
+- PK: `id` (uuid, default gen_random_uuid())
+- FK: `consultation_id` (uuid, NOT NULL, ON DELETE CASCADE)
+- 이벤트: `event_type` (varchar, NOT NULL; `deposit_paid/deposit_point_granted/deposit_forfeited/deposit_refund_paid/reward_due/reward_paid`)
+- 버킷: `bucket` (varchar, NOT NULL; `deposit/reward/point`)
+- 금액: `amount` (int, NOT NULL)
+- 주체: `actor_id` (uuid, NOT NULL), `admin_id` (uuid)
+- 메모: `note` (text)
+- timestamps: `created_at` (timestamptz, default now())
+
+#### payout_requests
+
+- PK: `id` (uuid, default gen_random_uuid())
+- FK: `consultation_id` (uuid, NOT NULL, ON DELETE RESTRICT), `target_profile_id` (uuid, NOT NULL, ON DELETE RESTRICT)
+- 타입/상태: `type` (varchar, NOT NULL; `reward_payout/deposit_refund`), `status` (varchar, default `pending`; `pending/processing/done/rejected`)
+- 금액: `amount` (int, NOT NULL)
+- 처리: `bank_account_id` (uuid), `processed_by` (uuid), `processed_at` (timestamptz)
+- timestamps: `created_at` (timestamptz, default now())
+- unique: `(consultation_id, type)`
+
+#### profile_bank_accounts
+
+- PK: `id` (uuid, default gen_random_uuid())
+- FK: `profile_id` (uuid, NOT NULL, ON DELETE CASCADE)
+- 계좌: `bank_code` (varchar), `account_number` (varchar), `account_holder` (varchar)
+- 상태: `is_default` (boolean, default false), `verified_at` (timestamptz)
 - timestamps: `created_at` (timestamptz, default now())
 
 ---

@@ -1,6 +1,26 @@
 [
   {
     "schemaname": "public",
+    "tablename": "agent_holidays",
+    "policyname": "Agent can manage own holidays",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "(agent_id = auth.uid())",
+    "with_check_expression": "(agent_id = auth.uid())"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "agent_holidays",
+    "policyname": "Anyone can read holidays",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
     "tablename": "agent_slot_overrides",
     "policyname": "Agent can manage own slot overrides",
     "permissive": "PERMISSIVE",
@@ -431,6 +451,16 @@
   },
   {
     "schemaname": "public",
+    "tablename": "consultation_money_ledger",
+    "policyname": "consultation_money_ledger_select_own",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM consultations c\n  WHERE ((c.id = consultation_money_ledger.consultation_id) AND ((c.customer_id = auth.uid()) OR (c.agent_id = auth.uid())))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
     "tablename": "consultations",
     "policyname": "consultations_delete",
     "permissive": "PERMISSIVE",
@@ -497,6 +527,56 @@
     "roles": "{public}",
     "cmd": "UPDATE",
     "using_expression": "((agent_id = auth.uid()) OR (EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "notifications",
+    "policyname": "service_insert_notifications",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "true"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "notifications",
+    "policyname": "users_read_own_notifications",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "(auth.uid() = recipient_id)",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "notifications",
+    "policyname": "users_update_own_notifications",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "using_expression": "(auth.uid() = recipient_id)",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "payout_requests",
+    "policyname": "payout_requests_admin_all",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = 'admin'::text))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "profile_bank_accounts",
+    "policyname": "profile_bank_accounts_owner_all",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "(profile_id = auth.uid())",
     "with_check_expression": null
   },
   {
@@ -751,6 +831,56 @@
   },
   {
     "schemaname": "public",
+    "tablename": "property_requests",
+    "policyname": "property_requests_delete_admin",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = 'admin'::text))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_requests",
+    "policyname": "property_requests_insert_agent",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "(agent_id = auth.uid())"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_requests",
+    "policyname": "property_requests_read_admin",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = 'admin'::text))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_requests",
+    "policyname": "property_requests_read_agent",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "(agent_id = auth.uid())",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_requests",
+    "policyname": "property_requests_update_admin",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = 'admin'::text))))",
+    "with_check_expression": "(EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = 'admin'::text))))"
+  },
+  {
+    "schemaname": "public",
     "tablename": "property_specs",
     "policyname": "Admin full access",
     "permissive": "PERMISSIVE",
@@ -941,6 +1071,56 @@
   },
   {
     "schemaname": "public",
+    "tablename": "term_consents",
+    "policyname": "service_insert_consents",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "true"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "term_consents",
+    "policyname": "service_read_all_consents",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "term_consents",
+    "policyname": "users_read_own_consents",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "(auth.uid() = user_id)",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "terms",
+    "policyname": "anyone_read_active_terms",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "(is_active = true)",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "terms",
+    "policyname": "service_manage_terms",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "true",
+    "with_check_expression": "true"
+  },
+  {
+    "schemaname": "public",
     "tablename": "verification_tokens",
     "policyname": "Service role can manage verification tokens",
     "permissive": "PERMISSIVE",
@@ -1057,26 +1237,6 @@
     "roles": "{public}",
     "cmd": "UPDATE",
     "using_expression": "((agent_id = auth.uid()) OR (EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))",
-    "with_check_expression": null
-  },
-  {
-    "schemaname": "public",
-    "tablename": "agent_holidays",
-    "policyname": "Agent can manage own holidays",
-    "permissive": "PERMISSIVE",
-    "roles": "{public}",
-    "cmd": "ALL",
-    "using_expression": "(agent_id = auth.uid())",
-    "with_check_expression": null
-  },
-  {
-    "schemaname": "public",
-    "tablename": "agent_holidays",
-    "policyname": "Anyone can read holidays",
-    "permissive": "PERMISSIVE",
-    "roles": "{public}",
-    "cmd": "SELECT",
-    "using_expression": "true",
     "with_check_expression": null
   }
 ]

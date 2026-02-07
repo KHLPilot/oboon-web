@@ -14,6 +14,9 @@ export const NOTIFICATION_TYPES = {
   ROLE_CHANGED: "role_changed",
   PROPERTY_AGENT_APPROVED: "property_agent_approved",
   PROPERTY_AGENT_REJECTED: "property_agent_rejected",
+  ADMIN_PROPERTY_REVIEW_REQUEST: "admin_property_review_request",
+  ADMIN_NEW_RESERVATION: "admin_new_reservation",
+  ADMIN_DEPOSIT_UPDATE: "admin_deposit_update",
 
   // 시스템/프로모션
   SYSTEM_ANNOUNCEMENT: "system_announcement",

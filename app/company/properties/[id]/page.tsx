@@ -22,6 +22,11 @@ import {
 } from "lucide-react";
 
 import { deletePropertyCascade, fetchPropertyDetail, updatePropertyBasicInfo } from "@/features/company/services/property.detail";
+import {
+  createPropertyRequest,
+  fetchMyPropertyRequest,
+  type PropertyRequestStatus,
+} from "@/features/company/services/property.request";
 import { validateRequiredOrShowModal } from "@/shared/validationMessage";
 
 import Button from "@/components/ui/Button";
@@ -29,6 +34,7 @@ import { Badge } from "@/components/ui/Badge";
 import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
+import { ToastProvider, useToast } from "@/components/ui/Toast";
 
 import { FormField } from "@/components/shared/FormField";
 
@@ -40,6 +46,7 @@ import {
 } from "@/features/property/domain/propertyStatus";
 import { getPropertySectionStatus } from "@/features/property/components/propertyProgress";
 import { showAlert } from "@/shared/alert";
+import { createSupabaseClient } from "@/lib/supabaseClient";
 
 /* ==================================================
    타입 정의
@@ -205,8 +212,17 @@ function InfoRow({
    메인 페이지
 ================================================== */
 export default function PropertyDetailPage() {
+  return (
+    <ToastProvider>
+      <PropertyDetailPageInner />
+    </ToastProvider>
+  );
+}
+
+function PropertyDetailPageInner() {
   const params = useParams();
   const router = useRouter();
+  const toast = useToast();
   const id = Number(params.id);
 
   // 상태 관리
@@ -219,10 +235,31 @@ export default function PropertyDetailPage() {
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const [imageFileName, setImageFileName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [requestStatus, setRequestStatus] =
+    useState<PropertyRequestStatus | null>(null);
+  const [requestRejectionReason, setRequestRejectionReason] = useState<
+    string | null
+  >(null);
+  const [requestLoading, setRequestLoading] = useState(false);
+  const [needsReapproval, setNeedsReapproval] = useState(false);
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
   // 데이터 로드
   const load = useCallback(async () => {
     setLoading(true);
+    const supabase = createSupabaseClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) {
+      const { data: me } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+      setCurrentUserRole(me?.role ?? null);
+    }
+
     const { data: res, error } = await fetchPropertyDetail(id);
 
     if (!error && res) {
@@ -240,6 +277,12 @@ export default function PropertyDetailPage() {
         undecided_note: res.undecided_note,
       });
     }
+    const requestResult = await fetchMyPropertyRequest(id);
+    if (!requestResult.error) {
+      setRequestStatus(requestResult.data?.status ?? null);
+      setRequestRejectionReason(requestResult.data?.rejection_reason ?? null);
+    }
+
     setLoading(false);
   }, [id]);
 
@@ -302,6 +345,9 @@ export default function PropertyDetailPage() {
     setLocalPreview(null);
     setImageFileName(null);
     setEditMode(false);
+    if (requestStatus === "approved" && currentUserRole !== "admin") {
+      setNeedsReapproval(true);
+    }
     load();
   }
 
@@ -316,6 +362,28 @@ export default function PropertyDetailPage() {
         "삭제 실패: " +
           (err instanceof Error ? err.message : "알 수 없는 오류"),
       );
+    }
+  }
+
+  async function handlePublishRequest() {
+    if (requestLoading) return;
+    setRequestLoading(true);
+    const { error } = await createPropertyRequest(id, {
+      force: (editMode || needsReapproval) && requestStatus === "approved",
+    });
+    setRequestLoading(false);
+
+    if (error) {
+      toast.error(error.message ?? "알 수 없는 오류", "요청 실패");
+      return;
+    }
+
+    toast.success("게시 요청이 접수되었습니다.", "완료");
+    const requestResult = await fetchMyPropertyRequest(id);
+    if (!requestResult.error) {
+      setRequestStatus(requestResult.data?.status ?? null);
+      setRequestRejectionReason(requestResult.data?.rejection_reason ?? null);
+      setNeedsReapproval(false);
     }
   }
 
@@ -368,6 +436,40 @@ export default function PropertyDetailPage() {
   const statusLabel = isPropertyStatus(data.status)
     ? PROPERTY_STATUS_LABEL[data.status]
     : "상태 미정";
+  const requestStatusLabel = needsReapproval
+    ? "재승인 필요"
+    : requestStatus
+      ? requestStatus === "pending"
+        ? "검토 대기"
+        : requestStatus === "approved"
+          ? "승인 완료"
+          : "반려됨"
+      : null;
+  const requestBadgeVariant = needsReapproval
+    ? "warning"
+    : requestStatus === "approved"
+      ? "success"
+      : requestStatus === "rejected"
+        ? "danger"
+        : "warning";
+  const publishButtonLabel = needsReapproval
+    ? "재승인"
+    : editMode
+      ? "재승인"
+      : requestStatus
+        ? requestStatus === "pending"
+          ? "요청 중"
+          : requestStatus === "approved"
+            ? "승인 완료"
+            : "재요청"
+        : "게시 요청";
+  const publishDisabled =
+    requestLoading || requestStatus === "pending";
+  const showPublishButton =
+    !requestStatus ||
+    requestStatus !== "approved" ||
+    needsReapproval ||
+    (editMode && currentUserRole !== "admin");
 
   return (
     <main className="bg-(--oboon-bg-page)">
@@ -387,6 +489,11 @@ export default function PropertyDetailPage() {
               <Badge variant="status" className="text-[11px]">
                 {statusLabel}
               </Badge>
+              {requestStatusLabel ? (
+                <Badge variant={requestBadgeVariant} className="text-[11px]">
+                  게시 요청 · {requestStatusLabel}
+                </Badge>
+              ) : null}
               {!editMode ? (
                 <>
                   <Button
@@ -397,6 +504,18 @@ export default function PropertyDetailPage() {
                   >
                     목록
                   </Button>
+                  {showPublishButton ? (
+                    <Button
+                      variant={publishDisabled ? "secondary" : "primary"}
+                      size="sm"
+                      shape="pill"
+                      disabled={publishDisabled}
+                      loading={requestLoading}
+                      onClick={handlePublishRequest}
+                    >
+                      {publishButtonLabel}
+                    </Button>
+                  ) : null}
                   <Button
                     variant="danger"
                     size="sm"
@@ -426,38 +545,48 @@ export default function PropertyDetailPage() {
           <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-5 py-4 shadow-sm">
             <div className="flex flex-col gap-3">
               <div className="flex items-end justify-between">
-                <div className="space-y-1">
+                <div className="w-full space-y-1">
                   <span
                     className="ob-typo-body text-(--oboon-text-muted) tracking-wider"
                     style={{ fontWeight: "var(--oboon-font-weight-bold)" }}
                   >
                     입력 진행률
                   </span>
-                  <div
-                    className="flex items-center gap-2"
-                    style={{ fontWeight: "var(--oboon-font-weight-heavy)" }}
-                  >
-                    <span className="ob-typo-h2 text-(--oboon-text-title)">
+                  <div>
+                    <span
+                      className="ob-typo-h2 text-(--oboon-text-title)"
+                      style={{ fontWeight: "var(--oboon-font-weight-heavy)" }}
+                    >
                       {progressPercent}%
                     </span>
+                  </div>
+                  <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className="h-full bg-(--oboon-primary) transition-all duration-700 ease-out"
+                      style={{ width: `${progressPercent}%` }}
+                    />
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-start gap-2">
                     {incompleteSectionNames.length > 0 ? (
-                      <span className="ob-typo-body text-(--oboon-warning) bg-(--oboon-warning-bg) px-2 py-0.5 rounded-xl">
-                        <span className="font-bold">입력 필요:</span>{" "}
-                        {incompleteSectionNames.join(", ")}
+                      <span className="inline-flex max-w-full flex-col rounded-xl bg-(--oboon-warning-bg) px-3 py-1.5 text-(--oboon-warning)">
+                        <span className="ob-typo-caption font-bold">입력 필요</span>
+                        <span className="ob-typo-body break-words">
+                          {incompleteSectionNames.join(", ")}
+                        </span>
                       </span>
                     ) : (
-                      <span className="ob-typo-body text(--oboon-safe) bg-(--oboon-safe-bg) px-2 py-0.5 rounded-xl">
+                      <span className="inline-flex rounded-xl bg-(--oboon-safe-bg) px-3 py-1.5 ob-typo-body text-(--oboon-safe)">
                         모든 섹션 입력 완료
                       </span>
                     )}
+                    {requestStatus === "rejected" && requestRejectionReason ? (
+                      <span className="inline-flex max-w-full flex-col rounded-xl bg-(--oboon-danger-bg) px-3 py-1.5 text-(--oboon-danger)">
+                        <span className="ob-typo-caption font-bold">반려 사유</span>
+                        <span className="ob-typo-body break-words">{requestRejectionReason}</span>
+                      </span>
+                    ) : null}
                   </div>
                 </div>
-              </div>
-              <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
-                <div
-                  className="h-full bg-(--oboon-primary) transition-all duration-700 ease-out"
-                  style={{ width: `${progressPercent}%` }}
-                />
               </div>
             </div>
           </div>

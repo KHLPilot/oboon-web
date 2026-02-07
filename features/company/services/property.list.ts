@@ -16,6 +16,9 @@ export type PropertyListRow = {
   property_specs?: any;
   property_timeline?: any;
   property_unit_types?: any;
+  request_status?: "pending" | "approved" | "rejected" | null;
+  request_rejection_reason?: string | null;
+  request_requested_at?: string | null;
 };
 
 export async function fetchPropertyListData() {
@@ -35,7 +38,18 @@ export async function fetchPropertyListData() {
     .eq("id", user.id)
     .single();
 
-  const { data, error } = await supabase
+  let allowedPropertyIds: number[] | null = null;
+  if (profile?.role === "agent") {
+    const { data: memberships } = await supabase
+      .from("property_agents")
+      .select("property_id")
+      .eq("agent_id", user.id)
+      .eq("status", "approved");
+
+    allowedPropertyIds = (memberships ?? []).map((row) => row.property_id);
+  }
+
+  let query = supabase
     .from("properties")
     .select(
       `
@@ -79,10 +93,61 @@ export async function fetchPropertyListData() {
     )
     .order("id", { ascending: false });
 
+  if (allowedPropertyIds) {
+    if (allowedPropertyIds.length === 0) {
+      return {
+        userId: user.id,
+        role: profile?.role ?? null,
+        rows: [] as PropertyListRow[],
+        error: null,
+      };
+    }
+    query = query.in("id", allowedPropertyIds);
+  }
+
+  const { data, error } = await query;
+
+  const rows = (error ? [] : (data ?? [])) as PropertyListRow[];
+
+  if (!error && rows.length > 0) {
+    const propertyIds = rows.map((r) => r.id);
+    const { data: requests } = await supabase
+      .from("property_requests")
+      .select("property_id, status, requested_at, rejection_reason")
+      .in("property_id", propertyIds)
+      .eq("agent_id", user.id)
+      .order("requested_at", { ascending: false });
+
+    const requestMap = new Map<
+      number,
+      {
+        status: PropertyListRow["request_status"];
+        requested_at: string;
+        rejection_reason?: string | null;
+      }
+    >();
+    (requests || []).forEach((req) => {
+      if (!requestMap.has(req.property_id)) {
+        requestMap.set(req.property_id, {
+          status: req.status,
+          requested_at: req.requested_at,
+          rejection_reason: req.rejection_reason ?? null,
+        });
+      }
+    });
+
+    rows.forEach((row) => {
+      const req = requestMap.get(row.id);
+      row.request_status = req?.status ?? null;
+      row.request_requested_at = req?.requested_at ?? null;
+      row.request_rejection_reason = req?.rejection_reason ?? null;
+    });
+  }
+
   return {
     userId: user.id,
     role: profile?.role ?? null,
-    rows: (error ? [] : (data ?? [])) as PropertyListRow[],
+    rows,
     error: error ?? null,
   };
 }

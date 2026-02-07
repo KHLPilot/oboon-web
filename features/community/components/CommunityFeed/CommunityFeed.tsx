@@ -24,9 +24,9 @@ type CommunityEmptyProps = {
 };
 
 function CommunityEmpty({
-  title = "?꾩쭅 泥?湲곕줉???놁뒿?덈떎",
-  description = "?ㅻ????꾩옣?대굹 怨좊? 以묒씤 ?댁슜???④꺼蹂댁꽭??",
-  actionLabel = "湲곕줉 ?④린湲?",
+  title = "아직 첫 기록이 없습니다",
+  description = "다녀온 현장이나 지금 고민중인 내용을 한 문장으로 남겨보세요. 잘 쓴 글이 아니어도 괜찮아요! 나중에 결정할 때, 이 기록이 가장 솔직한 기준이 됩니다.",
+  actionLabel = "기록 남기기",
   onAction = () => {},
 }: CommunityEmptyProps) {
   return (

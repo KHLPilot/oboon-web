@@ -1,5 +1,10 @@
 [
   {
+    "table_name": "agent_holidays",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
     "table_name": "agent_slot_overrides",
     "rls_enabled": true,
     "rls_forced": false
@@ -70,12 +75,32 @@
     "rls_forced": false
   },
   {
+    "table_name": "consultation_money_ledger",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
     "table_name": "consultations",
     "rls_enabled": true,
     "rls_forced": false
   },
   {
     "table_name": "contracts",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "notifications",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "payout_requests",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "profile_bank_accounts",
     "rls_enabled": true,
     "rls_forced": false
   },
@@ -105,6 +130,11 @@
     "rls_forced": false
   },
   {
+    "table_name": "property_requests",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
     "table_name": "property_specs",
     "rls_enabled": true,
     "rls_forced": false
@@ -125,6 +155,16 @@
     "rls_forced": false
   },
   {
+    "table_name": "term_consents",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "terms",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
     "table_name": "verification_tokens",
     "rls_enabled": true,
     "rls_forced": false
@@ -141,11 +181,6 @@
   },
   {
     "table_name": "visit_tokens",
-    "rls_enabled": true,
-    "rls_forced": false
-  },
-  {
-    "table_name": "agent_holidays",
     "rls_enabled": true,
     "rls_forced": false
   }

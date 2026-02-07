@@ -43,6 +43,18 @@ export const NOTIFICATION_CONFIG: Record<string, NotificationConfig> = {
     label: "소속 거절",
     getHref: () => "/agent/properties",
   },
+  [NOTIFICATION_TYPES.ADMIN_PROPERTY_REVIEW_REQUEST]: {
+    label: "현장 검토 요청",
+    getHref: () => "/admin",
+  },
+  [NOTIFICATION_TYPES.ADMIN_NEW_RESERVATION]: {
+    label: "신규 예약",
+    getHref: () => "/admin",
+  },
+  [NOTIFICATION_TYPES.ADMIN_DEPOSIT_UPDATE]: {
+    label: "예약금 변경",
+    getHref: () => "/admin",
+  },
   [NOTIFICATION_TYPES.SYSTEM_ANNOUNCEMENT]: {
     label: "공지",
     getHref: () => null,

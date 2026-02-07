@@ -205,3 +205,31 @@ export function getPropertyProgress(row: PropertyProgressRow) {
     isIncomplete: missingLabels.length > 0,
   };
 }
+
+export function getPropertyProgressPercent(row: PropertyProgressRow) {
+  const {
+    siteLocationStatus,
+    facilityStatus,
+    specsStatus,
+    timelineStatus,
+    unitStatus,
+    commentStatus,
+  } = getPropertySectionStatus(row);
+
+  const sections = [
+    siteLocationStatus,
+    specsStatus,
+    timelineStatus,
+    unitStatus,
+    facilityStatus,
+    commentStatus,
+  ];
+
+  const completedCount = sections.filter((s) => s === "full").length;
+  const partialCount = sections.filter((s) => s === "partial").length;
+  const percent = Math.round(
+    ((completedCount + partialCount * 0.5) / sections.length) * 100,
+  );
+
+  return percent;
+}

@@ -19,6 +19,7 @@ type Ctx = {
   open: boolean;
   setOpen: (v: boolean) => void;
   triggerRef: React.RefObject<HTMLElement>;
+  triggerClassName?: string;
 };
 
 const DropdownMenuContext = createContext<Ctx | null>(null);
@@ -36,10 +37,12 @@ export function DropdownMenu({
   children,
   defaultOpen = false,
   onOpenChange,
+  triggerClassName,
 }: {
   children: React.ReactNode;
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
+  triggerClassName?: string;
 }) {
   const [open, setOpenState] = useState(defaultOpen);
   const triggerRef = useRef<HTMLElement>(null);
@@ -52,7 +55,10 @@ export function DropdownMenu({
     [onOpenChange]
   );
 
-  const value = useMemo(() => ({ open, setOpen, triggerRef }), [open, setOpen]);
+  const value = useMemo(
+    () => ({ open, setOpen, triggerRef, triggerClassName }),
+    [open, setOpen, triggerClassName]
+  );
 
   // ESC to close
   useEffect(() => {
@@ -74,11 +80,14 @@ export function DropdownMenu({
 export function DropdownMenuTrigger({
   children,
   asChild = false,
+  className = "",
 }: {
   children: React.ReactNode;
   asChild?: boolean;
+  className?: string;
 }) {
-  const { open, setOpen, triggerRef } = useDropdownMenu();
+  const { open, setOpen, triggerRef, triggerClassName } = useDropdownMenu();
+  const mergedClassName = [triggerClassName, className].filter(Boolean).join(" ");
 
   const onToggle = (e: React.MouseEvent<HTMLElement>) => {
     e.preventDefault();
@@ -106,6 +115,9 @@ export function DropdownMenuTrigger({
         (triggerRef as React.MutableRefObject<HTMLElement | null>).current =
           node;
       },
+      className: [child.props?.className, mergedClassName]
+        .filter(Boolean)
+        .join(" "),
       onClick: (e: React.MouseEvent<HTMLElement>) => {
         child.props?.onClick?.(e);
         if (!e.defaultPrevented) onToggle(e);
@@ -119,6 +131,7 @@ export function DropdownMenuTrigger({
     <button
       ref={triggerRef as React.Ref<HTMLButtonElement>}
       type="button"
+      className={mergedClassName}
       onClick={onToggle}
       aria-haspopup="menu"
       aria-expanded={open ? "true" : "false"}

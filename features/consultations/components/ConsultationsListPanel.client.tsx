@@ -14,6 +14,7 @@ import Link from "next/link";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import ConsultationCard from "@/features/consultations/components/ConsultationCard.client";
+import GpsVisitVerifyModal from "@/features/consultations/components/GpsVisitVerifyModal.client";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 
 import { showAlert } from "@/shared/alert";
@@ -89,6 +90,10 @@ export default function ConsultationsListPanel({
   const [consultations, setConsultations] = useState<Consultation[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
+  const [visitModalOpen, setVisitModalOpen] = useState(false);
+  const [visitConsultation, setVisitConsultation] = useState<Consultation | null>(
+    null,
+  );
 
   const handleNavigate = useCallback(
     (href: string) => {
@@ -296,11 +301,10 @@ export default function ConsultationsListPanel({
                       size="md"
                       variant="secondary"
                       className="w-full sm:flex-1 min-h-8"
-                      onClick={() =>
-                        handleNavigate(
-                          `/my/consultations/${consultation.id}/qr`,
-                        )
-                      }
+                      onClick={() => {
+                        setVisitConsultation(consultation);
+                        setVisitModalOpen(true);
+                      }}
                     >
                       <MapPin className="h-5 w-5" />
                       방문인증
@@ -367,6 +371,22 @@ export default function ConsultationsListPanel({
           더보기
         </Button>
       )}
+
+      <GpsVisitVerifyModal
+        open={visitModalOpen}
+        consultationId={visitConsultation?.id ?? null}
+        propertyName={visitConsultation?.property?.name}
+        scheduledAtLabel={
+          visitConsultation ? formatDate(visitConsultation.scheduled_at) : undefined
+        }
+        onClose={() => {
+          setVisitModalOpen(false);
+          setVisitConsultation(null);
+        }}
+        onVerified={() => {
+          void fetchConsultations();
+        }}
+      />
     </div>
   );
 }

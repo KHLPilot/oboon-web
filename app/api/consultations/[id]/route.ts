@@ -8,6 +8,8 @@ const adminSupabase = createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+const VISIT_REWARD_AMOUNT = 10000;
+
 // 예약 상세 조회
 export async function GET(
     req: Request,
@@ -108,10 +110,10 @@ export async function PATCH(
         }
 
         const body = await req.json();
-        const { status, agreed_to_terms } = body;
+        const { status, agreed_to_terms, no_show_by } = body;
 
         // 유효한 상태값 검증
-        const validStatuses = ["pending", "confirmed", "visited", "contracted", "cancelled"];
+        const validStatuses = ["pending", "confirmed", "visited", "contracted", "cancelled", "no_show"];
         if (!validStatuses.includes(status)) {
             return NextResponse.json(
                 { error: "유효하지 않은 상태입니다" },
@@ -179,6 +181,21 @@ export async function PATCH(
 
         if (status === "cancelled") {
             updateData.cancelled_at = new Date().toISOString();
+            updateData.cancelled_by = isAdmin
+                ? "admin"
+                : isAgent
+                    ? "agent"
+                    : "customer";
+        }
+
+        if (status === "no_show") {
+            if (no_show_by !== "customer" && no_show_by !== "agent") {
+                return NextResponse.json(
+                    { error: "노쇼 주체(no_show_by)가 필요합니다" },
+                    { status: 400 }
+                );
+            }
+            updateData.no_show_by = no_show_by;
         }
 
         // 예약 상태 업데이트
@@ -195,6 +212,189 @@ export async function PATCH(
                 { error: "예약 상태 변경에 실패했습니다" },
                 { status: 500 }
             );
+        }
+
+        // 정산 이벤트 자동 연동
+        // - 방문 완료: 보상 발생 + 지급 요청 생성
+        // - 취소:
+        //   customer (48h 이후): 포인트 환급
+        //   customer (48h 이내): 환급 불가
+        //   agent/admin: 현금 환급 큐 생성
+        // - 노쇼(customer): 환급 불가
+        // - 노쇼(agent): 포인트 환급
+        let depositUpdateMessage: string | null = null;
+        if (status === "visited" || status === "cancelled" || status === "no_show") {
+            const { data: ledgerRows } = await adminSupabase
+                .from("consultation_money_ledger")
+                .select("event_type, amount")
+                .eq("consultation_id", id);
+
+            const hasEvent = (eventType: string) =>
+                (ledgerRows || []).some((r: any) => r.event_type === eventType);
+
+            const depositPaidAmount = (ledgerRows || [])
+                .filter((r: any) => r.event_type === "deposit_paid")
+                .reduce((acc: number, r: any) => acc + Math.abs(r.amount || 0), 0);
+
+            const cancellationTiming = (() => {
+                if (status !== "cancelled") return null;
+                if (!existingConsultation.scheduled_at || !updateData.cancelled_at) return null;
+                const scheduledAtMs = new Date(existingConsultation.scheduled_at).getTime();
+                const cancelledAtMs = new Date(updateData.cancelled_at).getTime();
+                return scheduledAtMs - cancelledAtMs >= 48 * 60 * 60 * 1000
+                    ? "after_48h"
+                    : "within_48h";
+            })();
+
+            const shouldGrantPointRefundFromCancellation =
+                status === "cancelled" &&
+                isCustomer &&
+                cancellationTiming === "after_48h";
+            const shouldCreateCashRefundFromCancellation =
+                status === "cancelled" &&
+                (isAgent || isAdmin);
+            const shouldForfeitFromCancellation =
+                status === "cancelled" &&
+                isCustomer &&
+                cancellationTiming === "within_48h";
+
+            const cancellationNote = (() => {
+                if (status !== "cancelled") return null;
+                if (isAgent) return "agent_cancel";
+                if (isAdmin) return "admin_cancel";
+                if (isCustomer && cancellationTiming === "after_48h") {
+                    return "customer_cancel_after_48h";
+                }
+                if (isCustomer && cancellationTiming === "within_48h") {
+                    return "customer_cancel_within_48h";
+                }
+                return null;
+            })();
+
+            const shouldGrantRefundFromNoShow =
+                status === "no_show" && no_show_by === "agent";
+            const shouldForfeitFromNoShow =
+                status === "no_show" && no_show_by === "customer";
+
+            if (
+                (shouldGrantPointRefundFromCancellation || shouldGrantRefundFromNoShow) &&
+                depositPaidAmount > 0 &&
+                !hasEvent("deposit_point_granted") &&
+                !hasEvent("deposit_forfeited")
+            ) {
+                await adminSupabase.from("consultation_money_ledger").insert({
+                    consultation_id: id,
+                    event_type: "deposit_point_granted",
+                    bucket: "point",
+                    amount: depositPaidAmount,
+                    actor_id: user.id,
+                    admin_id: isAdmin ? user.id : null,
+                    note: shouldGrantRefundFromNoShow
+                        ? "agent_no_show_refund"
+                        : cancellationNote,
+                });
+                depositUpdateMessage = shouldGrantRefundFromNoShow
+                    ? "상담사 노쇼로 예약금이 포인트 전환 대기 상태가 되었습니다."
+                    : "예약 취소 조건 충족으로 예약금이 포인트 전환 대기 상태가 되었습니다.";
+            }
+
+            if (shouldCreateCashRefundFromCancellation && depositPaidAmount > 0) {
+                const { data: existingRefundPayout } = await adminSupabase
+                    .from("payout_requests")
+                    .select("id")
+                    .eq("consultation_id", id)
+                    .eq("type", "deposit_refund")
+                    .limit(1)
+                    .maybeSingle();
+
+                if (!existingRefundPayout) {
+                    await adminSupabase
+                        .from("payout_requests")
+                        .insert({
+                            consultation_id: id,
+                            type: "deposit_refund",
+                            amount: depositPaidAmount,
+                            target_profile_id: existingConsultation.customer_id,
+                            status: "pending",
+                        });
+                    depositUpdateMessage = "상담사/관리자 취소로 예약금 현금 환급 요청이 생성되었습니다.";
+                }
+            }
+
+            if (
+                (shouldForfeitFromNoShow || shouldForfeitFromCancellation) &&
+                !hasEvent("deposit_forfeited") &&
+                !hasEvent("deposit_point_granted")
+            ) {
+                await adminSupabase.from("consultation_money_ledger").insert({
+                    consultation_id: id,
+                    event_type: "deposit_forfeited",
+                    bucket: "deposit",
+                    amount: depositPaidAmount > 0 ? depositPaidAmount : 1000,
+                    actor_id: user.id,
+                    admin_id: isAdmin ? user.id : null,
+                    note: shouldForfeitFromNoShow
+                        ? "customer_no_show_forfeited"
+                        : "customer_cancel_within_48h",
+                });
+                depositUpdateMessage = shouldForfeitFromNoShow
+                    ? "고객 노쇼로 예약금 환급 불가 처리되었습니다."
+                    : "고객 취소(48시간 이내)로 예약금 환급 불가 처리되었습니다.";
+            }
+
+            if (status === "visited" && !hasEvent("reward_due")) {
+                await adminSupabase.from("consultation_money_ledger").insert({
+                    consultation_id: id,
+                    event_type: "reward_due",
+                    bucket: "reward",
+                    amount: VISIT_REWARD_AMOUNT,
+                    actor_id: user.id,
+                    admin_id: isAdmin ? user.id : null,
+                    note: "visit_verified_reward_due",
+                });
+
+                const { data: existingPayout } = await adminSupabase
+                    .from("payout_requests")
+                    .select("id")
+                    .eq("consultation_id", id)
+                    .eq("type", "reward_payout")
+                    .limit(1)
+                    .maybeSingle();
+
+                if (!existingPayout) {
+                    await adminSupabase
+                        .from("payout_requests")
+                        .insert({
+                            consultation_id: id,
+                            type: "reward_payout",
+                            amount: VISIT_REWARD_AMOUNT,
+                            target_profile_id: existingConsultation.agent_id,
+                            status: "pending",
+                        });
+                }
+            }
+        }
+
+        if (depositUpdateMessage) {
+            const { data: admins } = await adminSupabase
+                .from("profiles")
+                .select("id")
+                .eq("role", "admin");
+
+            if (admins && admins.length > 0) {
+                const notifications = admins.map((admin) => ({
+                    recipient_id: admin.id,
+                    type: "admin_deposit_update",
+                    title: "예약금 상태 변경",
+                    message: depositUpdateMessage,
+                    consultation_id: id,
+                    metadata: {
+                        tab: "settlements",
+                        reservation_id: id,
+                    },
+                }));
+                await adminSupabase.from("notifications").insert(notifications);
+            }
         }
 
         // 상담사가 예약 확정 시 약관 동의 기록 저장 (법적 증거용)

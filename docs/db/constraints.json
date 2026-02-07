@@ -1,5 +1,23 @@
 [
   {
+    "table_name": "agent_holidays",
+    "constraint_name": "agent_holidays_agent_id_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (agent_id) REFERENCES profiles(id) ON DELETE CASCADE"
+  },
+  {
+    "table_name": "agent_holidays",
+    "constraint_name": "agent_holidays_pkey",
+    "constraint_type": "p",
+    "definition": "PRIMARY KEY (id)"
+  },
+  {
+    "table_name": "agent_holidays",
+    "constraint_name": "agent_holidays_agent_id_holiday_date_key",
+    "constraint_type": "u",
+    "definition": "UNIQUE (agent_id, holiday_date)"
+  },
+  {
     "table_name": "agent_slot_overrides",
     "constraint_name": "agent_slot_overrides_agent_id_fkey",
     "constraint_type": "f",
@@ -270,10 +288,46 @@
     "definition": "PRIMARY KEY (id)"
   },
   {
+    "table_name": "consultation_money_ledger",
+    "constraint_name": "consultation_money_ledger_bucket_check",
+    "constraint_type": "c",
+    "definition": "CHECK (((bucket)::text = ANY ((ARRAY['deposit'::character varying, 'reward'::character varying, 'point'::character varying])::text[])))"
+  },
+  {
+    "table_name": "consultation_money_ledger",
+    "constraint_name": "consultation_money_ledger_event_type_check",
+    "constraint_type": "c",
+    "definition": "CHECK (((event_type)::text = ANY ((ARRAY['deposit_paid'::character varying, 'deposit_point_granted'::character varying, 'deposit_forfeited'::character varying, 'reward_due'::character varying, 'reward_paid'::character varying])::text[])))"
+  },
+  {
+    "table_name": "consultation_money_ledger",
+    "constraint_name": "consultation_money_ledger_consultation_id_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (consultation_id) REFERENCES consultations(id) ON DELETE CASCADE"
+  },
+  {
+    "table_name": "consultation_money_ledger",
+    "constraint_name": "consultation_money_ledger_pkey",
+    "constraint_type": "p",
+    "definition": "PRIMARY KEY (id)"
+  },
+  {
+    "table_name": "consultations",
+    "constraint_name": "consultations_cancelled_by_check",
+    "constraint_type": "c",
+    "definition": "CHECK (((cancelled_by IS NULL) OR ((cancelled_by)::text = ANY ((ARRAY['customer'::character varying, 'agent'::character varying, 'admin'::character varying])::text[]))))"
+  },
+  {
+    "table_name": "consultations",
+    "constraint_name": "consultations_no_show_by_check",
+    "constraint_type": "c",
+    "definition": "CHECK (((no_show_by IS NULL) OR ((no_show_by)::text = ANY ((ARRAY['customer'::character varying, 'agent'::character varying])::text[]))))"
+  },
+  {
     "table_name": "consultations",
     "constraint_name": "consultations_status_check",
     "constraint_type": "c",
-    "definition": "CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'confirmed'::character varying, 'visited'::character varying, 'contracted'::character varying, 'cancelled'::character varying])::text[])))"
+    "definition": "CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'confirmed'::character varying, 'visited'::character varying, 'contracted'::character varying, 'cancelled'::character varying, 'no_show'::character varying])::text[])))"
   },
   {
     "table_name": "consultations",
@@ -332,6 +386,72 @@
   {
     "table_name": "contracts",
     "constraint_name": "contracts_pkey",
+    "constraint_type": "p",
+    "definition": "PRIMARY KEY (id)"
+  },
+  {
+    "table_name": "notifications",
+    "constraint_name": "notifications_consultation_id_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (consultation_id) REFERENCES consultations(id) ON DELETE SET NULL"
+  },
+  {
+    "table_name": "notifications",
+    "constraint_name": "notifications_recipient_id_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (recipient_id) REFERENCES profiles(id) ON DELETE CASCADE"
+  },
+  {
+    "table_name": "notifications",
+    "constraint_name": "notifications_pkey",
+    "constraint_type": "p",
+    "definition": "PRIMARY KEY (id)"
+  },
+  {
+    "table_name": "payout_requests",
+    "constraint_name": "payout_requests_status_check",
+    "constraint_type": "c",
+    "definition": "CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'processing'::character varying, 'done'::character varying, 'rejected'::character varying])::text[])))"
+  },
+  {
+    "table_name": "payout_requests",
+    "constraint_name": "payout_requests_type_check",
+    "constraint_type": "c",
+    "definition": "CHECK (((type)::text = 'reward_payout'::text))"
+  },
+  {
+    "table_name": "payout_requests",
+    "constraint_name": "payout_requests_consultation_id_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (consultation_id) REFERENCES consultations(id) ON DELETE RESTRICT"
+  },
+  {
+    "table_name": "payout_requests",
+    "constraint_name": "payout_requests_target_profile_id_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (target_profile_id) REFERENCES profiles(id) ON DELETE RESTRICT"
+  },
+  {
+    "table_name": "payout_requests",
+    "constraint_name": "payout_requests_pkey",
+    "constraint_type": "p",
+    "definition": "PRIMARY KEY (id)"
+  },
+  {
+    "table_name": "payout_requests",
+    "constraint_name": "payout_requests_unique_consultation",
+    "constraint_type": "u",
+    "definition": "UNIQUE (consultation_id, type)"
+  },
+  {
+    "table_name": "profile_bank_accounts",
+    "constraint_name": "profile_bank_accounts_profile_id_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE"
+  },
+  {
+    "table_name": "profile_bank_accounts",
+    "constraint_name": "profile_bank_accounts_pkey",
     "constraint_type": "p",
     "definition": "PRIMARY KEY (id)"
   },
@@ -405,19 +525,19 @@
     "table_name": "property_facilities",
     "constraint_name": "property_facilities_open_end_format_check",
     "constraint_type": "c",
-    "definition": "CHECK (((open_end IS NULL) OR (((open_end ~ '^\\\\d{4}-(0[1-9]|1[0-2])$'::text) AND (to_char((to_date((open_end || '-01'::text), 'YYYY-MM-DD'::text))::timestamp with time zone, 'YYYY-MM'::text) = open_end)) OR ((open_end ~ '^\\\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\\\d|3[01])$'::text) AND (to_char((to_date(open_end, 'YYYY-MM-DD'::text))::timestamp with time zone, 'YYYY-MM-DD'::text) = open_end)))))"
+    "definition": "CHECK (((open_end IS NULL) OR (((open_end ~ '^\\d{4}-(0[1-9]|1[0-2])$'::text) AND (to_char((to_date((open_end || '-01'::text), 'YYYY-MM-DD'::text))::timestamp with time zone, 'YYYY-MM'::text) = open_end)) OR ((open_end ~ '^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$'::text) AND (to_char((to_date(open_end, 'YYYY-MM-DD'::text))::timestamp with time zone, 'YYYY-MM-DD'::text) = open_end)))))"
   },
   {
     "table_name": "property_facilities",
     "constraint_name": "property_facilities_open_range_check",
     "constraint_type": "c",
-    "definition": "CHECK (((open_start IS NULL) OR (open_end IS NULL) OR (to_date(\\nCASE\\n    WHEN (length(open_start) = 7) THEN (open_start || '-01'::text)\\n    ELSE open_start\\nEND, 'YYYY-MM-DD'::text) <= to_date(\\nCASE\\n    WHEN (length(open_end) = 7) THEN (open_end || '-01'::text)\\n    ELSE open_end\\nEND, 'YYYY-MM-DD'::text))))"
+    "definition": "CHECK (((open_start IS NULL) OR (open_end IS NULL) OR (to_date(\nCASE\n    WHEN (length(open_start) = 7) THEN (open_start || '-01'::text)\n    ELSE open_start\nEND, 'YYYY-MM-DD'::text) <= to_date(\nCASE\n    WHEN (length(open_end) = 7) THEN (open_end || '-01'::text)\n    ELSE open_end\nEND, 'YYYY-MM-DD'::text))))"
   },
   {
     "table_name": "property_facilities",
     "constraint_name": "property_facilities_open_start_format_check",
     "constraint_type": "c",
-    "definition": "CHECK (((open_start IS NULL) OR (((open_start ~ '^\\\\d{4}-(0[1-9]|1[0-2])$'::text) AND (to_char((to_date((open_start || '-01'::text), 'YYYY-MM-DD'::text))::timestamp with time zone, 'YYYY-MM'::text) = open_start)) OR ((open_start ~ '^\\\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\\\d|3[01])$'::text) AND (to_char((to_date(open_start, 'YYYY-MM-DD'::text))::timestamp with time zone, 'YYYY-MM-DD'::text) = open_start)))))"
+    "definition": "CHECK (((open_start IS NULL) OR (((open_start ~ '^\\d{4}-(0[1-9]|1[0-2])$'::text) AND (to_char((to_date((open_start || '-01'::text), 'YYYY-MM-DD'::text))::timestamp with time zone, 'YYYY-MM'::text) = open_start)) OR ((open_start ~ '^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$'::text) AND (to_char((to_date(open_start, 'YYYY-MM-DD'::text))::timestamp with time zone, 'YYYY-MM-DD'::text) = open_start)))))"
   },
   {
     "table_name": "property_facilities",
@@ -440,6 +560,30 @@
   {
     "table_name": "property_locations",
     "constraint_name": "property_locations_pkey",
+    "constraint_type": "p",
+    "definition": "PRIMARY KEY (id)"
+  },
+  {
+    "table_name": "property_requests",
+    "constraint_name": "property_requests_status_check",
+    "constraint_type": "c",
+    "definition": "CHECK ((status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text])))"
+  },
+  {
+    "table_name": "property_requests",
+    "constraint_name": "property_requests_agent_id_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (agent_id) REFERENCES profiles(id) ON DELETE CASCADE"
+  },
+  {
+    "table_name": "property_requests",
+    "constraint_name": "property_requests_property_id_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE"
+  },
+  {
+    "table_name": "property_requests",
+    "constraint_name": "property_requests_pkey",
     "constraint_type": "p",
     "definition": "PRIMARY KEY (id)"
   },
@@ -508,6 +652,48 @@
     "constraint_name": "public_profiles_pkey",
     "constraint_type": "p",
     "definition": "PRIMARY KEY (id)"
+  },
+  {
+    "table_name": "term_consents",
+    "constraint_name": "term_consents_term_id_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (term_id) REFERENCES terms(id) ON DELETE RESTRICT"
+  },
+  {
+    "table_name": "term_consents",
+    "constraint_name": "term_consents_user_id_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE"
+  },
+  {
+    "table_name": "term_consents",
+    "constraint_name": "term_consents_pkey",
+    "constraint_type": "p",
+    "definition": "PRIMARY KEY (id)"
+  },
+  {
+    "table_name": "terms",
+    "constraint_name": "terms_created_by_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (created_by) REFERENCES profiles(id)"
+  },
+  {
+    "table_name": "terms",
+    "constraint_name": "terms_updated_by_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (updated_by) REFERENCES profiles(id)"
+  },
+  {
+    "table_name": "terms",
+    "constraint_name": "terms_pkey",
+    "constraint_type": "p",
+    "definition": "PRIMARY KEY (id)"
+  },
+  {
+    "table_name": "terms",
+    "constraint_name": "terms_type_version_unique",
+    "constraint_type": "u",
+    "definition": "UNIQUE (type, version)"
   },
   {
     "table_name": "verification_tokens",
@@ -640,23 +826,5 @@
     "constraint_name": "visit_tokens_token_key",
     "constraint_type": "u",
     "definition": "UNIQUE (token)"
-  },
-  {
-    "table_name": "agent_holidays",
-    "constraint_name": "agent_holidays_agent_id_fkey",
-    "constraint_type": "f",
-    "definition": "FOREIGN KEY (agent_id) REFERENCES profiles(id) ON DELETE CASCADE"
-  },
-  {
-    "table_name": "agent_holidays",
-    "constraint_name": "agent_holidays_pkey",
-    "constraint_type": "p",
-    "definition": "PRIMARY KEY (id)"
-  },
-  {
-    "table_name": "agent_holidays",
-    "constraint_name": "agent_holidays_agent_id_holiday_date_key",
-    "constraint_type": "u",
-    "definition": "UNIQUE (agent_id, holiday_date)"
   }
 ]

@@ -1,3 +1,6 @@
-import { getPropertySectionStatus } from "@/features/property/mappers/propertyProgress";
+import {
+  getPropertySectionStatus,
+  getPropertyProgressPercent,
+} from "@/features/property/mappers/propertyProgress";
 
-export { getPropertySectionStatus };
+export { getPropertySectionStatus, getPropertyProgressPercent };

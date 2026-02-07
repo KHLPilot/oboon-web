@@ -10,17 +10,32 @@ import { fetchAdminDashboardData } from "@/features/admin/services/admin.dashboa
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import Input from "@/components/ui/Input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/DropdownMenu";
+import OboonDatePicker from "@/components/ui/DatePicker";
 import Modal from "@/components/ui/Modal";
 import { ToastProvider, useToast } from "@/components/ui/Toast";
+import SettlementDetailModal from "@/features/admin/components/SettlementDetailModal";
 import {
   AlertTriangle,
   ArrowRight,
   Building2,
+  Calendar,
   CalendarDays,
+  ChevronDown,
   Edit3,
   FileText,
   Loader2,
   Plus,
+  RefreshCw,
+  Search,
+  Scale,
+  User,
   UserCheck,
   Users,
 } from "lucide-react";
@@ -40,16 +55,57 @@ type PropertyAgent = {
   property_id: number;
   agent_id: string;
   status: "pending" | "approved" | "rejected";
+  rejection_reason?: string | null;
   requested_at: string;
   properties: {
     id: number;
     name: string;
+    progressPercent?: number;
+    inputCount?: number;
+    totalCount?: number;
   } | null;
   profiles: {
     id: string;
     name: string;
     email: string;
+    role?: string | null;
   } | null;
+};
+
+type ReservationRow = {
+  id: string;
+  status: string;
+  scheduled_at: string;
+  customer?: { id: string; name: string | null; avatar_url?: string | null } | null;
+  agent?: { id: string; name: string | null; avatar_url?: string | null } | null;
+  customer_avatar_url?: string | null;
+  agent_avatar_url?: string | null;
+};
+
+type SettlementSummary = {
+  rewardPendingCount: number;
+  refundPendingCount: number;
+  noShowPendingCount: number;
+};
+
+type SettlementRow = {
+  id: string;
+  status: string;
+  scheduled_at: string;
+  scheduled_at_label: string;
+  deposit_label: string;
+  deposit_tone: "primary" | "success" | "warning" | "muted";
+  reward_label: string;
+  reward_tone: "primary" | "success" | "warning" | "muted";
+  reason: string;
+  property_name: string;
+  property_image_url: string | null;
+  customer_name: string | null;
+  customer_avatar_url: string | null;
+  agent_name: string | null;
+  agent_avatar_url: string | null;
+  deposit_amount: number;
+  refund_amount: number;
 };
 
 type Term = {
@@ -128,9 +184,7 @@ function AdminPageInner() {
   const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [pendingAgents, setPendingAgents] = useState<Profile[]>([]);
-  const [pendingPropertyAgents, setPendingPropertyAgents] = useState<
-    PropertyAgent[]
-  >([]);
+  const [propertyAgents, setPropertyAgents] = useState<PropertyAgent[]>([]);
   const [approvedPropertyAgentCount, setApprovedPropertyAgentCount] =
     useState(0);
   const [todayNewConsultations, setTodayNewConsultations] = useState(0);
@@ -138,6 +192,10 @@ function AdminPageInner() {
   const [deletedUsers, setDeletedUsers] = useState<Profile[]>([]);
   const [activeUsers, setActiveUsers] = useState<Profile[]>([]);
   const [roleSort, setRoleSort] = useState<"none" | "asc" | "desc">("none");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [propertyStatusFilter, setPropertyStatusFilter] = useState<
+    "all" | "pending" | "rejected" | "approved"
+  >("all");
   const [confirm, setConfirm] = useState<ConfirmState>({ open: false });
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [propertyAgentAction, setPropertyAgentAction] = useState<{
@@ -145,6 +203,24 @@ function AdminPageInner() {
     action: "approve" | "reject";
     loading: boolean;
   } | null>(null);
+  const [reservations, setReservations] = useState<ReservationRow[]>([]);
+  const [reservationsLoading, setReservationsLoading] = useState(false);
+  const [reservationStatus, setReservationStatus] = useState("all");
+  const [reservationDate, setReservationDate] = useState<Date | null>(null);
+  const [reservationAgentQuery, setReservationAgentQuery] = useState("");
+  const [reservationPage, setReservationPage] = useState(1);
+  const [settlementLoading, setSettlementLoading] = useState(false);
+  const [settlementSummary, setSettlementSummary] = useState<SettlementSummary>({
+    rewardPendingCount: 0,
+    refundPendingCount: 0,
+    noShowPendingCount: 0,
+  });
+  const [settlementRows, setSettlementRows] = useState<SettlementRow[]>([]);
+  const [selectedSettlement, setSelectedSettlement] =
+    useState<SettlementRow | null>(null);
+  const [resolvedPropertyRequests, setResolvedPropertyRequests] = useState<
+    Record<string, boolean>
+  >({});
 
   // 약관 관리 상태
   const [terms, setTerms] = useState<Term[]>([]);
@@ -168,12 +244,13 @@ function AdminPageInner() {
     }
 
     setPendingAgents(data.pendingAgents);
-    setPendingPropertyAgents(data.pendingPropertyAgents);
+    setPropertyAgents(data.propertyAgents);
     setApprovedPropertyAgentCount(data.approvedPropertyAgentCount);
     setTodayNewConsultations(data.todayNewConsultations);
     setTodayVisitConsultations(data.todayVisitConsultations);
     setDeletedUsers(data.deletedUsers);
     setActiveUsers(data.activeUsers);
+    setResolvedPropertyRequests({});
     setLoading(false);
   }, [router]);
 
@@ -288,11 +365,14 @@ function AdminPageInner() {
       loading: true,
     });
     try {
-      const response = await fetch(`/api/property-agents/${propertyAgentId}`, {
+      const response = await fetch(
+        `/api/property-requests/${propertyAgentId}`,
+        {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "approved" }),
-      });
+        },
+      );
 
       const data = await response.json();
 
@@ -300,7 +380,11 @@ function AdminPageInner() {
         throw new Error(data.error || "승인에 실패했습니다");
       }
 
-      toast.success("현장 소속이 승인되었습니다", "완료");
+      toast.success("게시 요청이 승인되었습니다", "완료");
+      setResolvedPropertyRequests((prev) => ({
+        ...prev,
+        [propertyAgentId]: true,
+      }));
       await loadData();
     } catch (error: any) {
       toast.error(error.message || "승인에 실패했습니다", "오류");
@@ -319,11 +403,14 @@ function AdminPageInner() {
       loading: true,
     });
     try {
-      const response = await fetch(`/api/property-agents/${propertyAgentId}`, {
+      const response = await fetch(
+        `/api/property-requests/${propertyAgentId}`,
+        {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "rejected", rejection_reason: reason }),
-      });
+        },
+      );
 
       const data = await response.json();
 
@@ -331,7 +418,11 @@ function AdminPageInner() {
         throw new Error(data.error || "거절에 실패했습니다");
       }
 
-      toast.success("현장 소속이 거절되었습니다", "완료");
+      toast.success("게시 요청이 반려되었습니다", "완료");
+      setResolvedPropertyRequests((prev) => ({
+        ...prev,
+        [propertyAgentId]: true,
+      }));
       await loadData();
     } catch (error: any) {
       toast.error(error.message || "거절에 실패했습니다", "오류");
@@ -343,6 +434,98 @@ function AdminPageInner() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const loadReservations = useCallback(async () => {
+    setReservationsLoading(true);
+    try {
+      const response = await fetch("/api/consultations?role=admin");
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "예약 조회 실패");
+      }
+      setReservations((data.consultations || []) as ReservationRow[]);
+    } catch (error: any) {
+      toast.error(error.message || "예약 조회 실패", "오류");
+    } finally {
+      setReservationsLoading(false);
+    }
+  }, [toast]);
+
+  const reservationStatusLabel: Record<string, string> = {
+    pending: "예약 대기",
+    confirmed: "예약 확정",
+    visited: "방문 완료",
+    contracted: "계약 완료",
+    cancelled: "취소됨",
+    no_show: "노쇼",
+  };
+
+  const loadSettlements = useCallback(async () => {
+    setSettlementLoading(true);
+    try {
+      const response = await fetch("/api/admin/settlements");
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "정산 데이터 조회 실패");
+      }
+      setSettlementSummary(
+        (data.summary || {
+          rewardPendingCount: 0,
+          refundPendingCount: 0,
+          noShowPendingCount: 0,
+        }) as SettlementSummary,
+      );
+      setSettlementRows((data.rows || []) as SettlementRow[]);
+    } catch (error: any) {
+      toast.error(error.message || "정산 데이터 조회 실패", "오류");
+    } finally {
+      setSettlementLoading(false);
+    }
+  }, [toast]);
+
+  const filteredReservations = useMemo(() => {
+    const query = reservationAgentQuery.trim().toLowerCase();
+    const formatLocalDate = (date: Date) =>
+      `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+        date.getDate(),
+      ).padStart(2, "0")}`;
+    return reservations
+      .filter((r) => {
+        if (reservationStatus !== "all" && r.status !== reservationStatus) {
+          return false;
+        }
+        if (reservationDate) {
+          const local = formatLocalDate(new Date(r.scheduled_at));
+          if (local !== formatLocalDate(reservationDate)) return false;
+        }
+        if (query) {
+          const name = (r.agent?.name ?? "").toLowerCase();
+          if (!name.includes(query)) return false;
+        }
+        return true;
+      })
+      .sort(
+        (a, b) =>
+          new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime(),
+      );
+  }, [reservations, reservationStatus, reservationDate, reservationAgentQuery]);
+
+  const reservationPageSize = 10;
+  const reservationTotal = filteredReservations.length;
+  const reservationPageCount = Math.max(
+    1,
+    Math.ceil(reservationTotal / reservationPageSize),
+  );
+  const reservationPageSafe = Math.min(
+    reservationPage,
+    reservationPageCount,
+  );
+  const reservationStart = (reservationPageSafe - 1) * reservationPageSize;
+  const reservationEnd = reservationStart + reservationPageSize;
+  const reservationSlice = filteredReservations.slice(
+    reservationStart,
+    reservationEnd,
+  );
 
   const toggleRoleSort = () => {
     setRoleSort((prev) =>
@@ -358,6 +541,19 @@ function AdminPageInner() {
         roleSortKey(a.role).localeCompare(roleSortKey(b.role), "ko-KR") * dir,
     );
   }, [activeUsers, roleSort]);
+
+  const filteredActiveUsers = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return sortedActiveUsers;
+    return sortedActiveUsers.filter((u) => {
+      const name = (u.name ?? "").toLowerCase();
+      const email = u.email.toLowerCase();
+      const phone = (u.phone_number ?? "").toLowerCase();
+      return (
+        name.includes(query) || email.includes(query) || phone.includes(query)
+      );
+    });
+  }, [searchQuery, sortedActiveUsers]);
 
   const userGrowth = useMemo(() => {
     const total = activeUsers.length;
@@ -380,17 +576,157 @@ function AdminPageInner() {
     return { total, delta: newToday, percent };
   }, [activeUsers]);
 
+  const pendingPropertyAgentCount = useMemo(
+    () => propertyAgents.filter((pa) => pa.status === "pending").length,
+    [propertyAgents],
+  );
+
+  const propertyCards = useMemo(() => {
+    const cards = propertyAgents.map((pa) => ({
+      id: pa.id,
+      propertyId: pa.property_id,
+      title: pa.properties?.name || "-",
+      progressPercent: pa.properties?.progressPercent ?? null,
+      inputCount: pa.properties?.inputCount ?? null,
+      totalCount: pa.properties?.totalCount ?? null,
+      agent: pa.profiles?.name || "-",
+      agentRole: pa.profiles?.role ?? null,
+      email: pa.profiles?.email || "-",
+      requestedAt: pa.requested_at,
+      status: pa.status,
+      rejectionReason: pa.rejection_reason ?? null,
+    }));
+
+    const latestByProperty = new Map<number, (typeof cards)[number]>();
+    cards.forEach((card) => {
+      const prev = latestByProperty.get(card.propertyId);
+      if (!prev) {
+        latestByProperty.set(card.propertyId, card);
+        return;
+      }
+      if (new Date(card.requestedAt) > new Date(prev.requestedAt)) {
+        latestByProperty.set(card.propertyId, card);
+      }
+    });
+
+    const deduped = Array.from(latestByProperty.values());
+    if (propertyStatusFilter === "all") return deduped;
+    return deduped.filter((card) => card.status === propertyStatusFilter);
+  }, [propertyAgents, propertyStatusFilter]);
+
+  const propertyProgress = (status: PropertyAgent["status"]) => {
+    switch (status) {
+      case "pending":
+        return 40;
+      case "rejected":
+        return 40;
+      case "approved":
+        return 100;
+      default:
+        return 0;
+    }
+  };
+
+  const getCardProgress = (card: (typeof propertyCards)[number]) =>
+    card.progressPercent ?? propertyProgress(card.status);
+
+  const getInputStatusLabel = (card: (typeof propertyCards)[number]) => {
+    if (card.inputCount == null || card.totalCount == null) return "입력중";
+    return card.inputCount === card.totalCount
+      ? "입력 완료"
+      : `입력 상태 ${card.inputCount}/${card.totalCount}`;
+  };
+
+  const propertyStatusLabel = (status: PropertyAgent["status"]) => {
+    switch (status) {
+      case "pending":
+        return "검토 대기";
+      case "rejected":
+        return "반려됨";
+      case "approved":
+        return "게시됨";
+      default:
+        return status;
+    }
+  };
+
+  const propertyStatusVariant = (
+    status: PropertyAgent["status"],
+  ): "status" | "warning" | "danger" | "success" => {
+    switch (status) {
+      case "pending":
+        return "warning";
+      case "rejected":
+        return "danger";
+      case "approved":
+        return "success";
+      default:
+        return "status";
+    }
+  };
+
+  const requesterRoleLabel = (role?: string | null) => {
+    switch (role) {
+      case "admin":
+        return "관리자";
+      case "agent":
+        return "분양상담사";
+      default:
+        return role ?? "-";
+    }
+  };
+
   const tabs = [
     { id: "summary", label: "요약" },
     { id: "users", label: "사용자 관리" },
-    { id: "reservations", label: "예약 관리" },
     { id: "properties", label: "현장 관리" },
+    { id: "reservations", label: "예약 관리" },
     { id: "settlements", label: "정산 관리" },
     { id: "terms", label: "약관 관리" },
   ] as const;
 
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]["id"]>(
     "summary",
+  );
+
+  const refreshCurrentTab = useCallback(() => {
+    loadData();
+    if (activeTab === "reservations") {
+      void loadReservations();
+    }
+    if (activeTab === "settlements" || activeTab === "summary") {
+      void loadSettlements();
+    }
+  }, [activeTab, loadData, loadReservations, loadSettlements]);
+
+  useEffect(() => {
+    if (activeTab === "reservations") {
+      void loadReservations();
+    }
+    if (activeTab === "settlements" || activeTab === "summary") {
+      void loadSettlements();
+    }
+  }, [activeTab, loadReservations, loadSettlements]);
+
+  const settlementSummaryCards = useMemo(
+    () => [
+      {
+        label: "방문 보상 지급 대기",
+        count: settlementSummary.rewardPendingCount,
+        icon: <RefreshCw className="h-4 w-4 text-(--oboon-primary)" />,
+      },
+      {
+        label: "고객 예약금 환급 대기",
+        count: settlementSummary.refundPendingCount,
+        icon: <RefreshCw className="h-4 w-4 text-(--oboon-primary)" />,
+      },
+      {
+        label: "노쇼 판정 필요",
+        count: settlementSummary.noShowPendingCount,
+        icon: <Scale className="h-4 w-4 text-(--oboon-danger)" />,
+      },
+    ],
+    [settlementSummary],
   );
 
   // 약관 탭 활성화 시 약관 로드
@@ -428,16 +764,32 @@ function AdminPageInner() {
     );
   }
 
-  const TableShell = ({ children }: { children: React.ReactNode }) => (
+  const TableShell = ({
+    children,
+    className = "",
+  }: {
+    children: React.ReactNode;
+    className?: string;
+  }) => (
     <div className="overflow-x-auto scrollbar-none">
-      <table className="w-full min-w-[720px] ob-typo-body border-collapse">
+      <table
+        className={[
+          "w-full min-w-[720px] ob-typo-body border-collapse",
+          className,
+        ].join(" ")}
+      >
         {children}
       </table>
     </div>
   );
 
-  const Th = ({ children, className = "" }: any) => (
+  const Th = ({
+    children,
+    className = "",
+    ...rest
+  }: React.ThHTMLAttributes<HTMLTableCellElement>) => (
     <th
+      {...rest}
       className={[
         "py-3 px-3 text-left font-semibold",
         "text-(--oboon-text-title)",
@@ -449,8 +801,13 @@ function AdminPageInner() {
     </th>
   );
 
-  const Td = ({ children, className = "" }: any) => (
+  const Td = ({
+    children,
+    className = "",
+    ...rest
+  }: React.TdHTMLAttributes<HTMLTableCellElement>) => (
     <td
+      {...rest}
       className={[
         "py-3 px-3 align-middle",
         "text-(--oboon-text-body)",
@@ -461,6 +818,39 @@ function AdminPageInner() {
       {children}
     </td>
   );
+
+  const Avatar = ({
+    name,
+    url,
+  }: {
+    name?: string | null;
+    url?: string | null;
+  }) => {
+    const [error, setError] = useState(false);
+    const initial = (name ?? "").slice(0, 1) || "?";
+    const showImage = Boolean(url) && !error;
+
+    return showImage ? (
+      <img
+        src={url ?? ""}
+        alt={`${name ?? "사용자"} 프로필`}
+        className="h-7 w-7 rounded-full border border-(--oboon-border-default) object-cover"
+        onError={() => setError(true)}
+      />
+    ) : (
+      <span
+        className={[
+          "h-7 w-7 rounded-full bg-(--oboon-bg-subtle)",
+          "border border-(--oboon-border-default)",
+          "inline-flex items-center justify-center",
+          "ob-typo-caption text-(--oboon-text-muted)",
+        ].join(" ")}
+        aria-hidden
+      >
+        {initial}
+      </span>
+    );
+  };
 
   return (
     <div className="bg-(--oboon-bg-default)">
@@ -498,6 +888,12 @@ function AdminPageInner() {
           </>
         )}
       </Modal>
+      <SettlementDetailModal
+        open={Boolean(selectedSettlement)}
+        onClose={() => setSelectedSettlement(null)}
+        row={selectedSettlement}
+        statusLabelMap={reservationStatusLabel}
+      />
       <div className="mx-auto w-full max-w-6xl px-4 pb-16">
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
@@ -508,44 +904,35 @@ function AdminPageInner() {
               승인/복구 및 사용자 현황을 관리합니다.
             </p>
           </div>
-
-          <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              shape="pill"
-              onClick={() => loadData()}
-            >
-              새로고침
-            </Button>
-          </div>
         </div>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[220px_1fr]">
           <aside className="h-fit">
-            <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-2">
-              <div className="space-y-1">
+            <div className="rounded-2xl">
+              <div className="space-y-0.5">
                 {tabs.map((tab) => (
                   <button
                     key={tab.id}
                     type="button"
                     onClick={() => setActiveTab(tab.id)}
                     className={[
-                      "w-full text-left px-3 py-2 rounded-xl ob-typo-body transition-colors relative",
+                      "w-full text-left py-1.5 rounded-xl ob-typo-body transition-colors relative",
                       activeTab === tab.id
                         ? "text-(--oboon-text-title)"
                         : "text-(--oboon-text-muted) hover:text-(--oboon-text-title)",
                     ].join(" ")}
                   >
-                    {activeTab === tab.id && (
-                      <span className="absolute left-0 top-2 bottom-2 w-1 rounded-full bg-(--oboon-primary)" />
-                    )}
                     <span
                       className={[
-                        "block pl-3 pr-2 py-1 rounded-lg",
-                        activeTab === tab.id ? "bg-(--oboon-bg-subtle)" : "",
+                        "relative block pl-5 pr-2 py-0.5 rounded-lg",
+                        activeTab === tab.id
+                          ? "bg-(--oboon-bg-subtle) py-1"
+                          : "",
                       ].join(" ")}
                     >
+                      {activeTab === tab.id && (
+                        <span className="absolute left-0 top-0 bottom-0 w-1 rounded-full bg-(--oboon-primary)" />
+                      )}
                       {tab.label}
                     </span>
                   </button>
@@ -557,6 +944,19 @@ function AdminPageInner() {
           <section className="space-y-4">
             {activeTab === "summary" && (
               <>
+                <div className="flex items-center justify-between">
+                  <div className="ob-typo-h2 text-(--oboon-text-title)">요약</div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    shape="pill"
+                    className="h-9 w-9 p-0 rounded-full"
+                    onClick={refreshCurrentTab}
+                    aria-label="새로고침"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                </div>
                 <Card className="p-5">
                   <div className="ob-typo-caption text-(--oboon-text-muted)">
                     OVERVIEW
@@ -583,7 +983,16 @@ function AdminPageInner() {
                         </span>
                         <span className="ob-typo-subtitle">전체 사용자</span>
                       </div>
-                      <ArrowRight className="h-4 w-4 text-(--oboon-text-muted)" />
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        shape="pill"
+                        className="h-8 w-8 p-0 rounded-full"
+                        onClick={() => setActiveTab("users")}
+                        aria-label="사용자 관리로 이동"
+                      >
+                        <ArrowRight className="h-4 w-4 text-(--oboon-text-muted)" />
+                      </Button>
                     </div>
                     <div className="mt-3 flex items-center gap-2">
                       <div className="ob-typo-h2 text-(--oboon-text-title)">
@@ -605,7 +1014,16 @@ function AdminPageInner() {
                         </span>
                         <span className="ob-typo-subtitle">현장 등록 현황</span>
                       </div>
-                      <ArrowRight className="h-4 w-4 text-(--oboon-text-muted)" />
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        shape="pill"
+                        className="h-8 w-8 p-0 rounded-full"
+                        onClick={() => setActiveTab("properties")}
+                        aria-label="현장 관리로 이동"
+                      >
+                        <ArrowRight className="h-4 w-4 text-(--oboon-text-muted)" />
+                      </Button>
                     </div>
                     <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
                       <div>
@@ -613,7 +1031,7 @@ function AdminPageInner() {
                           승인 대기
                         </div>
                         <div className="mt-1 ob-typo-h3 text-(--oboon-text-title)">
-                          {pendingPropertyAgents.length}
+                          {pendingPropertyAgentCount}
                         </div>
                       </div>
                       <div className="h-10 w-px bg-(--oboon-border-default)" />
@@ -635,7 +1053,16 @@ function AdminPageInner() {
                         </span>
                         <span className="ob-typo-subtitle">오늘 예약</span>
                       </div>
-                      <ArrowRight className="h-4 w-4 text-(--oboon-text-muted)" />
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        shape="pill"
+                        className="h-8 w-8 p-0 rounded-full"
+                        onClick={() => setActiveTab("reservations")}
+                        aria-label="예약 관리로 이동"
+                      >
+                        <ArrowRight className="h-4 w-4 text-(--oboon-text-muted)" />
+                      </Button>
                     </div>
 
                     <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -667,37 +1094,42 @@ function AdminPageInner() {
                         </span>
                         <span className="ob-typo-subtitle">정산 처리 필요 목록</span>
                       </div>
-                      <ArrowRight className="h-4 w-4 text-(--oboon-text-muted)" />
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        shape="pill"
+                        className="h-8 w-8 p-0 rounded-full"
+                        onClick={() => setActiveTab("settlements")}
+                        aria-label="정산 관리로 이동"
+                      >
+                        <ArrowRight className="h-4 w-4 text-(--oboon-text-muted)" />
+                      </Button>
                     </div>
 
                     <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                      <div className="flex items-center justify-between rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-4 py-3">
-                        <div className="flex items-center gap-2 text-(--oboon-text-title)">
-                          <span className="h-2 w-2 rounded-full bg-(--oboon-danger)" />
-                          <span className="ob-typo-body">입금 확인 대기</span>
-                        </div>
-                        <span className="ob-typo-subtitle text-(--oboon-text-title)">
-                          0건
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-4 py-3">
-                        <div className="flex items-center gap-2 text-(--oboon-text-title)">
-                          <span className="h-2 w-2 rounded-full bg-(--oboon-danger)" />
-                          <span className="ob-typo-body">환급 대기</span>
-                        </div>
-                        <span className="ob-typo-subtitle text-(--oboon-text-title)">
-                          0건
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-4 py-3">
-                        <div className="flex items-center gap-2 text-(--oboon-text-title)">
-                          <span className="h-2 w-2 rounded-full bg-(--oboon-text-muted)" />
-                          <span className="ob-typo-body">노쇼 판정 필요</span>
-                        </div>
-                        <span className="ob-typo-subtitle text-(--oboon-text-title)">
-                          0건
-                        </span>
-                      </div>
+                      {settlementSummaryCards.map((item) => (
+                        <Card key={`summary-${item.label}`} className="p-4 shadow-none">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={[
+                                  "h-8 w-8 rounded-lg border",
+                                  "inline-flex items-center justify-center",
+                                  "bg-(--oboon-bg-subtle) border-(--oboon-border-default)",
+                                ].join(" ")}
+                              >
+                                {item.icon}
+                              </span>
+                              <span className="ob-typo-h4 text-(--oboon-text-title)">
+                                {item.label}
+                              </span>
+                            </div>
+                            <span className="ob-typo-body text-(--oboon-text-title)">
+                              {item.count}
+                            </span>
+                          </div>
+                        </Card>
+                      ))}
                     </div>
                   </Card>
                 </div>
@@ -706,75 +1138,35 @@ function AdminPageInner() {
 
             {activeTab === "users" && (
               <>
-                <Card className="p-5">
+                <Card className="p-0 bg-transparent border-0 shadow-none">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <div className="ob-typo-h3 text-(--oboon-text-title)">
+                      <div className="ob-typo-h2 text-(--oboon-text-title)">
                         사용자 관리
                       </div>
                       <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
                         승인 대기/탈퇴 사용자 및 전체 사용자 현황
                       </p>
                     </div>
-                  </div>
-                </Card>
-
-                <Card className="p-5">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="ob-typo-body text-(--oboon-text-title)">
-                      대행사 직원 승인 대기
-                    </div>
-                    <Badge variant="status">{pendingAgents.length}건</Badge>
-                  </div>
-                  <div className="mt-4">
-                    {pendingAgents.length === 0 ? (
-                      <div className="ob-typo-body text-(--oboon-text-muted)">
-                        승인 대기 중인 요청이 없습니다.
-                      </div>
-                    ) : (
-                      <TableShell>
-                        <thead>
-                          <tr>
-                            <Th>이름</Th>
-                            <Th>이메일</Th>
-                            <Th>연락처</Th>
-                            <Th className="text-right">작업</Th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {pendingAgents.map((agent) => (
-                            <tr key={agent.id}>
-                              <Td>{agent.name || "-"}</Td>
-                              <Td className="text-(--oboon-text-muted)">
-                                {agent.email}
-                              </Td>
-                              <Td className="text-(--oboon-text-muted)">
-                                {agent.phone_number || "-"}
-                              </Td>
-                              <Td className="text-right">
-                                <Button
-                                  size="sm"
-                                  shape="pill"
-                                  variant="primary"
-                                  onClick={() => openApproveConfirm(agent)}
-                                >
-                                  승인
-                                </Button>
-                              </Td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </TableShell>
-                    )}
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      shape="pill"
+                      className="h-9 w-9 p-0 rounded-full"
+                      onClick={refreshCurrentTab}
+                      aria-label="새로고침"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                    </Button>
                   </div>
                 </Card>
 
                 {deletedUsers.length > 0 && (
-                  <Card className="p-5 border-(--oboon-warning-border)">
+                  <Card className="p-5 border-(--oboon-warning-border) shadow-none">
                     <div className="flex items-center justify-between gap-3">
-                    <div className="ob-typo-body text-(--oboon-text-title)">
-                      탈퇴(비활성) 사용자
-                    </div>
+                      <div className="ob-typo-body text-(--oboon-text-title)">
+                        탈퇴(비활성) 사용자
+                      </div>
                       <Badge variant="status">{deletedUsers.length}명</Badge>
                     </div>
                     <div className="mt-4">
@@ -821,12 +1213,27 @@ function AdminPageInner() {
                   </Card>
                 )}
 
-                <Card className="p-5">
+                <Card className="p-5 shadow-none">
                   <div className="flex items-center justify-between gap-3">
                     <div className="ob-typo-body text-(--oboon-text-title)">
                       전체 사용자 현황
                     </div>
                     <Badge variant="status">{activeUsers.length}명</Badge>
+                  </div>
+                  <div className="mt-4 flex items-center gap-2">
+                    <Input
+                      placeholder="검색"
+                      className="h-10 rounded-full bg-(--oboon-bg-default) py-2"
+                      value={searchQuery}
+                      onChange={(event) => setSearchQuery(event.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="flex h-10 w-10 items-center justify-center rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-default) text-(--oboon-text-muted) transition-colors hover:text-(--oboon-text-title)"
+                      aria-label="검색"
+                    >
+                      <Search className="h-4 w-4" />
+                    </button>
                   </div>
                   <div className="mt-4">
                     {activeUsers.length === 0 ? (
@@ -843,7 +1250,7 @@ function AdminPageInner() {
                               <button
                                 type="button"
                                 onClick={toggleRoleSort}
-                                className="inline-flex items-center gap-1 hover:text-(--oboon-text-title)"
+                                className="inline-flex items-center gap-2 hover:text-(--oboon-text-title)"
                                 title="계정 유형 정렬"
                               >
                                 계정 유형
@@ -867,7 +1274,7 @@ function AdminPageInner() {
                           </tr>
                         </thead>
                         <tbody>
-                          {sortedActiveUsers.map((u) => (
+                          {filteredActiveUsers.map((u) => (
                             <tr key={u.id}>
                               <Td>{u.name || "-"}</Td>
                               <Td className="text-(--oboon-text-muted)">
@@ -878,7 +1285,7 @@ function AdminPageInner() {
                                   {roleLabel(u.role)}
                                 </Badge>
                               </Td>
-                              <Td className="ob-typo-caption text-(--oboon-text-muted)">
+                              <Td className="ob-typo-body text-(--oboon-text-muted)">
                                 {new Date(u.created_at).toLocaleDateString()}
                               </Td>
                             </tr>
@@ -892,116 +1299,549 @@ function AdminPageInner() {
             )}
 
             {activeTab === "reservations" && (
-              <Card className="p-5">
-                <div className="ob-typo-h3 text-(--oboon-text-title)">
-                  예약 관리
-                </div>
-                <p className="mt-2 ob-typo-body text-(--oboon-text-muted)">
-                  예약 데이터 연동 후 표시됩니다.
-                </p>
-              </Card>
-            )}
-
-            {activeTab === "properties" && (
-              <Card className="p-5">
+              <div className="space-y-4">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="ob-typo-h3 text-(--oboon-text-title)">
-                    현장 관리
+                  <div className="ob-typo-h2 text-(--oboon-text-title)">
+                    예약 관리
                   </div>
-                  <Badge variant="status">
-                    {pendingPropertyAgents.length}건
-                  </Badge>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    shape="pill"
+                    className="h-9 w-9 p-0 rounded-full"
+                    onClick={refreshCurrentTab}
+                    disabled={reservationsLoading}
+                    aria-label="새로고침"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
                 </div>
-                <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
-                  상담사의 현장 소속 신청을 승인/거절합니다.
-                </p>
-                <div className="mt-4">
-                  {pendingPropertyAgents.length === 0 ? (
-                    <div className="ob-typo-body text-(--oboon-text-muted)">
-                      승인 대기 중인 현장이 없습니다.
-                    </div>
-                  ) : (
-                    <TableShell>
+
+                <div className="grid grid-cols-3 items-center gap-3">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="secondary"
+                        size="md"
+                      >
+                        <span>
+                          {reservationStatus === "all"
+                            ? "모든 상태"
+                            : reservationStatusLabel[reservationStatus] ||
+                              reservationStatus}
+                        </span>
+                        <ChevronDown className="h-4 w-4 text-(--oboon-text-muted)" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" matchTriggerWidth>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setReservationStatus("all");
+                          setReservationPage(1);
+                        }}
+                      >
+                        모든 상태
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setReservationStatus("pending");
+                          setReservationPage(1);
+                        }}
+                      >
+                        예약 대기
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setReservationStatus("confirmed");
+                          setReservationPage(1);
+                        }}
+                      >
+                        예약 확정
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setReservationStatus("visited");
+                          setReservationPage(1);
+                        }}
+                      >
+                        방문 완료
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setReservationStatus("contracted");
+                          setReservationPage(1);
+                        }}
+                      >
+                        계약 완료
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setReservationStatus("cancelled");
+                          setReservationPage(1);
+                        }}
+                      >
+                        취소됨
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <OboonDatePicker
+                    selected={reservationDate}
+                    onChange={(date: Date | null) => {
+                      setReservationDate(date);
+                      setReservationPage(1);
+                    }}
+                    dateFormat="yyyy-MM-dd"
+                    textFormat="yyyy-MM-dd"
+                    placeholder="예약일"
+                    inputClassName={[
+                      "h-11 w-full rounded-xl bg-(--oboon-bg-surface)",
+                      "border border-(--oboon-border-default)",
+                      "px-4 py-2 text-sm text-(--oboon-text-title)",
+                      "placeholder:text-(--oboon-text-muted)",
+                    ].join(" ")}
+                  />
+                  <Input
+                    placeholder="상담사명 검색"
+                    value={reservationAgentQuery}
+                    onChange={(event) => {
+                      setReservationAgentQuery(event.target.value);
+                      setReservationPage(1);
+                    }}
+                    className="h-11 w-full py-2"
+                  />
+                </div>
+
+                <Card className="p-4 shadow-none">
+                  <div className="overflow-x-auto scrollbar-none">
+                    <table className="w-full min-w-[720px] ob-typo-body border-collapse">
                       <thead>
                         <tr>
+                          <Th>예약 번호</Th>
+                          <Th>상태</Th>
+                          <Th>고객 정보</Th>
                           <Th>상담사</Th>
-                          <Th>이메일</Th>
-                          <Th>현장</Th>
-                          <Th>신청일</Th>
-                          <Th className="text-right">작업</Th>
+                          <Th>방문 일시</Th>
+                          <Th className="text-right"> </Th>
                         </tr>
                       </thead>
                       <tbody>
-                        {pendingPropertyAgents.map((pa) => (
-                          <tr key={pa.id}>
-                            <Td>{pa.profiles?.name || "-"}</Td>
+                        {reservationSlice.map((row) => (
+                          <tr key={row.id}>
                             <Td className="text-(--oboon-text-muted)">
-                              {pa.profiles?.email || "-"}
+                              {row.id.slice(0, 8)}
                             </Td>
-                            <Td className="text-(--oboon-text-muted)">
-                              {pa.properties?.name || "-"}
+                            <Td>
+                              <Badge variant="status">
+                                {reservationStatusLabel[row.status] ||
+                                  row.status}
+                              </Badge>
                             </Td>
-                            <Td className="ob-typo-caption text-(--oboon-text-muted)">
-                              {new Date(pa.requested_at).toLocaleDateString()}
-                            </Td>
-                            <Td className="text-right">
-                              <div className="flex gap-2 justify-end">
-                                <Button
-                                  size="sm"
-                                  shape="pill"
-                                  variant="primary"
-                                  disabled={
-                                    propertyAgentAction?.id === pa.id &&
-                                    propertyAgentAction?.loading
-                                  }
-                                  onClick={() =>
-                                    handlePropertyAgentApprove(pa.id)
-                                  }
-                                >
-                                  승인
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  shape="pill"
-                                  variant="secondary"
-                                  disabled={
-                                    propertyAgentAction?.id === pa.id &&
-                                    propertyAgentAction?.loading
-                                  }
-                                  onClick={() =>
-                                    handlePropertyAgentReject(pa.id)
-                                  }
-                                >
-                                  거절
-                                </Button>
+                            <Td>
+                              <div className="flex items-center gap-2">
+                                <Avatar
+                                  name={row.customer?.name}
+                                  url={row.customer_avatar_url}
+                                />
+                                <span>{row.customer?.name ?? "-"}</span>
                               </div>
+                            </Td>
+                            <Td>
+                              <div className="flex items-center gap-2">
+                                <Avatar
+                                  name={row.agent?.name}
+                                  url={row.agent_avatar_url}
+                                />
+                                <span>{row.agent?.name ?? "-"}</span>
+                              </div>
+                            </Td>
+                            <Td className="text-(--oboon-text-muted)">
+                              {new Date(row.scheduled_at).toLocaleString(
+                                "ko-KR",
+                                {
+                                  year: "numeric",
+                                  month: "2-digit",
+                                  day: "2-digit",
+                                  weekday: "short",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                },
+                              )}
+                            </Td>
+                            <Td className="text-right text-(--oboon-text-muted)">
+                              →
                             </Td>
                           </tr>
                         ))}
+                        {reservationSlice.length === 0 && (
+                          <tr>
+                            <Td colSpan={6} className="py-8 text-center">
+                              {reservationsLoading
+                                ? "불러오는 중..."
+                                : "예약이 없습니다."}
+                            </Td>
+                          </tr>
+                        )}
                       </tbody>
-                    </TableShell>
-                  )}
+                    </table>
+                  </div>
+
+                  <div className="mt-4 flex items-center justify-between">
+                    <div className="ob-typo-caption text-(--oboon-text-muted)">
+                      총 {reservationTotal}개의 예약 중{" "}
+                      {reservationTotal === 0
+                        ? "0"
+                        : `${reservationStart + 1}-${Math.min(
+                            reservationEnd,
+                            reservationTotal,
+                          )}`}{" "}
+                      표시
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        shape="pill"
+                        disabled={reservationPageSafe <= 1}
+                        onClick={() =>
+                          setReservationPage(Math.max(1, reservationPageSafe - 1))
+                        }
+                      >
+                        ‹
+                      </Button>
+                      {Array.from(
+                        { length: Math.min(5, reservationPageCount) },
+                        (_, i) => i + 1,
+                      ).map((page) => (
+                        <Button
+                          key={`reservation-page-${page}`}
+                          variant={page === reservationPageSafe ? "primary" : "secondary"}
+                          size="sm"
+                          shape="pill"
+                          onClick={() => setReservationPage(page)}
+                        >
+                          {page}
+                        </Button>
+                      ))}
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        shape="pill"
+                        disabled={reservationPageSafe >= reservationPageCount}
+                        onClick={() =>
+                          setReservationPage(
+                            Math.min(
+                              reservationPageSafe + 1,
+                              reservationPageCount,
+                            ),
+                          )
+                        }
+                      >
+                        ›
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+            )}
+
+            {activeTab === "properties" && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <div className="ob-typo-h2 text-(--oboon-text-title)">
+                      현장 관리
+                    </div>
+                    <Badge variant="status">
+                      {pendingPropertyAgentCount}건
+                    </Badge>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    shape="pill"
+                    className="h-9 w-9 p-0 rounded-full"
+                    onClick={refreshCurrentTab}
+                    aria-label="새로고침"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
                 </div>
-              </Card>
+                <div className="flex items-center gap-2">
+                  {[
+                    { id: "all", label: "전체" },
+                    { id: "pending", label: "검토 대기" },
+                    { id: "rejected", label: "반려됨" },
+                    { id: "approved", label: "게시됨" },
+                  ].map((tab) => {
+                    const isActive = propertyStatusFilter === tab.id;
+                    return (
+                      <Button
+                        key={tab.id}
+                        onClick={() =>
+                          setPropertyStatusFilter(
+                            tab.id as "all" | "pending" | "rejected" | "approved",
+                          )
+                        }
+                        variant={isActive ? "primary" : "secondary"}
+                        size="sm"
+                        shape="pill"
+                        className="text-xs"
+                      >
+                        {tab.label}
+                      </Button>
+                    );
+                  })}
+                </div>
+
+                {propertyCards.length === 0 ? (
+                  <Card className="p-5 shadow-none">
+                    <div className="ob-typo-body text-(--oboon-text-muted)">
+                      표시할 현장이 없습니다.
+                    </div>
+                  </Card>
+                ) : (
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    {propertyCards.map((card) => (
+                      <Card
+                        key={card.id}
+                        className="p-4 shadow-none cursor-pointer transition-colors hover:bg-(--oboon-bg-subtle)"
+                        onClick={() => router.push(`/company/properties/${card.propertyId}`)}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="mt-1 ob-typo-h3 text-(--oboon-text-title)">
+                            {card.title}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge
+                              variant={propertyStatusVariant(card.status)}
+                              className="ob-typo-caption px-2 py-0.5"
+                            >
+                              {propertyStatusLabel(card.status)}
+                            </Badge>
+                            <Badge
+                              variant="status"
+                              className="ob-typo-caption px-2 py-0.5"
+                            >
+                              {getInputStatusLabel(card)}
+                            </Badge>
+                          </div>
+                        </div>
+                        <div className="mt-2 space-y-1 ob-typo-body text-(--oboon-text-muted)">
+                          <div className="flex items-center gap-2">
+                            <User className="h-4 w-4 text-(--oboon-text-muted)" />
+                            <span>
+                              {card.agent} / {requesterRoleLabel(card.agentRole)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4 text-(--oboon-text-muted)" />
+                            <span>
+                              {new Date(card.requestedAt).toLocaleString(
+                                "ko-KR",
+                                {
+                                  year: "numeric",
+                                  month: "2-digit",
+                                  day: "2-digit",
+                                  weekday: "short",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                },
+                              )}
+                            </span>
+                          </div>
+                          {card.status === "rejected" && card.rejectionReason ? (
+                            <div className="text-(--oboon-danger) ob-typo-body">
+                              반려 사유: {card.rejectionReason}
+                            </div>
+                          ) : null}
+                        </div>
+                        <div className="mt-3 border-t border-(--oboon-border-default) pt-3">
+                          <div className="ob-typo-body text-(--oboon-text-muted)">
+                            입력 진행률 · {getCardProgress(card)}%
+                          </div>
+                          <div className="mt-2 h-2 w-full rounded-full bg-(--oboon-bg-subtle)">
+                            <div
+                              className="h-2 rounded-full bg-(--oboon-primary)"
+                              style={{
+                                width: `${getCardProgress(card)}%`,
+                              }}
+                            />
+                          </div>
+                          {card.status === "pending" &&
+                          !resolvedPropertyRequests[card.id] ? (
+                            <div className="mt-3 flex justify-end gap-2">
+                              <Button
+                                size="sm"
+                                shape="pill"
+                                variant="primary"
+                                disabled={
+                                  propertyAgentAction?.id === card.id &&
+                                  propertyAgentAction?.loading
+                                }
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handlePropertyAgentApprove(card.id);
+                                }}
+                              >
+                                승인
+                              </Button>
+                              <Button
+                                size="sm"
+                                shape="pill"
+                                variant="secondary"
+                                disabled={
+                                  propertyAgentAction?.id === card.id &&
+                                  propertyAgentAction?.loading
+                                }
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handlePropertyAgentReject(card.id);
+                                }}
+                              >
+                                반려
+                              </Button>
+                            </div>
+                          ) : null}
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
 
             {activeTab === "settlements" && (
-              <Card className="p-5">
-                <div className="ob-typo-h3 text-(--oboon-text-title)">
-                  정산 관리
+              <div className="space-y-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="ob-typo-h2 text-(--oboon-text-title)">
+                    정산 관리
+                  </div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    shape="pill"
+                    className="h-9 w-9 p-0 rounded-full"
+                    onClick={refreshCurrentTab}
+                    aria-label="새로고침"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
                 </div>
-                <p className="mt-2 ob-typo-body text-(--oboon-text-muted)">
-                  정산 데이터 연동 후 표시됩니다.
-                </p>
-              </Card>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {settlementSummaryCards.map((item) => (
+                    <Card key={item.label} className="p-4 shadow-none">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={[
+                              "h-8 w-8 rounded-lg border",
+                              "inline-flex items-center justify-center",
+                              "bg-(--oboon-bg-subtle) border-(--oboon-border-default)",
+                            ].join(" ")}
+                          >
+                            {item.icon}
+                          </span>
+                          <span className="ob-typo-h4 text-(--oboon-text-title)">
+                            {item.label}
+                          </span>
+                        </div>
+                        <span className="ob-typo-body text-(--oboon-text-title)">
+                          {item.count}
+                        </span>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+
+                <Card className="p-4 shadow-none">
+                  <div className="overflow-x-auto scrollbar-none">
+                    <table className="w-full min-w-[720px] ob-typo-body border-collapse">
+                      <thead>
+                        <tr>
+                          <Th>예약 번호</Th>
+                          <Th>예약 상태</Th>
+                          <Th>고객 예약금</Th>
+                          <Th>방문 보상금</Th>
+                          <Th>사유</Th>
+                          <Th className="text-right"> </Th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {settlementRows.map((row) => (
+                          <tr key={`settlement-${row.id}`}>
+                            <Td className="text-(--oboon-text-muted)">
+                              {row.id.slice(0, 8)}
+                            </Td>
+                            <Td>
+                              <Badge variant="status">
+                                {reservationStatusLabel[row.status] || row.status}
+                              </Badge>
+                            </Td>
+                            <Td>
+                              <span
+                                className={
+                                  row.deposit_tone === "primary"
+                                    ? "text-(--oboon-primary)"
+                                    : row.deposit_tone === "success"
+                                      ? "text-(--oboon-success)"
+                                      : row.deposit_tone === "warning"
+                                        ? "text-(--oboon-warning)"
+                                        : "text-(--oboon-text-muted)"
+                                }
+                              >
+                                {row.deposit_label}
+                              </span>
+                            </Td>
+                            <Td>
+                              <span
+                                className={
+                                  row.reward_tone === "primary"
+                                    ? "text-(--oboon-primary)"
+                                    : row.reward_tone === "success"
+                                      ? "text-(--oboon-success)"
+                                      : row.reward_tone === "warning"
+                                        ? "text-(--oboon-warning)"
+                                        : "text-(--oboon-text-muted)"
+                                }
+                              >
+                                {row.reward_label}
+                              </span>
+                            </Td>
+                            <Td>{row.reason}</Td>
+                            <Td className="text-right">
+                              <button
+                                type="button"
+                                className="ob-typo-body text-(--oboon-text-muted) hover:text-(--oboon-text-title)"
+                                onClick={() => setSelectedSettlement(row)}
+                                aria-label="정산 상세 보기"
+                              >
+                                &gt;
+                              </button>
+                            </Td>
+                          </tr>
+                        ))}
+                        {settlementRows.length === 0 && (
+                          <tr>
+                            <Td colSpan={6} className="py-8 text-center">
+                              {settlementLoading
+                                ? "불러오는 중..."
+                                : "정산 데이터가 없습니다."}
+                            </Td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              </div>
             )}
 
             {activeTab === "terms" && (
               <>
-                <Card className="p-5">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <div className="ob-typo-h3 text-(--oboon-text-title)">
+                      <div className="ob-typo-h2 text-(--oboon-text-title)">
                         약관 관리
                       </div>
                       <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
@@ -1009,8 +1849,7 @@ function AdminPageInner() {
                       </p>
                     </div>
                   </div>
-                </Card>
-
+                
                 {termsLoading ? (
                   <div className="flex justify-center py-12">
                     <Loader2 className="h-8 w-8 animate-spin text-(--oboon-primary)" />

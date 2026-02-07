@@ -11,6 +11,7 @@ import {
   Trash2,
   Settings,
   Bell,
+  AlertCircle,
 } from "lucide-react";
 
 import PageContainer from "@/components/shared/PageContainer";
@@ -21,6 +22,7 @@ import { fetchAgentAccess } from "@/features/agent/services/agent.auth";
 import AgentScheduleSettings from "@/features/agent/components/AgentScheduleSettings.client";
 import ConsultationCard from "@/features/consultations/components/ConsultationCard.client";
 import AgentBaseScheduleModal from "@/features/agent/components/AgentBaseScheduleModal.client";
+import { subscribeToVisitConfirmRequests } from "@/features/agent/services/agent.scan";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 
 import { showAlert } from "@/shared/alert";
@@ -60,6 +62,31 @@ interface Consultation {
     name: string;
     image_url: string | null;
   };
+}
+
+interface ManualRequest {
+  id: string;
+  status: string;
+  reason: string | null;
+  created_at: string;
+  token: {
+    id: string;
+    property_id: number;
+    consultation_id: string | null;
+    created_at: string;
+  } | null;
+  property: {
+    id: number;
+    name: string;
+  } | null;
+  consultation: {
+    id: string;
+    scheduled_at: string;
+    customer: {
+      id: string;
+      name: string;
+    } | null;
+  } | null;
 }
 
 // 취소된 예약 삭제까지 남은 시간 계산 (3일 후 삭제)
@@ -103,6 +130,10 @@ export default function AgentConsultationsPage() {
   const [agentId, setAgentId] = useState<string | null>(null);
   const [showBaseScheduleModal, setShowBaseScheduleModal] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [pendingManualRequests, setPendingManualRequests] = useState<ManualRequest[]>([]);
+  const [processingManualRequestId, setProcessingManualRequestId] = useState<string | null>(null);
+  const [manualModalOpen, setManualModalOpen] = useState(false);
+  const [manualModalConsultationId, setManualModalConsultationId] = useState<string | null>(null);
 
   // 약관 동의 모달 상태
   const [termsModalOpen, setTermsModalOpen] = useState(false);
@@ -150,6 +181,18 @@ export default function AgentConsultationsPage() {
     }
   }, [filter]);
 
+  const fetchPendingManualRequests = useCallback(async () => {
+    try {
+      const response = await fetch("/api/visits/manual-approve");
+      const data = await response.json();
+      if (response.ok) {
+        setPendingManualRequests((data.requests || []) as ManualRequest[]);
+      }
+    } catch (err) {
+      console.error("수동 확인 요청 조회 오류:", err);
+    }
+  }, []);
+
   useEffect(() => {
     async function fetchData() {
       setLoading(true);
@@ -169,7 +212,7 @@ export default function AgentConsultationsPage() {
 
         setIsAgent(true);
         setAgentId(access.userId);
-        await fetchConsultations();
+        await Promise.all([fetchConsultations(), fetchPendingManualRequests()]);
       } catch (err) {
         console.error("데이터 조회 오류:", err);
       } finally {
@@ -178,7 +221,7 @@ export default function AgentConsultationsPage() {
     }
 
     fetchData();
-  }, [router, fetchConsultations]);
+  }, [router, fetchConsultations, fetchPendingManualRequests]);
 
   // Realtime 알림 구독
   useEffect(() => {
@@ -231,6 +274,12 @@ export default function AgentConsultationsPage() {
     };
   }, [agentId, fetchConsultations]);
 
+  useEffect(() => {
+    if (!isAgent) return;
+    const unsubscribe = subscribeToVisitConfirmRequests(fetchPendingManualRequests);
+    return () => unsubscribe();
+  }, [isAgent, fetchPendingManualRequests]);
+
   async function handleDismissNotification(notificationId: string) {
     try {
       const response = await fetch("/api/agent/notifications", {
@@ -244,6 +293,30 @@ export default function AgentConsultationsPage() {
       }
     } catch (err) {
       console.error("알림 읽음 처리 오류:", err);
+    }
+  }
+
+  async function handleManualRequestAction(
+    requestId: string,
+    action: "approve" | "reject",
+  ) {
+    setProcessingManualRequestId(requestId);
+    try {
+      const response = await fetch("/api/visits/manual-approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requestId, action }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "처리에 실패했습니다");
+      }
+      showAlert(action === "approve" ? "방문 인증을 승인했습니다." : "요청을 거절했습니다.");
+      await Promise.all([fetchPendingManualRequests(), fetchConsultations()]);
+    } catch (err: any) {
+      showAlert(err.message || "처리 중 오류가 발생했습니다.");
+    } finally {
+      setProcessingManualRequestId(null);
     }
   }
 
@@ -369,6 +442,13 @@ export default function AgentConsultationsPage() {
     const minutes = date.getMinutes().toString().padStart(2, "0");
     return `${month}월 ${day}일 (${dayName}) ${hours}:${minutes}`;
   }
+
+  const manualRequestsForModal = pendingManualRequests
+    .filter((request) => request.consultation?.id === manualModalConsultationId)
+    .sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    );
 
   const hasAnyConsultations = consultations.length > 0;
 
@@ -532,6 +612,19 @@ export default function AgentConsultationsPage() {
                         variant="secondary"
                         shape="pill"
                         className="flex-1 min-h-8"
+                        onClick={() => {
+                          setManualModalConsultationId(consultation.id);
+                          setManualModalOpen(true);
+                        }}
+                      >
+                        <AlertCircle className="h-4 w-4" />
+                        수동 요청
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        shape="pill"
+                        className="flex-1 min-h-8"
                         onClick={() => router.push(`/chat/${consultation.id}`)}
                       >
                         <MessageCircle className="h-4 w-4" />
@@ -585,6 +678,79 @@ export default function AgentConsultationsPage() {
         open={showBaseScheduleModal}
         onClose={() => setShowBaseScheduleModal(false)}
       />
+
+      <Modal
+        open={manualModalOpen}
+        onClose={() => {
+          if (processingManualRequestId !== null) return;
+          setManualModalOpen(false);
+          setManualModalConsultationId(null);
+        }}
+      >
+        <div className="ob-typo-h3 text-(--oboon-text-title)">수동 확인 요청</div>
+        <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+          고객의 GPS 인증 실패 요청을 확인하고 승인/거절할 수 있습니다.
+        </div>
+
+        <div className="mt-4 space-y-2">
+          {manualRequestsForModal.length === 0 ? (
+            <Card className="p-4 text-center shadow-none">
+              <div className="ob-typo-body text-(--oboon-text-muted)">
+                해당 예약의 수동 확인 요청이 없습니다.
+              </div>
+            </Card>
+          ) : (
+            manualRequestsForModal.map((request) => (
+              <Card key={request.id} className="p-3 shadow-none">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="ob-typo-body text-(--oboon-text-title)">
+                      {request.consultation?.customer?.name || "고객"}
+                    </div>
+                    <div className="ob-typo-caption text-(--oboon-text-muted)">
+                      {request.property?.name || "-"}
+                    </div>
+                    <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+                      요청 시간: {formatDate(request.created_at)}
+                    </div>
+                    {request.reason ? (
+                      <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+                        사유: {request.reason}
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      shape="pill"
+                      onClick={() =>
+                        handleManualRequestAction(request.id, "approve")
+                      }
+                      disabled={processingManualRequestId !== null}
+                      loading={processingManualRequestId === request.id}
+                    >
+                      승인
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      shape="pill"
+                      onClick={() =>
+                        handleManualRequestAction(request.id, "reject")
+                      }
+                      disabled={processingManualRequestId !== null}
+                      loading={processingManualRequestId === request.id}
+                    >
+                      거절
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            ))
+          )}
+        </div>
+      </Modal>
 
       {/* 약관 동의 모달 */}
       <Modal

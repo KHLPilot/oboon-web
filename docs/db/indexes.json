@@ -1,5 +1,15 @@
 [
   {
+    "table_name": "agent_holidays",
+    "index_name": "agent_holidays_agent_id_holiday_date_key",
+    "definition": "CREATE UNIQUE INDEX agent_holidays_agent_id_holiday_date_key ON public.agent_holidays USING btree (agent_id, holiday_date)"
+  },
+  {
+    "table_name": "agent_holidays",
+    "index_name": "agent_holidays_pkey",
+    "definition": "CREATE UNIQUE INDEX agent_holidays_pkey ON public.agent_holidays USING btree (id)"
+  },
+  {
     "table_name": "agent_slot_overrides",
     "index_name": "agent_slot_overrides_agent_id_slot_date_slot_time_key",
     "definition": "CREATE UNIQUE INDEX agent_slot_overrides_agent_id_slot_date_slot_time_key ON public.agent_slot_overrides USING btree (agent_id, slot_date, slot_time)"
@@ -205,6 +215,21 @@
     "definition": "CREATE INDEX idx_community_posts_status_created_at ON public.community_posts USING btree (status, created_at DESC)"
   },
   {
+    "table_name": "consultation_money_ledger",
+    "index_name": "consultation_money_ledger_pkey",
+    "definition": "CREATE UNIQUE INDEX consultation_money_ledger_pkey ON public.consultation_money_ledger USING btree (id)"
+  },
+  {
+    "table_name": "consultation_money_ledger",
+    "index_name": "idx_consultation_money_ledger_consultation",
+    "definition": "CREATE INDEX idx_consultation_money_ledger_consultation ON public.consultation_money_ledger USING btree (consultation_id, created_at DESC)"
+  },
+  {
+    "table_name": "consultation_money_ledger",
+    "index_name": "idx_consultation_money_ledger_event_type",
+    "definition": "CREATE INDEX idx_consultation_money_ledger_event_type ON public.consultation_money_ledger USING btree (event_type)"
+  },
+  {
     "table_name": "consultations",
     "index_name": "consultations_pkey",
     "definition": "CREATE UNIQUE INDEX consultations_pkey ON public.consultations USING btree (id)"
@@ -243,6 +268,41 @@
     "table_name": "contracts",
     "index_name": "contracts_pkey",
     "definition": "CREATE UNIQUE INDEX contracts_pkey ON public.contracts USING btree (id)"
+  },
+  {
+    "table_name": "notifications",
+    "index_name": "idx_notifications_recipient",
+    "definition": "CREATE INDEX idx_notifications_recipient ON public.notifications USING btree (recipient_id, created_at DESC)"
+  },
+  {
+    "table_name": "notifications",
+    "index_name": "idx_notifications_unread",
+    "definition": "CREATE INDEX idx_notifications_unread ON public.notifications USING btree (recipient_id) WHERE (read_at IS NULL)"
+  },
+  {
+    "table_name": "notifications",
+    "index_name": "notifications_pkey",
+    "definition": "CREATE UNIQUE INDEX notifications_pkey ON public.notifications USING btree (id)"
+  },
+  {
+    "table_name": "payout_requests",
+    "index_name": "idx_payout_requests_status_type",
+    "definition": "CREATE INDEX idx_payout_requests_status_type ON public.payout_requests USING btree (status, type, created_at)"
+  },
+  {
+    "table_name": "payout_requests",
+    "index_name": "payout_requests_pkey",
+    "definition": "CREATE UNIQUE INDEX payout_requests_pkey ON public.payout_requests USING btree (id)"
+  },
+  {
+    "table_name": "payout_requests",
+    "index_name": "payout_requests_unique_consultation",
+    "definition": "CREATE UNIQUE INDEX payout_requests_unique_consultation ON public.payout_requests USING btree (consultation_id, type)"
+  },
+  {
+    "table_name": "profile_bank_accounts",
+    "index_name": "profile_bank_accounts_pkey",
+    "definition": "CREATE UNIQUE INDEX profile_bank_accounts_pkey ON public.profile_bank_accounts USING btree (id)"
   },
   {
     "table_name": "profiles",
@@ -285,6 +345,31 @@
     "definition": "CREATE UNIQUE INDEX property_locations_pkey ON public.property_locations USING btree (id)"
   },
   {
+    "table_name": "property_requests",
+    "index_name": "property_requests_agent_id_idx",
+    "definition": "CREATE INDEX property_requests_agent_id_idx ON public.property_requests USING btree (agent_id)"
+  },
+  {
+    "table_name": "property_requests",
+    "index_name": "property_requests_pkey",
+    "definition": "CREATE UNIQUE INDEX property_requests_pkey ON public.property_requests USING btree (id)"
+  },
+  {
+    "table_name": "property_requests",
+    "index_name": "property_requests_property_id_idx",
+    "definition": "CREATE INDEX property_requests_property_id_idx ON public.property_requests USING btree (property_id)"
+  },
+  {
+    "table_name": "property_requests",
+    "index_name": "property_requests_requested_at_idx",
+    "definition": "CREATE INDEX property_requests_requested_at_idx ON public.property_requests USING btree (requested_at)"
+  },
+  {
+    "table_name": "property_requests",
+    "index_name": "property_requests_status_idx",
+    "definition": "CREATE INDEX property_requests_status_idx ON public.property_requests USING btree (status)"
+  },
+  {
     "table_name": "property_specs",
     "index_name": "property_specs_pkey",
     "definition": "CREATE UNIQUE INDEX property_specs_pkey ON public.property_specs USING btree (id)"
@@ -313,6 +398,46 @@
     "table_name": "public_profiles",
     "index_name": "public_profiles_pkey",
     "definition": "CREATE UNIQUE INDEX public_profiles_pkey ON public.public_profiles USING btree (id)"
+  },
+  {
+    "table_name": "term_consents",
+    "index_name": "idx_term_consents_consented_at",
+    "definition": "CREATE INDEX idx_term_consents_consented_at ON public.term_consents USING btree (consented_at)"
+  },
+  {
+    "table_name": "term_consents",
+    "index_name": "idx_term_consents_context",
+    "definition": "CREATE INDEX idx_term_consents_context ON public.term_consents USING btree (context, context_id)"
+  },
+  {
+    "table_name": "term_consents",
+    "index_name": "idx_term_consents_term_type",
+    "definition": "CREATE INDEX idx_term_consents_term_type ON public.term_consents USING btree (term_type)"
+  },
+  {
+    "table_name": "term_consents",
+    "index_name": "idx_term_consents_user",
+    "definition": "CREATE INDEX idx_term_consents_user ON public.term_consents USING btree (user_id)"
+  },
+  {
+    "table_name": "term_consents",
+    "index_name": "term_consents_pkey",
+    "definition": "CREATE UNIQUE INDEX term_consents_pkey ON public.term_consents USING btree (id)"
+  },
+  {
+    "table_name": "terms",
+    "index_name": "idx_terms_type",
+    "definition": "CREATE INDEX idx_terms_type ON public.terms USING btree (type)"
+  },
+  {
+    "table_name": "terms",
+    "index_name": "terms_pkey",
+    "definition": "CREATE UNIQUE INDEX terms_pkey ON public.terms USING btree (id)"
+  },
+  {
+    "table_name": "terms",
+    "index_name": "terms_type_version_unique",
+    "definition": "CREATE UNIQUE INDEX terms_type_version_unique ON public.terms USING btree (type, version)"
   },
   {
     "table_name": "verification_tokens",
@@ -383,15 +508,5 @@
     "table_name": "visit_tokens",
     "index_name": "visit_tokens_token_key",
     "definition": "CREATE UNIQUE INDEX visit_tokens_token_key ON public.visit_tokens USING btree (token)"
-  },
-  {
-    "table_name": "agent_holidays",
-    "index_name": "agent_holidays_agent_id_holiday_date_key",
-    "definition": "CREATE UNIQUE INDEX agent_holidays_agent_id_holiday_date_key ON public.agent_holidays USING btree (agent_id, holiday_date)"
-  },
-  {
-    "table_name": "agent_holidays",
-    "index_name": "agent_holidays_pkey",
-    "definition": "CREATE UNIQUE INDEX agent_holidays_pkey ON public.agent_holidays USING btree (id)"
   }
 ]

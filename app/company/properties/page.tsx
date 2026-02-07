@@ -6,12 +6,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { deletePropertyById, fetchPropertyListData } from "@/features/company/services/property.list";
 import { useRouter } from "next/navigation";
-import { Trash2 } from "lucide-react";
+import { Calendar, Edit2, Trash2, User } from "lucide-react";
 import Button from "@/components/ui/Button";
 import PageContainer from "@/components/shared/PageContainer";
 import { showAlert } from "@/shared/alert";
 
-const ALLOWED_ROLES = ["builder", "developer", "admin"];
+const ALLOWED_ROLES = ["builder", "developer", "admin", "agent"];
 
 /* --------------------------------------------------
    타입
@@ -32,6 +32,9 @@ type PropertyRow = {
   property_specs?: any;
   property_timeline?: any;
   property_unit_types?: any;
+  request_status?: "pending" | "approved" | "rejected" | null;
+  request_requested_at?: string | null;
+  request_rejection_reason?: string | null;
 };
 
 /* --------------------------------------------------
@@ -92,6 +95,46 @@ function StatusChip({
   );
 }
 
+function RequestStatusBadge({
+  status,
+}: {
+  status: PropertyRow["request_status"];
+}) {
+  if (!status) return null;
+  const label =
+    status === "pending"
+      ? "요청 중"
+      : status === "approved"
+        ? "게시됨"
+        : "반려";
+  const variant =
+    status === "approved"
+      ? "success"
+      : status === "rejected"
+        ? "danger"
+        : "warning";
+  return (
+    <Badge variant={variant} className="ob-typo-caption">
+      {label}
+    </Badge>
+  );
+}
+
+function formatKoreanDateTime(value: string | null | undefined) {
+  if (!value) return "-";
+  const d = new Date(value);
+  const dayNames = ["일", "월", "화", "수", "목", "금", "토"];
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const day = dayNames[d.getDay()];
+  const hours = d.getHours();
+  const period = hours < 12 ? "오전" : "오후";
+  const hour12 = hours % 12 === 0 ? 12 : hours % 12;
+  const minute = String(d.getMinutes()).padStart(2, "0");
+  return `${yyyy}. ${mm}. ${dd}. (${day}) ${period} ${hour12}:${minute}`;
+}
+
 /* --------------------------------------------------
    수정 버튼
 -------------------------------------------------- */
@@ -103,12 +146,14 @@ function EditButton({ href, disabled }: { href: string; disabled?: boolean }) {
       variant={disabled ? "secondary" : "primary"}
       size="sm"
       shape="pill"
+      className="h-8 w-8 p-0 cursor-pointer transition-colors hover:bg-(--oboon-bg-subtle)"
       disabled={disabled}
       onClick={() => {
         if (!disabled) router.push(href);
       }}
+      aria-label={disabled ? "수정 불가" : "수정"}
     >
-      {disabled ? "수정 불가" : "수정"}
+      <Edit2 className="h-4 w-4" />
     </Button>
   );
 }
@@ -347,21 +392,19 @@ export default function PropertyListPage() {
                   "p-6 shadow-none",
                 ].join(" ")}
               >
-                {/* 상단: 제목 + 상태 배지 */}
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="ob-typo-h3 text-(--oboon-text-title) truncate">
                       {row.name}
                     </div>
-                    <p className="ob-typo-caption text-(--oboon-text-muted) mt-1">
-                      작성자: {displayName}
-                    </p>
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
-                    <StatusChip
-                      inputCount={inputCount}
-                      totalCount={totalCount}
+                    <RequestStatusBadge status={row.request_status} />
+                    <StatusChip inputCount={inputCount} totalCount={totalCount} />
+                    <EditButton
+                      href={`/company/properties/${row.id}`}
+                      disabled={!canEdit}
                     />
 
                     {canEdit && (
@@ -370,7 +413,7 @@ export default function PropertyListPage() {
                         onClick={() => handleDelete(row.id, canEdit)}
                         aria-label="삭제"
                         className={[
-                          "rounded-full p-1",
+                          "inline-flex h-8 w-8 items-center justify-center rounded-full p-0 cursor-pointer transition-colors",
                           "text-(--oboon-danger)",
                           "hover:bg-(--oboon-danger-bg)",
                           "focus:outline-none focus:ring-2 focus:ring-(--oboon-danger)/30",
@@ -382,29 +425,52 @@ export default function PropertyListPage() {
                   </div>
                 </div>
 
-                {/* 중단: 미입력 칩 */}
+                <div className="mt-3">
+                  <div className="space-y-1.5 min-w-0">
+                    <div className="flex items-center gap-2 ob-typo-body text-(--oboon-text-muted)">
+                      <User className="h-4 w-4" />
+                      <span>{displayName}</span>
+                    </div>
+                    <div className="flex items-center gap-2 ob-typo-body text-(--oboon-text-muted)">
+                      <Calendar className="h-4 w-4" />
+                      <span>{formatKoreanDateTime(row.request_requested_at)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 border-t border-(--oboon-border-default)" />
+
+                <div className="mt-4">
+                  <div className="ob-typo-body text-(--oboon-text-muted)">
+                    입력 진행률 :{" "}
+                    <span className="text-(--oboon-text-title)">
+                      {Math.round((inputCount / totalCount) * 100)}%
+                    </span>
+                  </div>
+                  <div className="mt-2 h-2 w-full rounded-full bg-(--oboon-bg-subtle)">
+                    <div
+                      className="h-2 rounded-full bg-(--oboon-primary)"
+                      style={{ width: `${Math.round((inputCount / totalCount) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+
                 {missingLabels.length > 0 ? (
-                  <div className="mt-4 flex flex-wrap gap-2">
+                  <div className="mt-3 flex flex-wrap gap-2">
                     {visibleMissing.map((label) => (
                       <MissingPill key={label} label={label} />
                     ))}
-                    {hiddenCount > 0 && <MorePill count={hiddenCount} />}
+                    {hiddenCount > 0 ? <MorePill count={hiddenCount} /> : null}
                   </div>
-                ) : (
-                  <div className="mt-4">
-                    <span className="ob-typo-caption text-(--oboon-primary)">
-                      모든 데이터가 입력되었습니다.
-                    </span>
-                  </div>
-                )}
+                ) : null}
 
-                {/* 하단: 수정 버튼 */}
-                <div className="mt-auto pt-5 flex items-center justify-end gap-2">
-                  <EditButton
-                    href={`/company/properties/${row.id}`}
-                    disabled={!canEdit}
-                  />
-                </div>
+                {row.request_status === "rejected" &&
+                row.request_rejection_reason ? (
+                  <div className="mt-3 ob-typo-caption text-(--oboon-danger)">
+                    반려 사유: {row.request_rejection_reason}
+                  </div>
+                ) : null}
+
               </div>
             );
           })}

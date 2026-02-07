@@ -12,6 +12,7 @@ const adminSupabase = createClient(
 const ALLOWED_RADIUS_METERS = 150;
 const MAX_ACCURACY_METERS = 150;
 const RESERVATION_WINDOW_MS = 2 * 60 * 60 * 1000; // ±2시간
+const VISIT_REWARD_AMOUNT = 10000;
 
 const ERROR_CODES = {
   NOT_AUTHENTICATED: "NOT_AUTHENTICATED",
@@ -216,6 +217,56 @@ export async function POST(req: Request) {
 
     if (updateError) {
       console.error("예약 상태 업데이트 오류:", updateError);
+    }
+
+    // 방문 완료 시 정산 이벤트 자동 연동 (중복 방지)
+    const { data: existingRewardLedger } = await adminSupabase
+      .from("consultation_money_ledger")
+      .select("id")
+      .eq("consultation_id", consultation.id)
+      .eq("event_type", "reward_due")
+      .limit(1)
+      .maybeSingle();
+
+    if (!existingRewardLedger) {
+      const { error: rewardLedgerError } = await adminSupabase
+        .from("consultation_money_ledger")
+        .insert({
+          consultation_id: consultation.id,
+          event_type: "reward_due",
+          bucket: "reward",
+          amount: VISIT_REWARD_AMOUNT,
+          actor_id: user.id,
+          admin_id: null,
+          note: "visit_verified_reward_due",
+        });
+
+      if (rewardLedgerError) {
+        console.error("보상 원장 생성 오류:", rewardLedgerError);
+      }
+    }
+
+    const { data: existingPayout } = await adminSupabase
+      .from("payout_requests")
+      .select("id")
+      .eq("consultation_id", consultation.id)
+      .eq("type", "reward_payout")
+      .limit(1)
+      .maybeSingle();
+
+    if (!existingPayout) {
+      const { error: payoutError } = await adminSupabase
+        .from("payout_requests")
+        .insert({
+          consultation_id: consultation.id,
+          type: "reward_payout",
+          amount: VISIT_REWARD_AMOUNT,
+          target_profile_id: consultation.agent_id,
+          status: "pending",
+        });
+      if (payoutError) {
+        console.error("지급 요청 생성 오류:", payoutError);
+      }
     }
 
     // 11. 상담사에게 도착 알림 전송

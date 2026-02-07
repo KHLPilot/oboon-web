@@ -1,4 +1,8 @@
 import { createSupabaseClient } from "@/lib/supabaseClient";
+import {
+  getPropertyProgress,
+  getPropertyProgressPercent,
+} from "@/features/property/mappers/propertyProgress";
 
 export type AdminProfileRow = {
   id: string;
@@ -15,10 +19,14 @@ export type PendingPropertyAgent = {
   property_id: number;
   agent_id: string;
   status: "pending" | "approved" | "rejected";
+  rejection_reason?: string | null;
   requested_at: string;
   properties: {
     id: number;
     name: string;
+    progressPercent?: number;
+    inputCount?: number;
+    totalCount?: number;
   } | null;
   profiles: {
     id: string;
@@ -31,7 +39,7 @@ export type AdminDashboardData = {
   user: { id: string } | null;
   role: string | null;
   pendingAgents: AdminProfileRow[];
-  pendingPropertyAgents: PendingPropertyAgent[];
+  propertyAgents: PendingPropertyAgent[];
   approvedPropertyAgentCount: number;
   todayNewConsultations: number;
   todayVisitConsultations: number;
@@ -51,7 +59,7 @@ export async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
       user: null,
       role: null,
       pendingAgents: [],
-      pendingPropertyAgents: [],
+      propertyAgents: [],
       approvedPropertyAgentCount: 0,
       todayNewConsultations: 0,
       todayVisitConsultations: 0,
@@ -74,43 +82,75 @@ export async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
     .eq("role", "agent_pending")
     .order("created_at", { ascending: true });
 
-  const { data: propertyAgentsPending } = await supabase
-    .from("property_agents")
+  const { data: propertyRequestsAll } = await supabase
+    .from("property_requests")
     .select(
       `
       id,
       property_id,
       agent_id,
       status,
+      rejection_reason,
       requested_at
     `,
     )
-    .eq("status", "pending")
     .order("requested_at", { ascending: true });
 
   let enrichedPropertyAgents: PendingPropertyAgent[] = [];
-  if (propertyAgentsPending && propertyAgentsPending.length > 0) {
+  if (propertyRequestsAll && propertyRequestsAll.length > 0) {
     const propertyIds = [
-      ...new Set(propertyAgentsPending.map((pa) => pa.property_id)),
+      ...new Set(propertyRequestsAll.map((pa) => pa.property_id)),
     ];
     const agentIds = [
-      ...new Set(propertyAgentsPending.map((pa) => pa.agent_id)),
+      ...new Set(propertyRequestsAll.map((pa) => pa.agent_id)),
     ];
 
     const [{ data: propertiesData }, { data: profilesData }] =
       await Promise.all([
-        supabase.from("properties").select("id, name").in("id", propertyIds),
-        supabase.from("profiles").select("id, name, email").in("id", agentIds),
+        supabase
+          .from("properties")
+          .select(
+            `
+            id,
+            name,
+            confirmed_comment,
+            estimated_comment,
+            pending_comment,
+            property_locations(id),
+            property_facilities(id),
+            property_specs!properties_id(*),
+            property_timeline(*),
+            property_unit_types(id)
+          `,
+          )
+          .in("id", propertyIds),
+        supabase
+          .from("profiles")
+          .select("id, name, email, role")
+          .in("id", agentIds)
+          .in("role", ["admin", "agent"]),
       ]);
 
     const propertiesMap = new Map(
-      (propertiesData || []).map((p) => [p.id, p]),
+      (propertiesData || []).map((p) => {
+        const progress = getPropertyProgress(p);
+        return [
+          p.id,
+          {
+            id: p.id,
+            name: p.name,
+            progressPercent: getPropertyProgressPercent(p),
+            inputCount: progress.inputCount,
+            totalCount: progress.totalCount,
+          },
+        ];
+      }),
     );
     const profilesMap = new Map(
       (profilesData || []).map((p) => [p.id, p]),
     );
 
-    enrichedPropertyAgents = propertyAgentsPending.map((pa) => ({
+    enrichedPropertyAgents = propertyRequestsAll.map((pa) => ({
       ...pa,
       properties: propertiesMap.get(pa.property_id) || null,
       profiles: profilesMap.get(pa.agent_id) || null,
@@ -118,7 +158,7 @@ export async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
   }
 
   const { count: approvedPropertyAgentCount } = await supabase
-    .from("property_agents")
+    .from("property_requests")
     .select("id", { count: "exact", head: true })
     .eq("status", "approved");
 
@@ -160,7 +200,7 @@ export async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
     user: { id: user.id },
     role,
     pendingAgents: (pending || []) as AdminProfileRow[],
-    pendingPropertyAgents: enrichedPropertyAgents,
+    propertyAgents: enrichedPropertyAgents,
     approvedPropertyAgentCount: approvedPropertyAgentCount ?? 0,
     todayNewConsultations: todayNewConsultations ?? 0,
     todayVisitConsultations: todayVisitConsultations ?? 0,
