@@ -183,7 +183,7 @@ export default function AgentConsultationsPage() {
 
   const fetchPendingManualRequests = useCallback(async () => {
     try {
-      const response = await fetch("/api/visits/manual-approve");
+      const response = await fetch("/api/visits/visit-confirm-requests");
       const data = await response.json();
       if (response.ok) {
         setPendingManualRequests((data.requests || []) as ManualRequest[]);
@@ -302,7 +302,7 @@ export default function AgentConsultationsPage() {
   ) {
     setProcessingManualRequestId(requestId);
     try {
-      const response = await fetch("/api/visits/manual-approve", {
+      const response = await fetch("/api/visits/visit-confirm-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ requestId, action }),

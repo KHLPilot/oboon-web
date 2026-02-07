@@ -60,7 +60,7 @@ export default function GpsVisitVerifyModal({
     const timer = setInterval(async () => {
       try {
         const response = await fetch(
-          `/api/visits/manual-approve?requestId=${manualRequestId}`,
+          `/api/visits/visit-confirm-requests?requestId=${manualRequestId}`,
         );
         const data = await response.json();
         if (!response.ok || !data.request) return;
