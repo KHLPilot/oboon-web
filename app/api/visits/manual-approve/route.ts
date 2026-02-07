@@ -21,7 +21,7 @@ type ManualRequestRow = {
   consultation_id: string | null;
 };
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const cookieStore = await cookies();
     const supabase = createServerClient(
@@ -48,6 +48,30 @@ export async function GET() {
       .select("role")
       .eq("id", user.id)
       .single();
+    const { searchParams } = new URL(req.url);
+    const requestId = searchParams.get("requestId");
+
+    if (requestId) {
+      const { data: requestRow } = await adminSupabase
+        .from("visit_confirm_requests")
+        .select("id, status, customer_id, agent_id, resolved_at, resolved_by")
+        .eq("id", requestId)
+        .single();
+
+      if (!requestRow) {
+        return NextResponse.json({ error: "요청을 찾을 수 없습니다" }, { status: 404 });
+      }
+
+      const isAdmin = me?.role === "admin";
+      const isOwner =
+        requestRow.customer_id === user.id || requestRow.agent_id === user.id;
+      if (!isAdmin && !isOwner) {
+        return NextResponse.json({ error: "접근 권한이 없습니다" }, { status: 403 });
+      }
+
+      return NextResponse.json({ request: requestRow });
+    }
+
     const isAdmin = me?.role === "admin";
     const isAgent = me?.role === "agent";
     if (!isAdmin && !isAgent) {
@@ -258,4 +282,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "처리 실패" }, { status: 500 });
   }
 }
-
