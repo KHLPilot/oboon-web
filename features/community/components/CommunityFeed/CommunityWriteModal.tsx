@@ -146,7 +146,9 @@ export default function CommunityWriteModal({
       <div className="space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="ob-typo-h2 text-(--oboon-text-title)">기록 남기기</div>
+            <div className="ob-typo-h2 text-(--oboon-text-title)">
+              기록 남기기
+            </div>
             {!isLoggedIn ? (
               <div className="mt-2 ob-typo-body text-(--oboon-text-muted)">
                 기록은 로그인 후에 남길 수 있어요
@@ -183,7 +185,10 @@ export default function CommunityWriteModal({
                   <ChevronDown className="h-4 w-4 text-(--oboon-text-muted)" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-[min(520px,90vw)]">
+              <DropdownMenuContent
+                align="start"
+                className="w-[min(520px,90vw)]"
+              >
                 {WRITE_TYPE_OPTIONS.map((option) => (
                   <DropdownMenuItem
                     key={option.key}
@@ -196,7 +201,7 @@ export default function CommunityWriteModal({
             </DropdownMenu>
 
             <Input
-              className="ob-typo-body"
+              className="ob-typo-body h-10"
               placeholder={
                 writeType === "thinking"
                   ? "가장 헷갈리는 한 가지를 질문으로 적어주세요"
@@ -225,7 +230,7 @@ export default function CommunityWriteModal({
                 <div className="flex-1 space-y-2">
                   <div className="relative">
                     <Input
-                      className="ob-typo-body"
+                      className="ob-typo-body h-10"
                       placeholder="현장 선택하기"
                       value={propertySearch}
                       onChange={(event) => {
@@ -250,24 +255,27 @@ export default function CommunityWriteModal({
                               검색 결과가 없습니다.
                             </div>
                           )}
-                        {!loadingProperties && filteredProperties.length > 0 && (
-                          <div className="max-h-36 space-y-1 overflow-y-auto">
-                            {filteredProperties.map((option) => (
-                              <button
-                                key={option.id}
-                                type="button"
-                                className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left ob-typo-body text-(--oboon-text-title) hover:bg-(--oboon-bg-subtle)"
-                                onClick={() => {
-                                  setSelectedProperty(option);
-                                  setPropertySearch(option.name);
-                                  setShowSuggestions(false);
-                                }}
-                              >
-                                <span className="truncate">{option.name}</span>
-                              </button>
-                            ))}
-                          </div>
-                        )}
+                        {!loadingProperties &&
+                          filteredProperties.length > 0 && (
+                            <div className="max-h-36 space-y-1 overflow-y-auto">
+                              {filteredProperties.map((option) => (
+                                <button
+                                  key={option.id}
+                                  type="button"
+                                  className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left ob-typo-body text-(--oboon-text-title) hover:bg-(--oboon-bg-subtle)"
+                                  onClick={() => {
+                                    setSelectedProperty(option);
+                                    setPropertySearch(option.name);
+                                    setShowSuggestions(false);
+                                  }}
+                                >
+                                  <span className="truncate">
+                                    {option.name}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
                       </div>
                     ) : null}
                   </div>
@@ -310,7 +318,7 @@ export default function CommunityWriteModal({
                     selected={visitDate}
                     onChange={(date) => setVisitDate(date)}
                     placeholder="방문일자 선택하기"
-                    inputClassName="ob-typo-body w-full rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-(--oboon-primary)"
+                    inputClassName="ob-typo-body h-10 w-full rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-(--oboon-primary)"
                   />
                 </div>
 
@@ -349,7 +357,9 @@ export default function CommunityWriteModal({
               loading={isSubmitting}
               onClick={handleSubmit}
             >
-              {writeType === "thinking" ? "고민 올리기" : "다녀온 현장 기록하기"}
+              {writeType === "thinking"
+                ? "고민 올리기"
+                : "다녀온 현장 기록하기"}
             </Button>
           </div>
         )}

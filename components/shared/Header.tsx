@@ -229,7 +229,7 @@ export default function Header() {
                     size="sm"
                     shape="pill"
                     className="flex items-center gap-2"
-                    onClick={() => router.push("/agent/properties")}
+                    onClick={() => router.push("/agent/profile#affiliation-section")}
                   >
                     <UserPlus className="w-4 h-4" />
                     <span className="hidden sm:inline">소속 등록 신청</span>

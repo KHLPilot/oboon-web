@@ -87,3 +87,8 @@ export type CommunityPropertyOption = {
   id: number;
   name: string;
 };
+
+export type CommunityInterestProperty = {
+  id: number;
+  name: string;
+};

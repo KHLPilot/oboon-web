@@ -26,6 +26,7 @@ export type {
   CommunityPostRow,
   CommunityPostViewModel,
   CommunityPropertyOption,
+  CommunityInterestProperty,
   CommunityProfileRow,
   CommunityProfileViewModel,
   CommunityProfileStats,
@@ -39,5 +40,10 @@ export {
   createCommunityPost,
 } from "./services/community.posts";
 export { getCommunityPropertyOptions, getCommunityAuthStatus } from "./services/community.meta";
+export {
+  getCommunityInterestProperties,
+  addCommunityInterestProperty,
+  removeCommunityInterestProperty,
+} from "./services/community.interest";
 export { mapCommunityPost, mapCommunityProfile } from "./mappers/community.mapper";
 export { getCommunityProfile } from "./services/community.profile";

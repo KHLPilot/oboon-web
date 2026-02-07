@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   CalendarDays,
   MessageCircle,
-  MapPin,
+  Navigation,
   Loader2,
   Trash2,
 } from "lucide-react";
@@ -306,8 +306,8 @@ export default function ConsultationsListPanel({
                         setVisitModalOpen(true);
                       }}
                     >
-                      <MapPin className="h-5 w-5" />
-                      방문인증
+                      <Navigation className="h-5 w-5" />
+                      방문 확인
                     </Button>
                   )}
 

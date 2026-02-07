@@ -21,6 +21,7 @@ interface AgentInfo {
   name: string;
   email?: string | null;
   phone_number?: string | null;
+  agent_bio?: string | null;
 }
 
 export default function OfferingDetailRight({
@@ -85,7 +86,7 @@ export default function OfferingDetailRight({
           </div>
         </div>
         <div className="mt-3 ob-typo-caption text-(--oboon-text-muted)">
-          상담사 설명 (기타 정보) 란
+          {agent.agent_bio?.trim() || "등록된 상담사 소개가 없습니다."}
         </div>
         <Button
           className="mt-4 w-full"
@@ -134,7 +135,8 @@ export default function OfferingDetailRight({
               id,
               name,
               email,
-              phone_number
+              phone_number,
+              agent_bio
             )
           `,
           )

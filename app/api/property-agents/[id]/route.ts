@@ -101,6 +101,23 @@ export async function PATCH(
       );
     }
 
+    if (status === "approved") {
+      const { error: clearApprovedError } = await supabase
+        .from("property_agents")
+        .delete()
+        .eq("agent_id", existingRequest.agent_id)
+        .eq("status", "approved")
+        .neq("id", propertyAgentId);
+
+      if (clearApprovedError) {
+        console.error("기존 승인 소속 정리 오류:", clearApprovedError);
+        return NextResponse.json(
+          { error: "기존 소속 정리 중 오류가 발생했습니다" },
+          { status: 500 }
+        );
+      }
+    }
+
     // 상태 업데이트
     const updateData: any = {
       status,

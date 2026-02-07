@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { calculateDistance } from "@/lib/utils/geo";
+import { randomUUID } from "crypto";
 
 const adminSupabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -12,7 +13,6 @@ const adminSupabase = createClient(
 const ALLOWED_RADIUS_METERS = 150;
 const MAX_ACCURACY_METERS = 150;
 const RESERVATION_WINDOW_MS = 2 * 60 * 60 * 1000; // ±2시간
-const VISIT_REWARD_AMOUNT = 10000;
 
 const ERROR_CODES = {
   NOT_AUTHENTICATED: "NOT_AUTHENTICATED",
@@ -181,92 +181,65 @@ export async function POST(req: Request) {
       );
     }
 
-    // 10. visit_logs 기록 + consultation 상태 업데이트
+    // 10. 상담사 확인 요청 생성 (GPS 성공이어도 상담사 확인 필요)
     const nowIso = new Date().toISOString();
-
-    const { error: logError } = await adminSupabase.from("visit_logs").insert({
-      token_id: null,
-      property_id: consultation.property_id,
-      agent_id: consultation.agent_id,
-      consultation_id: consultation.id,
-      customer_id: user.id,
-      verified_at: nowIso,
-      lat,
-      lng,
-      accuracy: accuracy || null,
-      method: "gps",
-      metadata: {
-        userAgent: req.headers.get("user-agent"),
-        distance: Math.round(distance),
-        type: "direct_gps",
-      },
-    });
-
-    if (logError) {
-      console.error("방문 로그 기록 오류:", logError);
-      return NextResponse.json(
-        { error: "방문 기록 저장에 실패했습니다", code: ERROR_CODES.SERVER_ERROR },
-        { status: 500 }
-      );
-    }
-
-    const { error: updateError } = await adminSupabase
-      .from("consultations")
-      .update({ status: "visited", visited_at: nowIso })
-      .eq("id", consultation.id);
-
-    if (updateError) {
-      console.error("예약 상태 업데이트 오류:", updateError);
-    }
-
-    // 방문 완료 시 정산 이벤트 자동 연동 (중복 방지)
-    const { data: existingRewardLedger } = await adminSupabase
-      .from("consultation_money_ledger")
+    const { data: existingPending } = await adminSupabase
+      .from("visit_confirm_requests")
       .select("id")
       .eq("consultation_id", consultation.id)
-      .eq("event_type", "reward_due")
+      .eq("customer_id", user.id)
+      .eq("status", "pending")
       .limit(1)
       .maybeSingle();
 
-    if (!existingRewardLedger) {
-      const { error: rewardLedgerError } = await adminSupabase
-        .from("consultation_money_ledger")
-        .insert({
-          consultation_id: consultation.id,
-          event_type: "reward_due",
-          bucket: "reward",
-          amount: VISIT_REWARD_AMOUNT,
-          actor_id: user.id,
-          admin_id: null,
-          note: "visit_verified_reward_due",
-        });
+    let requestId = existingPending?.id ?? null;
 
-      if (rewardLedgerError) {
-        console.error("보상 원장 생성 오류:", rewardLedgerError);
+    if (!requestId) {
+      const tokenValue = `gps_${randomUUID().replace(/-/g, "")}`;
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+      const { data: token, error: tokenError } = await adminSupabase
+        .from("visit_tokens")
+        .insert({
+          token: tokenValue,
+          property_id: consultation.property_id,
+          agent_id: consultation.agent_id,
+          consultation_id: consultation.id,
+          expires_at: expiresAt,
+        })
+        .select("id")
+        .single();
+
+      if (tokenError || !token) {
+        console.error("방문 확인 토큰 생성 오류:", tokenError);
+        return NextResponse.json(
+          { error: "요청 생성에 실패했습니다", code: ERROR_CODES.SERVER_ERROR },
+          { status: 500 },
+        );
       }
-    }
 
-    const { data: existingPayout } = await adminSupabase
-      .from("payout_requests")
-      .select("id")
-      .eq("consultation_id", consultation.id)
-      .eq("type", "reward_payout")
-      .limit(1)
-      .maybeSingle();
-
-    if (!existingPayout) {
-      const { error: payoutError } = await adminSupabase
-        .from("payout_requests")
+      const { data: requestRow, error: requestError } = await adminSupabase
+        .from("visit_confirm_requests")
         .insert({
+          token_id: token.id,
+          customer_id: consultation.customer_id,
+          agent_id: consultation.agent_id,
+          property_id: consultation.property_id,
           consultation_id: consultation.id,
-          type: "reward_payout",
-          amount: VISIT_REWARD_AMOUNT,
-          target_profile_id: consultation.agent_id,
+          reason: `GPS 도착 인증 완료 (거리: ${Math.round(distance)}m, 정확도: ${Math.round(accuracy || 0)}m)`,
           status: "pending",
-        });
-      if (payoutError) {
-        console.error("지급 요청 생성 오류:", payoutError);
+        })
+        .select("id")
+        .single();
+
+      if (requestError || !requestRow) {
+        console.error("방문 확인 요청 생성 오류:", requestError);
+        return NextResponse.json(
+          { error: "요청 생성에 실패했습니다", code: ERROR_CODES.SERVER_ERROR },
+          { status: 500 },
+        );
       }
+
+      requestId = requestRow.id;
     }
 
     // 11. 상담사에게 도착 알림 전송
@@ -283,6 +256,7 @@ export async function POST(req: Request) {
         customer_id: user.id,
         property_id: consultation.property_id,
         distance: Math.round(distance),
+        visit_confirm_request_id: requestId,
       },
     });
 
@@ -292,8 +266,10 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      message: "방문 인증이 완료되었습니다",
-      verified_at: nowIso,
+      message: "도착 인증 요청이 전송되었습니다. 상담사 확인 후 방문 완료 처리됩니다.",
+      requestId,
+      pendingApproval: true,
+      requested_at: nowIso,
       distance: Math.round(distance),
     });
   } catch (err: unknown) {

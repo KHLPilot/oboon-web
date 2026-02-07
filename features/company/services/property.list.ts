@@ -42,11 +42,17 @@ export async function fetchPropertyListData() {
   if (profile?.role === "agent") {
     const { data: memberships } = await supabase
       .from("property_agents")
-      .select("property_id")
+      .select("property_id, approved_at, requested_at")
       .eq("agent_id", user.id)
       .eq("status", "approved");
 
-    allowedPropertyIds = (memberships ?? []).map((row) => row.property_id);
+    const latestApproved = [...(memberships ?? [])].sort((a, b) => {
+      const aTime = new Date(a.approved_at ?? a.requested_at).getTime();
+      const bTime = new Date(b.approved_at ?? b.requested_at).getTime();
+      return bTime - aTime;
+    })[0];
+
+    allowedPropertyIds = latestApproved ? [latestApproved.property_id] : [];
   }
 
   let query = supabase

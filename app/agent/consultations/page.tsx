@@ -11,7 +11,7 @@ import {
   Trash2,
   Settings,
   Bell,
-  AlertCircle,
+  Navigation,
 } from "lucide-react";
 
 import PageContainer from "@/components/shared/PageContainer";
@@ -617,8 +617,8 @@ export default function AgentConsultationsPage() {
                           setManualModalOpen(true);
                         }}
                       >
-                        <AlertCircle className="h-4 w-4" />
-                        수동 요청
+                        <Navigation className="h-4 w-4" />
+                        방문 확인
                       </Button>
                       <Button
                         size="sm"
@@ -687,16 +687,16 @@ export default function AgentConsultationsPage() {
           setManualModalConsultationId(null);
         }}
       >
-        <div className="ob-typo-h3 text-(--oboon-text-title)">수동 확인 요청</div>
+        <div className="ob-typo-h3 text-(--oboon-text-title)">방문 확인 요청</div>
         <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
-          고객의 GPS 인증 실패 요청을 확인하고 승인/거절할 수 있습니다.
+          고객의 도착 인증 요청을 확인하고 승인/거절할 수 있습니다.
         </div>
 
         <div className="mt-4 space-y-2">
           {manualRequestsForModal.length === 0 ? (
             <Card className="p-4 text-center shadow-none">
               <div className="ob-typo-body text-(--oboon-text-muted)">
-                해당 예약의 수동 확인 요청이 없습니다.
+                해당 예약의 방문 확인 요청이 없습니다.
               </div>
             </Card>
           ) : (

@@ -31,7 +31,7 @@ type VerifyErrorInfo = {
   accuracy?: number;
 };
 
-type ManualStatus = "idle" | "requesting" | "waiting" | "approved" | "rejected";
+type ManualStatus = "idle" | "waiting" | "approved" | "rejected";
 
 export default function GpsVisitVerifyModal({
   open,
@@ -45,18 +45,14 @@ export default function GpsVisitVerifyModal({
   const [errorInfo, setErrorInfo] = useState<VerifyErrorInfo | null>(null);
   const [inAppInfo, setInAppInfo] = useState<InAppBrowserInfo | null>(null);
   const [manualStatus, setManualStatus] = useState<ManualStatus>("idle");
-  const [manualReason, setManualReason] = useState("");
   const [manualRequestId, setManualRequestId] = useState<string | null>(null);
-  const [showManualReasonInput, setShowManualReasonInput] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setInAppInfo(detectInAppBrowser());
     setErrorInfo(null);
     setManualStatus("idle");
-    setManualReason("");
     setManualRequestId(null);
-    setShowManualReasonInput(false);
   }, [open]);
 
   useEffect(() => {
@@ -109,31 +105,6 @@ export default function GpsVisitVerifyModal({
     window.location.href = getExternalBrowserUrl(currentUrl, inAppInfo);
   }
 
-  async function handleRequestManual() {
-    if (!consultationId) return;
-    setManualStatus("requesting");
-    try {
-      const response = await fetch("/api/visits/request-manual", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          consultationId,
-          reason: manualReason || "GPS 인증 실패",
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || "요청 생성 실패");
-      }
-      setManualRequestId(data.requestId);
-      setManualStatus("waiting");
-      setShowManualReasonInput(false);
-    } catch (error: any) {
-      setManualStatus("idle");
-      showAlert(error.message || "요청 생성 실패");
-    }
-  }
-
   async function handleVerifyByGps() {
     if (!consultationId) return;
     if (!navigator.geolocation) {
@@ -168,8 +139,17 @@ export default function GpsVisitVerifyModal({
             });
             return;
           }
+          if (data.pendingApproval && data.requestId) {
+            setManualRequestId(data.requestId);
+            setManualStatus("waiting");
+            showAlert(
+              data.message ||
+                "도착 인증 요청이 전송되었습니다. 상담사 확인을 기다려주세요.",
+            );
+            return;
+          }
 
-          showAlert("방문 인증이 완료되었습니다.");
+          showAlert(data.message || "방문 인증이 완료되었습니다.");
           onVerified?.();
           onClose();
         } catch (err: any) {
@@ -297,52 +277,6 @@ export default function GpsVisitVerifyModal({
         </Card>
       ) : null}
 
-      {errorInfo ? (
-        <div className="mt-3">
-          {showManualReasonInput ? (
-            <Card className="p-3 shadow-none">
-              <textarea
-                className="w-full rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-2 ob-typo-caption text-(--oboon-text-body)"
-                rows={2}
-                placeholder="수동 확인 요청 사유 (선택)"
-                value={manualReason}
-                onChange={(e) => setManualReason(e.target.value)}
-              />
-              <div className="mt-2 flex gap-2">
-                <Button
-                  className="flex-1"
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setShowManualReasonInput(false)}
-                  disabled={manualStatus === "requesting"}
-                >
-                  취소
-                </Button>
-                <Button
-                  className="flex-1"
-                  variant="warning"
-                  size="sm"
-                  onClick={handleRequestManual}
-                  disabled={manualStatus === "requesting"}
-                >
-                  {manualStatus === "requesting" ? "요청 중..." : "상담사 확인 요청"}
-                </Button>
-              </div>
-            </Card>
-          ) : (
-            <Button
-              className="w-full"
-              variant="secondary"
-              size="sm"
-              onClick={() => setShowManualReasonInput(true)}
-              disabled={manualStatus === "waiting"}
-            >
-              상담사 확인 요청
-            </Button>
-          )}
-        </div>
-      ) : null}
-
       <div className="mt-5 flex gap-2">
         <Button
           className="flex-1"
@@ -356,7 +290,7 @@ export default function GpsVisitVerifyModal({
           className="flex-1"
           variant="primary"
           onClick={handleVerifyByGps}
-          disabled={!consultationId || loading || manualStatus === "requesting"}
+          disabled={!consultationId || loading}
         >
           {loading ? (
             <Loader2 className="h-4 w-4 animate-spin" />

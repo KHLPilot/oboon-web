@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { syncAvatarFromSocialIfEmpty } from "@/lib/auth/syncAvatarFromSocialIfEmpty";
 import {
@@ -15,14 +16,30 @@ import { validateRequiredOrShowModal } from "@/shared/validationMessage";
 import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 import Modal from "@/components/ui/Modal";
 import Input from "@/components/ui/Input";
 import Label from "@/components/ui/Label";
 import { useToast } from "@/components/ui/Toast";
-import { CalendarDays, ChevronRight } from "lucide-react";
+import {
+  Building2,
+  CalendarDays,
+  CheckCircle,
+  ChevronRight,
+  Clock,
+  Loader2,
+  Pencil,
+  Search,
+  XCircle,
+} from "lucide-react";
 import MyConsultationsModal from "@/features/consultations/components/MyConsultationsModal.client";
 import { showAlert } from "@/shared/alert";
 import { CommunityProfilePage } from "@/features/community";
+import {
+  fetchAgentPropertyDashboard,
+  type AgentProperty,
+  type AgentPropertyRequest,
+} from "@/features/agent/services/agent.properties";
 
 type Role =
   | "user"
@@ -51,9 +68,18 @@ const preferredTypes = [
   "생활형숙박시설",
 ];
 
-export default function ProfilePage() {
+type ProfilePageProps = {
+  forceAgentView?: boolean;
+  redirectAgentOnProfile?: boolean;
+};
+
+export default function ProfilePage({
+  forceAgentView = false,
+  redirectAgentOnProfile = false,
+}: ProfilePageProps) {
   const supabase = createSupabaseClient();
   const toast = useToast();
+  const router = useRouter();
 
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
@@ -88,6 +114,17 @@ export default function ProfilePage() {
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [showConsultationsModal, setShowConsultationsModal] = useState(false);
+  const [agentEtc, setAgentEtc] = useState("");
+  const [agentProperties, setAgentProperties] = useState<AgentProperty[]>([]);
+  const [agentRequests, setAgentRequests] = useState<AgentPropertyRequest[]>(
+    [],
+  );
+  const [agentSubmittingPropertyId, setAgentSubmittingPropertyId] = useState<
+    number | null
+  >(null);
+  const [agentSearchKeyword, setAgentSearchKeyword] = useState("");
+  const [visiblePropertyCount, setVisiblePropertyCount] = useState(9);
+  const [isChangingAffiliation, setIsChangingAffiliation] = useState(false);
 
   const closeDeleteModal = () => {
     setShowDeleteModal(false);
@@ -114,7 +151,7 @@ export default function ProfilePage() {
 
       const { data } = await supabase
         .from("profiles")
-        .select("name, nickname, phone_number, role, avatar_url")
+        .select("name, nickname, phone_number, role, avatar_url, agent_bio")
         .eq("id", user.id)
         .single();
 
@@ -125,6 +162,7 @@ export default function ProfilePage() {
         setPhone(data.phone_number ?? "");
         setRole(data.role as Role);
         setAvatarUrl(data.avatar_url ?? null);
+        setAgentEtc(data.agent_bio ?? "");
         syncAvatarFromSocialIfEmpty(supabase)
           .then(async () => {
             if ((data.avatar_url ?? "").trim()) return;
@@ -354,13 +392,24 @@ export default function ProfilePage() {
     }
 
     // 3. 저장
+    const updatePayload: {
+      name: string;
+      nickname: string | null;
+      phone_number: string;
+      agent_bio?: string | null;
+    } = {
+      name: name.trim(),
+      nickname: nickname.trim() || null,
+      phone_number: phone.replace(/-/g, ""), // 하이픈 제거
+    };
+
+    if (showAgentProfile) {
+      updatePayload.agent_bio = agentEtc.trim() || null;
+    }
+
     const { error } = await supabase
       .from("profiles")
-      .update({
-        name: name.trim(),
-        nickname: nickname.trim() || null,
-        phone_number: phone.replace(/-/g, ""), // 하이픈 제거
-      })
+      .update(updatePayload)
       .eq("id", userId);
 
     if (error) {
@@ -451,6 +500,150 @@ export default function ProfilePage() {
     setRole("agent_pending");
   };
 
+  const isAgentRole = role === "agent";
+  const showAgentProfile = forceAgentView || isAgentRole;
+  const latestApprovedRequest = [...agentRequests]
+    .filter((request) => request.status === "approved")
+    .sort((a, b) => {
+      const aTime = new Date(a.approved_at ?? a.requested_at).getTime();
+      const bTime = new Date(b.approved_at ?? b.requested_at).getTime();
+      return bTime - aTime;
+    })[0];
+  const currentApprovedPropertyId = latestApprovedRequest?.property_id ?? null;
+  const hasApprovedProperty = currentApprovedPropertyId !== null;
+  const hasPendingRequest = agentRequests.some((r) => r.status === "pending");
+
+  const getRequestStatus = (propertyId: number) => {
+    const request = agentRequests.find(
+      (requestItem) => requestItem.property_id === propertyId,
+    );
+
+    if (!request) return null;
+    if (
+      request.status === "approved" &&
+      propertyId !== currentApprovedPropertyId
+    ) {
+      return null;
+    }
+
+    return request;
+  };
+
+  const getStatusBadge = (status: "pending" | "approved" | "rejected") => {
+    switch (status) {
+      case "approved":
+        return (
+          <Badge variant="success" className="flex items-center gap-1">
+            <CheckCircle className="h-3 w-3" />
+            승인됨
+          </Badge>
+        );
+      case "pending":
+        return (
+          <Badge variant="warning" className="flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            승인 대기
+          </Badge>
+        );
+      case "rejected":
+        return (
+          <Badge variant="danger" className="flex items-center gap-1">
+            <XCircle className="h-3 w-3" />
+            거절됨
+          </Badge>
+        );
+    }
+  };
+
+  const filteredAgentProperties = agentProperties
+    .filter((property) =>
+      property.name
+        .toLowerCase()
+        .includes(agentSearchKeyword.trim().toLowerCase()),
+    )
+    .map((property, index) => ({ property, index }))
+    .sort((a, b) => {
+      const aRequest = getRequestStatus(a.property.id);
+      const bRequest = getRequestStatus(b.property.id);
+      const aPriority = aRequest?.status === "approved" ? 0 : 1;
+      const bPriority = bRequest?.status === "approved" ? 0 : 1;
+
+      if (aPriority !== bPriority) return aPriority - bPriority;
+      return a.index - b.index;
+    })
+    .map(({ property }) => property);
+
+  const visibleAgentProperties = filteredAgentProperties.slice(
+    0,
+    visiblePropertyCount,
+  );
+
+  useEffect(() => {
+    if (!showAgentProfile) return;
+
+    (async () => {
+      try {
+        const data = await fetchAgentPropertyDashboard();
+        setAgentProperties(data.properties);
+        setAgentRequests(data.requests);
+      } catch (error) {
+        console.error("상담사 소속 데이터 조회 오류:", error);
+      }
+    })();
+  }, [showAgentProfile]);
+
+  const handleAgentPropertyApply = async (
+    propertyId: number,
+    changeRequest = false,
+  ) => {
+    setAgentSubmittingPropertyId(propertyId);
+    try {
+      const response = await fetch("/api/property-agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          property_id: propertyId,
+          change_request: changeRequest,
+        }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "소속 신청에 실패했습니다.");
+      }
+
+      showAlert(data.message || "소속 신청이 완료되었습니다.");
+      const refreshed = await fetchAgentPropertyDashboard();
+      setAgentProperties(refreshed.properties);
+      setAgentRequests(refreshed.requests);
+      setIsChangingAffiliation(false);
+    } catch (error: any) {
+      showAlert(error?.message || "소속 신청 중 오류가 발생했습니다.");
+    } finally {
+      setAgentSubmittingPropertyId(null);
+    }
+  };
+
+  useEffect(() => {
+    if (loading) return;
+
+    if (redirectAgentOnProfile && isAgentRole) {
+      router.replace("/agent/profile");
+      return;
+    }
+
+    if (forceAgentView && !isAgentRole && role !== "admin") {
+      router.replace("/profile");
+    }
+  }, [
+    forceAgentView,
+    isAgentRole,
+    loading,
+    redirectAgentOnProfile,
+    role,
+    router,
+  ]);
+
   if (loading) {
     return (
       <main className="bg-(--oboon-bg-page)">
@@ -465,52 +658,459 @@ export default function ProfilePage() {
     );
   }
 
+  if (showAgentProfile) {
+    return (
+      <main className="bg-(--oboon-bg-page) min-h-full">
+        <PageContainer className="pb-6">
+          <div className="w-full space-y-6">
+            <section className="space-y-1">
+              <div className="ob-typo-h1 text-(--oboon-text-title)">
+                상담사 프로필
+              </div>
+              <p className="mt-1 ob-typo-body text-(--oboon-text-muted)">
+                관리 조건을 설정하면, 나에게 맞는 분양 현장을 자동으로
+                추천해드립니다.
+              </p>
+            </section>
+
+            <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_350px]">
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>이름</Label>
+                    <Input
+                      value={name}
+                      disabled={!isEditing}
+                      onChange={(e) => handleNameChange(e.target.value)}
+                      placeholder="이름"
+                      maxLength={20}
+                      className={
+                        errors.name ? "border-(--oboon-danger-border)" : ""
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>연락처</Label>
+                    <Input
+                      value={phone}
+                      disabled={!isEditing}
+                      onChange={(e) => handlePhoneChange(e.target.value)}
+                      placeholder="연락처"
+                      maxLength={13}
+                      className={
+                        errors.phone ? "border-(--oboon-danger-border)" : ""
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>이메일</Label>
+                    <Input
+                      value={email}
+                      disabled
+                      className="bg-(--oboon-bg-subtle)"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>기타</Label>
+                  <textarea
+                    value={agentEtc}
+                    disabled={!isEditing}
+                    onChange={(e) => setAgentEtc(e.target.value)}
+                    placeholder="자격증, 경력 등 홍보를 위한 기타 정보를 적어주세요"
+                    className="min-h-28 w-full rounded-xl border border-(--oboon-border-default) px-3 py-2 ob-typo-body text-(--oboon-text-body) outline-none focus-visible:ring-2 focus-visible:ring-(--oboon-accent)/30 disabled:bg-(--oboon-bg-subtle)"
+                    maxLength={500}
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  {!isEditing ? (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setIsEditing(true)}
+                    >
+                      정보 수정
+                    </Button>
+                  ) : (
+                    <>
+                      <Button variant="primary" size="sm" onClick={saveProfile}>
+                        저장
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          setIsEditing(false);
+                          setErrors({});
+                          setNicknameAvailable(null);
+                        }}
+                      >
+                        취소
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>프로필 이미지</Label>
+                <div className="relative mx-auto h-75 w-75">
+                  <div className="h-75 w-75 overflow-hidden rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle)">
+                    {avatarUrl ? (
+                      <img
+                        src={avatarUrl}
+                        alt="프로필 이미지"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center ob-typo-display text-(--oboon-text-muted)">
+                        {(nickname || name || email || "U")
+                          .slice(0, 1)
+                          .toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleAvatarSelect}
+                  />
+                  <Button
+                    variant="primary"
+                    shape="pill"
+                    size="sm"
+                    className="!h-8 !w-8 !p-0 absolute -bottom-1 -right-1 z-20 shadow-md"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={avatarUploading}
+                    loading={avatarUploading}
+                  >
+                    {!avatarUploading && <Pencil className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+            </section>
+
+            <section
+              id="affiliation-section"
+              className="border-t border-(--oboon-border-default) pt-6 space-y-4"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="ob-typo-h2 text-(--oboon-text-title)">
+                  소속 신청
+                </div>
+                {hasApprovedProperty ? (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    shape="pill"
+                    onClick={() =>
+                      setIsChangingAffiliation((prev) => !prev)
+                    }
+                  >
+                    {isChangingAffiliation ? "소속 변경 취소" : "소속 변경"}
+                  </Button>
+                ) : (
+                  <Button asChild variant="secondary" size="sm" shape="pill">
+                    <Link href="/agent/profile#affiliation-section">소속 관리</Link>
+                  </Button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Input
+                  value={agentSearchKeyword}
+                  onChange={(e) => {
+                    setAgentSearchKeyword(e.target.value);
+                    setVisiblePropertyCount(9);
+                  }}
+                  placeholder="현장 검색"
+                />
+                <div className="flex h-10 w-10 items-center justify-center rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-elevated)">
+                  <Search className="h-4 w-4 text-(--oboon-text-muted)" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+                {visibleAgentProperties.map((property) => {
+                  const request = getRequestStatus(property.id);
+                  const isCurrentApprovedProperty =
+                    currentApprovedPropertyId !== null &&
+                    property.id === currentApprovedPropertyId;
+                  const canApply =
+                    !hasApprovedProperty &&
+                    !hasPendingRequest &&
+                    (!request || request.status === "rejected");
+                  const canChangeApply =
+                    isChangingAffiliation &&
+                    hasApprovedProperty &&
+                    !hasPendingRequest &&
+                    !isCurrentApprovedProperty &&
+                    (!request || request.status === "rejected");
+                  const helperText =
+                    hasApprovedProperty && !request
+                      ? "이미 다른 현장에 소속됨"
+                      : !hasApprovedProperty && hasPendingRequest && !request
+                        ? "다른 현장 승인 대기 중"
+                        : null;
+
+                  return (
+                    <Card key={property.id} className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-(--oboon-bg-subtle)">
+                          {property.image_url ? (
+                            <img
+                              src={property.image_url}
+                              alt={property.name}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <div className="h-full w-full flex items-center justify-center">
+                              <Building2 className="h-6 w-6 text-(--oboon-text-muted)" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="mt-1 truncate ob-typo-h3 text-(--oboon-text-title)">
+                            {property.name}
+                          </div>
+                          <div className="mt-0.5 truncate ob-typo-subtitle text-(--oboon-text-muted)">
+                            {property.property_type}
+                          </div>
+                          <div className="mt-2 flex items-center justify-end">
+                            {request ? (
+                              getStatusBadge(request.status)
+                            ) : canChangeApply ? (
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                shape="pill"
+                                className="h-8 whitespace-nowrap"
+                                disabled={
+                                  agentSubmittingPropertyId === property.id
+                                }
+                                onClick={() =>
+                                  handleAgentPropertyApply(property.id, true)
+                                }
+                              >
+                                {agentSubmittingPropertyId === property.id ? (
+                                  <span className="flex items-center gap-2">
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    변경 신청 중...
+                                  </span>
+                                ) : (
+                                  "소속 변경 신청"
+                                )}
+                              </Button>
+                            ) : canApply ? (
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                shape="pill"
+                                className="h-8 whitespace-nowrap"
+                                disabled={
+                                  agentSubmittingPropertyId === property.id
+                                }
+                                onClick={() =>
+                                  handleAgentPropertyApply(property.id, false)
+                                }
+                              >
+                                {agentSubmittingPropertyId === property.id ? (
+                                  <span className="flex items-center gap-2">
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    신청 중...
+                                  </span>
+                                ) : (
+                                  "소속 신청"
+                                )}
+                              </Button>
+                            ) : helperText ? (
+                              <span className="ob-typo-body text-(--oboon-warning)">
+                                {helperText}
+                              </span>
+                            ) : (
+                              null
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+
+              {filteredAgentProperties.length > visiblePropertyCount && (
+                <div className="flex justify-center">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    shape="pill"
+                    onClick={() =>
+                      setVisiblePropertyCount((count) => count + 9)
+                    }
+                  >
+                    더보기
+                  </Button>
+                </div>
+              )}
+            </section>
+
+            <section className="border-t border-(--oboon-border-default) pt-6">
+              <Card className="p-4 sm:p-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-1">
+                    <div className="ob-typo-h2 text-(--oboon-danger)">
+                      계정 삭제
+                    </div>
+                    <p className="ob-typo-body text-(--oboon-text-muted)">
+                      계정을 삭제하면 모든 개인정보가 삭제되며 복구할 수
+                      없습니다.
+                    </p>
+                  </div>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    onClick={() => setShowDeleteModal(true)}
+                  >
+                    계정 삭제
+                  </Button>
+                </div>
+              </Card>
+            </section>
+
+            <Modal open={showDeleteModal} onClose={closeDeleteModal} size="sm">
+              <div className="space-y-5">
+                <div className="ob-typo-h2 text-(--oboon-danger)">
+                  계정 삭제
+                </div>
+
+                <div className="mt-4 space-y-3 sm:space-y-4">
+                  <div className="p-3 rounded-lg bg-(--oboon-danger-bg) border border-(--oboon-danger-border)">
+                    <p className="ob-typo-body text-(--oboon-danger) space-y-1">
+                      <span className="block">
+                        • 모든 개인정보가 삭제됩니다
+                      </span>
+                      <span className="block">
+                        • 작성한 게시글은 &quot;탈퇴한 사용자&quot;로 표시됩니다
+                      </span>
+                      <span className="block">
+                        • 이 작업은 되돌릴 수 없습니다
+                      </span>
+                    </p>
+                  </div>
+
+                  <div>
+                    <Label>비밀번호 확인</Label>
+                    <Input
+                      type="password"
+                      value={deletePassword}
+                      onChange={(e) => setDeletePassword(e.target.value)}
+                      placeholder="비밀번호를 입력하세요"
+                      className="ob-typo-body"
+                    />
+                  </div>
+
+                  <div>
+                    <Label>확인 문구 입력</Label>
+                    <Input
+                      value={deleteConfirm}
+                      onChange={(e) => setDeleteConfirm(e.target.value)}
+                      placeholder="'계정삭제'를 입력하세요"
+                      className="ob-typo-body"
+                    />
+                    <p className="ob-typo-body text-(--oboon-text-muted) mt-2">
+                      정확히 &apos;계정삭제&apos;를 입력해주세요
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 sm:gap-3">
+                  <Button
+                    variant="danger"
+                    size="md"
+                    onClick={deleteAccount}
+                    disabled={
+                      deleting ||
+                      !deletePassword ||
+                      deleteConfirm !== "계정삭제"
+                    }
+                    loading={deleting}
+                    className="flex-1"
+                  >
+                    {deleting ? "삭제 중..." : "계정 삭제"}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="md"
+                    onClick={closeDeleteModal}
+                  >
+                    취소
+                  </Button>
+                </div>
+              </div>
+            </Modal>
+          </div>
+        </PageContainer>
+      </main>
+    );
+  }
+
   return (
     <main className="bg-(--oboon-bg-page) min-h-full">
       <PageContainer className="pb-6">
         <div className="w-full space-y-4">
           <section className="space-y-1">
             <div className="ob-typo-h1 text-(--oboon-text-title)">
-              마이페이지
+              {showAgentProfile ? "상담사 프로필" : "마이페이지"}
             </div>
             <p className="mt-1 ob-typo-body text-(--oboon-text-muted)">
-              관심 조건을 설정하면, 나에게 맞는 분양 현장을 자동으로
-              추천해드립니다.
+              {showAgentProfile
+                ? "상담 업무에 필요한 기본 정보와 소속 상태를 관리합니다."
+                : "관심 조건을 설정하면, 나에게 맞는 분양 현장을 자동으로 추천해드립니다."}
             </p>
           </section>
 
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+          <div
+            className={`grid grid-cols-1 gap-5 ${showAgentProfile ? "" : "lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]"}`}
+          >
             <div className="order-1 lg:order-1 space-y-4">
               {/* 내 상담 예약 바로가기 */}
-              <div
-                role="button"
-                tabIndex={0}
-                className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--oboon-accent)/30"
-                onClick={openConsultationsModal}
-                onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    openConsultationsModal();
-                  }
-                }}
-              >
-                <Card className="group flex items-center justify-between p-4 sm:p-5 transition-colors hover:bg-(--oboon-bg-subtle) cursor-pointer">
-                  <div className="flex items-center gap-2 sm:gap-3">
-                    <div className="flex h-9 w-9 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-(--oboon-primary)/10 shrink-0">
-                      <CalendarDays className="h-4 w-4 sm:h-5 sm:w-5 text-(--oboon-primary)" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="ob-typo-h3 font-semibold text-(--oboon-text-title)">
-                        내 상담 예약
+              {!showAgentProfile && (
+                <div
+                  role="button"
+                  tabIndex={0}
+                  className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--oboon-accent)/30"
+                  onClick={openConsultationsModal}
+                  onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      openConsultationsModal();
+                    }
+                  }}
+                >
+                  <Card className="group flex items-center justify-between p-4 sm:p-5 transition-colors hover:bg-(--oboon-bg-subtle) cursor-pointer">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <div className="flex h-9 w-9 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-(--oboon-primary)/10 shrink-0">
+                        <CalendarDays className="h-4 w-4 sm:h-5 sm:w-5 text-(--oboon-primary)" />
                       </div>
-                      <p className="ob-typo-body text-(--oboon-text-muted) truncate">
-                        예약한 상담 내역을 확인하고 관리합니다
-                      </p>
+                      <div className="min-w-0">
+                        <div className="ob-typo-h3 font-semibold text-(--oboon-text-title)">
+                          내 상담 예약
+                        </div>
+                        <p className="ob-typo-body text-(--oboon-text-muted) truncate">
+                          예약한 상담 내역을 확인하고 관리합니다
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-(--oboon-text-muted) shrink-0 transition-colors group-hover:text-(--oboon-text-title)" />
-                </Card>
-              </div>
+                    <ChevronRight className="h-5 w-5 text-(--oboon-text-muted) shrink-0 transition-colors group-hover:text-(--oboon-text-title)" />
+                  </Card>
+                </div>
+              )}
 
               <Card className="p-5 sm:p-6">
                 <div className="flex items-center justify-between mb-4">
@@ -694,17 +1294,6 @@ export default function ProfilePage() {
                     <div className="ob-typo-h3 text-(--oboon-text-title) mb-1">
                       계정 유형
                     </div>
-                    {role === "agent" && (
-                      <Button
-                        asChild
-                        size="sm"
-                        variant="secondary"
-                        shape="pill"
-                        className="shrink-0"
-                      >
-                        <Link href="/agent/properties">소속 관리</Link>
-                      </Button>
-                    )}
                   </div>
                   <p className="ob-typo-body text-(--oboon-text-body) mt-2">
                     현재 계정 상태:{" "}
@@ -712,7 +1301,6 @@ export default function ProfilePage() {
                       {role === "user" && "일반 사용자"}
                       {role === "agent_pending" &&
                         "분양대행사 직원 (승인 대기)"}
-                      {role === "agent" && "분양대행사 직원"}
                       {role === "builder" && "시공사"}
                       {role === "developer" && "시행사"}
                       {role === "admin" && "관리자"}
@@ -729,64 +1317,88 @@ export default function ProfilePage() {
                       분양대행사 직원 신청
                     </Button>
                   )}
-
-                  {role === "agent_pending" && (
-                    <p className="ob-typo-body text-(--oboon-primary) mt-2">
-                      관리자 승인 후 사용 가능합니다.
-                    </p>
-                  )}
                 </div>
               </Card>
-            </div>
 
-            <div className="order-2 lg:order-2 space-y-4">
-              {/* 관심 지역 */}
-              <Card className="p-4 sm:p-5">
-                <div className="flex items-center justify-between mb-3">
+              {showAgentProfile && (
+                <Card className="p-5 sm:p-6">
                   <div className="ob-typo-h3 text-(--oboon-text-title)">
-                    관심 지역 (추후 UI 수정 예정)
+                    상담사 전용 메뉴
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-(--oboon-text-muted) hover:text-(--oboon-text-title)"
-                  >
-                    지역 추가
-                  </Button>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {interestRegions.map((region) => (
-                    <span
-                      key={region}
-                      className="rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-1 ob-typo-caption text-(--oboon-text-body)"
+                  <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                    <Button
+                      asChild
+                      variant="primary"
+                      size="md"
+                      className="flex-1"
                     >
-                      {region}
-                    </span>
-                  ))}
-                </div>
-              </Card>
-
-              {/* 선호 분양 유형 */}
-              <Card className="p-4 sm:p-5">
-                <div className="ob-typo-h3 text-(--oboon-text-title) mb-3">
-                  선호 분양 유형
-                </div>
-                <div className="flex flex-wrap gap-3">
-                  {preferredTypes.map((type) => (
-                    <label
-                      key={type}
-                      className="flex items-center gap-2 ob-typo-body text-(--oboon-text-body)"
+                      <Link href="/agent/profile#affiliation-section">
+                        소속 신청/관리
+                      </Link>
+                    </Button>
+                    <Button
+                      asChild
+                      variant="secondary"
+                      size="md"
+                      className="flex-1"
                     >
-                      <input
-                        type="checkbox"
-                        className="accent-(--oboon-primary) h-4 w-4"
-                      />
-                      {type}
-                    </label>
-                  ))}
-                </div>
-              </Card>
+                      <Link href="/agent/consultations">상담 일정 관리</Link>
+                    </Button>
+                  </div>
+                </Card>
+              )}
             </div>
+
+            {!showAgentProfile && (
+              <div className="order-2 lg:order-2 space-y-4">
+                {/* 관심 지역 */}
+                <Card className="p-4 sm:p-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="ob-typo-h3 text-(--oboon-text-title)">
+                      관심 지역 (추후 UI 수정 예정)
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-(--oboon-text-muted) hover:text-(--oboon-text-title)"
+                    >
+                      지역 추가
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {interestRegions.map((region) => (
+                      <span
+                        key={region}
+                        className="rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-1 ob-typo-caption text-(--oboon-text-body)"
+                      >
+                        {region}
+                      </span>
+                    ))}
+                  </div>
+                </Card>
+
+                {/* 선호 분양 유형 */}
+                <Card className="p-4 sm:p-5">
+                  <div className="ob-typo-h3 text-(--oboon-text-title) mb-3">
+                    선호 분양 유형
+                  </div>
+                  <div className="flex flex-wrap gap-3">
+                    {preferredTypes.map((type) => (
+                      <label
+                        key={type}
+                        className="flex items-center gap-2 ob-typo-body text-(--oboon-text-body)"
+                      >
+                        <input
+                          type="checkbox"
+                          className="accent-(--oboon-primary) h-4 w-4"
+                        />
+                        {type}
+                      </label>
+                    ))}
+                  </div>
+                </Card>
+              </div>
+            )}
           </div>
 
           <div className="mt-6 space-y-3 border-t border-(--oboon-border-default) pt-4">

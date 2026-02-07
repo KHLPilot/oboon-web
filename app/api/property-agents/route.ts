@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
 
     // 요청 본문 파싱
     const body = await request.json();
-    const { property_id } = body;
+    const { property_id, change_request } = body;
 
     if (!property_id) {
       return NextResponse.json(
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
     // 이미 다른 현장에 소속되어 있는지 확인 (한 명당 한 곳만 가능)
     const { data: existingApproved, error: approvedCheckError } = await supabase
       .from("property_agents")
-      .select("id, status, properties:property_id(id, name)")
+      .select("id, property_id, status, properties:property_id(id, name)")
       .eq("agent_id", user.id)
       .eq("status", "approved")
       .maybeSingle();
@@ -99,7 +99,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (existingApproved) {
+    if (existingApproved && existingApproved.property_id === property_id) {
+      return NextResponse.json(
+        { error: "이미 해당 현장에 소속되어 있습니다" },
+        { status: 409 }
+      );
+    }
+
+    if (existingApproved && !change_request) {
       const propertyName = (existingApproved as any).properties?.name || "다른 현장";
       return NextResponse.json(
         { error: `이미 ${propertyName}에 소속되어 있습니다. 한 명의 상담사는 한 곳의 현장에만 소속될 수 있습니다.` },
@@ -107,13 +114,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 이미 신청했는지 확인 (이 현장에 pending 상태)
+    // 기존 pending 이력 정리 (즉시 승인 정책)
+    const { error: clearPendingError } = await supabase
+      .from("property_agents")
+      .delete()
+      .eq("agent_id", user.id)
+      .eq("status", "pending");
+
+    if (clearPendingError) {
+      console.error("기존 pending 정리 오류:", clearPendingError);
+      return NextResponse.json(
+        { error: "기존 요청 정리 중 오류가 발생했습니다" },
+        { status: 500 }
+      );
+    }
+
+    // 이미 신청/소속했는지 확인
     const { data: existing, error: existingError } = await supabase
       .from("property_agents")
       .select("id, status")
       .eq("property_id", property_id)
       .eq("agent_id", user.id)
-      .eq("status", "pending")
       .maybeSingle();
 
     if (existingError) {
@@ -124,21 +145,68 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (existing) {
+    if (existing?.status === "approved") {
       return NextResponse.json(
-        { error: "이미 이 현장에 승인 대기 중입니다" },
+        { error: "이미 해당 현장에 소속되어 있습니다" },
         { status: 409 }
       );
     }
 
-    // 소속 신청 생성
+    if (existing?.status === "pending") {
+      const { error: deletePendingError } = await supabase
+        .from("property_agents")
+        .delete()
+        .eq("id", existing.id);
+
+      if (deletePendingError) {
+        console.error("기존 pending 정리 오류:", deletePendingError);
+        return NextResponse.json(
+          { error: "기존 요청 정리 중 오류가 발생했습니다" },
+          { status: 500 }
+        );
+      }
+    }
+
+    if (existing?.status === "rejected") {
+      const { error: deleteRejectedError } = await supabase
+        .from("property_agents")
+        .delete()
+        .eq("id", existing.id);
+
+      if (deleteRejectedError) {
+        console.error("기존 rejected 정리 오류:", deleteRejectedError);
+        return NextResponse.json(
+          { error: "기존 요청 정리 중 오류가 발생했습니다" },
+          { status: 500 }
+        );
+      }
+    }
+
+    if (existingApproved && change_request) {
+      const { error: deleteApprovedError } = await supabase
+        .from("property_agents")
+        .delete()
+        .eq("id", existingApproved.id);
+
+      if (deleteApprovedError) {
+        console.error("기존 승인 소속 정리 오류:", deleteApprovedError);
+        return NextResponse.json(
+          { error: "기존 소속 정리 중 오류가 발생했습니다" },
+          { status: 500 }
+        );
+      }
+    }
+
+    // 소속 즉시 승인 생성
     const { data: propertyAgent, error: insertError } = await supabase
       .from("property_agents")
       .insert({
         property_id,
         agent_id: user.id,
-        status: "pending",
+        status: "approved",
         requested_at: new Date().toISOString(),
+        approved_at: new Date().toISOString(),
+        approved_by: user.id,
       })
       .select()
       .single();
@@ -154,7 +222,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       propertyAgent,
-      message: "현장 소속 신청이 완료되었습니다. 관리자 승인을 기다려주세요.",
+      message: change_request
+        ? "소속이 변경되었습니다."
+        : "현장 소속이 등록되었습니다.",
     });
   } catch (error) {
     console.error("POST /api/property-agents 오류:", error);
