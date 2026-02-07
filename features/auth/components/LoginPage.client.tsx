@@ -169,13 +169,14 @@ export default function LoginPage() {
     }
   }
 
-  function handleNaverLogin() {
-    setLoading(true);
-    setError(null);
-    clearFieldError();
-    trackEvent("login_click", { method: "naver" });
-    window.location.href = "/api/auth/naver/login";
-  }
+  // MVP: 네이버 로그인 비활성화
+  // function handleNaverLogin() {
+  //   setLoading(true);
+  //   setError(null);
+  //   clearFieldError();
+  //   trackEvent("login_click", { method: "naver" });
+  //   window.location.href = "/api/auth/naver/login";
+  // }
 
   // 외부 브라우저로 열기
   function handleOpenExternal() {
@@ -365,6 +366,7 @@ export default function LoginPage() {
                   </Button>
                 )}
 
+                {/* MVP: 네이버 로그인 비활성화
                 <Button
                   type="button"
                   variant="secondary"
@@ -376,6 +378,7 @@ export default function LoginPage() {
                 >
                   네이버로 로그인
                 </Button>
+                */}
               </div>
 
               <p className="mt-5 text-center ob-typo-caption text-(--oboon-text-muted)">

@@ -108,7 +108,7 @@ export async function PATCH(
         }
 
         const body = await req.json();
-        const { status } = body;
+        const { status, agreed_to_terms } = body;
 
         // 유효한 상태값 검증
         const validStatuses = ["pending", "confirmed", "visited", "contracted", "cancelled"];
@@ -162,6 +162,14 @@ export async function PATCH(
             );
         }
 
+        // 상담사가 예약 확정 시 약관 동의 필수 검증 (서버 사이드)
+        if (status === "confirmed" && isAgent && agreed_to_terms !== true) {
+            return NextResponse.json(
+                { error: "약관 동의가 필요합니다" },
+                { status: 400 }
+            );
+        }
+
         // 업데이트 데이터 준비
         const updateData: Record<string, any> = { status };
 
@@ -187,6 +195,45 @@ export async function PATCH(
                 { error: "예약 상태 변경에 실패했습니다" },
                 { status: 500 }
             );
+        }
+
+        // 상담사가 예약 확정 시 약관 동의 기록 저장 (법적 증거용)
+        if (status === "confirmed" && isAgent) {
+            const ipAddress =
+                req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+                req.headers.get("x-real-ip") ||
+                null;
+            const userAgent = req.headers.get("user-agent") || null;
+
+            // agent_visit_fee 약관 조회
+            const { data: term } = await adminSupabase
+                .from("terms")
+                .select("id, type, version, title, content")
+                .eq("type", "agent_visit_fee")
+                .eq("is_active", true)
+                .single();
+
+            if (term) {
+                const { error: consentError } = await adminSupabase
+                    .from("term_consents")
+                    .insert({
+                        user_id: user.id,
+                        term_id: term.id,
+                        term_type: term.type,
+                        term_version: term.version,
+                        ip_address: ipAddress,
+                        user_agent: userAgent,
+                        context: "agent_approval",
+                        context_id: id,
+                        term_title_snapshot: term.title,
+                        term_content_snapshot: term.content,
+                    });
+
+                if (consentError) {
+                    console.error("약관 동의 기록 저장 오류:", consentError);
+                    // 동의 기록 실패해도 승인은 유지
+                }
+            }
         }
 
         return NextResponse.json({

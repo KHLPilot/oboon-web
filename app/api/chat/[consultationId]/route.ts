@@ -221,6 +221,66 @@ export async function POST(
       .update({ updated_at: new Date().toISOString() })
       .eq("id", chatRoom.id);
 
+    // 상대방에게 알림 전송
+    const isCustomer = consultation.customer_id === user.id;
+    const recipientId = isCustomer ? consultation.agent_id : consultation.customer_id;
+
+    // 발신자 이름 조회
+    const { data: senderProfile } = await adminSupabase
+      .from("profiles")
+      .select("name, nickname")
+      .eq("id", user.id)
+      .single();
+
+    const senderName = senderProfile?.nickname || senderProfile?.name || "알 수 없음";
+
+    // 기존 읽지 않은 채팅 알림이 있는지 확인
+    const { data: existingNotification } = await adminSupabase
+      .from("notifications")
+      .select("id, metadata")
+      .eq("recipient_id", recipientId)
+      .eq("consultation_id", consultationId)
+      .eq("type", "new_chat_message")
+      .is("read_at", null)
+      .single();
+
+    // 기존 메시지 목록 가져오기
+    const existingMessages: string[] =
+      (existingNotification?.metadata as { messages?: string[] })?.messages || [];
+    const newMessage =
+      content.trim().length > 30
+        ? content.trim().slice(0, 30) + "..."
+        : content.trim();
+
+    // 기존 알림이 있으면 삭제 (새로 INSERT해야 Realtime 이벤트 발생)
+    if (existingNotification) {
+      await adminSupabase
+        .from("notifications")
+        .delete()
+        .eq("id", existingNotification.id);
+    }
+
+    // 새 알림 생성 (메시지 누적)
+    const allMessages = [...existingMessages, newMessage].slice(-5); // 최근 5개만 유지
+    const messageCount = allMessages.length;
+
+    await adminSupabase.from("notifications").insert({
+      recipient_id: recipientId,
+      type: "new_chat_message",
+      title:
+        messageCount > 1
+          ? `${senderName}님의 새 메시지 ${messageCount}개`
+          : `${senderName}님의 새 메시지`,
+      message: allMessages.join(" | "),
+      consultation_id: consultationId,
+      metadata: {
+        sender_id: user.id,
+        sender_name: senderName,
+        unread_count: messageCount,
+        messages: allMessages,
+      },
+    });
+
     return NextResponse.json({ message });
   } catch (err: any) {
     console.error("채팅 API 오류:", err);

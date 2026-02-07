@@ -551,22 +551,22 @@ export default function SignupPage() {
 
                 {/* Pending */}
                 {verification.isEmailSent ? (
-                  <div className="mt-2 rounded-xl border border-white/10 bg-white/5 p-3 text-[12px] text-white/60">
-                    이메일 인증 대기중입니다. 인증이 완료되면 자동으로 다음
-                    단계로 이동합니다.
-                    <div className="mt-2">
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="md"
-                        shape="pill"
-                        className="w-full justify-center border border-white/10 bg-white/5 text-white hover:bg-white/10"
-                        onClick={handleManualCheck}
-                        disabled={loading}
-                      >
-                        인증 완료했는데 안 넘어가나요? 확인하기
-                      </Button>
-                    </div>
+                  <div className="mt-3 space-y-3">
+                    <p className="text-center ob-typo-caption text-(--oboon-text-muted)">
+                      메일 인증 대기중입니다. <br />
+                      인증이 완료되면 자동으로 다음 단계로 이동합니다.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="md"
+                      shape="pill"
+                      className="w-full justify-center"
+                      onClick={handleManualCheck}
+                      disabled={loading}
+                    >
+                      인증 완료했는데 안 넘어가나요? 확인하기
+                    </Button>
                   </div>
                 ) : null}
               </div>

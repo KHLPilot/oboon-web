@@ -2,7 +2,6 @@
 
 import React, { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown } from "lucide-react";
 
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import {
@@ -23,16 +22,7 @@ import FieldErrorBubble, {
   FieldErrorState,
 } from "@/components/ui/FieldErrorBubble";
 
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@/components/ui/DropdownMenu";
-
-type UserType = "personal" | "company";
-
-type FieldKey = "name" | "nickname" | "phone" | "userType" | "generic";
+type FieldKey = "name" | "nickname" | "phone" | "generic";
 type FieldErrors = { name?: string; nickname?: string; phone?: string };
 
 function cx(...cls: Array<string | false | null | undefined>) {
@@ -49,11 +39,46 @@ export default function OnboardingPage() {
   const [name, setName] = useState("");
   const [nickname, setNickname] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [userType, setUserType] = useState<UserType>("personal");
+  // MVP: 회원유형 기본값 personal 고정
+  const userType = "personal";
 
   const [loading, setLoading] = useState(false);
   const [fatalError, setFatalError] = useState<string | null>(null);
   const [errors, setErrors] = useState<FieldErrors>({});
+
+  // 이용약관 동의
+  const [agreements, setAgreements] = useState({
+    terms: false,
+    privacy: false,
+    location: false,
+    marketing: false,
+  });
+  const [agreementError, setAgreementError] = useState<string | null>(null);
+
+  const agreedAll =
+    agreements.terms &&
+    agreements.privacy &&
+    agreements.location &&
+    agreements.marketing;
+
+  const requiredAgreed =
+    agreements.terms && agreements.privacy && agreements.location;
+
+  function handleToggle(key: keyof typeof agreements) {
+    setAgreements((prev) => ({ ...prev, [key]: !prev[key] }));
+    setAgreementError(null);
+  }
+
+  function handleToggleAll() {
+    const next = !agreedAll;
+    setAgreements({
+      terms: next,
+      privacy: next,
+      location: next,
+      marketing: next,
+    });
+    setAgreementError(null);
+  }
 
   // 닉네임 중복 체크
   const [nicknameChecking, setNicknameChecking] = useState(false);
@@ -147,7 +172,6 @@ export default function OnboardingPage() {
       if (profile.name) setName(profile.name);
       if (profile.nickname) setNickname(profile.nickname);
       if (profile.phone_number) setPhoneNumber(profile.phone_number);
-      if (profile.user_type) setUserType(profile.user_type);
     })();
 
     return () => {
@@ -232,6 +256,11 @@ export default function OnboardingPage() {
         return;
       }
 
+      if (!requiredAgreed) {
+        setAgreementError("필수 약관에 모두 동의해주세요.");
+        return;
+      }
+
       // 닉네임이 입력되어 있으면: 중복확인 완료를 요구 (기존 UX 유지)
       if (nickname) {
         if (nicknameAvailable === null) {
@@ -260,6 +289,11 @@ export default function OnboardingPage() {
           nickname: nickname || null,
           phone_number: phoneNumber,
           user_type: userType,
+          agreed_terms: agreements.terms,
+          agreed_privacy: agreements.privacy,
+          agreed_location: agreements.location,
+          agreed_marketing: agreements.marketing,
+          agreed_at: new Date().toISOString(),
         },
       });
       if (authUpdateError) throw authUpdateError;
@@ -417,48 +451,84 @@ export default function OnboardingPage() {
                   />
                 </div>
 
-                {/* 회원 유형 */}
-                <div>
-                  <Label>회원 유형</Label>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        type="button"
+                {/* MVP: 회원유형 선택 비활성화 — 기본값 personal 유지 */}
+
+                {/* 이용약관 동의 */}
+                <div className="space-y-2 pt-1">
+                  <Label>이용약관 동의</Label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={agreedAll}
+                      onChange={handleToggleAll}
+                      disabled={!canSubmit || loading}
+                      className="h-4 w-4 rounded border-(--oboon-border-default) accent-(--oboon-primary)"
+                    />
+                    <span className="ob-typo-body text-(--oboon-text-title) font-medium">
+                      전체 동의
+                    </span>
+                  </label>
+
+                  <div className="ml-6 space-y-1.5">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={agreements.terms}
+                        onChange={() => handleToggle("terms")}
                         disabled={!canSubmit || loading}
-                        className={cx(
-                          "h-11 w-full rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3",
-                          "flex items-center justify-between",
-                          "outline-none",
-                          !canSubmit || loading
-                            ? "opacity-60"
-                            : "hover:bg-(--oboon-bg-subtle)/60",
-                        )}
-                      >
-                        {userType === "personal" ? "개인 회원" : "기업 회원"}
-                        <ChevronDown className="h-4 w-4 text-(--oboon-text-muted)" />
-                      </button>
-                    </DropdownMenuTrigger>
+                        className="h-4 w-4 rounded border-(--oboon-border-default) accent-(--oboon-primary)"
+                      />
+                      <span className="ob-typo-caption text-(--oboon-text-muted)">
+                        [필수] 서비스 이용약관 동의
+                      </span>
+                    </label>
 
-                    <DropdownMenuContent align="start" className="min-w-60">
-                      <DropdownMenuItem onClick={() => setUserType("personal")}>
-                        <span className="flex w-full items-center justify-between">
-                          <span>개인 회원</span>
-                          {userType === "personal" ? (
-                            <Check className="h-4 w-4" />
-                          ) : null}
-                        </span>
-                      </DropdownMenuItem>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={agreements.privacy}
+                        onChange={() => handleToggle("privacy")}
+                        disabled={!canSubmit || loading}
+                        className="h-4 w-4 rounded border-(--oboon-border-default) accent-(--oboon-primary)"
+                      />
+                      <span className="ob-typo-caption text-(--oboon-text-muted)">
+                        [필수] 개인정보 수집·이용 동의
+                      </span>
+                    </label>
 
-                      <DropdownMenuItem onClick={() => setUserType("company")}>
-                        <span className="flex w-full items-center justify-between">
-                          <span>기업 회원</span>
-                          {userType === "company" ? (
-                            <Check className="h-4 w-4" />
-                          ) : null}
-                        </span>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={agreements.location}
+                        onChange={() => handleToggle("location")}
+                        disabled={!canSubmit || loading}
+                        className="h-4 w-4 rounded border-(--oboon-border-default) accent-(--oboon-primary)"
+                      />
+                      <span className="ob-typo-caption text-(--oboon-text-muted)">
+                        [필수] 위치정보 이용 동의
+                      </span>
+                    </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={agreements.marketing}
+                        onChange={() => handleToggle("marketing")}
+                        disabled={!canSubmit || loading}
+                        className="h-4 w-4 rounded border-(--oboon-border-default) accent-(--oboon-primary)"
+                      />
+                      <span className="ob-typo-caption text-(--oboon-text-muted)">
+                        [선택] 마케팅 정보 수신 동의
+                      </span>
+                    </label>
+                  </div>
+
+                  {agreementError ? (
+                    <p className="ob-typo-caption text-(--oboon-danger)">
+                      {agreementError}
+                    </p>
+                  ) : null}
                 </div>
 
                 {/* 제출 */}

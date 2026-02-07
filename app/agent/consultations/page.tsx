@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   CalendarDays,
@@ -10,17 +10,32 @@ import {
   Loader2,
   Trash2,
   Settings,
+  Bell,
 } from "lucide-react";
 
 import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
+import Modal from "@/components/ui/Modal";
 import { fetchAgentAccess } from "@/features/agent/services/agent.auth";
 import AgentScheduleSettings from "@/features/agent/components/AgentScheduleSettings.client";
 import ConsultationCard from "@/features/consultations/components/ConsultationCard.client";
 import AgentBaseScheduleModal from "@/features/agent/components/AgentBaseScheduleModal.client";
+import { createSupabaseClient } from "@/lib/supabaseClient";
 
 import { showAlert } from "@/shared/alert";
+
+interface Notification {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  consultation_id: string | null;
+  read_at: string | null;
+  created_at: string;
+  metadata: Record<string, unknown> | null;
+}
+
 interface Consultation {
   id: string;
   scheduled_at: string;
@@ -85,21 +100,67 @@ export default function AgentConsultationsPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
   const [isAgent, setIsAgent] = useState(false);
+  const [agentId, setAgentId] = useState<string | null>(null);
   const [showBaseScheduleModal, setShowBaseScheduleModal] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  // 약관 동의 모달 상태
+  const [termsModalOpen, setTermsModalOpen] = useState(false);
+  const [termsModalConsultationId, setTermsModalConsultationId] = useState<string | null>(null);
+  const [agentTerms, setAgentTerms] = useState<{ title: string; content: string } | null>(null);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [termsConfirming, setTermsConfirming] = useState(false);
+
+  const fetchConsultations = useCallback(async () => {
+    try {
+      const url =
+        filter === "all"
+          ? "/api/consultations?role=agent"
+          : `/api/consultations?role=agent&status=${filter}`;
+
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (response.ok) {
+        const statusOrder: Record<string, number> = {
+          pending: 0,
+          confirmed: 1,
+          visited: 2,
+          contracted: 3,
+          cancelled: 4,
+        };
+
+        const sorted = (data.consultations || []).sort(
+          (a: Consultation, b: Consultation) => {
+            const dateA = new Date(a.scheduled_at).getTime();
+            const dateB = new Date(b.scheduled_at).getTime();
+            if (dateB !== dateA) return dateB - dateA;
+            return (
+              (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99)
+            );
+          },
+        );
+
+        setConsultations(sorted);
+      } else {
+        console.error("예약 목록 조회 실패:", data.error);
+      }
+    } catch (err) {
+      console.error("데이터 조회 오류:", err);
+    }
+  }, [filter]);
 
   useEffect(() => {
     async function fetchData() {
       setLoading(true);
 
       try {
-        // 로그인 체크
         const access = await fetchAgentAccess();
         if (!access.userId) {
           router.push("/auth/login");
           return;
         }
 
-        // 상담사 권한 체크
         if (access.role !== "agent" && access.role !== "admin") {
           showAlert("상담사 권한이 필요합니다");
           router.push("/");
@@ -107,44 +168,8 @@ export default function AgentConsultationsPage() {
         }
 
         setIsAgent(true);
-
-        // 예약 목록 조회
-        const url =
-          filter === "all"
-            ? "/api/consultations?role=agent"
-            : `/api/consultations?role=agent&status=${filter}`;
-
-        const response = await fetch(url);
-        const data = await response.json();
-
-        if (response.ok) {
-          // 정렬: 최근 날짜 우선, 같은 날짜/시간이면 상태 순서대로
-          const statusOrder: Record<string, number> = {
-            pending: 0,
-            confirmed: 1,
-            visited: 2,
-            contracted: 3,
-            cancelled: 4,
-          };
-
-          const sorted = (data.consultations || []).sort(
-            (a: Consultation, b: Consultation) => {
-              // 1. 최근 날짜가 위로
-              const dateA = new Date(a.scheduled_at).getTime();
-              const dateB = new Date(b.scheduled_at).getTime();
-              if (dateB !== dateA) return dateB - dateA;
-
-              // 2. 같은 날짜/시간이면 상태 순서대로
-              return (
-                (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99)
-              );
-            },
-          );
-
-          setConsultations(sorted);
-        } else {
-          console.error("예약 목록 조회 실패:", data.error);
-        }
+        setAgentId(access.userId);
+        await fetchConsultations();
       } catch (err) {
         console.error("데이터 조회 오류:", err);
       } finally {
@@ -153,24 +178,114 @@ export default function AgentConsultationsPage() {
     }
 
     fetchData();
-  }, [router, filter]);
+  }, [router, fetchConsultations]);
 
-  // 예약 확정
-  async function handleConfirm(consultationId: string) {
+  // Realtime 알림 구독
+  useEffect(() => {
+    if (!agentId) return;
+
+    const supabase = createSupabaseClient();
+
+    // 초기 읽지 않은 알림 조회
+    async function fetchUnreadNotifications() {
+      try {
+        const response = await fetch("/api/agent/notifications");
+        const data = await response.json();
+        if (response.ok) {
+          const unread = (data.notifications || []).filter(
+            (n: Notification) => !n.read_at,
+          );
+          setNotifications(unread);
+        }
+      } catch (err) {
+        console.error("알림 조회 오류:", err);
+      }
+    }
+
+    fetchUnreadNotifications();
+
+    // Realtime 구독
+    const channel = supabase
+      .channel(`agent_notifications_${agentId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `recipient_id=eq.${agentId}`,
+        },
+        (payload) => {
+          const newNotification = payload.new as Notification;
+          setNotifications((prev) => [newNotification, ...prev]);
+          // 고객 도착 시 consultation 목록도 새로고침
+          if (newNotification.type === "customer_arrival") {
+            fetchConsultations();
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [agentId, fetchConsultations]);
+
+  async function handleDismissNotification(notificationId: string) {
     try {
-      const response = await fetch(`/api/consultations/${consultationId}`, {
+      const response = await fetch("/api/agent/notifications", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "confirmed" }),
+        body: JSON.stringify({ notificationId }),
+      });
+
+      if (response.ok) {
+        setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
+      }
+    } catch (err) {
+      console.error("알림 읽음 처리 오류:", err);
+    }
+  }
+
+  // 약관 모달 열기 (승인 버튼 클릭 시)
+  async function openTermsModal(consultationId: string) {
+    setTermsModalConsultationId(consultationId);
+    setAgreedToTerms(false);
+    setTermsModalOpen(true);
+
+    // 약관 로드
+    try {
+      const res = await fetch("/api/terms?type=agent_visit_fee");
+      const data = await res.json();
+      if (data.terms?.[0]) {
+        setAgentTerms(data.terms[0]);
+      }
+    } catch (err) {
+      console.error("약관 로드 오류:", err);
+    }
+  }
+
+  // 약관 동의 후 실제 승인 처리
+  async function confirmWithTerms() {
+    if (!termsModalConsultationId || !agreedToTerms) return;
+
+    setTermsConfirming(true);
+    try {
+      const response = await fetch(`/api/consultations/${termsModalConsultationId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "confirmed", agreed_to_terms: true }),
       });
 
       if (response.ok) {
         setConsultations((prev) =>
           prev.map((c) =>
-            c.id === consultationId ? { ...c, status: "confirmed" } : c,
+            c.id === termsModalConsultationId ? { ...c, status: "confirmed" } : c,
           ),
         );
         showAlert("예약이 확정되었습니다");
+        setTermsModalOpen(false);
+        setTermsModalConsultationId(null);
       } else {
         const data = await response.json();
         showAlert(data.error || "확정에 실패했습니다");
@@ -178,6 +293,8 @@ export default function AgentConsultationsPage() {
     } catch (err) {
       console.error("예약 확정 오류:", err);
       showAlert("확정 중 오류가 발생했습니다");
+    } finally {
+      setTermsConfirming(false);
     }
   }
 
@@ -242,7 +359,6 @@ export default function AgentConsultationsPage() {
     }
   }
 
-  // 주의사항
   function formatDate(dateStr: string) {
     const date = new Date(dateStr);
     const month = date.getMonth() + 1;
@@ -262,6 +378,41 @@ export default function AgentConsultationsPage() {
 
   return (
     <PageContainer className="pb-8">
+      {/* 알림 배너 */}
+      {notifications.length > 0 && (
+        <div className="space-y-2 mb-4">
+          {notifications.map((notification) => (
+            <Card
+              key={notification.id}
+              className="p-3 bg-(--oboon-safe-bg) border border-(--oboon-safe)"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-(--oboon-safe) flex items-center justify-center shrink-0">
+                  <Bell className="h-4 w-4 text-(--oboon-on-safe)" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="ob-typo-body2 text-(--oboon-text-title)">
+                    {notification.title}
+                  </p>
+                  <p className="ob-typo-caption text-(--oboon-text-muted)">
+                    {notification.message}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  shape="pill"
+                  onClick={() => handleDismissNotification(notification.id)}
+                >
+                  <Check className="h-3 w-3" />
+                  확인
+                </Button>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
       {/* 헤더 */}
       <div className="mb-4">
         <div className="ob-typo-h1 text-(--oboon-text-title)">예약 관리</div>
@@ -356,7 +507,7 @@ export default function AgentConsultationsPage() {
                         variant="primary"
                         shape="pill"
                         className="flex-1 min-h-8"
-                        onClick={() => handleConfirm(consultation.id)}
+                        onClick={() => openTermsModal(consultation.id)}
                       >
                         <Check className="h-4 w-4" />
                         승인
@@ -434,6 +585,66 @@ export default function AgentConsultationsPage() {
         open={showBaseScheduleModal}
         onClose={() => setShowBaseScheduleModal(false)}
       />
+
+      {/* 약관 동의 모달 */}
+      <Modal
+        open={termsModalOpen}
+        onClose={() => {
+          if (!termsConfirming) {
+            setTermsModalOpen(false);
+            setTermsModalConsultationId(null);
+          }
+        }}
+      >
+        <div className="ob-typo-h3 text-(--oboon-text-title)">
+          {agentTerms?.title || "방문성과비 이용약관"}
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-4 py-4 max-h-64 overflow-y-auto">
+          <p className="ob-typo-caption text-(--oboon-text-muted) whitespace-pre-wrap">
+            {agentTerms?.content || "약관을 불러오는 중..."}
+          </p>
+        </div>
+
+        <label className="mt-4 flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={agreedToTerms}
+            onChange={(e) => setAgreedToTerms(e.target.checked)}
+            className="w-5 h-5 rounded border-(--oboon-border-default) accent-(--oboon-primary)"
+          />
+          <span className="ob-typo-body text-(--oboon-text-title)">
+            위 내용을 확인하였으며 동의합니다
+          </span>
+        </label>
+
+        <div className="mt-6 flex gap-2">
+          <Button
+            className="flex-1"
+            variant="secondary"
+            size="md"
+            shape="pill"
+            onClick={() => {
+              setTermsModalOpen(false);
+              setTermsModalConsultationId(null);
+            }}
+            disabled={termsConfirming}
+          >
+            취소
+          </Button>
+          <Button
+            className="flex-1"
+            variant="primary"
+            size="md"
+            shape="pill"
+            onClick={confirmWithTerms}
+            disabled={!agreedToTerms || termsConfirming}
+            loading={termsConfirming}
+          >
+            승인 확정
+          </Button>
+        </div>
+      </Modal>
     </PageContainer>
   );
 }

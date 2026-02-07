@@ -1,0 +1,133 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { Loader2, BellOff, Trash2 } from "lucide-react";
+import { useNotifications } from "./NotificationProvider.client";
+import NotificationItem from "./NotificationItem.client";
+import Button from "@/components/ui/Button";
+import type { Notification } from "../domain/notification.types";
+import { getNotificationHref } from "../domain/notification.constants";
+
+type Props = {
+  onClose: () => void;
+};
+
+export default function NotificationPanel({ onClose }: Props) {
+  const router = useRouter();
+  const {
+    notifications,
+    loading,
+    markAsRead,
+    markAllAsRead,
+    deleteNotification,
+    deleteAllNotifications,
+    unreadCount,
+  } = useNotifications();
+
+  const handleItemClick = async (notification: Notification) => {
+    // 읽음 처리
+    if (!notification.read_at) {
+      await markAsRead(notification.id);
+    }
+
+    // 해당 페이지로 이동
+    const href = getNotificationHref(notification);
+    if (href) {
+      router.push(href);
+    }
+
+    onClose();
+  };
+
+  const handleDelete = async (
+    e: React.MouseEvent,
+    notificationId: string
+  ) => {
+    e.stopPropagation();
+    await deleteNotification(notificationId);
+  };
+
+  const handleDeleteAll = async () => {
+    if (window.confirm("모든 알림을 삭제하시겠습니까?")) {
+      await deleteAllNotifications();
+    }
+  };
+
+  return (
+    <div className="max-h-96 overflow-hidden flex flex-col">
+      {/* 헤더 */}
+      <div
+        className="flex items-center justify-between px-4 py-3 border-b"
+        style={{ borderColor: "var(--oboon-border-default)" }}
+      >
+        <span
+          className="ob-typo-body2"
+          style={{ color: "var(--oboon-text-title)" }}
+        >
+          알림
+        </span>
+        <div className="flex items-center gap-2">
+          {unreadCount > 0 && (
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => markAllAsRead()}
+              className="ob-typo-caption"
+            >
+              모두 읽음
+            </Button>
+          )}
+          {notifications.length > 0 && (
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={handleDeleteAll}
+              className="ob-typo-caption"
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* 콘텐츠 */}
+      <div className="flex-1 overflow-y-auto">
+        {loading ? (
+          <div className="flex justify-center py-8">
+            <Loader2
+              className="h-6 w-6 animate-spin"
+              style={{ color: "var(--oboon-primary)" }}
+            />
+          </div>
+        ) : notifications.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <BellOff
+              className="h-8 w-8 mb-2"
+              style={{ color: "var(--oboon-text-muted)" }}
+            />
+            <p
+              className="ob-typo-body"
+              style={{ color: "var(--oboon-text-muted)" }}
+            >
+              알림이 없습니다
+            </p>
+          </div>
+        ) : (
+          <div
+            className="divide-y"
+            style={{ borderColor: "var(--oboon-border-default)" }}
+          >
+            {notifications.slice(0, 20).map((notification) => (
+              <NotificationItem
+                key={notification.id}
+                notification={notification}
+                onClick={() => handleItemClick(notification)}
+                onDelete={(e) => handleDelete(e, notification.id)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

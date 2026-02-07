@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Calendar, Menu, UserPlus } from "lucide-react";
+import NotificationBell from "@/features/notifications/components/NotificationBell.client";
 import { useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 
@@ -269,6 +270,9 @@ export default function Header() {
             )}
 
             <ThemeToggle />
+
+            {/* Notification Bell */}
+            {user && <NotificationBell />}
 
             {/* Auth / Profile */}
             <div className="hidden md:block">

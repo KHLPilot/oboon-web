@@ -84,6 +84,12 @@ export default function BookingModal({
   const [showMyConsultationsModal, setShowMyConsultationsModal] =
     useState(false);
 
+  // 약관 상태
+  const [terms, setTerms] = useState<{ title: string; content: string } | null>(
+    null
+  );
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+
   // 사용자 정보 및 상담사 목록 조회
   const buildReservationEventParams = () => {
     const params: Record<string, string | number> = {};
@@ -201,6 +207,23 @@ export default function BookingModal({
     }
   }, [isDesktop, isOpen]);
 
+  // confirm 단계 진입 시 약관 로드
+  useEffect(() => {
+    if (step === "confirm") {
+      setAgreedToTerms(false);
+      fetch("/api/terms?type=customer_reservation")
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.terms?.[0]) {
+            setTerms(data.terms[0]);
+          }
+        })
+        .catch((err) => {
+          console.error("약관 로드 오류:", err);
+        });
+    }
+  }, [step]);
+
   // 슬롯 조회 함수 (폴링에서도 사용)
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialFetch = useRef(true);
@@ -314,6 +337,7 @@ export default function BookingModal({
           agent_id: selectedAgent.id,
           property_id: propertyId,
           scheduled_at: scheduledAtStr,
+          agreed_to_terms: true,
         }),
       });
 
@@ -340,7 +364,7 @@ export default function BookingModal({
   }
 
   const canSubmit =
-    selectedAgent && selectedDate && selectedTime && !submitting;
+    selectedAgent && selectedDate && selectedTime && !submitting && agreedToTerms;
   const canGoNext = Boolean(selectedAgent && selectedDate && selectedTime);
 
   const formatBookingDate = (dateStr: string) => {
@@ -708,15 +732,33 @@ export default function BookingModal({
 
           <div className="mt-6">
             <div className="ob-typo-h3 text-(--oboon-text-title) mb-2">
-              예약 안내사항
+              {terms?.title || "예약 안내사항"}
             </div>
-            <div className={[
-              "rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-4 py-4 text-(--oboon-text-muted)",
-              isDesktop ? "ob-typo-body" : "ob-typo-caption",
-            ].join(" ")}
+            <div
+              className={[
+                "rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-4 py-4 text-(--oboon-text-muted) max-h-48 overflow-y-auto whitespace-pre-wrap",
+                isDesktop ? "ob-typo-body" : "ob-typo-caption",
+              ].join(" ")}
+            >
+              {terms?.content || "약관을 불러오는 중..."}
+            </div>
+
+            <label className="mt-4 flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={agreedToTerms}
+                onChange={(e) => setAgreedToTerms(e.target.checked)}
+                className="w-5 h-5 rounded border-(--oboon-border-default) accent-(--oboon-primary)"
+              />
+              <span
+                className={[
+                  "text-(--oboon-text-title)",
+                  isDesktop ? "ob-typo-body" : "ob-typo-caption",
+                ].join(" ")}
               >
-              예약금 관련 설명
-            </div>
+                위 내용을 확인하였으며 동의합니다
+              </span>
+            </label>
           </div>
 
           {/* 에러 메시지 */}

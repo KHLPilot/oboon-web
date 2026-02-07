@@ -109,15 +109,17 @@ export default function RootLayout({
           src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"
           strategy="afterInteractive"
         />
-        <ProfileChecker />
-        <Header />
-        <main
-          className="flex-1 relative"
-          style={{ paddingTop: "var(--oboon-header-offset)" }}
-        >
-          <Providers>{children}</Providers>
-        </main>
-        <Footer />
+        <Providers>
+          <ProfileChecker />
+          <Header />
+          <main
+            className="flex-1 relative"
+            style={{ paddingTop: "var(--oboon-header-offset)" }}
+          >
+            {children}
+          </main>
+          <Footer />
+        </Providers>
       </body>
     </html>
   );

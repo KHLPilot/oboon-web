@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   CalendarDays,
   MessageCircle,
+  MapPin,
   Loader2,
   Trash2,
 } from "lucide-react";
@@ -290,6 +291,22 @@ export default function ConsultationsListPanel({
               }
               actions={
                 <>
+                  {consultation.status === "confirmed" && (
+                    <Button
+                      size="md"
+                      variant="secondary"
+                      className="w-full sm:flex-1 min-h-8"
+                      onClick={() =>
+                        handleNavigate(
+                          `/my/consultations/${consultation.id}/qr`,
+                        )
+                      }
+                    >
+                      <MapPin className="h-5 w-5" />
+                      방문인증
+                    </Button>
+                  )}
+
                   {(consultation.status === "pending" ||
                     consultation.status === "confirmed" ||
                     consultation.status === "visited" ||

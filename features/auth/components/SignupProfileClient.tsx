@@ -23,17 +23,8 @@ import FieldErrorBubble, {
   FieldErrorState,
 } from "@/components/ui/FieldErrorBubble";
 
-import { ChevronDown, Check } from "lucide-react";
 
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@/components/ui/DropdownMenu";
-
-type UserType = "personal" | "company";
-type FieldKey = "name" | "nickname" | "phone" | "userType";
+type FieldKey = "name" | "nickname" | "phone";
 type FieldErrors = { name?: string; nickname?: string; phone?: string };
 
 function cx(...cls: Array<string | false | null | undefined>) {
@@ -60,9 +51,71 @@ export default function SignupProfileClient() {
   const [name, setName] = useState("");
   const [nickname, setNickname] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [userType, setUserType] = useState<UserType>("personal");
+  // MVP: 회원유형 기본값 personal 고정
+  const userType = "personal";
 
   const [errors, setErrors] = useState<FieldErrors>({});
+
+  // 이용약관 동의
+  const [agreements, setAgreements] = useState({
+    terms: false,
+    privacy: false,
+    location: false,
+    marketing: false,
+  });
+  const [agreementError, setAgreementError] = useState<string | null>(null);
+
+  // 약관 내용 모달
+  const [termModal, setTermModal] = useState<{
+    open: boolean;
+    title: string;
+    content: string;
+  }>({ open: false, title: "", content: "" });
+  const [termLoading, setTermLoading] = useState(false);
+
+  async function openTermModal(termType: string) {
+    setTermLoading(true);
+    try {
+      const res = await fetch(`/api/terms?type=${termType}`);
+      const data = await res.json();
+      if (res.ok && data.term) {
+        setTermModal({
+          open: true,
+          title: data.term.title,
+          content: data.term.content,
+        });
+      }
+    } catch (err) {
+      console.error("약관 조회 오류:", err);
+    } finally {
+      setTermLoading(false);
+    }
+  }
+
+  const agreedAll =
+    agreements.terms &&
+    agreements.privacy &&
+    agreements.location &&
+    agreements.marketing;
+
+  const requiredAgreed =
+    agreements.terms && agreements.privacy && agreements.location;
+
+  function handleToggle(key: keyof typeof agreements) {
+    setAgreements((prev) => ({ ...prev, [key]: !prev[key] }));
+    setAgreementError(null);
+  }
+
+  function handleToggleAll() {
+    const next = !agreedAll;
+    setAgreements({
+      terms: next,
+      privacy: next,
+      location: next,
+      marketing: next,
+    });
+    setAgreementError(null);
+  }
 
   // FieldErrorBubble
   const cardWrapRef = useRef<HTMLDivElement | null>(null);
@@ -241,6 +294,11 @@ export default function SignupProfileClient() {
         return;
       }
 
+      if (!requiredAgreed) {
+        setAgreementError("필수 약관에 모두 동의해주세요.");
+        return;
+      }
+
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -257,6 +315,11 @@ export default function SignupProfileClient() {
           nickname: nickname || null,
           phone_number: phoneNumber,
           user_type: userType,
+          agreed_terms: agreements.terms,
+          agreed_privacy: agreements.privacy,
+          agreed_location: agreements.location,
+          agreed_marketing: agreements.marketing,
+          agreed_at: new Date().toISOString(),
         },
       });
       if (authUpdateError) throw authUpdateError;
@@ -271,6 +334,26 @@ export default function SignupProfileClient() {
         role: "user",
       });
       if (upsertError) throw upsertError;
+
+      // 약관 동의 기록 저장 (법적 증거용)
+      const agreedTermTypes = ["signup_terms", "signup_privacy", "signup_location"];
+      if (agreements.marketing) {
+        agreedTermTypes.push("signup_marketing");
+      }
+
+      try {
+        await fetch("/api/term-consents", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            termTypes: agreedTermTypes,
+            context: "signup",
+          }),
+        });
+      } catch (consentErr) {
+        // 동의 기록 실패해도 회원가입은 진행 (나중에 재시도 가능)
+        console.error("약관 동의 기록 오류:", consentErr);
+      }
 
       trackEvent("signup_complete", { user_type: userType });
 
@@ -416,50 +499,125 @@ export default function SignupProfileClient() {
                         }
                       />
                     </div>
-                    <Label>회원 유형</Label>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button
-                          type="button"
+                    {/* MVP: 회원유형 선택 비활성화 — 기본값 personal 유지 */}
+
+                    {/* 이용약관 동의 */}
+                    <div className="space-y-2 pt-1">
+                      <Label>이용약관 동의</Label>
+
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={agreedAll}
+                          onChange={handleToggleAll}
                           disabled={!canSubmit || loading}
-                          className={cx(
-                            "h-11 w-full rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3",
-                            "flex items-center justify-between",
-                            "outline-none",
-                            !canSubmit || loading
-                              ? "opacity-60"
-                              : "hover:bg-(--oboon-bg-subtle)/60",
-                          )}
-                        >
-                          {userType === "personal" ? "개인 회원" : "기업 회원"}
-                          <ChevronDown className="h-4 w-4 text-(--oboon-text-muted)" />
-                        </button>
-                      </DropdownMenuTrigger>
+                          className="h-4 w-4 rounded border-(--oboon-border-default) accent-(--oboon-primary)"
+                        />
+                        <span className="ob-typo-body text-(--oboon-text-title) font-medium">
+                          전체 동의
+                        </span>
+                      </label>
 
-                      <DropdownMenuContent align="start" className="min-w-60">
-                        <DropdownMenuItem
-                          onClick={() => setUserType("personal")}
-                        >
-                          <span className="flex w-full items-center justify-between">
-                            <span>개인 회원</span>
-                            {userType === "personal" ? (
-                              <Check className="h-4 w-4" />
-                            ) : null}
-                          </span>
-                        </DropdownMenuItem>
+                      <div className="ml-6 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={agreements.terms}
+                              onChange={() => handleToggle("terms")}
+                              disabled={!canSubmit || loading}
+                              className="h-4 w-4 rounded border-(--oboon-border-default) accent-(--oboon-primary)"
+                            />
+                            <span className="ob-typo-caption text-(--oboon-text-muted)">
+                              [필수] 서비스 이용약관 동의
+                            </span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => openTermModal("signup_terms")}
+                            disabled={termLoading}
+                            className="ob-typo-caption text-(--oboon-primary) hover:underline"
+                          >
+                            보기
+                          </button>
+                        </div>
 
-                        <DropdownMenuItem
-                          onClick={() => setUserType("company")}
-                        >
-                          <span className="flex w-full items-center justify-between">
-                            <span>기업 회원</span>
-                            {userType === "company" ? (
-                              <Check className="h-4 w-4" />
-                            ) : null}
-                          </span>
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                        <div className="flex items-center justify-between">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={agreements.privacy}
+                              onChange={() => handleToggle("privacy")}
+                              disabled={!canSubmit || loading}
+                              className="h-4 w-4 rounded border-(--oboon-border-default) accent-(--oboon-primary)"
+                            />
+                            <span className="ob-typo-caption text-(--oboon-text-muted)">
+                              [필수] 개인정보 수집·이용 동의
+                            </span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => openTermModal("signup_privacy")}
+                            disabled={termLoading}
+                            className="ob-typo-caption text-(--oboon-primary) hover:underline"
+                          >
+                            보기
+                          </button>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={agreements.location}
+                              onChange={() => handleToggle("location")}
+                              disabled={!canSubmit || loading}
+                              className="h-4 w-4 rounded border-(--oboon-border-default) accent-(--oboon-primary)"
+                            />
+                            <span className="ob-typo-caption text-(--oboon-text-muted)">
+                              [필수] 위치정보 이용 동의
+                            </span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => openTermModal("signup_location")}
+                            disabled={termLoading}
+                            className="ob-typo-caption text-(--oboon-primary) hover:underline"
+                          >
+                            보기
+                          </button>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={agreements.marketing}
+                              onChange={() => handleToggle("marketing")}
+                              disabled={!canSubmit || loading}
+                              className="h-4 w-4 rounded border-(--oboon-border-default) accent-(--oboon-primary)"
+                            />
+                            <span className="ob-typo-caption text-(--oboon-text-muted)">
+                              [선택] 마케팅 정보 수신 동의
+                            </span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => openTermModal("signup_marketing")}
+                            disabled={termLoading}
+                            className="ob-typo-caption text-(--oboon-primary) hover:underline"
+                          >
+                            보기
+                          </button>
+                        </div>
+                      </div>
+
+                      {agreementError ? (
+                        <p className="ob-typo-caption text-(--oboon-danger)">
+                          {agreementError}
+                        </p>
+                      ) : null}
+                    </div>
 
                     <Button
                       type="submit"
@@ -520,6 +678,34 @@ export default function SignupProfileClient() {
                   variant="primary"
                   className="w-full justify-center"
                   onClick={() => setFatalError(null)}
+                >
+                  확인
+                </Button>
+              </div>
+            </div>
+          </Modal>
+
+          {/* 약관 내용 모달 */}
+          <Modal
+            open={termModal.open}
+            onClose={() => setTermModal({ open: false, title: "", content: "" })}
+          >
+            <div className="space-y-3">
+              <div className="ob-typo-h3 text-(--oboon-text-title)">
+                {termModal.title}
+              </div>
+              <div
+                className="ob-typo-caption text-(--oboon-text-muted) whitespace-pre-wrap max-h-80 overflow-y-auto"
+              >
+                {termModal.content}
+              </div>
+              <div className="pt-2">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  shape="pill"
+                  className="w-full justify-center"
+                  onClick={() => setTermModal({ open: false, title: "", content: "" })}
                 >
                   확인
                 </Button>

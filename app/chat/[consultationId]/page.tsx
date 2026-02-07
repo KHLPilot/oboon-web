@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Send, Loader2, MoreVertical, Trash2 } from "lucide-react";
+import { ArrowLeft, Send, Loader2, MoreVertical, Trash2, CalendarDays } from "lucide-react";
 import { fetchCurrentUserId } from "@/features/chat/services/chat.auth";
 import { subscribeToChatRoom } from "@/features/chat/services/chat.realtime";
 import PageContainer from "@/components/shared/PageContainer";
@@ -53,6 +53,7 @@ export default function ChatPage() {
   );
   const [chatRoomId, setChatRoomId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<"customer" | "agent" | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -93,10 +94,23 @@ export default function ChatPage() {
           const data = await messagesRes.json();
           throw new Error(data.error || "메시지를 불러올 수 없습니다");
         }
-        const { messages: messagesData, chatRoomId: roomId } =
+        const { messages: messagesData, chatRoomId: roomId, userRole: role } =
           await messagesRes.json();
         setMessages(messagesData);
         setChatRoomId(roomId);
+        setUserRole(role);
+
+        // 해당 상담의 모든 채팅 알림을 읽음 처리
+        fetch("/api/notifications", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            consultationId,
+            type: "new_chat_message",
+          }),
+        }).catch(() => {
+          // 알림 읽음 처리 실패해도 무시
+        });
       } catch (err: any) {
         console.error("데이터 로드 오류:", err);
         setError(err.message);
@@ -306,7 +320,21 @@ export default function ChatPage() {
                     className="fixed inset-0 z-10"
                     onClick={() => setShowMenu(false)}
                   />
-                  <div className="absolute right-0 top-full mt-1 z-20 w-40 rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) shadow-lg overflow-hidden">
+                  <div className="absolute right-0 top-full mt-1 z-20 w-44 rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) shadow-lg overflow-hidden">
+                    <button
+                      onClick={() => {
+                        setShowMenu(false);
+                        router.push(
+                          userRole === "agent"
+                            ? "/agent/consultations"
+                            : "/my/consultations"
+                        );
+                      }}
+                      className="flex items-center gap-2 w-full px-4 py-3 text-sm text-(--oboon-text-body) hover:bg-(--oboon-bg-subtle) transition-colors"
+                    >
+                      <CalendarDays className="h-4 w-4" />
+                      상담예약 내역
+                    </button>
                     <button
                       onClick={handleDeleteChat}
                       disabled={deleting}

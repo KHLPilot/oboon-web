@@ -15,7 +15,9 @@
       "Bash(git stash:*)",
       "Bash(pnpm build:*)",
       "Bash(git clean:*)",
-      "Bash(git pull:*)"
+      "Bash(git pull:*)",
+      "Bash(pnpm lint:*)",
+      "Bash(grep:*)"
     ]
   }
 }

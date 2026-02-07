@@ -17,6 +17,9 @@ import {
   ArrowRight,
   Building2,
   CalendarDays,
+  Edit3,
+  FileText,
+  Loader2,
   Plus,
   UserCheck,
   Users,
@@ -49,6 +52,17 @@ type PropertyAgent = {
   } | null;
 };
 
+type Term = {
+  id: string;
+  type: string;
+  version: number;
+  title: string;
+  content: string;
+  is_active: boolean;
+  updated_at: string;
+  created_at: string;
+};
+
 function roleLabel(role: string) {
   switch (role) {
     case "admin":
@@ -68,6 +82,26 @@ function roleSortKey(role: string) {
   // 사람이 보는 라벨 기준으로 정렬
   return roleLabel(role);
 }
+
+function termTypeLabel(type: string) {
+  switch (type) {
+    case "customer_reservation":
+      return "고객용 예약금 안내";
+    case "agent_visit_fee":
+      return "상담사용 방문성과비 약관";
+    case "signup_terms":
+      return "회원가입 - 서비스 이용약관";
+    case "signup_privacy":
+      return "회원가입 - 개인정보 수집·이용";
+    case "signup_location":
+      return "회원가입 - 위치정보 이용";
+    case "signup_marketing":
+      return "회원가입 - 마케팅 수신 (선택)";
+    default:
+      return type;
+  }
+}
+
 
 type ConfirmKind = "approve" | "restore";
 type ConfirmState =
@@ -112,6 +146,12 @@ function AdminPageInner() {
     loading: boolean;
   } | null>(null);
 
+  // 약관 관리 상태
+  const [terms, setTerms] = useState<Term[]>([]);
+  const [termsLoading, setTermsLoading] = useState(false);
+  const [editingTerm, setEditingTerm] = useState<Term | null>(null);
+  const [termSaving, setTermSaving] = useState(false);
+
   const loadData = useCallback(async () => {
     setLoading(true);
 
@@ -140,6 +180,52 @@ function AdminPageInner() {
   const closeConfirm = () => {
     if (confirmLoading) return;
     setConfirm({ open: false });
+  };
+
+  // 약관 목록 로드
+  const loadTerms = useCallback(async () => {
+    setTermsLoading(true);
+    try {
+      const response = await fetch("/api/admin/terms");
+      const data = await response.json();
+      if (response.ok) {
+        setTerms(data.terms || []);
+      }
+    } catch (err) {
+      console.error("약관 조회 오류:", err);
+    } finally {
+      setTermsLoading(false);
+    }
+  }, []);
+
+  // 약관 저장
+  const saveTerm = async () => {
+    if (!editingTerm) return;
+    setTermSaving(true);
+    try {
+      const response = await fetch("/api/admin/terms", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: editingTerm.id,
+          title: editingTerm.title,
+          content: editingTerm.content,
+        }),
+      });
+      if (response.ok) {
+        toast.success("약관이 저장되었습니다", "완료");
+        setEditingTerm(null);
+        await loadTerms();
+      } else {
+        const data = await response.json();
+        toast.error(data.error || "저장에 실패했습니다", "오류");
+      }
+    } catch (err) {
+      console.error("약관 저장 오류:", err);
+      toast.error("저장 중 오류가 발생했습니다", "오류");
+    } finally {
+      setTermSaving(false);
+    }
   };
 
   const openApproveConfirm = (agent: Profile) => {
@@ -300,11 +386,19 @@ function AdminPageInner() {
     { id: "reservations", label: "예약 관리" },
     { id: "properties", label: "현장 관리" },
     { id: "settlements", label: "정산 관리" },
+    { id: "terms", label: "약관 관리" },
   ] as const;
 
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]["id"]>(
     "summary",
   );
+
+  // 약관 탭 활성화 시 약관 로드
+  useEffect(() => {
+    if (activeTab === "terms") {
+      loadTerms();
+    }
+  }, [activeTab, loadTerms]);
 
   const StatCard = ({
     title,
@@ -900,6 +994,205 @@ function AdminPageInner() {
                   정산 데이터 연동 후 표시됩니다.
                 </p>
               </Card>
+            )}
+
+            {activeTab === "terms" && (
+              <>
+                <Card className="p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="ob-typo-h3 text-(--oboon-text-title)">
+                        약관 관리
+                      </div>
+                      <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+                        고객 및 상담사에게 표시되는 약관을 관리합니다.
+                      </p>
+                    </div>
+                  </div>
+                </Card>
+
+                {termsLoading ? (
+                  <div className="flex justify-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-(--oboon-primary)" />
+                  </div>
+                ) : editingTerm ? (
+                  <Card className="p-5">
+                    <div className="flex items-center justify-between gap-3 mb-4">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <FileText className="h-5 w-5 text-(--oboon-primary)" />
+                        <span className="ob-typo-subtitle text-(--oboon-text-title)">
+                          {termTypeLabel(editingTerm.type)}
+                        </span>
+                        <Badge variant="status">v{editingTerm.version}</Badge>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block ob-typo-caption text-(--oboon-text-muted) mb-1">
+                          제목
+                        </label>
+                        <input
+                          type="text"
+                          value={editingTerm.title}
+                          onChange={(e) =>
+                            setEditingTerm({
+                              ...editingTerm,
+                              title: e.target.value,
+                            })
+                          }
+                          className="w-full px-3 py-2 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) text-(--oboon-text-title) ob-typo-body focus:outline-none focus:ring-2 focus:ring-(--oboon-primary)"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block ob-typo-caption text-(--oboon-text-muted) mb-1">
+                          내용
+                        </label>
+                        <textarea
+                          value={editingTerm.content}
+                          onChange={(e) =>
+                            setEditingTerm({
+                              ...editingTerm,
+                              content: e.target.value,
+                            })
+                          }
+                          rows={12}
+                          className="w-full px-3 py-2 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) text-(--oboon-text-title) ob-typo-body focus:outline-none focus:ring-2 focus:ring-(--oboon-primary) resize-none"
+                        />
+                      </div>
+
+                      <div className="flex gap-2 justify-end">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          shape="pill"
+                          onClick={() => setEditingTerm(null)}
+                          disabled={termSaving}
+                        >
+                          취소
+                        </Button>
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          shape="pill"
+                          onClick={saveTerm}
+                          loading={termSaving}
+                        >
+                          저장
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                ) : (
+                  <div className="space-y-6">
+                    {/* 회원가입 약관 */}
+                    <div>
+                      <div className="ob-typo-subtitle text-(--oboon-text-title) mb-3">
+                        회원가입 약관
+                      </div>
+                      <div className="space-y-3">
+                        {terms
+                          .filter((t) => t.type.startsWith("signup_"))
+                          .map((term) => (
+                            <Card key={term.id} className="p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <FileText className="h-4 w-4 text-(--oboon-primary)" />
+                                    <span className="ob-typo-body text-(--oboon-text-title)">
+                                      {termTypeLabel(term.type)}
+                                    </span>
+                                    <Badge variant="status">v{term.version}</Badge>
+                                    <Badge variant="status">
+                                      {term.is_active ? "활성" : "비활성"}
+                                    </Badge>
+                                  </div>
+                                  <div className="mt-1 ob-typo-caption text-(--oboon-text-muted) line-clamp-2">
+                                    {term.content.slice(0, 100)}...
+                                  </div>
+                                </div>
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  shape="pill"
+                                  onClick={() => setEditingTerm(term)}
+                                >
+                                  <Edit3 className="h-4 w-4" />
+                                  수정
+                                </Button>
+                              </div>
+                            </Card>
+                          ))}
+                        {terms.filter((t) => t.type.startsWith("signup_"))
+                          .length === 0 && (
+                          <p className="ob-typo-caption text-(--oboon-text-muted)">
+                            회원가입 약관이 없습니다. DB 마이그레이션을 실행해주세요.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 예약/상담사 약관 */}
+                    <div>
+                      <div className="ob-typo-subtitle text-(--oboon-text-title) mb-3">
+                        예약 · 상담사 약관
+                      </div>
+                      <div className="space-y-3">
+                        {terms
+                          .filter((t) => !t.type.startsWith("signup_"))
+                          .map((term) => (
+                            <Card key={term.id} className="p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <FileText className="h-4 w-4 text-(--oboon-primary)" />
+                                    <span className="ob-typo-body text-(--oboon-text-title)">
+                                      {termTypeLabel(term.type)}
+                                    </span>
+                                    <Badge variant="status">v{term.version}</Badge>
+                                    <Badge variant="status">
+                                      {term.is_active ? "활성" : "비활성"}
+                                    </Badge>
+                                  </div>
+                                  <div className="mt-1 ob-typo-body text-(--oboon-text-title)">
+                                    {term.title}
+                                  </div>
+                                  <div className="mt-1 ob-typo-caption text-(--oboon-text-muted) line-clamp-2">
+                                    {term.content.slice(0, 100)}...
+                                  </div>
+                                </div>
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  shape="pill"
+                                  onClick={() => setEditingTerm(term)}
+                                >
+                                  <Edit3 className="h-4 w-4" />
+                                  수정
+                                </Button>
+                              </div>
+                            </Card>
+                          ))}
+                        {terms.filter((t) => !t.type.startsWith("signup_"))
+                          .length === 0 && (
+                          <p className="ob-typo-caption text-(--oboon-text-muted)">
+                            예약/상담사 약관이 없습니다.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {terms.length === 0 && (
+                      <Card className="p-5 text-center">
+                        <p className="ob-typo-body text-(--oboon-text-muted)">
+                          등록된 약관이 없습니다.
+                        </p>
+                      </Card>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </section>
         </div>

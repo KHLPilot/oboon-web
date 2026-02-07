@@ -37,12 +37,20 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { agent_id, property_id, scheduled_at } = body;
+    const { agent_id, property_id, scheduled_at, agreed_to_terms } = body;
 
     // 필수 필드 검증
     if (!agent_id || !property_id || !scheduled_at) {
       return NextResponse.json(
         { error: "필수 정보가 누락되었습니다" },
+        { status: 400 },
+      );
+    }
+
+    // 약관 동의 필수 검증 (서버 사이드)
+    if (agreed_to_terms !== true) {
+      return NextResponse.json(
+        { error: "약관 동의가 필요합니다" },
         { status: 400 },
       );
     }
@@ -82,6 +90,43 @@ export async function POST(req: Request) {
     if (chatRoomError) {
       console.error("채팅방 생성 오류:", chatRoomError);
       // 채팅방 생성 실패해도 예약은 유지
+    }
+
+    // 약관 동의 기록 저장 (법적 증거용)
+    const ipAddress =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      req.headers.get("x-real-ip") ||
+      null;
+    const userAgent = req.headers.get("user-agent") || null;
+
+    // customer_reservation 약관 조회
+    const { data: term } = await adminSupabase
+      .from("terms")
+      .select("id, type, version, title, content")
+      .eq("type", "customer_reservation")
+      .eq("is_active", true)
+      .single();
+
+    if (term) {
+      const { error: consentError } = await adminSupabase
+        .from("term_consents")
+        .insert({
+          user_id: user.id,
+          term_id: term.id,
+          term_type: term.type,
+          term_version: term.version,
+          ip_address: ipAddress,
+          user_agent: userAgent,
+          context: "reservation",
+          context_id: consultation.id,
+          term_title_snapshot: term.title,
+          term_content_snapshot: term.content,
+        });
+
+      if (consentError) {
+        console.error("약관 동의 기록 저장 오류:", consentError);
+        // 동의 기록 실패해도 예약은 유지 (나중에 재시도 가능)
+      }
     }
 
     return NextResponse.json({
