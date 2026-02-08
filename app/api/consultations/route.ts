@@ -261,11 +261,11 @@ export async function GET(req: Request) {
     } else if (role === "agent") {
       query = query
         .eq("agent_id", user.id)
-        .or("hidden_by_agent.is.null,hidden_by_agent.eq.false");
+        .neq("hidden_by_agent", true);
     } else {
       query = query
         .eq("customer_id", user.id)
-        .or("hidden_by_customer.is.null,hidden_by_customer.eq.false");
+        .neq("hidden_by_customer", true);
     }
 
     // 상태 필터
