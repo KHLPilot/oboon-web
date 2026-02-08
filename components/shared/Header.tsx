@@ -37,6 +37,7 @@ export default function Header() {
       { label: "지도", href: "/map" },
       // { label: "브리핑", href: "/briefing" },
       { label: "커뮤니티", href: "/community" },
+      { label: "고객센터", href: "/support" },
     ],
     [],
   );
