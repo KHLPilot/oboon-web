@@ -1,6 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+
+const BLOCKING_CONSULTATION_STATUSES = ["requested", "pending", "confirmed"];
+const adminSupabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+);
+
+async function hasBlockingConsultations(
+  supabase: { from: (table: string) => any },
+  agentId: string,
+) {
+  const { count, error } = await supabase
+    .from("consultations")
+    .select("id", { count: "exact", head: true })
+    .eq("agent_id", agentId)
+    .in("status", BLOCKING_CONSULTATION_STATUSES);
+
+  if (error) {
+    throw error;
+  }
+
+  return (count ?? 0) > 0;
+}
 
 // POST - 상담사가 현장 소속 신청
 export async function POST(request: NextRequest) {
@@ -84,12 +108,13 @@ export async function POST(request: NextRequest) {
     }
 
     // 이미 다른 현장에 소속되어 있는지 확인 (한 명당 한 곳만 가능)
-    const { data: existingApproved, error: approvedCheckError } = await supabase
+    const { data: existingApprovedRows, error: approvedCheckError } = await adminSupabase
       .from("property_agents")
       .select("id, property_id, status, properties:property_id(id, name)")
       .eq("agent_id", user.id)
       .eq("status", "approved")
-      .maybeSingle();
+      .order("approved_at", { ascending: false, nullsFirst: false })
+      .order("requested_at", { ascending: false, nullsFirst: false });
 
     if (approvedCheckError) {
       console.error("기존 승인 조회 오류:", approvedCheckError);
@@ -97,6 +122,15 @@ export async function POST(request: NextRequest) {
         { error: "소속 확인 중 오류가 발생했습니다" },
         { status: 500 }
       );
+    }
+
+    const existingApproved = existingApprovedRows?.[0] ?? null;
+
+    if ((existingApprovedRows?.length ?? 0) > 1) {
+      console.warn("중복 승인 소속 감지:", {
+        agent_id: user.id,
+        approved_count: existingApprovedRows?.length ?? 0,
+      });
     }
 
     if (existingApproved && existingApproved.property_id === property_id) {
@@ -114,8 +148,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (existingApproved && change_request) {
+      try {
+        const blocking = await hasBlockingConsultations(supabase, user.id);
+        if (blocking) {
+          return NextResponse.json(
+            { error: "진행중 상담이 있어 소속 변경이 불가능합니다." },
+            { status: 409 },
+          );
+        }
+      } catch (blockingError) {
+        console.error("진행중 상담 확인 오류:", blockingError);
+        return NextResponse.json(
+          { error: "진행중 상담 확인 중 오류가 발생했습니다" },
+          { status: 500 },
+        );
+      }
+    }
+
     // 기존 pending 이력 정리 (즉시 승인 정책)
-    const { error: clearPendingError } = await supabase
+    const { error: clearPendingError } = await adminSupabase
       .from("property_agents")
       .delete()
       .eq("agent_id", user.id)
@@ -130,7 +182,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 이미 신청/소속했는지 확인
-    const { data: existing, error: existingError } = await supabase
+    const { data: existing, error: existingError } = await adminSupabase
       .from("property_agents")
       .select("id, status")
       .eq("property_id", property_id)
@@ -152,41 +204,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (existing?.status === "pending") {
-      const { error: deletePendingError } = await supabase
-        .from("property_agents")
-        .delete()
-        .eq("id", existing.id);
-
-      if (deletePendingError) {
-        console.error("기존 pending 정리 오류:", deletePendingError);
-        return NextResponse.json(
-          { error: "기존 요청 정리 중 오류가 발생했습니다" },
-          { status: 500 }
-        );
-      }
-    }
-
-    if (existing?.status === "rejected") {
-      const { error: deleteRejectedError } = await supabase
-        .from("property_agents")
-        .delete()
-        .eq("id", existing.id);
-
-      if (deleteRejectedError) {
-        console.error("기존 rejected 정리 오류:", deleteRejectedError);
-        return NextResponse.json(
-          { error: "기존 요청 정리 중 오류가 발생했습니다" },
-          { status: 500 }
-        );
-      }
-    }
-
     if (existingApproved && change_request) {
-      const { error: deleteApprovedError } = await supabase
+      const { error: deleteApprovedError } = await adminSupabase
         .from("property_agents")
         .delete()
-        .eq("id", existingApproved.id);
+        .eq("agent_id", user.id)
+        .eq("status", "approved");
 
       if (deleteApprovedError) {
         console.error("기존 승인 소속 정리 오류:", deleteApprovedError);
@@ -197,22 +220,50 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 소속 즉시 승인 생성
-    const { data: propertyAgent, error: insertError } = await supabase
-      .from("property_agents")
-      .insert({
-        property_id,
-        agent_id: user.id,
-        status: "approved",
-        requested_at: new Date().toISOString(),
-        approved_at: new Date().toISOString(),
-        approved_by: user.id,
-      })
-      .select()
-      .single();
+    const nowIso = new Date().toISOString();
+    let propertyAgent: any = null;
+    let saveError: any = null;
 
-    if (insertError) {
-      console.error("소속 신청 생성 오류:", insertError);
+    if (existing && existing.status !== "approved") {
+      // withdrawn/rejected/pending 기존 행을 재활성화해 중복 키를 피함
+      const { data: updatedRow, error: updateError } = await adminSupabase
+        .from("property_agents")
+        .update({
+          status: "approved",
+          requested_at: nowIso,
+          approved_at: nowIso,
+          approved_by: user.id,
+          rejected_at: null,
+          rejection_reason: null,
+          withdrawn_at: null,
+        })
+        .eq("id", existing.id)
+        .select()
+        .single();
+
+      propertyAgent = updatedRow;
+      saveError = updateError;
+    } else {
+      // 신규 소속 즉시 승인 생성
+      const { data: insertedRow, error: insertError } = await adminSupabase
+        .from("property_agents")
+        .insert({
+          property_id,
+          agent_id: user.id,
+          status: "approved",
+          requested_at: nowIso,
+          approved_at: nowIso,
+          approved_by: user.id,
+        })
+        .select()
+        .single();
+
+      propertyAgent = insertedRow;
+      saveError = insertError;
+    }
+
+    if (saveError || !propertyAgent) {
+      console.error("소속 신청 저장 오류:", saveError);
       return NextResponse.json(
         { error: "소속 신청에 실패했습니다" },
         { status: 500 }

@@ -127,7 +127,7 @@ export async function GET(req: Request) {
       (overrides || []).map((o: any) => [o.slot_time.slice(0, 5), o.is_open])
     );
 
-    // 4) 이미 예약된 시간 조회 (pending, confirmed 모두)
+    // 4) 이미 예약된 시간 조회 (requested, pending, confirmed 모두)
     const dayStart = `${date}T00:00:00+09:00`;
     const dayEnd = `${date}T23:59:59+09:00`;
 
@@ -135,7 +135,7 @@ export async function GET(req: Request) {
       .from("consultations")
       .select("scheduled_at")
       .eq("agent_id", agentId)
-      .in("status", ["pending", "confirmed"])
+      .in("status", ["requested", "pending", "confirmed"])
       .gte("scheduled_at", dayStart)
       .lte("scheduled_at", dayEnd);
 
@@ -209,7 +209,22 @@ export async function POST(req: Request) {
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { getAll: () => cookieStore.getAll() } }
+      {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              cookieStore.set(name, value, options);
+            });
+          } catch {
+            // 읽기 전용 컨텍스트에서는 무시
+          }
+        },
+      },
+    }
     );
 
     const {

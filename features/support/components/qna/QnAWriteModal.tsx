@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import Textarea from "@/components/ui/Textarea";
 
 type QnAWriteModalProps = {
   isOpen: boolean;
@@ -116,7 +117,7 @@ export function QnAWriteModal({ isOpen, onClose, onSubmit }: QnAWriteModalProps)
             <label className="block mb-1 text-sm font-medium text-(--oboon-text-title)">
               내용
             </label>
-            <textarea
+            <Textarea
               value={body}
               onChange={(e) => setBody(e.target.value)}
               placeholder="문의 내용을 입력해주세요"

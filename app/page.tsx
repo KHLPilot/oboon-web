@@ -6,7 +6,7 @@ import Link from "next/link";
 import PageContainer from "@/components/shared/PageContainer";
 import Button from "@/components/ui/Button";
 import HomeOfferingsSection from "@/features/offerings/components/HomeOfferingsSection.client";
-import HomeBriefingSection from "@/features/briefing/components/HomeBriefingSection.client";
+// import HomeBriefingSection from "@/features/briefing/components/HomeBriefingSection.client";
 
 /* ================================
  * Page
@@ -20,7 +20,7 @@ export default function HomePage() {
 
           <HomeOfferingsSection />
 
-          <HomeBriefingSection />
+          {/* <HomeBriefingSection /> */}
         </div>
       </PageContainer>
     </main>

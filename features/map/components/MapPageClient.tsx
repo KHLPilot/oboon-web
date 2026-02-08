@@ -84,41 +84,24 @@ export default function MapPageClient() {
 
     async function run() {
       const supabase = createSupabaseClient();
-      const { data, error } = await supabase
-        .from("properties")
-        .select(
-          `
-            id,
-            name,
-            status,
-            image_url,
-            property_locations (
-              lat,
-              lng,
-              road_address,
-              jibun_address,
-              region_1depth,
-              region_2depth,
-              region_3depth
-            ),
-            property_unit_types (
-              price_min,
-              price_max
-            )
-          `,
-        )
-        .order("id", { ascending: false })
+      const { data: snapshots, error } = await supabase
+        .from("property_public_snapshots")
+        .select("snapshot, published_at")
+        .order("published_at", { ascending: false })
         .limit(200);
 
       if (!alive) return;
 
-      if (error || !data) {
+      if (error || !snapshots) {
         setAll([]);
         return;
       }
 
-      const rows = data as unknown as MapPropertyRow[];
-      const mapped = mapPropertyRowsToDbOfferings(rows);
+      const visibleRows = snapshots
+        .map((row) => row.snapshot)
+        .filter(Boolean) as unknown as MapPropertyRow[];
+
+      const mapped = mapPropertyRowsToDbOfferings(visibleRows);
       setAll(mapped);
     }
 

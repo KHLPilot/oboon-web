@@ -19,6 +19,8 @@ export type PropertyListRow = {
   request_status?: "pending" | "approved" | "rejected" | null;
   request_rejection_reason?: string | null;
   request_requested_at?: string | null;
+  delete_request_status?: "pending" | "approved" | "rejected" | null;
+  delete_request_requested_at?: string | null;
 };
 
 export async function fetchPropertyListData() {
@@ -119,12 +121,12 @@ export async function fetchPropertyListData() {
     const propertyIds = rows.map((r) => r.id);
     const { data: requests } = await supabase
       .from("property_requests")
-      .select("property_id, status, requested_at, rejection_reason")
+      .select("property_id, status, request_type, requested_at, rejection_reason")
       .in("property_id", propertyIds)
       .eq("agent_id", user.id)
       .order("requested_at", { ascending: false });
 
-    const requestMap = new Map<
+    const publishRequestMap = new Map<
       number,
       {
         status: PropertyListRow["request_status"];
@@ -132,21 +134,43 @@ export async function fetchPropertyListData() {
         rejection_reason?: string | null;
       }
     >();
+    const deleteRequestMap = new Map<
+      number,
+      {
+        status: PropertyListRow["delete_request_status"];
+        requested_at: string;
+      }
+    >();
     (requests || []).forEach((req) => {
-      if (!requestMap.has(req.property_id)) {
-        requestMap.set(req.property_id, {
-          status: req.status,
-          requested_at: req.requested_at,
-          rejection_reason: req.rejection_reason ?? null,
-        });
+      if (req.request_type === "publish") {
+        if (!publishRequestMap.has(req.property_id)) {
+          publishRequestMap.set(req.property_id, {
+            status: req.status,
+            requested_at: req.requested_at,
+            rejection_reason: req.rejection_reason ?? null,
+          });
+        }
+        return;
+      }
+
+      if (req.request_type === "delete") {
+        if (!deleteRequestMap.has(req.property_id)) {
+          deleteRequestMap.set(req.property_id, {
+            status: req.status,
+            requested_at: req.requested_at,
+          });
+        }
       }
     });
 
     rows.forEach((row) => {
-      const req = requestMap.get(row.id);
+      const req = publishRequestMap.get(row.id);
+      const deleteReq = deleteRequestMap.get(row.id);
       row.request_status = req?.status ?? null;
       row.request_requested_at = req?.requested_at ?? null;
       row.request_rejection_reason = req?.rejection_reason ?? null;
+      row.delete_request_status = deleteReq?.status ?? null;
+      row.delete_request_requested_at = deleteReq?.requested_at ?? null;
     });
   }
 

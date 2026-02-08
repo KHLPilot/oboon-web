@@ -65,6 +65,11 @@
     "rls_forced": false
   },
   {
+    "table_name": "community_interests",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
     "table_name": "community_likes",
     "rls_enabled": true,
     "rls_forced": false
@@ -90,6 +95,16 @@
     "rls_forced": false
   },
   {
+    "table_name": "faq_categories",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "faq_items",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
     "table_name": "notifications",
     "rls_enabled": true,
     "rls_forced": false
@@ -100,7 +115,7 @@
     "rls_forced": false
   },
   {
-    "table_name": "profile_bank_accounts",
+    "table_name": "profile_gallery_images",
     "rls_enabled": true,
     "rls_forced": false
   },
@@ -130,6 +145,11 @@
     "rls_forced": false
   },
   {
+    "table_name": "property_public_snapshots",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
     "table_name": "property_requests",
     "rls_enabled": true,
     "rls_forced": false
@@ -155,8 +175,18 @@
     "rls_forced": false
   },
   {
-    "table_name": "term_consents",
+    "table_name": "qna_answers",
     "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "qna_questions",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "term_consents",
+    "rls_enabled": false,
     "rls_forced": false
   },
   {

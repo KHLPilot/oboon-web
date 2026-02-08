@@ -218,7 +218,6 @@ export default function PropertySpecsPage() {
                 <FormField label="분양 유형" labelClassName={labelStrong}>
                   <Input
                     value={form.sale_type ?? ""}
-                    className="h-11"
                     onChange={(e) => update("sale_type", e.target.value)}
                     placeholder="예) 민간분양, 임대 등"
                   />
@@ -227,7 +226,6 @@ export default function PropertySpecsPage() {
                 <FormField label="신탁사" labelClassName={labelStrong}>
                   <Input
                     value={form.trust_company ?? ""}
-                    className="h-11"
                     onChange={(e) => update("trust_company", e.target.value)}
                     placeholder="예) OO신탁"
                   />
@@ -236,7 +234,6 @@ export default function PropertySpecsPage() {
                 <FormField label="시행사" labelClassName={labelStrong}>
                   <Input
                     value={form.developer ?? ""}
-                    className="h-11"
                     onChange={(e) => update("developer", e.target.value)}
                     placeholder="예) OO디벨로퍼"
                   />
@@ -247,7 +244,6 @@ export default function PropertySpecsPage() {
                     value={form.builder ?? ""}
                     onChange={(e) => update("builder", e.target.value)}
                     placeholder="예) OO건설"
-                    className="h-11"
                   />
                 </FormField>
               </div>
@@ -263,7 +259,6 @@ export default function PropertySpecsPage() {
                   <Input
                     type="number"
                     placeholder="예) 1234"
-                    className="h-11"
                     {...numberInputProps("site_area")}
                   />
                 </FormField>
@@ -272,7 +267,6 @@ export default function PropertySpecsPage() {
                   <Input
                     type="number"
                     placeholder="예) 500"
-                    className="h-11"
                     {...numberInputProps("building_area")}
                   />
                 </FormField>
@@ -281,7 +275,6 @@ export default function PropertySpecsPage() {
                   <Input
                     type="number"
                     placeholder="예) 25"
-                    className="h-11"
                     {...numberInputProps("building_coverage_ratio")}
                   />
                 </FormField>
@@ -290,7 +283,6 @@ export default function PropertySpecsPage() {
                   <Input
                     type="number"
                     placeholder="예) 240"
-                    className="h-11"
                     {...numberInputProps("floor_area_ratio")}
                   />
                 </FormField>
@@ -305,7 +297,6 @@ export default function PropertySpecsPage() {
                   <Input
                     type="number"
                     placeholder="예) 29"
-                    className="h-11"
                     {...numberInputProps("floor_ground")}
                   />
                 </FormField>
@@ -314,7 +305,6 @@ export default function PropertySpecsPage() {
                   <Input
                     type="number"
                     placeholder="예) 2"
-                    className="h-11"
                     {...numberInputProps("floor_underground")}
                   />
                 </FormField>
@@ -323,7 +313,6 @@ export default function PropertySpecsPage() {
                   <Input
                     type="number"
                     placeholder="예) 4"
-                    className="h-11"
                     {...numberInputProps("building_count")}
                   />
                 </FormField>
@@ -341,7 +330,6 @@ export default function PropertySpecsPage() {
                 >
                   <Input
                     type="text"
-                    className="h-11"
                     value={`${calculatedHouseholdTotal.toLocaleString()} 세대`}
                     disabled
                   />
@@ -359,7 +347,6 @@ export default function PropertySpecsPage() {
                   <Input
                     type="number"
                     placeholder="예) 400"
-                    className="h-11"
                     {...numberInputProps("parking_total")}
                   />
                 </FormField>
@@ -369,7 +356,6 @@ export default function PropertySpecsPage() {
                     type="number"
                     step="0.1"
                     placeholder="예) 1.2"
-                    className="h-11"
                     {...numberInputProps("parking_per_household")}
                   />
                 </FormField>
@@ -378,7 +364,6 @@ export default function PropertySpecsPage() {
                   <Input
                     placeholder="예) 지역난방, 개별난방"
                     value={form.heating_type ?? ""}
-                    className="h-11"
                     onChange={(e) => update("heating_type", e.target.value)}
                   />
                 </FormField>
@@ -387,7 +372,6 @@ export default function PropertySpecsPage() {
                   <Input
                     placeholder="예) 커뮤니티센터, 피트니스 등"
                     value={form.amenities ?? ""}
-                    className="h-11"
                     onChange={(e) => update("amenities", e.target.value)}
                   />
                 </FormField>

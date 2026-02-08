@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Loader2, BellOff, Trash2 } from "lucide-react";
+import { Loader2, BellOff, Trash2, Bell } from "lucide-react";
 import { useNotifications } from "./NotificationProvider.client";
 import NotificationItem from "./NotificationItem.client";
 import Button from "@/components/ui/Button";
@@ -54,25 +54,20 @@ export default function NotificationPanel({ onClose }: Props) {
   };
 
   return (
-    <div className="max-h-96 overflow-hidden flex flex-col">
+    <div className="max-h-96 overflow-hidden flex flex-col rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) shadow-lg">
       {/* 헤더 */}
-      <div
-        className="flex items-center justify-between px-4 py-3 border-b"
-        style={{ borderColor: "var(--oboon-border-default)" }}
-      >
-        <span
-          className="ob-typo-body2"
-          style={{ color: "var(--oboon-text-title)" }}
-        >
-          알림
-        </span>
+      <div className="flex items-center justify-between gap-3 px-4 py-3.5 border-b border-(--oboon-border-default) bg-(--oboon-bg-subtle)">
+        <div className="flex items-center gap-2 text-(--oboon-text-title)">
+          <Bell className="h-5 w-5" />
+          <span className="ob-typo-subtitle">알림</span>
+        </div>
         <div className="flex items-center gap-2">
           {unreadCount > 0 && (
             <Button
               size="sm"
               variant="secondary"
               onClick={() => markAllAsRead()}
-              className="ob-typo-caption"
+              className="h-8 rounded-full px-3 ob-typo-body"
             >
               모두 읽음
             </Button>
@@ -82,9 +77,10 @@ export default function NotificationPanel({ onClose }: Props) {
               size="sm"
               variant="secondary"
               onClick={handleDeleteAll}
-              className="ob-typo-caption"
+              className="h-8 w-8 rounded-full p-0"
+              aria-label="전체 삭제"
             >
-              <Trash2 className="h-3 w-3" />
+              <Trash2 className="h-4 w-4" />
             </Button>
           )}
         </div>
@@ -94,29 +90,17 @@ export default function NotificationPanel({ onClose }: Props) {
       <div className="flex-1 overflow-y-auto">
         {loading ? (
           <div className="flex justify-center py-8">
-            <Loader2
-              className="h-6 w-6 animate-spin"
-              style={{ color: "var(--oboon-primary)" }}
-            />
+            <Loader2 className="h-6 w-6 animate-spin text-(--oboon-primary)" />
           </div>
         ) : notifications.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
-            <BellOff
-              className="h-8 w-8 mb-2"
-              style={{ color: "var(--oboon-text-muted)" }}
-            />
-            <p
-              className="ob-typo-body"
-              style={{ color: "var(--oboon-text-muted)" }}
-            >
+            <BellOff className="h-8 w-8 mb-2 text-(--oboon-text-muted)" />
+            <p className="ob-typo-body text-(--oboon-text-muted)">
               알림이 없습니다
             </p>
           </div>
         ) : (
-          <div
-            className="divide-y"
-            style={{ borderColor: "var(--oboon-border-default)" }}
-          >
+          <div className="divide-y divide-(--oboon-border-default)">
             {notifications.slice(0, 20).map((notification) => (
               <NotificationItem
                 key={notification.id}

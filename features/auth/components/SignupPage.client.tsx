@@ -410,7 +410,7 @@ export default function SignupPage() {
                     placeholder="example@email.com"
                     autoComplete="email"
                     disabled={lockInputs}
-                    className="h-11"
+                    
                     aria-invalid={
                       fieldError?.field === "email" ? "true" : undefined
                     }
@@ -438,7 +438,7 @@ export default function SignupPage() {
                       placeholder="대소문자 + 숫자 + 특수문자 포함 8자 이상"
                       autoComplete="new-password"
                       disabled={lockInputs}
-                      className="h-11"
+                      
                       aria-invalid={
                         fieldError?.field === "password" ? "true" : undefined
                       }

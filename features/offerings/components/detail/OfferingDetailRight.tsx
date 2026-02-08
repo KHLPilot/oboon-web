@@ -1,7 +1,7 @@
 ﻿"use client";
 
 // features/offerings/detail/OfferingDetailRight.tsx
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -33,13 +33,11 @@ export default function OfferingDetailRight({
   const router = useRouter();
   const supabase = createSupabaseClient();
   const [isBookingOpen, setIsBookingOpen] = useState(false);
-  const [preselectedAgentId, setPreselectedAgentId] = useState<string | null>(
-    null,
-  );
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [loadingAgents, setLoadingAgents] = useState(false);
   const [user, setUser] = useState<any>(null);
   const isLoggedIn = Boolean(user);
+  const hasBookableAgent = hasApprovedAgent && agents.length > 0;
 
   const handleConsultationClick = useCallback(() => {
     trackEvent(
@@ -48,72 +46,6 @@ export default function OfferingDetailRight({
     );
     setIsBookingOpen(true);
   }, [propertyId]);
-
-  const agentCards = useMemo(() => {
-    if (loadingAgents) {
-      return (
-        <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-4 animate-pulse">
-          <div className="h-4 w-28 rounded-full bg-(--oboon-bg-subtle)" />
-          <div className="mt-3 h-9 w-full rounded-full bg-(--oboon-bg-subtle)" />
-        </div>
-      );
-    }
-
-    if (!hasApprovedAgent || agents.length === 0) {
-      return (
-        <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-4 py-6 text-center ob-typo-caption text-(--oboon-text-muted)">
-          현재 상담 가능한 상담사가 없습니다
-        </div>
-      );
-    }
-
-    return agents.map((agent) => (
-      <div
-        key={agent.id}
-        className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-4"
-      >
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 shrink-0 rounded-full bg-(--oboon-bg-subtle) text-(--oboon-text-title) flex items-center justify-center ob-typo-subtitle">
-            {agent.name?.slice(0, 1) || "상"}
-          </div>
-          <div>
-            <div className="ob-typo-caption text-(--oboon-text-muted)">
-              분양상담사
-            </div>
-            <div className="ob-typo-subtitle text-(--oboon-text-title)">
-              {agent.name}
-            </div>
-          </div>
-        </div>
-        <div className="mt-3 ob-typo-caption text-(--oboon-text-muted)">
-          {agent.agent_bio?.trim() || "등록된 상담사 소개가 없습니다."}
-        </div>
-        <Button
-          className="mt-4 w-full"
-          variant="primary"
-          size="sm"
-          shape="pill"
-          onClick={() => {
-            if (!isLoggedIn) {
-              router.push("/auth/login");
-              return;
-            }
-            setPreselectedAgentId(agent.id);
-            handleConsultationClick();
-          }}
-        >
-          {isLoggedIn ? "예약하기" : "로그인 후 예약하기"}
-        </Button>
-      </div>
-    ));
-  }, [
-    agents,
-    handleConsultationClick,
-    hasApprovedAgent,
-    isLoggedIn,
-    loadingAgents,
-    router,
-  ]);
 
   useEffect(() => {
     let isMounted = true;
@@ -171,7 +103,40 @@ export default function OfferingDetailRight({
           <div className="ob-typo-h3 text-(--oboon-text-title)">
             상담 예약하기
           </div>
-          <div className="mt-4 space-y-3">{agentCards}</div>
+          {loadingAgents ? (
+            <div className="mt-4 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-4 animate-pulse">
+              <div className="h-4 w-28 rounded-full bg-(--oboon-bg-subtle)" />
+              <div className="mt-3 h-9 w-full rounded-full bg-(--oboon-bg-subtle)" />
+            </div>
+          ) : hasBookableAgent ? (
+            <div className="mt-2 space-y-1">
+              <div className="ob-typo-body text-(--oboon-primary)">
+                상담 가능 상담사 {agents.length}명
+              </div>
+              <div className="ob-typo-body text-(--oboon-text-title)">
+                예약 버튼을 누른 뒤 상담사와 시간을 선택해주세요.
+              </div>
+              <Button
+                className="mt-2 w-full"
+                variant="primary"
+                size="md"
+                shape="pill"
+                onClick={() => {
+                  if (!isLoggedIn) {
+                    router.push("/auth/login");
+                    return;
+                  }
+                  handleConsultationClick();
+                }}
+              >
+                {isLoggedIn ? "예약하기" : "로그인 후 예약하기"}
+              </Button>
+            </div>
+          ) : (
+            <div className="mt-4 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-4 py-6 text-center ob-typo-caption text-(--oboon-text-muted)">
+              현재 상담 가능한 상담사가 없습니다
+            </div>
+          )}
         </Card>
       </div>
 
@@ -189,7 +154,7 @@ export default function OfferingDetailRight({
         >
           <div className="mx-auto w-full max-w-300 px-5 py-3">
             <div className="flex items-center gap-2">
-              {hasApprovedAgent ? (
+              {hasBookableAgent ? (
                 <Button
                   className="flex-1"
                   variant="primary"
@@ -198,7 +163,6 @@ export default function OfferingDetailRight({
                       router.push("/auth/login");
                       return;
                     }
-                    setPreselectedAgentId(null);
                     handleConsultationClick();
                   }}
                 >
@@ -219,12 +183,10 @@ export default function OfferingDetailRight({
         isOpen={isBookingOpen}
         onClose={() => {
           setIsBookingOpen(false);
-          setPreselectedAgentId(null);
         }}
         propertyId={propertyId}
         propertyName={propertyName}
         propertyImageUrl={propertyImageUrl}
-        defaultAgentId={preselectedAgentId ?? undefined}
       />
     </>
   );

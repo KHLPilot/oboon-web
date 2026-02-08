@@ -23,7 +23,9 @@ import {
 
 import { deletePropertyCascade, fetchPropertyDetail, updatePropertyBasicInfo } from "@/features/company/services/property.detail";
 import {
+  cancelPropertyRequest,
   createPropertyRequest,
+  fetchMyDeleteRequest,
   fetchMyPropertyRequest,
   type PropertyRequestStatus,
 } from "@/features/company/services/property.request";
@@ -34,6 +36,7 @@ import { Badge } from "@/components/ui/Badge";
 import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
+import Textarea from "@/components/ui/Textarea";
 import { ToastProvider, useToast } from "@/components/ui/Toast";
 
 import { FormField } from "@/components/shared/FormField";
@@ -53,6 +56,7 @@ import { createSupabaseClient } from "@/lib/supabaseClient";
 ================================================== */
 type PropertyRow = {
   id: number;
+  created_by?: string | null;
   name: string;
   property_type: string | null;
   phone_number: string | null;
@@ -120,6 +124,7 @@ function SectionCard({
   status,
   summary,
   icon: Icon,
+  editDisabled,
 }: {
   title: string;
   description: string;
@@ -127,6 +132,7 @@ function SectionCard({
   status: SectionStatus;
   summary?: string | null;
   icon: ComponentType<{ className?: string }>;
+  editDisabled?: boolean;
 }) {
   const statusLabel =
     status === "full" ? "완료" : status === "partial" ? "입력중" : "미입력";
@@ -151,11 +157,17 @@ function SectionCard({
           <Badge variant="status" className="text-[11px]">
             {statusLabel}
           </Badge>
-          <Link href={href}>
-            <Button variant="secondary" size="sm" shape="pill" className="px-2">
+          {editDisabled ? (
+            <Button variant="secondary" size="sm" shape="pill" className="px-2" disabled>
               편집
             </Button>
-          </Link>
+          ) : (
+            <Link href={href}>
+              <Button variant="secondary" size="sm" shape="pill" className="px-2">
+                편집
+              </Button>
+            </Link>
+          )}
         </div>
       </div>
       <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle)/50 px-3 py-2 ob-typo-body text-(--oboon-text-muted)">
@@ -237,12 +249,22 @@ function PropertyDetailPageInner() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [requestStatus, setRequestStatus] =
     useState<PropertyRequestStatus | null>(null);
+  const [deleteRequestStatus, setDeleteRequestStatus] =
+    useState<PropertyRequestStatus | null>(null);
+  const [deleteRequestId, setDeleteRequestId] = useState<string | number | null>(null);
   const [requestRejectionReason, setRequestRejectionReason] = useState<
     string | null
   >(null);
   const [requestLoading, setRequestLoading] = useState(false);
   const [needsReapproval, setNeedsReapproval] = useState(false);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [isAffiliatedAgent, setIsAffiliatedAgent] = useState(false);
+
+  const getPropertyListHref = () =>
+    currentUserRole === "agent"
+      ? "/agent/profile#property-register"
+      : "/company/properties";
 
   // 데이터 로드
   const load = useCallback(async () => {
@@ -252,12 +274,26 @@ function PropertyDetailPageInner() {
       data: { user },
     } = await supabase.auth.getUser();
     if (user) {
+      setCurrentUserId(user.id);
       const { data: me } = await supabase
         .from("profiles")
         .select("role")
         .eq("id", user.id)
         .single();
       setCurrentUserRole(me?.role ?? null);
+
+      if (me?.role === "agent") {
+        const { data: memberships } = await supabase
+          .from("property_agents")
+          .select("id")
+          .eq("agent_id", user.id)
+          .eq("property_id", id)
+          .eq("status", "approved")
+          .limit(1);
+        setIsAffiliatedAgent((memberships?.length ?? 0) > 0);
+      } else {
+        setIsAffiliatedAgent(false);
+      }
     }
 
     const { data: res, error } = await fetchPropertyDetail(id);
@@ -277,10 +313,17 @@ function PropertyDetailPageInner() {
         undecided_note: res.undecided_note,
       });
     }
-    const requestResult = await fetchMyPropertyRequest(id);
+    const [requestResult, deleteRequestResult] = await Promise.all([
+      fetchMyPropertyRequest(id),
+      fetchMyDeleteRequest(id),
+    ]);
     if (!requestResult.error) {
       setRequestStatus(requestResult.data?.status ?? null);
       setRequestRejectionReason(requestResult.data?.rejection_reason ?? null);
+    }
+    if (!deleteRequestResult.error) {
+      setDeleteRequestStatus(deleteRequestResult.data?.status ?? null);
+      setDeleteRequestId(deleteRequestResult.data?.id ?? null);
     }
 
     setLoading(false);
@@ -353,10 +396,49 @@ function PropertyDetailPageInner() {
 
   // 삭제 처리
   async function handleDelete() {
+    if (currentUserRole === "agent") {
+      if (deleteRequestStatus === "pending" && deleteRequestId) {
+        const { error } = await cancelPropertyRequest(deleteRequestId);
+        if (error) {
+          showAlert(error.message || "삭제 요청 철회에 실패했습니다.");
+          return;
+        }
+
+        showAlert("삭제 요청이 철회되었습니다.");
+        setDeleteRequestStatus(null);
+        setDeleteRequestId(null);
+        return;
+      }
+
+      const reason = prompt("삭제 요청 사유를 입력해주세요:");
+      if (!reason || !reason.trim()) return;
+
+      const response = await fetch("/api/property-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          propertyId: id,
+          requestType: "delete",
+          reason: reason.trim(),
+        }),
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        showAlert(payload.error || "삭제 요청에 실패했습니다.");
+        return;
+      }
+
+      showAlert("삭제 요청이 접수되었습니다. 관리자 승인 후 삭제됩니다.");
+      setDeleteRequestStatus("pending");
+      setDeleteRequestId(payload?.propertyRequest?.id ?? null);
+      return;
+    }
+
     if (!confirm("정말 현장을 삭제할까요?\n복구할 수 없어요.")) return;
     try {
       await deletePropertyCascade(id);
-      router.push("/company/properties");
+      router.push(getPropertyListHref());
     } catch (err) {
       showAlert(
         "삭제 실패: " +
@@ -366,6 +448,10 @@ function PropertyDetailPageInner() {
   }
 
   async function handlePublishRequest() {
+    if (deleteRequestStatus === "pending") {
+      showAlert("삭제 요청 처리 중에는 게시 요청을 할 수 없습니다.");
+      return;
+    }
     if (requestLoading) return;
     setRequestLoading(true);
     const { error } = await createPropertyRequest(id, {
@@ -379,11 +465,18 @@ function PropertyDetailPageInner() {
     }
 
     toast.success("게시 요청이 접수되었습니다.", "완료");
-    const requestResult = await fetchMyPropertyRequest(id);
+    const [requestResult, deleteRequestResult] = await Promise.all([
+      fetchMyPropertyRequest(id),
+      fetchMyDeleteRequest(id),
+    ]);
     if (!requestResult.error) {
       setRequestStatus(requestResult.data?.status ?? null);
       setRequestRejectionReason(requestResult.data?.rejection_reason ?? null);
       setNeedsReapproval(false);
+    }
+    if (!deleteRequestResult.error) {
+      setDeleteRequestStatus(deleteRequestResult.data?.status ?? null);
+      setDeleteRequestId(deleteRequestResult.data?.id ?? null);
     }
   }
 
@@ -436,6 +529,12 @@ function PropertyDetailPageInner() {
   const statusLabel = isPropertyStatus(data.status)
     ? PROPERTY_STATUS_LABEL[data.status]
     : "상태 미정";
+  const canDelete =
+    currentUserRole === "admin" || data.created_by === currentUserId;
+  const hasPendingDeleteRequest = deleteRequestStatus === "pending";
+  const canEditProperty =
+    (canDelete || (currentUserRole === "agent" && isAffiliatedAgent)) &&
+    !hasPendingDeleteRequest;
   const requestStatusLabel = needsReapproval
     ? "재승인 필요"
     : requestStatus
@@ -462,9 +561,11 @@ function PropertyDetailPageInner() {
           : requestStatus === "approved"
             ? "승인 완료"
             : "재요청"
-        : "게시 요청";
+        : currentUserRole === "admin"
+          ? "게시"
+          : "게시 요청";
   const publishDisabled =
-    requestLoading || requestStatus === "pending";
+    requestLoading || requestStatus === "pending" || hasPendingDeleteRequest;
   const showPublishButton =
     !requestStatus ||
     requestStatus !== "approved" ||
@@ -494,13 +595,18 @@ function PropertyDetailPageInner() {
                   게시 요청 · {requestStatusLabel}
                 </Badge>
               ) : null}
+              {hasPendingDeleteRequest ? (
+                <Badge variant="danger" className="text-[11px]">
+                  삭제 요청 처리 중
+                </Badge>
+              ) : null}
               {!editMode ? (
                 <>
                   <Button
                     variant="secondary"
                     size="sm"
                     shape="pill"
-                    onClick={() => router.push("/company/properties")}
+                    onClick={() => router.push(getPropertyListHref())}
                   >
                     목록
                   </Button>
@@ -516,14 +622,20 @@ function PropertyDetailPageInner() {
                       {publishButtonLabel}
                     </Button>
                   ) : null}
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    shape="pill"
-                    onClick={handleDelete}
-                  >
-                    삭제
-                  </Button>
+                  {canDelete ? (
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      shape="pill"
+                      onClick={handleDelete}
+                    >
+                      {currentUserRole === "agent"
+                        ? hasPendingDeleteRequest
+                          ? "삭제 요청 철회"
+                          : "삭제 요청"
+                        : "삭제"}
+                    </Button>
+                  ) : null}
                 </>
               ) : (
                 <Button
@@ -567,24 +679,32 @@ function PropertyDetailPageInner() {
                     />
                   </div>
                   <div className="mt-3 flex flex-wrap items-start gap-2">
-                    {incompleteSectionNames.length > 0 ? (
-                      <span className="inline-flex max-w-full flex-col rounded-xl bg-(--oboon-warning-bg) px-3 py-1.5 text-(--oboon-warning)">
-                        <span className="ob-typo-caption font-bold">입력 필요</span>
-                        <span className="ob-typo-body break-words">
-                          {incompleteSectionNames.join(", ")}
-                        </span>
+                    {hasPendingDeleteRequest ? (
+                      <span className="inline-flex max-w-full rounded-full border border-(--oboon-danger-border) bg-(--oboon-danger-bg) px-3 py-1.5 ob-typo-body text-(--oboon-on-danger)">
+                        삭제 요청 처리 중이라 편집과 게시 요청이 잠시 비활성화됩니다.
                       </span>
                     ) : (
-                      <span className="inline-flex rounded-xl bg-(--oboon-safe-bg) px-3 py-1.5 ob-typo-body text-(--oboon-safe)">
-                        모든 섹션 입력 완료
-                      </span>
+                      <>
+                        {incompleteSectionNames.length > 0 ? (
+                          <span className="inline-flex max-w-full flex-col rounded-xl bg-(--oboon-warning-bg) px-3 py-1.5 text-(--oboon-warning)">
+                            <span className="ob-typo-caption font-bold">입력 필요</span>
+                            <span className="ob-typo-body break-words">
+                              {incompleteSectionNames.join(", ")}
+                            </span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex rounded-xl bg-(--oboon-safe-bg) px-3 py-1.5 ob-typo-body text-(--oboon-safe)">
+                            모든 섹션 입력 완료
+                          </span>
+                        )}
+                        {requestStatus === "rejected" && requestRejectionReason ? (
+                          <span className="inline-flex max-w-full flex-col rounded-xl bg-(--oboon-danger-bg) px-3 py-1.5 text-(--oboon-danger)">
+                            <span className="ob-typo-caption font-bold">반려 사유</span>
+                            <span className="ob-typo-body break-words">{requestRejectionReason}</span>
+                          </span>
+                        ) : null}
+                      </>
                     )}
-                    {requestStatus === "rejected" && requestRejectionReason ? (
-                      <span className="inline-flex max-w-full flex-col rounded-xl bg-(--oboon-danger-bg) px-3 py-1.5 text-(--oboon-danger)">
-                        <span className="ob-typo-caption font-bold">반려 사유</span>
-                        <span className="ob-typo-body break-words">{requestRejectionReason}</span>
-                      </span>
-                    ) : null}
                   </div>
                 </div>
               </div>
@@ -602,6 +722,7 @@ function PropertyDetailPageInner() {
                   variant="secondary"
                   size="sm"
                   shape="pill"
+                  disabled={!canEditProperty}
                   onClick={() => setEditMode(true)}
                 >
                   편집
@@ -715,7 +836,7 @@ function PropertyDetailPageInner() {
                   />
                 </FormField>
                 <FormField label="설명" className="md:col-span-2">
-                  <textarea
+                  <Textarea
                     className="w-full min-h-25 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-3 ob-typo-body focus:outline-none focus:ring-2 focus:ring-(--oboon-primary)/20"
                     value={form.description ?? ""}
                     onChange={(e) =>
@@ -811,6 +932,7 @@ function PropertyDetailPageInner() {
               }
               href={`/company/properties/${id}/location`}
               icon={MapPin}
+              editDisabled={!canEditProperty}
             />
             <SectionCard
               title="건물 스펙"
@@ -823,6 +945,7 @@ function PropertyDetailPageInner() {
               }
               href={`/company/properties/${id}/specs`}
               icon={Building2}
+              editDisabled={!canEditProperty}
             />
             <SectionCard
               title="일정"
@@ -835,6 +958,7 @@ function PropertyDetailPageInner() {
               }
               href={`/company/properties/${id}/timeline`}
               icon={CalendarDays}
+              editDisabled={!canEditProperty}
             />
             <SectionCard
               title="평면 타입"
@@ -847,6 +971,7 @@ function PropertyDetailPageInner() {
               }
               href={`/company/properties/${id}/units`}
               icon={LayoutTemplate}
+              editDisabled={!canEditProperty}
             />
             <SectionCard
               title="홍보시설"
@@ -859,6 +984,7 @@ function PropertyDetailPageInner() {
               }
               href={`/company/properties/${id}/facilities`}
               icon={Landmark}
+              editDisabled={!canEditProperty}
             />
             <SectionCard
               title="감정평가사 메모"
@@ -871,6 +997,7 @@ function PropertyDetailPageInner() {
               }
               href={`/company/properties/${id}/comment`}
               icon={Landmark}
+              editDisabled={!canEditProperty}
             />
           </section>
         </div>

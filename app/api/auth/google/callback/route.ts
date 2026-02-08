@@ -10,7 +10,7 @@ export async function GET(req: Request) {
         return NextResponse.redirect(new URL("/auth/login?error=no_code", process.env.NEXT_PUBLIC_SITE_URL!));
     }
 
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
 
     // 1. SSR 클라이언트 생성 (PKCE 자동 처리)
     const supabase = createServerClient(
@@ -18,14 +18,17 @@ export async function GET(req: Request) {
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
         {
             cookies: {
-                get(name: string) {
-                    return cookieStore.get(name)?.value;
+                getAll() {
+                    return cookieStore.getAll();
                 },
-                set(name: string, value: string, options: any) {
-                    cookieStore.set({ name, value, ...options });
-                },
-                remove(name: string, options: any) {
-                    cookieStore.set({ name, value: "", ...options });
+                setAll(cookiesToSet) {
+                    try {
+                        cookiesToSet.forEach(({ name, value, options }) => {
+                            cookieStore.set(name, value, options);
+                        });
+                    } catch {
+                        // 읽기 전용 컨텍스트에서는 무시
+                    }
                 },
             },
         }

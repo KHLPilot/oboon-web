@@ -1,6 +1,59 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { createClient } from "@supabase/supabase-js";
+
+const adminSupabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+);
+
+async function syncPublicSnapshot(propertyId: number) {
+  const { data: property, error: propertyError } = await adminSupabase
+    .from("properties")
+    .select(
+      `
+      id,
+      created_at,
+      name,
+      property_type,
+      phone_number,
+      status,
+      description,
+      image_url,
+      confirmed_comment,
+      estimated_comment,
+      pending_comment,
+      property_locations (*),
+      property_specs (*),
+      property_timeline (*),
+      property_unit_types (*)
+    `,
+    )
+    .eq("id", propertyId)
+    .single();
+
+  if (propertyError || !property) {
+    throw propertyError ?? new Error("현장 데이터를 찾을 수 없습니다.");
+  }
+
+  const now = new Date().toISOString();
+  const { error: snapshotError } = await adminSupabase
+    .from("property_public_snapshots")
+    .upsert(
+      {
+        property_id: propertyId,
+        snapshot: property,
+        published_at: now,
+        updated_at: now,
+      },
+      { onConflict: "property_id" },
+    );
+
+  if (snapshotError) {
+    throw snapshotError;
+  }
+}
 
 // PATCH - 관리자가 게시 요청 승인/반려
 export async function PATCH(
@@ -108,7 +161,7 @@ export async function PATCH(
       .from("property_requests")
       .update(updatePayload)
       .eq("id", requestId)
-      .select("id, status, requested_at, property_id, agent_id, rejection_reason")
+      .select("id, status, request_type, reason, requested_at, property_id, agent_id, rejection_reason")
       .single();
 
     if (updateError) {
@@ -119,8 +172,41 @@ export async function PATCH(
       );
     }
 
+    if (status === "approved" && updatedRequest.request_type === "delete") {
+      const { error: deleteError } = await adminSupabase
+        .from("properties")
+        .delete()
+        .eq("id", updatedRequest.property_id);
+
+      if (deleteError) {
+        console.error("삭제 요청 승인 후 현장 삭제 오류:", deleteError);
+        return NextResponse.json(
+          { error: "삭제 요청은 승인되었지만 현장 삭제에 실패했습니다." },
+          { status: 500 },
+        );
+      }
+    }
+
+    if (status === "approved" && updatedRequest.request_type === "publish") {
+      try {
+        await syncPublicSnapshot(updatedRequest.property_id);
+      } catch (snapshotError) {
+        console.error("게시 승인 후 스냅샷 동기화 오류:", snapshotError);
+        return NextResponse.json(
+          { error: "게시 승인 후 게시본 반영에 실패했습니다." },
+          { status: 500 },
+        );
+      }
+    }
+
     const message =
-      status === "approved" ? "게시 요청이 승인되었습니다" : "게시 요청이 반려되었습니다";
+      status === "approved"
+        ? updatedRequest.request_type === "delete"
+          ? "현장 삭제 요청이 승인되었습니다"
+          : "게시 요청이 승인되었습니다"
+        : updatedRequest.request_type === "delete"
+          ? "현장 삭제 요청이 반려되었습니다"
+          : "게시 요청이 반려되었습니다";
 
     return NextResponse.json({
       success: true,
@@ -129,6 +215,119 @@ export async function PATCH(
     });
   } catch (error) {
     console.error("PATCH /api/property-requests/[id] 오류:", error);
+    return NextResponse.json(
+      { error: "서버 오류가 발생했습니다" },
+      { status: 500 },
+    );
+  }
+}
+
+// DELETE - 요청 철회 (요청자 본인 또는 관리자)
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: { id: string } },
+) {
+  try {
+    const cookieStore = await cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll();
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options),
+            );
+          },
+        },
+      },
+    );
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: "로그인이 필요합니다" },
+        { status: 401 },
+      );
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    if (profileError || !profile) {
+      return NextResponse.json(
+        { error: "프로필을 찾을 수 없습니다" },
+        { status: 404 },
+      );
+    }
+
+    const requestId = params.id;
+    const { data: existingRequest, error: fetchError } = await adminSupabase
+      .from("property_requests")
+      .select("id, agent_id, request_type, status")
+      .eq("id", requestId)
+      .single();
+
+    if (fetchError || !existingRequest) {
+      return NextResponse.json(
+        { error: "요청을 찾을 수 없습니다" },
+        { status: 404 },
+      );
+    }
+
+    const isOwner = existingRequest.agent_id === user.id;
+    const isAdmin = profile.role === "admin";
+
+    if (!isOwner && !isAdmin) {
+      return NextResponse.json(
+        { error: "요청 철회 권한이 없습니다" },
+        { status: 403 },
+      );
+    }
+
+    if (existingRequest.request_type !== "delete") {
+      return NextResponse.json(
+        { error: "삭제 요청만 철회할 수 있습니다" },
+        { status: 400 },
+      );
+    }
+
+    if (existingRequest.status !== "pending") {
+      return NextResponse.json(
+        { error: "검토 대기 상태에서만 철회할 수 있습니다" },
+        { status: 409 },
+      );
+    }
+
+    const { error: deleteError } = await adminSupabase
+      .from("property_requests")
+      .delete()
+      .eq("id", requestId);
+
+    if (deleteError) {
+      return NextResponse.json(
+        { error: "요청 철회에 실패했습니다" },
+        { status: 500 },
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      propertyRequest: existingRequest,
+      message: "삭제 요청이 철회되었습니다",
+    });
+  } catch (error) {
+    console.error("DELETE /api/property-requests/[id] 오류:", error);
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다" },
       { status: 500 },

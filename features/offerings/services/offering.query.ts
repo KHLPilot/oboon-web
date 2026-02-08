@@ -7,32 +7,19 @@ export async function fetchPropertiesForOfferings(
 ) {
   const limit = opts?.limit ?? 24;
 
-  return await supabase
-    .from("properties")
-    .select(
-      `
-      id,
-      created_at,
-      name,
-      status,
-      property_type,
-      image_url,
-      confirmed_comment,
-      estimated_comment,
-      pending_comment,
-      property_locations (
-        road_address,
-        jibun_address,
-        region_1depth,
-        region_2depth,
-        region_3depth
-      ),
-      property_unit_types (
-        price_min,
-        price_max
-      )
-    `
-    )
-    .order("created_at", { ascending: false })
+  const { data: snapshots, error } = await supabase
+    .from("property_public_snapshots")
+    .select("property_id, snapshot, published_at")
+    .order("published_at", { ascending: false })
     .limit(limit);
+
+  if (error || !snapshots) {
+    return { data: null, error };
+  }
+
+  const visibleProperties = snapshots
+    .map((row) => row.snapshot)
+    .filter((snapshot) => Boolean(snapshot));
+
+  return { data: visibleProperties, error: null };
 }

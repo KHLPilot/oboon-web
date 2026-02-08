@@ -65,6 +65,7 @@ export async function fetchAgentPropertyDashboard(): Promise<AgentPropertyDashbo
       `,
     )
     .eq("agent_id", user.id)
+    .in("status", ["pending", "approved", "rejected"])
     .order("requested_at", { ascending: false });
 
   let enrichedRequests: AgentPropertyRequest[] = [];

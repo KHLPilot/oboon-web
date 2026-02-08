@@ -11,6 +11,7 @@ const adminSupabase = createClient(
 type ConsultationRow = {
   id: string;
   status: string;
+  created_at: string;
   scheduled_at: string;
   cancelled_at: string | null;
   cancelled_by: "customer" | "agent" | "admin" | null;
@@ -66,6 +67,8 @@ type ProfileRow = {
   name: string | null;
   nickname: string | null;
   avatar_url: string | null;
+  bank_name: string | null;
+  bank_account_number: string | null;
 };
 
 function toLocalDateTime(iso: string) {
@@ -89,6 +92,15 @@ export async function GET() {
         cookies: {
           getAll() {
             return cookieStore.getAll();
+          },
+          setAll(cookiesToSet) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) => {
+                cookieStore.set(name, value, options);
+              });
+            } catch {
+              // 읽기 전용 컨텍스트에서는 무시
+            }
           },
         },
       },
@@ -126,6 +138,7 @@ export async function GET() {
             `
             id,
             status,
+            created_at,
             scheduled_at,
             cancelled_at,
             cancelled_by,
@@ -180,7 +193,7 @@ export async function GET() {
       profileIds.length
         ? adminSupabase
             .from("profiles")
-            .select("id, name, nickname, avatar_url")
+            .select("id, name, nickname, avatar_url, bank_name, bank_account_number")
             .in("id", profileIds)
         : Promise.resolve({ data: [] as ProfileRow[] }),
     ]);
@@ -258,16 +271,16 @@ export async function GET() {
         const refundPayout = latestRefundPayoutByConsultation.get(c.id);
 
         let depositLabel = "-";
-        let depositTone: "primary" | "success" | "warning" | "muted" = "muted";
+        let depositTone: "primary" | "success" | "warning" | "danger" | "muted" = "muted";
         if (decisionEvent?.event_type === "deposit_point_granted") {
           depositLabel = "포인트 전환";
           depositTone = "primary";
         } else if (decisionEvent?.event_type === "deposit_forfeited") {
           depositLabel = "환급 불가";
-          depositTone = "warning";
+          depositTone = "danger";
         } else if (refundPayout?.status === "done") {
           depositLabel = "환급 완료";
-          depositTone = "success";
+          depositTone = "primary";
         } else if (
           refundPayout?.status === "pending" ||
           refundPayout?.status === "processing"
@@ -279,14 +292,14 @@ export async function GET() {
           depositTone = "warning";
         } else if (depositEvent?.event_type === "deposit_paid") {
           depositLabel = "결제 완료";
-          depositTone = "success";
+          depositTone = "primary";
         }
 
         let rewardLabel = "-";
-        let rewardTone: "primary" | "success" | "warning" | "muted" = "muted";
+        let rewardTone: "primary" | "success" | "warning" | "danger" | "muted" = "muted";
         if (rewardPayout?.status === "done") {
           rewardLabel = "보상 지급 완료";
-          rewardTone = "success";
+          rewardTone = "primary";
         } else if (
           rewardPayout?.status === "pending" ||
           rewardPayout?.status === "processing"
@@ -349,6 +362,9 @@ export async function GET() {
           customerFromJoin?.avatar_url ??
           customerProfile?.avatar_url ??
           null;
+        const customerBankName = customerProfile?.bank_name ?? null;
+        const customerBankAccountNumber =
+          customerProfile?.bank_account_number ?? null;
         const agentAvatar =
           agentPublic?.avatar_url ??
           agentFromJoin?.avatar_url ??
@@ -365,6 +381,7 @@ export async function GET() {
         return {
           id: c.id,
           status: c.status,
+          created_at: c.created_at,
           scheduled_at: c.scheduled_at,
           scheduled_at_label: toLocalDateTime(c.scheduled_at),
           deposit_label: depositLabel,
@@ -376,6 +393,8 @@ export async function GET() {
           property_image_url: property?.image_url ?? null,
           customer_name: customerName,
           customer_avatar_url: customerAvatar,
+          customer_bank_name: customerBankName,
+          customer_bank_account_number: customerBankAccountNumber,
           agent_name: agentName,
           agent_avatar_url: agentAvatar,
           deposit_amount: depositAmount,
@@ -390,6 +409,10 @@ export async function GET() {
           row.status === "no_show"
         );
       })
+      .sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      )
       .slice(0, 30);
 
     return NextResponse.json({

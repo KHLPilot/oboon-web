@@ -7,6 +7,7 @@ import { useParams, useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Label from "@/components/ui/Label";
+import Textarea from "@/components/ui/Textarea";
 import FieldErrorBubble from "@/components/ui/FieldErrorBubble";
 import PageContainer from "@/components/shared/PageContainer";
 import { fetchPropertyComments, updatePropertyComments } from "@/features/company/services/property.comment";
@@ -150,7 +151,7 @@ export default function PropertycommentPage() {
               <p className="ob-typo-body text-(--oboon-text-muted) mb-3">
                 검증된 정보(공식 문서/공고/확정 일정 등)를 기록합니다.
               </p>
-              <textarea
+              <Textarea
                 className={cn(TEXTAREA_BASE, "min-h-[120px]")}
                 placeholder="확정된 사실 기반으로 작성하세요."
                 value={form.confirmed_comment}
@@ -168,7 +169,7 @@ export default function PropertycommentPage() {
               <p className="ob-typo-body text-(--oboon-text-muted) mb-3">
                 추정은 근거를 같이 남기면 좋습니다.
               </p>
-              <textarea
+              <Textarea
                 className={cn(TEXTAREA_BASE, "min-h-[120px]")}
                 placeholder="합리적 추정/정황 기반 내용을 작성하세요."
                 value={form.estimated_comment}
@@ -186,7 +187,7 @@ export default function PropertycommentPage() {
               <p className="ob-typo-body text-(--oboon-text-muted) mb-3">
                 확인 필요/추적 중인 항목을 리스트업합니다.
               </p>
-              <textarea
+              <Textarea
                 className={cn(TEXTAREA_BASE, "min-h-[120px]")}
                 placeholder="아직 확인이 필요한 항목을 기록하세요."
                 value={form.pending_comment}

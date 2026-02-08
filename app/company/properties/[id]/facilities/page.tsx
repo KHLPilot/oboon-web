@@ -70,7 +70,7 @@ function facilityTypeLabel(t: FacilityType) {
 // Input과 같은 룩을 select에도 맞추기 위한 토큰 기반 클래스
 const CONTROL_LIKE = [
   "w-full",
-  "h-11",
+  "",
   "rounded-xl",
   "border border-(--oboon-border-default)",
   "bg-(--oboon-bg-surface)",
@@ -398,7 +398,6 @@ export default function PropertyFacilitiesPage() {
                 <div className="mt-4 grid grid-cols-1 gap-4">
                   <FormField label="시설명">
                     <Input
-                      className="h-11"
                       placeholder="시설명"
                       disabled={!f.isEditing}
                       value={f.name}
@@ -518,7 +517,6 @@ export default function PropertyFacilitiesPage() {
                         labelClassName="ob-typo-caption text-(--oboon-text-muted)"
                       >
                         <Input
-                          className="h-11"
                           readOnly
                           value={[
                             f.region_1depth,
@@ -535,7 +533,6 @@ export default function PropertyFacilitiesPage() {
 
                   <FormField label="상세 주소">
                     <Input
-                      className="h-11"
                       placeholder="예: ○○아파트 인근"
                       disabled={!f.isEditing}
                       value={f.address_detail}

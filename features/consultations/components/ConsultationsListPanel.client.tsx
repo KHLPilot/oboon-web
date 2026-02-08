@@ -68,6 +68,7 @@ const STATUS_LABELS: Record<
   string,
   { label: string; variant: "default" | "status" }
 > = {
+  requested: { label: "승인 요청", variant: "default" },
   pending: { label: "예약 대기", variant: "default" },
   confirmed: { label: "예약 확정", variant: "status" },
   visited: { label: "방문 완료", variant: "status" },
@@ -125,11 +126,12 @@ export default function ConsultationsListPanel({
 
       if (response.ok) {
         const statusOrder: Record<string, number> = {
-          pending: 0,
-          confirmed: 1,
-          visited: 2,
-          contracted: 3,
-          cancelled: 4,
+          requested: 0,
+          pending: 1,
+          confirmed: 2,
+          visited: 3,
+          contracted: 4,
+          cancelled: 5,
         };
 
         const sorted = (data.consultations || []).sort(
@@ -231,6 +233,7 @@ export default function ConsultationsListPanel({
       <div className="-mx-4 pl-4 flex gap-2 overflow-x-auto pb-2 px-2 sm:mx-0 sm:px-0 scrollbar-none">
         {[
           { key: "all", label: "전체" },
+          { key: "requested", label: "승인요청" },
           { key: "pending", label: "대기중" },
           { key: "confirmed", label: "확정" },
           { key: "visited", label: "방문 완료" },
@@ -283,7 +286,11 @@ export default function ConsultationsListPanel({
               onNavigate={() => onNavigate?.()}
               meta={<span>상담사: {consultation.agent.name}</span>}
               note={
-                consultation.status === "pending" ? (
+                consultation.status === "requested" ? (
+                  <p className="ob-typo-body text-(--oboon-warning) mt-2">
+                    관리자 승인 대기중입니다
+                  </p>
+                ) : consultation.status === "pending" ? (
                   <p className="ob-typo-body text-(--oboon-warning) mt-2">
                     상담사 확인 대기중입니다
                   </p>
@@ -340,7 +347,8 @@ export default function ConsultationsListPanel({
                     </Button>
                   )}
 
-                  {(consultation.status === "pending" ||
+                  {(consultation.status === "requested" ||
+                    consultation.status === "pending" ||
                     consultation.status === "confirmed") && (
                     <Button
                       size="md"

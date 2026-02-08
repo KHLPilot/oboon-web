@@ -130,6 +130,11 @@ export default function LoginPage() {
       }
 
       if (profile.role === "agent_pending") {
+        await supabase
+          .from("profiles")
+          .update({ role: "agent" })
+          .eq("id", data.user.id);
+
         router.replace("/");
         router.refresh();
         return;
@@ -258,7 +263,7 @@ export default function LoginPage() {
                     placeholder="name@example.com"
                     autoComplete="email"
                     onFocus={clearFieldError}
-                    className="h-11"
+                    
                     aria-invalid={
                       fieldError?.field === "email" ? "true" : undefined
                     }
@@ -279,7 +284,7 @@ export default function LoginPage() {
                     placeholder="••••••••"
                     autoComplete="current-password"
                     onFocus={clearFieldError}
-                    className="h-11"
+                    
                     aria-invalid={
                       fieldError?.field === "password" ? "true" : undefined
                     }

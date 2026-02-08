@@ -1,9 +1,7 @@
 // components/ui/Input.tsx
 import * as React from "react";
-
-function cn(...classes: Array<string | undefined | false | null>) {
-  return classes.filter(Boolean).join(" ");
-}
+import { cn } from "@/lib/utils/cn";
+import { oboonFieldBaseClass } from "@/lib/ui/formFieldStyles";
 
 const Input = React.forwardRef<
   HTMLInputElement,
@@ -16,7 +14,7 @@ const Input = React.forwardRef<
       ref={ref}
       {...rest}
       className={cn(
-        "w-full rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-(--oboon-primary)",
+        oboonFieldBaseClass,
         className
       )}
     />

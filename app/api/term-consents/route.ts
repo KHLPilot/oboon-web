@@ -24,6 +24,15 @@ export async function POST(request: NextRequest) {
           getAll() {
             return cookieStore.getAll();
           },
+          setAll(cookiesToSet) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) => {
+                cookieStore.set(name, value, options);
+              });
+            } catch {
+              // 읽기 전용 컨텍스트에서는 무시
+            }
+          },
         },
       }
     );
@@ -146,6 +155,15 @@ export async function GET(request: NextRequest) {
         cookies: {
           getAll() {
             return cookieStore.getAll();
+          },
+          setAll(cookiesToSet) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) => {
+                cookieStore.set(name, value, options);
+              });
+            } catch {
+              // 읽기 전용 컨텍스트에서는 무시
+            }
           },
         },
       }

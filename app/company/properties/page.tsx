@@ -35,6 +35,8 @@ type PropertyRow = {
   request_status?: "pending" | "approved" | "rejected" | null;
   request_requested_at?: string | null;
   request_rejection_reason?: string | null;
+  delete_request_status?: "pending" | "approved" | "rejected" | null;
+  delete_request_requested_at?: string | null;
 };
 
 /* --------------------------------------------------
@@ -120,6 +122,31 @@ function RequestStatusBadge({
   );
 }
 
+function DeleteRequestStatusBadge({
+  status,
+}: {
+  status: PropertyRow["delete_request_status"];
+}) {
+  if (!status) return null;
+  const label =
+    status === "pending"
+      ? "삭제 요청 중"
+      : status === "approved"
+        ? "삭제 완료"
+        : "삭제 반려";
+  const variant =
+    status === "pending"
+      ? "danger"
+      : status === "approved"
+        ? "danger"
+        : "warning";
+  return (
+    <Badge variant={variant} className="ob-typo-caption">
+      {label}
+    </Badge>
+  );
+}
+
 function formatKoreanDateTime(value: string | null | undefined) {
   if (!value) return "-";
   const d = new Date(value);
@@ -171,9 +198,33 @@ export default function PropertyListPage() {
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
   // 삭제 처리
-  async function handleDelete(id: number, canEdit: boolean) {
-    if (!canEdit) {
+  async function handleDelete(id: number, canDelete: boolean) {
+    if (!canDelete) {
       showAlert("본인이 작성한 현장만 삭제할 수 있습니다.");
+      return;
+    }
+
+    if (currentUserRole === "agent") {
+      const reason = prompt("삭제 요청 사유를 입력해주세요:");
+      if (!reason || !reason.trim()) return;
+
+      const response = await fetch("/api/property-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          propertyId: id,
+          requestType: "delete",
+          reason: reason.trim(),
+        }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        showAlert(data.error || "삭제 요청에 실패했습니다.");
+        return;
+      }
+
+      showAlert("삭제 요청이 접수되었습니다. 관리자 승인 후 삭제됩니다.");
       return;
     }
 
@@ -355,8 +406,11 @@ export default function PropertyListPage() {
             const { inputCount, totalCount, missingLabels } =
               getInternalProgress(row);
 
-            const canEdit =
+            const canDelete =
               currentUserRole === "admin" || row.created_by === currentUserId;
+            const hasPendingDeleteRequest = row.delete_request_status === "pending";
+            const canEdit =
+              (canDelete || currentUserRole === "agent") && !hasPendingDeleteRequest;
 
             const profile = row.profiles
               ? Array.isArray(row.profiles)
@@ -401,16 +455,17 @@ export default function PropertyListPage() {
 
                   <div className="flex items-center gap-2 shrink-0">
                     <RequestStatusBadge status={row.request_status} />
+                    <DeleteRequestStatusBadge status={row.delete_request_status} />
                     <StatusChip inputCount={inputCount} totalCount={totalCount} />
                     <EditButton
                       href={`/company/properties/${row.id}`}
                       disabled={!canEdit}
                     />
 
-                    {canEdit && (
+                    {canDelete && (
                       <button
                         type="button"
-                        onClick={() => handleDelete(row.id, canEdit)}
+                        onClick={() => handleDelete(row.id, canDelete)}
                         aria-label="삭제"
                         className={[
                           "inline-flex h-8 w-8 items-center justify-center rounded-full p-0 cursor-pointer transition-colors",

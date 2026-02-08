@@ -58,6 +58,15 @@ export async function POST(
           getAll() {
             return cookieStore.getAll();
           },
+          setAll(cookiesToSet) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) => {
+                cookieStore.set(name, value, options);
+              });
+            } catch {
+              // 읽기 전용 컨텍스트에서는 무시
+            }
+          },
         },
       },
     );
@@ -113,18 +122,14 @@ export async function POST(
     const depositRefundPaidAmount = sumAmounts(ledgerRows, "deposit_refund_paid");
     const latestRefundPayout = (refundPayout || null) as DepositRefundPayoutRow | null;
 
-    const cancelledEarlyEnough =
-      c.status === "cancelled" &&
-      c.cancelled_by === "customer" &&
-      Boolean(c.cancelled_at && c.scheduled_at) &&
-      new Date(c.scheduled_at!).getTime() - new Date(c.cancelled_at!).getTime() >=
-        48 * 60 * 60 * 1000;
+    const cancelledByCustomer =
+      c.status === "cancelled" && c.cancelled_by === "customer";
     const cancelledByAgentOrAdmin =
       c.status === "cancelled" &&
       (c.cancelled_by === "agent" || c.cancelled_by === "admin");
     const agentNoShowRefundable = c.status === "no_show" && c.no_show_by === "agent";
     const cancelledRefundableByActor =
-      cancelledByAgentOrAdmin || cancelledEarlyEnough;
+      cancelledByAgentOrAdmin || cancelledByCustomer;
     const cancelledRefundableFallback =
       c.status === "cancelled" &&
       c.cancelled_by === null &&

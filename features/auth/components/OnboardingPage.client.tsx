@@ -398,7 +398,7 @@ export default function OnboardingPage() {
                   <Input
                     value={email}
                     disabled
-                    className="h-11 bg-(--oboon-bg-subtle) text-(--oboon-text-muted)"
+                    className="bg-(--oboon-bg-subtle) text-(--oboon-text-muted)"
                   />
                 </div>
 
@@ -414,7 +414,6 @@ export default function OnboardingPage() {
                     maxLength={20}
                     disabled={!canSubmit || loading}
                     className={cx(
-                      "h-11",
                       errors.name ? "border-(--oboon-border-danger)" : "",
                     )}
                     aria-invalid={errors.name ? "true" : undefined}
@@ -438,7 +437,7 @@ export default function OnboardingPage() {
                       maxLength={15}
                       disabled={!canSubmit || loading}
                       className={cx(
-                        "h-11 flex-1",
+                        "flex-1",
                         errors.nickname ? "border-(--oboon-border-danger)" : "",
                       )}
                       aria-invalid={errors.nickname ? "true" : undefined}
@@ -495,7 +494,6 @@ export default function OnboardingPage() {
                     maxLength={13}
                     disabled={!canSubmit || loading}
                     className={cx(
-                      "h-11",
                       errors.phone ? "border-(--oboon-border-danger)" : "",
                     )}
                     aria-invalid={errors.phone ? "true" : undefined}

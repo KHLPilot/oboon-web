@@ -18,7 +18,9 @@ export type PendingPropertyAgent = {
   id: string;
   property_id: number;
   agent_id: string;
+  request_type: "publish" | "delete";
   status: "pending" | "approved" | "rejected";
+  reason?: string | null;
   rejection_reason?: string | null;
   requested_at: string;
   properties: {
@@ -89,12 +91,14 @@ export async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
       id,
       property_id,
       agent_id,
+      request_type,
       status,
+      reason,
       rejection_reason,
       requested_at
     `,
     )
-    .order("requested_at", { ascending: true });
+    .order("requested_at", { ascending: false });
 
   let enrichedPropertyAgents: PendingPropertyAgent[] = [];
   if (propertyRequestsAll && propertyRequestsAll.length > 0) {
@@ -160,6 +164,7 @@ export async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
   const { count: approvedPropertyAgentCount } = await supabase
     .from("property_requests")
     .select("id", { count: "exact", head: true })
+    .eq("request_type", "publish")
     .eq("status", "approved");
 
   const now = new Date();

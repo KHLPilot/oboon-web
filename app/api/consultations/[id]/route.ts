@@ -24,10 +24,19 @@ export async function GET(
             process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
             {
                 cookies: {
-                    getAll() {
-                        return cookieStore.getAll();
-                    },
-                },
+          getAll() {
+            return cookieStore.getAll();
+          },
+          setAll(cookiesToSet) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) => {
+                cookieStore.set(name, value, options);
+              });
+            } catch {
+              // 읽기 전용 컨텍스트에서는 무시
+            }
+          },
+        },
             }
         );
 
@@ -93,10 +102,19 @@ export async function PATCH(
             process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
             {
                 cookies: {
-                    getAll() {
-                        return cookieStore.getAll();
-                    },
-                },
+          getAll() {
+            return cookieStore.getAll();
+          },
+          setAll(cookiesToSet) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) => {
+                cookieStore.set(name, value, options);
+              });
+            } catch {
+              // 읽기 전용 컨텍스트에서는 무시
+            }
+          },
+        },
             }
         );
 
@@ -110,7 +128,7 @@ export async function PATCH(
         }
 
         const body = await req.json();
-        const { status, agreed_to_terms, no_show_by } = body;
+        const { status, agreed_to_terms, no_show_by, rejection_reason } = body;
 
         // 유효한 상태값 검증
         const validStatuses = ["pending", "confirmed", "visited", "contracted", "cancelled", "no_show"];
@@ -154,12 +172,50 @@ export async function PATCH(
         }
 
         // 상태 변경 권한 체크
+        // - pending: 관리자 승인 시에만 변경 가능 (requested -> pending)
         // - confirmed: 상담사만 가능
         // - cancelled: 고객, 상담사 모두 가능
-        // - visited: 방문 완료 처리 (여기서는 상담사만)
+        // - visited: 방문 완료 처리 (상담사/관리자)
+        if (status === "pending" && !isAdmin) {
+            return NextResponse.json(
+                { error: "관리자만 예약 요청을 승인할 수 있습니다" },
+                { status: 403 }
+            );
+        }
+
+        if (status === "pending" && isAdmin && existingConsultation.status !== "requested") {
+            return NextResponse.json(
+                { error: "요청 승인 가능한 상태가 아닙니다" },
+                { status: 409 }
+            );
+        }
+
+        const isAdminRejectingRequest =
+            status === "cancelled" &&
+            isAdmin &&
+            existingConsultation.status === "requested";
+
+        if (isAdminRejectingRequest) {
+            const normalizedReason =
+                typeof rejection_reason === "string" ? rejection_reason.trim() : "";
+            if (!normalizedReason) {
+                return NextResponse.json(
+                    { error: "요청 거절 사유를 입력해주세요" },
+                    { status: 400 }
+                );
+            }
+        }
+
         if (status === "confirmed" && !isAgent && !isAdmin) {
             return NextResponse.json(
                 { error: "상담사만 예약을 확정할 수 있습니다" },
+                { status: 403 }
+            );
+        }
+
+        if (status === "visited" && !isAgent && !isAdmin) {
+            return NextResponse.json(
+                { error: "상담사만 방문 완료 처리할 수 있습니다" },
                 { status: 403 }
             );
         }
@@ -186,6 +242,11 @@ export async function PATCH(
                 : isAgent
                     ? "agent"
                     : "customer";
+
+            if (isAdminRejectingRequest) {
+                updateData.request_rejected_at = new Date().toISOString();
+                updateData.request_rejection_reason = String(rejection_reason).trim();
+            }
         }
 
         if (status === "no_show") {
@@ -196,6 +257,11 @@ export async function PATCH(
                 );
             }
             updateData.no_show_by = no_show_by;
+        }
+
+        if (status === "pending" && isAdmin) {
+            updateData.request_rejected_at = null;
+            updateData.request_rejection_reason = null;
         }
 
         // 예약 상태 업데이트
@@ -214,11 +280,68 @@ export async function PATCH(
             );
         }
 
+        if (status === "pending" && isAdmin) {
+            const { data: existingRoom } = await adminSupabase
+                .from("chat_rooms")
+                .select("id")
+                .eq("consultation_id", id)
+                .limit(1)
+                .maybeSingle();
+
+            if (!existingRoom) {
+                const { error: chatRoomError } = await adminSupabase
+                    .from("chat_rooms")
+                    .insert({
+                        consultation_id: id,
+                        customer_id: existingConsultation.customer_id,
+                        agent_id: existingConsultation.agent_id,
+                    });
+
+                if (chatRoomError) {
+                    console.error("승인 후 채팅방 생성 오류:", chatRoomError);
+                }
+            }
+
+            const { data: propertyInfo } = await adminSupabase
+                .from("properties")
+                .select("name")
+                .eq("id", existingConsultation.property_id)
+                .maybeSingle();
+
+            await adminSupabase.from("notifications").insert({
+                recipient_id: existingConsultation.agent_id,
+                type: "consultation_request",
+                title: "새 예약 요청이 승인되었습니다",
+                message: `${propertyInfo?.name ?? "현장"} 예약 요청이 승인되어 상담이 배정되었습니다.`,
+                consultation_id: id,
+                metadata: {
+                    reservation_id: id,
+                    tab: "consultations",
+                },
+            });
+        }
+
+        if (isAdminRejectingRequest) {
+            await adminSupabase.from("notifications").insert({
+                recipient_id: existingConsultation.customer_id,
+                type: "consultation_rejected",
+                title: "예약 요청이 거절되었습니다",
+                message: `관리자 검토 결과 예약 요청이 거절되었습니다. 사유: ${String(
+                    rejection_reason
+                ).trim()}`,
+                consultation_id: id,
+                metadata: {
+                    reservation_id: id,
+                    tab: "consultations",
+                    rejection_reason: String(rejection_reason).trim(),
+                },
+            });
+        }
+
         // 정산 이벤트 자동 연동
         // - 방문 완료: 보상 발생 + 지급 요청 생성
         // - 취소:
-        //   customer (48h 이후): 포인트 환급
-        //   customer (48h 이내): 환급 불가
+        //   customer: 포인트 환급
         //   agent/admin: 현금 환급 큐 생성
         // - 노쇼(customer): 환급 불가
         // - 노쇼(agent): 포인트 환급
@@ -248,15 +371,10 @@ export async function PATCH(
 
             const shouldGrantPointRefundFromCancellation =
                 status === "cancelled" &&
-                isCustomer &&
-                cancellationTiming === "after_48h";
+                isCustomer;
             const shouldCreateCashRefundFromCancellation =
                 status === "cancelled" &&
                 (isAgent || isAdmin);
-            const shouldForfeitFromCancellation =
-                status === "cancelled" &&
-                isCustomer &&
-                cancellationTiming === "within_48h";
 
             const cancellationNote = (() => {
                 if (status !== "cancelled") return null;
@@ -322,7 +440,7 @@ export async function PATCH(
             }
 
             if (
-                (shouldForfeitFromNoShow || shouldForfeitFromCancellation) &&
+                shouldForfeitFromNoShow &&
                 !hasEvent("deposit_forfeited") &&
                 !hasEvent("deposit_point_granted")
             ) {
@@ -333,13 +451,9 @@ export async function PATCH(
                     amount: depositPaidAmount > 0 ? depositPaidAmount : 1000,
                     actor_id: user.id,
                     admin_id: isAdmin ? user.id : null,
-                    note: shouldForfeitFromNoShow
-                        ? "customer_no_show_forfeited"
-                        : "customer_cancel_within_48h",
+                    note: "customer_no_show_forfeited",
                 });
-                depositUpdateMessage = shouldForfeitFromNoShow
-                    ? "고객 노쇼로 예약금 환급 불가 처리되었습니다."
-                    : "고객 취소(48시간 이내)로 예약금 환급 불가 처리되었습니다.";
+                depositUpdateMessage = "고객 노쇼로 예약금 환급 불가 처리되었습니다.";
             }
 
             if (status === "visited" && !hasEvent("reward_due")) {
@@ -486,10 +600,19 @@ export async function DELETE(
             process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
             {
                 cookies: {
-                    getAll() {
-                        return cookieStore.getAll();
-                    },
-                },
+          getAll() {
+            return cookieStore.getAll();
+          },
+          setAll(cookiesToSet) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) => {
+                cookieStore.set(name, value, options);
+              });
+            } catch {
+              // 읽기 전용 컨텍스트에서는 무시
+            }
+          },
+        },
             }
         );
 

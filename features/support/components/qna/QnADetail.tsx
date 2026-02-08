@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Lock, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import Textarea from "@/components/ui/Textarea";
 import type { QnADetailViewModel } from "../../domain/support";
 
 type QnADetailProps = {
@@ -136,7 +137,7 @@ export function QnADetail({ data, onDelete, onAnswer }: QnADetailProps) {
             className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-default) p-6"
           >
             <h3 className="mb-3 font-bold text-(--oboon-text-title)">답변 작성</h3>
-            <textarea
+            <Textarea
               value={answerBody}
               onChange={(e) => setAnswerBody(e.target.value)}
               placeholder="답변 내용을 입력해주세요"

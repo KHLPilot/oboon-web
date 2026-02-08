@@ -12,11 +12,13 @@ type SettlementRow = {
   status: string;
   scheduled_at_label: string;
   deposit_label: string;
-  deposit_tone: "primary" | "success" | "warning" | "muted";
+  deposit_tone: "primary" | "success" | "warning" | "danger" | "muted";
   property_name: string;
   property_image_url: string | null;
   customer_name: string | null;
   customer_avatar_url: string | null;
+  customer_bank_name: string | null;
+  customer_bank_account_number: string | null;
   agent_name: string | null;
   agent_avatar_url: string | null;
   deposit_amount: number;
@@ -35,6 +37,9 @@ type SettlementSummary = {
   deposit_amount: number;
   is_deposit_paid: boolean;
   deposit_paid_at: string | null;
+  refund_method?: "point" | "cash" | null;
+  point_converted_amount?: number;
+  point_converted_at?: string | null;
   refundable_point_amount: number;
   is_refund_eligible: boolean;
   is_refund_pending: boolean;
@@ -176,12 +181,23 @@ export default function SettlementDetailModal({
   }, [summary]);
 
   const isRewardMode = row?.status === "visited" || row?.status === "contracted";
+  const isPointConvertedCase =
+    !isRewardMode &&
+    summary?.refund_method === "point" &&
+    Boolean(summary?.is_refund_completed);
 
-  const cardTitle = isRewardMode ? "총 방문 보상금" : "총 환급금";
+  const cardTitle = isRewardMode
+    ? "총 방문 보상금"
+    : isPointConvertedCase
+      ? "포인트"
+      : "총 환급금";
 
   const cardAmount = isRewardMode
     ? summary?.reward_due_amount ?? 0
     : summary?.refundable_point_amount ?? row?.refund_amount ?? 0;
+  const cardAmountLabel = isPointConvertedCase
+    ? `${(summary?.point_converted_amount ?? 0).toLocaleString("ko-KR")}P`
+    : formatMoney(cardAmount);
 
   const settlementStatusLabel = useMemo(() => {
     if (!summary) return "-";
@@ -192,9 +208,11 @@ export default function SettlementDetailModal({
       }
       return "-";
     }
+    if (isPointConvertedCase) return "포인트 전환 완료";
+    if (summary.is_refund_blocked) return "환급 불가";
     if (summary.is_refund_completed) return "환급 완료";
     return "환급 대기";
-  }, [isRewardMode, summary]);
+  }, [isPointConvertedCase, isRewardMode, summary]);
 
   const settlementStatusToneClass = useMemo(() => {
     if (!summary) return "ob-typo-body text-(--oboon-text-muted)";
@@ -203,10 +221,16 @@ export default function SettlementDetailModal({
         ? "ob-typo-body text-(--oboon-success)"
         : "ob-typo-body text-(--oboon-primary)";
     }
+    if (isPointConvertedCase) {
+      return "ob-typo-body text-(--oboon-primary)";
+    }
+    if (summary.is_refund_blocked) {
+      return "ob-typo-body text-(--oboon-danger)";
+    }
     return summary.is_refund_completed
       ? "ob-typo-body text-(--oboon-success)"
       : "ob-typo-body text-(--oboon-primary)";
-  }, [isRewardMode, summary]);
+  }, [isPointConvertedCase, isRewardMode, summary]);
 
   const completedAtLabel = useMemo(() => {
     const source = isRewardMode ? summary?.reward_payout_done_at : summary?.refund_completed_at;
@@ -240,9 +264,14 @@ export default function SettlementDetailModal({
     !loading &&
     !processing;
   const showRefundActionButton =
-    !isRewardMode && !(summary?.is_refund_completed ?? false);
+    !isRewardMode &&
+    !(summary?.is_refund_completed ?? false) &&
+    !isPointConvertedCase &&
+    !(summary?.is_refund_blocked ?? false);
   const showRewardActionButton =
     isRewardMode && !(summary?.reward_payout_done_at ?? null);
+  const showSettlementAmountCard =
+    row?.status !== "requested" && row?.status !== "confirmed";
 
   return (
     <Modal
@@ -252,7 +281,7 @@ export default function SettlementDetailModal({
     >
       {row ? (
         <div>
-          <div className="ob-typo-h2 text-(--oboon-text-title)">예약 상세 정보</div>
+          <div className="ob-typo-h2 text-(--oboon-text-title)">정산 상세 정보</div>
 
           <Card className="mt-4 p-3 shadow-none">
             <div className="flex items-start gap-3">
@@ -315,7 +344,36 @@ export default function SettlementDetailModal({
             </Badge>
           </div>
 
-          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Card className="mt-3 p-4 shadow-none">
+            <div className="ob-typo-body text-(--oboon-text-title)">
+              고객 정산 계좌 정보
+            </div>
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <div className="ob-typo-body text-(--oboon-text-muted)">
+                  은행
+                </div>
+                <div className="mt-1 ob-typo-subtitle text-(--oboon-text-title)">
+                  {row.customer_bank_name?.trim() || "미등록"}
+                </div>
+              </div>
+              <div>
+                <div className="ob-typo-body text-(--oboon-text-muted)">
+                  계좌번호
+                </div>
+                <div className="mt-1 ob-typo-subtitle text-(--oboon-text-title)">
+                  {row.customer_bank_account_number?.trim() || "미등록"}
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          <div
+            className={[
+              "mt-3 grid grid-cols-1 gap-3",
+              showSettlementAmountCard ? "sm:grid-cols-2" : "",
+            ].join(" ")}
+          >
             <Card className="p-4 shadow-none">
               <div className="ob-typo-body text-(--oboon-text-title)">
                 고객 예약금
@@ -341,47 +399,49 @@ export default function SettlementDetailModal({
               </div>
             </Card>
 
-            <Card className="p-4 shadow-none">
-              <div className="ob-typo-body text-(--oboon-text-title)">
-                {cardTitle}
-              </div>
-              <div className="mt-2 ob-typo-h2 text-(--oboon-text-title)">
-                {formatMoney(cardAmount)}
-              </div>
-              <div className="mt-3 border-t border-(--oboon-border-default) pt-3">
-                <div className={settlementStatusToneClass}>
-                  {settlementStatusLabel}
+            {showSettlementAmountCard ? (
+              <Card className="p-4 shadow-none">
+                <div className="ob-typo-body text-(--oboon-text-title)">
+                  {cardTitle}
                 </div>
-                {!loading && completedAtLabel ? (
-                  <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
-                    {completedAtLabel}
-                  </div>
-                ) : null}
-                {showRefundActionButton ? (
-                  <Button
-                    className="mt-2 h-9 w-full"
-                    size="sm"
-                    shape="pill"
-                    variant="primary"
-                    disabled={!canProcessRefund}
-                    onClick={handleRefundComplete}
-                  >
+                <div className="mt-2 ob-typo-h2 text-(--oboon-text-title)">
+                  {cardAmountLabel}
+                </div>
+                <div className="mt-3 border-t border-(--oboon-border-default) pt-3">
+                  <div className={settlementStatusToneClass}>
                     {settlementStatusLabel}
-                  </Button>
-                ) : showRewardActionButton ? (
-                  <Button
-                    className="mt-2 h-9 w-full"
-                    size="sm"
-                    shape="pill"
-                    variant="primary"
-                    disabled={!canProcessReward}
-                    onClick={handleRewardPayoutComplete}
-                  >
-                    지급 완료
-                  </Button>
-                ) : null}
-              </div>
-            </Card>
+                  </div>
+                  {!loading && completedAtLabel ? (
+                    <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+                      {completedAtLabel}
+                    </div>
+                  ) : null}
+                  {showRefundActionButton ? (
+                    <Button
+                      className="mt-2 h-9 w-full"
+                      size="sm"
+                      shape="pill"
+                      variant="primary"
+                      disabled={!canProcessRefund}
+                      onClick={handleRefundComplete}
+                    >
+                      환급 처리
+                    </Button>
+                  ) : showRewardActionButton ? (
+                    <Button
+                      className="mt-2 h-9 w-full"
+                      size="sm"
+                      shape="pill"
+                      variant="primary"
+                      disabled={!canProcessReward}
+                      onClick={handleRewardPayoutComplete}
+                    >
+                      지급 완료
+                    </Button>
+                  ) : null}
+                </div>
+              </Card>
+            ) : null}
           </div>
         </div>
       ) : null}

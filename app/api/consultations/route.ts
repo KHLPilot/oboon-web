@@ -23,6 +23,15 @@ export async function POST(req: Request) {
           getAll() {
             return cookieStore.getAll();
           },
+          setAll(cookiesToSet) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) => {
+                cookieStore.set(name, value, options);
+              });
+            } catch {
+              // 읽기 전용 컨텍스트에서는 무시
+            }
+          },
         },
       },
     );
@@ -40,11 +49,22 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const { agent_id, property_id, scheduled_at, agreed_to_terms } = body;
+    const isPointReservation =
+      body?.payment_method === "point" ||
+      body?.use_points === true ||
+      body?.is_point_booking === true;
 
     // 필수 필드 검증
     if (!agent_id || !property_id || !scheduled_at) {
       return NextResponse.json(
         { error: "필수 정보가 누락되었습니다" },
+        { status: 400 },
+      );
+    }
+
+    if (agent_id === user.id) {
+      return NextResponse.json(
+        { error: "본인에게는 상담을 신청할 수 없습니다" },
         { status: 400 },
       );
     }
@@ -57,7 +77,37 @@ export async function POST(req: Request) {
       );
     }
 
+    // 정산 계좌 정보 필수 검증 (서버 사이드)
+    const { data: customerProfile, error: profileError } = await adminSupabase
+      .from("profiles")
+      .select("bank_name, bank_account_number")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error("고객 프로필 조회 오류:", profileError);
+      return NextResponse.json(
+        { error: "프로필 정보를 확인하지 못했습니다" },
+        { status: 500 },
+      );
+    }
+
+    const bankName = customerProfile?.bank_name?.trim() ?? "";
+    const bankAccountNumber = customerProfile?.bank_account_number?.trim() ?? "";
+    if (!bankName || !bankAccountNumber) {
+      return NextResponse.json(
+        {
+          error: "예약 전 은행과 계좌번호를 입력해주세요",
+          error_code: "BANK_INFO_REQUIRED",
+        },
+        { status: 400 },
+      );
+    }
+
     const scheduledDate = new Date(scheduled_at);
+
+    // 포인트 예약은 관리자 승인 없이 즉시 상담사에게 배정한다.
+    const initialStatus = isPointReservation ? "pending" : "requested";
 
     // 예약 생성
     const { data: consultation, error } = await adminSupabase
@@ -67,7 +117,7 @@ export async function POST(req: Request) {
         agent_id,
         property_id,
         scheduled_at: scheduledDate.toISOString(),
-        status: "pending",
+        status: initialStatus,
       })
       .select()
       .single();
@@ -86,11 +136,13 @@ export async function POST(req: Request) {
       .insert({
         consultation_id: consultation.id,
         event_type: "deposit_paid",
-        bucket: "deposit",
+        bucket: isPointReservation ? "point" : "deposit",
         amount: DEPOSIT_AMOUNT,
         actor_id: user.id,
         admin_id: null,
-        note: "reservation_created",
+        note: isPointReservation
+          ? "reservation_created_with_point"
+          : "reservation_created",
       });
 
     if (ledgerError) {
@@ -101,20 +153,6 @@ export async function POST(req: Request) {
         { error: "예약금 기록에 실패했습니다" },
         { status: 500 },
       );
-    }
-
-    // 채팅방도 함께 생성
-    const { error: chatRoomError } = await adminSupabase
-      .from("chat_rooms")
-      .insert({
-        consultation_id: consultation.id,
-        customer_id: user.id,
-        agent_id,
-      });
-
-    if (chatRoomError) {
-      console.error("채팅방 생성 오류:", chatRoomError);
-      // 채팅방 생성 실패해도 예약은 유지
     }
 
     // 약관 동의 기록 저장 (법적 증거용)
@@ -154,8 +192,47 @@ export async function POST(req: Request) {
       }
     }
 
-    // 관리자 알림: 신규 예약 접수
-    {
+    // 포인트 예약은 즉시 배정 처리: 채팅방 생성 + 상담사 알림
+    if (isPointReservation) {
+      const { data: existingRoom } = await adminSupabase
+        .from("chat_rooms")
+        .select("id")
+        .eq("consultation_id", consultation.id)
+        .limit(1)
+        .maybeSingle();
+
+      if (!existingRoom) {
+        await adminSupabase.from("chat_rooms").insert({
+          consultation_id: consultation.id,
+          customer_id: user.id,
+          agent_id,
+        });
+      }
+
+      const { data: property } = await adminSupabase
+        .from("properties")
+        .select("id, name")
+        .eq("id", property_id)
+        .single();
+
+      await adminSupabase.from("notifications").insert({
+        recipient_id: agent_id,
+        type: "consultation_request",
+        title: "새 예약이 배정되었습니다",
+        message: `${property?.name ?? "현장"} 예약이 포인트 결제로 즉시 배정되었습니다.`,
+        consultation_id: consultation.id,
+        metadata: {
+          tab: "consultations",
+          reservation_id: consultation.id,
+          property_id,
+          deposit_amount: DEPOSIT_AMOUNT,
+          payment_method: "point",
+        },
+      });
+    }
+
+    // 현금 예약은 관리자 승인 대상: 관리자 알림 발송
+    if (!isPointReservation) {
       const [{ data: admins }, { data: property }] = await Promise.all([
         adminSupabase.from("profiles").select("id").eq("role", "admin"),
         adminSupabase
@@ -169,8 +246,8 @@ export async function POST(req: Request) {
         const notifications = admins.map((admin) => ({
           recipient_id: admin.id,
           type: "admin_new_reservation",
-          title: "신규 예약 접수",
-          message: `${property?.name ?? "현장"} 예약이 새로 접수되었습니다.`,
+          title: "신규 예약 요청 접수",
+          message: `${property?.name ?? "현장"} 예약 요청이 새로 접수되었습니다.`,
           consultation_id: consultation.id,
           metadata: {
             tab: "reservations",
@@ -221,6 +298,15 @@ export async function GET(req: Request) {
         cookies: {
           getAll() {
             return cookieStore.getAll();
+          },
+          setAll(cookiesToSet) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) => {
+                cookieStore.set(name, value, options);
+              });
+            } catch {
+              // 읽기 전용 컨텍스트에서는 무시
+            }
           },
         },
       },
@@ -275,7 +361,8 @@ export async function GET(req: Request) {
     } else if (role === "agent") {
       query = query
         .eq("agent_id", user.id)
-        .neq("hidden_by_agent", true);
+        .neq("status", "requested")
+        .or("hidden_by_agent.is.null,hidden_by_agent.eq.false");
     } else {
       query = query
         .eq("customer_id", user.id)

@@ -82,28 +82,20 @@ export default function NotificationToastManager() {
       {expanded ? (
         // 확장된 상태: 알림 목록 표시
         <div
-          className="animate-slide-in-right rounded-2xl border bg-(--oboon-bg-surface) shadow-lg backdrop-blur w-[320px] max-w-[calc(100vw-2rem)] max-h-[400px] overflow-hidden flex flex-col"
-          style={{ borderColor: "var(--oboon-border-default)" }}
+          className="animate-slide-in-right rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) shadow-lg backdrop-blur w-[320px] max-w-[calc(100vw-2rem)] max-h-[400px] overflow-hidden flex flex-col"
         >
           {/* 헤더 */}
-          <div
-            className="flex items-center justify-between px-4 py-3 border-b shrink-0"
-            style={{ borderColor: "var(--oboon-border-default)" }}
-          >
+          <div className="flex items-center justify-between px-4 py-3 border-b border-(--oboon-border-default) shrink-0">
             <div className="flex items-center gap-2">
               <span className="oboon-logo h-5 w-5" aria-hidden />
-              <span
-                className="ob-typo-body2"
-                style={{ color: "var(--oboon-text-title)" }}
-              >
+              <span className="ob-typo-body2 text-(--oboon-text-title)">
                 새 알림 ({notifications.length})
               </span>
             </div>
             <button
               type="button"
               onClick={clearAll}
-              className="rounded-md p-1 transition-colors hover:bg-(--oboon-bg-subtle)"
-              style={{ color: "var(--oboon-text-muted)" }}
+              className="rounded-md p-1 text-(--oboon-text-muted) transition-colors hover:bg-(--oboon-bg-subtle)"
               aria-label="모두 닫기"
             >
               <X className="h-4 w-4" />
@@ -115,28 +107,20 @@ export default function NotificationToastManager() {
             {notifications.map((notification) => (
               <div
                 key={notification.id}
-                className="px-4 py-3 border-b last:border-b-0 hover:bg-(--oboon-bg-subtle) transition-colors"
-                style={{ borderColor: "var(--oboon-border-default)" }}
+                className="px-4 py-3 border-b border-(--oboon-border-default) last:border-b-0 hover:bg-(--oboon-bg-subtle) transition-colors"
               >
-                <p
-                  className="ob-typo-body2 truncate"
-                  style={{ color: "var(--oboon-text-title)" }}
-                >
+                <p className="ob-typo-body2 truncate text-(--oboon-text-title)">
                   {notification.title}
                 </p>
                 {notification.message && (
-                  <p
-                    className="ob-typo-caption truncate mt-0.5"
-                    style={{ color: "var(--oboon-text-muted)" }}
-                  >
+                  <p className="ob-typo-caption truncate mt-0.5 text-(--oboon-text-muted)">
                     {notification.message}
                   </p>
                 )}
                 <button
                   type="button"
                   onClick={() => handleNavigate(notification)}
-                  className="mt-1 flex items-center gap-0.5 text-xs font-medium hover:underline"
-                  style={{ color: "var(--oboon-primary)" }}
+                  className="mt-1 flex items-center gap-0.5 text-xs font-medium text-(--oboon-primary) hover:underline"
                 >
                   바로가기
                   <ChevronRight className="h-3 w-3" />
@@ -150,16 +134,12 @@ export default function NotificationToastManager() {
         <button
           type="button"
           onClick={toggleExpand}
-          className="animate-slide-in-right relative flex items-center justify-center w-14 h-14 rounded-full border bg-(--oboon-bg-surface) shadow-lg backdrop-blur transition-transform hover:scale-105 active:scale-95"
-          style={{ borderColor: "var(--oboon-primary)" }}
+          className="animate-slide-in-right relative flex items-center justify-center w-14 h-14 rounded-full border border-(--oboon-primary) bg-(--oboon-bg-surface) shadow-lg backdrop-blur transition-transform hover:scale-105 active:scale-95"
           aria-label={`새 알림 ${notifications.length}개`}
         >
           <span className="oboon-logo h-7 w-7" aria-hidden />
           {/* 알림 개수 뱃지 */}
-          <span
-            className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full flex items-center justify-center text-xs font-bold text-white"
-            style={{ backgroundColor: "var(--oboon-danger)" }}
-          >
+          <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full flex items-center justify-center text-xs font-bold bg-(--oboon-danger) text-(--oboon-on-danger)">
             {notifications.length > 9 ? "9+" : notifications.length}
           </span>
         </button>

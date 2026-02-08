@@ -37,6 +37,7 @@ export async function POST(req: Request) {
     const file = form.get("file") as File | null;
     const propertyId = form.get("propertyId") as string | null;
     const postId = (form.get("postId") as string | null)?.trim() || null;
+    const userId = (form.get("userId") as string | null)?.trim() || null;
     const mode = ((form.get("mode") as string | null) ?? "").trim();
     const unitType = (form.get("unitType") as string | null)?.trim() || "";
 
@@ -149,10 +150,32 @@ export async function POST(req: Request) {
       return NextResponse.json({ url: publicUrl });
     }
 
+    if (resolvedMode === "agent_avatar") {
+      if (!userId) {
+        return NextResponse.json({ error: "userId required" }, { status: 400 });
+      }
+
+      const key = `profiles/${userId}/avatar-${Date.now()}.${ext}`;
+      const arrayBuffer = await file.arrayBuffer();
+      const body = Buffer.from(arrayBuffer);
+
+      await r2.send(
+        new PutObjectCommand({
+          Bucket: process.env.CLOUDFLARE_R2_BUCKET_NAME!,
+          Key: key,
+          Body: body,
+          ContentType: file.type || "application/octet-stream",
+        }),
+      );
+
+      const publicUrl = `${process.env.CLOUDFLARE_R2_PUBLIC_URL}/${key}`;
+      return NextResponse.json({ url: publicUrl, key });
+    }
+
     return NextResponse.json(
       {
         error:
-          "invalid mode (property_main | property_floor_plan | briefing_cover | briefing_content)",
+          "invalid mode (property_main | property_floor_plan | briefing_cover | briefing_content | agent_avatar)",
       },
       { status: 400 },
     );

@@ -85,16 +85,17 @@ export async function fetchOfferingDetail(
   id: number
 ): Promise<PropertyRow | null> {
   const supabase = createSupabaseServer();
-  const { data, error } = await supabase
-    .from("properties")
-    .select(DETAIL_SELECT)
-    .eq("id", id)
+
+  const { data: snapshotRow, error } = await supabase
+    .from("property_public_snapshots")
+    .select("snapshot")
+    .eq("property_id", id)
     .maybeSingle();
 
-  if (error || !data) return null;
-  if (!isPropertyRow(data)) return null;
+  if (error || !snapshotRow?.snapshot) return null;
+  if (!isPropertyRow(snapshotRow.snapshot)) return null;
 
-  return data;
+  return snapshotRow.snapshot;
 }
 
 // 해당 현장에 승인된 상담사가 있는지 확인

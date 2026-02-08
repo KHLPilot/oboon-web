@@ -7,6 +7,7 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import OboonDatePicker from "@/components/ui/DatePicker";
 import Input from "@/components/ui/Input";
+import Textarea from "@/components/ui/Textarea";
 import Modal from "@/components/ui/Modal";
 import { showAlert } from "@/shared/alert";
 import {
@@ -201,7 +202,7 @@ export default function CommunityWriteModal({
             </DropdownMenu>
 
             <Input
-              className="ob-typo-body h-10"
+              className="ob-typo-body"
               placeholder={
                 writeType === "thinking"
                   ? "가장 헷갈리는 한 가지를 질문으로 적어주세요"
@@ -211,7 +212,7 @@ export default function CommunityWriteModal({
               onChange={(event) => setTitle(event.target.value)}
             />
 
-            <textarea
+            <Textarea
               className="w-full min-h-30 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-4 ob-typo-body text-(--oboon-text-title) placeholder:text-(--oboon-text-muted) focus:outline-none focus:ring-2 focus:ring-(--oboon-primary)/20"
               placeholder={
                 writeType === "thinking"
@@ -230,7 +231,7 @@ export default function CommunityWriteModal({
                 <div className="flex-1 space-y-2">
                   <div className="relative">
                     <Input
-                      className="ob-typo-body h-10"
+                      className="ob-typo-body"
                       placeholder="현장 선택하기"
                       value={propertySearch}
                       onChange={(event) => {
@@ -318,7 +319,7 @@ export default function CommunityWriteModal({
                     selected={visitDate}
                     onChange={(date) => setVisitDate(date)}
                     placeholder="방문일자 선택하기"
-                    inputClassName="ob-typo-body h-10 w-full rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-(--oboon-primary)"
+                    inputClassName="ob-typo-body h-11 w-full rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-(--oboon-primary)"
                   />
                 </div>
 

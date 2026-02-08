@@ -1,7 +1,16 @@
 ﻿"use client";
 
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
-import { CalendarDays, Loader2, MessageCircle, User } from "lucide-react";
+import {
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  Loader2,
+  MessageCircle,
+  User,
+  X,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { OboonInlineDatePicker } from "@/components/ui/DatePicker";
 
@@ -18,7 +27,15 @@ interface Agent {
   id: string;
   name: string;
   email: string;
-  phone_number?: string;
+  phone_number?: string | null;
+  agent_bio?: string | null;
+}
+
+interface AgentGalleryImage {
+  user_id: string;
+  image_url: string;
+  sort_order: number;
+  created_at: string;
 }
 
 interface ExistingConsultation {
@@ -74,21 +91,32 @@ export default function BookingModal({
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
+  const [previewAgent, setPreviewAgent] = useState<Agent | null>(null);
+  const [previewImages, setPreviewImages] = useState<string[]>([]);
+  const [previewImageIndex, setPreviewImageIndex] = useState<number | null>(null);
+  const [agentGalleryMap, setAgentGalleryMap] = useState<
+    Record<string, AgentGalleryImage[]>
+  >({});
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [existingConsultation, setExistingConsultation] =
     useState<ExistingConsultation | null>(null);
-  const [step, setStep] = useState<"agent" | "time" | "confirm">("agent");
-  const [isDesktop, setIsDesktop] = useState(false);
+  const [step, setStep] = useState<"agent" | "time" | "bank" | "confirm">(
+    "agent",
+  );
   const [showMyConsultationsModal, setShowMyConsultationsModal] =
     useState(false);
+  const [bankName, setBankName] = useState("");
+  const [bankAccountNumber, setBankAccountNumber] = useState("");
+  const [bankSaving, setBankSaving] = useState(false);
 
   // 약관 상태
   const [terms, setTerms] = useState<{ title: string; content: string } | null>(
     null
   );
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [termsAccordionOpen, setTermsAccordionOpen] = useState(false);
 
   // 사용자 정보 및 상담사 목록 조회
   const buildReservationEventParams = () => {
@@ -98,14 +126,10 @@ export default function BookingModal({
     return Object.keys(params).length ? params : undefined;
   };
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const mediaQuery = window.matchMedia("(min-width: 1024px)");
-    const handleChange = () => setIsDesktop(mediaQuery.matches);
-    handleChange();
-    mediaQuery.addEventListener?.("change", handleChange);
-    return () => mediaQuery.removeEventListener?.("change", handleChange);
-  }, []);
+  const hasBankInfo = useMemo(
+    () => bankName.trim().length > 0 && bankAccountNumber.trim().length > 0,
+    [bankAccountNumber, bankName],
+  );
 
   useEffect(() => {
     if (!isOpen) return;
@@ -115,7 +139,8 @@ export default function BookingModal({
       setLoading(true);
       setError(null);
       setExistingConsultation(null);
-      setStep(isDesktop ? "time" : "agent");
+      setStep("agent");
+      setTermsAccordionOpen(false);
 
       try {
         // 현재 사용자 확인
@@ -131,6 +156,14 @@ export default function BookingModal({
           data: { user: currentUser },
         } = await supabase.auth.getUser();
         if (currentUser) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("bank_name, bank_account_number")
+            .eq("id", currentUser.id)
+            .maybeSingle();
+          setBankName(profile?.bank_name ?? "");
+          setBankAccountNumber(profile?.bank_account_number ?? "");
+
           const { data: existingData } = await supabase
             .from("consultations")
             .select(
@@ -143,7 +176,7 @@ export default function BookingModal({
             )
             .eq("property_id", propertyId)
             .eq("customer_id", currentUser.id)
-            .in("status", ["pending", "confirmed"])
+            .in("status", ["requested", "pending", "confirmed"])
             .order("created_at", { ascending: false })
             .limit(1)
             .single();
@@ -163,7 +196,8 @@ export default function BookingModal({
               id,
               name,
               email,
-              phone_number
+              phone_number,
+              agent_bio
             )
           `,
           )
@@ -177,17 +211,39 @@ export default function BookingModal({
           // property_agents에서 profiles 정보만 추출
           const agentList = (propertyAgents || [])
             .map((pa: any) => pa.profiles)
-            .filter((profile: any) => profile !== null);
+            .filter(
+              (profile: any) =>
+                profile !== null && profile.id !== currentUser?.id,
+            );
 
-        setAgents(agentList);
-        if (defaultAgentId) {
-          const preselected = agentList.find(
-            (agent) => agent.id === defaultAgentId,
-          );
-          setSelectedAgent(preselected ?? null);
-        } else {
-          setSelectedAgent(null);
-        }
+          setAgents(agentList);
+          if (defaultAgentId) {
+            const preselected = agentList.find(
+              (agent) => agent.id === defaultAgentId,
+            );
+            setSelectedAgent(preselected ?? null);
+          } else {
+            setSelectedAgent(null);
+          }
+
+          const agentIds = agentList.map((agent) => agent.id);
+          if (agentIds.length > 0) {
+            const { data: galleryRows } = await supabase
+              .from("profile_gallery_images")
+              .select("user_id, image_url, sort_order, created_at")
+              .in("user_id", agentIds)
+              .order("sort_order", { ascending: true })
+              .order("created_at", { ascending: true });
+
+            const grouped: Record<string, AgentGalleryImage[]> = {};
+            (galleryRows || []).forEach((row: any) => {
+              if (!grouped[row.user_id]) grouped[row.user_id] = [];
+              grouped[row.user_id].push(row as AgentGalleryImage);
+            });
+            setAgentGalleryMap(grouped);
+          } else {
+            setAgentGalleryMap({});
+          }
         }
       } catch (err) {
         console.error("데이터 조회 오류:", err);
@@ -198,14 +254,7 @@ export default function BookingModal({
     }
 
     fetchData();
-  }, [isOpen, supabase, propertyId, defaultAgentId, isDesktop]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    if (isDesktop) {
-      setStep("time");
-    }
-  }, [isDesktop, isOpen]);
+  }, [isOpen, supabase, propertyId, defaultAgentId]);
 
   // confirm 단계 진입 시 약관 로드
   useEffect(() => {
@@ -349,7 +398,7 @@ export default function BookingModal({
 
       const formattedDate = `${selectedDate.getFullYear()}.${(selectedDate.getMonth() + 1).toString().padStart(2, "0")}.${selectedDate.getDate().toString().padStart(2, "0")}`;
       showAlert(
-        `예약이 완료되었습니다!\n\n예약 일시: ${formattedDate} ${selectedTime}\n상담사: ${selectedAgent.name}`,
+        `예약 요청이 접수되었습니다.\n\n예약 일시: ${formattedDate} ${selectedTime}\n상담사: ${selectedAgent.name}\n\n관리자 승인 후 상담사에게 전달됩니다.`,
       );
       onClose();
 
@@ -360,6 +409,54 @@ export default function BookingModal({
       setError(err.message || "예약에 실패했습니다");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleTimeNext() {
+    if (!canGoNext) return;
+    if (!hasBankInfo) {
+      setStep("bank");
+      return;
+    }
+    setStep("confirm");
+  }
+
+  async function handleSaveBankAndNext() {
+    const trimmedBankName = bankName.trim();
+    const trimmedAccountNumber = bankAccountNumber.trim();
+    if (!trimmedBankName || !trimmedAccountNumber) {
+      showAlert("은행과 계좌번호를 모두 입력해주세요");
+      return;
+    }
+
+    setBankSaving(true);
+    setError(null);
+    try {
+      const {
+        data: { user: currentUser },
+      } = await supabase.auth.getUser();
+
+      if (!currentUser) {
+        throw new Error("로그인이 필요합니다");
+      }
+
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({
+          bank_name: trimmedBankName,
+          bank_account_number: trimmedAccountNumber,
+        })
+        .eq("id", currentUser.id);
+
+      if (updateError) {
+        throw new Error("계좌 정보 저장에 실패했습니다");
+      }
+
+      setStep("confirm");
+    } catch (err: any) {
+      setError(err.message || "계좌 정보 저장에 실패했습니다");
+    } finally {
+      setBankSaving(false);
     }
   }
 
@@ -384,8 +481,8 @@ export default function BookingModal({
       <Modal open={isOpen} onClose={onClose} size="lg" panelClassName="p-6">
       {/* Title */}
       <div className="flex items-center justify-between">
-        <div>
-          <div className="ob-typo-h2 text-(--oboon-text-title)">상담 예약</div>
+        <div className="ob-typo-h2 text-(--oboon-text-title)">
+          {step === "confirm" ? "예약금 안내 및 동의" : "상담 예약"}
         </div>
       </div>
 
@@ -419,8 +516,8 @@ export default function BookingModal({
                       maskRepeat: "no-repeat",
                       WebkitMaskPosition: "center",
                       maskPosition: "center",
-                      WebkitMaskSize: isDesktop ? "50%" : "40%",
-                      maskSize: isDesktop ? "50%" : "40%",
+                      WebkitMaskSize: "40%",
+                      maskSize: "40%",
                       backgroundColor: "var(--oboon-text-muted)",
                     }}
                     aria-hidden="true"
@@ -471,7 +568,7 @@ export default function BookingModal({
             </div>
           </Card>
         </div>
-      ) : !isDesktop && step === "agent" ? (
+      ) : step === "agent" ? (
         <>
           <div className="mt-4">
             <div className="ob-typo-subtitle text-(--oboon-text-title) mb-2">
@@ -479,13 +576,14 @@ export default function BookingModal({
             </div>
 
             {agents.length === 0 ? (
-              <div className="text-center py-4 ob-typo-caption text-(--oboon-text-muted)">
+              <div className="text-center py-4 ob-typo-body text-(--oboon-text-muted)">
                 현재 이용 가능한 상담사가 없습니다
               </div>
             ) : (
               <div className="flex flex-col gap-3 max-h-72 overflow-y-auto">
                 {agents.map((agent) => {
                   const isSelected = selectedAgent?.id === agent.id;
+                  const galleryImages = agentGalleryMap[agent.id] || [];
                   return (
                     <Card
                       key={agent.id}
@@ -505,17 +603,25 @@ export default function BookingModal({
                         <div className="h-10 w-10 shrink-0 rounded-full bg-(--oboon-bg-subtle) text-(--oboon-text-title) flex items-center justify-center ob-typo-subtitle">
                           {agent.name?.slice(0, 1) || "상"}
                         </div>
-                        <div>
+                        <div className="min-w-0 flex-1">
                           <div className="ob-typo-caption text-(--oboon-text-muted)">
                             분양상담사
                           </div>
-                          <div className="ob-typo-subtitle text-(--oboon-text-title)">
+                          <div className="ob-typo-subtitle text-(--oboon-text-title) truncate">
                             {agent.name}
                           </div>
                         </div>
-                      </div>
-                      <div className="mt-3 ob-typo-caption text-(--oboon-text-muted)">
-                        상담사 설명 (기타 정보) 란
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          shape="pill"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPreviewAgent(agent);
+                          }}
+                        >
+                          프로필 보기
+                        </Button>
                       </div>
                     </Card>
                   );
@@ -547,29 +653,6 @@ export default function BookingModal({
         </>
       ) : step === "time" ? (
         <>
-          {/* 상담사 선택 (데스크탑에서만 표시) */}
-          {isDesktop && (
-            <div className="mt-4">
-              <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-4">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 overflow-hidden rounded-full bg-(--oboon-bg-subtle) shrink-0 flex items-center justify-center">
-                    <span className="ob-typo-subtitle text-(--oboon-text-title)">
-                      {selectedAgent?.name?.charAt(0) || "상"}
-                    </span>
-                  </div>
-                  <div>
-                    <div className="ob-typo-caption text-(--oboon-text-muted)">
-                      분양상담사
-                    </div>
-                    <div className="ob-typo-subtitle text-(--oboon-text-title)">
-                      {selectedAgent?.name || "상담사 선택"}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Date/Time */}
           <div className="mt-5">
             <div className="ob-typo-h3 text-(--oboon-text-title) mb-2">
@@ -634,38 +717,106 @@ export default function BookingModal({
             </div>
           )}
           
-          <div
-            className={[
-              "mt-3",
-              isDesktop ? "" : "grid grid-cols-2 gap-3",
-            ].join(" ")}
-          >
-            {!isDesktop && (
-              <Button
-                className="w-full"
-                variant="secondary"
-                size="md"
-                shape="pill"
-                onClick={() => setStep("agent")}
-              >
-                이전 단계
-              </Button>
-            )}
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <Button
+              className="w-full"
+              variant="secondary"
+              size="md"
+              shape="pill"
+              onClick={() => setStep("agent")}
+            >
+              이전 단계
+            </Button>
             <Button
               className="w-full"
               variant="primary"
               size="md"
               shape="pill"
               disabled={!canGoNext}
-              onClick={() => setStep("confirm")}
+              onClick={handleTimeNext}
             >
               다음 단계
             </Button>
           </div>
         </>
+      ) : step === "bank" ? (
+        <>
+          <div className="mt-5">
+            <div className="ob-typo-h3 text-(--oboon-text-title) mb-2">
+              정산 계좌 정보 입력
+            </div>
+            <div className="ob-typo-caption text-(--oboon-text-muted)">
+              방문 보상금 지급을 위해 은행과 계좌번호를 입력해주세요.
+            </div>
+
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="ob-typo-caption text-(--oboon-text-muted)">
+                  은행
+                </label>
+                <input
+                  type="text"
+                  value={bankName}
+                  onChange={(e) => setBankName(e.target.value)}
+                  placeholder="OO은행"
+                  className="mt-1 w-full rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-2.5 ob-typo-body text-(--oboon-text-title) outline-none focus:border-(--oboon-primary)"
+                />
+              </div>
+
+              <div>
+                <label className="ob-typo-caption text-(--oboon-text-muted)">
+                  계좌번호
+                </label>
+                <input
+                  type="text"
+                  value={bankAccountNumber}
+                  onChange={(e) => setBankAccountNumber(e.target.value)}
+                  placeholder="123-456-789012"
+                  className="mt-1 w-full rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-2.5 ob-typo-body text-(--oboon-text-title) outline-none focus:border-(--oboon-primary)"
+                />
+              </div>
+            </div>
+          </div>
+
+          {error && (
+            <div className="mt-4 rounded-xl border border-(--oboon-danger) bg-(--oboon-danger)/10 px-4 py-3 ob-typo-caption text-(--oboon-danger)">
+              {error}
+            </div>
+          )}
+
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <Button
+              className="w-full"
+              variant="secondary"
+              size="md"
+              shape="pill"
+              onClick={() => setStep("time")}
+              disabled={bankSaving}
+            >
+              이전 단계
+            </Button>
+            <Button
+              className="w-full"
+              variant="primary"
+              size="md"
+              shape="pill"
+              disabled={!hasBankInfo || bankSaving}
+              onClick={handleSaveBankAndNext}
+            >
+              {bankSaving ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  저장 중...
+                </span>
+              ) : (
+                "저장하고 다음"
+              )}
+            </Button>
+          </div>
+        </>
       ) : (
         <>
-          <Card className="bg-(--oboon-bg-surface) p-2 sm:p-4 mt-4">
+          <Card className="bg-(--oboon-bg-subtle) p-3 sm:p-4 mt-3 border border-(--oboon-border-default) shadow-none">
             <div className="flex items-center gap-3">
               <div className="h-16 w-16 rounded-xl bg-(--oboon-bg-subtle) overflow-hidden flex items-center justify-center">
                 {propertyImageUrl ? (
@@ -684,8 +835,8 @@ export default function BookingModal({
                       maskRepeat: "no-repeat",
                       WebkitMaskPosition: "center",
                       maskPosition: "center",
-                      WebkitMaskSize: isDesktop ? "50%" : "40%",
-                      maskSize: isDesktop ? "50%" : "40%",
+                      WebkitMaskSize: "40%",
+                      maskSize: "40%",
                       backgroundColor: "var(--oboon-text-muted)",
                     }}
                     aria-hidden="true"
@@ -699,7 +850,7 @@ export default function BookingModal({
                 <div
                   className={[
                     "mt-1 flex items-center gap-2 text-(--oboon-text-muted)",
-                    isDesktop ? "ob-typo-body" : "ob-typo-caption",
+                    "ob-typo-body",
                   ].join(" ")}
                 >
                   <CalendarDays className="h-4 w-4 shrink-0" />
@@ -718,47 +869,97 @@ export default function BookingModal({
                 <div
                   className={[
                     "mt-1 flex items-center gap-2 text-(--oboon-text-muted)",
-                    isDesktop ? "ob-typo-body" : "ob-typo-caption",
+                    "ob-typo-body",
                     ].join(" ")}
                 >
                   <User className="h-4 w-4 shrink-0" />
                   <span className="leading-none">
-                    상담사: {selectedAgent?.name || "-"}
+                    상담사 : {selectedAgent?.name || "-"}
                   </span>
                 </div>
               </div>
             </div>
           </Card>
 
-          <div className="mt-6">
-            <div className="ob-typo-h3 text-(--oboon-text-title) mb-2">
-              {terms?.title || "예약 안내사항"}
-            </div>
-            <div
-              className={[
-                "rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-4 py-4 text-(--oboon-text-muted) max-h-48 overflow-y-auto whitespace-pre-wrap",
-                isDesktop ? "ob-typo-body" : "ob-typo-caption",
-              ].join(" ")}
-            >
-              {terms?.content || "약관을 불러오는 중..."}
+          <div className="mt-3">
+            <div className="mt-3 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-4 py-3">
+              <div className="ob-typo-subtitle text-(--oboon-text-title)">
+                예약금 입금 안내
+              </div>
+              <div className="mt-4 ob-typo-h3 text-(--oboon-text-title) text-center">
+                토스뱅크 1002-3131-0563
+                <br/>
+                <span className="mt-2 inline-flex items-center gap-10">
+                  <span>OBOON</span>
+                  <span>1,000원</span>
+                </span>
+              </div>
+              <ul className="mt-4 list-disc space-y-1 pl-5 ob-typo-body text-(--oboon-text-muted)">
+                <li>예약 후 실제 방문이 확인되면, 프로필에 등록된 계좌로 방문 보상금 10,000원이 지급됩니다.</li>
+              </ul>
             </div>
 
-            <label className="mt-4 flex items-center gap-2 cursor-pointer">
+            <div className="mt-3 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-4 py-3">
+              <div className="ob-typo-subtitle text-(--oboon-text-title)">
+                포인트 예약 안내
+              </div>
+              <ul className="mt-2 list-disc space-y-1 pl-5 ob-typo-body text-(--oboon-text-muted)">
+                <li>포인트로 예약하면 관리자 승인 없이 즉시 예약이 진행됩니다.</li>
+                <li>고객 사유 취소 시 결제된 예약금 1,000원은 1,000P로 전환됩니다.</li>
+              </ul>
+            </div>
+
+            <div className="mt-3 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-4 py-4">
+              <button
+                type="button"
+                className="flex w-full items-center justify-between gap-3 text-left"
+                onClick={() => setTermsAccordionOpen((prev) => !prev)}
+                aria-expanded={termsAccordionOpen}
+              >
+                <span className="ob-typo-subtitle text-(--oboon-text-title)">
+                  고객 예약 전 필수 동의 약관 (베타운영)
+                </span>
+                <ChevronDown
+                  className={[
+                    "h-5 w-5 text-(--oboon-text-muted) transition-transform duration-200",
+                    termsAccordionOpen ? "rotate-180" : "",
+                  ].join(" ")}
+                />
+              </button>
+              <div
+                className={[
+                  "overflow-hidden transition-all duration-200",
+                  termsAccordionOpen ? "max-h-72 mt-3" : "max-h-0",
+                ].join(" ")}
+              >
+                <div
+                  className={[
+                    "max-h-48 overflow-y-auto whitespace-pre-wrap text-(--oboon-text-body)",
+                    "ob-typo-body",
+                  ].join(" ")}
+                >
+                  {terms?.content || "약관을 불러오는 중..."}
+                </div>
+              </div>
+            </div>
+
+            <div
+              className={[
+                "mt-3 flex items-center gap-2 rounded-xl px-1",
+                "text-(--oboon-text-title)",
+                "ob-typo-body",
+              ].join(" ")}
+            >
+              <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
                 checked={agreedToTerms}
                 onChange={(e) => setAgreedToTerms(e.target.checked)}
                 className="w-5 h-5 rounded border-(--oboon-border-default) accent-(--oboon-primary)"
               />
-              <span
-                className={[
-                  "text-(--oboon-text-title)",
-                  isDesktop ? "ob-typo-body" : "ob-typo-caption",
-                ].join(" ")}
-              >
-                위 내용을 확인하였으며 동의합니다
-              </span>
-            </label>
+                <span>위 내용을 확인하였으며 동의합니다</span>
+              </label>
+            </div>
           </div>
 
           {/* 에러 메시지 */}
@@ -768,7 +969,7 @@ export default function BookingModal({
             </div>
           )}
 
-          <div className="mt-6 grid grid-cols-2 gap-3">
+          <div className="mt-3 grid grid-cols-2 gap-3">
             <Button
               className="w-full"
               variant="secondary"
@@ -792,12 +993,137 @@ export default function BookingModal({
                   예약 중...
                 </span>
               ) : (
-                "예약 신청"
+                "예약금 입금 완료"
               )}
             </Button>
           </div>
         </>
       )}
+      </Modal>
+
+      <Modal
+        open={Boolean(previewAgent)}
+        onClose={() => setPreviewAgent(null)}
+      >
+        {previewAgent ? (
+          <>
+            <div className="ob-typo-h2 text-(--oboon-text-title)">
+              상담사 프로필
+            </div>
+
+            <div className="mt-5 flex items-center gap-3">
+              <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle) text-(--oboon-text-title) flex items-center justify-center ob-typo-subtitle">
+                {previewAgent.name?.slice(0, 1) || "상"}
+              </div>
+              <div>
+                <div className="ob-typo-caption text-(--oboon-text-muted)">
+                  분양상담사
+                </div>
+                <div className="ob-typo-subtitle text-(--oboon-text-title)">
+                  {previewAgent.name}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 whitespace-pre-line ob-typo-body text-(--oboon-text-title)">
+              {previewAgent.agent_bio?.trim() || "등록된 상담사 소개가 없습니다."}
+            </div>
+
+            {(agentGalleryMap[previewAgent.id] || []).length > 0 ? (
+              <div className="mt-6">
+                <div className="ob-typo-subtitle text-(--oboon-text-title)">
+                  추가 사진
+                </div>
+                <div className="mt-3 -mx-1 overflow-x-auto pb-1">
+                  <div className="flex gap-2 px-1">
+                    {(agentGalleryMap[previewAgent.id] || []).slice(0, 10).map((image, index) => (
+                      <button
+                        key={`${image.user_id}-${image.sort_order}-${index}`}
+                        type="button"
+                        className="h-36 w-36 shrink-0 overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle)"
+                        onClick={() => {
+                          const urls = (agentGalleryMap[previewAgent.id] || [])
+                            .slice(0, 10)
+                            .map((item) => item.image_url);
+                          setPreviewImages(urls);
+                          setPreviewImageIndex(index);
+                        }}
+                        aria-label={`${previewAgent.name} 상담사 추가 사진 ${index + 1} 확대 보기`}
+                      >
+                        <img
+                          src={image.image_url}
+                          alt={`${previewAgent.name} 상담사 추가 사진 ${index + 1}`}
+                          className="h-full w-full object-cover"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </>
+        ) : null}
+      </Modal>
+
+      <Modal
+        open={previewImageIndex !== null}
+        onClose={() => {
+          setPreviewImageIndex(null);
+          setPreviewImages([]);
+        }}
+        showCloseIcon={false}
+        panelClassName="!p-0 !border-0 !bg-transparent !shadow-none w-[min(100%-2rem,920px)] !overflow-visible"
+      >
+        {previewImageIndex !== null && previewImages[previewImageIndex] ? (
+          <div className="flex items-center justify-center">
+            <div className="relative inline-block">
+              <img
+                src={previewImages[previewImageIndex]}
+                alt="상담사 추가 사진 확대 보기"
+                className="max-h-[80vh] max-w-[min(100%,920px)] h-auto w-auto rounded-xl"
+              />
+              <button
+                type="button"
+                className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/50 text-white"
+                onClick={() => {
+                  setPreviewImageIndex(null);
+                  setPreviewImages([]);
+                }}
+                aria-label="닫기"
+              >
+                <X className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                className="absolute left-3 top-1/2 -translate-y-1/2 inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white"
+                onClick={() =>
+                  setPreviewImageIndex((prev) => {
+                    if (prev == null) return prev;
+                    if (previewImages.length === 0) return prev;
+                    return (prev - 1 + previewImages.length) % previewImages.length;
+                  })
+                }
+                aria-label="이전 사진"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                className="absolute right-3 top-1/2 -translate-y-1/2 inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white"
+                onClick={() =>
+                  setPreviewImageIndex((prev) => {
+                    if (prev == null) return prev;
+                    if (previewImages.length === 0) return prev;
+                    return (prev + 1) % previewImages.length;
+                  })
+                }
+                aria-label="다음 사진"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+        ) : null}
       </Modal>
 
       <MyConsultationsModal

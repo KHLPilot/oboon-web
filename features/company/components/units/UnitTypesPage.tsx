@@ -291,7 +291,6 @@ export default function UnitTypesPage() {
                 {/* 타입명 + 에러 */}
                 <FormField label="평면 타입 이름" className="gap-2">
                   <Input
-                    className="h-11"
                     placeholder="예: 76C"
                     value={createDraft.type_name ?? ""}
                     onChange={(e) =>
@@ -311,7 +310,6 @@ export default function UnitTypesPage() {
                 {/* 전용면적 + 평 */}
                 <FormField label="전용 면적 (㎡)" className="gap-2">
                   <Input
-                    className="h-11"
                     placeholder="예: 75.5"
                     inputMode="decimal"
                     value={exclusiveAreaText}
@@ -334,7 +332,6 @@ export default function UnitTypesPage() {
                 {/* 공급면적 + 평 */}
                 <FormField label="공급 면적 (㎡)" className="gap-2">
                   <Input
-                    className="h-11"
                     placeholder="예: 92.3"
                     inputMode="decimal"
                     value={supplyAreaText}
@@ -358,7 +355,6 @@ export default function UnitTypesPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <FormField label="방 개수" className="gap-2">
                     <Input
-                      className="h-11"
                       inputMode="numeric"
                       value={
                         createDraft.rooms == null
@@ -376,7 +372,6 @@ export default function UnitTypesPage() {
 
                   <FormField label="욕실 개수" className="gap-2">
                     <Input
-                      className="h-11"
                       inputMode="numeric"
                       value={
                         createDraft.bathrooms == null
@@ -396,7 +391,6 @@ export default function UnitTypesPage() {
                 {/* 구조 */}
                 <FormField label="구조" className="gap-2">
                   <Input
-                    className="h-11"
                     placeholder="예: 판상형"
                     value={createDraft.building_layout ?? ""}
                     onChange={(e) =>
@@ -411,7 +405,6 @@ export default function UnitTypesPage() {
                 {/* 향 */}
                 <FormField label="향" className="gap-2">
                   <Input
-                    className="h-11"
                     placeholder="예: 남향"
                     value={createDraft.orientation ?? ""}
                     onChange={(e) =>
@@ -428,7 +421,6 @@ export default function UnitTypesPage() {
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <FormField label="가격 하한 (원)" className="gap-2">
                       <Input
-                        className="h-11"
                         placeholder="예: 850000000"
                         inputMode="numeric"
                         value={
@@ -452,7 +444,6 @@ export default function UnitTypesPage() {
 
                     <FormField label="가격 상한 (원)" className="gap-2">
                       <Input
-                        className="h-11"
                         placeholder="예: 990000000"
                         inputMode="numeric"
                         value={
@@ -485,7 +476,6 @@ export default function UnitTypesPage() {
                 {/* 세대수 */}
                 <FormField label="세대수" className="gap-2">
                   <Input
-                    className="h-11"
                     inputMode="numeric"
                     value={
                       createDraft.unit_count == null
@@ -504,7 +494,6 @@ export default function UnitTypesPage() {
                 {/* 공급규모 */}
                 <FormField label="공급규모" className="gap-2">
                   <Input
-                    className="h-11"
                     placeholder="예: 100"
                     inputMode="numeric"
                     value={

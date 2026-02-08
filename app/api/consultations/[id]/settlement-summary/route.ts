@@ -69,6 +69,15 @@ export async function GET(
           getAll() {
             return cookieStore.getAll();
           },
+          setAll(cookiesToSet) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) => {
+                cookieStore.set(name, value, options);
+              });
+            } catch {
+              // 읽기 전용 컨텍스트에서는 무시
+            }
+          },
         },
       },
     );
@@ -135,18 +144,14 @@ export async function GET(
 
     const isDepositPaid = depositPaidAmount > 0;
 
-    const cancelledEarlyEnough =
-      c.status === "cancelled" &&
-      c.cancelled_by === "customer" &&
-      Boolean(c.cancelled_at && c.scheduled_at) &&
-      new Date(c.scheduled_at!).getTime() - new Date(c.cancelled_at!).getTime() >=
-        48 * 60 * 60 * 1000;
+    const cancelledByCustomer =
+      c.status === "cancelled" && c.cancelled_by === "customer";
     const cancelledByAgentOrAdmin =
       c.status === "cancelled" &&
       (c.cancelled_by === "agent" || c.cancelled_by === "admin");
     const agentNoShowRefundable = c.status === "no_show" && c.no_show_by === "agent";
     const cancelledRefundableByActor =
-      cancelledByAgentOrAdmin || cancelledEarlyEnough;
+      cancelledByAgentOrAdmin || cancelledByCustomer;
     const cancelledRefundableFallback =
       c.status === "cancelled" &&
       c.cancelled_by === null &&
@@ -195,6 +200,9 @@ export async function GET(
       deposit_amount: depositPaidAmount,
       is_deposit_paid: isDepositPaid,
       deposit_paid_at: depositPaidAt,
+      refund_method: isCashRefundCase ? "cash" : "point",
+      point_converted_amount: depositPointGrantedAmount,
+      point_converted_at: depositPointGrantedAt,
       refundable_point_amount: refundablePointAmount,
       is_refund_eligible: isRefundEligible,
       is_refund_pending: isRefundPending,

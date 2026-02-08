@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
+import Textarea from "@/components/ui/Textarea";
 import Label from "@/components/ui/Label";
 import { Badge } from "@/components/ui/Badge";
 import Modal from "@/components/ui/Modal";
@@ -539,7 +540,7 @@ export default function PostEditorClient({ bootstrap, onCreate }: Props) {
             </div>
 
             {tab === "write" ? (
-              <textarea
+              <Textarea
                 value={contentMd}
                 onChange={(e) => setContentMd(e.target.value)}
                 rows={14}

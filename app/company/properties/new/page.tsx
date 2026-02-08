@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/Badge";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Label from "@/components/ui/Label";
+import Textarea from "@/components/ui/Textarea";
 import PageContainer from "@/components/shared/PageContainer";
 
 import { fetchCompanyUserId } from "@/features/company/services/company.auth";
@@ -142,6 +143,24 @@ export default function PropertyCreatePage() {
 
     const propertyId = data.id as number;
 
+    // 상담사 계정인 경우: 새 현장 등록 직후 자동 소속 시도
+    try {
+      const affiliationResponse = await fetch("/api/property-agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          property_id: propertyId,
+          change_request: false,
+        }),
+      });
+      if (!affiliationResponse.ok) {
+        const affiliationData = await affiliationResponse.json().catch(() => null);
+        console.error("자동 소속 처리 실패:", affiliationData);
+      }
+    } catch (affiliationError) {
+      console.error("자동 소속 API 호출 오류:", affiliationError);
+    }
+
     // 대표 이미지 업로드 (선택)
     if (mainImageFile) {
       const fd = new FormData();
@@ -202,7 +221,7 @@ export default function PropertyCreatePage() {
             </div>
             <Field label="현장명" required>
               <Input
-                className="h-11"
+                
                 value={form.name}
                 placeholder="예) 더샵 아르테 미사, 힐스테이트 광안"
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -292,7 +311,7 @@ export default function PropertyCreatePage() {
 
             <Field label="분양 유형">
               <Input
-                className="h-11"
+                
                 placeholder="예) 아파트 / 오피스텔 / 상업시설"
                 value={form.property_type}
                 onChange={(e) =>
@@ -304,7 +323,7 @@ export default function PropertyCreatePage() {
 
             <Field label="대표 연락처">
               <Input
-                className="h-11"
+                
                 placeholder="예) 1661-0000"
                 value={form.phone_number}
                 onChange={(e) =>
@@ -323,7 +342,7 @@ export default function PropertyCreatePage() {
             </Field>
 
             <Field label="설명">
-              <textarea
+              <Textarea
                 className={cn(TEXTAREA_BASE, "min-h-25")}
                 placeholder="현장의 주요 특장점과 간단 설명"
                 value={form.description}
