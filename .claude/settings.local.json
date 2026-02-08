@@ -17,7 +17,18 @@
       "Bash(git clean:*)",
       "Bash(git pull:*)",
       "Bash(pnpm lint:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(supabase projects:*)",
+      "Bash(supabase db diff:*)",
+      "Bash(supabase db remote commit:*)",
+      "Bash(supabase db pull:*)",
+      "Bash(docker --version:*)",
+      "Bash(brew install:*)",
+      "Bash(supabase start:*)",
+      "Bash(supabase stop:*)",
+      "Bash(supabase status:*)",
+      "Bash(supabase db reset:*)",
+      "Bash(PGPASSWORD=postgres psql:*)"
     ]
   }
 }

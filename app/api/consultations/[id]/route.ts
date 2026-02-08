@@ -397,6 +397,27 @@ export async function PATCH(
             }
         }
 
+        // 고객 알림: 예약 확정
+        if (status === "confirmed") {
+            const { data: property } = await adminSupabase
+                .from("properties")
+                .select("id, name")
+                .eq("id", existingConsultation.property_id)
+                .single();
+
+            const notification = {
+                recipient_id: existingConsultation.customer_id,
+                type: "consultation_confirmed",
+                title: "상담 예약이 확정되었습니다",
+                message: `${property?.name ?? "현장"} 상담 예약이 확정되었습니다.`,
+                consultation_id: id,
+                metadata: {
+                    property_id: existingConsultation.property_id,
+                },
+            };
+            await adminSupabase.from("notifications").insert(notification);
+        }
+
         // 상담사가 예약 확정 시 약관 동의 기록 저장 (법적 증거용)
         if (status === "confirmed" && isAgent) {
             const ipAddress =

@@ -203,6 +203,71 @@ DB 마이그레이션 후 `docs/db/` JSON 파일 업데이트 시:
 
 ---
 
+## Supabase DB 관리 (필수 규칙)
+
+### 프로젝트 구성
+
+| 환경 | Project Ref | 용도 |
+|------|-------------|------|
+| 테스트 | `ketjqhoeucxmxgnutlww` | 개발/테스트 (기본 연결) |
+| 메인 | `kjxoszqhofahjorbufhh` | 프로덕션 (배포 시에만) |
+
+### 테스트 DB 우선 정책 (Critical)
+
+**모든 DB 변경은 반드시 테스트 DB에서 먼저 검증 후 메인 DB에 적용한다.**
+
+```
+[개발] 로컬 DB → [테스트] 테스트 DB → [배포] 메인 DB
+```
+
+- 메인 DB 직접 수정 금지
+- 테스트 완료 전 메인 DB push 금지
+- 마이그레이션 파일은 타임스탬프 형식 사용 (`YYYYMMDDHHMMSS_name.sql`)
+
+### 로컬 개발 환경
+
+```bash
+supabase start              # 로컬 DB 시작
+supabase stop               # 로컬 DB 종료
+supabase db reset           # 로컬 DB 초기화 (마이그레이션 재적용)
+supabase status             # 서비스 상태 확인
+```
+
+### 마이그레이션 워크플로우
+
+```bash
+# 1. 로컬에서 스키마 변경 후 diff
+supabase db diff -f 014_feature_name
+
+# 2. 테스트 DB에 적용
+supabase link --project-ref ketjqhoeucxmxgnutlww
+supabase db push
+
+# 3. 테스트 완료 후 메인 DB에 적용
+supabase link --project-ref kjxoszqhofahjorbufhh
+supabase db push
+
+# 4. 커밋
+git add supabase/migrations && git commit
+```
+
+### 유용한 명령어
+
+```bash
+supabase db push            # 마이그레이션 원격 적용
+supabase db push --dry-run  # 적용 전 미리보기 (위험한 변경 확인)
+supabase db pull            # 원격 스키마를 로컬로
+supabase db diff            # 로컬 vs 원격 차이
+```
+
+### 주의사항
+
+- `supabase db push`는 새 마이그레이션만 적용 (이미 적용된 건 스킵)
+- DROP/ALTER 등 위험한 변경은 `--dry-run`으로 먼저 확인
+- 두 DB 동기화: 같은 마이그레이션 파일을 양쪽에 push
+
+---
+
 ## 참고 문서
 
 - `docs/db/README.md` — DB/RLS 정책 SSOT

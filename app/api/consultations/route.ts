@@ -181,6 +181,20 @@ export async function POST(req: Request) {
         }));
         await adminSupabase.from("notifications").insert(notifications);
       }
+
+      // 상담사 알림: 신규 예약 요청
+      const agentNotification = {
+        recipient_id: agent_id,
+        type: "consultation_request",
+        title: "새로운 상담 예약 요청",
+        message: `${property?.name ?? "현장"} 상담 예약 요청이 들어왔습니다.`,
+        consultation_id: consultation.id,
+        metadata: {
+          property_id,
+          scheduled_at: scheduledDate.toISOString(),
+        },
+      };
+      await adminSupabase.from("notifications").insert(agentNotification);
     }
 
     return NextResponse.json({

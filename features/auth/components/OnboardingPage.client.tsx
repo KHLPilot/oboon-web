@@ -85,6 +85,16 @@ export default function OnboardingPage() {
   const [nicknameAvailable, setNicknameAvailable] = useState<boolean | null>(
     null,
   );
+  const [nicknameFormatError, setNicknameFormatError] = useState<string | null>(
+    null,
+  );
+
+  // 약관 전문보기 모달
+  const [termModal, setTermModal] = useState<{
+    title: string;
+    content: string;
+  } | null>(null);
+  const [termLoading, setTermLoading] = useState(false);
 
   // FieldErrorBubble
   const cardWrapRef = useRef<HTMLDivElement | null>(null);
@@ -120,6 +130,7 @@ export default function OnboardingPage() {
       if (field === "nickname") {
         setNickname(sanitized);
         setNicknameAvailable(null);
+        setNicknameFormatError(null);
       }
       if (field === "phone") setPhoneNumber(sanitized);
 
@@ -181,19 +192,44 @@ export default function OnboardingPage() {
 
   const canSubmit = useMemo(() => Boolean(userId && email), [userId, email]);
 
+  // 다른 계정으로 로그인 (로그아웃)
+  async function handleSwitchAccount() {
+    await supabase.auth.signOut();
+    router.push("/auth/login");
+  }
+
+  // 약관 전문보기
+  async function openTermDetail(type: string, title: string) {
+    setTermLoading(true);
+    try {
+      const res = await fetch(`/api/terms?type=${type}`);
+      const { terms } = await res.json();
+      if (terms?.[0]) {
+        setTermModal({ title, content: terms[0].content });
+      } else {
+        setFatalError("약관 내용을 불러올 수 없습니다.");
+      }
+    } catch {
+      setFatalError("약관 내용을 불러오는 중 오류가 발생했습니다.");
+    } finally {
+      setTermLoading(false);
+    }
+  }
+
   // 닉네임 중복 체크
   const checkNickname = async () => {
     clearFieldError();
+    setNicknameFormatError(null);
 
     if (!validateRequiredOrShowModal(nickname, "닉네임")) {
       setNicknameAvailable(null);
       return;
     }
 
-    const nicknameError = validateNickname(nickname);
-    if (nicknameError) {
-      setErrors((prev) => ({ ...prev, nickname: nicknameError }));
-      openFieldError("nickname", nicknameError);
+    const nicknameValidationError = validateNickname(nickname);
+    if (nicknameValidationError) {
+      setNicknameAvailable(null);
+      setNicknameFormatError(nicknameValidationError);
       return;
     }
 
@@ -210,12 +246,6 @@ export default function OnboardingPage() {
       const available = Boolean(json?.available);
 
       setNicknameAvailable(available);
-
-      if (!available) {
-        const msg = "이미 사용 중인 닉네임입니다.";
-        setErrors((prev) => ({ ...prev, nickname: msg }));
-        openFieldError("nickname", msg);
-      }
     } catch {
       setFatalError("닉네임 중복 확인 중 오류가 발생했습니다.");
     } finally {
@@ -237,7 +267,10 @@ export default function OnboardingPage() {
       const nameError = validateName(name);
       if (nameError) nextErrors.name = nameError;
 
-      if (nickname) {
+      // 닉네임 필수 검증
+      if (!nickname) {
+        nextErrors.nickname = "닉네임을 입력해주세요.";
+      } else {
         const nicknameError = validateNickname(nickname);
         if (nicknameError) nextErrors.nickname = nicknameError;
       }
@@ -261,16 +294,18 @@ export default function OnboardingPage() {
         return;
       }
 
-      // 닉네임이 입력되어 있으면: 중복확인 완료를 요구 (기존 UX 유지)
-      if (nickname) {
-        if (nicknameAvailable === null) {
-          openFieldError("nickname", "닉네임 중복 확인을 먼저 해주세요.");
-          return;
-        }
-        if (nicknameAvailable === false) {
-          openFieldError("nickname", "이미 사용 중인 닉네임입니다.");
-          return;
-        }
+      // 닉네임 중복확인 필수
+      if (nicknameAvailable === null) {
+        openFieldError("nickname", "닉네임 중복 확인을 먼저 해주세요.");
+        return;
+      }
+      if (nicknameAvailable === false) {
+        openFieldError("nickname", "이미 사용 중인 닉네임입니다.");
+        return;
+      }
+      if (nicknameFormatError) {
+        openFieldError("nickname", nicknameFormatError);
+        return;
       }
 
       const {
@@ -339,9 +374,17 @@ export default function OnboardingPage() {
               서비스 이용을 위해 추가 정보를 입력해주세요
             </p>
             {email ? (
-              <p className="mt-4 ob-typo-body text-(--oboon-text-title)">
-                {email}
-              </p>
+              <div className="mt-4">
+                <p className="ob-typo-body text-(--oboon-text-title)">{email}</p>
+                <button
+                  type="button"
+                  className="mt-2 ob-typo-caption text-(--oboon-text-muted) underline underline-offset-4 hover:text-(--oboon-primary) transition-colors"
+                  onClick={handleSwitchAccount}
+                  disabled={loading}
+                >
+                  다른 계정으로 로그인
+                </button>
+              </div>
             ) : null}
           </div>
 
@@ -383,7 +426,7 @@ export default function OnboardingPage() {
 
                 {/* 닉네임 + 중복확인 */}
                 <div>
-                  <Label>닉네임 (선택)</Label>
+                  <Label>닉네임 *</Label>
 
                   <div className="flex gap-2">
                     <Input
@@ -419,12 +462,23 @@ export default function OnboardingPage() {
                   </div>
 
                   {nickname ? (
-                    <div className="mt-2 ob-typo-caption text-(--oboon-text-muted)">
-                      {nicknameAvailable === true
-                        ? "사용 가능한 닉네임입니다."
-                        : nicknameAvailable === false
-                          ? "이미 사용 중인 닉네임입니다."
-                          : "닉네임 중복 확인을 진행해주세요."}
+                    <div
+                      className={cx(
+                        "mt-2 ob-typo-caption",
+                        nicknameFormatError || nicknameAvailable === false
+                          ? "text-(--oboon-danger)"
+                          : nicknameAvailable === true
+                            ? "text-(--oboon-success)"
+                            : "text-(--oboon-text-muted)",
+                      )}
+                    >
+                      {nicknameFormatError
+                        ? nicknameFormatError
+                        : nicknameAvailable === true
+                          ? "사용 가능한 닉네임입니다."
+                          : nicknameAvailable === false
+                            ? "이미 사용 중인 닉네임입니다."
+                            : "닉네임 중복 확인을 진행해주세요."}
                     </div>
                   ) : null}
                 </div>
@@ -471,57 +525,111 @@ export default function OnboardingPage() {
                   </label>
 
                   <div className="ml-6 space-y-1.5">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={agreements.terms}
-                        onChange={() => handleToggle("terms")}
-                        disabled={!canSubmit || loading}
-                        className="h-4 w-4 rounded border-(--oboon-border-default) accent-(--oboon-primary)"
-                      />
-                      <span className="ob-typo-caption text-(--oboon-text-muted)">
-                        [필수] 서비스 이용약관 동의
-                      </span>
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={agreements.terms}
+                          onChange={() => handleToggle("terms")}
+                          disabled={!canSubmit || loading}
+                          className="h-4 w-4 rounded border-(--oboon-border-default) accent-(--oboon-primary)"
+                        />
+                        <span className="ob-typo-caption text-(--oboon-text-muted)">
+                          [필수] 서비스 이용약관 동의
+                        </span>
+                      </label>
+                      <button
+                        type="button"
+                        className="ob-typo-caption text-(--oboon-text-muted) underline underline-offset-2 hover:text-(--oboon-primary) transition-colors"
+                        onClick={() =>
+                          openTermDetail("signup_terms", "서비스 이용약관")
+                        }
+                        disabled={termLoading}
+                      >
+                        전문보기
+                      </button>
+                    </div>
 
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={agreements.privacy}
-                        onChange={() => handleToggle("privacy")}
-                        disabled={!canSubmit || loading}
-                        className="h-4 w-4 rounded border-(--oboon-border-default) accent-(--oboon-primary)"
-                      />
-                      <span className="ob-typo-caption text-(--oboon-text-muted)">
-                        [필수] 개인정보 수집·이용 동의
-                      </span>
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={agreements.privacy}
+                          onChange={() => handleToggle("privacy")}
+                          disabled={!canSubmit || loading}
+                          className="h-4 w-4 rounded border-(--oboon-border-default) accent-(--oboon-primary)"
+                        />
+                        <span className="ob-typo-caption text-(--oboon-text-muted)">
+                          [필수] 개인정보 수집·이용 동의
+                        </span>
+                      </label>
+                      <button
+                        type="button"
+                        className="ob-typo-caption text-(--oboon-text-muted) underline underline-offset-2 hover:text-(--oboon-primary) transition-colors"
+                        onClick={() =>
+                          openTermDetail(
+                            "signup_privacy",
+                            "개인정보 수집·이용 동의",
+                          )
+                        }
+                        disabled={termLoading}
+                      >
+                        전문보기
+                      </button>
+                    </div>
 
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={agreements.location}
-                        onChange={() => handleToggle("location")}
-                        disabled={!canSubmit || loading}
-                        className="h-4 w-4 rounded border-(--oboon-border-default) accent-(--oboon-primary)"
-                      />
-                      <span className="ob-typo-caption text-(--oboon-text-muted)">
-                        [필수] 위치정보 이용 동의
-                      </span>
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={agreements.location}
+                          onChange={() => handleToggle("location")}
+                          disabled={!canSubmit || loading}
+                          className="h-4 w-4 rounded border-(--oboon-border-default) accent-(--oboon-primary)"
+                        />
+                        <span className="ob-typo-caption text-(--oboon-text-muted)">
+                          [필수] 위치정보 이용 동의
+                        </span>
+                      </label>
+                      <button
+                        type="button"
+                        className="ob-typo-caption text-(--oboon-text-muted) underline underline-offset-2 hover:text-(--oboon-primary) transition-colors"
+                        onClick={() =>
+                          openTermDetail("signup_location", "위치정보 이용 동의")
+                        }
+                        disabled={termLoading}
+                      >
+                        전문보기
+                      </button>
+                    </div>
 
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={agreements.marketing}
-                        onChange={() => handleToggle("marketing")}
-                        disabled={!canSubmit || loading}
-                        className="h-4 w-4 rounded border-(--oboon-border-default) accent-(--oboon-primary)"
-                      />
-                      <span className="ob-typo-caption text-(--oboon-text-muted)">
-                        [선택] 마케팅 정보 수신 동의
-                      </span>
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={agreements.marketing}
+                          onChange={() => handleToggle("marketing")}
+                          disabled={!canSubmit || loading}
+                          className="h-4 w-4 rounded border-(--oboon-border-default) accent-(--oboon-primary)"
+                        />
+                        <span className="ob-typo-caption text-(--oboon-text-muted)">
+                          [선택] 마케팅 정보 수신 동의
+                        </span>
+                      </label>
+                      <button
+                        type="button"
+                        className="ob-typo-caption text-(--oboon-text-muted) underline underline-offset-2 hover:text-(--oboon-primary) transition-colors"
+                        onClick={() =>
+                          openTermDetail(
+                            "signup_marketing",
+                            "마케팅 정보 수신 동의",
+                          )
+                        }
+                        disabled={termLoading}
+                      >
+                        전문보기
+                      </button>
+                    </div>
                   </div>
 
                   {agreementError ? (
@@ -572,6 +680,32 @@ export default function OnboardingPage() {
                   variant="primary"
                   className="w-full justify-center"
                   onClick={() => setFatalError(null)}
+                >
+                  확인
+                </Button>
+              </div>
+            </div>
+          </Modal>
+
+          {/* 약관 전문보기 모달 */}
+          <Modal
+            open={Boolean(termModal)}
+            onClose={() => setTermModal(null)}
+            size="lg"
+          >
+            <div className="space-y-3">
+              <div className="ob-typo-h2 text-(--oboon-text-title)">
+                {termModal?.title}
+              </div>
+              <div
+                className="ob-typo-body text-(--oboon-text-muted) max-h-96 overflow-y-auto whitespace-pre-wrap"
+                dangerouslySetInnerHTML={{ __html: termModal?.content ?? "" }}
+              />
+              <div className="mt-3 pt-3 border-t border-(--oboon-border-default)">
+                <Button
+                  variant="primary"
+                  className="w-full justify-center"
+                  onClick={() => setTermModal(null)}
                 >
                   확인
                 </Button>

@@ -201,8 +201,16 @@ export default function SignupPage() {
   }, [verification.isEmailSent, verification.token]);
 
   function validateStep1Inputs(): boolean {
-    // 입력 검증은 “필드 에러(bubble)” 우선, 시스템 오류(fatalError modal)는 최후에 사용
+    // 입력 검증은 "필드 에러(bubble)" 우선, 시스템 오류(fatalError modal)는 최후에 사용
     if (!validateRequiredOrShowModal(email, "이메일")) return false;
+
+    // 이메일 형식 검증
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      openFieldError("email", "이메일 형식이 올바르지 않습니다.");
+      return false;
+    }
+
     if (!validateRequiredOrShowModal(password, "비밀번호")) return false;
 
     const pwErr = validatePassword(password);
@@ -267,7 +275,14 @@ export default function SignupPage() {
       });
 
       if (signUpError) {
-        setFatalError("인증 실패: " + signUpError.message);
+        // Supabase 에러 메시지를 한글로 변환
+        let errorMsg = "회원가입에 실패했습니다. 다시 시도해주세요.";
+        if (signUpError.message.toLowerCase().includes("invalid email")) {
+          errorMsg = "이메일 형식이 올바르지 않습니다.";
+        } else if (signUpError.message.toLowerCase().includes("password")) {
+          errorMsg = "비밀번호가 요구사항을 충족하지 않습니다.";
+        }
+        setFatalError(errorMsg);
         return;
       }
 
