@@ -18,11 +18,38 @@ export async function POST(req: Request) {
       );
     }
 
-    // 1. profiles를 참조하는 테이블들 먼저 정리 (ON DELETE CASCADE가 아닌 것들)
-    // term_consents (user_id -> auth.users, ON DELETE CASCADE라서 OK)
-    // notifications, chat_messages, consultations 등은 ON DELETE CASCADE
+    // 1. profiles를 참조하는 테이블들 정리
+    // CASCADE가 아닌 FK들은 NULL로 설정하거나 레코드 삭제
 
-    // agent_profiles (id -> profiles, ON DELETE CASCADE)
+    // terms (updated_by, created_by -> profiles) - NULL로 설정
+    await supabaseAdmin.from("terms").update({ updated_by: null }).eq("updated_by", userId);
+    await supabaseAdmin.from("terms").update({ created_by: null }).eq("created_by", userId);
+
+    // properties (created_by -> profiles) - NULL로 설정
+    await supabaseAdmin.from("properties").update({ created_by: null }).eq("created_by", userId);
+
+    // property_agents (approved_by -> profiles) - NULL로 설정
+    await supabaseAdmin.from("property_agents").update({ approved_by: null }).eq("approved_by", userId);
+
+    // consultation_logs (actor_id, admin_id -> profiles) - NULL로 설정
+    await supabaseAdmin.from("consultation_logs").update({ actor_id: null }).eq("actor_id", userId);
+    await supabaseAdmin.from("consultation_logs").update({ admin_id: null }).eq("admin_id", userId);
+
+    // consultation_penalty_logs (target_profile_id, processed_by -> profiles)
+    await supabaseAdmin.from("consultation_penalty_logs").delete().eq("target_profile_id", userId);
+    await supabaseAdmin.from("consultation_penalty_logs").update({ processed_by: null }).eq("processed_by", userId);
+
+    // visit_confirm_requests (resolved_by -> profiles) - NULL로 설정
+    await supabaseAdmin.from("visit_confirm_requests").update({ resolved_by: null }).eq("resolved_by", userId);
+
+    // briefing_posts (author_id -> profiles) - NULL로 설정
+    await supabaseAdmin.from("briefing_posts").update({ author_id: null }).eq("author_id", userId);
+
+    // faq_questions (author_profile_id -> profiles) - NULL로 설정
+    await supabaseAdmin.from("faq_questions").update({ author_profile_id: null }).eq("author_profile_id", userId);
+
+    // 2. ON DELETE CASCADE가 있지만 명시적으로 삭제
+    // agent_profiles (id -> profiles)
     await supabaseAdmin.from("agent_profiles").delete().eq("id", userId);
 
     // property_agents (agent_id -> profiles)
@@ -37,47 +64,60 @@ export async function POST(req: Request) {
     // profile_gallery_images (user_id -> profiles)
     await supabaseAdmin.from("profile_gallery_images").delete().eq("user_id", userId);
 
-    // community_posts (author_profile_id -> profiles)
+    // community_posts - 댓글, 좋아요, 북마크 먼저 삭제
+    const { data: posts } = await supabaseAdmin
+      .from("community_posts")
+      .select("id")
+      .eq("author_profile_id", userId);
+    if (posts && posts.length > 0) {
+      const postIds = posts.map((p) => p.id);
+      await supabaseAdmin.from("community_post_comments").delete().in("post_id", postIds);
+      await supabaseAdmin.from("community_post_likes").delete().in("post_id", postIds);
+      await supabaseAdmin.from("community_post_bookmarks").delete().in("post_id", postIds);
+    }
+    await supabaseAdmin.from("community_post_comments").delete().eq("author_profile_id", userId);
+    await supabaseAdmin.from("community_post_likes").delete().eq("profile_id", userId);
+    await supabaseAdmin.from("community_post_bookmarks").delete().eq("profile_id", userId);
     await supabaseAdmin.from("community_posts").delete().eq("author_profile_id", userId);
 
-    // qna_questions, qna_answers, faq_questions (author_profile_id -> profiles) - SET NULL이 아니면
+    // qna - 답변 먼저, 그 다음 질문
     await supabaseAdmin.from("qna_answers").delete().eq("author_profile_id", userId);
     await supabaseAdmin.from("qna_questions").delete().eq("author_profile_id", userId);
 
-    // notifications (recipient_id -> profiles)
+    // notifications
     await supabaseAdmin.from("notifications").delete().eq("recipient_id", userId);
 
-    // visit_confirm_requests (customer_id, agent_id -> profiles)
+    // visit_confirm_requests
     await supabaseAdmin.from("visit_confirm_requests").delete().eq("customer_id", userId);
     await supabaseAdmin.from("visit_confirm_requests").delete().eq("agent_id", userId);
 
-    // visits (agent_id, customer_id -> profiles)
+    // visits
     await supabaseAdmin.from("visits").delete().eq("agent_id", userId);
     await supabaseAdmin.from("visits").delete().eq("customer_id", userId);
 
-    // visit_tokens (agent_id -> profiles)
+    // visit_tokens
     await supabaseAdmin.from("visit_tokens").delete().eq("agent_id", userId);
 
-    // chat_messages (sender_id -> profiles)
+    // chat_messages
     await supabaseAdmin.from("chat_messages").delete().eq("sender_id", userId);
 
-    // reservations (customer_id, agent_id -> profiles)
+    // reservations
     await supabaseAdmin.from("reservations").delete().eq("customer_id", userId);
     await supabaseAdmin.from("reservations").delete().eq("agent_id", userId);
 
-    // consultations (customer_id, agent_id -> profiles) - 채팅룸 먼저 삭제
+    // consultations - 채팅룸 먼저 삭제
     const { data: consultations } = await supabaseAdmin
       .from("consultations")
       .select("id")
       .or(`customer_id.eq.${userId},agent_id.eq.${userId}`);
-
     if (consultations && consultations.length > 0) {
       const consultationIds = consultations.map((c) => c.id);
       await supabaseAdmin.from("chat_rooms").delete().in("consultation_id", consultationIds);
+      await supabaseAdmin.from("consultation_logs").delete().in("consultation_id", consultationIds);
       await supabaseAdmin.from("consultations").delete().in("id", consultationIds);
     }
 
-    // term_consents (user_id -> auth.users, 별도 처리)
+    // term_consents
     await supabaseAdmin.from("term_consents").delete().eq("user_id", userId);
 
     // 2. profiles 레코드 삭제
