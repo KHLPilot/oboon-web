@@ -18,18 +18,16 @@ export async function POST(req: Request) {
       );
     }
 
-    // 1. auth.users ban 해제
+    // 1. auth.users ban 해제 (기존에 ban된 계정 대응)
+    // ban_duration: "none"은 ban 해제를 의미
     const { error: unbanError } = await supabaseAdmin.auth.admin.updateUserById(
       userId,
       { ban_duration: "none" }
     );
 
     if (unbanError) {
-      console.error("Ban 해제 실패:", unbanError);
-      return NextResponse.json(
-        { error: "계정 복구 실패" },
-        { status: 500 }
-      );
+      // ban 해제 실패는 무시 (이미 ban되지 않은 경우일 수 있음)
+      console.warn("Ban 해제 시도:", unbanError.message);
     }
 
     // 2. profiles 복원 (deleted_at null, 이메일 복원)

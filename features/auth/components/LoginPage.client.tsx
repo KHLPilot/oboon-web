@@ -181,7 +181,7 @@ export default function LoginPage() {
 
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
-        .select("name, phone_number, role")
+        .select("name, phone_number, role, deleted_at")
         .eq("id", data.user.id)
         .single();
 
@@ -195,6 +195,15 @@ export default function LoginPage() {
           );
         }
         setLoading(false);
+        return;
+      }
+
+      // 탈퇴한 계정인지 확인 (deleted_at이 설정된 경우)
+      if (profile.deleted_at) {
+        await supabase.auth.signOut();
+        router.replace(
+          `/auth/restore?userId=${data.user.id}&email=${encodeURIComponent(email)}`
+        );
         return;
       }
 

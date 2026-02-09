@@ -41,11 +41,10 @@ export async function GET(req: Request) {
         if (error || !data.user) {
             console.error("❌ 세션 교환 실패:", error);
 
-            // banned 계정인 경우 복구 페이지로 리다이렉트
+            // banned 계정인 경우 (기존 탈퇴 계정) 복구 페이지로 리다이렉트
             if (error?.message?.toLowerCase().includes("banned")) {
-                const email = url.searchParams.get("email") || "";
                 return NextResponse.redirect(
-                    new URL(`/auth/login?error=banned&email=${encodeURIComponent(email)}`, process.env.NEXT_PUBLIC_SITE_URL!)
+                    new URL("/auth/login?error=banned", process.env.NEXT_PUBLIC_SITE_URL!)
                 );
             }
 
@@ -53,12 +52,21 @@ export async function GET(req: Request) {
         }
 
         const user = data.user;
-        // 3. profiles 확인 (anon key로 조회)
+        // 3. profiles 확인 (anon key로 조회) - deleted_at 포함
         const { data: profile } = await supabase
             .from("profiles")
-            .select("role, name, phone_number")
+            .select("role, name, phone_number, deleted_at, email")
             .eq("id", user.id)
             .single();
+
+        // 4. 탈퇴한 계정인지 확인 (deleted_at이 설정된 경우)
+        if (profile?.deleted_at) {
+            // 세션 제거 후 복구 페이지로 리다이렉트
+            await supabase.auth.signOut();
+            return NextResponse.redirect(
+                new URL(`/auth/restore?userId=${user.id}&email=${encodeURIComponent(user.email || "")}`, process.env.NEXT_PUBLIC_SITE_URL!)
+            );
+        }
 
         let redirectPath = "/";
 

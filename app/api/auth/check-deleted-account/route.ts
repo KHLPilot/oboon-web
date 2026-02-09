@@ -39,7 +39,8 @@ export async function POST(req: Request) {
       .eq("id", user.id)
       .single();
 
-    const isDeleted = profile?.deleted_at !== null;
+    // deleted_at이 존재하고 null이 아닌 경우만 isDeleted = true
+    const isDeleted = profile?.deleted_at != null;
 
     return NextResponse.json({
       isDeleted,

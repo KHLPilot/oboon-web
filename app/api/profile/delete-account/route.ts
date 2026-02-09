@@ -49,17 +49,8 @@ export async function POST(req: Request) {
             );
         }
 
-        // 3. auth.users에서 비활성화 (삭제 대신)
-        // Supabase Auth는 ban 기능 제공
-        const { error: banError } = await supabaseAdmin.auth.admin.updateUserById(
-            userId,
-            { ban_duration: "876000h" } // 100년 = 영구 정지
-        );
-
-        if (banError) {
-            console.error("❌ 유저 비활성화 실패:", banError);
-            // 실패해도 계속 진행 (로그아웃으로 대체)
-        }
+        // 3. auth.users는 그대로 유지 (ban 하지 않음)
+        // 로그인 시 deleted_at 체크로 탈퇴 계정 판별
 
         return NextResponse.json({
             success: true,
