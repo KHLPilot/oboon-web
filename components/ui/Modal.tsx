@@ -77,7 +77,14 @@ export default function Modal({
     document.body.style.overflow = "hidden";
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      // Input, Textarea 등에서 키 입력 시에는 모달 키보드 핸들러 무시
+      const target = e.target as HTMLElement;
+      const isInputElement =
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable;
+
+      if (e.key === "Escape" && !isInputElement) onClose();
     };
     window.addEventListener("keydown", onKeyDown);
 

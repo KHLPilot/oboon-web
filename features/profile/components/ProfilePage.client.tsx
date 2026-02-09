@@ -19,7 +19,6 @@ import {
   validatePhone,
   sanitizeInput,
 } from "@/lib/validators/profileValidation";
-import { validateRequiredOrShowModal } from "@/shared/validationMessage";
 import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -45,6 +44,7 @@ import {
   XCircle,
 } from "lucide-react";
 import MyConsultationsModal from "@/features/consultations/components/MyConsultationsModal.client";
+import DeleteAccountModal from "./DeleteAccountModal";
 import { showAlert } from "@/shared/alert";
 import { CommunityProfilePage } from "@/features/community";
 import {
@@ -159,9 +159,6 @@ export default function ProfilePage({
 
   // ✅ 삭제
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deletePassword, setDeletePassword] = useState("");
-  const [deleteConfirm, setDeleteConfirm] = useState("");
-  const [deleting, setDeleting] = useState(false);
   const [showConsultationsModal, setShowConsultationsModal] = useState(false);
   const [agentEtc, setAgentEtc] = useState("");
   const [agentProperties, setAgentProperties] = useState<AgentProperty[]>([]);
@@ -183,8 +180,6 @@ export default function ProfilePage({
 
   const closeDeleteModal = () => {
     setShowDeleteModal(false);
-    setDeletePassword("");
-    setDeleteConfirm("");
   };
 
   const openConsultationsModal = () => {
@@ -666,16 +661,7 @@ export default function ProfilePage({
      계정 삭제
      ===================== */
   const deleteAccount = async () => {
-    // 1. 비밀번호 확인
-    if (!validateRequiredOrShowModal(deletePassword, "비밀번호")) return;
-
-    // 2. 확인 문구 체크
-    if (deleteConfirm !== "계정삭제") {
-      showAlert("'계정삭제'를 정확히 입력해주세요.");
-      return;
-    }
-
-    // 3. 최종 확인
+    // 최종 확인
     const finalConfirm = confirm(
       "정말로 계정을 삭제하시겠습니까?\n\n" +
         "이 작업은 되돌릴 수 없습니다.\n" +
@@ -685,28 +671,12 @@ export default function ProfilePage({
 
     if (!finalConfirm) return;
 
-    setDeleting(true);
-
     try {
-      // 4. 비밀번호 검증
-      const { error: pwError } = await supabase.auth.signInWithPassword({
-        email: email,
-        password: deletePassword,
-      });
-
-      if (pwError) {
-        showAlert("비밀번호가 올바르지 않습니다.");
-        setDeleting(false);
-        return;
-      }
-
-      // 5. 계정 삭제 API 호출
       const response = await fetch("/api/profile/delete-account", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: userId,
-          password: deletePassword,
         }),
       });
 
@@ -716,34 +686,15 @@ export default function ProfilePage({
         throw new Error(data.error || "계정 삭제 실패");
       }
 
-      // 6. 로그아웃 및 로그인 페이지로 이동
       await supabase.auth.signOut();
       showAlert("계정이 삭제되었습니다. 그동안 이용해주셔서 감사합니다.");
       window.location.href = "/";
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("계정 삭제 오류:", err);
-      showAlert("계정 삭제 중 오류가 발생했습니다: " + err.message);
-    } finally {
-      setDeleting(false);
+      const errorMessage = err instanceof Error ? err.message : "알 수 없는 오류";
+      showAlert("계정 삭제 중 오류가 발생했습니다: " + errorMessage);
+      throw err; // 모달에서 에러 처리하도록 다시 throw
     }
-  };
-
-  /* =====================
-     계정 유형 변경
-     ===================== */
-  const requestAgent = async () => {
-    const { error } = await supabase
-      .from("profiles")
-      .update({ role: "agent" })
-      .eq("id", userId);
-
-    if (error) {
-      showAlert("상담사 전환에 실패했습니다. 잠시 후 다시 시도해주세요.");
-      return;
-    }
-
-    setRole("agent");
-    showAlert("분양대행사 직원으로 전환되었습니다.");
   };
 
   const isAgentRole = role === "agent";
@@ -1653,77 +1604,11 @@ export default function ProfilePage({
               <CommunityProfilePage />
             </section>
             
-            <Modal open={showDeleteModal} onClose={closeDeleteModal} size="sm">
-              <div className="space-y-5">
-                <div className="ob-typo-h2 text-(--oboon-danger)">
-                  계정 삭제
-                </div>
-
-                <div className="mt-4 space-y-3 sm:space-y-4">
-                  <div className="p-3 rounded-lg bg-(--oboon-danger-bg) border border-(--oboon-danger-border)">
-                    <p className="ob-typo-body text-(--oboon-danger) space-y-1">
-                      <span className="block">
-                        • 모든 개인정보가 삭제됩니다
-                      </span>
-                      <span className="block">
-                        • 작성한 게시글은 &quot;탈퇴한 사용자&quot;로 표시됩니다
-                      </span>
-                      <span className="block">
-                        • 이 작업은 되돌릴 수 없습니다
-                      </span>
-                    </p>
-                  </div>
-
-                  <div>
-                    <Label>비밀번호 확인</Label>
-                    <Input
-                      type="password"
-                      value={deletePassword}
-                      onChange={(e) => setDeletePassword(e.target.value)}
-                      placeholder="비밀번호를 입력하세요"
-                      className={oboonFieldBaseClass}
-                    />
-                  </div>
-
-                  <div>
-                    <Label>확인 문구 입력</Label>
-                    <Input
-                      value={deleteConfirm}
-                      onChange={(e) => setDeleteConfirm(e.target.value)}
-                      placeholder="'계정삭제'를 입력하세요"
-                      className={oboonFieldBaseClass}
-                    />
-                    <p className="ob-typo-body text-(--oboon-text-muted) mt-2">
-                      정확히 &apos;계정삭제&apos;를 입력해주세요
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex gap-2 sm:gap-3">
-                  <Button
-                    variant="danger"
-                    size="md"
-                    onClick={deleteAccount}
-                    disabled={
-                      deleting ||
-                      !deletePassword ||
-                      deleteConfirm !== "계정삭제"
-                    }
-                    loading={deleting}
-                    className="flex-1"
-                  >
-                    {deleting ? "삭제 중..." : "계정 삭제"}
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="md"
-                    onClick={closeDeleteModal}
-                  >
-                    취소
-                  </Button>
-                </div>
-              </div>
-            </Modal>
+            <DeleteAccountModal
+              open={showDeleteModal}
+              onClose={closeDeleteModal}
+              onDelete={deleteAccount}
+            />
           </div>
           </section>
           </div>
@@ -2029,16 +1914,6 @@ export default function ProfilePage({
                     </span>
                   </p>
 
-                  {role === "user" && (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="mt-3"
-                      onClick={requestAgent}
-                    >
-                      분양대행사 직원으로 전환
-                    </Button>
-                  )}
                 </div>
               </Card>
 
@@ -2153,71 +2028,11 @@ export default function ProfilePage({
           </div>
 
           {/* 계정 삭제 모달 */}
-          <Modal open={showDeleteModal} onClose={closeDeleteModal} size="sm">
-            <div className="space-y-5">
-              <div className="ob-typo-h2 text-(--oboon-danger)">계정 삭제</div>
-
-              <div className="mt-4 space-y-3 sm:space-y-4">
-                <div className="p-3 rounded-lg bg-(--oboon-danger-bg) border border-(--oboon-danger-border)">
-                  <p className="ob-typo-body text-(--oboon-danger) space-y-1">
-                    <span className="block">• 모든 개인정보가 삭제됩니다</span>
-                    <span className="block">
-                      • 작성한 게시글은 &quot;탈퇴한 사용자&quot;로 표시됩니다
-                    </span>
-                    <span className="block">
-                      • 이 작업은 되돌릴 수 없습니다
-                    </span>
-                  </p>
-                </div>
-
-                <div>
-                  <Label>비밀번호 확인</Label>
-                  <Input
-                    type="password"
-                    value={deletePassword}
-                    onChange={(e) => setDeletePassword(e.target.value)}
-                    placeholder="비밀번호를 입력하세요"
-                    className={oboonFieldBaseClass}
-                  />
-                </div>
-
-                <div>
-                  <Label>확인 문구 입력</Label>
-                  <Input
-                    value={deleteConfirm}
-                    onChange={(e) => setDeleteConfirm(e.target.value)}
-                    placeholder="'계정삭제'를 입력하세요"
-                    className={oboonFieldBaseClass}
-                  />
-                  <p className="ob-typo-body text-(--oboon-text-muted) mt-2">
-                    정확히 &apos;계정삭제&apos;를 입력해주세요
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-2 sm:gap-3">
-                <Button
-                  variant="danger"
-                  size="md"
-                  onClick={deleteAccount}
-                  disabled={
-                    deleting || !deletePassword || deleteConfirm !== "계정삭제"
-                  }
-                  loading={deleting}
-                  className="flex-1"
-                >
-                  {deleting ? "삭제 중..." : "계정 삭제"}
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="md"
-                  onClick={closeDeleteModal}
-                >
-                  취소
-                </Button>
-              </div>
-            </div>
-          </Modal>
+          <DeleteAccountModal
+            open={showDeleteModal}
+            onClose={closeDeleteModal}
+            onDelete={deleteAccount}
+          />
 
           <MyConsultationsModal
             open={showConsultationsModal}

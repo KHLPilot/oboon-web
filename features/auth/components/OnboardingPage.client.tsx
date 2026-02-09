@@ -39,8 +39,7 @@ export default function OnboardingPage() {
   const [name, setName] = useState("");
   const [nickname, setNickname] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
-  // MVP: 회원유형 기본값 personal 고정
-  const userType = "personal";
+  const [selectedRole, setSelectedRole] = useState<"user" | "agent">("user");
 
   const [loading, setLoading] = useState(false);
   const [fatalError, setFatalError] = useState<string | null>(null);
@@ -323,7 +322,7 @@ export default function OnboardingPage() {
           full_name: name,
           nickname: nickname || null,
           phone_number: phoneNumber,
-          user_type: userType,
+          user_type: selectedRole === "agent" ? "business" : "personal",
           agreed_terms: agreements.terms,
           agreed_privacy: agreements.privacy,
           agreed_location: agreements.location,
@@ -339,8 +338,8 @@ export default function OnboardingPage() {
         name,
         nickname: nickname || null,
         phone_number: phoneNumber,
-        user_type: userType,
-        role: "user",
+        user_type: selectedRole === "agent" ? "business" : "personal",
+        role: selectedRole,
       });
       if (upsertError) throw upsertError;
 
@@ -503,7 +502,45 @@ export default function OnboardingPage() {
                   />
                 </div>
 
-                {/* MVP: 회원유형 선택 비활성화 — 기본값 personal 유지 */}
+                {/* 회원 유형 선택 */}
+                <div className="space-y-2">
+                  <Label>회원 유형 *</Label>
+                  <div className="flex gap-6">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="role"
+                        value="user"
+                        checked={selectedRole === "user"}
+                        onChange={() => setSelectedRole("user")}
+                        disabled={!canSubmit || loading}
+                        className="h-4 w-4 accent-(--oboon-primary)"
+                      />
+                      <span className="ob-typo-body text-(--oboon-text-title)">
+                        일반 회원
+                      </span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="role"
+                        value="agent"
+                        checked={selectedRole === "agent"}
+                        onChange={() => setSelectedRole("agent")}
+                        disabled={!canSubmit || loading}
+                        className="h-4 w-4 accent-(--oboon-primary)"
+                      />
+                      <span className="ob-typo-body text-(--oboon-text-title)">
+                        분양 상담사
+                      </span>
+                    </label>
+                  </div>
+                  {selectedRole === "agent" && (
+                    <p className="ob-typo-caption text-(--oboon-text-muted)">
+                      상담사로 가입하시면 분양 현장에 소속 신청이 가능합니다.
+                    </p>
+                  )}
+                </div>
 
                 {/* 이용약관 동의 */}
                 <div className="space-y-2 pt-1">

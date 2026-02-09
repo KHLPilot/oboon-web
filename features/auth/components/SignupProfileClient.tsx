@@ -55,7 +55,6 @@ export default function SignupProfileClient() {
   const userType = "personal";
 
   // 역할 선택: 일반 회원(user) 또는 상담사(agent)
-  const [selectedRole, setSelectedRole] = useState<"user" | "agent">("user");
 
   const [errors, setErrors] = useState<FieldErrors>({});
 
@@ -336,7 +335,7 @@ export default function SignupProfileClient() {
         nickname: nickname || null,
         phone_number: phoneNumber,
         user_type: userType,
-        role: selectedRole,
+        role: "user",
       });
       if (upsertError) throw upsertError;
 
@@ -504,46 +503,6 @@ export default function SignupProfileClient() {
                         }
                       />
                     </div>
-                    {/* 회원 유형 선택 */}
-                    <div className="space-y-2">
-                      <Label>회원 유형</Label>
-                      <div className="flex gap-4">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="radio"
-                            name="role"
-                            value="user"
-                            checked={selectedRole === "user"}
-                            onChange={() => setSelectedRole("user")}
-                            disabled={!canSubmit || loading}
-                            className="h-4 w-4 accent-(--oboon-primary)"
-                          />
-                          <span className="ob-typo-body text-(--oboon-text-title)">
-                            일반 회원
-                          </span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="radio"
-                            name="role"
-                            value="agent"
-                            checked={selectedRole === "agent"}
-                            onChange={() => setSelectedRole("agent")}
-                            disabled={!canSubmit || loading}
-                            className="h-4 w-4 accent-(--oboon-primary)"
-                          />
-                          <span className="ob-typo-body text-(--oboon-text-title)">
-                            분양 상담사
-                          </span>
-                        </label>
-                      </div>
-                      {selectedRole === "agent" && (
-                        <p className="ob-typo-caption text-(--oboon-text-muted)">
-                          상담사로 가입하시면 분양 현장에 소속 신청이 가능합니다.
-                        </p>
-                      )}
-                    </div>
-
                     {/* 이용약관 동의 */}
                     <div className="space-y-2 pt-1">
                       <Label>이용약관 동의</Label>

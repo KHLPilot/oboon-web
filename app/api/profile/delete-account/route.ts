@@ -10,11 +10,11 @@ const supabaseAdmin = createClient(
 
 export async function POST(req: Request) {
     try {
-        const { userId, password } = await req.json();
+        const { userId } = await req.json();
 
-        if (!userId || !password) {
+        if (!userId) {
             return NextResponse.json(
-                { error: "userId와 password가 필요합니다." },
+                { error: "userId가 필요합니다." },
                 { status: 400 }
             );
         }

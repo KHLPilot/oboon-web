@@ -5,7 +5,14 @@
 
 -- 1. chat_messages 테이블을 Realtime Publication에 추가
 -- 이 명령어로 실시간 채팅이 작동합니다
-ALTER PUBLICATION supabase_realtime ADD TABLE chat_messages;
+-- 이미 추가된 경우 무시 (DO 블록 사용)
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE chat_messages;
+EXCEPTION
+  WHEN duplicate_object THEN
+    NULL; -- 이미 추가된 경우 무시
+END $$;
 
 -- 2. chat_messages 누락 컬럼 추가
 ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS read_at TIMESTAMP WITH TIME ZONE;

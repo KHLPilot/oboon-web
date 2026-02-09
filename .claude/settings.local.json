@@ -28,7 +28,10 @@
       "Bash(supabase stop:*)",
       "Bash(supabase status:*)",
       "Bash(supabase db reset:*)",
-      "Bash(PGPASSWORD=postgres psql:*)"
+      "Bash(PGPASSWORD=postgres psql:*)",
+      "Bash(supabase link:*)",
+      "Bash(supabase db push:*)",
+      "Bash(supabase db execute:*)"
     ]
   }
 }

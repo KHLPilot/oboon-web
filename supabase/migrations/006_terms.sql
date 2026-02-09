@@ -16,15 +16,17 @@ CREATE TABLE IF NOT EXISTS terms (
 ALTER TABLE terms ENABLE ROW LEVEL SECURITY;
 
 -- 모든 사용자가 활성 약관 조회 가능
+DROP POLICY IF EXISTS "anyone_read_active_terms" ON terms;
 CREATE POLICY "anyone_read_active_terms" ON terms
   FOR SELECT USING (is_active = true);
 
 -- 서버에서 service key로 관리 (admin 권한 체크는 API에서)
+DROP POLICY IF EXISTS "service_manage_terms" ON terms;
 CREATE POLICY "service_manage_terms" ON terms
   FOR ALL USING (true) WITH CHECK (true);
 
 -- 인덱스
-CREATE INDEX idx_terms_type ON terms(type);
+CREATE INDEX IF NOT EXISTS idx_terms_type ON terms(type);
 
 -- 초기 데이터 삽입
 INSERT INTO terms (type, title, content) VALUES
@@ -46,4 +48,5 @@ INSERT INTO terms (type, title, content) VALUES
 3. 방문성과비는 각 현장 및 상담 조건에 따라 상이할 수 있으며, 세부 금액은 별도로 안내됩니다.
 4. 허위 방문 인증 또는 부정 행위가 확인될 경우, 해당 금액은 지급되지 않으며 서비스 이용에 제한이 생길 수 있습니다.
 5. 방문성과비의 정산 주기 및 방법은 베타 운영 기간 동안 변경될 수 있으며, 별도 공지를 통해 안내됩니다.
-6. 관련 문의는 상담사 지원센터를 통해 안내받으실 수 있습니다.');
+6. 관련 문의는 상담사 지원센터를 통해 안내받으실 수 있습니다.')
+ON CONFLICT (type) DO NOTHING;

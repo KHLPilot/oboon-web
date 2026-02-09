@@ -70,6 +70,7 @@ CREATE INDEX IF NOT EXISTS idx_visit_confirm_requests_status ON visit_confirm_re
 -- =====================================================
 
 -- 만료된 토큰 자동 삭제 함수 (Cron Job에서 호출)
+DROP FUNCTION IF EXISTS cleanup_expired_tokens();
 CREATE OR REPLACE FUNCTION cleanup_expired_tokens()
 RETURNS INTEGER AS $$
 DECLARE
@@ -91,6 +92,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- 취소된 예약 자동 정리 함수 (3일 후)
+DROP FUNCTION IF EXISTS cleanup_cancelled_consultations();
 CREATE OR REPLACE FUNCTION cleanup_cancelled_consultations()
 RETURNS INTEGER AS $$
 DECLARE
