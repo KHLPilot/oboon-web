@@ -19,6 +19,7 @@ import FieldErrorBubble, {
 import { validationMessageFor } from "@/shared/validationMessage";
 import { AlertCircle, ExternalLink } from "lucide-react";
 import { showAlert } from "@/shared/alert";
+import RestoreAccountModal from "./RestoreAccountModal";
 
 type LoginField = "email" | "password" | "generic";
 
@@ -38,6 +39,13 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [inAppInfo, setInAppInfo] = useState<InAppBrowserInfo | null>(null);
+
+  // 탈퇴 계정 복구 모달 상태
+  const [restoreModalOpen, setRestoreModalOpen] = useState(false);
+  const [deletedAccountInfo, setDeletedAccountInfo] = useState<{
+    email: string;
+    userId: string;
+  } | null>(null);
 
   // 인앱 브라우저 감지
   useEffect(() => {
@@ -95,6 +103,22 @@ export default function LoginPage() {
           throw new Error("이메일 또는 비밀번호가 올바르지 않습니다.");
         } else if (loginError.message.toLowerCase().includes("confirm")) {
           throw new Error("이메일 인증을 완료해주세요.");
+        } else if (loginError.message.toLowerCase().includes("banned")) {
+          // 탈퇴(ban)된 계정인지 확인
+          const checkRes = await fetch("/api/auth/check-deleted-account", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email }),
+          });
+          const checkData = await checkRes.json();
+
+          if (checkData.isDeleted && checkData.isBanned && checkData.userId) {
+            setDeletedAccountInfo({ email, userId: checkData.userId });
+            setRestoreModalOpen(true);
+            setLoading(false);
+            return;
+          }
+          throw new Error("계정이 비활성화되었습니다. 관리자에게 문의하세요.");
         } else {
           throw loginError;
         }
@@ -182,6 +206,52 @@ export default function LoginPage() {
   //   trackEvent("login_click", { method: "naver" });
   //   window.location.href = "/api/auth/naver/login";
   // }
+
+  // 계정 복구 처리
+  async function handleRestoreAccount() {
+    if (!deletedAccountInfo) return;
+
+    const res = await fetch("/api/auth/restore-account", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: deletedAccountInfo.userId,
+        email: deletedAccountInfo.email,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.error || "계정 복구에 실패했습니다.");
+    }
+
+    // 복구 성공 - 다시 로그인 시도
+    setRestoreModalOpen(false);
+    showAlert("계정이 복구되었습니다. 다시 로그인해주세요.");
+  }
+
+  // 새로 가입 처리 (기존 계정 삭제)
+  async function handleRecreateAccount() {
+    if (!deletedAccountInfo) return;
+
+    const res = await fetch("/api/auth/delete-and-recreate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: deletedAccountInfo.userId }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.error || "계정 처리에 실패했습니다.");
+    }
+
+    // 삭제 성공 - 회원가입 페이지로 이동
+    setRestoreModalOpen(false);
+    showAlert("새로 가입을 진행해주세요.");
+    router.push("/auth/signup");
+  }
 
   // 외부 브라우저로 열기
   function handleOpenExternal() {
@@ -445,6 +515,16 @@ export default function LoginPage() {
               </div>
             </div>
           </Modal>
+
+          {/* 탈퇴 계정 복구/재가입 모달 */}
+          <RestoreAccountModal
+            open={restoreModalOpen}
+            onClose={() => setRestoreModalOpen(false)}
+            email={deletedAccountInfo?.email ?? ""}
+            userId={deletedAccountInfo?.userId ?? ""}
+            onRestore={handleRestoreAccount}
+            onRecreate={handleRecreateAccount}
+          />
         </div>
       </PageContainer>
     </main>

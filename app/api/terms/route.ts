@@ -17,6 +17,10 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const type = searchParams.get("type");
 
+    // 디버그: 환경변수 확인
+    console.log("[/api/terms] SUPABASE_URL:", process.env.NEXT_PUBLIC_SUPABASE_URL);
+    console.log("[/api/terms] SERVICE_KEY exists:", !!process.env.SUPABASE_SERVICE_ROLE_KEY);
+
     let query = adminSupabase
       .from("terms")
       .select("id, type, title, content, updated_at")
@@ -27,6 +31,9 @@ export async function GET(req: Request) {
     }
 
     const { data, error } = await query;
+
+    // 디버그: 결과 확인
+    console.log("[/api/terms] type:", type, "result count:", data?.length, "error:", error);
 
     if (error) {
       console.error("약관 조회 오류:", error);

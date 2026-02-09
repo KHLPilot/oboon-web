@@ -31,7 +31,8 @@
       "Bash(PGPASSWORD=postgres psql:*)",
       "Bash(supabase link:*)",
       "Bash(supabase db push:*)",
-      "Bash(supabase db execute:*)"
+      "Bash(supabase db execute:*)",
+      "Bash(npx supabase:*)"
     ]
   }
 }
