@@ -48,6 +48,11 @@ export default function LoginPage() {
     userId: string;
   } | null>(null);
 
+  // 소셜 로그인 banned 시 이메일 입력 모달
+  const [bannedEmailModalOpen, setBannedEmailModalOpen] = useState(false);
+  const [bannedEmail, setBannedEmail] = useState("");
+  const [checkingBanned, setCheckingBanned] = useState(false);
+
   // 인앱 브라우저 감지
   useEffect(() => {
     setInAppInfo(detectInAppBrowser());
@@ -58,13 +63,47 @@ export default function LoginPage() {
     const errorParam = searchParams.get("error");
 
     if (errorParam === "banned") {
-      setError(
-        "탈퇴한 계정입니다. 계정을 복구하려면 해당 이메일로 일반 로그인을 시도해주세요."
-      );
+      // 소셜 로그인 banned: 이메일 입력 모달 표시
+      setBannedEmailModalOpen(true);
       // URL 파라미터 정리
       router.replace("/auth/login");
     }
   }, [searchParams, router]);
+
+  // 소셜 로그인 banned 계정 확인
+  async function handleCheckBannedAccount() {
+    if (!bannedEmail) {
+      showAlert("이메일을 입력해주세요.");
+      return;
+    }
+
+    setCheckingBanned(true);
+    try {
+      const res = await fetch("/api/auth/check-deleted-account", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: bannedEmail }),
+      });
+      const data = await res.json();
+
+      if (data.isDeleted && data.isBanned && data.userId) {
+        setBannedEmailModalOpen(false);
+        setDeletedAccountInfo({ email: bannedEmail, userId: data.userId });
+        setRestoreModalOpen(true);
+      } else if (data.isBanned && data.userId) {
+        // banned지만 deleted가 아닌 경우 (관리자 밴)
+        setBannedEmailModalOpen(false);
+        setError("계정이 비활성화되었습니다. 관리자에게 문의하세요.");
+      } else {
+        showAlert("해당 이메일로 탈퇴한 계정이 없습니다.");
+      }
+    } catch (err) {
+      console.error("탈퇴 계정 확인 오류:", err);
+      setError("계정 확인 중 오류가 발생했습니다.");
+    } finally {
+      setCheckingBanned(false);
+    }
+  }
 
   const clearFieldError = () => {
     setFieldError(null);
@@ -523,6 +562,53 @@ export default function LoginPage() {
                   shape="pill"
                   className="w-full justify-center"
                   onClick={() => setError(null)}
+                >
+                  확인
+                </Button>
+              </div>
+            </div>
+          </Modal>
+
+          {/* 소셜 로그인 banned - 이메일 입력 모달 */}
+          <Modal
+            open={bannedEmailModalOpen}
+            onClose={() => setBannedEmailModalOpen(false)}
+          >
+            <div className="space-y-3">
+              <div className="ob-typo-h2 text-(--oboon-text-title)">
+                탈퇴한 계정 복구
+              </div>
+              <div className="ob-typo-body text-(--oboon-text-muted)">
+                소셜 로그인에 사용한 계정이 이전에 탈퇴 처리되었습니다.
+                <br />
+                계정을 복구하려면 이메일을 입력해주세요.
+              </div>
+              <div>
+                <Label>이메일</Label>
+                <Input
+                  type="email"
+                  value={bannedEmail}
+                  onChange={(e) => setBannedEmail(e.target.value)}
+                  placeholder="탈퇴한 계정의 이메일"
+                  autoComplete="email"
+                />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <Button
+                  variant="secondary"
+                  shape="pill"
+                  className="flex-1 justify-center"
+                  onClick={() => setBannedEmailModalOpen(false)}
+                >
+                  취소
+                </Button>
+                <Button
+                  variant="primary"
+                  shape="pill"
+                  className="flex-1 justify-center"
+                  onClick={handleCheckBannedAccount}
+                  loading={checkingBanned}
+                  disabled={checkingBanned}
                 >
                   확인
                 </Button>

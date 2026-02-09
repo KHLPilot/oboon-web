@@ -18,9 +18,19 @@ export async function POST(req: Request) {
       );
     }
 
-    // 1. 기존 auth.users 완전 삭제
-    // profiles는 이미 익명화된 상태이므로 그대로 유지
-    // (채팅, 댓글, 예약 등이 '탈퇴한 사용자'로 표시됨)
+    // 1. profiles 레코드 삭제 (FK 제약 해제를 위해 먼저 삭제)
+    // 관련 데이터(채팅, 댓글, 예약 등)는 '탈퇴한 사용자'로 이미 익명화됨
+    const { error: profileDeleteError } = await supabaseAdmin
+      .from("profiles")
+      .delete()
+      .eq("id", userId);
+
+    if (profileDeleteError) {
+      console.error("Profile 삭제 실패:", profileDeleteError);
+      // profiles 삭제 실패해도 auth 삭제 시도
+    }
+
+    // 2. 기존 auth.users 완전 삭제
     const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(
       userId
     );
@@ -28,7 +38,7 @@ export async function POST(req: Request) {
     if (deleteError) {
       console.error("Auth 사용자 삭제 실패:", deleteError);
       return NextResponse.json(
-        { error: "계정 삭제 실패" },
+        { error: "계정 삭제 실패: " + deleteError.message },
         { status: 500 }
       );
     }
