@@ -40,6 +40,15 @@ export async function GET(req: Request) {
 
         if (error || !data.user) {
             console.error("❌ 세션 교환 실패:", error);
+
+            // banned 계정인 경우 복구 페이지로 리다이렉트
+            if (error?.message?.toLowerCase().includes("banned")) {
+                const email = url.searchParams.get("email") || "";
+                return NextResponse.redirect(
+                    new URL(`/auth/login?error=banned&email=${encodeURIComponent(email)}`, process.env.NEXT_PUBLIC_SITE_URL!)
+                );
+            }
+
             return NextResponse.redirect(new URL("/auth/login?error=session_failed", process.env.NEXT_PUBLIC_SITE_URL!));
         }
 

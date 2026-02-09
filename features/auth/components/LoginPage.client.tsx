@@ -2,7 +2,7 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { detectInAppBrowser, InAppBrowserInfo } from "@/lib/inAppBrowser";
 import { trackEvent } from "@/lib/analytics";
@@ -26,6 +26,7 @@ type LoginField = "email" | "password" | "generic";
 export default function LoginPage() {
   const supabase = createSupabaseClient();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const lastInvalidToastAtRef = useRef(0);
 
   const cardWrapRef = useRef<HTMLDivElement | null>(null);
@@ -51,6 +52,19 @@ export default function LoginPage() {
   useEffect(() => {
     setInAppInfo(detectInAppBrowser());
   }, []);
+
+  // URL 파라미터에서 banned 에러 처리 (소셜 로그인 콜백에서 리다이렉트된 경우)
+  useEffect(() => {
+    const errorParam = searchParams.get("error");
+
+    if (errorParam === "banned") {
+      setError(
+        "탈퇴한 계정입니다. 계정을 복구하려면 해당 이메일로 일반 로그인을 시도해주세요."
+      );
+      // URL 파라미터 정리
+      router.replace("/auth/login");
+    }
+  }, [searchParams, router]);
 
   const clearFieldError = () => {
     setFieldError(null);
