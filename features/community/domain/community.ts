@@ -86,6 +86,7 @@ export type CommunityProfileViewModel = {
 export type CommunityPropertyOption = {
   id: number;
   name: string;
+  visitedOn?: string | null;
 };
 
 export type CommunityInterestProperty = {

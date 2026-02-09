@@ -46,12 +46,20 @@ export default function Footer() {
                   지도로 검색하기
                 </Link>
               </li>
-              <li>
+              {/* <li>
                 <Link
                   href="/briefing"
                   className="hover:text-(--oboon-text-default)"
                 >
                   브리핑
+                </Link>
+              </li> */}
+              <li>
+                <Link
+                  href="/community"
+                  className="hover:text-(--oboon-text-default)"
+                >
+                  커뮤니티
                 </Link>
               </li>
             </ul>
@@ -64,28 +72,19 @@ export default function Footer() {
             </div>
             <ul className="space-y-2 ob-typo-caption text-(--oboon-text-muted)">
               <li>
-                <Link
-                  href="/about"
-                  className="hover:text-(--oboon-text-default)"
-                >
+                <span className="cursor-not-allowed opacity-60">
                   소개
-                </Link>
+                </span>
               </li>
               <li>
-                <Link
-                  href="/careers"
-                  className="hover:text-(--oboon-text-default)"
-                >
+                <span className="cursor-not-allowed opacity-60">
                   채용
-                </Link>
+                </span>
               </li>
               <li>
-                <Link
-                  href="/contact"
-                  className="hover:text-(--oboon-text-default)"
-                >
+                <span className="cursor-not-allowed opacity-60">
                   제휴 문의
-                </Link>
+                </span>
               </li>
             </ul>
           </div>
@@ -93,25 +92,22 @@ export default function Footer() {
           {/* Support */}
           <div className="space-y-3">
             <div className="ob-typo-h4 font-semibold text-(--oboon-text-title)">
-              고객지원
+              고객센터
             </div>
             <ul className="space-y-2 ob-typo-caption text-(--oboon-text-muted)">
               <li>
-                <Link
-                  href="/notice"
-                  className="hover:text-(--oboon-text-default)"
-                >
+                <span className="cursor-not-allowed opacity-60">
                   공지사항
-                </Link>
+                </span>
               </li>
               <li>
-                <Link href="/faq" className="hover:text-(--oboon-text-default)">
+                <Link href="/support" className="hover:text-(--oboon-text-default)">
                   자주 묻는 질문
                 </Link>
               </li>
               <li>
                 <Link
-                  href="/inquiry"
+                  href="/support/qna"
                   className="hover:text-(--oboon-text-default)"
                 >
                   1:1 문의

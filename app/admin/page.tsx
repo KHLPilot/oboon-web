@@ -33,12 +33,10 @@ import {
   Edit3,
   FileText,
   Loader2,
-  Plus,
   RefreshCw,
   Search,
   Scale,
   User,
-  UserCheck,
   Users,
 } from "lucide-react";
 
@@ -192,10 +190,11 @@ function AdminPageInner() {
   const [loading, setLoading] = useState(true);
   const [pendingAgents, setPendingAgents] = useState<Profile[]>([]);
   const [propertyAgents, setPropertyAgents] = useState<PropertyAgent[]>([]);
-  const [approvedPropertyAgentCount, setApprovedPropertyAgentCount] =
-    useState(0);
+  const [publishedPropertyCount, setPublishedPropertyCount] = useState(0);
   const [todayNewConsultations, setTodayNewConsultations] = useState(0);
   const [todayVisitConsultations, setTodayVisitConsultations] = useState(0);
+  const [todayNewQnaCount, setTodayNewQnaCount] = useState(0);
+  const [pendingQnaCount, setPendingQnaCount] = useState(0);
   const [deletedUsers, setDeletedUsers] = useState<Profile[]>([]);
   const [activeUsers, setActiveUsers] = useState<Profile[]>([]);
   const [roleSort, setRoleSort] = useState<"none" | "asc" | "desc">("none");
@@ -259,9 +258,11 @@ function AdminPageInner() {
 
     setPendingAgents(data.pendingAgents);
     setPropertyAgents(data.propertyAgents);
-    setApprovedPropertyAgentCount(data.approvedPropertyAgentCount);
+    setPublishedPropertyCount(data.publishedPropertyCount);
     setTodayNewConsultations(data.todayNewConsultations);
     setTodayVisitConsultations(data.todayVisitConsultations);
+    setTodayNewQnaCount(data.todayNewQnaCount);
+    setPendingQnaCount(data.pendingQnaCount);
     setDeletedUsers(data.deletedUsers);
     setActiveUsers(data.activeUsers);
     setResolvedPropertyRequests({});
@@ -1152,9 +1153,9 @@ function AdminPageInner() {
                         <ArrowRight className="h-4 w-4 text-(--oboon-text-muted)" />
                       </Button>
                     </div>
-                    <div className="mt-3 flex items-center gap-2">
+                    <div className="mt-3 flex items-center gap-4">
                       <div className="ob-typo-h2 text-(--oboon-text-title)">
-                        {userGrowth.total.toLocaleString()}
+                        {userGrowth.total.toLocaleString()}명
                       </div>
                       <span className="rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-2 py-0.5 ob-typo-caption text-(--oboon-text-muted)">
                         ↗ +{userGrowth.delta}명
@@ -1189,61 +1190,103 @@ function AdminPageInner() {
                           승인 대기
                         </div>
                         <div className="mt-1 ob-typo-h3 text-(--oboon-text-title)">
-                          {pendingPropertyAgentCount}
+                          {pendingPropertyAgentCount}건
                         </div>
                       </div>
                       <div className="h-10 w-px bg-(--oboon-border-default)" />
                       <div>
                         <div className="ob-typo-caption text-(--oboon-text-muted)">
-                          승인 완료
+                          현재 게시된 현장
                         </div>
                         <div className="mt-1 ob-typo-h3 text-(--oboon-text-title)">
-                          {approvedPropertyAgentCount}
+                          {publishedPropertyCount}건
                         </div>
                       </div>
                     </div>
                   </Card>
-                  <Card className="p-4 sm:col-span-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-(--oboon-text-title)">
-                        <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-(--oboon-bg-subtle)">
-                          <CalendarDays className="h-4 w-4 text-(--oboon-primary)" />
-                        </span>
-                        <span className="ob-typo-subtitle">오늘 예약</span>
+                  <div className="grid grid-cols-1 gap-3 sm:col-span-2 sm:grid-cols-2">
+                    <Card className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-(--oboon-text-title)">
+                          <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-(--oboon-bg-subtle)">
+                            <CalendarDays className="h-4 w-4 text-(--oboon-primary)" />
+                          </span>
+                          <span className="ob-typo-subtitle">오늘 예약</span>
+                        </div>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          shape="pill"
+                          className="h-8 w-8 p-0 rounded-full"
+                          onClick={() => setActiveTab("reservations")}
+                          aria-label="예약 관리로 이동"
+                        >
+                          <ArrowRight className="h-4 w-4 text-(--oboon-text-muted)" />
+                        </Button>
                       </div>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        shape="pill"
-                        className="h-8 w-8 p-0 rounded-full"
-                        onClick={() => setActiveTab("reservations")}
-                        aria-label="예약 관리로 이동"
-                      >
-                        <ArrowRight className="h-4 w-4 text-(--oboon-text-muted)" />
-                      </Button>
-                    </div>
 
-                    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <div className="flex items-center justify-between rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-4 py-3">
-                        <div className="flex items-center gap-2 text-(--oboon-text-title)">
-                          <Plus className="h-4 w-4 text-(--oboon-primary)" />
-                          <span className="ob-typo-body">신규 예약</span>
+                      <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+                        <div>
+                          <div className="ob-typo-caption text-(--oboon-text-muted)">
+                            신규 예약
+                          </div>
+                          <div className="mt-1 ob-typo-h3 text-(--oboon-text-title)">
+                            {todayNewConsultations}건
+                          </div>
                         </div>
-                        <span className="ob-typo-subtitle text-(--oboon-text-title)">
-                          {todayNewConsultations}건
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-4 py-3">
-                        <div className="flex items-center gap-2 text-(--oboon-text-title)">
-                          <UserCheck className="h-4 w-4 text-(--oboon-primary)" />
-                          <span className="ob-typo-body">오늘 방문 예정</span>
+                        <div className="h-10 w-px bg-(--oboon-border-default)" />
+                        <div>
+                          <div className="ob-typo-caption text-(--oboon-text-muted)">
+                            오늘 방문 예정
+                          </div>
+                          <div className="mt-1 ob-typo-h3 text-(--oboon-text-title)">
+                            {todayVisitConsultations}건
+                          </div>
                         </div>
-                        <span className="ob-typo-subtitle text-(--oboon-text-title)">
-                          {todayVisitConsultations}건
-                        </span>
                       </div>
-                    </div>
-                  </Card>
+                    </Card>
+
+                    <Card className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-(--oboon-text-title)">
+                          <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-(--oboon-bg-subtle)">
+                            <FileText className="h-4 w-4 text-(--oboon-primary)" />
+                          </span>
+                          <span className="ob-typo-subtitle">1:1 문의</span>
+                        </div>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          shape="pill"
+                          className="h-8 w-8 p-0 rounded-full"
+                          onClick={() => router.push("/support/qna")}
+                          aria-label="고객센터로 이동"
+                        >
+                          <ArrowRight className="h-4 w-4 text-(--oboon-text-muted)" />
+                        </Button>
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+                        <div>
+                          <div className="ob-typo-caption text-(--oboon-text-muted)">
+                            오늘 신규 문의
+                          </div>
+                          <div className="mt-1 ob-typo-h3 text-(--oboon-text-title)">
+                            {todayNewQnaCount}건
+                          </div>
+                        </div>
+                        <div className="h-10 w-px bg-(--oboon-border-default)" />
+                        <div>
+                          <div className="ob-typo-caption text-(--oboon-text-muted)">
+                            답변 대기
+                          </div>
+                          <div className="mt-1 ob-typo-h3 text-(--oboon-text-title)">
+                            {pendingQnaCount}건
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  </div>
                   <Card className="p-4 sm:col-span-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2 text-(--oboon-text-title)">
@@ -1283,7 +1326,7 @@ function AdminPageInner() {
                               </span>
                             </div>
                             <span className="ob-typo-body text-(--oboon-text-title)">
-                              {item.count}
+                              {item.count}건
                             </span>
                           </div>
                         </Card>
@@ -1939,7 +1982,7 @@ function AdminPageInner() {
                           </span>
                         </div>
                         <span className="ob-typo-body text-(--oboon-text-title)">
-                          {item.count}
+                          {item.count}건
                         </span>
                       </div>
                     </Card>

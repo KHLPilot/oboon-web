@@ -218,8 +218,8 @@ export async function POST(req: Request) {
       await adminSupabase.from("notifications").insert({
         recipient_id: agent_id,
         type: "consultation_request",
-        title: "새 예약이 배정되었습니다",
-        message: `${property?.name ?? "현장"} 예약이 포인트 결제로 즉시 배정되었습니다.`,
+        title: "상담 예약이 배정되었어요",
+        message: `${property?.name ?? "현장"} 예약이 포인트 결제로 즉시 확정되어 배정되었어요.`,
         consultation_id: consultation.id,
         metadata: {
           tab: "consultations",
@@ -246,8 +246,8 @@ export async function POST(req: Request) {
         const notifications = admins.map((admin) => ({
           recipient_id: admin.id,
           type: "admin_new_reservation",
-          title: "신규 예약 요청 접수",
-          message: `${property?.name ?? "현장"} 예약 요청이 새로 접수되었습니다.`,
+          title: "새 예약 요청이 들어왔어요",
+          message: `${property?.name ?? "현장"} 예약 요청이 접수되었어요. 예약 관리에서 확인해 주세요.`,
           consultation_id: consultation.id,
           metadata: {
             tab: "reservations",
@@ -259,19 +259,6 @@ export async function POST(req: Request) {
         await adminSupabase.from("notifications").insert(notifications);
       }
 
-      // 상담사 알림: 신규 예약 요청
-      const agentNotification = {
-        recipient_id: agent_id,
-        type: "consultation_request",
-        title: "새로운 상담 예약 요청",
-        message: `${property?.name ?? "현장"} 상담 예약 요청이 들어왔습니다.`,
-        consultation_id: consultation.id,
-        metadata: {
-          property_id,
-          scheduled_at: scheduledDate.toISOString(),
-        },
-      };
-      await adminSupabase.from("notifications").insert(agentNotification);
     }
 
     return NextResponse.json({

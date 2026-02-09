@@ -3,11 +3,6 @@ import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 
-const adminSupabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
 /**
  * GET /api/notifications
  * 사용자의 알림 목록 조회 (최근 50개)
@@ -47,7 +42,15 @@ export async function GET() {
       );
     }
 
-    const { data: notifications, error } = await adminSupabase
+    const db =
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+        ? createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY
+          )
+        : supabase;
+
+    const { data: notifications, error } = await db
       .from("notifications")
       .select("*")
       .eq("recipient_id", user.id)
@@ -114,10 +117,17 @@ export async function PATCH(req: Request) {
 
     const body = await req.json();
     const { notificationId, markAllRead, consultationId, type } = body;
+    const db =
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+        ? createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY
+          )
+        : supabase;
 
     // 전체 읽음 처리
     if (markAllRead) {
-      const { error } = await adminSupabase
+      const { error } = await db
         .from("notifications")
         .update({ read_at: new Date().toISOString() })
         .eq("recipient_id", user.id)
@@ -136,7 +146,7 @@ export async function PATCH(req: Request) {
 
     // 특정 상담의 특정 타입 알림 일괄 읽음 처리
     if (consultationId && type) {
-      const { error } = await adminSupabase
+      const { error } = await db
         .from("notifications")
         .update({ read_at: new Date().toISOString() })
         .eq("recipient_id", user.id)
@@ -163,7 +173,7 @@ export async function PATCH(req: Request) {
       );
     }
 
-    const { error } = await adminSupabase
+    const { error } = await db
       .from("notifications")
       .update({ read_at: new Date().toISOString() })
       .eq("id", notificationId)
@@ -229,10 +239,17 @@ export async function DELETE(req: Request) {
 
     const body = await req.json();
     const { notificationId, deleteAll } = body;
+    const db =
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+        ? createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY
+          )
+        : supabase;
 
     // 전체 삭제
     if (deleteAll) {
-      const { error } = await adminSupabase
+      const { error } = await db
         .from("notifications")
         .delete()
         .eq("recipient_id", user.id);
@@ -256,7 +273,7 @@ export async function DELETE(req: Request) {
       );
     }
 
-    const { error } = await adminSupabase
+    const { error } = await db
       .from("notifications")
       .delete()
       .eq("id", notificationId)

@@ -3,6 +3,7 @@
  */
 
 import { createSupabaseServer } from "@/lib/supabaseServer";
+import { createClient } from "@supabase/supabase-js";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import {
   QNA_STATUS,
@@ -11,6 +12,11 @@ import {
   type QnAAnswerViewModel,
   type QnAStatusKey,
 } from "../domain/support";
+
+const adminSupabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+);
 
 /**
  * 관리자 여부 확인
@@ -260,6 +266,58 @@ export async function createQnAAnswer(input: {
 }
 
 /**
+ * QnA 질문 수정
+ * - 작성자만 가능
+ * - 답변 대기(pending) 상태에서만 가능
+ */
+export async function updateQnAQuestion(input: {
+  id: string;
+  title: string;
+  body: string;
+}): Promise<{ ok: true } | { ok: false; message: string }> {
+  const supabase = createSupabaseServer();
+  const user = await getCurrentUser();
+
+  if (!user) {
+    return { ok: false, message: "로그인이 필요합니다." };
+  }
+
+  const { data: question, error: qErr } = await supabase
+    .from("qna_questions")
+    .select("author_profile_id, status, deleted_at")
+    .eq("id", input.id)
+    .single();
+
+  if (qErr || !question || question.deleted_at) {
+    return { ok: false, message: "질문을 찾을 수 없습니다." };
+  }
+
+  if (question.author_profile_id !== user.userId) {
+    return { ok: false, message: "수정 권한이 없습니다." };
+  }
+
+  if (question.status !== "pending") {
+    return { ok: false, message: "답변 대기 상태에서만 수정할 수 있습니다." };
+  }
+
+  const { error } = await supabase
+    .from("qna_questions")
+    .update({
+      title: input.title.trim(),
+      body: input.body.trim(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", input.id);
+
+  if (error) {
+    console.error("QnA 수정 실패:", error);
+    return { ok: false, message: "수정에 실패했습니다." };
+  }
+
+  return { ok: true };
+}
+
+/**
  * QnA 질문 삭제 (소프트 삭제)
  */
 export async function deleteQnAQuestion(
@@ -273,7 +331,7 @@ export async function deleteQnAQuestion(
   }
 
   // 본인 글인지 확인
-  const { data: question } = await supabase
+  const { data: question } = await adminSupabase
     .from("qna_questions")
     .select("author_profile_id")
     .eq("id", id)
@@ -289,7 +347,7 @@ export async function deleteQnAQuestion(
   }
 
   // 소프트 삭제
-  const { error } = await supabase
+  const { error } = await adminSupabase
     .from("qna_questions")
     .update({ deleted_at: new Date().toISOString() })
     .eq("id", id);

@@ -311,8 +311,8 @@ export async function PATCH(
             await adminSupabase.from("notifications").insert({
                 recipient_id: existingConsultation.agent_id,
                 type: "consultation_request",
-                title: "새 예약 요청이 승인되었습니다",
-                message: `${propertyInfo?.name ?? "현장"} 예약 요청이 승인되어 상담이 배정되었습니다.`,
+                title: "예약 요청이 승인되었어요",
+                message: `${propertyInfo?.name ?? "현장"} 예약이 승인되어 상담이 배정되었어요.`,
                 consultation_id: id,
                 metadata: {
                     reservation_id: id,
@@ -325,8 +325,8 @@ export async function PATCH(
             await adminSupabase.from("notifications").insert({
                 recipient_id: existingConsultation.customer_id,
                 type: "consultation_rejected",
-                title: "예약 요청이 거절되었습니다",
-                message: `관리자 검토 결과 예약 요청이 거절되었습니다. 사유: ${String(
+                title: "예약 요청이 승인되지 않았어요",
+                message: `관리자 검토 결과 예약 요청이 승인되지 않았어요. 사유: ${String(
                     rejection_reason
                 ).trim()}`,
                 consultation_id: id,
@@ -522,8 +522,8 @@ export async function PATCH(
             const notification = {
                 recipient_id: existingConsultation.customer_id,
                 type: "consultation_confirmed",
-                title: "상담 예약이 확정되었습니다",
-                message: `${property?.name ?? "현장"} 상담 예약이 확정되었습니다.`,
+                title: "상담 예약이 확정되었어요",
+                message: `${property?.name ?? "현장"} 상담 예약이 최종 확정되었어요.`,
                 consultation_id: id,
                 metadata: {
                     property_id: existingConsultation.property_id,

@@ -1001,6 +1001,46 @@
   },
   {
     "schemaname": "public",
+    "tablename": "property_gallery_images",
+    "policyname": "property_gallery_images_delete_manageable",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "using_expression": "((EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = 'admin'::text)))) OR (EXISTS ( SELECT 1\n   FROM properties pr\n  WHERE ((pr.id = property_gallery_images.property_id) AND (pr.created_by = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = property_gallery_images.property_id) AND (pa.agent_id = auth.uid()) AND (pa.status = 'approved'::text)))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_gallery_images",
+    "policyname": "property_gallery_images_insert_manageable",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "((EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = 'admin'::text)))) OR (EXISTS ( SELECT 1\n   FROM properties pr\n  WHERE ((pr.id = property_gallery_images.property_id) AND (pr.created_by = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = property_gallery_images.property_id) AND (pa.agent_id = auth.uid()) AND (pa.status = 'approved'::text)))))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_gallery_images",
+    "policyname": "property_gallery_images_select_manageable",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "((EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = 'admin'::text)))) OR (EXISTS ( SELECT 1\n   FROM properties pr\n  WHERE ((pr.id = property_gallery_images.property_id) AND (pr.created_by = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = property_gallery_images.property_id) AND (pa.agent_id = auth.uid()) AND (pa.status = 'approved'::text)))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_gallery_images",
+    "policyname": "property_gallery_images_update_manageable",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "using_expression": "((EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = 'admin'::text)))) OR (EXISTS ( SELECT 1\n   FROM properties pr\n  WHERE ((pr.id = property_gallery_images.property_id) AND (pr.created_by = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = property_gallery_images.property_id) AND (pa.agent_id = auth.uid()) AND (pa.status = 'approved'::text)))))",
+    "with_check_expression": "((EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = 'admin'::text)))) OR (EXISTS ( SELECT 1\n   FROM properties pr\n  WHERE ((pr.id = property_gallery_images.property_id) AND (pr.created_by = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = property_gallery_images.property_id) AND (pa.agent_id = auth.uid()) AND (pa.status = 'approved'::text)))))"
+  },
+  {
+    "schemaname": "public",
     "tablename": "property_locations",
     "policyname": "Admin full access",
     "permissive": "PERMISSIVE",

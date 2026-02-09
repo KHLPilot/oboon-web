@@ -44,8 +44,8 @@ export function QnAPasswordModal({ isOpen, onClose, onSubmit }: QnAPasswordModal
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-sm mx-4 bg-(--oboon-bg-default) rounded-xl shadow-lg">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-(--oboon-overlay)">
+      <div className="mx-4 w-full max-w-sm rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) shadow-(--oboon-shadow-card)">
         {/* 헤더 */}
         <div className="flex items-center justify-between p-4 border-b border-(--oboon-border-default)">
           <div className="flex items-center gap-2">

@@ -420,6 +420,21 @@
     "definition": "CREATE UNIQUE INDEX property_facilities_pkey ON public.property_facilities USING btree (id)"
   },
   {
+    "table_name": "property_gallery_images",
+    "index_name": "idx_property_gallery_images_property_sort",
+    "definition": "CREATE INDEX idx_property_gallery_images_property_sort ON public.property_gallery_images USING btree (property_id, sort_order, created_at)"
+  },
+  {
+    "table_name": "property_gallery_images",
+    "index_name": "property_gallery_images_pkey",
+    "definition": "CREATE UNIQUE INDEX property_gallery_images_pkey ON public.property_gallery_images USING btree (id)"
+  },
+  {
+    "table_name": "property_gallery_images",
+    "index_name": "property_gallery_images_storage_path_key",
+    "definition": "CREATE UNIQUE INDEX property_gallery_images_storage_path_key ON public.property_gallery_images USING btree (storage_path)"
+  },
+  {
     "table_name": "property_locations",
     "index_name": "property_locations_pkey",
     "definition": "CREATE UNIQUE INDEX property_locations_pkey ON public.property_locations USING btree (id)"

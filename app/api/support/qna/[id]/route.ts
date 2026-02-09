@@ -3,6 +3,7 @@ import {
   fetchQnADetailServer,
   deleteQnAQuestion,
   getCurrentUser,
+  updateQnAQuestion,
 } from "@/features/support/services/qna.server";
 
 /**
@@ -76,6 +77,55 @@ export async function DELETE(
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("QnA 삭제 API 오류:", err);
+    return NextResponse.json(
+      { error: "서버 오류가 발생했습니다." },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * PATCH /api/support/qna/[id]
+ * QnA 질문 수정
+ */
+export async function PATCH(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const { id } = params;
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "질문 ID가 필요합니다." },
+        { status: 400 }
+      );
+    }
+
+    const body = await request.json();
+    const title = String(body?.title ?? "").trim();
+    const content = String(body?.body ?? "").trim();
+
+    if (!title || !content) {
+      return NextResponse.json(
+        { error: "제목과 내용은 필수입니다." },
+        { status: 400 }
+      );
+    }
+
+    const result = await updateQnAQuestion({
+      id,
+      title,
+      body: content,
+    });
+
+    if (!result.ok) {
+      return NextResponse.json({ error: result.message }, { status: 403 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error("QnA 수정 API 오류:", err);
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }

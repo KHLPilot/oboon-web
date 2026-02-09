@@ -3,7 +3,6 @@ import { createSupabaseClient } from "@/lib/supabaseClient";
 export type PropertyCreatePayload = {
   name: string;
   property_type: string | null;
-  phone_number: string | null;
   status: string | null;
   description: string | null;
   confirmed_comment: string | null;

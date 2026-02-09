@@ -1,17 +1,20 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { X, ChevronRight } from "lucide-react";
 import type { Notification } from "../domain/notification.types";
-import { getNotificationHref } from "../domain/notification.constants";
+import { getNotificationHrefForRole } from "../domain/notification.constants";
+import { createSupabaseClient } from "@/lib/supabaseClient";
 
 const TOAST_DURATION = 10000; // 10초
 
 export default function NotificationToastManager() {
   const router = useRouter();
+  const supabase = useMemo(() => createSupabaseClient(), []);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [expanded, setExpanded] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const timerRef = useRef<number | null>(null);
 
   const clearAll = useCallback(() => {
@@ -43,6 +46,27 @@ export default function NotificationToastManager() {
   }, [clearAll]);
 
   useEffect(() => {
+    let mounted = true;
+    (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user || !mounted) return;
+      const { data } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+      if (mounted) {
+        setUserRole(data?.role ?? null);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [supabase]);
+
+  useEffect(() => {
     const handler = (event: Event) => {
       const notification = (event as CustomEvent<Notification>).detail;
       if (!notification) return;
@@ -63,7 +87,7 @@ export default function NotificationToastManager() {
   }, [resetTimer]);
 
   const handleNavigate = (notification: Notification) => {
-    const href = getNotificationHref(notification);
+    const href = getNotificationHrefForRole(notification, userRole);
     if (href) {
       router.push(href);
     }
@@ -109,11 +133,11 @@ export default function NotificationToastManager() {
                 key={notification.id}
                 className="px-4 py-3 border-b border-(--oboon-border-default) last:border-b-0 hover:bg-(--oboon-bg-subtle) transition-colors"
               >
-                <p className="ob-typo-body2 truncate text-(--oboon-text-title)">
+                <p className="ob-typo-body2 overflow-hidden text-(--oboon-text-title) [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
                   {notification.title}
                 </p>
                 {notification.message && (
-                  <p className="ob-typo-caption truncate mt-0.5 text-(--oboon-text-muted)">
+                  <p className="ob-typo-caption mt-0.5 overflow-hidden text-(--oboon-text-muted) [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
                     {notification.message}
                   </p>
                 )}

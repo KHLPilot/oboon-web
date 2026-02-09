@@ -1,8 +1,9 @@
 // app/company/properties/new/page.tsx
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { useRouter } from "next/navigation";
+import { X } from "lucide-react";
 
 import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -26,12 +27,17 @@ import {
 type PropertyForm = {
   name: string;
   property_type: string;
-  phone_number: string;
   status: PropertyStatus;
   description: string;
   confirmed_comment: string;
   estimated_comment: string;
   pending_comment: string;
+};
+
+type PendingGalleryImage = {
+  id: string;
+  file: File;
+  previewUrl: string;
 };
 
 function cn(...classes: Array<string | undefined | false | null>) {
@@ -52,7 +58,6 @@ export default function PropertyCreatePage() {
   const [form, setForm] = useState<PropertyForm>({
     name: "",
     property_type: "",
-    phone_number: "",
     status: defaultStatus ?? PROPERTY_STATUS_OPTIONS[0].value,
     description: "",
     confirmed_comment: "",
@@ -71,6 +76,15 @@ export default function PropertyCreatePage() {
     null,
   );
   const mainImageInputRef = useRef<HTMLInputElement | null>(null);
+  const galleryInputRef = useRef<HTMLInputElement | null>(null);
+  const [galleryImages, setGalleryImages] = useState<PendingGalleryImage[]>([]);
+  const galleryImagesRef = useRef<PendingGalleryImage[]>([]);
+  const [draggingGalleryImageId, setDraggingGalleryImageId] = useState<
+    string | null
+  >(null);
+  const [dragOverGalleryImageId, setDragOverGalleryImageId] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     if (!mainImageFile) {
@@ -81,6 +95,18 @@ export default function PropertyCreatePage() {
     setMainImagePreview(url);
     return () => URL.revokeObjectURL(url);
   }, [mainImageFile]);
+
+  useEffect(() => {
+    galleryImagesRef.current = galleryImages;
+  }, [galleryImages]);
+
+  useEffect(() => {
+    return () => {
+      galleryImagesRef.current.forEach((item) => {
+        URL.revokeObjectURL(item.previewUrl);
+      });
+    };
+  }, []);
 
   // 로그인 유저 확인
   useEffect(() => {
@@ -99,6 +125,95 @@ export default function PropertyCreatePage() {
 
   const disabled = useMemo(() => loading, [loading]);
 
+  const handleGallerySelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    event.currentTarget.value = "";
+    if (files.length === 0) return;
+
+    if (galleryImages.length + files.length > 5) {
+      showAlert("추가 사진은 최대 5장까지 선택할 수 있습니다.");
+      return;
+    }
+
+    for (const file of files) {
+      if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+        showAlert("추가 사진은 jpg/png/webp 파일만 가능합니다.");
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        showAlert("추가 사진은 파일당 5MB 이하만 가능합니다.");
+        return;
+      }
+    }
+
+    const nextItems = files.map((file) => ({
+      id: crypto.randomUUID(),
+      file,
+      previewUrl: URL.createObjectURL(file),
+    }));
+
+    setGalleryImages((prev) => [...prev, ...nextItems]);
+  };
+
+  const removeGalleryImage = (imageId: string) => {
+    setGalleryImages((prev) => {
+      const target = prev.find((item) => item.id === imageId);
+      if (target) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter((item) => item.id !== imageId);
+    });
+  };
+
+  const handleGalleryDragStart = (
+    event: DragEvent<HTMLDivElement>,
+    imageId: string,
+  ) => {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", imageId);
+    setDraggingGalleryImageId(imageId);
+    setDragOverGalleryImageId(null);
+  };
+
+  const handleGalleryDragOver = (
+    event: DragEvent<HTMLDivElement>,
+    imageId: string,
+  ) => {
+    if (!draggingGalleryImageId || draggingGalleryImageId === imageId) return;
+    event.preventDefault();
+    setDragOverGalleryImageId(imageId);
+  };
+
+  const handleGalleryDragEnd = () => {
+    setDraggingGalleryImageId(null);
+    setDragOverGalleryImageId(null);
+  };
+
+  const handleGalleryDrop = (
+    event: DragEvent<HTMLDivElement>,
+    targetImageId: string,
+  ) => {
+    event.preventDefault();
+
+    const sourceImageId =
+      draggingGalleryImageId || event.dataTransfer.getData("text/plain");
+    if (!sourceImageId || sourceImageId === targetImageId) {
+      handleGalleryDragEnd();
+      return;
+    }
+
+    const sourceIndex = galleryImages.findIndex((item) => item.id === sourceImageId);
+    const targetIndex = galleryImages.findIndex((item) => item.id === targetImageId);
+    if (sourceIndex < 0 || targetIndex < 0) {
+      handleGalleryDragEnd();
+      return;
+    }
+
+    const reordered = [...galleryImages];
+    const [moved] = reordered.splice(sourceIndex, 1);
+    reordered.splice(targetIndex, 0, moved);
+    setGalleryImages(reordered);
+    handleGalleryDragEnd();
+  };
+
   async function handleSubmit() {
     if (loading) return;
     setError(null);
@@ -115,7 +230,6 @@ export default function PropertyCreatePage() {
     const payload = {
       name: form.name.trim(),
       property_type: form.property_type.trim() || null,
-      phone_number: form.phone_number.trim() || null,
       status: form.status || null,
       description: form.description.trim() || null,
       confirmed_comment: form.confirmed_comment.trim() || null,
@@ -174,18 +288,38 @@ export default function PropertyCreatePage() {
       });
 
       if (!res.ok) {
-        throw new Error("대표 이미지 업로드에 실패했습니다.");
+        setError("대표 이미지 업로드에 실패했습니다.");
+        return;
       }
 
       const { url } = (await res.json()) as { url?: string };
       if (!url) {
-        throw new Error("대표 이미지 업로드 응답에 url이 없습니다.");
+        setError("대표 이미지 업로드 응답에 url이 없습니다.");
+        return;
       }
 
       const { error: updateErr } = await updatePropertyImage(propertyId, url);
 
       if (updateErr) {
-        throw new Error("대표 이미지 저장에 실패했습니다.");
+        setError("대표 이미지 저장에 실패했습니다.");
+        return;
+      }
+    }
+
+    // 추가 사진 업로드 (선택)
+    if (galleryImages.length > 0) {
+      const fd = new FormData();
+      fd.append("propertyId", String(propertyId));
+      galleryImages.forEach((item) => fd.append("files", item.file));
+
+      const res = await fetch("/api/property/gallery", {
+        method: "POST",
+        body: fd,
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        setError(payload?.error || "추가 사진 업로드에 실패했습니다.");
+        return;
       }
     }
 
@@ -219,127 +353,119 @@ export default function PropertyCreatePage() {
             <div className="ob-typo-h3 font-semibold text-(--oboon-text-title)">
               기본 정보
             </div>
-            <Field label="현장명" required>
-              <Input
-                
-                value={form.name}
-                placeholder="예) 더샵 아르테 미사, 힐스테이트 광안"
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                autoFocus
-                disabled={loading}
-              />
-            </Field>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:items-start">
+              <div className="space-y-4">
+                <Field label="현장명" required>
+                  <Input
+                    
+                    value={form.name}
+                    placeholder="예) 더샵 아르테 미사, 힐스테이트 광안"
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    autoFocus
+                    disabled={loading}
+                  />
+                </Field>
 
-            {/* 대표 이미지 업로드 */}
-            <Field label="대표 이미지" helper="">
-              <div className="space-y-2">
-                {/* 실제 file input은 숨김 (브라우저 기본 '선택된 파일 없음' UI 제거) */}
-                <input
-                  ref={mainImageInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="sr-only"
-                  disabled={disabled}
-                  onChange={(e) => {
-                    const f = e.target.files?.[0] ?? null;
-                    // 같은 파일 재선택 가능하도록 초기화
-                    e.currentTarget.value = "";
-                    setMainImageFile(f);
-                    setMainImageFileName(f ? f.name : null);
-                  }}
-                />
+                <Field label="분양 유형">
+                  <Input
+                    
+                    placeholder="예) 아파트 / 오피스텔 / 상업시설"
+                    value={form.property_type}
+                    onChange={(e) =>
+                      setForm({ ...form, property_type: e.target.value })
+                    }
+                    disabled={loading}
+                  />
+                </Field>
 
-                {/* 트리거 + 파일명 */}
-                <div className="flex items-center gap-3">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    shape="pill"
-                    disabled={disabled}
-                    onClick={() => mainImageInputRef.current?.click()}
-                  >
-                    파일 선택
-                  </Button>
-
-                  <p className="ob-typo-caption text-(--oboon-text-muted) truncate">
-                    {mainImageFileName ? (
-                      <>
-                        선택된 파일:{" "}
-                        <span className="text-(--oboon-text-title)">
-                          {mainImageFileName}
-                        </span>
-                      </>
-                    ) : (
-                      "선택된 파일 없음"
-                    )}
-                  </p>
-                </div>
-
-                {mainImagePreview ? (
-                  <div className="space-y-2">
-                    {/* 이미지 카드 */}
-                    <div className="overflow-hidden rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)">
-                      <img
-                        src={mainImagePreview}
-                        alt="대표 이미지 미리보기"
-                        className="h-auto w-full object-cover"
-                      />
-                    </div>
-
-                    {/* 액션 영역 (카드 외부) */}
-                    <div className="flex justify-between items-center">
-                      <div className="ob-typo-caption text-(--oboon-text-muted)">
-                        이미지를 선택하면 등록 시 자동으로 업로드됩니다.
-                      </div>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        shape="pill"
-                        disabled={disabled}
-                        onClick={() => {
-                          setMainImageFile(null);
-                          setMainImageFileName(null);
-                        }}
-                      >
-                        선택 해제
-                      </Button>
-                    </div>
-                  </div>
-                ) : null}
+                <Field label="상태">
+                  <PropertyStatusSelect
+                    value={form.status}
+                    onChange={(v) => setForm({ ...form, status: v })}
+                    disabled={loading}
+                  />
+                </Field>
               </div>
-            </Field>
 
-            <Field label="분양 유형">
-              <Input
-                
-                placeholder="예) 아파트 / 오피스텔 / 상업시설"
-                value={form.property_type}
-                onChange={(e) =>
-                  setForm({ ...form, property_type: e.target.value })
-                }
-                disabled={loading}
-              />
-            </Field>
+              {/* 대표 이미지 업로드 */}
+              <Field label="대표 이미지" helper="">
+                <div className="space-y-2">
+                  {/* 실제 file input은 숨김 (브라우저 기본 '선택된 파일 없음' UI 제거) */}
+                  <input
+                    ref={mainImageInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    disabled={disabled}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] ?? null;
+                      // 같은 파일 재선택 가능하도록 초기화
+                      e.currentTarget.value = "";
+                      setMainImageFile(f);
+                      setMainImageFileName(f ? f.name : null);
+                    }}
+                  />
 
-            <Field label="대표 연락처">
-              <Input
-                
-                placeholder="예) 1661-0000"
-                value={form.phone_number}
-                onChange={(e) =>
-                  setForm({ ...form, phone_number: e.target.value })
-                }
-                disabled={loading}
-              />
-            </Field>
+                  {/* 트리거 + 파일명 */}
+                  <div className="flex items-center gap-3">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      shape="pill"
+                      disabled={disabled}
+                      onClick={() => mainImageInputRef.current?.click()}
+                    >
+                      파일 선택
+                    </Button>
 
-            <Field label="상태">
-              <PropertyStatusSelect
-                value={form.status}
-                onChange={(v) => setForm({ ...form, status: v })}
-                disabled={loading}
-              />
-            </Field>
+                    <p className="ob-typo-caption text-(--oboon-text-muted) truncate">
+                      {mainImageFileName ? (
+                        <>
+                          선택된 파일:{" "}
+                          <span className="text-(--oboon-text-title)">
+                            {mainImageFileName}
+                          </span>
+                        </>
+                      ) : (
+                        "선택된 파일 없음"
+                      )}
+                    </p>
+                  </div>
+
+                  {mainImagePreview ? (
+                    <div className="space-y-2">
+                      {/* 이미지 카드 */}
+                      <div className="overflow-hidden rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)">
+                        <img
+                          src={mainImagePreview}
+                          alt="대표 이미지 미리보기"
+                          className="h-auto w-full object-cover"
+                        />
+                      </div>
+
+                      {/* 액션 영역 (카드 외부) */}
+                      <div className="flex justify-between items-center">
+                        <div className="ob-typo-caption text-(--oboon-text-muted)">
+                          이미지를 선택하면 등록 시 자동으로 업로드됩니다.
+                        </div>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          shape="pill"
+                          disabled={disabled}
+                          onClick={() => {
+                            setMainImageFile(null);
+                            setMainImageFileName(null);
+                          }}
+                        >
+                          선택 해제
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              </Field>
+            </div>
 
             <Field label="설명">
               <Textarea
@@ -351,6 +477,91 @@ export default function PropertyCreatePage() {
                 }
                 disabled={loading}
               />
+            </Field>
+
+            <Field
+              label="추가 사진 (선택)"
+              rightMeta={
+                <span className="ob-typo-body text-(--oboon-text-muted)">
+                  {galleryImages.length}/5
+                </span>
+              }
+            >
+              <div className="space-y-2">
+                <input
+                  ref={galleryInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  multiple
+                  className="hidden"
+                  disabled={disabled || galleryImages.length >= 5}
+                  onChange={handleGallerySelect}
+                />
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="w-full"
+                  disabled={disabled || galleryImages.length >= 5}
+                  onClick={() => galleryInputRef.current?.click()}
+                >
+                  이미지 업로드
+                </Button>
+                <p className="ob-typo-caption text-(--oboon-text-muted)">
+                  jpg/png/webp, 파일당 5MB, 최대 5장까지 등록할 수 있습니다.
+                </p>
+
+                {galleryImages.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-(--oboon-border-default) p-4 text-center ob-typo-caption text-(--oboon-text-muted)">
+                    등록된 추가 사진이 없습니다.
+                  </div>
+                ) : (
+                  <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 md:grid md:grid-cols-5 md:overflow-visible">
+                    {galleryImages.map((image, index) => (
+                      <div
+                        key={image.id}
+                        draggable={!disabled}
+                        onDragStart={(event) =>
+                          handleGalleryDragStart(event, image.id)
+                        }
+                        onDragOver={(event) =>
+                          handleGalleryDragOver(event, image.id)
+                        }
+                        onDrop={(event) => handleGalleryDrop(event, image.id)}
+                        onDragEnd={handleGalleryDragEnd}
+                        className={[
+                          "relative w-28 shrink-0 snap-start overflow-hidden rounded-xl border bg-(--oboon-bg-surface) transition md:w-auto",
+                          draggingGalleryImageId === image.id
+                            ? "opacity-50 border-(--oboon-primary)"
+                            : "border-(--oboon-border-default)",
+                          dragOverGalleryImageId === image.id
+                            ? "ring-2 ring-(--oboon-primary)/50"
+                            : "",
+                        ].join(" ")}
+                      >
+                        <div className="relative aspect-square w-full overflow-hidden bg-(--oboon-bg-subtle)">
+                          <img
+                            src={image.previewUrl}
+                            alt={`추가 사진 ${index + 1}`}
+                            className="h-full w-full object-cover"
+                          />
+                          <div className="pointer-events-none absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/55 ob-typo-caption font-medium text-white">
+                            {index + 1}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="absolute right-2 top-1 h-6 w-6 min-w-0 rounded-full p-0 !bg-transparent text-white hover:!bg-transparent hover:text-white"
+                            disabled={disabled}
+                            onClick={() => removeGalleryImage(image.id)}
+                          >
+                            <X className="h-4 w-4 text-(--oboon-danger)" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </Field>
 
             {/* Error */}
@@ -395,20 +606,25 @@ function Field({
   label,
   required,
   helper,
+  rightMeta,
   children,
 }: {
   label: string;
   required?: boolean;
   helper?: string;
+  rightMeta?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        <Label className="text-(--oboon-text-title)">{label}</Label>
-        {required ? (
-          <span className="ob-typo-caption text-(--oboon-primary)">*</span>
-        ) : null}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Label className="text-(--oboon-text-title)">{label}</Label>
+          {required ? (
+            <span className="ob-typo-caption text-(--oboon-primary)">*</span>
+          ) : null}
+        </div>
+        {rightMeta ?? null}
       </div>
 
       {children}

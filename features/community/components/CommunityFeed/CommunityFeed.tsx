@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Megaphone } from "lucide-react";
 
-import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
+import Button from "@/components/ui/Button";
 
 import { COMMUNITY_TABS } from "../../domain/community";
 import type { CommunityTabKey } from "../../domain/community";
@@ -19,33 +19,19 @@ import CommunityWriteModal from "./CommunityWriteModal";
 type CommunityEmptyProps = {
   title?: string;
   description?: string;
-  actionLabel?: string;
-  onAction?: () => void;
 };
 
 function CommunityEmpty({
   title = "아직 첫 기록이 없습니다",
   description = "다녀온 현장이나 지금 고민중인 내용을 한 문장으로 남겨보세요. 잘 쓴 글이 아니어도 괜찮아요! 나중에 결정할 때, 이 기록이 가장 솔직한 기준이 됩니다.",
-  actionLabel = "기록 남기기",
-  onAction = () => {},
 }: CommunityEmptyProps) {
   return (
     <Card className="p-5">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="ob-typo-h4 text-(--oboon-text-title)">{title}</div>
-          <p className="mt-1 ob-typo-body text-(--oboon-text-muted)">
-            {description}
-          </p>
-        </div>
-        <Button
-          variant="secondary"
-          size="sm"
-          shape="pill"
-          onClick={onAction}
-        >
-          {actionLabel}
-        </Button>
+      <div>
+        <div className="ob-typo-h4 text-(--oboon-text-title)">{title}</div>
+        <p className="mt-1 ob-typo-body text-(--oboon-text-muted)">
+          {description}
+        </p>
       </div>
     </Card>
   );

@@ -1,18 +1,17 @@
 // features/offerings/detail/OfferingDetailLeft.tsx
 import type { ReactNode } from "react";
-import Image from "next/image";
 import {
   BadgeCheck,
   Building2,
   CalendarDays,
   Info,
   MapPin,
-  Phone,
 } from "lucide-react";
 
 import Card from "@/components/ui/Card";
 import OfferingDetailTabs from "@/features/offerings/components/detail/OfferingDetailTabs.client";
 import OfferingUnitTypesAccordion from "./offeringTypesAccordion.client";
+import PropertyImageGallery from "./PropertyImageGallery.client";
 import { UXCopy } from "@/shared/uxCopy";
 import OfferingBadge from "@/features/offerings/components/OfferingBadges";
 import { isOfferingStatusValue } from "@/features/offerings/domain/offering.constants";
@@ -25,7 +24,6 @@ export type PropertyRow = {
   created_at: string;
   name: string;
   property_type: string;
-  phone_number: string | null;
   status: string | null;
   description: string | null;
   image_url: string | null;
@@ -39,6 +37,10 @@ export type PropertyRow = {
   property_specs: PropertySpecRow[] | PropertySpecRow | null;
   property_timeline: PropertyTimelineRow[] | PropertyTimelineRow | null;
   property_unit_types: PropertyUnitTypeRow[] | PropertyUnitTypeRow | null;
+  property_gallery_images?:
+    | PropertyGalleryImageRow[]
+    | PropertyGalleryImageRow
+    | null;
 };
 
 type PropertyLocationRow = {
@@ -83,6 +85,14 @@ type PropertyUnitTypeRow = {
   supply_count: number | null;
 };
 
+type PropertyGalleryImageRow = {
+  id: string;
+  property_id: number;
+  image_url: string;
+  sort_order: number;
+  created_at: string;
+};
+
 /* ---------------- Utils ---------------- */
 
 function cn(...classes: Array<string | undefined | false | null>) {
@@ -122,6 +132,24 @@ function pickHeroImageUrl(p: PropertyRow) {
     isLikelyImageUrl(u.image_url)
   )?.image_url;
   return fallback ?? null;
+}
+
+function buildGalleryImageUrls(p: PropertyRow) {
+  const hero = pickHeroImageUrl(p);
+  const galleryRows = asArray<PropertyGalleryImageRow>(p.property_gallery_images)
+    .slice()
+    .sort((a, b) => {
+      if ((a.sort_order ?? 0) !== (b.sort_order ?? 0)) {
+        return (a.sort_order ?? 0) - (b.sort_order ?? 0);
+      }
+      return (a.created_at ?? "").localeCompare(b.created_at ?? "");
+    });
+
+  const urls = [hero, ...galleryRows.map((row) => row.image_url)].filter(
+    (url): url is string => isLikelyImageUrl(url),
+  );
+
+  return Array.from(new Set(urls));
 }
 
 function fmtAddr(loc0: PropertyLocationRow | null) {
@@ -226,7 +254,7 @@ export default function OfferingDetailLeft({
       ? p.status
       : null;
 
-  const heroImg = pickHeroImageUrl(p);
+  const galleryImageUrls = buildGalleryImageUrls(p);
 
   const priceMin =
     unitTypes
@@ -256,19 +284,12 @@ export default function OfferingDetailLeft({
         {p.name}
       </div>
 
-      {/* Address / phone */}
+      {/* Address */}
       <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 ob-typo-body text-(--oboon-text-muted)">
         <div className="flex items-center gap-1">
           <MapPin className="h-4 w-4" />
           <span>{address}</span>
         </div>
-
-        {p.phone_number ? (
-          <div className="flex items-center gap-1">
-            <Phone className="h-4 w-4" />
-            <span>{p.phone_number}</span>
-          </div>
-        ) : null}
       </div>
 
       {/* Stats */}
@@ -298,25 +319,13 @@ export default function OfferingDetailLeft({
         <StatCard label="입주 예정" value={moveIn} />
       </div>
 
-      {/* Hero image */}
+      {/* Hero image + additional images */}
       <div className="mt-4">
-        <CardBox className="overflow-hidden p-0">
-          <div className="relative aspect-video w-full bg-(--oboon-bg-subtle)">
-            {heroImg ? (
-              <Image
-                src={heroImg}
-                alt={p.name}
-                fill
-                className="object-cover"
-                priority
-              />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-sm text-(--oboon-text-muted)">
-                {UXCopy.imagePlaceholder}
-              </div>
-            )}
-          </div>
-        </CardBox>
+        <PropertyImageGallery
+          imageUrls={galleryImageUrls}
+          title={p.name}
+          placeholderText={UXCopy.imagePlaceholder}
+        />
       </div>
 
       {/* Tabs (sticky) */}

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import Input from "@/components/ui/Input";
+import Modal from "@/components/ui/Modal";
 import Textarea from "@/components/ui/Textarea";
 
 type QnAWriteModalProps = {
@@ -27,8 +28,6 @@ export function QnAWriteModal({ isOpen, onClose, onSubmit }: QnAWriteModalProps)
   const [anonymousNickname, setAnonymousNickname] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,44 +76,31 @@ export function QnAWriteModal({ isOpen, onClose, onSubmit }: QnAWriteModalProps)
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-lg mx-4 bg-(--oboon-bg-default) rounded-xl shadow-lg">
-        {/* 헤더 */}
-        <div className="flex items-center justify-between p-4 border-b border-(--oboon-border-default)">
-          <h2 className="text-lg font-bold text-(--oboon-text-title)">문의하기</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1 rounded-full hover:bg-(--oboon-bg-subtle)"
-          >
-            <X className="h-5 w-5 text-(--oboon-text-muted)" />
-          </button>
-        </div>
+    <Modal open={isOpen} onClose={onClose} size="lg">
+      <div className="space-y-4">
+        <div className="ob-typo-h2 text-(--oboon-text-title)">문의하기</div>
 
-        {/* 본문 */}
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <div className="p-3 rounded-lg bg-(--oboon-danger)/10 text-(--oboon-danger) text-sm">
+            <div className="ob-typo-body p-3 rounded-xl border border-(--oboon-danger-border) bg-(--oboon-danger-bg) text-(--oboon-danger)">
               {error}
             </div>
           )}
-
           <div>
-            <label className="block mb-1 text-sm font-medium text-(--oboon-text-title)">
+            <label className="ob-typo-subtitle mb-1 block text-(--oboon-text-title)">
               제목
             </label>
-            <input
+            <Input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="제목을 입력해주세요"
-              className="w-full px-3 py-2 rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-default) text-(--oboon-text-title) placeholder:text-(--oboon-text-muted) focus:outline-none focus:ring-2 focus:ring-(--oboon-primary)/30"
               maxLength={100}
             />
           </div>
 
           <div>
-            <label className="block mb-1 text-sm font-medium text-(--oboon-text-title)">
+            <label className="ob-typo-subtitle mb-1 block text-(--oboon-text-title)">
               내용
             </label>
             <Textarea
@@ -122,74 +108,83 @@ export function QnAWriteModal({ isOpen, onClose, onSubmit }: QnAWriteModalProps)
               onChange={(e) => setBody(e.target.value)}
               placeholder="문의 내용을 입력해주세요"
               rows={6}
-              className="w-full px-3 py-2 rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-default) text-(--oboon-text-title) placeholder:text-(--oboon-text-muted) focus:outline-none focus:ring-2 focus:ring-(--oboon-primary)/30 resize-none"
+              className="resize-none"
             />
           </div>
-
-          {/* 비밀글 옵션 */}
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={isSecret}
-                onChange={(e) => setIsSecret(e.target.checked)}
-                className="w-4 h-4 rounded border-(--oboon-border-default)"
-              />
-              <span className="text-sm text-(--oboon-text-title)">비밀글로 작성</span>
-            </label>
-
-            {isSecret && (
-              <div className="ml-6">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {/* 익명 옵션 */}
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 cursor-pointer">
                 <input
-                  type="password"
-                  value={secretPassword}
-                  onChange={(e) => setSecretPassword(e.target.value)}
-                  placeholder="비밀번호 (4자리 이상)"
-                  className="w-full px-3 py-2 rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-default) text-(--oboon-text-title) placeholder:text-(--oboon-text-muted) focus:outline-none focus:ring-2 focus:ring-(--oboon-primary)/30"
-                  minLength={4}
+                  type="checkbox"
+                  checked={isAnonymous}
+                  onChange={(e) => setIsAnonymous(e.target.checked)}
+                  className="w-4 h-4 rounded border-(--oboon-border-default)"
                 />
-              </div>
-            )}
-          </div>
+                <span className="ob-typo-body text-(--oboon-text-title)">
+                  익명으로 작성
+                </span>
+              </label>
 
-          {/* 익명 옵션 */}
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={isAnonymous}
-                onChange={(e) => setIsAnonymous(e.target.checked)}
-                className="w-4 h-4 rounded border-(--oboon-border-default)"
-              />
-              <span className="text-sm text-(--oboon-text-title)">익명으로 작성</span>
-            </label>
-
-            {isAnonymous && (
-              <div className="ml-6">
-                <input
+              {isAnonymous && (
+                <Input
                   type="text"
                   value={anonymousNickname}
                   onChange={(e) => setAnonymousNickname(e.target.value)}
                   placeholder="표시할 닉네임 (선택)"
-                  className="w-full px-3 py-2 rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-default) text-(--oboon-text-title) placeholder:text-(--oboon-text-muted) focus:outline-none focus:ring-2 focus:ring-(--oboon-primary)/30"
                   maxLength={20}
                 />
-              </div>
-            )}
-          </div>
+              )}
+            </div>
 
-          {/* 버튼 */}
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="secondary" onClick={onClose}>
+            {/* 비밀글 옵션 */}
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isSecret}
+                  onChange={(e) => setIsSecret(e.target.checked)}
+                  className="w-4 h-4 rounded border-(--oboon-border-default)"
+                />
+                <span className="ob-typo-body text-(--oboon-text-title)">
+                  비밀글로 작성
+                </span>
+              </label>
+
+              {isSecret && (
+                <Input
+                  type="password"
+                  value={secretPassword}
+                  onChange={(e) => setSecretPassword(e.target.value)}
+                  placeholder="비밀번호 (4자리 이상)"
+                  minLength={4}
+                />
+              )}
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="md"
+              onClick={onClose}
+              className="w-full justify-center"
+            >
               취소
             </Button>
-            <Button type="submit" loading={loading}>
+            <Button
+              type="submit"
+              size="md"
+              loading={loading}
+              className="w-full justify-center"
+            >
               등록하기
             </Button>
           </div>
         </form>
       </div>
-    </div>
+    </Modal>
   );
 }
 

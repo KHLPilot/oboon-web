@@ -4,13 +4,14 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type DragEvent,
   type KeyboardEvent,
 } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { syncAvatarFromSocialIfEmpty } from "@/lib/auth/syncAvatarFromSocialIfEmpty";
 import {
@@ -43,7 +44,7 @@ import {
   X,
   XCircle,
 } from "lucide-react";
-import MyConsultationsModal from "@/features/consultations/components/MyConsultationsModal.client";
+import ConsultationsListPanel from "@/features/consultations/components/ConsultationsListPanel.client";
 import DeleteAccountModal from "./DeleteAccountModal";
 import { showAlert } from "@/shared/alert";
 import { CommunityProfilePage } from "@/features/community";
@@ -104,6 +105,11 @@ type ProfilePageProps = {
 };
 
 type AgentMenuTab = "profile" | "affiliation" | "property" | "community";
+type UserMenuTab =
+  | "profile"
+  | "consultations"
+  | "personalization"
+  | "community";
 
 export default function ProfilePage({
   forceAgentView = false,
@@ -112,6 +118,7 @@ export default function ProfilePage({
   const supabase = createSupabaseClient();
   const toast = useToast();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
@@ -159,7 +166,10 @@ export default function ProfilePage({
 
   // ✅ 삭제
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [showConsultationsModal, setShowConsultationsModal] = useState(false);
+  const openConsultationsByQuery = useMemo(
+    () => searchParams.get("consultations") === "1",
+    [searchParams],
+  );
   const [agentEtc, setAgentEtc] = useState("");
   const [agentProperties, setAgentProperties] = useState<AgentProperty[]>([]);
   const [agentRequests, setAgentRequests] = useState<AgentPropertyRequest[]>(
@@ -172,6 +182,7 @@ export default function ProfilePage({
   const [visiblePropertyCount, setVisiblePropertyCount] = useState(9);
   const [isChangingAffiliation, setIsChangingAffiliation] = useState(false);
   const [agentMenuTab, setAgentMenuTab] = useState<AgentMenuTab>("profile");
+  const [userMenuTab, setUserMenuTab] = useState<UserMenuTab>("profile");
   const [registeredPropertyRows, setRegisteredPropertyRows] = useState<
     PropertyListRow[]
   >([]);
@@ -183,8 +194,13 @@ export default function ProfilePage({
   };
 
   const openConsultationsModal = () => {
-    setShowConsultationsModal(true);
+    setUserMenuTab("consultations");
   };
+
+  useEffect(() => {
+    if (!openConsultationsByQuery) return;
+    setUserMenuTab("consultations");
+  }, [openConsultationsByQuery]);
 
   const fetchGalleryImages = async (targetUserId: string) => {
     try {
@@ -698,7 +714,21 @@ export default function ProfilePage({
   };
 
   const isAgentRole = role === "agent";
+  const isAdminRole = role === "admin";
   const showAgentProfile = forceAgentView || isAgentRole;
+  const showPersonalizationTab = !isAdminRole;
+  const accountStatusLabel =
+    role === "user"
+      ? "일반 사용자"
+      : role === "agent_pending"
+        ? "분양대행사 직원 (승인 대기)"
+        : role === "builder"
+          ? "시공사"
+          : role === "developer"
+            ? "시행사"
+            : role === "admin"
+              ? "관리자"
+              : role;
   const latestApprovedRequest = [...agentRequests]
     .filter((request) => request.status === "approved")
     .sort((a, b) => {
@@ -983,6 +1013,13 @@ export default function ProfilePage({
     router,
   ]);
 
+  useEffect(() => {
+    if (showPersonalizationTab) return;
+    if (userMenuTab === "personalization") {
+      setUserMenuTab("profile");
+    }
+  }, [showPersonalizationTab, userMenuTab]);
+
   if (loading) {
     return (
       <main className="bg-(--oboon-bg-page)">
@@ -1117,7 +1154,7 @@ export default function ProfilePage({
                     <div className="flex items-center gap-2 pt-1">
                       {!isEditing ? (
                         <Button
-                          variant="secondary"
+                          variant="ghost"
                           size="sm"
                           onClick={() => setIsEditing(true)}
                         >
@@ -1620,94 +1657,282 @@ export default function ProfilePage({
   return (
     <main className="bg-(--oboon-bg-page) min-h-full">
       <PageContainer className="pb-6">
-        <div className="w-full space-y-4">
+        <div className="w-full space-y-6">
           <section className="space-y-1">
             <div className="ob-typo-h1 text-(--oboon-text-title)">
-              {showAgentProfile ? "상담사 마이페이지" : "마이페이지"}
+              마이페이지
             </div>
             <p className="mt-1 ob-typo-body text-(--oboon-text-muted)">
-              {showAgentProfile
-                ? "상담 업무에 필요한 기본 정보와 소속 상태를 관리합니다."
-                : "관심 조건을 설정하면, 나에게 맞는 분양 현장을 자동으로 추천해드립니다."}
+              기본 정보와 커뮤니티 활동 내역을 관리할 수 있습니다.
             </p>
           </section>
 
-          <div
-            className={`grid grid-cols-1 gap-5 ${showAgentProfile ? "" : "lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]"}`}
-          >
-            <div className="order-1 lg:order-1 space-y-4">
-              {/* 내 상담 예약 바로가기 */}
-              {!showAgentProfile && (
-                <div
-                  role="button"
-                  tabIndex={0}
-                  className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--oboon-accent)/30"
-                  onClick={openConsultationsModal}
-                  onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      openConsultationsModal();
-                    }
-                  }}
-                >
-                  <Card className="group flex items-center justify-between p-4 sm:p-5 transition-colors hover:bg-(--oboon-bg-subtle) cursor-pointer">
-                    <div className="flex items-center gap-2 sm:gap-3">
-                      <div className="flex h-9 w-9 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-(--oboon-primary)/10 shrink-0">
-                        <CalendarDays className="h-4 w-4 sm:h-5 sm:w-5 text-(--oboon-primary)" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="ob-typo-h3 font-semibold text-(--oboon-text-title)">
-                          내 상담 예약
-                        </div>
-                        <p className="ob-typo-body text-(--oboon-text-muted) truncate">
-                          예약한 상담 내역을 확인하고 관리합니다
-                        </p>
-                      </div>
-                    </div>
-                    <ChevronRight className="h-5 w-5 text-(--oboon-text-muted) shrink-0 transition-colors group-hover:text-(--oboon-text-title)" />
-                  </Card>
-                </div>
-              )}
-
-              <Card className="p-5 sm:p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="ob-typo-h3 text-(--oboon-text-title)">
-                    기본 정보
-                  </div>
-                  {!isEditing && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-(--oboon-text-muted) hover:text-(--oboon-text-title)"
-                      onClick={() => setIsEditing(true)}
+          <section className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
+            <aside className="h-fit">
+              <div className="rounded-2xl">
+                <div className="space-y-0.5">
+                  {[
+                    { id: "profile" as const, label: "기본 프로필" },
+                    { id: "consultations" as const, label: "내 상담 예약" },
+                    ...(showPersonalizationTab
+                      ? [{ id: "personalization" as const, label: "맞춤 정보" }]
+                      : []),
+                    { id: "community" as const, label: "커뮤니티 프로필" },
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setUserMenuTab(tab.id)}
+                      className={[
+                        "w-full text-left py-1.5 rounded-xl ob-typo-body transition-colors relative",
+                        userMenuTab === tab.id
+                          ? "text-(--oboon-text-title)"
+                          : "text-(--oboon-text-muted) hover:text-(--oboon-text-title)",
+                      ].join(" ")}
                     >
-                      정보 수정
-                    </Button>
-                  )}
-                </div>
-
-                <div className="space-y-4">
-                  {/* 프로필 이미지 */}
-                  <div className="space-y-2">
-                    <Label>프로필 이미지</Label>
-                    <div className="flex items-center gap-4">
-                      <div className="h-16 w-16 rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle) overflow-hidden flex items-center justify-center">
-                        {avatarUrl ? (
-                          <img
-                            src={avatarUrl}
-                            alt="프로필 이미지"
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <span className="ob-typo-body text-(--oboon-text-muted)">
-                            {(nickname || name || email || "U")
-                              .slice(0, 1)
-                              .toUpperCase()}
-                          </span>
+                      <span
+                        className={[
+                          "relative block pl-5 pr-2 py-0.5 rounded-lg",
+                          userMenuTab === tab.id
+                            ? "bg-(--oboon-bg-subtle) py-1"
+                            : "",
+                        ].join(" ")}
+                      >
+                        {userMenuTab === tab.id && (
+                          <span className="absolute left-0 top-0 bottom-0 w-1 rounded-full bg-(--oboon-primary)" />
                         )}
+                        {tab.label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </aside>
+
+            <div className="space-y-4">
+              <section className={userMenuTab === "profile" ? "" : "hidden"}>
+                <div className="space-y-4">
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--oboon-accent)/30"
+                    onClick={openConsultationsModal}
+                    onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        openConsultationsModal();
+                      }
+                    }}
+                  >
+                    <Card className="group flex items-center justify-between p-4 sm:p-5 transition-colors hover:bg-(--oboon-bg-subtle) cursor-pointer">
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <div className="flex h-9 w-9 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-(--oboon-primary)/10 shrink-0">
+                          <CalendarDays className="h-4 w-4 sm:h-5 sm:w-5 text-(--oboon-primary)" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="ob-typo-h3 font-semibold text-(--oboon-text-title)">
+                            내 상담 예약
+                          </div>
+                          <p className="ob-typo-body text-(--oboon-text-muted) truncate">
+                            예약한 상담 내역을 확인하고 관리합니다
+                          </p>
+                        </div>
                       </div>
-                      <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-2">
+                      <ChevronRight className="h-5 w-5 text-(--oboon-text-muted) shrink-0 transition-colors group-hover:text-(--oboon-text-title)" />
+                    </Card>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="ob-typo-h3 text-(--oboon-text-title)">
+                        기본 정보
+                      </div>
+                      {!isEditing && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-(--oboon-text-muted) hover:text-(--oboon-text-title)"
+                          onClick={() => setIsEditing(true)}
+                        >
+                          정보 수정
+                        </Button>
+                      )}
+                    </div>
+
+                    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_350px]">
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label>이름 *</Label>
+                            <Input
+                              value={name}
+                              disabled={!isEditing}
+                              onChange={(e) => handleNameChange(e.target.value)}
+                              placeholder="김오분 (한글/영문 2-20자)"
+                              maxLength={20}
+                              className={[
+                                oboonFieldBaseClass,
+                                errors.name ? "border-(--oboon-danger-border)" : "",
+                              ].join(" ")}
+                            />
+                            {errors.name && (
+                              <p className="ob-typo-caption text-(--oboon-danger) mt-1">
+                                {errors.name}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>연락처 *</Label>
+                            <Input
+                              value={phone}
+                              disabled={!isEditing}
+                              onChange={(e) => handlePhoneChange(e.target.value)}
+                              placeholder="01012345678"
+                              maxLength={13}
+                              className={[
+                                oboonFieldBaseClass,
+                                errors.phone ? "border-(--oboon-danger-border)" : "",
+                              ].join(" ")}
+                            />
+                            {errors.phone && (
+                              <p className="ob-typo-caption text-(--oboon-danger) mt-1">
+                                {errors.phone}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label>닉네임</Label>
+                            <div className="flex gap-2">
+                              <Input
+                                value={nickname}
+                                disabled={!isEditing}
+                                onChange={(e) =>
+                                  handleNicknameChange(e.target.value)
+                                }
+                                placeholder="오분이 (선택, 2-15자)"
+                                maxLength={15}
+                                className={[
+                                  "flex-1",
+                                  oboonFieldBaseClass,
+                                  errors.nickname
+                                    ? "border-(--oboon-danger-border)"
+                                    : "",
+                                ].join(" ")}
+                              />
+                              {isEditing &&
+                                nickname &&
+                                nickname !== originalNickname && (
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={checkNickname}
+                                    disabled={nicknameChecking}
+                                  >
+                                    {nicknameChecking ? "확인중..." : "중복확인"}
+                                  </Button>
+                                )}
+                            </div>
+                            {errors.nickname && (
+                              <p className="ob-typo-caption text-(--oboon-danger) mt-1">
+                                {errors.nickname}
+                              </p>
+                            )}
+                            {nicknameAvailable === true &&
+                              nickname !== originalNickname && (
+                                <p className="ob-typo-caption text-(--oboon-safe) mt-1">
+                                  사용 가능한 닉네임입니다.
+                                </p>
+                              )}
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>이메일</Label>
+                            <Input
+                              value={email}
+                              disabled
+                              className={oboonFieldBaseClass}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label>은행 *</Label>
+                            <Input
+                              value={bankName}
+                              disabled={!isEditing}
+                              onChange={(e) => handleBankNameChange(e.target.value)}
+                              placeholder="예: 토스뱅크"
+                              maxLength={30}
+                              className={[
+                                oboonFieldBaseClass,
+                                errors.bankName ? "border-(--oboon-danger-border)" : "",
+                              ].join(" ")}
+                            />
+                            {errors.bankName && (
+                              <p className="ob-typo-caption text-(--oboon-danger) mt-1">
+                                {errors.bankName}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>계좌번호 *</Label>
+                            <Input
+                              value={bankAccountNumber}
+                              disabled={!isEditing}
+                              onChange={(e) =>
+                                handleBankAccountChange(e.target.value)
+                              }
+                              placeholder="숫자와 -만 입력"
+                              maxLength={40}
+                              className={[
+                                oboonFieldBaseClass,
+                                errors.bankAccountNumber
+                                  ? "border-(--oboon-danger-border)"
+                                  : "",
+                              ].join(" ")}
+                            />
+                            {errors.bankAccountNumber && (
+                              <p className="ob-typo-caption text-(--oboon-danger) mt-1">
+                                {errors.bankAccountNumber}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="space-y-2 sm:col-span-2">
+                            <Label>계정 유형</Label>
+                            <Input
+                              value={accountStatusLabel}
+                              disabled
+                              className={oboonFieldBaseClass}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>프로필 이미지</Label>
+                        <div className="relative mx-auto h-75 w-75">
+                          <div className="h-75 w-75 overflow-hidden rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle)">
+                            {avatarUrl ? (
+                              <img
+                                src={avatarUrl}
+                                alt="프로필 이미지"
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center ob-typo-display text-(--oboon-text-muted)">
+                                {(nickname || name || email || "U")
+                                  .slice(0, 1)
+                                  .toUpperCase()}
+                              </div>
+                            )}
+                          </div>
                           <input
                             ref={fileInputRef}
                             type="file"
@@ -1716,316 +1941,145 @@ export default function ProfilePage({
                             onChange={handleAvatarSelect}
                           />
                           <Button
-                            variant="secondary"
-                            size="sm"
+                            variant="primary"
                             shape="pill"
+                            size="sm"
+                            className="!h-8 !w-8 !p-0 absolute -bottom-1 -right-1 z-20 shadow-md"
                             onClick={() => fileInputRef.current?.click()}
                             disabled={avatarUploading}
                             loading={avatarUploading}
                           >
-                            이미지 업로드
+                            {!avatarUploading && <Pencil className="h-4 w-4" />}
                           </Button>
                         </div>
-                        <p className="ob-typo-caption text-(--oboon-text-muted)">
-                          5MB 이하의 이미지 파일만 업로드할 수 있습니다.
-                        </p>
                       </div>
                     </div>
-                  </div>
 
-                  {/* 이름 */}
-                  <div className="space-y-2">
-                    <Label>이름 *</Label>
-                    <Input
-                      value={name}
-                      disabled={!isEditing}
-                      onChange={(e) => handleNameChange(e.target.value)}
-                      placeholder="김오분 (한글/영문 2-20자)"
-                      maxLength={20}
-                      className={[
-                        oboonFieldBaseClass,
-                        errors.name ? "border-(--oboon-danger-border)" : "",
-                      ].join(" ")}
-                    />
-                    {errors.name && (
-                      <p className="ob-typo-caption text-(--oboon-danger) mt-1">
-                        {errors.name}
-                      </p>
+                    {isEditing && (
+                      <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                        <Button
+                          variant="primary"
+                          size="md"
+                          onClick={saveProfile}
+                          className="flex-1"
+                        >
+                          저장하기
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="md"
+                          onClick={() => {
+                            setIsEditing(false);
+                            setErrors({});
+                            setNicknameAvailable(null);
+                          }}
+                        >
+                          취소
+                        </Button>
+                      </div>
                     )}
                   </div>
 
-                  {/* 닉네임 */}
-                  <div>
-                    <Label>닉네임</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        value={nickname}
-                        disabled={!isEditing}
-                        onChange={(e) => handleNicknameChange(e.target.value)}
-                        placeholder="오분이 (선택, 2-15자)"
-                        maxLength={15}
-                        className={[
-                          "flex-1",
-                          oboonFieldBaseClass,
-                          errors.nickname ? "border-(--oboon-danger-border)" : "",
-                        ].join(" ")}
-                      />
-                      {isEditing &&
-                        nickname &&
-                        nickname !== originalNickname && (
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={checkNickname}
-                            disabled={nicknameChecking}
-                          >
-                            {nicknameChecking ? "확인중..." : "중복확인"}
-                          </Button>
-                        )}
-                    </div>
-                    {errors.nickname && (
-                      <p className="ob-typo-caption text-(--oboon-danger) mt-1">
-                        {errors.nickname}
-                      </p>
-                    )}
-                    {nicknameAvailable === true &&
-                      nickname !== originalNickname && (
-                        <p className="ob-typo-caption text-(--oboon-safe) mt-1">
-                          사용 가능한 닉네임입니다.
-                        </p>
-                      )}
-                  </div>
-
-                  {/* 연락처 */}
-                  <div>
-                    <Label>연락처 *</Label>
-                    <Input
-                      value={phone}
-                      disabled={!isEditing}
-                      onChange={(e) => handlePhoneChange(e.target.value)}
-                      placeholder="01012345678"
-                      maxLength={13}
-                      className={[
-                        oboonFieldBaseClass,
-                        errors.phone ? "border-(--oboon-danger-border)" : "",
-                      ].join(" ")}
-                    />
-                    {errors.phone && (
-                      <p className="ob-typo-caption text-(--oboon-danger) mt-1">
-                        {errors.phone}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* 계좌번호 */}
-                  <div>
-                    <Label>은행 *</Label>
-                    <Input
-                      value={bankName}
-                      disabled={!isEditing}
-                      onChange={(e) => handleBankNameChange(e.target.value)}
-                      placeholder="예: 토스뱅크"
-                      maxLength={30}
-                      className={[
-                        oboonFieldBaseClass,
-                        errors.bankName ? "border-(--oboon-danger-border)" : "",
-                      ].join(" ")}
-                    />
-                    {errors.bankName && (
-                      <p className="ob-typo-caption text-(--oboon-danger) mt-1">
-                        {errors.bankName}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* 계좌번호 */}
-                  <div>
-                    <Label>계좌번호 *</Label>
-                    <Input
-                      value={bankAccountNumber}
-                      disabled={!isEditing}
-                      onChange={(e) => handleBankAccountChange(e.target.value)}
-                      placeholder="숫자와 -만 입력"
-                      maxLength={40}
-                      className={[
-                        oboonFieldBaseClass,
-                        errors.bankAccountNumber
-                          ? "border-(--oboon-danger-border)"
-                          : "",
-                      ].join(" ")}
-                    />
-                    {errors.bankAccountNumber && (
-                      <p className="ob-typo-caption text-(--oboon-danger) mt-1">
-                        {errors.bankAccountNumber}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* 이메일 */}
-                  <div>
-                    <Label>이메일</Label>
-                    <Input
-                      value={email}
-                      disabled
-                      className={oboonFieldBaseClass}
-                    />
+                  <div className="mt-10 border-t border-(--oboon-border-default) pt-10">
+                    <Card className="p-4 sm:p-5">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="space-y-1">
+                          <div className="ob-typo-h2 text-(--oboon-danger)">
+                            계정 삭제
+                          </div>
+                          <p className="ob-typo-body text-(--oboon-text-muted)">
+                            계정을 삭제하면 모든 개인정보가 삭제되며 복구할 수 없습니다.
+                          </p>
+                        </div>
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          onClick={() => setShowDeleteModal(true)}
+                        >
+                          계정 삭제
+                        </Button>
+                      </div>
+                    </Card>
                   </div>
                 </div>
+              </section>
 
-                {isEditing && (
-                  <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                    <Button
-                      variant="primary"
-                      size="md"
-                      onClick={saveProfile}
-                      className="flex-1"
-                    >
-                      저장하기
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      size="md"
-                      onClick={() => {
-                        setIsEditing(false);
-                        setErrors({});
-                        setNicknameAvailable(null);
-                      }}
-                    >
-                      취소
-                    </Button>
-                  </div>
-                )}
-
-                <div className="mt-6 border-t border-(--oboon-border-default) pt-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="ob-typo-h3 text-(--oboon-text-title) mb-1">
-                      계정 유형
+              <section
+                className={userMenuTab === "consultations" ? "" : "hidden"}
+              >
+                <div className="space-y-3">
+                  <div>
+                    <div className="ob-typo-h2 text-(--oboon-text-title)">
+                      내 상담 예약
+                    </div>
+                    <div className="mt-1 ob-typo-body text-(--oboon-text-muted)">
+                      예약된 상담 내역을 확인하고 관리할 수 있습니다
                     </div>
                   </div>
-                  <p className="ob-typo-body text-(--oboon-text-body) mt-2">
-                    현재 계정 상태:{" "}
-                    <span className="font-semibold text-(--oboon-text-title)">
-                      {role === "user" && "일반 사용자"}
-                      {role === "agent_pending" &&
-                        "분양대행사 직원 (승인 대기)"}
-                      {role === "builder" && "시공사"}
-                      {role === "developer" && "시행사"}
-                      {role === "admin" && "관리자"}
-                    </span>
-                  </p>
-
+                  <ConsultationsListPanel embedded />
                 </div>
-              </Card>
+              </section>
 
-              {showAgentProfile && (
-                <Card className="p-5 sm:p-6">
-                  <div className="ob-typo-h3 text-(--oboon-text-title)">
-                    상담사 전용 메뉴
-                  </div>
-                  <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-                    <Button
-                      asChild
-                      variant="primary"
-                      size="md"
-                      className="flex-1"
-                    >
-                      <Link href="/agent/profile#affiliation-section">
-                        소속 신청/관리
-                      </Link>
-                    </Button>
-                    <Button
-                      asChild
-                      variant="secondary"
-                      size="md"
-                      className="flex-1"
-                    >
-                      <Link href="/agent/consultations">상담 일정 관리</Link>
-                    </Button>
-                  </div>
-                </Card>
-              )}
-            </div>
-
-            {!showAgentProfile && (
-              <div className="order-2 lg:order-2 space-y-4">
-                {/* 관심 지역 */}
-                <Card className="p-4 sm:p-5">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="ob-typo-h3 text-(--oboon-text-title)">
-                      관심 지역 (추후 UI 수정 예정)
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-(--oboon-text-muted) hover:text-(--oboon-text-title)"
-                    >
-                      지역 추가
-                    </Button>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {interestRegions.map((region) => (
-                      <span
-                        key={region}
-                        className="rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-1 ob-typo-caption text-(--oboon-text-body)"
+              <section
+                className={
+                  showPersonalizationTab && userMenuTab === "personalization"
+                    ? ""
+                    : "hidden"
+                }
+              >
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  <Card className="p-4 sm:p-5">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="ob-typo-h3 text-(--oboon-text-title)">
+                        관심 지역 (추후 UI 수정 예정)
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-(--oboon-text-muted) hover:text-(--oboon-text-title)"
                       >
-                        {region}
-                      </span>
-                    ))}
-                  </div>
-                </Card>
+                        지역 추가
+                      </Button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {interestRegions.map((region) => (
+                        <span
+                          key={region}
+                          className="rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-1 ob-typo-caption text-(--oboon-text-body)"
+                        >
+                          {region}
+                        </span>
+                      ))}
+                    </div>
+                  </Card>
 
-                {/* 선호 분양 유형 */}
-                <Card className="p-4 sm:p-5">
-                  <div className="ob-typo-h3 text-(--oboon-text-title) mb-3">
-                    선호 분양 유형
-                  </div>
-                  <div className="flex flex-wrap gap-3">
-                    {preferredTypes.map((type) => (
-                      <label
-                        key={type}
-                        className="flex items-center gap-2 ob-typo-body text-(--oboon-text-body)"
-                      >
-                        <input
-                          type="checkbox"
-                          className="accent-(--oboon-primary) h-4 w-4"
-                        />
-                        {type}
-                      </label>
-                    ))}
-                  </div>
-                </Card>
-              </div>
-            )}
-          </div>
-
-          <div className="mt-6 space-y-3 border-t border-(--oboon-border-default) pt-4">
-            <div className="ob-typo-h2 text-(--oboon-text-title)">
-              커뮤니티 프로필
-            </div>
-            <CommunityProfilePage />
-          </div>
-
-          <div className="border-t border-(--oboon-border-default) pt-4">
-            <Card className="p-4 sm:p-5">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="space-y-1">
-                  <div className="ob-typo-h2 text-(--oboon-danger)">
-                    계정 삭제
-                  </div>
-                  <p className="ob-typo-body text-(--oboon-text-muted)">
-                    계정을 삭제하면 모든 개인정보가 삭제되며 복구할 수 없습니다.
-                  </p>
+                  <Card className="p-4 sm:p-5">
+                    <div className="ob-typo-h3 text-(--oboon-text-title) mb-3">
+                      선호 분양 유형
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                      {preferredTypes.map((type) => (
+                        <label
+                          key={type}
+                          className="flex items-center gap-2 ob-typo-body text-(--oboon-text-body)"
+                        >
+                          <input
+                            type="checkbox"
+                            className="accent-(--oboon-primary) h-4 w-4"
+                          />
+                          {type}
+                        </label>
+                      ))}
+                    </div>
+                  </Card>
                 </div>
-                <Button
-                  variant="danger"
-                  size="sm"
-                  onClick={() => setShowDeleteModal(true)}
-                >
-                  계정 삭제
-                </Button>
-              </div>
-            </Card>
-          </div>
+              </section>
+
+              <section className={userMenuTab === "community" ? "" : "hidden"}>
+                <CommunityProfilePage />
+              </section>
+            </div>
+          </section>
 
           {/* 계정 삭제 모달 */}
           <DeleteAccountModal
@@ -2034,10 +2088,6 @@ export default function ProfilePage({
             onDelete={deleteAccount}
           />
 
-          <MyConsultationsModal
-            open={showConsultationsModal}
-            onClose={() => setShowConsultationsModal(false)}
-          />
         </div>
       </PageContainer>
     </main>

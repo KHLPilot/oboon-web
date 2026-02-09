@@ -17,7 +17,6 @@ import { OboonInlineDatePicker } from "@/components/ui/DatePicker";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
-import MyConsultationsModal from "@/features/consultations/components/MyConsultationsModal.client";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { trackEvent } from "@/lib/analytics";
 
@@ -105,8 +104,6 @@ export default function BookingModal({
   const [step, setStep] = useState<"agent" | "time" | "bank" | "confirm">(
     "agent",
   );
-  const [showMyConsultationsModal, setShowMyConsultationsModal] =
-    useState(false);
   const [bankName, setBankName] = useState("");
   const [bankAccountNumber, setBankAccountNumber] = useState("");
   const [bankSaving, setBankSaving] = useState(false);
@@ -133,7 +130,6 @@ export default function BookingModal({
 
   useEffect(() => {
     if (!isOpen) return;
-    setShowMyConsultationsModal(false);
 
     async function fetchData() {
       setLoading(true);
@@ -402,8 +398,8 @@ export default function BookingModal({
       );
       onClose();
 
-      // 내 예약 페이지로 이동
-      router.push("/my/consultations");
+      // 마이페이지로 이동 후 "내 상담 예약" 모달 자동 오픈
+      router.push("/profile?consultations=1");
     } catch (err: any) {
       console.error("예약 오류:", err);
       setError(err.message || "예약에 실패했습니다");
@@ -560,7 +556,7 @@ export default function BookingModal({
                 shape="pill"
                 onClick={() => {
                   onClose();
-                  setShowMyConsultationsModal(true);
+                  router.push("/profile?consultations=1");
                 }}
               >
                 내 예약 보기
@@ -1126,10 +1122,6 @@ export default function BookingModal({
         ) : null}
       </Modal>
 
-      <MyConsultationsModal
-        open={showMyConsultationsModal}
-        onClose={() => setShowMyConsultationsModal(false)}
-      />
     </>
   );
 }

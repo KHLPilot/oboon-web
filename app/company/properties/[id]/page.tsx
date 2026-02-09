@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type DragEvent,
   type ComponentType,
   type ReactNode,
 } from "react";
@@ -19,6 +20,7 @@ import {
   LayoutTemplate,
   MapPin,
   Loader2,
+  X,
 } from "lucide-react";
 
 import { deletePropertyCascade, fetchPropertyDetail, updatePropertyBasicInfo } from "@/features/company/services/property.detail";
@@ -59,7 +61,6 @@ type PropertyRow = {
   created_by?: string | null;
   name: string;
   property_type: string | null;
-  phone_number: string | null;
   status: string | null;
   description: string | null;
   image_url: string | null;
@@ -111,6 +112,15 @@ type PropertyDetail = PropertyRow & {
 };
 
 type SectionStatus = "none" | "partial" | "full";
+type PropertyGalleryImage = {
+  id: string;
+  property_id: number;
+  storage_path: string;
+  image_url: string;
+  sort_order: number;
+  caption: string | null;
+  created_at: string;
+};
 
 /* ==================================================
    하위 컴포넌트
@@ -247,6 +257,17 @@ function PropertyDetailPageInner() {
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const [imageFileName, setImageFileName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const galleryInputRef = useRef<HTMLInputElement | null>(null);
+  const [galleryImages, setGalleryImages] = useState<PropertyGalleryImage[]>([]);
+  const [galleryUploading, setGalleryUploading] = useState(false);
+  const [galleryDeletingId, setGalleryDeletingId] = useState<string | null>(null);
+  const [galleryReordering, setGalleryReordering] = useState(false);
+  const [draggingGalleryImageId, setDraggingGalleryImageId] = useState<
+    string | null
+  >(null);
+  const [dragOverGalleryImageId, setDragOverGalleryImageId] = useState<
+    string | null
+  >(null);
   const [requestStatus, setRequestStatus] =
     useState<PropertyRequestStatus | null>(null);
   const [deleteRequestStatus, setDeleteRequestStatus] =
@@ -265,6 +286,20 @@ function PropertyDetailPageInner() {
     currentUserRole === "agent"
       ? "/agent/profile#property-register"
       : "/company/properties";
+
+  const fetchGalleryImages = useCallback(async (propertyId: number) => {
+    try {
+      const response = await fetch(`/api/property/gallery?propertyId=${propertyId}`);
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || "추가 사진 조회에 실패했습니다");
+      }
+      setGalleryImages((payload.images || []) as PropertyGalleryImage[]);
+    } catch (error) {
+      console.error("property gallery fetch error:", error);
+      setGalleryImages([]);
+    }
+  }, []);
 
   // 데이터 로드
   const load = useCallback(async () => {
@@ -304,7 +339,6 @@ function PropertyDetailPageInner() {
         id: res.id,
         name: res.name,
         property_type: res.property_type,
-        phone_number: res.phone_number,
         status: res.status,
         description: res.description,
         image_url: res.image_url,
@@ -312,6 +346,7 @@ function PropertyDetailPageInner() {
         estimated_note: res.estimated_note,
         undecided_note: res.undecided_note,
       });
+      await fetchGalleryImages(res.id);
     }
     const [requestResult, deleteRequestResult] = await Promise.all([
       fetchMyPropertyRequest(id),
@@ -327,7 +362,7 @@ function PropertyDetailPageInner() {
     }
 
     setLoading(false);
-  }, [id]);
+  }, [fetchGalleryImages, id]);
 
   useEffect(() => {
     load();
@@ -378,7 +413,6 @@ function PropertyDetailPageInner() {
   async function saveBasicInfo() {
     if (!form) return;
     if (!validateRequiredOrShowModal(form.name, "현장명")) return;
-    if (!validateRequiredOrShowModal(form.phone_number ?? "", "연락처")) return;
     setSaving(true);
     const { error } = await updatePropertyBasicInfo(id, { ...form });
     setSaving(false);
@@ -513,6 +547,148 @@ function PropertyDetailPageInner() {
     }
   }
 
+  const handleGallerySelect = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const files = Array.from(event.target.files ?? []);
+    if (files.length === 0) return;
+
+    if (galleryImages.length + files.length > 5) {
+      toast.error("추가 사진은 최대 5장까지 업로드할 수 있습니다.", "업로드 실패");
+      event.target.value = "";
+      return;
+    }
+
+    setGalleryUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("propertyId", String(id));
+      files.forEach((file) => formData.append("files", file));
+
+      const response = await fetch("/api/property/gallery", {
+        method: "POST",
+        body: formData,
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || "업로드에 실패했습니다");
+      }
+
+      setGalleryImages((payload.images || []) as PropertyGalleryImage[]);
+      toast.success("추가 사진이 업로드되었습니다.", "완료");
+    } catch (error: any) {
+      toast.error(error.message || "업로드 중 오류가 발생했습니다.", "업로드 실패");
+    } finally {
+      setGalleryUploading(false);
+      event.target.value = "";
+    }
+  };
+
+  const handleGalleryDelete = async (imageId: string) => {
+    if (!confirm("이 사진을 삭제할까요?")) return;
+
+    setGalleryDeletingId(imageId);
+    try {
+      const response = await fetch("/api/property/gallery", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: imageId, propertyId: id }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || "삭제에 실패했습니다");
+      }
+
+      setGalleryImages((payload.images || []) as PropertyGalleryImage[]);
+      toast.success("사진이 삭제되었습니다.", "완료");
+    } catch (error: any) {
+      toast.error(error.message || "삭제 중 오류가 발생했습니다.", "삭제 실패");
+    } finally {
+      setGalleryDeletingId(null);
+    }
+  };
+
+  const saveGalleryOrder = async (reordered: PropertyGalleryImage[]) => {
+    const updates = reordered.map((image, index) => ({
+      id: image.id,
+      sort_order: index + 1,
+      caption: image.caption,
+    }));
+
+    setGalleryReordering(true);
+    try {
+      const response = await fetch("/api/property/gallery", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ propertyId: id, updates }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || "정렬 저장에 실패했습니다");
+      }
+
+      setGalleryImages((payload.images || []) as PropertyGalleryImage[]);
+    } catch (error: any) {
+      toast.error(error.message || "정렬 저장 중 오류가 발생했습니다.", "정렬 실패");
+    } finally {
+      setGalleryReordering(false);
+    }
+  };
+
+  const handleGalleryDragStart = (
+    event: DragEvent<HTMLDivElement>,
+    imageId: string,
+  ) => {
+    if (galleryReordering) return;
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", imageId);
+    setDraggingGalleryImageId(imageId);
+    setDragOverGalleryImageId(null);
+  };
+
+  const handleGalleryDragOver = (
+    event: DragEvent<HTMLDivElement>,
+    imageId: string,
+  ) => {
+    if (!draggingGalleryImageId || draggingGalleryImageId === imageId) return;
+    event.preventDefault();
+    setDragOverGalleryImageId(imageId);
+  };
+
+  const handleGalleryDragEnd = () => {
+    setDraggingGalleryImageId(null);
+    setDragOverGalleryImageId(null);
+  };
+
+  const handleGalleryDrop = async (
+    event: DragEvent<HTMLDivElement>,
+    targetImageId: string,
+  ) => {
+    event.preventDefault();
+
+    const sourceImageId =
+      draggingGalleryImageId || event.dataTransfer.getData("text/plain");
+    if (!sourceImageId || sourceImageId === targetImageId) {
+      handleGalleryDragEnd();
+      return;
+    }
+
+    const sourceIndex = galleryImages.findIndex((image) => image.id === sourceImageId);
+    const targetIndex = galleryImages.findIndex((image) => image.id === targetImageId);
+
+    if (sourceIndex < 0 || targetIndex < 0) {
+      handleGalleryDragEnd();
+      return;
+    }
+
+    const reordered = [...galleryImages];
+    const [moved] = reordered.splice(sourceIndex, 1);
+    reordered.splice(targetIndex, 0, moved);
+
+    handleGalleryDragEnd();
+    await saveGalleryOrder(reordered);
+  };
+
   if (loading)
     return (
       <div className="flex h-40 items-center justify-center ob-typo-body text-(--oboon-text-muted)">
@@ -571,6 +747,24 @@ function PropertyDetailPageInner() {
     requestStatus !== "approved" ||
     needsReapproval ||
     (editMode && currentUserRole !== "admin");
+  const displayImageFileName =
+    imageFileName ||
+    (() => {
+      const url = (form.image_url || "").trim();
+      if (!url) return null;
+      try {
+        const parsed = new URL(url);
+        const fileName = decodeURIComponent(
+          (parsed.pathname.split("/").pop() || "").trim(),
+        );
+        return fileName || null;
+      } catch {
+        const fileName = decodeURIComponent(
+          (url.split("/").pop() || "").split("?")[0].trim(),
+        );
+        return fileName || null;
+      }
+    })();
 
   return (
     <main className="bg-(--oboon-bg-page)">
@@ -745,7 +939,6 @@ function PropertyDetailPageInner() {
               <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
                 <div className="md:col-span-2 grid grid-cols-1 gap-2 md:grid-cols-2">
                   <InfoRow label="현장명" value={data.name} />
-                  <InfoRow label="연락처" value={data.phone_number} />
                   <InfoRow label="분양 유형" value={data.property_type} />
                   <InfoRow label="분양 상태" value={statusLabel} />
                 </div>
@@ -809,14 +1002,6 @@ function PropertyDetailPageInner() {
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
                   />
                 </FormField>
-                <FormField label="연락처">
-                  <Input
-                    value={form.phone_number ?? ""}
-                    onChange={(e) =>
-                      setForm({ ...form, phone_number: e.target.value })
-                    }
-                  />
-                </FormField>
                 <FormField label="분양 유형">
                   <Input
                     value={form.property_type ?? ""}
@@ -846,22 +1031,35 @@ function PropertyDetailPageInner() {
                 </FormField>
                 <FormField label="대표 이미지" className="md:col-span-2">
                   <div className="flex flex-col gap-3">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
                       <Button
                         variant="secondary"
                         size="sm"
                         shape="pill"
                         onClick={() => fileInputRef.current?.click()}
                       >
-                        파일 선택
+                        이미지 업로드
                       </Button>
-
+                      {localPreview || form.image_url ? (
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          shape="pill"
+                          onClick={() => {
+                            setForm({ ...form, image_url: null });
+                            setLocalPreview(null);
+                            setImageFileName(null);
+                          }}
+                        >
+                          삭제
+                        </Button>
+                      ) : null}
                       <p className="ob-typo-caption text-(--oboon-text-muted) truncate">
-                        {imageFileName ? (
+                        {displayImageFileName ? (
                           <>
                             선택된 파일:{" "}
                             <span className="text-(--oboon-text-title)">
-                              {imageFileName}
+                              {displayImageFileName}
                             </span>
                           </>
                         ) : (
@@ -895,28 +1093,97 @@ function PropertyDetailPageInner() {
                         </div>
                       )}
                     </div>
-
-                    {/* 액션 영역: 카드 아래로 분리 */}
-                    <div className="flex justify-end gap-2">
-                      {localPreview || form.image_url ? (
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          shape="pill"
-                          onClick={() => {
-                            setForm({ ...form, image_url: null });
-                            setLocalPreview(null);
-                            setImageFileName(null);
-                          }}
-                        >
-                          삭제
-                        </Button>
-                      ) : null}
-                    </div>
                   </div>
                 </FormField>
               </div>
             )}
+
+            <div className="mt-5 space-y-2 border-t border-(--oboon-border-default) pt-4">
+              <div className="flex items-center justify-between">
+                <h3 className="ob-typo-body font-semibold text-(--oboon-text-title)">
+                  추가 사진 (선택)
+                </h3>
+                <span className="ob-typo-caption text-(--oboon-text-muted)">
+                  {galleryImages.length}/5
+                </span>
+              </div>
+
+              {editMode ? (
+                <>
+                  <input
+                    ref={galleryInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    multiple
+                    className="hidden"
+                    onChange={handleGallerySelect}
+                  />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => galleryInputRef.current?.click()}
+                    disabled={galleryUploading || galleryImages.length >= 5}
+                    loading={galleryUploading}
+                  >
+                    이미지 업로드
+                  </Button>
+                  <p className="ob-typo-caption text-(--oboon-text-muted)">
+                    jpg/png/webp, 파일당 5MB, 최대 5장까지 등록할 수 있습니다.
+                  </p>
+                </>
+              ) : null}
+
+              {galleryImages.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-(--oboon-border-default) p-4 text-center ob-typo-caption text-(--oboon-text-muted)">
+                  등록된 추가 사진이 없습니다.
+                </div>
+              ) : (
+                <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 md:grid md:grid-cols-5 md:overflow-visible">
+                  {galleryImages.map((image, index) => (
+                    <div
+                      key={image.id}
+                      draggable={editMode && !galleryReordering}
+                      onDragStart={(event) => handleGalleryDragStart(event, image.id)}
+                      onDragOver={(event) => handleGalleryDragOver(event, image.id)}
+                      onDrop={(event) => handleGalleryDrop(event, image.id)}
+                      onDragEnd={handleGalleryDragEnd}
+                      className={[
+                        "relative w-28 shrink-0 snap-start overflow-hidden rounded-xl border bg-(--oboon-bg-surface) transition md:w-auto",
+                        draggingGalleryImageId === image.id
+                          ? "opacity-50 border-(--oboon-primary)"
+                          : "border-(--oboon-border-default)",
+                        dragOverGalleryImageId === image.id
+                          ? "ring-2 ring-(--oboon-primary)/50"
+                          : "",
+                      ].join(" ")}
+                    >
+                      <div className="relative aspect-square w-full overflow-hidden bg-(--oboon-bg-subtle)">
+                        <img
+                          src={image.image_url}
+                          alt={`현장 추가 사진 ${index + 1}`}
+                          className="h-full w-full object-cover"
+                        />
+                        <div className="pointer-events-none absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/55 ob-typo-caption font-medium text-white">
+                          {index + 1}
+                        </div>
+                        {editMode ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="absolute right-2 top-1 h-6 w-6 min-w-0 rounded-full p-0 !bg-transparent text-white hover:!bg-transparent hover:text-white"
+                            disabled={galleryDeletingId === image.id}
+                            onClick={() => handleGalleryDelete(image.id)}
+                          >
+                            <X className="h-4 w-4 text-(--oboon-danger)" />
+                          </Button>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </Card>
 
           {/* 상세 섹션 카드 목록 */}

@@ -51,7 +51,7 @@ export default function ConsultationCard({
         </span>
       </div>
 
-      <div className="space-y-3 sm:space-y-4 p-3 sm:p-4">
+      <div className="space-y-2 p-3 sm:p-4">
         <Link
           href={detailHref}
           className="group flex items-center gap-3 sm:gap-4 rounded-xl transition-colors hover:bg-(--oboon-bg-subtle)"
@@ -87,18 +87,18 @@ export default function ConsultationCard({
                 {meta}
               </div>
             ) : null}
-
-            {note ? (
-              <div>{note}</div>
-            ) : actions ? (
-              <div className="min-h-[20px]" />
-            ) : null}
           </div>
 
           {showChevron ? (
             <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 shrink-0 text-(--oboon-text-muted) transition-colors group-hover:text-(--oboon-text-title)" />
           ) : null}
         </Link>
+
+        {note ? (
+          <div>{note}</div>
+        ) : actions ? (
+          <div className="min-h-[20px]" />
+        ) : null}
 
         {actions ? (
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">

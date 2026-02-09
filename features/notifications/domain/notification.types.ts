@@ -17,6 +17,8 @@ export const NOTIFICATION_TYPES = {
   ADMIN_PROPERTY_REVIEW_REQUEST: "admin_property_review_request",
   ADMIN_NEW_RESERVATION: "admin_new_reservation",
   ADMIN_DEPOSIT_UPDATE: "admin_deposit_update",
+  ADMIN_NEW_QNA: "admin_new_qna",
+  QNA_ANSWERED: "qna_answered",
 
   // 시스템/프로모션
   SYSTEM_ANNOUNCEMENT: "system_announcement",

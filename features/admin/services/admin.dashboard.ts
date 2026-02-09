@@ -42,9 +42,11 @@ export type AdminDashboardData = {
   role: string | null;
   pendingAgents: AdminProfileRow[];
   propertyAgents: PendingPropertyAgent[];
-  approvedPropertyAgentCount: number;
+  publishedPropertyCount: number;
   todayNewConsultations: number;
   todayVisitConsultations: number;
+  todayNewQnaCount: number;
+  pendingQnaCount: number;
   deletedUsers: AdminProfileRow[];
   activeUsers: AdminProfileRow[];
 };
@@ -62,9 +64,11 @@ export async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
       role: null,
       pendingAgents: [],
       propertyAgents: [],
-      approvedPropertyAgentCount: 0,
+      publishedPropertyCount: 0,
       todayNewConsultations: 0,
       todayVisitConsultations: 0,
+      todayNewQnaCount: 0,
+      pendingQnaCount: 0,
       deletedUsers: [],
       activeUsers: [],
     };
@@ -161,11 +165,10 @@ export async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
     }));
   }
 
-  const { count: approvedPropertyAgentCount } = await supabase
-    .from("property_requests")
-    .select("id", { count: "exact", head: true })
-    .eq("request_type", "publish")
-    .eq("status", "approved");
+  const { count: publishedPropertyCount } = await supabase
+    .from("property_public_snapshots")
+    .select("property_id", { count: "exact", head: true })
+    .not("published_at", "is", null);
 
   const now = new Date();
   const startOfToday = new Date(
@@ -179,19 +182,35 @@ export async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
     now.getDate() + 1,
   );
 
-  const [{ count: todayNewConsultations }, { count: todayVisitConsultations }] =
-    await Promise.all([
-      supabase
-        .from("consultations")
-        .select("id", { count: "exact", head: true })
-        .gte("created_at", startOfToday.toISOString())
-        .lt("created_at", startOfTomorrow.toISOString()),
-      supabase
-        .from("consultations")
-        .select("id", { count: "exact", head: true })
-        .gte("scheduled_at", startOfToday.toISOString())
-        .lt("scheduled_at", startOfTomorrow.toISOString()),
-    ]);
+  const [
+    { count: todayNewConsultations },
+    { count: todayVisitConsultations },
+    { count: todayNewQnaCount },
+    { count: pendingQnaCount },
+  ] = await Promise.all([
+    supabase
+      .from("consultations")
+      .select("id", { count: "exact", head: true })
+      .gte("created_at", startOfToday.toISOString())
+      .lt("created_at", startOfTomorrow.toISOString()),
+    supabase
+      .from("consultations")
+      .select("id", { count: "exact", head: true })
+      .neq("status", "cancelled")
+      .gte("scheduled_at", startOfToday.toISOString())
+      .lt("scheduled_at", startOfTomorrow.toISOString()),
+    supabase
+      .from("qna_questions")
+      .select("id", { count: "exact", head: true })
+      .is("deleted_at", null)
+      .gte("created_at", startOfToday.toISOString())
+      .lt("created_at", startOfTomorrow.toISOString()),
+    supabase
+      .from("qna_questions")
+      .select("id", { count: "exact", head: true })
+      .is("deleted_at", null)
+      .eq("status", "pending"),
+  ]);
 
   const { data: users } = await supabase
     .from("profiles")
@@ -206,9 +225,11 @@ export async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
     role,
     pendingAgents: (pending || []) as AdminProfileRow[],
     propertyAgents: enrichedPropertyAgents,
-    approvedPropertyAgentCount: approvedPropertyAgentCount ?? 0,
+    publishedPropertyCount: publishedPropertyCount ?? 0,
     todayNewConsultations: todayNewConsultations ?? 0,
     todayVisitConsultations: todayVisitConsultations ?? 0,
+    todayNewQnaCount: todayNewQnaCount ?? 0,
+    pendingQnaCount: pendingQnaCount ?? 0,
     deletedUsers: deletedUsers as AdminProfileRow[],
     activeUsers: activeUsers as AdminProfileRow[],
   };

@@ -10,9 +10,9 @@ export const OFFERING_STATUS_LABEL: Record<
   OfferingStatusValue,
   OfferingStatusLabel
 > = {
-  READY: "모집 예정",
-  OPEN: "모집 중",
-  CLOSED: "모집 종료",
+  READY: "분양 예정",
+  OPEN: "분양 중",
+  CLOSED: "분양 종료",
 };
 
 export function isOfferingStatusValue(v: string): v is OfferingStatusValue {

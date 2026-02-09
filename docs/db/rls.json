@@ -140,6 +140,11 @@
     "rls_forced": false
   },
   {
+    "table_name": "property_gallery_images",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
     "table_name": "property_locations",
     "rls_enabled": true,
     "rls_forced": false

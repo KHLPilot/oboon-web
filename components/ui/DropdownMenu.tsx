@@ -267,7 +267,7 @@ export function DropdownMenuItem({
       type="button"
       role="menuitem"
       className={[
-        "w-full px-3 py-2 text-left ob-typo-body",
+        "w-full px-3 py-2 text-left rounded-xl ob-typo-body",
         destructive
           ? "text-(--oboon-danger) hover:bg-(--oboon-danger-bg)"
           : "text-(--oboon-text-title) hover:bg-(--oboon-bg-subtle)/60",

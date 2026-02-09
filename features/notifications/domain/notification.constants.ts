@@ -7,8 +7,12 @@ import { NOTIFICATION_TYPES } from "./notification.types";
 
 type NotificationConfig = {
   label: string;
-  getHref: (notification: Notification) => string | null;
+  getHref: (notification: Notification, userRole?: string | null) => string | null;
 };
+
+export function getConsultationsEntryHref(userRole?: string | null): string {
+  return userRole === "agent" ? "/agent/consultations" : "/profile?consultations=1";
+}
 
 export const NOTIFICATION_CONFIG: Record<string, NotificationConfig> = {
   [NOTIFICATION_TYPES.NEW_CHAT_MESSAGE]: {
@@ -21,11 +25,11 @@ export const NOTIFICATION_CONFIG: Record<string, NotificationConfig> = {
   },
   [NOTIFICATION_TYPES.CONSULTATION_CONFIRMED]: {
     label: "예약 확정",
-    getHref: () => "/my/consultations",
+    getHref: (_n, userRole) => getConsultationsEntryHref(userRole),
   },
   [NOTIFICATION_TYPES.CONSULTATION_CANCELLED]: {
     label: "예약 취소",
-    getHref: () => "/my/consultations",
+    getHref: (_n, userRole) => getConsultationsEntryHref(userRole),
   },
   [NOTIFICATION_TYPES.CUSTOMER_ARRIVAL]: {
     label: "고객 도착",
@@ -55,6 +59,20 @@ export const NOTIFICATION_CONFIG: Record<string, NotificationConfig> = {
     label: "예약금 변경",
     getHref: () => "/admin",
   },
+  [NOTIFICATION_TYPES.ADMIN_NEW_QNA]: {
+    label: "1:1 문의",
+    getHref: (n) =>
+      typeof n.metadata?.qna_id === "string"
+        ? `/support/qna/${n.metadata.qna_id}`
+        : "/support/qna",
+  },
+  [NOTIFICATION_TYPES.QNA_ANSWERED]: {
+    label: "문의 답변",
+    getHref: (n) =>
+      typeof n.metadata?.qna_id === "string"
+        ? `/support/qna/${n.metadata.qna_id}`
+        : "/support/qna",
+  },
   [NOTIFICATION_TYPES.SYSTEM_ANNOUNCEMENT]: {
     label: "공지",
     getHref: () => null,
@@ -71,4 +89,12 @@ export const NOTIFICATION_CONFIG: Record<string, NotificationConfig> = {
 export function getNotificationHref(notification: Notification): string | null {
   const config = NOTIFICATION_CONFIG[notification.type];
   return config?.getHref(notification) ?? null;
+}
+
+export function getNotificationHrefForRole(
+  notification: Notification,
+  userRole?: string | null
+): string | null {
+  const config = NOTIFICATION_CONFIG[notification.type];
+  return config?.getHref(notification, userRole) ?? null;
 }

@@ -95,6 +95,10 @@ export default function ConsultationsListPanel({
   const [visitConsultation, setVisitConsultation] = useState<Consultation | null>(
     null,
   );
+  const [isDesktop, setIsDesktop] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(0);
+
+  const perPage = isDesktop ? 6 : 3;
 
   const handleNavigate = useCallback(
     (href: string) => {
@@ -160,6 +164,18 @@ export default function ConsultationsListPanel({
   useEffect(() => {
     fetchConsultations();
   }, [fetchConsultations]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 1024px)");
+    const sync = () => setIsDesktop(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
+
+  useEffect(() => {
+    setVisibleCount(perPage);
+  }, [filter, perPage, consultations.length]);
 
   async function handleCancel(consultationId: string) {
     if (!confirm("예약을 취소하시겠습니까?")) return;
@@ -270,8 +286,8 @@ export default function ConsultationsListPanel({
           </Link>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {consultations.map((consultation) => (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {consultations.slice(0, visibleCount).map((consultation) => (
             <ConsultationCard
               key={consultation.id}
               statusLabel={
@@ -287,11 +303,11 @@ export default function ConsultationsListPanel({
               meta={<span>상담사: {consultation.agent.name}</span>}
               note={
                 consultation.status === "requested" ? (
-                  <p className="ob-typo-body text-(--oboon-warning) mt-2">
+                  <p className="ob-typo-body text-(--oboon-warning)">
                     관리자 승인 대기중입니다
                   </p>
                 ) : consultation.status === "pending" ? (
-                  <p className="ob-typo-body text-(--oboon-warning) mt-2">
+                  <p className="ob-typo-body text-(--oboon-warning)">
                     상담사 확인 대기중입니다
                   </p>
                 ) : consultation.status === "cancelled" &&
@@ -370,14 +386,20 @@ export default function ConsultationsListPanel({
         </div>
       )}
 
-      {!loading && consultations.length > 0 && (
-        <Button
-          variant="secondary"
-          className="w-full"
-          onClick={() => void fetchConsultations()}
-        >
-          더보기
-        </Button>
+      {!loading && consultations.length > visibleCount && (
+        <div className="mt-10 flex justify-center">
+          <Button
+            variant="secondary"
+            size="sm"
+            shape="pill"
+            className="px-10"
+            onClick={() =>
+              setVisibleCount((prev) => Math.min(prev + perPage, consultations.length))
+            }
+          >
+            더보기
+          </Button>
+        </div>
       )}
 
       <GpsVisitVerifyModal

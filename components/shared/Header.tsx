@@ -28,8 +28,6 @@ export default function Header() {
   const [user, setUser] = useState<User | null>(null);
   const [profileName, setProfileName] = useState<string>("");
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [hasApprovedProperty, setHasApprovedProperty] =
-    useState<boolean>(false);
 
   const NAV_ITEMS = useMemo(
     () => [
@@ -49,7 +47,6 @@ export default function Header() {
     if (!currentUser) {
       setProfileName("");
       setUserRole(null);
-      setHasApprovedProperty(false);
       return;
     }
 
@@ -64,19 +61,6 @@ export default function Header() {
       const realName = displayName && displayName !== "temp" ? displayName : "";
       setProfileName(realName);
       setUserRole(profile.role || "user");
-
-      if ((profile.role || "user") === "agent") {
-        const { data: approved } = await supabase
-          .from("property_agents")
-          .select("id")
-          .eq("agent_id", currentUser.id)
-          .eq("status", "approved")
-          .limit(1);
-
-        setHasApprovedProperty(Boolean(approved && approved.length > 0));
-      } else {
-        setHasApprovedProperty(false);
-      }
     }
   };
 
@@ -224,40 +208,10 @@ export default function Header() {
                   <span className="hidden sm:inline">예약 관리</span>
                   <span className="sm:hidden">예약</span>
                 </Button>
-                {!hasApprovedProperty && (
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    shape="pill"
-                    className="flex items-center gap-2"
-                    onClick={() => router.push("/agent/profile#affiliation-section")}
-                  >
-                    <UserPlus className="w-4 h-4" />
-                    <span className="hidden sm:inline">소속 등록 신청</span>
-                    <span className="sm:hidden">신청</span>
-                  </Button>
-                )}
               </>
             )}
 
-            {(userRole === "user" ||
-              userRole === "agent_pending" ||
-              !userRole) && (
-              <Button
-                variant="primary"
-                size="sm"
-                shape="pill"
-                className="flex items-center gap-2"
-                onClick={() =>
-                  router.push(user ? "/my/consultations" : "/offerings")
-                }
-              >
-                <span className="hidden sm:inline">상담 예약</span>
-                <span className="sm:hidden ob-typo-caption">상담 예약</span>
-              </Button>
-            )}
-
-            {["admin", "builder", "developer", "agent"].includes(userRole || "") && (
+            {userRole === "admin" && (
               <Button
                 variant="primary"
                 size="sm"

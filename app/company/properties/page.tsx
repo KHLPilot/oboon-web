@@ -10,6 +10,7 @@ import { Calendar, Edit2, Trash2, User } from "lucide-react";
 import Button from "@/components/ui/Button";
 import PageContainer from "@/components/shared/PageContainer";
 import { showAlert } from "@/shared/alert";
+import { getPropertySectionStatus } from "@/features/property/components/propertyProgress";
 
 const ALLOWED_ROLES = ["builder", "developer", "admin", "agent"];
 
@@ -280,27 +281,33 @@ export default function PropertyListPage() {
      핵심 로직: 진행 상황 체크
   -------------------------------------------------- */
   const getInternalProgress = (row: PropertyRow) => {
-    const hasData = (v: any) => {
-      if (!v) return false;
-      if (Array.isArray(v)) return v.length > 0;
-      if (typeof v === "object") return Object.keys(v).length > 0;
-      return false;
-    };
-
-    const steps = [
-      { label: "현장 위치", done: hasData(row.property_locations) },
-      { label: "홍보시설", done: hasData(row.property_facilities) },
-      { label: "건물 스펙", done: hasData(row.property_specs) },
-      { label: "일정", done: hasData(row.property_timeline) },
-      { label: "평면 타입", done: hasData(row.property_unit_types) },
+    const status = getPropertySectionStatus(row);
+    const sections = [
+      { label: "현장 위치", status: status.siteLocationStatus },
+      { label: "건물 스펙", status: status.specsStatus },
+      { label: "일정", status: status.timelineStatus },
+      { label: "평면 타입", status: status.unitStatus },
+      { label: "홍보시설", status: status.facilityStatus },
+      { label: "감정평가사 메모", status: status.commentStatus },
     ];
 
-    const inputCount = steps.filter((s) => s.done).length;
-    const totalCount = steps.length;
-    const missingLabels = steps.filter((s) => !s.done).map((s) => s.label);
-    const isIncomplete = inputCount < totalCount;
+    const completedCount = sections.filter((s) => s.status === "full").length;
+    const partialCount = sections.filter((s) => s.status === "partial").length;
+    const totalCount = sections.length;
+    const progressPercent = Math.round(
+      ((completedCount + partialCount * 0.5) / totalCount) * 100,
+    );
+    const missingLabels = sections
+      .filter((s) => s.status !== "full")
+      .map((s) => s.label);
 
-    return { inputCount, totalCount, missingLabels, isIncomplete };
+    return {
+      inputCount: completedCount,
+      totalCount,
+      progressPercent,
+      missingLabels,
+      isIncomplete: missingLabels.length > 0,
+    };
   };
 
   const incompleteCount = useMemo(
@@ -403,7 +410,7 @@ export default function PropertyListPage() {
         {/* 2??洹몃━??*/}
         <div className="grid gap-4 sm:grid-cols-2">
           {filteredRows.map((row) => {
-            const { inputCount, totalCount, missingLabels } =
+            const { inputCount, totalCount, progressPercent, missingLabels } =
               getInternalProgress(row);
 
             const canDelete =
@@ -499,13 +506,13 @@ export default function PropertyListPage() {
                   <div className="ob-typo-body text-(--oboon-text-muted)">
                     입력 진행률 :{" "}
                     <span className="text-(--oboon-text-title)">
-                      {Math.round((inputCount / totalCount) * 100)}%
+                      {progressPercent}%
                     </span>
                   </div>
                   <div className="mt-2 h-2 w-full rounded-full bg-(--oboon-bg-subtle)">
                     <div
                       className="h-2 rounded-full bg-(--oboon-primary)"
-                      style={{ width: `${Math.round((inputCount / totalCount) * 100)}%` }}
+                      style={{ width: `${progressPercent}%` }}
                     />
                   </div>
                 </div>

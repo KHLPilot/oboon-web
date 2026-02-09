@@ -87,6 +87,21 @@ export default function QnADetailPage({ params }: { params: { id: string } }) {
     }
   };
 
+  const handleUpdate = async (payload: { title: string; body: string }) => {
+    const res = await fetch(`/api/support/qna/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const result = await res.json();
+      throw new Error(result.error ?? "수정에 실패했습니다.");
+    }
+
+    await loadData();
+  };
+
   const handleAnswer = async (body: string) => {
     const res = await fetch(`/api/support/qna/${id}/answer`, {
       method: "POST",
@@ -140,6 +155,7 @@ export default function QnADetailPage({ params }: { params: { id: string } }) {
   return (
     <QnADetail
       data={data}
+      onUpdate={handleUpdate}
       onDelete={handleDelete}
       onAnswer={data.isAdmin ? handleAnswer : undefined}
     />

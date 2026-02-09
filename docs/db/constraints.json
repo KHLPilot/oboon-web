@@ -618,6 +618,30 @@
     "definition": "PRIMARY KEY (id)"
   },
   {
+    "table_name": "property_gallery_images",
+    "constraint_name": "property_gallery_images_sort_order_check",
+    "constraint_type": "c",
+    "definition": "CHECK ((sort_order >= 0))"
+  },
+  {
+    "table_name": "property_gallery_images",
+    "constraint_name": "property_gallery_images_property_id_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE"
+  },
+  {
+    "table_name": "property_gallery_images",
+    "constraint_name": "property_gallery_images_pkey",
+    "constraint_type": "p",
+    "definition": "PRIMARY KEY (id)"
+  },
+  {
+    "table_name": "property_gallery_images",
+    "constraint_name": "property_gallery_images_storage_path_key",
+    "constraint_type": "u",
+    "definition": "UNIQUE (storage_path)"
+  },
+  {
     "table_name": "property_locations",
     "constraint_name": "property_locations_properties_id_fkey",
     "constraint_type": "f",

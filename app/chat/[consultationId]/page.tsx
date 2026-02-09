@@ -327,7 +327,7 @@ export default function ChatPage() {
                         router.push(
                           userRole === "agent"
                             ? "/agent/consultations"
-                            : "/my/consultations"
+                            : "/profile?consultations=1"
                         );
                       }}
                       className="flex items-center gap-2 w-full px-4 py-3 text-sm text-(--oboon-text-body) hover:bg-(--oboon-bg-subtle) transition-colors"

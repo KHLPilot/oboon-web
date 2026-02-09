@@ -2,7 +2,7 @@ import { createSupabaseServer } from "@/lib/supabaseServer";
 import type { PropertyRow } from "@/features/offerings/components/detail/OfferingDetailLeft";
 
 const DETAIL_SELECT = `
-  id, created_at, name, property_type, phone_number, status, description, image_url,
+  id, created_at, name, property_type, status, description, image_url,
   confirmed_comment, estimated_comment, pending_comment,
   property_locations ( road_address, jibun_address, lat, lng, region_1depth, region_2depth, region_3depth ),
   property_specs ( id, properties_id, sale_type, trust_company, site_area, building_area, building_coverage_ratio,
@@ -69,7 +69,6 @@ const isPropertyRow = (value: unknown): value is PropertyRow =>
   typeof value.created_at === "string" &&
   typeof value.name === "string" &&
   typeof value.property_type === "string" &&
-  isNullableString(value.phone_number) &&
   isNullableString(value.status) &&
   isNullableString(value.description) &&
   isNullableString(value.image_url) &&

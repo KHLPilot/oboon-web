@@ -189,26 +189,27 @@ export default function AgentScheduleSettings({
 
   return (
     <div className="space-y-6">
-      <div className="mb-8 grid gap-6 lg:grid-cols-[minmax(0,360px)_1fr]">
-        <Card className="p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <Calendar className="h-5 w-5 text-(--oboon-text-muted)" />
-            <span className="ob-typo-h3 text-(--oboon-text-title)">
-              날짜 선택
-            </span>
+      <Card className="mb-8 p-5">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,360px)_1fr]">
+          <div>
+            <div className="flex items-center gap-2 mb-4">
+              <Calendar className="h-5 w-5 text-(--oboon-text-muted)" />
+              <span className="ob-typo-h3 text-(--oboon-text-title)">
+                날짜 선택
+              </span>
+            </div>
+            <div className="w-full">
+              <OboonInlineDatePicker
+                selected={selectedDate}
+                onChange={(date: Date | null) => date && setSelectedDate(date)}
+                minDate={new Date()}
+                calendarClassName="oboon-datepicker oboon-datepicker--full w-full"
+              />
+            </div>
           </div>
-          <div className="w-full aspect-square">
-            <OboonInlineDatePicker
-              selected={selectedDate}
-              onChange={(date: Date | null) => date && setSelectedDate(date)}
-              minDate={new Date()}
-              calendarClassName="oboon-datepicker oboon-datepicker--full w-full h-full"
-            />
-          </div>
-        </Card>
 
-        <Card className="p-5">
-          <div className="flex items-center justify-between mb-2">
+          <div>
+            <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-(--oboon-text-muted)" />
               <span className="ob-typo-h3 text-(--oboon-text-title)">
@@ -254,10 +255,10 @@ export default function AgentScheduleSettings({
                 </Button>
               </div>
             )}
-          </div>
+            </div>
 
           {/* 범례 */}
-          <div className="flex flex-wrap gap-4 mb-2 ob-typo-body">
+            <div className="flex flex-wrap gap-4 mb-2 ob-typo-body">
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 rounded bg-(--oboon-primary)"></div>
               <span>열림 (예약 가능)</span>
@@ -274,50 +275,51 @@ export default function AgentScheduleSettings({
               <div className="w-4 h-4 rounded bg-(--oboon-bg-subtle) border border-(--oboon-border-default)"></div>
               <span>지난 시간</span>
             </div>
+            </div>
+
+            {loading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-(--oboon-primary)" />
+              </div>
+            ) : slots.length === 0 ? (
+              <div className="text-center py-8 ob-typo-body text-(--oboon-text-muted)">
+                해당 날짜에 설정된 슬롯이 없습니다
+              </div>
+            ) : (
+              <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 sm:gap-3">
+                {slots.map((slot) => (
+                  <button
+                    key={slot.time}
+                    className={[
+                      "py-2 px-2 rounded-xl border ob-typo-subtitle transition-all",
+                      getSlotStyle(slot),
+                      isEditMode &&
+                      slot.reason !== "booked" &&
+                      slot.reason !== "past"
+                        ? "ring-offset-1 focus:ring-2 focus:ring-(--oboon-primary)"
+                        : "",
+                    ].join(" ")}
+                    disabled={
+                      !isEditMode ||
+                      slot.reason === "booked" ||
+                      slot.reason === "past"
+                    }
+                    onClick={() => isEditMode && toggleSlot(slot.time)}
+                  >
+                    {getSlotLabel(slot)}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <p className="mt-4 ob-typo-body text-(--oboon-text-muted)">
+              {isEditMode
+                ? "슬롯을 클릭하여 열기/닫기를 전환한 후 '확인' 버튼을 눌러 저장하세요."
+                : "'수정' 버튼을 눌러 슬롯 상태를 변경할 수 있습니다."}
+            </p>
           </div>
-
-          {loading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-(--oboon-primary)" />
-            </div>
-          ) : slots.length === 0 ? (
-            <div className="text-center py-8 ob-typo-body text-(--oboon-text-muted)">
-              해당 날짜에 설정된 슬롯이 없습니다
-            </div>
-          ) : (
-            <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 sm:gap-3">
-              {slots.map((slot) => (
-                <button
-                  key={slot.time}
-                  className={[
-                    "py-2 px-2 rounded-xl border ob-typo-subtitle transition-all",
-                    getSlotStyle(slot),
-                    isEditMode &&
-                    slot.reason !== "booked" &&
-                    slot.reason !== "past"
-                      ? "ring-offset-1 focus:ring-2 focus:ring-(--oboon-primary)"
-                      : "",
-                  ].join(" ")}
-                  disabled={
-                    !isEditMode ||
-                    slot.reason === "booked" ||
-                    slot.reason === "past"
-                  }
-                  onClick={() => isEditMode && toggleSlot(slot.time)}
-                >
-                  {getSlotLabel(slot)}
-                </button>
-              ))}
-            </div>
-          )}
-
-          <p className="mt-4 ob-typo-body text-(--oboon-text-muted)">
-            {isEditMode
-              ? "슬롯을 클릭하여 열기/닫기를 전환한 후 '확인' 버튼을 눌러 저장하세요."
-              : "'수정' 버튼을 눌러 슬롯 상태를 변경할 수 있습니다."}
-          </p>
-        </Card>
-      </div>
+        </div>
+      </Card>
     </div>
   );
 }

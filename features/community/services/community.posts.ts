@@ -18,9 +18,36 @@ type CommunityPostWithAuthorDbRow = {
   author_profile_id: string | null;
   author_name: string | null;
   author_avatar_url: string | null;
+  is_anonymous: boolean | null;
+  anonymous_nickname: string | null;
 
   property_id: number | null;
   property_name: string | null;
+};
+
+type CommunityPostBaseDbRow = {
+  id: string;
+  status: CommunityPostStatus;
+  title: string | null;
+  body: string | null;
+  like_count: number | null;
+  comment_count: number | null;
+  created_at: string | null;
+  author_profile_id: string | null;
+  is_anonymous: boolean | null;
+  anonymous_nickname: string | null;
+  property_id: number | null;
+};
+
+type CommunityAuthorDbRow = {
+  id: string;
+  name: string | null;
+  avatar_url: string | null;
+};
+
+type CommunityPropertyDbRow = {
+  id: number;
+  name: string | null;
 };
 
 type BookmarkDbRow = {
@@ -39,7 +66,8 @@ type CreateCommunityPostArgs = {
   body: string;
   propertyId: number | null;
   visitedOn?: string | null;
-  hasConsulted?: boolean | null;
+  isAnonymous?: boolean;
+  anonymousNickname?: string | null;
 };
 
 type CreateCommunityPostResult =
@@ -47,21 +75,27 @@ type CreateCommunityPostResult =
   | { ok: false; message: string };
 
 const mapPostRow = (row: CommunityPostWithAuthorDbRow): CommunityPostRow => {
+  const isAnonymous = row.is_anonymous === true;
+  const anonymousName =
+    row.anonymous_nickname && row.anonymous_nickname.trim().length > 0
+      ? row.anonymous_nickname.trim()
+      : "익명";
+
   return {
     id: row.id,
     status: row.status,
     propertyName: row.property_name || "현장",
     title: row.title ?? "",
     body: row.body ?? "",
-    authorName: row.author_name || "익명",
-    authorAvatarUrl: row.author_avatar_url ?? null,
+    authorName: isAnonymous ? anonymousName : (row.author_name ?? "익명"),
+    authorAvatarUrl: isAnonymous ? null : (row.author_avatar_url ?? null),
     likes: row.like_count ?? 0,
     comments: row.comment_count ?? 0,
     createdAt: row.created_at ?? new Date().toISOString(),
   };
 };
 
-const viewSelect = `
+const postBaseSelect = `
   id,
   status,
   title,
@@ -70,11 +104,68 @@ const viewSelect = `
   comment_count,
   created_at,
   author_profile_id,
-  author_name,
-  author_avatar_url,
-  property_id,
-  property_name
+  is_anonymous,
+  anonymous_nickname,
+  property_id
 `;
+
+async function enrichPostRows(
+  rows: CommunityPostBaseDbRow[],
+): Promise<CommunityPostWithAuthorDbRow[]> {
+  if (rows.length === 0) return [];
+
+  const supabase = createSupabaseClient();
+
+  const authorIds = Array.from(
+    new Set(rows.map((row) => row.author_profile_id).filter(Boolean)),
+  ) as string[];
+  const propertyIds = Array.from(
+    new Set(rows.map((row) => row.property_id).filter((id) => id !== null)),
+  ) as number[];
+
+  const [authorsRes, propertiesRes] = await Promise.all([
+    authorIds.length > 0
+      ? supabase.from("profiles").select("id, name, avatar_url").in("id", authorIds)
+      : Promise.resolve({ data: [] as CommunityAuthorDbRow[], error: null }),
+    propertyIds.length > 0
+      ? supabase.from("properties").select("id, name").in("id", propertyIds)
+      : Promise.resolve({ data: [] as CommunityPropertyDbRow[], error: null }),
+  ]);
+
+  if (authorsRes.error) {
+    console.error("community authors load error:", authorsRes.error.message);
+  }
+  if (propertiesRes.error) {
+    console.error(
+      "community properties load error:",
+      propertiesRes.error.message,
+    );
+  }
+
+  const authorMap = new Map<string, CommunityAuthorDbRow>(
+    (authorsRes.data ?? []).map((row) => [row.id, row]),
+  );
+  const propertyMap = new Map<number, CommunityPropertyDbRow>(
+    (propertiesRes.data ?? []).map((row) => [row.id, row]),
+  );
+
+  return rows.map((row) => {
+    const author = row.author_profile_id
+      ? authorMap.get(row.author_profile_id)
+      : undefined;
+    const property =
+      row.property_id !== null ? propertyMap.get(row.property_id) : undefined;
+
+    return {
+      ...row,
+      author_name: author?.name ?? null,
+      author_avatar_url: author?.avatar_url ?? null,
+      is_anonymous: row.is_anonymous ?? false,
+      anonymous_nickname: row.anonymous_nickname ?? null,
+      property_name: property?.name ?? null,
+    };
+  });
+}
 
 async function getPostsByIdsPreserveOrder(
   ids: string[],
@@ -83,8 +174,8 @@ async function getPostsByIdsPreserveOrder(
   const supabase = createSupabaseClient();
 
   const { data, error } = await supabase
-    .from("community_posts_with_author")
-    .select(viewSelect)
+    .from("community_posts")
+    .select(postBaseSelect)
     .in("id", ids);
 
   if (error) {
@@ -92,8 +183,9 @@ async function getPostsByIdsPreserveOrder(
     return [];
   }
 
+  const enriched = await enrichPostRows((data ?? []) as CommunityPostBaseDbRow[]);
   const byId = new Map<string, CommunityPostWithAuthorDbRow>();
-  (data ?? []).forEach((row) => byId.set((row as any).id, row as any));
+  enriched.forEach((row) => byId.set(row.id, row));
 
   // 입력 ids 순서대로 정렬(북마크/댓글 “최근순” 유지)
   return ids
@@ -108,8 +200,8 @@ export async function getCommunityFeed(
   const supabase = createSupabaseClient();
 
   let query = supabase
-    .from("community_posts_with_author")
-    .select(viewSelect)
+    .from("community_posts")
+    .select(postBaseSelect)
     .order("created_at", { ascending: false });
 
   if (tabKey !== "all") {
@@ -123,7 +215,8 @@ export async function getCommunityFeed(
     return [];
   }
 
-  return (data ?? []).map((row) => mapPostRow(row as any));
+  const enriched = await enrichPostRows((data ?? []) as CommunityPostBaseDbRow[]);
+  return enriched.map((row) => mapPostRow(row));
 }
 
 export async function getCommunityProfileFeed(
@@ -133,8 +226,8 @@ export async function getCommunityProfileFeed(
   const supabase = createSupabaseClient();
 
   let query = supabase
-    .from("community_posts_with_author")
-    .select(viewSelect)
+    .from("community_posts")
+    .select(postBaseSelect)
     .eq("author_profile_id", profileId)
     .order("created_at", { ascending: false });
 
@@ -149,7 +242,8 @@ export async function getCommunityProfileFeed(
     return [];
   }
 
-  return (data ?? []).map((row) => mapPostRow(row as any));
+  const enriched = await enrichPostRows((data ?? []) as CommunityPostBaseDbRow[]);
+  return enriched.map((row) => mapPostRow(row));
 }
 
 export async function getCommunityTrendingPosts(
@@ -158,8 +252,8 @@ export async function getCommunityTrendingPosts(
   const supabase = createSupabaseClient();
 
   const { data, error } = await supabase
-    .from("community_posts_with_author")
-    .select(viewSelect)
+    .from("community_posts")
+    .select(postBaseSelect)
     .order("comment_count", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(limit);
@@ -169,7 +263,8 @@ export async function getCommunityTrendingPosts(
     return [];
   }
 
-  return (data ?? []).map((row) => mapPostRow(row as any));
+  const enriched = await enrichPostRows((data ?? []) as CommunityPostBaseDbRow[]);
+  return enriched.map((row) => mapPostRow(row));
 }
 
 export async function getCommunityBookmarkedPosts(
@@ -246,6 +341,34 @@ export async function createCommunityPost(
     return { ok: false, message: "로그인이 필요합니다." };
   }
 
+  if (args.status === "visited") {
+    if (!args.propertyId) {
+      return { ok: false, message: "다녀온 현장을 선택해주세요." };
+    }
+
+    const { count, error: visitError } = await supabase
+      .from("consultations")
+      .select("id", { count: "exact", head: true })
+      .eq("customer_id", user.id)
+      .eq("property_id", args.propertyId)
+      .in("status", ["visited", "contracted"]);
+
+    if (visitError) {
+      console.error("community visited validation error:", visitError.message);
+      return {
+        ok: false,
+        message: "방문 이력을 확인하지 못했습니다. 잠시 후 다시 시도해주세요.",
+      };
+    }
+
+    if (!count || count < 1) {
+      return {
+        ok: false,
+        message: "해당 현장 방문 기록이 있는 경우에만 '다녀왔어요'를 작성할 수 있습니다.",
+      };
+    }
+  }
+
   const { data, error } = await supabase
     .from("community_posts")
     .insert({
@@ -257,7 +380,11 @@ export async function createCommunityPost(
       like_count: 0,
       comment_count: 0,
       visited_on: args.visitedOn ?? null,
-      has_consulted: args.hasConsulted ?? null,
+      is_anonymous: args.isAnonymous ?? false,
+      anonymous_nickname:
+        args.isAnonymous && args.anonymousNickname
+          ? args.anonymousNickname.trim()
+          : null,
     })
     .select("id")
     .single();

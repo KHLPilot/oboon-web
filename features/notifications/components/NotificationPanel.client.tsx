@@ -1,12 +1,14 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, BellOff, Trash2, Bell } from "lucide-react";
 import { useNotifications } from "./NotificationProvider.client";
 import NotificationItem from "./NotificationItem.client";
 import Button from "@/components/ui/Button";
 import type { Notification } from "../domain/notification.types";
-import { getNotificationHref } from "../domain/notification.constants";
+import { getNotificationHrefForRole } from "../domain/notification.constants";
+import { createSupabaseClient } from "@/lib/supabaseClient";
 
 type Props = {
   onClose: () => void;
@@ -14,6 +16,8 @@ type Props = {
 
 export default function NotificationPanel({ onClose }: Props) {
   const router = useRouter();
+  const supabase = useMemo(() => createSupabaseClient(), []);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const {
     notifications,
     loading,
@@ -24,6 +28,27 @@ export default function NotificationPanel({ onClose }: Props) {
     unreadCount,
   } = useNotifications();
 
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user || !mounted) return;
+      const { data } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+      if (mounted) {
+        setUserRole(data?.role ?? null);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [supabase]);
+
   const handleItemClick = async (notification: Notification) => {
     // 읽음 처리
     if (!notification.read_at) {
@@ -31,7 +56,7 @@ export default function NotificationPanel({ onClose }: Props) {
     }
 
     // 해당 페이지로 이동
-    const href = getNotificationHref(notification);
+    const href = getNotificationHrefForRole(notification, userRole);
     if (href) {
       router.push(href);
     }
@@ -56,7 +81,7 @@ export default function NotificationPanel({ onClose }: Props) {
   return (
     <div className="max-h-96 overflow-hidden flex flex-col rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) shadow-lg">
       {/* 헤더 */}
-      <div className="flex items-center justify-between gap-3 px-4 py-3.5 border-b border-(--oboon-border-default) bg-(--oboon-bg-subtle)">
+      <div className="flex items-center justify-between gap-3 pl-4 pr-3 py-3.5 border-b border-(--oboon-border-default) bg-(--oboon-bg-subtle)">
         <div className="flex items-center gap-2 text-(--oboon-text-title)">
           <Bell className="h-5 w-5" />
           <span className="ob-typo-subtitle">알림</span>
@@ -76,6 +101,7 @@ export default function NotificationPanel({ onClose }: Props) {
             <Button
               size="sm"
               variant="secondary"
+              shape="pill"
               onClick={handleDeleteAll}
               className="h-8 w-8 rounded-full p-0"
               aria-label="전체 삭제"

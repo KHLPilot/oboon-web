@@ -1,15 +1,14 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+import { useRouter, useSearchParams } from "next/navigation";
 import { QnAList } from "@/features/support/components/qna/QnAList";
 import { QnAWriteModal } from "@/features/support/components/qna/QnAWriteModal";
 import type { QnAListItemViewModel } from "@/features/support/domain/support";
 
 export default function SupportQnAPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [items, setItems] = useState<QnAListItemViewModel[]>([]);
   const [loading, setLoading] = useState(true);
   const [isWriteModalOpen, setIsWriteModalOpen] = useState(false);
@@ -32,9 +31,11 @@ export default function SupportQnAPage() {
     loadData();
   }, [loadData]);
 
-  const handleWriteClick = () => {
+  useEffect(() => {
+    if (searchParams.get("write") !== "1") return;
     setIsWriteModalOpen(true);
-  };
+    router.replace("/support/qna");
+  }, [searchParams, router]);
 
   const handleWriteSubmit = async (data: {
     title: string;
@@ -74,14 +75,6 @@ export default function SupportQnAPage() {
 
   return (
     <div>
-      {/* 상단 액션 */}
-      <div className="mb-4 flex justify-end">
-        <Button onClick={handleWriteClick} size="sm">
-          <Plus className="h-4 w-4" />
-          문의하기
-        </Button>
-      </div>
-
       {/* 목록 */}
       <QnAList items={items} />
 

@@ -17,7 +17,7 @@ export function FAQAccordion({ items }: FAQAccordionProps) {
 
   if (items.length === 0) {
     return (
-      <div className="py-12 text-center text-(--oboon-text-muted)">
+      <div className="ob-typo-body py-12 text-center text-(--oboon-text-muted)">
         등록된 FAQ가 없습니다.
       </div>
     );
@@ -37,10 +37,10 @@ export function FAQAccordion({ items }: FAQAccordionProps) {
               aria-expanded={isOpen}
             >
               <div className="flex-1">
-                <span className="mr-2 rounded-md bg-(--oboon-bg-subtle) px-2 py-0.5 text-xs text-(--oboon-text-muted)">
+                <span className="ob-typo-caption mr-2 rounded-md bg-(--oboon-bg-subtle) px-2 py-0.5 text-(--oboon-text-muted)">
                   {item.categoryName}
                 </span>
-                <span className="ob-typo-body-md text-(--oboon-text-title)">
+                <span className="ob-typo-body2 text-(--oboon-text-title)">
                   {item.question}
                 </span>
               </div>
@@ -53,7 +53,7 @@ export function FAQAccordion({ items }: FAQAccordionProps) {
 
             {isOpen && (
               <div className="mt-3 pl-0 md:pl-4">
-                <div className="rounded-lg bg-(--oboon-bg-subtle) p-4 text-(--oboon-text-body) ob-typo-body-sm whitespace-pre-wrap">
+                <div className="ob-typo-body whitespace-pre-wrap rounded-lg bg-(--oboon-bg-subtle) p-4 text-(--oboon-text-body)">
                   {item.answer}
                 </div>
               </div>
