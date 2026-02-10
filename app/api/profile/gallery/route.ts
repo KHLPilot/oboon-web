@@ -208,7 +208,7 @@ export async function POST(req: Request) {
             ContentType: file.type || "application/octet-stream",
           }),
         );
-      } catch (uploadError) {
+      } catch {
         // 실패 시 이미 업로드된 파일은 정리
         if (uploadedKeys.length > 0) {
           await r2.send(

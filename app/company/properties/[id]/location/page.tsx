@@ -190,7 +190,7 @@ export default function PropertyLocationPage() {
 
       router.push(`/company/properties/${propertyId}`);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "알 수 없는 오류";
+      const message = err instanceof Error ? (err instanceof Error ? err.message : "알 수 없는 오류") : "알 수 없는 오류";
       showAlert("저장 실패: " + message);
     } finally {
       setLoading(false);

@@ -62,7 +62,7 @@ function pickFirstNonEmpty(...values: Array<string | null | undefined>) {
 
 function toMarkerType(status: string | null): MarkerType {
   const s = normalizeOfferingStatusValue(status);
-  const [readyStatus, openStatus, closedStatus] = OFFERING_STATUS_VALUES;
+  const [readyStatus, openStatus] = OFFERING_STATUS_VALUES;
 
   if (s === openStatus) return "ready";
   if (s === readyStatus) return "open";

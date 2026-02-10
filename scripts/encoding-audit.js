@@ -99,10 +99,6 @@ function lineHasCorruption(line) {
   );
 }
 
-function hasStringLiteral(line) {
-  return /["'`]/.test(line);
-}
-
 function findFiles(dir) {
   const items = fs.readdirSync(dir, { withFileTypes: true });
   const out = [];

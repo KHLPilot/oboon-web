@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { COMMUNITY_PROFILE_TABS } from "../../domain/community";
 import type {
   CommunityProfileTabKey,
@@ -65,9 +66,11 @@ function CommunityProfileHeader({
     <div className="flex items-center gap-3 mb-5">
       <div className="h-14 w-14 rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle) flex items-center justify-center overflow-hidden">
         {profile?.avatarUrl ? (
-          <img
+          <Image
             src={profile.avatarUrl}
             alt={profile.displayName}
+            width={56}
+            height={56}
             className="h-full w-full object-cover"
           />
         ) : (
@@ -95,7 +98,7 @@ export default function CommunityProfilePage() {
     null,
   );
   const [posts, setPosts] = useState<ReturnType<typeof mapCommunityPost>[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(2);
 
   useEffect(() => {
@@ -113,8 +116,6 @@ export default function CommunityProfilePage() {
 
   useEffect(() => {
     let isMounted = true;
-    setLoading(true);
-    setVisibleCount(2);
 
     const loadPosts = async () => {
       if (!profile?.id) {
@@ -161,7 +162,10 @@ export default function CommunityProfilePage() {
         <CommunityTabs
           tabs={COMMUNITY_PROFILE_TABS}
           value={activeTab}
-          onChange={setActiveTab}
+          onChange={(tab) => {
+            setLoading(true);
+            setActiveTab(tab);
+          }}
         />
 
         {!loading && posts.length === 0 ? (

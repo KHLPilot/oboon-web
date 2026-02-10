@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { OboonInlineDatePicker } from "@/components/ui/DatePicker";
 
 import Modal from "@/components/ui/Modal";
@@ -45,6 +46,14 @@ interface ExistingConsultation {
     name: string;
   };
 }
+
+type PropertyAgentRow = { profiles: Agent | Agent[] | null };
+type GalleryRow = {
+  user_id: string;
+  image_url: string;
+  sort_order: number;
+  created_at: string;
+};
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -115,6 +124,11 @@ export default function BookingModal({
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [termsAccordionOpen, setTermsAccordionOpen] = useState(false);
 
+  function pickFirst<T>(value: T | T[] | null | undefined): T | null {
+    if (!value) return null;
+    return Array.isArray(value) ? (value[0] ?? null) : value;
+  }
+
   // 사용자 정보 및 상담사 목록 조회
   const buildReservationEventParams = () => {
     const params: Record<string, string | number> = {};
@@ -178,7 +192,21 @@ export default function BookingModal({
             .single();
 
           if (existingData) {
-            setExistingConsultation(existingData as any);
+            const row = existingData as {
+              id: string;
+              status: string;
+              scheduled_at: string;
+              agent: { name: string } | { name: string }[] | null;
+            };
+            const agent = pickFirst(row.agent);
+            if (agent) {
+              setExistingConsultation({
+                id: row.id,
+                status: row.status,
+                scheduled_at: row.scheduled_at,
+                agent,
+              });
+            }
             setLoading(false);
             return;
           }
@@ -206,9 +234,9 @@ export default function BookingModal({
         } else {
           // property_agents에서 profiles 정보만 추출
           const agentList = (propertyAgents || [])
-            .map((pa: any) => pa.profiles)
+            .map((pa) => pickFirst((pa as PropertyAgentRow).profiles))
             .filter(
-              (profile: any) =>
+              (profile): profile is Agent =>
                 profile !== null && profile.id !== currentUser?.id,
             );
 
@@ -232,9 +260,10 @@ export default function BookingModal({
               .order("created_at", { ascending: true });
 
             const grouped: Record<string, AgentGalleryImage[]> = {};
-            (galleryRows || []).forEach((row: any) => {
-              if (!grouped[row.user_id]) grouped[row.user_id] = [];
-              grouped[row.user_id].push(row as AgentGalleryImage);
+            (galleryRows || []).forEach((row) => {
+              const item = row as GalleryRow;
+              if (!grouped[item.user_id]) grouped[item.user_id] = [];
+              grouped[item.user_id].push(item);
             });
             setAgentGalleryMap(grouped);
           } else {
@@ -400,9 +429,9 @@ export default function BookingModal({
 
       // 마이페이지로 이동 후 "내 상담 예약" 모달 자동 오픈
       router.push("/profile?consultations=1");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("예약 오류:", err);
-      setError(err.message || "예약에 실패했습니다");
+      setError((err instanceof Error ? err.message : "알 수 없는 오류") || "예약에 실패했습니다");
     } finally {
       setSubmitting(false);
     }
@@ -449,8 +478,8 @@ export default function BookingModal({
       }
 
       setStep("confirm");
-    } catch (err: any) {
-      setError(err.message || "계좌 정보 저장에 실패했습니다");
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : "알 수 없는 오류") || "계좌 정보 저장에 실패했습니다");
     } finally {
       setBankSaving(false);
     }
@@ -497,9 +526,11 @@ export default function BookingModal({
             <div className="flex items-center gap-3">
               <div className="h-16 w-16 rounded-xl bg-(--oboon-bg-subtle) overflow-hidden flex items-center justify-center">
                 {propertyImageUrl ? (
-                  <img
+                  <Image
                     src={propertyImageUrl}
                     alt={propertyName || "property"}
+                    width={64}
+                    height={64}
                     className="h-full w-full object-cover"
                   />
                 ) : (
@@ -579,7 +610,6 @@ export default function BookingModal({
               <div className="flex flex-col gap-3 max-h-72 overflow-y-auto">
                 {agents.map((agent) => {
                   const isSelected = selectedAgent?.id === agent.id;
-                  const galleryImages = agentGalleryMap[agent.id] || [];
                   return (
                     <Card
                       key={agent.id}
@@ -816,9 +846,11 @@ export default function BookingModal({
             <div className="flex items-center gap-3">
               <div className="h-16 w-16 rounded-xl bg-(--oboon-bg-subtle) overflow-hidden flex items-center justify-center">
                 {propertyImageUrl ? (
-                  <img
+                  <Image
                     src={propertyImageUrl}
                     alt={propertyName || "property"}
+                    width={64}
+                    height={64}
                     className="h-full w-full object-cover"
                   />
                 ) : (
@@ -1046,9 +1078,11 @@ export default function BookingModal({
                         }}
                         aria-label={`${previewAgent.name} 상담사 추가 사진 ${index + 1} 확대 보기`}
                       >
-                        <img
+                        <Image
                           src={image.image_url}
                           alt={`${previewAgent.name} 상담사 추가 사진 ${index + 1}`}
+                          width={144}
+                          height={144}
                           className="h-full w-full object-cover"
                         />
                       </button>
@@ -1073,9 +1107,11 @@ export default function BookingModal({
         {previewImageIndex !== null && previewImages[previewImageIndex] ? (
           <div className="flex items-center justify-center">
             <div className="relative inline-block">
-              <img
+              <Image
                 src={previewImages[previewImageIndex]}
                 alt="상담사 추가 사진 확대 보기"
+                width={920}
+                height={720}
                 className="max-h-[80vh] max-w-[min(100%,920px)] h-auto w-auto rounded-xl"
               />
               <button

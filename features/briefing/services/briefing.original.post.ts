@@ -90,9 +90,9 @@ export async function fetchOboonOriginalPostPageData(args: {
   const recCounts = new Map<string, number>();
   if ((recCats ?? []).length > 0) {
     const idToKey = new Map<string, string>(
-      (recCats ?? []).map((c: any) => [c.id, c.key]),
+      (recCats ?? []).map((c) => [c.id, c.key]),
     );
-    const recCategoryIds = (recCats ?? []).map((c: any) => c.id);
+    const recCategoryIds = (recCats ?? []).map((c) => c.id);
 
     const { data: rows, error: rowsErr } = await supabase
       .from("briefing_posts")
@@ -103,7 +103,7 @@ export async function fetchOboonOriginalPostPageData(args: {
 
     if (rowsErr) throw rowsErr;
 
-    (rows ?? []).forEach((r: any) => {
+    (rows ?? []).forEach((r) => {
       const k = idToKey.get(r.category_id);
       if (!k) return;
       recCounts.set(k, (recCounts.get(k) ?? 0) + 1);

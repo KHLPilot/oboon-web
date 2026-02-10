@@ -19,7 +19,7 @@ export async function fetchPropertySpecs(propertyId: number) {
     .maybeSingle();
 }
 
-export async function upsertPropertySpecs(payload: Record<string, any>) {
+export async function upsertPropertySpecs(payload: Record<string, unknown>) {
   const supabase = createSupabaseClient();
   return supabase.from("property_specs").upsert(payload, {
     onConflict: "properties_id",

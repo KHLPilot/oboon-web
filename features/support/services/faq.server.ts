@@ -76,7 +76,10 @@ export async function fetchFAQItemsServer(): Promise<FAQItemViewModel[]> {
   if (!data) return [];
 
   return data.map((item) => {
-    const category = item.faq_categories as unknown as { key: string; name: string };
+    const category = item.faq_categories as unknown as {
+      key: string;
+      name: string;
+    };
     return {
       id: item.id,
       categoryKey: category.key,

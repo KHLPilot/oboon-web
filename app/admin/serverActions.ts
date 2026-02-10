@@ -63,7 +63,7 @@ export async function restoreAccount(formData: FormData) {
 
 
         return { success: true };  // ← 클라이언트에서 처리
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error("❌ 복구 오류:", err);
         return { error: "서버 오류" };
     }

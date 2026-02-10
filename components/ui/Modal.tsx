@@ -56,17 +56,12 @@ export default function Modal({
   panelClassName,
   zIndexOffset,
 }: ModalProps) {
-  const [portalEl, setPortalEl] = useState<HTMLDivElement | null>(null);
-
-  useEffect(() => {
+  const [portalEl] = useState<HTMLDivElement | null>(() => {
+    if (typeof document === "undefined") return null;
     const el = document.createElement("div");
     el.setAttribute("data-oboon-modal-root", "true");
-    setPortalEl(el);
-
-    return () => {
-      if (el.parentNode) el.parentNode.removeChild(el);
-    };
-  }, []);
+    return el;
+  });
 
   useEffect(() => {
     if (!open || !portalEl) return;

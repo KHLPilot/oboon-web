@@ -1,6 +1,5 @@
 // app/company/properties/layout.tsx
 import type { ReactNode } from "react";
-import PageContainer from "@/components/shared/PageContainer";
 
 export default function PropertiesLayout({
   children,

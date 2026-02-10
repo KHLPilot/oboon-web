@@ -36,6 +36,10 @@ interface ConsultationInfo {
   };
 }
 
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 export default function ChatPage() {
   const params = useParams();
   const router = useRouter();
@@ -111,9 +115,9 @@ export default function ChatPage() {
         }).catch(() => {
           // 알림 읽음 처리 실패해도 무시
         });
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("데이터 로드 오류:", err);
-        setError(err.message);
+        setError(getErrorMessage(err, "데이터를 불러오는 중 오류가 발생했습니다."));
       } finally {
         setLoading(false);
       }
@@ -172,10 +176,10 @@ export default function ChatPage() {
       const { message } = await res.json();
       setMessages((prev) => [...prev, message]);
       inputRef.current?.focus();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("메시지 전송 오류:", err);
       setNewMessage(messageContent); // 실패 시 메시지 복원
-      showAlert(err.message);
+      showAlert(getErrorMessage(err, "메시지 전송에 실패했습니다."));
     } finally {
       setSending(false);
     }
@@ -214,9 +218,9 @@ export default function ChatPage() {
 
       setMessages([]);
       showAlert("채팅 내역이 삭제되었습니다.");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("채팅 삭제 오류:", err);
-      showAlert(err.message);
+      showAlert(getErrorMessage(err, "채팅 삭제에 실패했습니다."));
     } finally {
       setDeleting(false);
     }

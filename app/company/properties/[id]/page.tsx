@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Image from "next/image";
 import Link from "next/link";
 import {
   Building2,
@@ -417,7 +418,7 @@ function PropertyDetailPageInner() {
     const { error } = await updatePropertyBasicInfo(id, { ...form });
     setSaving(false);
 
-    if (error) return showAlert("저장 실패: " + error.message);
+    if (error) return showAlert("저장 실패: " + (error instanceof Error ? error.message : "알 수 없는 오류"));
 
     setLocalPreview(null);
     setImageFileName(null);
@@ -434,7 +435,7 @@ function PropertyDetailPageInner() {
       if (deleteRequestStatus === "pending" && deleteRequestId) {
         const { error } = await cancelPropertyRequest(deleteRequestId);
         if (error) {
-          showAlert(error.message || "삭제 요청 철회에 실패했습니다.");
+          showAlert((error instanceof Error ? error.message : "알 수 없는 오류") || "삭제 요청 철회에 실패했습니다.");
           return;
         }
 
@@ -476,7 +477,7 @@ function PropertyDetailPageInner() {
     } catch (err) {
       showAlert(
         "삭제 실패: " +
-          (err instanceof Error ? err.message : "알 수 없는 오류"),
+          (err instanceof Error ? (err instanceof Error ? err.message : "알 수 없는 오류") : "알 수 없는 오류"),
       );
     }
   }
@@ -494,7 +495,7 @@ function PropertyDetailPageInner() {
     setRequestLoading(false);
 
     if (error) {
-      toast.error(error.message ?? "알 수 없는 오류", "요청 실패");
+      toast.error((error instanceof Error ? error.message : "알 수 없는 오류") ?? "알 수 없는 오류", "요청 실패");
       return;
     }
 
@@ -541,7 +542,7 @@ function PropertyDetailPageInner() {
       setForm({ ...form, image_url: result.url });
     } catch (err) {
       showAlert(
-        "업로드 실패: " + (err instanceof Error ? err.message : "오류"),
+        "업로드 실패: " + (err instanceof Error ? (err instanceof Error ? err.message : "알 수 없는 오류") : "오류"),
       );
       setImageFileName(null);
     }
@@ -576,8 +577,8 @@ function PropertyDetailPageInner() {
 
       setGalleryImages((payload.images || []) as PropertyGalleryImage[]);
       toast.success("추가 사진이 업로드되었습니다.", "완료");
-    } catch (error: any) {
-      toast.error(error.message || "업로드 중 오류가 발생했습니다.", "업로드 실패");
+    } catch (error: unknown) {
+      toast.error((error instanceof Error ? error.message : "알 수 없는 오류") || "업로드 중 오류가 발생했습니다.", "업로드 실패");
     } finally {
       setGalleryUploading(false);
       event.target.value = "";
@@ -601,8 +602,8 @@ function PropertyDetailPageInner() {
 
       setGalleryImages((payload.images || []) as PropertyGalleryImage[]);
       toast.success("사진이 삭제되었습니다.", "완료");
-    } catch (error: any) {
-      toast.error(error.message || "삭제 중 오류가 발생했습니다.", "삭제 실패");
+    } catch (error: unknown) {
+      toast.error((error instanceof Error ? error.message : "알 수 없는 오류") || "삭제 중 오류가 발생했습니다.", "삭제 실패");
     } finally {
       setGalleryDeletingId(null);
     }
@@ -628,8 +629,8 @@ function PropertyDetailPageInner() {
       }
 
       setGalleryImages((payload.images || []) as PropertyGalleryImage[]);
-    } catch (error: any) {
-      toast.error(error.message || "정렬 저장 중 오류가 발생했습니다.", "정렬 실패");
+    } catch (error: unknown) {
+      toast.error((error instanceof Error ? error.message : "알 수 없는 오류") || "정렬 저장 중 오류가 발생했습니다.", "정렬 실패");
     } finally {
       setGalleryReordering(false);
     }
@@ -945,9 +946,11 @@ function PropertyDetailPageInner() {
                 <div className="flex items-center gap-3 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle)/50 p-3">
                   <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-(--oboon-border-default)">
                     {data.image_url ? (
-                      <img
+                      <Image
                         src={data.image_url}
                         alt="Thumbnail"
+                        width={64}
+                        height={64}
                         className="h-full w-full object-cover"
                       />
                     ) : (
@@ -1082,10 +1085,12 @@ function PropertyDetailPageInner() {
                     {/* 이미지 카드 */}
                     <div className="relative grid-cols-2 aspect-video w-full max-w-sm overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)">
                       {localPreview || form.image_url ? (
-                        <img
+                        <Image
                           src={localPreview || form.image_url || ""}
                           className="h-full w-full object-cover"
                           alt="Preview"
+                          width={640}
+                          height={360}
                         />
                       ) : (
                         <div className="flex h-full items-center justify-center ob-typo-caption text-(--oboon-text-muted)">
@@ -1159,9 +1164,11 @@ function PropertyDetailPageInner() {
                       ].join(" ")}
                     >
                       <div className="relative aspect-square w-full overflow-hidden bg-(--oboon-bg-subtle)">
-                        <img
+                        <Image
                           src={image.image_url}
                           alt={`현장 추가 사진 ${index + 1}`}
+                          width={320}
+                          height={320}
                           className="h-full w-full object-cover"
                         />
                         <div className="pointer-events-none absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/55 ob-typo-caption font-medium text-white">

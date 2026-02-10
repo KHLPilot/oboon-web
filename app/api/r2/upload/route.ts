@@ -179,9 +179,9 @@ export async function POST(req: Request) {
       },
       { status: 400 },
     );
-  } catch (e: any) {
+  } catch (e: unknown) {
     return NextResponse.json(
-      { error: e?.message ?? "upload failed" },
+      { error: e instanceof Error ? e.message : "upload failed" },
       { status: 500 },
     );
   }

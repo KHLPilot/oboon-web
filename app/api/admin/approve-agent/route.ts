@@ -65,7 +65,7 @@ export async function POST(req: Request) {
 
         return NextResponse.json({ success: true });
 
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error("[approve-agent] 오류:", err);
         return NextResponse.json({ error: "서버 오류가 발생했습니다" }, { status: 500 });
     }

@@ -76,7 +76,7 @@ export default function PostEditorClient({ bootstrap, onCreate }: Props) {
   useEffect(() => {
     // 현재 선택된 categoryId가 해당 보드에 없으면 1순위로 자동 세팅
     if (!catsForBoard.some((c) => c.id === categoryId)) {
-      setCategoryId(catsForBoard[0]?.id ?? "");
+      queueMicrotask(() => setCategoryId(catsForBoard[0]?.id ?? ""));
     }
   }, [boardId, catsForBoard, categoryId]);
 
@@ -131,6 +131,7 @@ export default function PostEditorClient({ bootstrap, onCreate }: Props) {
   // autosave
   const [dirty, setDirty] = useState(false);
   const lastSavedRef = useRef<number>(0);
+  const [lastSavedAt, setLastSavedAt] = useState<number>(0);
 
   // restore
   useEffect(() => {
@@ -147,13 +148,15 @@ export default function PostEditorClient({ bootstrap, onCreate }: Props) {
         savedAt: number;
       };
 
-      setTitle(parsed.title ?? "");
-      setCoverImageUrl(parsed.coverImageUrl ?? "");
-      setContentMd(parsed.contentMd ?? "");
-      setSelectedTagId(parsed.selectedTagId ?? null);
-
-      lastSavedRef.current = parsed.savedAt ?? Date.now();
-      setDirty(false);
+      queueMicrotask(() => {
+        setTitle(parsed.title ?? "");
+        setCoverImageUrl(parsed.coverImageUrl ?? "");
+        setContentMd(parsed.contentMd ?? "");
+        setSelectedTagId(parsed.selectedTagId ?? null);
+        lastSavedRef.current = parsed.savedAt ?? Date.now();
+        setLastSavedAt(lastSavedRef.current);
+        setDirty(false);
+      });
     } catch {
       // ignore
     }
@@ -161,7 +164,7 @@ export default function PostEditorClient({ bootstrap, onCreate }: Props) {
 
   // dirty tracking
   useEffect(() => {
-    setDirty(true);
+    queueMicrotask(() => setDirty(true));
   }, [title, coverImageUrl, contentMd, selectedTagId, boardId, categoryId]);
 
   // debounce save
@@ -177,6 +180,7 @@ export default function PostEditorClient({ bootstrap, onCreate }: Props) {
       };
       localStorage.setItem(key, JSON.stringify(payload));
       lastSavedRef.current = payload.savedAt;
+      setLastSavedAt(payload.savedAt);
     }, 1500);
 
     return () => window.clearTimeout(t);
@@ -231,13 +235,13 @@ export default function PostEditorClient({ bootstrap, onCreate }: Props) {
   };
 
   const savedAtText = useMemo(() => {
-    if (!lastSavedRef.current) return "자동 저장 준비됨";
-    const d = new Date(lastSavedRef.current);
+    if (!lastSavedAt) return "자동 저장 준비됨";
+    const d = new Date(lastSavedAt);
     const hh = String(d.getHours()).padStart(2, "0");
     const mm = String(d.getMinutes()).padStart(2, "0");
     const ss = String(d.getSeconds()).padStart(2, "0");
     return `최근 자동 저장: ${hh}:${mm}:${ss}`;
-  }, [title, coverImageUrl, contentMd, selectedTagId, boardId, categoryId]);
+  }, [lastSavedAt]);
 
   return (
     <>

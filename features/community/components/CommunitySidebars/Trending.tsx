@@ -9,11 +9,10 @@ import { getCommunityTrendingPosts } from "../../services/community.posts";
 
 export default function Trending() {
   const [items, setItems] = useState<ReturnType<typeof mapCommunityPost>[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let isMounted = true;
-    setLoading(true);
 
     getCommunityTrendingPosts()
       .then((rows) => {

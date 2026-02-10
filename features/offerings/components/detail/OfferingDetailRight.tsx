@@ -3,6 +3,7 @@
 // features/offerings/detail/OfferingDetailRight.tsx
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import type { User } from "@supabase/supabase-js";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import BookingModal from "@/features/offerings/components/detail/BookingModal";
@@ -24,6 +25,11 @@ interface AgentInfo {
   agent_bio?: string | null;
 }
 
+function pickFirst<T>(value: T | T[] | null | undefined): T | null {
+  if (!value) return null;
+  return Array.isArray(value) ? (value[0] ?? null) : value;
+}
+
 export default function OfferingDetailRight({
   propertyId,
   propertyName,
@@ -35,7 +41,7 @@ export default function OfferingDetailRight({
   const [isBookingOpen, setIsBookingOpen] = useState(false);
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [loadingAgents, setLoadingAgents] = useState(false);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const isLoggedIn = Boolean(user);
   const hasBookableAgent = hasApprovedAgent && agents.length > 0;
 
@@ -77,8 +83,11 @@ export default function OfferingDetailRight({
 
         if (!isMounted) return;
         const agentList = (propertyAgents || [])
-          .map((pa: any) => pa.profiles)
-          .filter((profile: any) => profile !== null);
+          .map((pa) => {
+            const row = pa as { profiles: AgentInfo | AgentInfo[] | null };
+            return pickFirst(row.profiles);
+          })
+          .filter((profile): profile is AgentInfo => profile !== null);
         setAgents(agentList);
       } catch (err) {
         console.error("상담사 목록 조회 오류:", err);

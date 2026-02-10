@@ -265,7 +265,7 @@ export async function POST(req: Request) {
       success: true,
       consultation,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("예약 API 오류:", err);
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다" },
@@ -376,15 +376,27 @@ export async function GET(req: Request) {
     const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
 
     // 3일 지난 취소 예약은 백그라운드에서 삭제 (비동기, 응답 대기 안함)
-    const oldCancelledIds = (consultations || [])
-      .filter((c: any) => {
+    type ConsultationListRow = {
+      id: string;
+      status: string;
+      cancelled_at: string | null;
+      scheduled_at: string;
+      customer_id: string | null;
+      agent_id: string | null;
+      customer?: { avatar_url?: string | null } | null;
+      agent?: { avatar_url?: string | null } | null;
+    };
+    const consultationRows = (consultations || []) as ConsultationListRow[];
+
+    const oldCancelledIds = consultationRows
+      .filter((c) => {
         if (c.status === "cancelled" && c.cancelled_at) {
           const cancelledAt = new Date(c.cancelled_at);
           return cancelledAt < threeDaysAgo;
         }
         return false;
       })
-      .map((c: any) => c.id);
+      .map((c) => c.id);
 
     if (oldCancelledIds.length > 0) {
       // 비동기로 삭제 (응답 대기 안함)
@@ -401,8 +413,8 @@ export async function GET(req: Request) {
       });
     }
 
-    const filteredConsultations = (consultations || [])
-      .filter((c: any) => {
+    const filteredConsultations = consultationRows
+      .filter((c) => {
         // 취소된 예약이 3일 넘었으면 제외
         if (c.status === "cancelled" && c.cancelled_at) {
           const cancelledAt = new Date(c.cancelled_at);
@@ -412,7 +424,7 @@ export async function GET(req: Request) {
         }
         return true;
       })
-      .sort((a: any, b: any) => {
+      .sort((a, b) => {
         // 취소된 예약은 맨 아래로
         const aIsCancelled = a.status === "cancelled";
         const bIsCancelled = b.status === "cancelled";
@@ -430,7 +442,7 @@ export async function GET(req: Request) {
     const profileIds = Array.from(
       new Set(
         filteredConsultations
-          .flatMap((c: any) => [c.customer_id, c.agent_id])
+          .flatMap((c) => [c.customer_id, c.agent_id])
           .filter(Boolean),
       ),
     );
@@ -443,13 +455,13 @@ export async function GET(req: Request) {
         .in("id", profileIds);
 
       publicProfilesMap = new Map(
-        (publicProfiles || []).map((p: any) => [p.id, p]),
+        (publicProfiles || []).map((p) => [p.id, p]),
       );
     }
 
-    const enrichedConsultations = filteredConsultations.map((c: any) => {
-      const customer = publicProfilesMap.get(c.customer_id);
-      const agent = publicProfilesMap.get(c.agent_id);
+    const enrichedConsultations = filteredConsultations.map((c) => {
+      const customer = c.customer_id ? publicProfilesMap.get(c.customer_id) : undefined;
+      const agent = c.agent_id ? publicProfilesMap.get(c.agent_id) : undefined;
       return {
         ...c,
         customer_avatar_url:
@@ -459,7 +471,7 @@ export async function GET(req: Request) {
     });
 
     return NextResponse.json({ consultations: enrichedConsultations });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("예약 목록 API 오류:", err);
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다" },

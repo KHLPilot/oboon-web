@@ -20,7 +20,7 @@ export async function fetchPropertyDetail(id: number) {
 
 export async function updatePropertyBasicInfo(
   id: number,
-  payload: Record<string, any>,
+  payload: Record<string, unknown>,
 ) {
   const supabase = createSupabaseClient();
   return supabase.from("properties").update(payload).eq("id", id);

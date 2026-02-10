@@ -95,7 +95,7 @@ export async function POST(req: Request) {
       deletedCount: idsToDelete.length,
       deletedIds: idsToDelete,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("정리 API 오류:", err);
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다" },

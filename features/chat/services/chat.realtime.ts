@@ -30,7 +30,12 @@ export function subscribeToChatRoom(args: {
         filter: `room_id=eq.${roomId}`,
       },
       async (payload) => {
-        const newMsg = payload.new as any;
+        const newMsg = payload.new as {
+          id: string;
+          content: string;
+          sender_id: string;
+          created_at: string;
+        };
 
         if (currentUserId && newMsg.sender_id === currentUserId) {
           return;

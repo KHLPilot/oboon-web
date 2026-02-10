@@ -1,4 +1,10 @@
 import { createSupabaseClient } from "@/lib/supabaseClient";
+import type {
+  PropertyProgressRow,
+  RelationRow,
+  SpecsRow,
+  TimelineRow,
+} from "@/features/property/mappers/propertyProgress";
 
 export type PropertyListProfile = {
   id: string;
@@ -11,11 +17,14 @@ export type PropertyListRow = {
   name: string;
   created_by: string;
   profiles?: PropertyListProfile | PropertyListProfile[] | null;
-  property_locations?: any;
-  property_facilities?: any;
-  property_specs?: any;
-  property_timeline?: any;
-  property_unit_types?: any;
+  property_locations?: RelationRow[] | null;
+  property_facilities?: RelationRow[] | null;
+  property_specs?: SpecsRow | SpecsRow[] | null;
+  property_timeline?: TimelineRow | TimelineRow[] | null;
+  property_unit_types?: RelationRow[] | null;
+  confirmed_comment?: PropertyProgressRow["confirmed_comment"];
+  estimated_comment?: PropertyProgressRow["estimated_comment"];
+  pending_comment?: PropertyProgressRow["pending_comment"];
   request_status?: "pending" | "approved" | "rejected" | null;
   request_rejection_reason?: string | null;
   request_requested_at?: string | null;

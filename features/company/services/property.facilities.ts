@@ -10,7 +10,7 @@ export async function fetchPropertyFacilities(propertyId: number) {
 }
 
 export async function savePropertyFacility(
-  payload: Record<string, any>,
+  payload: Record<string, unknown>,
   id?: number,
 ) {
   const supabase = createSupabaseClient();

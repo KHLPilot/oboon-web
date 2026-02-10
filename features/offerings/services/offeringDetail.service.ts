@@ -1,19 +1,6 @@
 import { createSupabaseServer } from "@/lib/supabaseServer";
 import type { PropertyRow } from "@/features/offerings/components/detail/OfferingDetailLeft";
 
-const DETAIL_SELECT = `
-  id, created_at, name, property_type, status, description, image_url,
-  confirmed_comment, estimated_comment, pending_comment,
-  property_locations ( road_address, jibun_address, lat, lng, region_1depth, region_2depth, region_3depth ),
-  property_specs ( id, properties_id, sale_type, trust_company, site_area, building_area, building_coverage_ratio,
-    floor_ground, floor_underground, building_count, household_total, parking_total, parking_per_household,
-    heating_type, amenities, builder, developer, floor_area_ratio),
-  property_timeline ( id, properties_id, announcement_date, application_start, application_end, winner_announce,
-    contract_start, contract_end, move_in_date ),
-  property_unit_types ( id, properties_id, type_name, exclusive_area, supply_area, rooms, bathrooms, building_layout, orientation,
-    price_min, price_max, unit_count, image_url, supply_count, floor_plan_url )
-`.trim();
-
 type RecordValue = Record<string, unknown>;
 
 const isRecord = (value: unknown): value is RecordValue =>

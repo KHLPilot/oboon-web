@@ -1,6 +1,7 @@
 "use client";
 
 import { Clock, Heart, MessageCircle } from "lucide-react";
+import Image from "next/image";
 
 import { Badge } from "@/components/ui/Badge";
 import Card from "@/components/ui/Card";
@@ -36,9 +37,11 @@ export default function CommunityPostCard({
         <div className="flex items-center gap-2">
           <div className="h-7 w-7 rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle) overflow-hidden flex items-center justify-center">
             {post.authorAvatarUrl ? (
-              <img
+              <Image
                 src={post.authorAvatarUrl}
                 alt={post.authorName}
+                width={28}
+                height={28}
                 className="h-full w-full object-cover"
               />
             ) : (

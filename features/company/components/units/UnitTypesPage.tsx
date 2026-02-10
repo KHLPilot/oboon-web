@@ -25,7 +25,6 @@ import { showAlert } from "@/shared/alert";
 import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
-import Label from "@/components/ui/Label";
 import { FormField } from "@/components/shared/FormField";
 
 function buildDraftFromRow(row: UnitRow): UnitDraft {
@@ -43,6 +42,7 @@ function buildDraftFromRow(row: UnitRow): UnitDraft {
     unit_count: row.unit_count ?? null,
     supply_count: row.supply_count ?? null,
     floor_plan_url: row.floor_plan_url ?? null,
+    image_url: row.image_url ?? null,
   };
 }
 
@@ -84,6 +84,7 @@ export default function UnitTypesPage() {
     unit_count: null,
     supply_count: null,
     floor_plan_url: null,
+    image_url: null,
   });
   const [createFieldErrors, setCreateFieldErrors] = useState<
     Record<string, string>
@@ -180,7 +181,7 @@ export default function UnitTypesPage() {
       setCreateDraft((d) => ({ ...d, floor_plan_url: url }));
     } catch (e: unknown) {
       const msg =
-        e instanceof Error ? e.message : "평면도 업로드에 실패했어요.";
+        e instanceof Error ? (e instanceof Error ? e.message : "알 수 없는 오류") : "평면도 업로드에 실패했어요.";
       showAlert(msg);
     } finally {
       setFloorPlanUploading(false);
@@ -224,6 +225,7 @@ export default function UnitTypesPage() {
       unit_count: null,
       supply_count: null,
       floor_plan_url: null,
+      image_url: null,
     }));
     setExclusiveAreaText("");
     setSupplyAreaText("");

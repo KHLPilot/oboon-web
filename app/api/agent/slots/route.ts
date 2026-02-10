@@ -124,7 +124,10 @@ export async function GET(req: Request) {
       .eq("slot_date", date);
 
     const overrideMap = new Map(
-      (overrides || []).map((o: any) => [o.slot_time.slice(0, 5), o.is_open])
+      (overrides || []).map((o: { slot_time: string; is_open: boolean }) => [
+        o.slot_time.slice(0, 5),
+        o.is_open,
+      ])
     );
 
     // 4) 이미 예약된 시간 조회 (requested, pending, confirmed 모두)
@@ -140,7 +143,7 @@ export async function GET(req: Request) {
       .lte("scheduled_at", dayEnd);
 
     const bookedTimes = new Set(
-      (bookedConsultations || []).map((c: any) => {
+      (bookedConsultations || []).map((c: { scheduled_at: string }) => {
         const d = new Date(c.scheduled_at);
         return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
       })
@@ -196,7 +199,7 @@ export async function GET(req: Request) {
     });
 
     return NextResponse.json({ slots });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("슬롯 조회 오류:", err);
     return NextResponse.json({ error: "서버 오류" }, { status: 500 });
   }
@@ -285,7 +288,7 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ success: true });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("슬롯 API 오류:", err);
     return NextResponse.json({ error: "서버 오류" }, { status: 500 });
   }

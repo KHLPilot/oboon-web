@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Image from "next/image";
 import Modal from "@/components/ui/Modal";
 import Card from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -47,9 +48,11 @@ function Avatar({
 
   if (url) {
     return (
-      <img
+      <Image
         src={url}
         alt={`${name ?? "사용자"} 프로필`}
+        width={32}
+        height={32}
         className="h-8 w-8 rounded-full border border-(--oboon-border-default) object-cover"
       />
     );
@@ -172,9 +175,11 @@ export default function ReservationDetailModal({
       <Card className="mt-4 p-4 shadow-none">
         <div className="flex items-start gap-3">
           {row.property?.image_url ? (
-            <img
+            <Image
               src={row.property.image_url}
               alt={row.property?.name ?? "현장"}
+              width={80}
+              height={80}
               className="h-20 w-20 rounded-xl border border-(--oboon-border-default) object-cover"
             />
           ) : (

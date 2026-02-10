@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
 const BLOCKING_CONSULTATION_STATUSES = ["requested", "pending", "confirmed"];
@@ -10,7 +10,7 @@ const adminSupabase = createClient(
 );
 
 async function hasBlockingConsultations(
-  supabase: { from: (table: string) => any },
+  supabase: SupabaseClient,
   agentId: string,
 ) {
   const { count, error } = await supabase
@@ -27,7 +27,7 @@ async function hasBlockingConsultations(
 }
 
 // POST - 상담사가 현재 소속을 무소속으로 전환
-export async function POST(_request: NextRequest) {
+export async function POST() {
   try {
     const cookieStore = await cookies();
     const supabase = createServerClient(

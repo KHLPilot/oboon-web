@@ -713,14 +713,14 @@ function FilterBarBody({
 export default function FilterBar() {
   const sp = useSearchParams();
   // 기본값: 모바일 닫힘 / 데스크탑 열림
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia("(min-width: 640px)").matches;
+  });
 
   useEffect(() => {
     // SSR 안전: client에서만 실행
     const mq = window.matchMedia("(min-width: 640px)"); // sm
-    // 첫 진입 시 데스크탑이면 열어둠
-    if (mq.matches) setOpen(true);
-
     // 뷰포트 변경 시에도 자연스럽게 동작(선택 사항이지만 UX 안정적)
     const onChange = (e: MediaQueryListEvent) => setOpen(e.matches);
     mq.addEventListener?.("change", onChange);

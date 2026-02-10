@@ -51,7 +51,7 @@ export default function UnitTypeCreateForm({
   }, [value.supply_area]);
 
   async function handlePickFloorPlan(file: File) {
-    const propertyId = (value as any)?.properties_id;
+    const propertyId = value.properties_id;
 
     if (!propertyId || !Number.isFinite(Number(propertyId))) {
       showAlert("propertyId가 올바르지 않아 업로드할 수 없습니다.");
@@ -70,7 +70,7 @@ export default function UnitTypeCreateForm({
       onChange({ ...value, floor_plan_url: url });
     } catch (e: unknown) {
       const msg =
-        e instanceof Error ? e.message : "평면도 업로드에 실패했습니다.";
+        e instanceof Error ? (e instanceof Error ? e.message : "알 수 없는 오류") : "평면도 업로드에 실패했습니다.";
       showAlert(msg);
     } finally {
       setFloorUploading(false);
@@ -347,9 +347,9 @@ export default function UnitTypeCreateForm({
           <div className="mt-2">
             <Input
               placeholder="https://..."
-              value={(value as any).image_url ?? ""}
+              value={value.image_url ?? ""}
               onChange={(e) =>
-                onChange({ ...(value as any), image_url: e.target.value })
+                onChange({ ...value, image_url: e.target.value })
               }
             />
           </div>

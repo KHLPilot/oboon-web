@@ -52,7 +52,7 @@ export async function fetchBriefingHomeData() {
       `
       id, slug, title, content_md, created_at, published_at, cover_image_url,
       board:briefing_boards!inner(key),
-      category:briefing_categories(key,name)
+      category:briefing_categories(key,name),
       post_tags:briefing_post_tags(
         tag:briefing_tags(id,key,name,sort_order,is_active)
       )

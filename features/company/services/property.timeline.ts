@@ -11,7 +11,7 @@ export async function fetchPropertyTimeline(propertyId: number) {
 
 export async function savePropertyTimeline(
   propertyId: number,
-  payload: Record<string, any>,
+  payload: Record<string, unknown>,
   timelineId?: number | null,
 ) {
   const supabase = createSupabaseClient();

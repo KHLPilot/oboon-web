@@ -22,47 +22,49 @@ type PostRow = {
     | { key: string; name: string }
     | { key: string; name: string }[]
     | null;
+  post_tags?:
+    | {
+        tag: {
+          id: string;
+          name: string;
+          sort_order: number | null;
+          is_active: boolean;
+        } | {
+          id: string;
+          name: string;
+          sort_order: number | null;
+          is_active: boolean;
+        }[] | null;
+      }[]
+    | null;
 };
 
-function pickKey(v: any): string | null {
-  if (!v) return null;
-  return Array.isArray(v) ? v?.[0]?.key ?? null : v?.key ?? null;
-}
-
-function pickName(v: any): string | null {
+function pickName(
+  v: { name?: string } | { name?: string }[] | null,
+): string | null {
   if (!v) return null;
   return Array.isArray(v) ? v?.[0]?.name ?? null : v?.name ?? null;
 }
 
-function formatDate(iso: string) {
-  // YYYY.MM.DD
-  const d = new Date(iso);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}.${m}.${day}`;
+function pickFirst<T>(v: T | T[] | null | undefined): T | null {
+  if (!v) return null;
+  return Array.isArray(v) ? (v[0] ?? null) : v;
 }
 
-function stripMd(md: string) {
-  return md
-    .replace(/```[\s\S]*?```/g, "")
-    .replace(/`[^`]*`/g, "")
-    .replace(/!\[[^\]]*]\([^)]\)/g, "")
-    .replace(/\[[^\]]*]\([^)]\)/g, "")
-    .replace(/[#>*_~\-]/g, " ")
-    .replace(/\s/g, " ")
-    .trim();
-}
-
-function excerpt(md: string | null, max = 70) {
-  if (!md) return "";
-  const s = stripMd(md);
-  return s.length > max ? `${s.slice(0, max)}…` : s;
-}
-
-function pickPrimaryTagName(post: any): string | null {
-  const items = (post?.post_tags ?? []) as any[];
-  const activeTags = items.map((x) => x?.tag).filter((t) => t && t.is_active);
+function pickPrimaryTagName(post: PostRow): string | null {
+  const items = post.post_tags ?? [];
+  const activeTags = items
+    .map((x) => pickFirst(x?.tag))
+    .filter(
+      (
+        t,
+      ): t is {
+        id: string;
+        name: string;
+        sort_order: number | null;
+        is_active: boolean;
+      } => Boolean(t && t.is_active),
+    );
 
   if (activeTags.length === 0) return null;
 
@@ -79,8 +81,6 @@ function pickPrimaryTagName(post: any): string | null {
 export default async function BriefingPage() {
   const { isAdmin, heroPost, tagData, generalPosts } =
     await fetchBriefingHomeData();
-
-  const heroCategoryKey = heroPost ? pickKey(heroPost.category) : null;
 
   return (
     <main className="bg-(--oboon-bg-page)">
@@ -185,7 +185,7 @@ export default async function BriefingPage() {
           </div>
         </div>
         <BriefingCardGrid
-          posts={generalPosts.map((p: any) => ({
+          posts={generalPosts.map((p) => ({
             id: p.id,
             href: `/briefing/general/${encodeURIComponent(p.slug)}`,
             slug: p.slug,

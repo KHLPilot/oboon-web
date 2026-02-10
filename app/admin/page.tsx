@@ -2,8 +2,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { approveAgent, restoreAccount } from "./serverActions";
 import { fetchAdminDashboardData } from "@/features/admin/services/admin.dashboard";
 
@@ -163,6 +163,10 @@ function termTypeLabel(type: string) {
   }
 }
 
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 
 type ConfirmKind = "approve" | "restore";
 type ConfirmState =
@@ -188,7 +192,6 @@ function AdminPageInner() {
   const router = useRouter();
   const toast = useToast();
   const [loading, setLoading] = useState(true);
-  const [pendingAgents, setPendingAgents] = useState<Profile[]>([]);
   const [propertyAgents, setPropertyAgents] = useState<PropertyAgent[]>([]);
   const [publishedPropertyCount, setPublishedPropertyCount] = useState(0);
   const [todayNewConsultations, setTodayNewConsultations] = useState(0);
@@ -256,7 +259,6 @@ function AdminPageInner() {
       return;
     }
 
-    setPendingAgents(data.pendingAgents);
     setPropertyAgents(data.propertyAgents);
     setPublishedPropertyCount(data.publishedPropertyCount);
     setTodayNewConsultations(data.todayNewConsultations);
@@ -318,17 +320,6 @@ function AdminPageInner() {
     } finally {
       setTermSaving(false);
     }
-  };
-
-  const openApproveConfirm = (agent: Profile) => {
-    setConfirm({
-      open: true,
-      kind: "approve",
-      userId: agent.id,
-      title: "승인 확인",
-      description: `${agent.name ?? "-"} (${agent.email}) 사용자를 승인할까요?`,
-      confirmLabel: "승인하기",
-    });
   };
 
   const openRestoreConfirm = (u: Profile) => {
@@ -407,8 +398,8 @@ function AdminPageInner() {
         [propertyAgentId]: true,
       }));
       await loadData();
-    } catch (error: any) {
-      toast.error(error.message || "승인에 실패했습니다", "오류");
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "승인에 실패했습니다"), "오류");
     } finally {
       setPropertyAgentAction(null);
     }
@@ -451,8 +442,8 @@ function AdminPageInner() {
         [propertyAgentId]: true,
       }));
       await loadData();
-    } catch (error: any) {
-      toast.error(error.message || "거절에 실패했습니다", "오류");
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "거절에 실패했습니다"), "오류");
     } finally {
       setPropertyAgentAction(null);
     }
@@ -471,8 +462,8 @@ function AdminPageInner() {
         throw new Error(data.error || "예약 조회 실패");
       }
       setReservations((data.consultations || []) as ReservationRow[]);
-    } catch (error: any) {
-      toast.error(error.message || "예약 조회 실패", "오류");
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "예약 조회 실패"), "오류");
     } finally {
       setReservationsLoading(false);
     }
@@ -504,8 +495,8 @@ function AdminPageInner() {
         }) as SettlementSummary,
       );
       setSettlementRows((data.rows || []) as SettlementRow[]);
-    } catch (error: any) {
-      toast.error(error.message || "정산 데이터 조회 실패", "오류");
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "정산 데이터 조회 실패"), "오류");
     } finally {
       setSettlementLoading(false);
     }
@@ -529,8 +520,8 @@ function AdminPageInner() {
         prev?.id === reservationId ? { ...prev, status: "pending" } : prev,
       );
       await loadReservations();
-    } catch (error: any) {
-      toast.error(error.message || "예약 요청 승인에 실패했습니다", "오류");
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "예약 요청 승인에 실패했습니다"), "오류");
     } finally {
       setReservationAction(null);
     }
@@ -560,8 +551,8 @@ function AdminPageInner() {
         prev?.id === reservationId ? { ...prev, status: "cancelled" } : prev,
       );
       await loadReservations();
-    } catch (error: any) {
-      toast.error(error.message || "예약 요청 거절에 실패했습니다", "오류");
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "예약 요청 거절에 실패했습니다"), "오류");
       throw error;
     } finally {
       setReservationAction(null);
@@ -735,19 +726,6 @@ function AdminPageInner() {
       : `입력 상태 ${card.inputCount}/${card.totalCount}`;
   };
 
-  const propertyStatusLabel = (status: PropertyAgent["status"]) => {
-    switch (status) {
-      case "pending":
-        return "검토 대기";
-      case "rejected":
-        return "반려됨";
-      case "approved":
-        return "게시됨";
-      default:
-        return status;
-    }
-  };
-
   const propertyStateLabel = (
     requestType: PropertyAgent["request_type"],
     status: PropertyAgent["status"],
@@ -877,26 +855,6 @@ function AdminPageInner() {
     }
   }, [activeTab, loadTerms]);
 
-  const StatCard = ({
-    title,
-    value,
-    helper,
-  }: {
-    title: string;
-    value: string | number;
-    helper?: string;
-  }) => (
-    <Card className="p-4">
-      <div className="ob-typo-caption text-(--oboon-text-muted)">{title}</div>
-      <div className="mt-2 ob-typo-h3 text-(--oboon-text-title)">{value}</div>
-      {helper ? (
-        <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
-          {helper}
-        </div>
-      ) : null}
-    </Card>
-  );
-
   if (loading) {
     return (
       <div className="py-16 text-center ob-typo-body text-(--oboon-text-muted)">
@@ -972,9 +930,11 @@ function AdminPageInner() {
     const showImage = Boolean(url) && !error;
 
     return showImage ? (
-      <img
+      <Image
         src={url ?? ""}
         alt={`${name ?? "사용자"} 프로필`}
+        width={28}
+        height={28}
         className="h-7 w-7 rounded-full border border-(--oboon-border-default) object-cover"
         onError={() => setError(true)}
       />

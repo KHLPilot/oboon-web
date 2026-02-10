@@ -12,7 +12,6 @@ import {
 } from "@/features/briefing/components/briefing.ui";
 import {
   type BriefingOriginalCardModel,
-  getBriefingOriginalHref,
 } from "@/features/briefing/domain/briefing";
 
 type Props = {

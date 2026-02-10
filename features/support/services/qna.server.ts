@@ -172,7 +172,9 @@ export async function fetchQnADetailServer(
   let answerViewModel: QnAAnswerViewModel | null = null;
 
   if (answer) {
-    const answerProfiles = answer.profiles as unknown as { name: string | null };
+    const answerProfiles = answer.profiles as unknown as {
+      name: string | null;
+    };
     answerViewModel = {
       id: answer.id,
       body: answer.body,
@@ -182,7 +184,9 @@ export async function fetchQnADetailServer(
     };
   }
 
-  const profiles = question.profiles as unknown as { name: string | null };
+  const profiles = question.profiles as unknown as {
+    name: string | null;
+  };
   const authorName = profiles?.name ?? "알 수 없음";
   const displayAuthor = question.is_anonymous
     ? question.anonymous_nickname || "익명"
@@ -323,7 +327,6 @@ export async function updateQnAQuestion(input: {
 export async function deleteQnAQuestion(
   id: string
 ): Promise<{ ok: true } | { ok: false; message: string }> {
-  const supabase = createSupabaseServer();
   const user = await getCurrentUser();
 
   if (!user) {

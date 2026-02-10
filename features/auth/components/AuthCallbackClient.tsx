@@ -7,10 +7,6 @@ import { createSupabaseClient } from "@/lib/supabaseClient";
 import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
 
-function cx(...cls: Array<string | false | null | undefined>) {
-  return cls.filter(Boolean).join(" ");
-}
-
 export default function AuthCallbackClient() {
   const router = useRouter();
   const searchParams = useSearchParams();

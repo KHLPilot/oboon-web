@@ -59,7 +59,10 @@ export async function fetchFAQItems(): Promise<FAQItemViewModel[]> {
 
   // 타입 단언 및 변환
   return data.map((item) => {
-    const category = item.faq_categories as unknown as { key: string; name: string };
+    const category = item.faq_categories as unknown as {
+      key: string;
+      name: string;
+    };
     return {
       id: item.id,
       categoryKey: category.key,
@@ -105,7 +108,10 @@ export async function fetchFAQItemsByCategory(
   if (!data) return [];
 
   return data.map((item) => {
-    const category = item.faq_categories as unknown as { key: string; name: string };
+    const category = item.faq_categories as unknown as {
+      key: string;
+      name: string;
+    };
     return {
       id: item.id,
       categoryKey: category.key,

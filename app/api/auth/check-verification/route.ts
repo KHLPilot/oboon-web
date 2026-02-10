@@ -6,6 +6,10 @@ const supabaseAdmin = createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+function getErrorMessage(error: unknown, fallback: string) {
+    return error instanceof Error ? error.message : fallback;
+}
+
 export async function POST(req: Request) {
     try {
         const body = await req.json();
@@ -61,8 +65,8 @@ export async function POST(req: Request) {
 
         // 아직 미인증
         return NextResponse.json({ verified: false });
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error("❌ [API] 확인 오류:", err);
-        return NextResponse.json({ verified: false, error: err.message });
+        return NextResponse.json({ verified: false, error: getErrorMessage(err, "확인 오류") });
     }
 }

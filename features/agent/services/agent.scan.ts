@@ -56,10 +56,28 @@ export async function fetchAgentScanBootstrap(): Promise<AgentScanBootstrap> {
     .eq("status", "approved");
 
   const properties =
-    propertyAgents?.map((pa: any) => ({
-      id: pa.properties.id,
-      name: pa.properties.name,
-    })) ?? [];
+    propertyAgents?.map((pa) => {
+      const agentRow = pa as {
+        properties:
+          | {
+              id: number;
+              name: string;
+            }
+          | {
+              id: number;
+              name: string;
+            }[]
+          | null;
+      };
+      const property = Array.isArray(agentRow.properties)
+        ? (agentRow.properties[0] ?? null)
+        : agentRow.properties;
+      if (!property) return null;
+      return {
+        id: property.id,
+        name: property.name,
+      };
+    }).filter((property): property is AgentPropertyOption => property !== null) ?? [];
 
   const response = await fetch(
     "/api/consultations?role=agent&status=confirmed",

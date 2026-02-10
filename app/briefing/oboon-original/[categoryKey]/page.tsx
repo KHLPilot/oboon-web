@@ -8,60 +8,6 @@ import { fetchOboonOriginalCategoryPageData } from "@/features/briefing/services
 import { Cover, cx } from "@/features/briefing/components/briefing.ui";
 import BriefingCardGrid from "@/features/briefing/components/BriefingCardGrid";
 
-type PostRow = {
-  id: string;
-  slug: string;
-  title: string;
-  content_md: string | null;
-  created_at: string;
-  published_at: string | null;
-  cover_image_url: string | null;
-  category:
-    | { key: string; name: string }
-    | { key: string; name: string }[]
-    | null;
-};
-
-type CategoryRow = {
-  id: string;
-  key: string;
-  name: string;
-  description: string | null;
-};
-
-type TagRow = {
-  id: string;
-  key: string;
-  name: string;
-};
-
-function pickPrimaryTagName(post: any): string | null {
-  const items = (post?.post_tags ?? []) as any[];
-  const activeTags = items.map((x) => x?.tag).filter((t) => t && t.is_active);
-
-  if (activeTags.length === 0) return null;
-
-  activeTags.sort((a, b) => {
-    const ao = typeof a.sort_order === "number" ? a.sort_order : 0;
-    const bo = typeof b.sort_order === "number" ? b.sort_order : 0;
-    if (ao !== bo) return ao - bo;
-    return String(a.name ?? "").localeCompare(String(b.name ?? ""));
-  });
-
-  return activeTags[0]?.name ?? null;
-}
-
-function stripMd(md: string) {
-  return md
-    .replace(/```[\s\S]*?```/g, "")
-    .replace(/`[^`]*`/g, "")
-    .replace(/!\[[^\]]*]\([^)]*\)/g, "")
-    .replace(/\[[^\]]*]\([^)]*\)/g, "")
-    .replace(/[#>*_~\-]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 export default async function OboonOriginalCategoryPage({
   params,
 }: {
@@ -70,26 +16,22 @@ export default async function OboonOriginalCategoryPage({
   const categoryKey = decodeURIComponent(params.categoryKey);
 
   // board_id 확보 (DB key: oboon_original)
-  const { board, category, posts, tags } =
+  const { category, posts } =
     await fetchOboonOriginalCategoryPageData(categoryKey);
 
   if (!category) notFound();
 
-  const boardId = board.id;
-  const postsData = posts;
-  const tagData = tags;
-
-  const tagMap = new Map<string, TagRow>();
-  (tagData ?? []).forEach((r: any) => {
-    const t = r?.tag;
-    if (!t?.id) return;
-    tagMap.set(t.id, { id: t.id, key: t.key, name: t.name });
-  });
-
-  const tagList = Array.from(tagMap.values()).slice(0, 8);
-
   const heroDesc = category.description ?? "";
   const heroCover = null;
+  const postItems = (posts ?? []) as Array<{
+    id: string;
+    slug: string;
+    title: string;
+    content_md: string | null;
+    created_at: string;
+    published_at: string | null;
+    cover_image_url: string | null;
+  }>;
 
   return (
     <main className="bg-(--oboon-bg-page)">
@@ -139,7 +81,7 @@ export default async function OboonOriginalCategoryPage({
         </div>
 
         <BriefingCardGrid
-          posts={posts.map((p: any) => ({
+          posts={postItems.map((p) => ({
             id: p.id,
             href: `/briefing/oboon-original/${encodeURIComponent(
               categoryKey,
@@ -150,7 +92,7 @@ export default async function OboonOriginalCategoryPage({
             created_at: p.created_at,
             published_at: p.published_at ?? null,
             cover_image_url: p.cover_image_url ?? null,
-            badgeLabel: pickPrimaryTagName(p) ?? category.name,
+            badgeLabel: category.name,
           }))}
           initialCount={4}
           step={4}

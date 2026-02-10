@@ -107,7 +107,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     ref
   ) => {
     const isDisabled = Boolean(disabled || loading);
-    const Comp: any = asChild ? Slot : "button";
+    const Comp: React.ElementType = asChild ? Slot : "button";
 
     // asChild일 때는 disabled/type 같은 button 전용 속성이 <a>에 전달되면 깨질 수 있으니 분기 처리
     const sharedClassName = cn(

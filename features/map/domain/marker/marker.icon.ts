@@ -53,12 +53,10 @@ function dotIcon({ type, state }: { type: MarkerType; state: MarkerState }) {
 
 function richOverlay({
   type,
-  state,
   topLabel,
   mainLabel,
 }: {
   type: MarkerType;
-  state: MarkerState;
   topLabel?: string | null;
   mainLabel?: string | null;
 }) {

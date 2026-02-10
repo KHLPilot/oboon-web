@@ -6,16 +6,7 @@ import { cx } from "@/features/briefing/components/briefing.ui";
 import BriefingOriginalCard from "@/features/briefing/components/oboon-original/BriefingOriginalCard";
 
 import { fetchOboonOriginalPageData } from "@/features/briefing/services/briefing.original";
-import FeaturedHero, {
-  type FeaturedPostRow,
-} from "@/features/briefing/components/oboon-original/FeaturedHero";
-
-type TagRow = {
-  id: string;
-  key: string;
-  name: string;
-  sort_order: number | null;
-};
+import FeaturedHero from "@/features/briefing/components/oboon-original/FeaturedHero";
 
 type CategoryRow = {
   id: string;
@@ -26,7 +17,6 @@ type CategoryRow = {
 export default async function OboonOriginalPage() {
   const {
     isAdmin,
-    boardId,
     categories,
     categoryCountMap,
     featuredPosts,

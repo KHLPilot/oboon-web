@@ -96,7 +96,7 @@ export async function GET(req: Request) {
         // 7. 리다이렉트 (쿠키는 이미 설정됨)
         return NextResponse.redirect(new URL(redirectPath, process.env.NEXT_PUBLIC_SITE_URL!));
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("❌ Google OAuth 오류:", error);
         return NextResponse.redirect(new URL("/auth/login?error=unknown", process.env.NEXT_PUBLIC_SITE_URL!));
     }

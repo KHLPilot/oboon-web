@@ -40,7 +40,7 @@ export async function fetchOboonOriginalPageData() {
   if (catErr) throw catErr;
 
   const categoryIds = (categories ?? [])
-    .map((c: any) => c.id)
+    .map((c) => c.id)
     .filter(Boolean);
 
   const categoryCountMap = new Map<string, number>();
@@ -54,7 +54,7 @@ export async function fetchOboonOriginalPageData() {
 
     if (cntErr) throw cntErr;
 
-    (rows ?? []).forEach((r: any) => {
+    (rows ?? []).forEach((r) => {
       const id = (r?.category_id ?? null) as string | null;
       if (!id) return;
       categoryCountMap.set(id, (categoryCountMap.get(id) ?? 0) + 1);
@@ -90,7 +90,7 @@ export async function fetchOboonOriginalPageData() {
   const tagToCategoryIds = new Map<string, Set<string>>();
 
   if (tagRows.length > 0) {
-    const tagIds = tagRows.map((t: any) => t.id);
+    const tagIds = tagRows.map((t) => t.id);
 
     const { data: mapRows, error: mapErr } = await supabase
       .from("briefing_post_tags")
@@ -106,9 +106,12 @@ export async function fetchOboonOriginalPageData() {
 
     if (mapErr) throw mapErr;
 
-    (mapRows ?? []).forEach((row: any) => {
+    (mapRows ?? []).forEach((row) => {
       const tagId = row?.tag_id as string | undefined;
-      const categoryId = row?.post?.category_id as string | undefined;
+      const post = Array.isArray(row?.post)
+        ? (row.post[0] ?? null)
+        : (row?.post ?? null);
+      const categoryId = post?.category_id as string | undefined;
       if (!tagId || !categoryId) return;
       const set = tagToCategoryIds.get(tagId) ?? new Set<string>();
       set.add(categoryId);
@@ -116,7 +119,7 @@ export async function fetchOboonOriginalPageData() {
     });
   }
 
-  const featuredPosts = (featuredList ?? []).map((row: any) => ({
+  const featuredPosts = (featuredList ?? []).map((row) => ({
     ...row,
     category: Array.isArray(row?.category)
       ? row.category[0] ?? null

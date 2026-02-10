@@ -22,7 +22,7 @@ export type AgentPropertyRequest = {
 export type AgentPropertyDashboard = {
   userId: string | null;
   role: string | null;
-  profile: Record<string, any> | null;
+  profile: Record<string, unknown> | null;
   requests: AgentPropertyRequest[];
   properties: AgentProperty[];
 };
@@ -94,7 +94,7 @@ export async function fetchAgentPropertyDashboard(): Promise<AgentPropertyDashbo
   return {
     userId: user.id,
     role,
-    profile: (profileData as Record<string, any>) ?? null,
+    profile: (profileData as Record<string, unknown>) ?? null,
     requests: enrichedRequests,
     properties: (propertiesData || []) as AgentProperty[],
   };

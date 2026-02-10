@@ -1,8 +1,9 @@
 // features/map/FullscreenMapOverlay.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import Image from "next/image";
 import { formatPriceRange } from "@/shared/price";
 import { X, Plus, Minus } from "lucide-react";
 
@@ -45,11 +46,13 @@ export default function FullscreenMapOverlay({
   onClose: () => void;
 }) {
   const router = useRouter();
-  const [portalEl, setPortalEl] = useState<HTMLDivElement | null>(null);
-  const mapRef = useMemo(
-    () => ({ current: null as NaverMapHandle | null }),
-    []
-  );
+  const [portalEl] = useState<HTMLDivElement | null>(() => {
+    if (typeof document === "undefined") return null;
+    const el = document.createElement("div");
+    el.setAttribute("data-oboon-map-overlay-root", "true");
+    return el;
+  });
+  const mapRef = useRef<NaverMapHandle | null>(null);
   const [sheetId, setSheetId] = useState<number | null>(null);
 
   const offeringById = useMemo(() => {
@@ -63,15 +66,6 @@ export default function FullscreenMapOverlay({
     if (focusedId && focusedId > 0) return offeringById.get(focusedId) ?? null;
     return null;
   }, [sheetId, focusedId, offeringById]);
-
-  useEffect(() => {
-    const el = document.createElement("div");
-    el.setAttribute("data-oboon-map-overlay-root", "true");
-    setPortalEl(el);
-    return () => {
-      if (el.parentNode) el.parentNode.removeChild(el);
-    };
-  }, []);
 
   useEffect(() => {
     if (!open || !portalEl) return;
@@ -189,16 +183,20 @@ export default function FullscreenMapOverlay({
                   {/* 1. 상단 이미지 영역 (16:9 비율) */}
                   {sheetOffering.imageUrl ? (
                     <div className="relative aspect-video w-full bg-gray-100">
-                      <img
+                      <Image
                         src={sheetOffering.imageUrl}
                         alt=""
+                        width={1280}
+                        height={720}
                         className="h-full w-full object-cover"
                       />
                       <div className="absolute left-3 top-3 z-10">
                         <OfferingBadge
                           type="status"
                           value={
-                            ((sheetOffering as any)
+                            ((sheetOffering as unknown as {
+                              statusEnum?: OfferingStatusValue | null;
+                            })
                               .statusEnum as OfferingStatusValue | null) ??
                             undefined
                           }

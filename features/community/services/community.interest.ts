@@ -32,10 +32,16 @@ export async function getCommunityInterestProperties(): Promise<
   }
 
   return (data ?? [])
-    .map((row: any) => {
-      const property = Array.isArray(row.properties)
-        ? row.properties[0]
-        : row.properties;
+    .map((row) => {
+      const typedRow = row as {
+        properties:
+          | { id: number; name: string | null }
+          | Array<{ id: number; name: string | null }>
+          | null;
+      };
+      const property = Array.isArray(typedRow.properties)
+        ? typedRow.properties[0]
+        : typedRow.properties;
       if (!property?.id) return null;
       return {
         id: property.id,

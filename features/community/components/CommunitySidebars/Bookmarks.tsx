@@ -10,11 +10,10 @@ import { getCommunityBookmarkedPosts } from "../../services/community.posts";
 
 export default function Bookmarks() {
   const [items, setItems] = useState<ReturnType<typeof mapCommunityPost>[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let isMounted = true;
-    setLoading(true);
 
     const load = async () => {
       const profile = await getCommunityProfile();

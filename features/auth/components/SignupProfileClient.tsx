@@ -388,8 +388,8 @@ export default function SignupProfileClient() {
 
       router.replace("/");
       router.refresh();
-    } catch (err: any) {
-      setFatalError(err?.message || "처리 중 오류가 발생했습니다.");
+    } catch (err: unknown) {
+      setFatalError(err instanceof Error ? err.message : "처리 중 오류가 발생했습니다.");
     } finally {
       setLoading(false);
     }

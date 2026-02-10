@@ -6,12 +6,10 @@ import {
   Loader2,
   Calendar,
   Clock,
-  ChevronLeft,
   Pencil,
   Check,
   X,
 } from "lucide-react";
-import Link from "next/link";
 
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -27,12 +25,10 @@ interface SlotInfo {
 }
 
 type AgentScheduleSettingsProps = {
-  showBackLink?: boolean;
   showTitle?: boolean;
 };
 
 export default function AgentScheduleSettings({
-  showBackLink = false,
   showTitle = true,
 }: AgentScheduleSettingsProps) {
   const router = useRouter();
@@ -189,6 +185,9 @@ export default function AgentScheduleSettings({
 
   return (
     <div className="space-y-6">
+      {showTitle ? (
+        <div className="ob-typo-h2 text-(--oboon-text-title)">예약 스케줄 설정</div>
+      ) : null}
       <Card className="mb-8 p-5">
         <div className="grid gap-6 lg:grid-cols-[minmax(0,360px)_1fr]">
           <div>

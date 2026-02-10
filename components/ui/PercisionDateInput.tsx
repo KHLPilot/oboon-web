@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 type Policy = "day" | "month" | "both";
 type Precision = "day" | "month";
@@ -30,12 +30,8 @@ export default function PrecisionDateInput({
   inputClassName = "h-11",
   placeholder,
 }: Props) {
-  const [displayValue, setDisplayValue] = useState("");
+  const [displayValue, setDisplayValue] = useState(value || "");
   const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    setDisplayValue(value || "");
-  }, [value]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;

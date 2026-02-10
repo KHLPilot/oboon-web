@@ -42,11 +42,8 @@ export async function GET(req: Request) {
     const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
     const existingUser = users.find((u) => u.email === email);
 
-    let userId: string;
-
     if (existingUser) {
       // 기존 유저
-      userId = existingUser.id;
     } else {
       // 신규 유저 생성
       const { data, error } = await supabaseAdmin.auth.admin.createUser({
@@ -64,12 +61,10 @@ export async function GET(req: Request) {
         const retryUser = retry.find((u) => u.email === email);
 
         if (retryUser) {
-          userId = retryUser.id;
         } else {
           return NextResponse.redirect(new URL("/auth/login?error=create_failed", process.env.NEXT_PUBLIC_SITE_URL!));
         }
       } else {
-        userId = data.user.id;
       }
     }
 
@@ -92,7 +87,7 @@ export async function GET(req: Request) {
 
     return NextResponse.redirect(redirectUrl.toString());
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("❌ 네이버 OAuth 오류:", error);
     return NextResponse.redirect(new URL("/auth/login?error=unknown", process.env.NEXT_PUBLIC_SITE_URL!));
   }

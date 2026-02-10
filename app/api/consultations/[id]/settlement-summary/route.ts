@@ -214,7 +214,7 @@ export async function GET(
       is_reward_payout_pending: rewardPayoutPending,
       reward_payout_done_at: rewardPayoutDoneAt,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("예약 정산 요약 조회 오류:", error);
     return NextResponse.json(
       { error: "정산 요약을 불러오지 못했습니다" },

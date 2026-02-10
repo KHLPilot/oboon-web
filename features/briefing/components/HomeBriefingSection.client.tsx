@@ -18,6 +18,11 @@ const BOARD_KEYS = {
   OBOON_ORIGINAL: "oboon_original",
 } as const;
 
+function pickFirst<T>(value: T | T[] | null | undefined): T | null {
+  if (!value) return null;
+  return Array.isArray(value) ? (value[0] ?? null) : value;
+}
+
 export default function HomeBriefingSection() {
   const supabase = createSupabaseClient();
 
@@ -65,18 +70,22 @@ export default function HomeBriefingSection() {
 
       setBriefingError(null);
 
-      const mapped: BriefingPostCardModel[] = (data ?? []).map((r: any) => ({
-        id: r.id,
-        slug: r.slug,
-        title: r.title,
-        createdAt: (r.published_at ?? r.created_at) as string,
-        coverImageUrl: r.cover_image_url,
-        boardKey: r.board?.key ?? BOARD_KEYS.GENERAL_BRIEFING,
-        categoryKey: r.category?.key ?? null,
-        categoryName: r.category?.name ?? "브리핑",
-        contentKind: r.content_kind === "short" ? "short" : "article",
-        externalUrl: r.external_url,
-      }));
+      const mapped: BriefingPostCardModel[] = (data ?? []).map((r) => {
+        const board = pickFirst(r.board);
+        const category = pickFirst(r.category);
+        return {
+          id: r.id,
+          slug: r.slug,
+          title: r.title,
+          createdAt: (r.published_at ?? r.created_at) as string,
+          coverImageUrl: r.cover_image_url,
+          boardKey: board?.key ?? BOARD_KEYS.GENERAL_BRIEFING,
+          categoryKey: category?.key ?? null,
+          categoryName: category?.name ?? "브리핑",
+          contentKind: r.content_kind === "short" ? "short" : "article",
+          externalUrl: r.external_url,
+        };
+      });
 
       setBriefingPosts(mapped);
     })();
@@ -127,7 +136,14 @@ export default function HomeBriefingSection() {
         return;
       }
 
-      const categoriesRaw: any[] = (board.briefing_categories ?? []) as any[];
+      const categoriesRaw = (board.briefing_categories ?? []) as Array<{
+        id: string;
+        key: string;
+        name: string;
+        description: string | null;
+        sort_order: number | null;
+        is_active: boolean;
+      }>;
 
       const categoriesTop = categoriesRaw
         .filter((c) => c?.is_active)

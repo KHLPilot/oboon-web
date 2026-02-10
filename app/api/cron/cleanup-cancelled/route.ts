@@ -104,10 +104,10 @@ export async function GET(req: Request) {
             deletedIds: consultationIds,
         });
 
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error("Cron 정리 API 오류:", err);
         return NextResponse.json(
-            { error: "서버 오류", details: err.message },
+            { error: "서버 오류", details: (err instanceof Error ? err.message : "알 수 없는 오류") },
             { status: 500 }
         );
     }

@@ -47,11 +47,15 @@ export async function GET(request: Request) {
     }
 
     const items = (data ?? []).map((item) => {
-      const category = item.faq_categories as unknown as { key: string; name: string };
+      const categoryRaw = item.faq_categories as
+        | { key: string; name: string }
+        | Array<{ key: string; name: string }>
+        | null;
+      const category = Array.isArray(categoryRaw) ? categoryRaw[0] : categoryRaw;
       return {
         id: item.id,
-        categoryKey: category.key,
-        categoryName: category.name,
+        categoryKey: category?.key ?? "",
+        categoryName: category?.name ?? "",
         question: item.question,
         answer: item.answer,
       };

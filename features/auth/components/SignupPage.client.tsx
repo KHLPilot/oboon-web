@@ -310,8 +310,8 @@ export default function SignupPage() {
       }
 
       setVerification({ isEmailSent: true, token });
-    } catch (err: any) {
-      setFatalError(err?.message || "요청 중 오류가 발생했습니다.");
+    } catch (err: unknown) {
+      setFatalError(err instanceof Error ? err.message : "요청 중 오류가 발생했습니다.");
     } finally {
       setLoading(false);
     }
@@ -344,8 +344,8 @@ export default function SignupPage() {
 
       stopPolling();
       goStep2(token);
-    } catch (err: any) {
-      setFatalError(err?.message || "확인 중 오류가 발생했습니다.");
+    } catch (err: unknown) {
+      setFatalError(err instanceof Error ? err.message : "확인 중 오류가 발생했습니다.");
     } finally {
       setLoading(false);
     }

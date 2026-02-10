@@ -152,8 +152,8 @@ export default function GpsVisitVerifyModal({
           showAlert(data.message || "방문 인증이 완료되었습니다.");
           onVerified?.();
           onClose();
-        } catch (err: any) {
-          setErrorInfo({ message: err.message || "방문 인증 중 오류가 발생했습니다." });
+        } catch (err: unknown) {
+          setErrorInfo({ message: (err instanceof Error ? err.message : "알 수 없는 오류") || "방문 인증 중 오류가 발생했습니다." });
         } finally {
           setLoading(false);
         }

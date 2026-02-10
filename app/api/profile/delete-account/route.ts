@@ -56,7 +56,7 @@ export async function POST(req: Request) {
             success: true,
             message: "계정이 삭제되었습니다.",
         });
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error("❌ 계정 삭제 오류:", err);
         return NextResponse.json(
             { error: "서버 오류" },

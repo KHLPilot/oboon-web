@@ -18,7 +18,6 @@ export default function RestoreAccountModal({
   open,
   onClose,
   email,
-  userId,
   onRestore,
   onRecreate,
 }: RestoreAccountModalProps) {

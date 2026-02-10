@@ -114,7 +114,7 @@ export async function GET(req: Request) {
     }
 
     return NextResponse.json({ requests: data || [] });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("수동 확인 목록 API 오류:", error);
     return NextResponse.json({ error: "목록 조회 실패" }, { status: 500 });
   }
@@ -295,7 +295,7 @@ export async function POST(req: Request) {
       .eq("id", requestData.token_id);
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("수동 확인 처리 API 오류:", error);
     return NextResponse.json({ error: "처리 실패" }, { status: 500 });
   }

@@ -252,8 +252,10 @@ export async function POST(req: Request) {
     }
 
     // 11. 상담사에게 도착 알림 전송
-    const customerName = (consultation.customer as unknown as { name: string } | null)?.name || "고객";
-    const propertyName = (consultation.property as unknown as { name: string } | null)?.name || "현장";
+    const customerName =
+      (consultation.customer as { name?: string } | null)?.name || "고객";
+    const propertyName =
+      (consultation.property as { name?: string } | null)?.name || "현장";
 
     const { error: notificationError } = await adminSupabase.from("notifications").insert({
       recipient_id: consultation.agent_id,

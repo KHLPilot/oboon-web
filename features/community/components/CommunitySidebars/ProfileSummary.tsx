@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { ChevronRight } from "lucide-react";
 
 import Card from "@/components/ui/Card";
@@ -40,9 +41,11 @@ export default function ProfileSummary() {
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle) overflow-hidden flex items-center justify-center">
                 {profile?.avatarUrl ? (
-                  <img
+                  <Image
                     src={profile.avatarUrl}
                     alt={profile.displayName}
+                    width={40}
+                    height={40}
                     className="h-full w-full object-cover"
                   />
                 ) : (

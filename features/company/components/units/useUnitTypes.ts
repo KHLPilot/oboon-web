@@ -27,12 +27,12 @@ export function useUnitTypes(propertyId: number | null) {
       setUnits(data ?? []);
     } catch (e: unknown) {
       const msg =
-        e instanceof Error ? e.message : "평면 타입을 불러오지 못했어요.";
+        e instanceof Error ? (e instanceof Error ? e.message : "알 수 없는 오류") : "평면 타입을 불러오지 못했어요.";
       setErrorMsg(msg);
     } finally {
       setLoading(false);
     }
-  }, [propertyId, fetchUnitTypes]);
+  }, [propertyId]);
 
   useEffect(() => {
     if (!propertyId) {
@@ -57,12 +57,12 @@ export function useUnitTypes(propertyId: number | null) {
         setUnits((prev) => [...prev, data]);
         return { ok: true as const, data };
       } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : "저장에 실패했어요.";
+        const msg = e instanceof Error ? (e instanceof Error ? e.message : "알 수 없는 오류") : "저장에 실패했어요.";
         setErrorMsg(msg);
         return { ok: false as const, error: msg };
       }
     },
-    [propertyId, createUnitType],
+    [propertyId],
   );
 
   const updateUnit = useCallback(
@@ -73,12 +73,12 @@ export function useUnitTypes(propertyId: number | null) {
         setUnits((prev) => prev.map((x) => (x.id === id ? updated : x)));
         return { ok: true as const, data: updated };
       } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : "수정 저장에 실패했어요.";
+        const msg = e instanceof Error ? (e instanceof Error ? e.message : "알 수 없는 오류") : "수정 저장에 실패했어요.";
         setErrorMsg(msg);
         return { ok: false as const, error: msg };
       }
     },
-    [updateUnitType],
+    [],
   );
 
   const deleteUnit = useCallback(
@@ -89,12 +89,12 @@ export function useUnitTypes(propertyId: number | null) {
         setUnits((prev) => prev.filter((x) => x.id !== id));
         return { ok: true as const };
       } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : "삭제에 실패했어요.";
+        const msg = e instanceof Error ? (e instanceof Error ? e.message : "알 수 없는 오류") : "삭제에 실패했어요.";
         setErrorMsg(msg);
         return { ok: false as const, error: msg };
       }
     },
-    [deleteUnitType],
+    [],
   );
 
   return {

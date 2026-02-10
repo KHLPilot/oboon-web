@@ -54,13 +54,31 @@ function normalizeAuthorProfile(
   return author ?? null;
 }
 
-function normalizePostRow(raw: any): PostRow {
+function normalizePostRow(raw: unknown): PostRow {
+  const record = (raw ?? {}) as Record<string, unknown>;
+  const postTags = Array.isArray(record.post_tags) ? record.post_tags : [];
+
   return {
-    ...raw,
-    author_profile: normalizeAuthorProfile(raw?.author_profile),
-    post_tags: (raw?.post_tags ?? []).map((pt: any) => ({
-      tag: Array.isArray(pt?.tag) ? pt.tag[0] ?? null : pt?.tag ?? null,
-    })),
+    ...(record as PostRow),
+    author_profile: normalizeAuthorProfile(
+      record.author_profile as AuthorProfile | AuthorProfile[] | null | undefined,
+    ),
+    post_tags: postTags.map((pt) => {
+      const item = (pt ?? {}) as { tag?: unknown };
+      const tagValue = item.tag;
+      return {
+        tag: (Array.isArray(tagValue)
+          ? (tagValue[0] ?? null)
+          : (tagValue ?? null)) as
+          | {
+              id: string;
+              name: string;
+              sort_order: number | null;
+              is_active: boolean;
+            }
+          | null,
+      };
+    }),
   };
 }
 
@@ -70,21 +88,6 @@ function formatDateLong(iso: string) {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}.${m}.${day}`;
-}
-
-function pickPrimaryTagName(post: PostRow): string | null {
-  const items = (post.post_tags ?? []) as any[];
-  const activeTags = items.map((x) => x?.tag).filter((t) => t && t.is_active);
-  if (activeTags.length === 0) return null;
-
-  activeTags.sort((a, b) => {
-    const ao = typeof a.sort_order === "number" ? a.sort_order : 0;
-    const bo = typeof b.sort_order === "number" ? b.sort_order : 0;
-    if (ao !== bo) return ao - bo;
-    return String(a.name ?? "").localeCompare(String(b.name ?? ""));
-  });
-
-  return activeTags[0]?.name ?? null;
 }
 
 function stripMdToText(md: string) {
@@ -145,6 +148,12 @@ export default async function GeneralPostPage({
   const postId = post.id;
 
   const relatedData = relatedPosts;
+  const relatedItems = (relatedData ?? []) as Array<{
+    id: string;
+    slug: string;
+    title: string;
+    content_md: string | null;
+  }>;
 
   async function deletePostAction() {
     "use server";
@@ -322,7 +331,7 @@ export default async function GeneralPostPage({
             <div className="bg-(--oboon-bg-subtle)">
               <div className="h-full bg-(--oboon-bg-subtle) p-5">
                 <div className="space-y-5">
-                  {(relatedData ?? []).map((r: any) => {
+                  {relatedItems.map((r) => {
                     const href = `/briefing/general/${encodeURIComponent(
                       r.slug
                     )}`;

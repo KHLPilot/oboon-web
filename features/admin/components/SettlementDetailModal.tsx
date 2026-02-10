@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import Modal from "@/components/ui/Modal";
 import Card from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -68,9 +69,11 @@ function Avatar({
   const showImage = Boolean(url) && !error;
 
   return showImage ? (
-    <img
+    <Image
       src={url ?? ""}
       alt={`${name ?? "사용자"} 프로필`}
+      width={28}
+      height={28}
       className="h-7 w-7 rounded-full border border-(--oboon-border-default) object-cover"
       onError={() => setError(true)}
     />
@@ -145,8 +148,8 @@ export default function SettlementDetailModal({
         "완료",
       );
       await loadSummary();
-    } catch (error: any) {
-      toast.error(error.message || "환급 처리 실패", "오류");
+    } catch (error: unknown) {
+      toast.error((error instanceof Error ? error.message : "알 수 없는 오류") || "환급 처리 실패", "오류");
     } finally {
       setProcessing(false);
     }
@@ -168,8 +171,8 @@ export default function SettlementDetailModal({
         "완료",
       );
       await loadSummary();
-    } catch (error: any) {
-      toast.error(error.message || "지급 처리 실패", "오류");
+    } catch (error: unknown) {
+      toast.error((error instanceof Error ? error.message : "알 수 없는 오류") || "지급 처리 실패", "오류");
     } finally {
       setProcessing(false);
     }
@@ -286,9 +289,11 @@ export default function SettlementDetailModal({
           <Card className="mt-4 p-3 shadow-none">
             <div className="flex items-start gap-3">
               {row.property_image_url ? (
-                <img
+                <Image
                   src={row.property_image_url}
                   alt={row.property_name}
+                  width={80}
+                  height={80}
                   className="h-20 w-20 rounded-xl border border-(--oboon-border-default) object-cover"
                 />
               ) : (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Megaphone } from "lucide-react";
 
@@ -39,16 +39,14 @@ function CommunityEmpty({
 
 export default function CommunityFeed() {
   const searchParams = useSearchParams();
-  const didAutoOpen = useRef(false);
   const [activeTab, setActiveTab] = useState<CommunityTabKey>("all");
-  const [writeOpen, setWriteOpen] = useState(false);
+  const [writeOpen, setWriteOpen] = useState(searchParams.get("write") === "1");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [posts, setPosts] = useState<ReturnType<typeof mapCommunityPost>[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let isMounted = true;
-    setLoading(true);
 
     getCommunityFeedPosts(activeTab)
       .then((rows) => {
@@ -78,22 +76,17 @@ export default function CommunityFeed() {
     };
   }, []);
 
-  useEffect(() => {
-    if (didAutoOpen.current) return;
-    const shouldOpen = searchParams.get("write");
-    if (shouldOpen !== "1") return;
-    didAutoOpen.current = true;
-    setWriteOpen(true);
-  }, [searchParams]);
-
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <CommunityTabs
-          tabs={COMMUNITY_TABS}
-          value={activeTab}
-          onChange={setActiveTab}
-        />
+          <CommunityTabs
+            tabs={COMMUNITY_TABS}
+            value={activeTab}
+            onChange={(tab) => {
+              setLoading(true);
+              setActiveTab(tab);
+            }}
+          />
         <Button
           variant="primary"
           size="sm"

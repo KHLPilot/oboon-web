@@ -24,8 +24,21 @@ export type NaverMapHandle = {
   refreshMarkers: () => void;
 };
 
-type NaverMapInstance = any;
+type NaverMapInstance = naver.maps.Map;
+type NaverMarkerInstance = naver.maps.Marker;
 type MapMode = "base" | "expanded" | "select";
+type MapEventLatLngLike = {
+  lat?: (() => number) | number;
+  lng?: (() => number) | number;
+};
+type MapClickEvent = {
+  domEvent?: {
+    preventDefault: () => void;
+    stopPropagation: () => void;
+  };
+  coord?: MapEventLatLngLike;
+  latlng?: MapEventLatLngLike;
+};
 
 const NaverMap = forwardRef<
   NaverMapHandle,
@@ -56,14 +69,14 @@ const NaverMap = forwardRef<
     ref,
   ) => {
     const mapContainerRef = useRef<HTMLDivElement>(null);
-    const mapRef = useRef<NaverMapInstance>(null);
+    const mapRef = useRef<NaverMapInstance | null>(null);
 
     // 최신 markers 스냅샷 (id -> marker data)
     const markerDataByIdRef = useRef<Map<number, MapMarker>>(new Map());
     // 실제 네이버 마커 인스턴스 (id -> naver.maps.Marker)
-    const markerByIdRef = useRef<Map<number, any>>(new Map());
+    const markerByIdRef = useRef<Map<number, NaverMarkerInstance>>(new Map());
 
-    const listenersRef = useRef<any[]>([]);
+    const listenersRef = useRef<naver.maps.EventHandle[]>([]);
 
     const lastFocusedIdRef = useRef<number | null>(null);
     const lastVisibleIdsRef = useRef<string>("");
@@ -78,6 +91,14 @@ const NaverMap = forwardRef<
     const hoveredIdRef = useRef(hoveredId);
     focusedIdRef.current = focusedId;
     hoveredIdRef.current = hoveredId;
+    const applyMarkerStyleByIdRef = useRef<
+      (naverObj: NaverGlobal, id: number) => void
+    >(
+      () => {},
+    );
+    const applyFocusHoverDeltaStylesRef = useRef<(naverObj: NaverGlobal) => void>(
+      () => {},
+    );
 
     // 콜백 Ref
     const callbacksRef = useRef({
@@ -105,7 +126,7 @@ const NaverMap = forwardRef<
       return focusedIdRef.current === m.id;
     }
 
-    function applyMarkerStyleById(naver: any, id: number) {
+    function applyMarkerStyleById(naverObj: NaverGlobal, id: number) {
       const map = mapRef.current;
       if (!map) return;
 
@@ -132,21 +153,22 @@ const NaverMap = forwardRef<
 
       mk.setIcon({
         content: icon,
-        anchor: new naver.maps.Point(0, 0),
+        anchor: new naverObj.maps.Point(0, 0),
       });
 
       if (isFocused) mk.setZIndex(1000);
       else if (isHovered) mk.setZIndex(500);
       else mk.setZIndex(100);
     }
+    applyMarkerStyleByIdRef.current = applyMarkerStyleById;
 
-    function applyFocusHoverDeltaStyles(naver: any) {
+    function applyFocusHoverDeltaStyles(naverObj: NaverGlobal) {
       // hovered 변화는 이전/현재 2개만 갱신
       const prevHover = lastHoveredIdRef.current;
       const nextHover = hoveredIdRef.current;
       if (prevHover !== nextHover) {
-        if (prevHover) applyMarkerStyleById(naver, prevHover);
-        if (nextHover) applyMarkerStyleById(naver, nextHover);
+        if (prevHover) applyMarkerStyleById(naverObj, prevHover);
+        if (nextHover) applyMarkerStyleById(naverObj, nextHover);
         lastHoveredIdRef.current = nextHover;
       }
 
@@ -154,11 +176,12 @@ const NaverMap = forwardRef<
       const prevFocus = lastStyledFocusedIdRef.current;
       const nextFocus = focusedIdRef.current;
       if (prevFocus !== nextFocus) {
-        if (prevFocus) applyMarkerStyleById(naver, prevFocus);
-        if (nextFocus) applyMarkerStyleById(naver, nextFocus);
+        if (prevFocus) applyMarkerStyleById(naverObj, prevFocus);
+        if (nextFocus) applyMarkerStyleById(naverObj, nextFocus);
         lastStyledFocusedIdRef.current = nextFocus;
       }
     }
+    applyFocusHoverDeltaStylesRef.current = applyFocusHoverDeltaStyles;
 
     function syncVisibleMarkers() {
       const map = mapRef.current;
@@ -191,7 +214,7 @@ const NaverMap = forwardRef<
       });
     }
 
-    function upsertMarkers(next: MapMarker[], map: any, naver: any) {
+    function upsertMarkers(next: MapMarker[], map: naver.maps.Map, naverObj: NaverGlobal) {
       const nextIds = new Set<number>();
       for (const m of next) nextIds.add(m.id);
 
@@ -215,32 +238,33 @@ const NaverMap = forwardRef<
         const existing = markerByIdRef.current.get(m.id);
         if (!existing) {
           const mk = new naver.maps.Marker({
-            position: new naver.maps.LatLng(m.lat, m.lng),
+            position: new naverObj.maps.LatLng(m.lat, m.lng),
             map,
           });
 
-          naver.maps.Event.addListener(mk, "click", (e: any) => {
-            if (e.domEvent) {
-              e.domEvent.preventDefault();
-              e.domEvent.stopPropagation();
+          naverObj.maps.Event.addListener(mk, "click", (e?: unknown) => {
+            const event = e as MapClickEvent | undefined;
+            if (event?.domEvent) {
+              event.domEvent.preventDefault();
+              event.domEvent.stopPropagation();
             }
             callbacksRef.current.onMarkerSelect?.(m.id);
           });
-          naver.maps.Event.addListener(mk, "mouseover", () =>
+          naverObj.maps.Event.addListener(mk, "mouseover", () =>
             callbacksRef.current.onHoverChange?.(m.id),
           );
-          naver.maps.Event.addListener(mk, "mouseout", () =>
+          naverObj.maps.Event.addListener(mk, "mouseout", () =>
             callbacksRef.current.onHoverChange?.(null),
           );
 
           markerByIdRef.current.set(m.id, mk);
-          applyMarkerStyleById(naver, m.id);
+          applyMarkerStyleById(naverObj, m.id);
           continue;
         }
 
         // position update
         if (!prev || prev.lat !== m.lat || prev.lng !== m.lng) {
-          existing.setPosition(new naver.maps.LatLng(m.lat, m.lng));
+          existing.setPosition(new naverObj.maps.LatLng(m.lat, m.lng));
         }
 
         // data change update (해당 마커만)
@@ -250,7 +274,7 @@ const NaverMap = forwardRef<
           prev.mainLabel !== m.mainLabel ||
           prev.type !== m.type
         ) {
-          applyMarkerStyleById(naver, m.id);
+          applyMarkerStyleById(naverObj, m.id);
         }
       }
 
@@ -267,17 +291,17 @@ const NaverMap = forwardRef<
         if (m) m.setZoom(m.getZoom() - 1, true);
       },
       resize: () => {
-        const naver = (window as any).naver;
-        if (mapRef.current && naver) {
-          naver.maps.Event.trigger(mapRef.current, "resize");
+        const naverObj = window.naver;
+        if (mapRef.current && naverObj?.maps) {
+          naverObj.maps.Event.trigger(mapRef.current, "resize");
         }
       },
       refreshMarkers: () => {
-        const naver = (window as any).naver;
-        if (!naver?.maps) return;
+        const naverObj = window.naver;
+        if (!naverObj?.maps) return;
         // 강제 전체 리프레시가 필요할 때만 호출
         markerByIdRef.current.forEach((_mk, id) =>
-          applyMarkerStyleById(naver, id),
+          applyMarkerStyleById(naverObj, id),
         );
       },
     }));
@@ -285,14 +309,15 @@ const NaverMap = forwardRef<
     // [1] 지도 초기화
     useEffect(() => {
       let isMounted = true;
+      const mountedListeners = listenersRef.current;
       const clientId = process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID;
       if (!clientId) return;
 
-      loadNaverMaps(clientId).then((naver) => {
+      loadNaverMaps(clientId).then((naverObj) => {
         if (!isMounted || !mapContainerRef.current) return;
 
-        const map = new naver.maps.Map(mapContainerRef.current, {
-          center: new naver.maps.LatLng(37.5127, 126.9706),
+        const map = new naverObj.maps.Map(mapContainerRef.current, {
+          center: new naverObj.maps.LatLng(37.5127, 126.9706),
           zoom: 12,
           zoomControl: false,
         });
@@ -308,38 +333,49 @@ const NaverMap = forwardRef<
           requestAnimationFrame(() => {
             requestAnimationFrame(() => {
               if (!mapRef.current) return;
-              naver.maps.Event.trigger(mapRef.current, "resize");
+              naverObj.maps.Event.trigger(mapRef.current, "resize");
               // resize 직후 가시영역/스타일 동기화
               scheduleVisibleSync();
-              applyFocusHoverDeltaStyles(naver);
+              applyFocusHoverDeltaStyles(naverObj);
             });
           });
           // 일부 iOS에서 1회 더 필요할 때가 있어 보수적으로 1번만 추가
           window.setTimeout(() => {
             if (!mapRef.current) return;
-            naver.maps.Event.trigger(mapRef.current, "resize");
+            naverObj.maps.Event.trigger(mapRef.current, "resize");
 
             markerByIdRef.current.forEach((_mk, id) => {
-              applyMarkerStyleById(naver, id);
+              applyMarkerStyleById(naverObj, id);
             });
 
             scheduleVisibleSync();
-            applyFocusHoverDeltaStyles(naver);
+            applyFocusHoverDeltaStyles(naverObj);
           }, 250);
         };
         triggerInitialResize();
 
-        if (markers.length > 0) upsertMarkers(markers, map, naver);
+        if (markers.length > 0) upsertMarkers(markers, map, naverObj);
 
-        const clickListener = naver.maps.Event.addListener(
+        const clickListener = naverObj.maps.Event.addListener(
           map,
           "click",
-          (e: any) => {
+          (e?: unknown) => {
+            const event = e as MapClickEvent | undefined;
             if (callbacksRef.current.mode === "select") {
               const lat =
-                e?.coord?.lat?.() ?? e?.latlng?.lat?.() ?? e?.latlng?.lat;
+                (typeof event?.coord?.lat === "function"
+                  ? event.coord.lat()
+                  : event?.coord?.lat) ??
+                (typeof event?.latlng?.lat === "function"
+                  ? event.latlng.lat()
+                  : event?.latlng?.lat);
               const lng =
-                e?.coord?.lng?.() ?? e?.latlng?.lng?.() ?? e?.latlng?.lng;
+                (typeof event?.coord?.lng === "function"
+                  ? event.coord.lng()
+                  : event?.coord?.lng) ??
+                (typeof event?.latlng?.lng === "function"
+                  ? event.latlng.lng()
+                  : event?.latlng?.lng);
               if (typeof lat === "number" && typeof lng === "number") {
                 callbacksRef.current.onSelectPosition?.(lat, lng);
               }
@@ -348,7 +384,7 @@ const NaverMap = forwardRef<
             callbacksRef.current.onClearFocus?.();
           },
         );
-        const dragStartListener = naver.maps.Event.addListener(
+        const dragStartListener = naverObj.maps.Event.addListener(
           map,
           "dragstart",
           () => {
@@ -356,25 +392,25 @@ const NaverMap = forwardRef<
           },
         );
 
-        const idleListener = naver.maps.Event.addListener(map, "idle", () => {
+        const idleListener = naverObj.maps.Event.addListener(map, "idle", () => {
           isInteractingRef.current = false;
           scheduleVisibleSync();
           // idle에서 델타만 반영 (전체 loop 금지)
-          applyFocusHoverDeltaStyles(naver);
+          applyFocusHoverDeltaStyles(naverObj);
         });
 
-        const zoomListener = naver.maps.Event.addListener(
+        const zoomListener = naverObj.maps.Event.addListener(
           map,
           "zoom_changed",
           () => {
             isInteractingRef.current = true;
             // 현 정책상 focused만 갱신하면 충분
             const fid = focusedIdRef.current;
-            if (fid) applyMarkerStyleById(naver, fid);
+            if (fid) applyMarkerStyleById(naverObj, fid);
           },
         );
 
-        listenersRef.current.push(
+        mountedListeners.push(
           clickListener,
           dragStartListener,
           idleListener,
@@ -384,10 +420,11 @@ const NaverMap = forwardRef<
 
       return () => {
         isMounted = false;
-        const naver = (window as any).naver;
-        if (naver?.maps) {
-          listenersRef.current.forEach((l) =>
-            naver.maps.Event.removeListener(l),
+        const naverObj = window.naver;
+        const listeners = [...mountedListeners];
+        if (naverObj?.maps) {
+          listeners.forEach((l) =>
+            naverObj.maps.Event.removeListener(l),
           );
         }
       };
@@ -396,17 +433,17 @@ const NaverMap = forwardRef<
 
     // [1-1] iOS Safari BFCache / 탭 복귀 대응
     useEffect(() => {
-      const naver = (window as any).naver;
+      const naverObj = window.naver;
 
       const forceRefresh = () => {
-        if (!mapRef.current || !naver?.maps) return;
+        if (!mapRef.current || !naverObj?.maps) return;
 
         // 지도 사이즈 재계산
-        naver.maps.Event.trigger(mapRef.current, "resize");
+        naverObj.maps.Event.trigger(mapRef.current, "resize");
 
         // 🔴 핵심: HTML content marker 재부착
         markerByIdRef.current.forEach((_mk, id) => {
-          applyMarkerStyleById(naver, id);
+          applyMarkerStyleByIdRef.current(naverObj, id);
         });
       };
 
@@ -421,11 +458,11 @@ const NaverMap = forwardRef<
 
     // [2] markers 변경 시: 전체 재생성 금지 → diff upsert
     useEffect(() => {
-      const naver = (window as any).naver;
+      const naverObj = window.naver;
       const map = mapRef.current;
 
-      if (naver?.maps && map) {
-        upsertMarkers(markers, map, naver);
+      if (naverObj?.maps && map) {
+        upsertMarkers(markers, map, naverObj);
       } else {
         // 지도 준비 전 스냅샷만 갱신
         markerDataByIdRef.current = new Map(markers.map((m) => [m.id, m]));
@@ -435,9 +472,9 @@ const NaverMap = forwardRef<
 
     // [3] Hover/Focus: 전체 loop 금지 → delta만
     useEffect(() => {
-      const naver = (window as any).naver;
-      if (!naver?.maps) return;
-      applyFocusHoverDeltaStyles(naver);
+      const naverObj = window.naver;
+      if (!naverObj?.maps) return;
+      applyFocusHoverDeltaStylesRef.current(naverObj);
     }, [hoveredId, focusedId]);
 
     // [4] Focus 이동
@@ -448,15 +485,16 @@ const NaverMap = forwardRef<
       const target = markerDataByIdRef.current.get(focusedId);
       if (!target) return;
 
-      const naver = (window as any).naver;
-      const targetLatLng = new naver.maps.LatLng(target.lat, target.lng);
+      const naverObj = window.naver;
+      if (!naverObj?.maps) return;
+      const targetLatLng = new naverObj.maps.LatLng(target.lat, target.lng);
 
       if (mode === "expanded") {
         const proj = map.getProjection();
         const mapSize = map.getSize();
 
         const targetOffset = proj.fromCoordToOffset(targetLatLng);
-        const newCenterOffset = new naver.maps.Point(
+        const newCenterOffset = new naverObj.maps.Point(
           targetOffset.x,
           targetOffset.y + mapSize.height * 0.1,
         );

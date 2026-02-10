@@ -3,7 +3,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Calendar, Menu, UserPlus } from "lucide-react";
+import Image from "next/image";
+import { Calendar, Menu } from "lucide-react";
 import NotificationBell from "@/features/notifications/components/NotificationBell.client";
 import { useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
@@ -243,9 +244,11 @@ export default function Header() {
                         }}
                       >
                         {user.user_metadata?.avatar_url ? (
-                          <img
+                          <Image
                             src={user.user_metadata.avatar_url}
                             alt="Profile"
+                            width={32}
+                            height={32}
                             className="h-full w-full object-cover"
                           />
                         ) : (

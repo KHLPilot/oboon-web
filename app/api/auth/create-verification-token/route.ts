@@ -30,11 +30,11 @@ export async function POST(req: Request) {
 
         if (error) {
             console.error("토큰 저장 실패:", error);
-            return NextResponse.json({ error: error.message }, { status: 500 });
+            return NextResponse.json({ error: (error instanceof Error ? error.message : "알 수 없는 오류") }, { status: 500 });
         }
 
         return NextResponse.json({ token });
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error("서버 오류:", err);
         return NextResponse.json({ error: "서버 오류" }, { status: 500 });
     }

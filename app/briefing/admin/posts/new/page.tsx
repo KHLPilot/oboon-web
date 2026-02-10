@@ -96,26 +96,26 @@ export default async function BriefingPostNewPage() {
       }
 
       return { ok: true, redirectTo };
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : null;
       return {
         ok: false,
-        message: e?.message
-          ? String(e.message)
-          : "알 수 없는 오류가 발생했습니다.",
+        message: errorMessage ?? "알 수 없는 오류가 발생했습니다.",
       };
     }
   }
 
-  const defaultCats = (categories ?? []).filter(
-    (c: any) => c.board_id === defaultBoard.id
+  const typedCategories = (categories ?? []) as CategoryRow[];
+  const defaultCats = typedCategories.filter(
+    (c) => c.board_id === defaultBoard.id
   );
 
   const bootstrap: EditorBootstrap = {
     boards: (boards ?? []) as BoardRow[],
-    categories: (categories ?? []) as CategoryRow[],
+    categories: typedCategories,
     tags: (tags ?? []) as TagRow[],
     defaultBoardId: defaultBoard.id,
-    defaultCategoryId: (defaultCats?.[0] as any)?.id ?? "",
+    defaultCategoryId: defaultCats[0]?.id ?? "",
   };
 
   return (

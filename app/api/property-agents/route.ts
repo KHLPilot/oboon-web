@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
 const BLOCKING_CONSULTATION_STATUSES = ["requested", "pending", "confirmed"];
@@ -10,7 +10,7 @@ const adminSupabase = createClient(
 );
 
 async function hasBlockingConsultations(
-  supabase: { from: (table: string) => any },
+  supabase: SupabaseClient,
   agentId: string,
 ) {
   const { count, error } = await supabase
@@ -141,7 +141,9 @@ export async function POST(request: NextRequest) {
     }
 
     if (existingApproved && !change_request) {
-      const propertyName = (existingApproved as any).properties?.name || "다른 현장";
+      const propertyName =
+        (existingApproved as { properties?: { name?: string } | null }).properties
+          ?.name || "다른 현장";
       return NextResponse.json(
         { error: `이미 ${propertyName}에 소속되어 있습니다. 한 명의 상담사는 한 곳의 현장에만 소속될 수 있습니다.` },
         { status: 409 }
@@ -221,8 +223,8 @@ export async function POST(request: NextRequest) {
     }
 
     const nowIso = new Date().toISOString();
-    let propertyAgent: any = null;
-    let saveError: any = null;
+    let propertyAgent: unknown = null;
+    let saveError: unknown = null;
 
     if (existing && existing.status !== "approved") {
       // withdrawn/rejected/pending 기존 행을 재활성화해 중복 키를 피함

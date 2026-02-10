@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
             region_2depth: address.region_2depth_name,
             region_3depth: address.region_3depth_name,
         });
-    } catch (err) {
+    } catch {
         return NextResponse.json(
             { error: "reverse geocode failed" },
             { status: 500 }

@@ -355,8 +355,11 @@ export default function OnboardingPage() {
 
       router.replace("/");
       router.refresh();
-    } catch (err: any) {
-      setFatalError("프로필 저장 실패: " + (err?.message ?? "알 수 없는 오류"));
+    } catch (err: unknown) {
+      setFatalError(
+        "프로필 저장 실패: " +
+          (err instanceof Error ? err.message : "알 수 없는 오류"),
+      );
     } finally {
       setLoading(false);
     }

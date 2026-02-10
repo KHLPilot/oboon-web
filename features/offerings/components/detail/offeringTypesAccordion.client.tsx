@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { ChevronDown, Maximize2, X } from "lucide-react";
 import Button from "@/components/ui/Button";
@@ -32,25 +32,12 @@ function cn(...classes: Array<string | undefined | false | null>) {
   return classes.filter(Boolean).join(" ");
 }
 
-function toNumberSafe(v: unknown): number | null {
-  if (typeof v === "number" && Number.isFinite(v)) return v;
-  if (typeof v === "string") {
-    const n = Number(v);
-    if (Number.isFinite(n)) return n;
-  }
-  return null;
-}
-
-function formatEok(n: number | null) {
-  if (n === null) return "-";
-  const eok = n / 100000000;
-  if (!Number.isFinite(eok)) return "-";
-  const rounded = Math.round(eok * 10) / 10;
-  return `${rounded}억`;
-}
-
 function fallbackText() {
-  return (UXCopy as any).checkingShort ?? UXCopy.checking ?? "확인중이에요";
+  return (
+    (UXCopy as unknown as { checkingShort?: string }).checkingShort ??
+    UXCopy.checking ??
+    "확인중이에요"
+  );
 }
 
 function fmtArea(n: number | null) {
@@ -101,6 +88,8 @@ function ImageModal({
   src: string | null;
 }) {
   const [zoomed, setZoomed] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
 
   // pan state
   const [pos, setPos] = useState({ x: 0, y: 0 });
@@ -123,15 +112,38 @@ function ImageModal({
   // 모달이 닫히면 상태 초기화
   useEffect(() => {
     if (!open) {
-      setZoomed(false);
-      setPos({ x: 0, y: 0 });
+      queueMicrotask(() => {
+        setZoomed(false);
+        setPos({ x: 0, y: 0 });
+        setIsDragging(false);
+      });
       draggingRef.current = false;
     }
   }, [open]);
 
+  useLayoutEffect(() => {
+    const el = viewportRef.current;
+    if (!open || !el) return;
+
+    const updateSize = () => {
+      const rect = el.getBoundingClientRect();
+      setViewportSize({ width: rect.width, height: rect.height });
+    };
+    updateSize();
+
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(el);
+    window.addEventListener("resize", updateSize);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateSize);
+    };
+  }, [open]);
+
   // zoom 토글 시 pan 초기화(확대 시는 중앙부터 시작)
   useEffect(() => {
-    setPos({ x: 0, y: 0 });
+    queueMicrotask(() => setPos({ x: 0, y: 0 }));
   }, [zoomed]);
 
   // 모달 외부 클릭 차단
@@ -165,12 +177,8 @@ function ImageModal({
   }, [open]);
 
   const panBounds = useMemo(() => {
-    const el = viewportRef.current;
-    if (!el) return { maxX: 0, maxY: 0 };
-
-    const rect = el.getBoundingClientRect();
-    const w = rect.width;
-    const h = rect.height;
+    const w = viewportSize.width;
+    const h = viewportSize.height;
 
     // "fill" + cover 기준으로 컨테이너를 꽉 채우고,
     // 확대(scale)되면 추가로 넘치는 만큼만 이동을 허용
@@ -178,7 +186,7 @@ function ImageModal({
     const maxY = Math.max(0, (h * (ZOOM - 1)) / 2);
 
     return { maxX, maxY };
-  }, [zoomed, open, ZOOM]);
+  }, [viewportSize.height, viewportSize.width, ZOOM]);
 
   if (!open) return null;
 
@@ -218,13 +226,14 @@ function ImageModal({
           className={cn(
             "relative overflow-hidden rounded-2xl bg-black",
             zoomed ? "cursor-grab" : "cursor-zoom-in",
-            zoomed && draggingRef.current ? "cursor-grabbing" : ""
+            zoomed && isDragging ? "cursor-grabbing" : ""
           )}
           // 확대 상태에서만 pan 활성화
           onPointerDown={(e) => {
             if (!zoomed) return;
             didDragRef.current = false;
             draggingRef.current = true;
+            setIsDragging(true);
             (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
             startRef.current = {
               px: e.clientX,
@@ -253,6 +262,7 @@ function ImageModal({
           onPointerUp={(e) => {
             if (!zoomed) return;
             draggingRef.current = false;
+            setIsDragging(false);
             try {
               (e.currentTarget as HTMLElement).releasePointerCapture(
                 e.pointerId
@@ -264,6 +274,7 @@ function ImageModal({
           }}
           onPointerCancel={(e) => {
             draggingRef.current = false;
+            setIsDragging(false);
             try {
               (e.currentTarget as HTMLElement).releasePointerCapture(
                 e.pointerId
@@ -289,9 +300,7 @@ function ImageModal({
                     ? `translate3d(${pos.x}px, ${pos.y}px, 0) scale(${ZOOM})`
                     : "translate3d(0,0,0) scale(1)",
                   transformOrigin: "center",
-                  transition: draggingRef.current
-                    ? "none"
-                    : "transform 260ms ease-out",
+                  transition: isDragging ? "none" : "transform 260ms ease-out",
                 }}
               >
                 <Image

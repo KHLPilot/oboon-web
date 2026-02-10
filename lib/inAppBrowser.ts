@@ -16,8 +16,6 @@ export function detectInAppBrowser(): InAppBrowserInfo {
   }
 
   const ua = navigator.userAgent || navigator.vendor || "";
-  const uaLower = ua.toLowerCase();
-
   const isIOS = /iphone|ipad|ipod/i.test(ua);
   const isAndroid = /android/i.test(ua);
 

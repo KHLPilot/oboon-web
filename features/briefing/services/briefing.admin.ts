@@ -34,7 +34,7 @@ export async function fetchBriefingAdminBootstrap() {
 
   if (boardsErr) throw boardsErr;
 
-  const boardIds = (boards ?? []).map((b: any) => b.id);
+  const boardIds = (boards ?? []).map((b) => b.id);
   const { data: categories, error: catsErr } = await supabase
     .from("briefing_categories")
     .select("id,key,name,board_id")

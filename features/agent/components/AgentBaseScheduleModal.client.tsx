@@ -109,7 +109,7 @@ export default function AgentBaseScheduleModal({
     if (!open) return;
     loadWorkingHours();
     loadHolidays();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [open]);
 
   async function loadWorkingHours() {
@@ -148,8 +148,8 @@ export default function AgentBaseScheduleModal({
       setWeekdayEnabled(isWeekdayEnabled);
       setWeekdayStart(weekdayStartTime);
       setWeekdayEnd(weekdayEndTime);
-    } catch (err: any) {
-      showAlert(err?.message || "조회에 실패했습니다");
+    } catch (err: unknown) {
+      showAlert(err instanceof Error ? err.message : "조회에 실패했습니다");
     } finally {
       setLoading(false);
     }
@@ -163,8 +163,8 @@ export default function AgentBaseScheduleModal({
         throw new Error(data?.error || "휴무일 조회에 실패했습니다");
       }
       setHolidayDates(Array.isArray(data?.dates) ? data.dates : []);
-    } catch (err: any) {
-      showAlert(err?.message || "휴무일 조회에 실패했습니다");
+    } catch (err: unknown) {
+      showAlert(err instanceof Error ? err.message : "휴무일 조회에 실패했습니다");
     }
   }
 
@@ -211,8 +211,8 @@ export default function AgentBaseScheduleModal({
       showAlert("저장되었습니다.");
       onSave?.();
       onClose();
-    } catch (err: any) {
-      showAlert(err?.message || "저장에 실패했습니다");
+    } catch (err: unknown) {
+      showAlert(err instanceof Error ? err.message : "저장에 실패했습니다");
     } finally {
       setSaving(false);
     }

@@ -135,7 +135,7 @@ export default function UnitTypeCard({
       setSupplyText("");
       setFloorPlanFileName(null);
     }
-  }, [isEditing, draft?.exclusive_area, draft?.supply_area]);
+  }, [isEditing, draft, draft?.exclusive_area, draft?.supply_area]);
 
   async function handlePickFloorPlan(file: File) {
     if (!draft) return;
@@ -152,7 +152,7 @@ export default function UnitTypeCard({
       onChange("floor_plan_url", url);
     } catch (e: unknown) {
       const msg =
-        e instanceof Error ? e.message : "평면도 업로드에 실패했습니다.";
+        e instanceof Error ? (e instanceof Error ? e.message : "알 수 없는 오류") : "평면도 업로드에 실패했습니다.";
       showAlert(msg);
     } finally {
       setFloorUploading(false);
@@ -431,11 +431,9 @@ export default function UnitTypeCard({
             {/* image_url (유지) */}
             <Field label="이미지 URL" className="md:col-span-2">
               <Input
-                value={(draft as any).image_url ?? ""}
+                value={draft.image_url ?? ""}
                 placeholder="https://..."
-                onChange={(e) =>
-                  onChange("image_url" as any, e.target.value as any)
-                }
+                onChange={(e) => onChange("image_url", e.target.value)}
               />
             </Field>
           </div>

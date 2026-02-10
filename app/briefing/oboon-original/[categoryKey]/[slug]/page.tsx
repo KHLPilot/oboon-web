@@ -1,7 +1,7 @@
 // app/briefing/oboon-original/[categoryKey]/[slug]/page.tsx
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Heart, MessageCircle, Share2, Tag } from "lucide-react";
+import { Heart, MessageCircle, Share2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { redirect } from "next/navigation";
@@ -56,13 +56,31 @@ function normalizeAuthorProfile(
   return author ?? null;
 }
 
-function normalizePostRow(raw: any): PostRow {
+function normalizePostRow(raw: unknown): PostRow {
+  const record = (raw ?? {}) as Record<string, unknown>;
+  const postTags = Array.isArray(record.post_tags) ? record.post_tags : [];
+
   return {
-    ...raw,
-    author_profile: normalizeAuthorProfile(raw?.author_profile),
-    post_tags: (raw?.post_tags ?? []).map((pt: any) => ({
-      tag: Array.isArray(pt?.tag) ? pt.tag[0] ?? null : pt?.tag ?? null,
-    })),
+    ...(record as PostRow),
+    author_profile: normalizeAuthorProfile(
+      record.author_profile as AuthorProfile | AuthorProfile[] | null | undefined,
+    ),
+    post_tags: postTags.map((pt) => {
+      const item = (pt ?? {}) as { tag?: unknown };
+      const tagValue = item.tag;
+      return {
+        tag: (Array.isArray(tagValue)
+          ? (tagValue[0] ?? null)
+          : (tagValue ?? null)) as
+          | {
+              id: string;
+              name: string;
+              sort_order: number | null;
+              is_active: boolean;
+            }
+          | null,
+      };
+    }),
   };
 }
 
@@ -75,8 +93,17 @@ function formatDateLong(iso: string) {
 }
 
 function pickPrimaryTagName(post: PostRow): string | null {
-  const items = (post.post_tags ?? []) as any[];
-  const activeTags = items.map((x) => x?.tag).filter((t) => t && t.is_active);
+  const items = post.post_tags ?? [];
+  const activeTags = items
+    .map((x) => x?.tag)
+    .filter(
+      (t): t is {
+        id: string;
+        name: string;
+        sort_order: number | null;
+        is_active: boolean;
+      } => Boolean(t?.is_active),
+    );
 
   if (activeTags.length === 0) return null;
 
@@ -101,7 +128,6 @@ export default async function OboonOriginalPostPage({
   // 관리자 체크
   const {
     isAdmin,
-    boardId,
     category: cat,
     post: data,
     relatedPosts,
@@ -114,6 +140,16 @@ export default async function OboonOriginalPostPage({
   const post = normalizePostRow(data);
 
   const relatedData = relatedPosts;
+  const relatedItems = (relatedData ?? []) as Array<{
+    id: string;
+    slug: string;
+    title: string;
+    content_md: string | null;
+  }>;
+  const recCategoryItems = (recCats ?? []) as Array<{
+    key: string;
+    name: string;
+  }>;
   const author = post.author_profile;
   const authorName = author?.nickname ?? author?.name ?? "익명";
   const createdAt = (post.published_at ?? post.created_at) as string;
@@ -360,7 +396,7 @@ export default async function OboonOriginalPostPage({
             <div className="bg-(--oboon-bg-surface)">
               <div className="h-full bg-(--oboon-bg-subtle) p-5">
                 <div className="space-y-5">
-                  {(relatedData ?? []).map((r: any) => {
+                  {relatedItems.map((r) => {
                     const href = `/briefing/oboon-original/${encodeURIComponent(
                       categoryKey
                     )}/${encodeURIComponent(r.slug)}`;
@@ -403,7 +439,7 @@ export default async function OboonOriginalPostPage({
           </div>
 
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {(recCats ?? []).map((c: any) => (
+            {recCategoryItems.map((c) => (
               <BriefingOriginalCard
                 key={c.key}
                 original={{

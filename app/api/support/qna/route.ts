@@ -71,7 +71,11 @@ export async function GET(request: Request) {
     }
 
     const items = (data ?? []).map((row) => {
-      const profiles = row.profiles as unknown as { name: string | null };
+      const profilesRaw = row.profiles as
+        | { name: string | null }
+        | Array<{ name: string | null }>
+        | null;
+      const profiles = Array.isArray(profilesRaw) ? profilesRaw[0] : profilesRaw;
       const authorName = profiles?.name ?? "알 수 없음";
       const displayAuthor = row.is_anonymous
         ? row.anonymous_nickname || "익명"

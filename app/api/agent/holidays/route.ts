@@ -71,7 +71,7 @@ export async function GET() {
 
     const dates = (data ?? []).map((row: HolidayRow) => row.holiday_date);
     return NextResponse.json({ dates });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Failed to load holidays:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
@@ -178,7 +178,7 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ success: true });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Holiday API error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }

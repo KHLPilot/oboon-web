@@ -156,7 +156,7 @@ export async function PATCH(
       );
     }
 
-    const updatePayload: Record<string, any> = { status };
+    const updatePayload: Record<string, unknown> = { status };
     if (status === "rejected") {
       updatePayload.rejection_reason = rejection_reason;
     } else {

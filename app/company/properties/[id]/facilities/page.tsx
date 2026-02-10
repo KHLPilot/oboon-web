@@ -96,13 +96,11 @@ function FacilityMapSelect({
 
   useEffect(() => {
     if (!enabled) {
-      setShowHint(false);
-      setHintVisible(false);
       return;
     }
 
     // manual mode 진입 시: 2초 노출 → 300ms fade → 제거
-    setShowHint(true);
+    requestAnimationFrame(() => setShowHint(true));
     requestAnimationFrame(() => setHintVisible(true));
 
     const fadeMs = 300;

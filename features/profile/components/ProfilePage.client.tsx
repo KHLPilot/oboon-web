@@ -12,6 +12,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import Image from "next/image";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { syncAvatarFromSocialIfEmpty } from "@/lib/auth/syncAvatarFromSocialIfEmpty";
 import {
@@ -24,7 +25,6 @@ import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import Modal from "@/components/ui/Modal";
 import Input from "@/components/ui/Input";
 import Textarea from "@/components/ui/Textarea";
 import Label from "@/components/ui/Label";
@@ -79,6 +79,10 @@ type GalleryImage = {
   caption: string | null;
   created_at: string;
 };
+
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
 
 const interestRegions = [
   "서울 서초구",
@@ -471,8 +475,8 @@ export default function ProfilePage({
 
       await fetchGalleryImages(userId);
       toast.success("추가 사진이 업로드되었습니다.", "완료");
-    } catch (error: any) {
-      toast.error(error.message || "업로드 중 오류가 발생했습니다.", "업로드 실패");
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "업로드 중 오류가 발생했습니다."), "업로드 실패");
     } finally {
       setGalleryUploading(false);
       event.target.value = "";
@@ -495,8 +499,8 @@ export default function ProfilePage({
       }
       setGalleryImages((data.images || []) as GalleryImage[]);
       toast.success("사진이 삭제되었습니다.", "완료");
-    } catch (error: any) {
-      toast.error(error.message || "삭제 중 오류가 발생했습니다.", "삭제 실패");
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "삭제 중 오류가 발생했습니다."), "삭제 실패");
     } finally {
       setGalleryDeletingId(null);
     }
@@ -521,8 +525,8 @@ export default function ProfilePage({
         throw new Error(data.error || "정렬 저장에 실패했습니다");
       }
       setGalleryImages((data.images || []) as GalleryImage[]);
-    } catch (error: any) {
-      toast.error(error.message || "정렬 저장 중 오류가 발생했습니다.", "정렬 실패");
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "정렬 저장 중 오류가 발생했습니다."), "정렬 실패");
     } finally {
       setGalleryReordering(false);
     }
@@ -707,8 +711,7 @@ export default function ProfilePage({
       window.location.href = "/";
     } catch (err: unknown) {
       console.error("계정 삭제 오류:", err);
-      const errorMessage = err instanceof Error ? err.message : "알 수 없는 오류";
-      showAlert("계정 삭제 중 오류가 발생했습니다: " + errorMessage);
+      showAlert("계정 삭제 중 오류가 발생했습니다: " + getErrorMessage(err, "알 수 없는 오류"));
       throw err; // 모달에서 에러 처리하도록 다시 throw
     }
   };
@@ -759,7 +762,7 @@ export default function ProfilePage({
     return "status";
   };
 
-  const hasData = (v: any) => {
+  const hasData = (v: unknown) => {
     if (!v) return false;
     if (Array.isArray(v)) return v.length > 0;
     if (typeof v === "object") return Object.keys(v).length > 0;
@@ -961,8 +964,8 @@ export default function ProfilePage({
       showAlert(data.message || "소속 신청이 완료되었습니다.");
       await reloadAgentDashboard();
       setIsChangingAffiliation(false);
-    } catch (error: any) {
-      showAlert(error?.message || "소속 신청 중 오류가 발생했습니다.");
+    } catch (error: unknown) {
+      showAlert(getErrorMessage(error, "소속 신청 중 오류가 발생했습니다."));
     } finally {
       setAgentSubmittingPropertyId(null);
     }
@@ -986,8 +989,8 @@ export default function ProfilePage({
       showAlert(data.message || "무소속으로 전환되었습니다.");
       setIsChangingAffiliation(false);
       await reloadAgentDashboard();
-    } catch (error: any) {
-      showAlert(error?.message || "무소속 전환 중 오류가 발생했습니다.");
+    } catch (error: unknown) {
+      showAlert(getErrorMessage(error, "무소속 전환 중 오류가 발생했습니다."));
     } finally {
       setIsUnassigningAffiliation(false);
     }
@@ -1186,9 +1189,11 @@ export default function ProfilePage({
                     <div className="relative mx-auto h-75 w-75">
                       <div className="h-75 w-75 overflow-hidden rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle)">
                         {avatarUrl ? (
-                          <img
+                          <Image
                             src={avatarUrl}
                             alt="프로필 이미지"
+                            width={300}
+                            height={300}
                             className="h-full w-full object-cover"
                           />
                         ) : (
@@ -1279,9 +1284,11 @@ export default function ProfilePage({
                         ].join(" ")}
                       >
                         <div className="relative aspect-square w-full overflow-hidden bg-(--oboon-bg-subtle)">
-                          <img
+                          <Image
                             src={image.image_url}
                             alt={`추가 사진 ${index + 1}`}
+                            width={320}
+                            height={320}
                             className="h-full w-full object-cover"
                           />
                           <div className="pointer-events-none absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/55 ob-typo-caption font-medium text-white">
@@ -1408,9 +1415,11 @@ export default function ProfilePage({
                       <div className="flex items-center gap-3">
                         <div className="h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-(--oboon-bg-subtle)">
                           {property.image_url ? (
-                            <img
+                            <Image
                               src={property.image_url}
                               alt={property.name}
+                              width={96}
+                              height={96}
                               className="h-full w-full object-cover"
                             />
                           ) : (
@@ -1920,9 +1929,11 @@ export default function ProfilePage({
                         <div className="relative mx-auto h-75 w-75">
                           <div className="h-75 w-75 overflow-hidden rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle)">
                             {avatarUrl ? (
-                              <img
+                              <Image
                                 src={avatarUrl}
                                 alt="프로필 이미지"
+                                width={300}
+                                height={300}
                                 className="h-full w-full object-cover"
                               />
                             ) : (

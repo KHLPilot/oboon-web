@@ -423,7 +423,7 @@ export async function GET() {
       },
       rows: settlementRows,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("관리자 정산 데이터 조회 오류:", error);
     return NextResponse.json(
       { error: "정산 데이터를 불러오지 못했습니다" },

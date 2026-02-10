@@ -6,9 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
-import Label from "@/components/ui/Label";
 import Textarea from "@/components/ui/Textarea";
-import FieldErrorBubble from "@/components/ui/FieldErrorBubble";
 import PageContainer from "@/components/shared/PageContainer";
 import { fetchPropertyComments, updatePropertyComments } from "@/features/company/services/property.comment";
 

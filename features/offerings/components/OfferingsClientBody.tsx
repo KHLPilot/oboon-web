@@ -40,8 +40,12 @@ function isRegionTab(v: string): v is OfferingRegionTab {
   return (OFFERING_REGION_TABS as readonly string[]).includes(v);
 }
 
+function toUnknownRecord(value: unknown): Record<string, unknown> {
+  return (value ?? {}) as Record<string, unknown>;
+}
+
 function pickOfferingRegion(o: Offering): string | null {
-  const anyO = o as unknown as Record<string, unknown>;
+  const anyO = toUnknownRecord(o);
   const candidates = [
     anyO.regionTab,
     anyO.region,
@@ -56,13 +60,13 @@ function pickOfferingRegion(o: Offering): string | null {
 }
 
 function pickOfferingStatus(o: Offering): string | null {
-  const anyO = o as unknown as Record<string, unknown>;
+  const anyO = toUnknownRecord(o);
   const s = anyO.status;
   return typeof s === "string" && s.trim() ? s.trim() : null;
 }
 
 function pickOfferingPurpose(o: Offering): string | null {
-  const anyO = o as unknown as Record<string, unknown>;
+  const anyO = toUnknownRecord(o);
   const p = anyO.purpose ?? anyO.type ?? anyO.category;
   return typeof p === "string" && p.trim() ? p.trim() : null;
 }
@@ -117,11 +121,9 @@ function filterOfferings(all: Offering[], sp: SearchParams): Offering[] {
     }
 
     // budget (o.priceMin/o.priceMax는 원(won) 단위로 가정)
-    const anyO = o as unknown as Record<string, unknown>;
-    const priceMin =
-      typeof anyO.priceMin === "number" ? (anyO.priceMin as number) : null;
-    const priceMax =
-      typeof anyO.priceMax === "number" ? (anyO.priceMax as number) : null;
+    const anyO = toUnknownRecord(o);
+    const priceMin = typeof anyO.priceMin === "number" ? anyO.priceMin : null;
+    const priceMax = typeof anyO.priceMax === "number" ? anyO.priceMax : null;
 
     if (budgetMinWon != null && priceMax != null && priceMax < budgetMinWon)
       return false;
@@ -130,7 +132,7 @@ function filterOfferings(all: Offering[], sp: SearchParams): Offering[] {
 
     // q
     if (q) {
-      const title = String((o as any).title ?? "").toLowerCase();
+      const title = String(toUnknownRecord(o).title ?? "").toLowerCase();
       if (!title.includes(q)) return false;
     }
 
@@ -232,7 +234,7 @@ export default function OfferingsClientBody() {
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {filtered.map((offering) => (
-                <OfferingCard key={(offering as any).id} offering={offering} />
+                <OfferingCard key={offering.id} offering={offering} />
               ))}
             </div>
           )}

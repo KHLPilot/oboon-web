@@ -79,7 +79,7 @@ export async function GET(
 
         return NextResponse.json({ consultation });
 
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error("예약 상세 API 오류:", err);
         return NextResponse.json(
             { error: "서버 오류가 발생했습니다" },
@@ -229,7 +229,7 @@ export async function PATCH(
         }
 
         // 업데이트 데이터 준비
-        const updateData: Record<string, any> = { status };
+        const updateData: Record<string, unknown> = { status };
 
         if (status === "visited") {
             updateData.visited_at = new Date().toISOString();
@@ -352,18 +352,24 @@ export async function PATCH(
                 .select("event_type, amount")
                 .eq("consultation_id", id);
 
+            type LedgerRow = { event_type: string; amount: number | null };
+            const typedLedgerRows = (ledgerRows || []) as LedgerRow[];
             const hasEvent = (eventType: string) =>
-                (ledgerRows || []).some((r: any) => r.event_type === eventType);
+                typedLedgerRows.some((r) => r.event_type === eventType);
 
-            const depositPaidAmount = (ledgerRows || [])
-                .filter((r: any) => r.event_type === "deposit_paid")
-                .reduce((acc: number, r: any) => acc + Math.abs(r.amount || 0), 0);
+            const depositPaidAmount = typedLedgerRows
+                .filter((r) => r.event_type === "deposit_paid")
+                .reduce((acc: number, r) => acc + Math.abs(r.amount || 0), 0);
 
             const cancellationTiming = (() => {
                 if (status !== "cancelled") return null;
-                if (!existingConsultation.scheduled_at || !updateData.cancelled_at) return null;
+                const cancelledAtIso =
+                    typeof updateData.cancelled_at === "string"
+                        ? updateData.cancelled_at
+                        : null;
+                if (!existingConsultation.scheduled_at || !cancelledAtIso) return null;
                 const scheduledAtMs = new Date(existingConsultation.scheduled_at).getTime();
-                const cancelledAtMs = new Date(updateData.cancelled_at).getTime();
+                const cancelledAtMs = new Date(cancelledAtIso).getTime();
                 return scheduledAtMs - cancelledAtMs >= 48 * 60 * 60 * 1000
                     ? "after_48h"
                     : "within_48h";
@@ -576,7 +582,7 @@ export async function PATCH(
             consultation: updatedConsultation,
         });
 
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error("예약 상태 변경 API 오류:", err);
         return NextResponse.json(
             { error: "서버 오류가 발생했습니다" },
@@ -720,7 +726,7 @@ export async function DELETE(
 
         return NextResponse.json({ success: true, hidden: true });
 
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error("예약 삭제 API 오류:", err);
         return NextResponse.json(
             { error: "서버 오류가 발생했습니다" },

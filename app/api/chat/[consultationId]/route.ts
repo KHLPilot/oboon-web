@@ -127,7 +127,7 @@ export async function GET(
       chatRoomId: chatRoom.id,
       userRole: isCustomer ? "customer" : "agent",
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("채팅 API 오류:", err);
     return NextResponse.json({ error: "서버 오류가 발생했습니다" }, { status: 500 });
   }
@@ -300,7 +300,7 @@ export async function POST(
     });
 
     return NextResponse.json({ message });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("채팅 API 오류:", err);
     return NextResponse.json({ error: "서버 오류가 발생했습니다" }, { status: 500 });
   }
@@ -402,7 +402,7 @@ export async function DELETE(
       success: true,
       message: "채팅 내역이 삭제되었습니다",
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("채팅 삭제 API 오류:", err);
     return NextResponse.json({ error: "서버 오류가 발생했습니다" }, { status: 500 });
   }

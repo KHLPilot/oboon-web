@@ -4,7 +4,6 @@ import Link from "next/link";
 import OfferingBadge from "@/features/offerings/components/OfferingBadges";
 import type { OfferingStatusValue } from "@/features/offerings/domain/offering.types";
 import { ChevronRight } from "lucide-react";
-import { useRouter } from "next/navigation";
 
 export type MapOfferingCompactItem = {
   id: number;
@@ -29,7 +28,6 @@ export default function MapOfferingCompactList({
   onSelect?: (id: number) => void;
   hideCounter?: boolean;
 }) {
-  const router = useRouter();
   const rowPad = "p-3";
 
   return (

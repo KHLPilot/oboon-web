@@ -20,20 +20,11 @@ function getInitialTheme(): Theme {
 }
 
 export default function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>("dark");
-  const [mounted, setMounted] = useState(false);
-
-  // 클라이언트에서만 실행
-  useEffect(() => {
-    setMounted(true);
-    setTheme(getInitialTheme());
-  }, []);
+  const [theme, setTheme] = useState<Theme>(() => getInitialTheme());
 
   useEffect(() => {
-    if (mounted) {
-      document.documentElement.dataset.theme = theme;
-    }
-  }, [theme, mounted]);
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
 
   const toggleTheme = () => {
     const next: Theme = theme === "dark" ? "light" : "dark";
@@ -41,15 +32,6 @@ export default function ThemeToggle() {
     document.documentElement.dataset.theme = next;
     window.localStorage.setItem("oboon-theme", next);
   };
-
-  // 마운트 전에는 placeholder 렌더링
-  if (!mounted) {
-    return (
-      <div className="flex h-8 w-8 items-center justify-center rounded-full border border-(--oboon-border-default) bg-white/5 cursor-pointer">
-        <div className="h-4 w-4" />
-      </div>
-    );
-  }
 
   const isDark = theme === "dark";
 

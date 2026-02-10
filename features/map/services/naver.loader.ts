@@ -1,15 +1,7 @@
 // features/map/naver.loader.ts
-type NaverMaps = typeof window.naver;
+let loadPromise: Promise<NaverGlobal> | null = null;
 
-declare global {
-  interface Window {
-    naver?: any;
-  }
-}
-
-let loadPromise: Promise<NaverMaps> | null = null;
-
-export function loadNaverMaps(clientId: string): Promise<NaverMaps> {
+export function loadNaverMaps(clientId: string): Promise<NaverGlobal> {
   if (typeof window === "undefined") {
     return Promise.reject(
       new Error("Naver Maps can only be loaded in browser")
@@ -25,7 +17,10 @@ export function loadNaverMaps(clientId: string): Promise<NaverMaps> {
       'script[data-oboon="naver-maps"]'
     );
     if (existing) {
-      existing.addEventListener("load", () => resolve(window.naver));
+      existing.addEventListener("load", () => {
+        if (window.naver?.maps) resolve(window.naver);
+        else reject(new Error("Naver maps is not available after load"));
+      });
       existing.addEventListener("error", () =>
         reject(new Error("Naver maps load failed"))
       );
@@ -45,7 +40,7 @@ export function loadNaverMaps(clientId: string): Promise<NaverMaps> {
         if (process.env.NODE_ENV !== "production") {
           // 인증 실패/오리진 오류 등은 여기서 흔히 발생
           // (네이버 SDK 자체 에러 로그 + 이 로그로 원인 추적)
-          // eslint-disable-next-line no-console
+           
           console.error(
             "[NaverMap] SDK loaded but window.naver.maps is missing. Check NCP client key and allowed origins."
           );
@@ -58,7 +53,7 @@ export function loadNaverMaps(clientId: string): Promise<NaverMaps> {
 
     script.onerror = () => {
       if (process.env.NODE_ENV !== "production") {
-        // eslint-disable-next-line no-console
+         
         console.error(
           "[NaverMap] SDK script load failed. Check network/CSP and NCP key."
         );

@@ -81,8 +81,8 @@ export function QnADetail({
     try {
       await onUpdate({ title: editTitle.trim(), body: editBody.trim() });
       setIsEditing(false);
-    } catch (error: any) {
-      alert(error?.message ?? "수정에 실패했습니다.");
+    } catch (error: unknown) {
+      alert(error instanceof Error ? error.message : "수정에 실패했습니다.");
     } finally {
       setSubmitting(false);
     }

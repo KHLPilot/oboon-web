@@ -4,7 +4,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
-import { deletePropertyById, fetchPropertyListData } from "@/features/company/services/property.list";
+import {
+  deletePropertyById,
+  fetchPropertyListData,
+  type PropertyListRow,
+} from "@/features/company/services/property.list";
 import { useRouter } from "next/navigation";
 import { Calendar, Edit2, Trash2, User } from "lucide-react";
 import Button from "@/components/ui/Button";
@@ -24,15 +28,18 @@ type ProfileRow = {
 };
 
 type PropertyRow = {
-  id: number;
-  name: string;
-  created_by: string;
+  id: PropertyListRow["id"];
+  name: PropertyListRow["name"];
+  created_by: PropertyListRow["created_by"];
   profiles?: ProfileRow | ProfileRow[] | null;
-  property_locations?: any;
-  property_facilities?: any;
-  property_specs?: any;
-  property_timeline?: any;
-  property_unit_types?: any;
+  property_locations?: PropertyListRow["property_locations"];
+  property_facilities?: PropertyListRow["property_facilities"];
+  property_specs?: PropertyListRow["property_specs"];
+  property_timeline?: PropertyListRow["property_timeline"];
+  property_unit_types?: PropertyListRow["property_unit_types"];
+  confirmed_comment?: PropertyListRow["confirmed_comment"];
+  estimated_comment?: PropertyListRow["estimated_comment"];
+  pending_comment?: PropertyListRow["pending_comment"];
   request_status?: "pending" | "approved" | "rejected" | null;
   request_requested_at?: string | null;
   request_rejection_reason?: string | null;

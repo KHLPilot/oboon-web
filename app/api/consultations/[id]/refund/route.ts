@@ -269,7 +269,7 @@ export async function POST(
       success: true,
       already_processed: false,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("환급 처리 API 오류:", error);
     return NextResponse.json({ error: "환급 처리에 실패했습니다" }, { status: 500 });
   }

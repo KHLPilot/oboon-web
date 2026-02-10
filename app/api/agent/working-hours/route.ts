@@ -10,7 +10,6 @@ const adminSupabase = createClient(
 
 const DEFAULT_START = "10:00";
 const DEFAULT_END = "17:00";
-const CLOSED_TIME = "00:00";
 
 function isValidTime(value: unknown) {
   return typeof value === "string" && /^\d{2}:\d{2}$/.test(value);
@@ -65,7 +64,7 @@ export async function GET() {
       .order("day_of_week");
 
     return NextResponse.json({ rows: data ?? [] });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("기본 운영시간 조회 오류:", err);
     return NextResponse.json({ error: "서버 오류" }, { status: 500 });
   }
@@ -185,7 +184,7 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ success: true });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("기본 운영시간 API 오류:", err);
     return NextResponse.json({ error: "서버 오류" }, { status: 500 });
   }

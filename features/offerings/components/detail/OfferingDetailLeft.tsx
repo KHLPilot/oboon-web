@@ -496,7 +496,7 @@ export default function OfferingDetailLeft({
             </div>
 
             <div className="mt-2 px-2 py-1 ob-typo-caption text-(--oboon-text-muted)">
-              입주 예정일은 "년도-월” 또는 “년도-월-일” 형식이 혼재할 수 있어요.
+              입주 예정일은 &quot;년도-월&quot; 또는 &quot;년도-월-일&quot; 형식이 혼재할 수 있어요.
               <br />월 단위 표기는 해당 월로 안내되는 정보를 의미합니다.
             </div>
           </Card>

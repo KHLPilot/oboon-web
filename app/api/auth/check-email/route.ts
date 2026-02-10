@@ -6,6 +6,10 @@ const supabaseAdmin = createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+function getErrorMessage(error: unknown, fallback: string) {
+    return error instanceof Error ? error.message : fallback;
+}
+
 export async function POST(req: Request) {
     try {
         const { email } = await req.json();
@@ -37,8 +41,8 @@ export async function POST(req: Request) {
             exists: true,
             confirmed: isConfirmed
         });
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error("❌ 이메일 체크 오류:", err);
-        return NextResponse.json({ error: err.message }, { status: 500 });
+        return NextResponse.json({ error: getErrorMessage(err, "이메일 체크 오류") }, { status: 500 });
     }
 }

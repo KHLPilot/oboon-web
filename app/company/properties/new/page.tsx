@@ -3,10 +3,10 @@
 
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { X } from "lucide-react";
 
 import Button from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Label from "@/components/ui/Label";
@@ -71,7 +71,6 @@ export default function PropertyCreatePage() {
 
   // 대표 이미지 파일 + 미리보기
   const [mainImageFile, setMainImageFile] = useState<File | null>(null);
-  const [mainImagePreview, setMainImagePreview] = useState<string | null>(null);
   const [mainImageFileName, setMainImageFileName] = useState<string | null>(
     null,
   );
@@ -86,15 +85,16 @@ export default function PropertyCreatePage() {
     string | null
   >(null);
 
+  const mainImagePreview = useMemo(
+    () => (mainImageFile ? URL.createObjectURL(mainImageFile) : null),
+    [mainImageFile],
+  );
+
   useEffect(() => {
-    if (!mainImageFile) {
-      setMainImagePreview(null);
-      return;
-    }
-    const url = URL.createObjectURL(mainImageFile);
-    setMainImagePreview(url);
-    return () => URL.revokeObjectURL(url);
-  }, [mainImageFile]);
+    return () => {
+      if (mainImagePreview) URL.revokeObjectURL(mainImagePreview);
+    };
+  }, [mainImagePreview]);
 
   useEffect(() => {
     galleryImagesRef.current = galleryImages;
@@ -436,9 +436,11 @@ export default function PropertyCreatePage() {
                     <div className="space-y-2">
                       {/* 이미지 카드 */}
                       <div className="overflow-hidden rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)">
-                        <img
+                        <Image
                           src={mainImagePreview}
                           alt="대표 이미지 미리보기"
+                          width={640}
+                          height={360}
                           className="h-auto w-full object-cover"
                         />
                       </div>
@@ -539,9 +541,11 @@ export default function PropertyCreatePage() {
                         ].join(" ")}
                       >
                         <div className="relative aspect-square w-full overflow-hidden bg-(--oboon-bg-subtle)">
-                          <img
+                          <Image
                             src={image.previewUrl}
                             alt={`추가 사진 ${index + 1}`}
+                            width={320}
+                            height={320}
                             className="h-full w-full object-cover"
                           />
                           <div className="pointer-events-none absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/55 ob-typo-caption font-medium text-white">

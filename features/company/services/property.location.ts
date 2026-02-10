@@ -11,7 +11,7 @@ export async function fetchPropertyLocation(propertyId: number) {
 
 export async function savePropertyLocation(
   propertyId: number,
-  payload: Record<string, any>,
+  payload: Record<string, unknown>,
   isEdit: boolean,
 ) {
   const supabase = createSupabaseClient();

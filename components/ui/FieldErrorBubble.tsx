@@ -44,7 +44,6 @@ export default function FieldErrorBubble({
 
   useLayoutEffect(() => {
     if (!canMeasure) {
-      setPos(null);
       return;
     }
 

@@ -10,20 +10,6 @@ import {
   type QnAStatusKey,
 } from "../domain/support";
 
-type QnAQuestionDBRow = {
-  id: string;
-  author_profile_id: string;
-  title: string;
-  is_secret: boolean;
-  is_anonymous: boolean;
-  anonymous_nickname: string | null;
-  status: QnAStatusKey;
-  created_at: string;
-  profiles: {
-    name: string | null;
-  };
-};
-
 /**
  * QnA 목록 조회 (페이지네이션)
  */
