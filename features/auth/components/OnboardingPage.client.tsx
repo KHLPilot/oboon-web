@@ -47,21 +47,29 @@ export default function OnboardingPage() {
 
   // 이용약관 동의
   const [agreements, setAgreements] = useState({
-    terms: false,
-    privacy: false,
-    location: false,
-    marketing: false,
+    ageCheck: false,        // 만14세 이상
+    terms: false,           // 서비스 이용약관
+    privacy: false,         // 개인정보 수집·이용
+    privacyThirdParty: false, // 개인정보 제3자 제공
+    location: false,        // 위치정보 이용
+    marketing: false,       // 마케팅 수신
   });
   const [agreementError, setAgreementError] = useState<string | null>(null);
 
   const agreedAll =
+    agreements.ageCheck &&
     agreements.terms &&
     agreements.privacy &&
+    agreements.privacyThirdParty &&
     agreements.location &&
     agreements.marketing;
 
   const requiredAgreed =
-    agreements.terms && agreements.privacy && agreements.location;
+    agreements.ageCheck &&
+    agreements.terms &&
+    agreements.privacy &&
+    agreements.privacyThirdParty &&
+    agreements.location;
 
   function handleToggle(key: keyof typeof agreements) {
     setAgreements((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -71,8 +79,10 @@ export default function OnboardingPage() {
   function handleToggleAll() {
     const next = !agreedAll;
     setAgreements({
+      ageCheck: next,
       terms: next,
       privacy: next,
+      privacyThirdParty: next,
       location: next,
       marketing: next,
     });
@@ -560,6 +570,23 @@ export default function OnboardingPage() {
                   </label>
 
                   <div className="ml-6 space-y-1.5">
+                    {/* 1. 만14세 이상 확인 */}
+                    <div className="flex items-center justify-between">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={agreements.ageCheck}
+                          onChange={() => handleToggle("ageCheck")}
+                          disabled={!canSubmit || loading}
+                          className="h-4 w-4 rounded border-(--oboon-border-default) accent-(--oboon-primary)"
+                        />
+                        <span className="ob-typo-caption text-(--oboon-text-muted)">
+                          [필수] 만 14세 이상입니다
+                        </span>
+                      </label>
+                    </div>
+
+                    {/* 2. 서비스 이용약관 */}
                     <div className="flex items-center justify-between">
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
@@ -585,6 +612,7 @@ export default function OnboardingPage() {
                       </button>
                     </div>
 
+                    {/* 3. 개인정보 수집·이용 */}
                     <div className="flex items-center justify-between">
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
@@ -613,6 +641,36 @@ export default function OnboardingPage() {
                       </button>
                     </div>
 
+                    {/* 4. 개인정보 제3자 제공 */}
+                    <div className="flex items-center justify-between">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={agreements.privacyThirdParty}
+                          onChange={() => handleToggle("privacyThirdParty")}
+                          disabled={!canSubmit || loading}
+                          className="h-4 w-4 rounded border-(--oboon-border-default) accent-(--oboon-primary)"
+                        />
+                        <span className="ob-typo-caption text-(--oboon-text-muted)">
+                          [필수] 개인정보 제3자 제공 동의
+                        </span>
+                      </label>
+                      <button
+                        type="button"
+                        className="ob-typo-caption text-(--oboon-text-muted) underline underline-offset-2 hover:text-(--oboon-primary) transition-colors"
+                        onClick={() =>
+                          openTermDetail(
+                            "signup_privacy_third_party",
+                            "개인정보 제3자 제공 동의",
+                          )
+                        }
+                        disabled={termLoading}
+                      >
+                        전문보기
+                      </button>
+                    </div>
+
+                    {/* 5. 위치정보 이용 */}
                     <div className="flex items-center justify-between">
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
@@ -638,6 +696,7 @@ export default function OnboardingPage() {
                       </button>
                     </div>
 
+                    {/* 6. 마케팅 수신 (선택) */}
                     <div className="flex items-center justify-between">
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input

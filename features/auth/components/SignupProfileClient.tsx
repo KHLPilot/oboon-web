@@ -59,10 +59,12 @@ export default function SignupProfileClient() {
 
   // 이용약관 동의
   const [agreements, setAgreements] = useState({
-    terms: false,
-    privacy: false,
-    location: false,
-    marketing: false,
+    ageCheck: false,        // 만14세 이상
+    terms: false,           // 서비스 이용약관
+    privacy: false,         // 개인정보 수집·이용
+    privacyThirdParty: false, // 개인정보 제3자 제공
+    location: false,        // 위치정보 이용
+    marketing: false,       // 마케팅 수신
   });
   const [agreementError, setAgreementError] = useState<string | null>(null);
 
@@ -95,13 +97,19 @@ export default function SignupProfileClient() {
   }
 
   const agreedAll =
+    agreements.ageCheck &&
     agreements.terms &&
     agreements.privacy &&
+    agreements.privacyThirdParty &&
     agreements.location &&
     agreements.marketing;
 
   const requiredAgreed =
-    agreements.terms && agreements.privacy && agreements.location;
+    agreements.ageCheck &&
+    agreements.terms &&
+    agreements.privacy &&
+    agreements.privacyThirdParty &&
+    agreements.location;
 
   function handleToggle(key: keyof typeof agreements) {
     setAgreements((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -111,8 +119,10 @@ export default function SignupProfileClient() {
   function handleToggleAll() {
     const next = !agreedAll;
     setAgreements({
+      ageCheck: next,
       terms: next,
       privacy: next,
+      privacyThirdParty: next,
       location: next,
       marketing: next,
     });
@@ -342,7 +352,13 @@ export default function SignupProfileClient() {
       if (upsertError) throw upsertError;
 
       // 약관 동의 기록 저장 (법적 증거용)
-      const agreedTermTypes = ["signup_terms", "signup_privacy", "signup_location"];
+      const agreedTermTypes = [
+        "signup_age_check",
+        "signup_terms",
+        "signup_privacy",
+        "signup_privacy_third_party",
+        "signup_location"
+      ];
       if (agreements.marketing) {
         agreedTermTypes.push("signup_marketing");
       }
@@ -564,6 +580,23 @@ export default function SignupProfileClient() {
                       </label>
 
                       <div className="ml-6 space-y-1.5">
+                        {/* 1. 만14세 이상 확인 */}
+                        <div className="flex items-center justify-between">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={agreements.ageCheck}
+                              onChange={() => handleToggle("ageCheck")}
+                              disabled={!canSubmit || loading}
+                              className="h-4 w-4 rounded border-(--oboon-border-default) accent-(--oboon-primary)"
+                            />
+                            <span className="ob-typo-caption text-(--oboon-text-muted)">
+                              [필수] 만 14세 이상입니다
+                            </span>
+                          </label>
+                        </div>
+
+                        {/* 2. 서비스 이용약관 */}
                         <div className="flex items-center justify-between">
                           <label className="flex items-center gap-2 cursor-pointer">
                             <input
@@ -587,6 +620,7 @@ export default function SignupProfileClient() {
                           </button>
                         </div>
 
+                        {/* 3. 개인정보 수집·이용 */}
                         <div className="flex items-center justify-between">
                           <label className="flex items-center gap-2 cursor-pointer">
                             <input
@@ -610,6 +644,31 @@ export default function SignupProfileClient() {
                           </button>
                         </div>
 
+                        {/* 4. 개인정보 제3자 제공 */}
+                        <div className="flex items-center justify-between">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={agreements.privacyThirdParty}
+                              onChange={() => handleToggle("privacyThirdParty")}
+                              disabled={!canSubmit || loading}
+                              className="h-4 w-4 rounded border-(--oboon-border-default) accent-(--oboon-primary)"
+                            />
+                            <span className="ob-typo-caption text-(--oboon-text-muted)">
+                              [필수] 개인정보 제3자 제공 동의
+                            </span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => openTermModal("signup_privacy_third_party")}
+                            disabled={termLoading}
+                            className="ob-typo-caption text-(--oboon-primary) hover:underline"
+                          >
+                            보기
+                          </button>
+                        </div>
+
+                        {/* 5. 위치정보 이용 */}
                         <div className="flex items-center justify-between">
                           <label className="flex items-center gap-2 cursor-pointer">
                             <input
@@ -633,6 +692,7 @@ export default function SignupProfileClient() {
                           </button>
                         </div>
 
+                        {/* 6. 마케팅 수신 (선택) */}
                         <div className="flex items-center justify-between">
                           <label className="flex items-center gap-2 cursor-pointer">
                             <input

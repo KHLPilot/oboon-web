@@ -66,6 +66,7 @@ export async function GET() {
       .from("terms")
       .select("*")
       .eq("is_active", true)
+      .order("display_order", { ascending: true })
       .order("type", { ascending: true });
 
     if (error) {
@@ -88,8 +89,8 @@ export async function GET() {
 
 /**
  * PATCH /api/admin/terms
- * 관리자 전용: 약관 수정
- * Body: { id: string, title?: string, content?: string, is_active?: boolean }
+ * 관리자 전용: 약관 수정 → 새 버전 생성 (기존 버전 비활성화)
+ * Body: { id: string, title?: string, content?: string }
  */
 export async function PATCH(req: Request) {
   try {
@@ -141,7 +142,7 @@ export async function PATCH(req: Request) {
     }
 
     const body = await req.json();
-    const { id, title, content, is_active } = body;
+    const { id, title, content } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -150,31 +151,74 @@ export async function PATCH(req: Request) {
       );
     }
 
-    const updateData: Record<string, unknown> = {
-      updated_at: new Date().toISOString(),
-      updated_by: user.id,
-    };
-
-    if (title !== undefined) updateData.title = title;
-    if (content !== undefined) updateData.content = content;
-    if (is_active !== undefined) updateData.is_active = is_active;
-
-    const { data, error } = await adminSupabase
+    // 기존 약관 조회
+    const { data: existingTerm, error: fetchError } = await adminSupabase
       .from("terms")
-      .update(updateData)
+      .select("*")
       .eq("id", id)
+      .single();
+
+    if (fetchError || !existingTerm) {
+      return NextResponse.json(
+        { error: "약관을 찾을 수 없습니다" },
+        { status: 404 }
+      );
+    }
+
+    // 내용이 변경되지 않았으면 그냥 반환
+    const newTitle = title ?? existingTerm.title;
+    const newContent = content ?? existingTerm.content;
+
+    if (newTitle === existingTerm.title && newContent === existingTerm.content) {
+      return NextResponse.json({ term: existingTerm, message: "변경 사항이 없습니다." });
+    }
+
+    // 1. 기존 버전 비활성화
+    await adminSupabase
+      .from("terms")
+      .update({ is_active: false })
+      .eq("id", id);
+
+    // 2. 새 버전 생성
+    const newVersion = (existingTerm.version || 1) + 1;
+
+    const { data: newTerm, error: insertError } = await adminSupabase
+      .from("terms")
+      .insert({
+        type: existingTerm.type,
+        version: newVersion,
+        title: newTitle,
+        content: newContent,
+        is_active: true,
+        is_required: existingTerm.is_required,
+        display_order: existingTerm.display_order,
+        created_by: user.id,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        updated_by: user.id,
+      })
       .select()
       .single();
 
-    if (error) {
-      console.error("약관 수정 오류:", error);
+    if (insertError) {
+      console.error("새 약관 버전 생성 오류:", insertError);
+      // 롤백: 기존 버전 다시 활성화
+      await adminSupabase
+        .from("terms")
+        .update({ is_active: true })
+        .eq("id", id);
+
       return NextResponse.json(
         { error: "약관 수정에 실패했습니다" },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({ term: data });
+    return NextResponse.json({
+      term: newTerm,
+      message: `v${newVersion}으로 업데이트되었습니다.`,
+      previousVersion: existingTerm.version
+    });
   } catch (err: unknown) {
     console.error("관리자 약관 수정 API 오류:", err);
     return NextResponse.json(

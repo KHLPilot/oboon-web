@@ -17,6 +17,7 @@ CREATE POLICY "property_public_snapshots_select_all"
 
 -- 초기 데이터 삽입 (property_requests에 request_type 컬럼이 있는 경우에만)
 -- 메인 DB와 테스트 DB 스키마 차이로 인해 조건부 실행
+-- 참고: phone_number 컬럼은 028 마이그레이션에서 삭제되므로 제외
 DO $$
 BEGIN
   -- request_type 컬럼 존재 여부 확인
@@ -37,7 +38,6 @@ BEGIN
         'created_at', p.created_at,
         'name', p.name,
         'property_type', p.property_type,
-        'phone_number', p.phone_number,
         'status', p.status,
         'description', p.description,
         'image_url', p.image_url,

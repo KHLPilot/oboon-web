@@ -23,12 +23,15 @@ export async function GET(req: Request) {
 
     let query = adminSupabase
       .from("terms")
-      .select("id, type, title, content, updated_at")
+      .select("id, type, version, title, content, is_required, display_order, updated_at")
       .eq("is_active", true);
 
     if (type) {
       query = query.eq("type", type);
     }
+
+    // display_order로 정렬 (0은 맨 뒤로)
+    query = query.order("display_order", { ascending: true });
 
     const { data, error } = await query;
 
