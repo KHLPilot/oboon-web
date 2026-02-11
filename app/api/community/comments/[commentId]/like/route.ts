@@ -8,6 +8,19 @@ const adminSupabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
+function canAccessAgentOnlyRole(role: string | null | undefined) {
+  return role === "agent" || role === "admin";
+}
+
+async function getProfileRole(profileId: string) {
+  const { data } = await adminSupabase
+    .from("profiles")
+    .select("role")
+    .eq("id", profileId)
+    .maybeSingle();
+  return (data as { role?: string | null } | null)?.role ?? null;
+}
+
 export async function POST(
   _req: Request,
   { params }: { params: Promise<{ commentId: string }> },
@@ -45,6 +58,44 @@ export async function POST(
 
     if (!user) {
       return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
+    }
+
+    const { data: commentRow, error: commentError } = await adminSupabase
+      .from("community_comments")
+      .select("id, post_id")
+      .eq("id", commentId)
+      .maybeSingle();
+
+    if (commentError || !commentRow) {
+      return NextResponse.json(
+        { error: "댓글 정보를 확인하지 못했습니다." },
+        { status: 404 },
+      );
+    }
+
+    const { data: postRow, error: postError } = await adminSupabase
+      .from("community_posts")
+      .select("id, is_agent_only")
+      .eq("id", commentRow.post_id)
+      .maybeSingle();
+
+    if (postError || !postRow) {
+      return NextResponse.json(
+        { error: "게시글 정보를 확인하지 못했습니다." },
+        { status: 404 },
+      );
+    }
+
+    const isAgentOnlyPost =
+      (postRow as { is_agent_only?: boolean | null }).is_agent_only === true;
+    if (isAgentOnlyPost) {
+      const role = await getProfileRole(user.id);
+      if (!canAccessAgentOnlyRole(role)) {
+        return NextResponse.json(
+          { error: "상담사 전용 게시글입니다." },
+          { status: 403 },
+        );
+      }
     }
 
     const { data: existing } = await adminSupabase

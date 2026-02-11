@@ -235,6 +235,11 @@
     "definition": "CREATE UNIQUE INDEX community_posts_pkey ON public.community_posts USING btree (id)"
   },
   {
+    "table_name": "community_posts",
+    "index_name": "idx_community_posts_is_agent_only",
+    "definition": "CREATE INDEX idx_community_posts_is_agent_only ON public.community_posts USING btree (is_agent_only)"
+  },
+  {
     "table_name": "consultation_money_ledger",
     "index_name": "consultation_money_ledger_pkey",
     "definition": "CREATE UNIQUE INDEX consultation_money_ledger_pkey ON public.consultation_money_ledger USING btree (id)"
@@ -263,6 +268,11 @@
     "table_name": "consultations",
     "index_name": "idx_consultations_agent_slot_approved",
     "definition": "CREATE UNIQUE INDEX idx_consultations_agent_slot_approved ON public.consultations USING btree (agent_id, scheduled_at) WHERE (status = 'confirmed'::text)"
+  },
+  {
+    "table_name": "consultations",
+    "index_name": "idx_consultations_agent_timeslot_active_unique",
+    "definition": "CREATE UNIQUE INDEX idx_consultations_agent_timeslot_active_unique ON public.consultations USING btree (agent_id, scheduled_at) WHERE (status = ANY (ARRAY['requested'::text, 'pending'::text, 'confirmed'::text]))"
   },
   {
     "table_name": "consultations",
@@ -453,11 +463,6 @@
     "table_name": "property_agents",
     "index_name": "idx_property_agents_agent_status",
     "definition": "CREATE INDEX idx_property_agents_agent_status ON public.property_agents USING btree (agent_id, status)"
-  },
-  {
-    "table_name": "property_agents",
-    "index_name": "idx_property_agents_one_approved_per_agent",
-    "definition": "CREATE UNIQUE INDEX idx_property_agents_one_approved_per_agent ON public.property_agents USING btree (agent_id) WHERE (status = 'approved'::text)"
   },
   {
     "table_name": "property_agents",

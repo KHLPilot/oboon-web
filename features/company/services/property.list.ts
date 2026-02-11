@@ -24,7 +24,6 @@ export type PropertyListRow = {
   property_unit_types?: RelationRow[] | null;
   confirmed_comment?: PropertyProgressRow["confirmed_comment"];
   estimated_comment?: PropertyProgressRow["estimated_comment"];
-  pending_comment?: PropertyProgressRow["pending_comment"];
   request_status?: "pending" | "approved" | "rejected" | null;
   request_rejection_reason?: string | null;
   request_requested_at?: string | null;

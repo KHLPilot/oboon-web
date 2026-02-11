@@ -93,9 +93,9 @@ export async function POST(req: Request) {
       );
     }
 
-    if (customerProfile?.role === "agent") {
+    if (customerProfile?.role === "agent" || customerProfile?.role === "admin") {
       return NextResponse.json(
-        { error: "상담사 계정은 상담 예약을 할 수 없습니다" },
+        { error: "상담사/관리자 계정은 상담 예약을 할 수 없습니다" },
         { status: 403 },
       );
     }

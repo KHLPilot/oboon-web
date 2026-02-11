@@ -32,7 +32,6 @@ export type PropertyRow = {
 
   confirmed_comment: string | null;
   estimated_comment: string | null;
-  pending_comment: string | null;
 
   property_locations: PropertyLocationRow[] | PropertyLocationRow | null;
   property_specs: PropertySpecRow[] | PropertySpecRow | null;
@@ -312,10 +311,10 @@ export default function OfferingDetailLeft({
       : null;
 
   const galleryImageUrls = buildGalleryImageUrls(p);
-  const hasMemo =
-    pickFirstNonEmpty(p.confirmed_comment) !== null ||
-    pickFirstNonEmpty(p.estimated_comment) !== null ||
-    pickFirstNonEmpty(p.pending_comment) !== null;
+  const confirmedMemo = pickFirstNonEmpty(p.confirmed_comment);
+  const estimatedMemo = pickFirstNonEmpty(p.estimated_comment);
+  const hasMemo = confirmedMemo !== null || estimatedMemo !== null;
+  const propertyDescription = pickFirstNonEmpty(p.description);
 
   const priceMin =
     unitTypes
@@ -474,6 +473,19 @@ export default function OfferingDetailLeft({
         />
       </div>
 
+      {propertyDescription ? (
+        <div className="mt-3">
+          <Card className="px-5 py-4">
+            <div className="ob-typo-caption text-(--oboon-text-muted)">
+              현장 설명
+            </div>
+            <div className="mt-2 whitespace-pre-wrap ob-typo-body text-(--oboon-text-title)">
+              {propertyDescription}
+            </div>
+          </Card>
+        </div>
+      ) : null}
+
       {/* Tabs (sticky) */}
       <div
         className={[
@@ -561,32 +573,34 @@ export default function OfferingDetailLeft({
           />
 
           <div className="mt-3 space-y-3">
-            <Card className="px-5 py-3">
-              <div className="ob-typo-caption text-(--oboon-text-muted)">
-                확정 내용
-              </div>
-              <div className="mt-2 whitespace-pre-wrap ob-typo-h4 text-(--oboon-text-title)">
-                {pickFirstNonEmpty(p.confirmed_comment) ?? UXCopy.notRegistered}
-              </div>
-            </Card>
+            {confirmedMemo ? (
+              <Card className="px-5 py-3">
+                <div className="ob-typo-caption text-(--oboon-text-muted)">
+                  확정 내용
+                </div>
+                <div className="mt-2 whitespace-pre-wrap ob-typo-h4 text-(--oboon-text-title)">
+                  {confirmedMemo}
+                </div>
+              </Card>
+            ) : null}
 
-            <Card className="px-5 py-3">
-              <div className="ob-typo-caption text-(--oboon-text-muted)">
-                추정 내용
-              </div>
-              <div className="mt-2 whitespace-pre-wrap ob-typo-h4 text-(--oboon-text-title)">
-                {pickFirstNonEmpty(p.estimated_comment) ?? UXCopy.notRegistered}
-              </div>
-            </Card>
+            {estimatedMemo ? (
+              <Card className="px-5 py-3">
+                <div className="ob-typo-caption text-(--oboon-text-muted)">
+                  추정 내용
+                </div>
+                <div className="mt-2 whitespace-pre-wrap ob-typo-h4 text-(--oboon-text-title)">
+                  {estimatedMemo}
+                </div>
+              </Card>
+            ) : null}
 
-            <Card className="px-5 py-3">
+            <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-4 py-3">
               <div className="ob-typo-caption text-(--oboon-text-muted)">
-                미정 내용
+                감정평가사 메모는 참고용 정보이며 법적 효력을 갖지 않습니다.
+                최종 판단 및 계약은 관련 공문, 고시, 계약서 등 공식 자료를 반드시 확인해 주세요.
               </div>
-              <div className="mt-2 whitespace-pre-wrap ob-typo-h4 text-(--oboon-text-title)">
-                {pickFirstNonEmpty(p.pending_comment) ?? UXCopy.notRegistered}
-              </div>
-            </Card>
+            </div>
           </div>
         </div>
       ) : null}
@@ -659,7 +673,7 @@ export default function OfferingDetailLeft({
         </div>
       ) : null}
 
-      <div className="mt-10">
+      <div id="location" className="mt-10 scroll-mt-30 lg:scroll-mt-30">
         <SectionTitle
           icon={<MapPin className="h-5 w-5" />}
           title="현장/모델하우스 위치"
@@ -673,7 +687,8 @@ export default function OfferingDetailLeft({
                 <NaverMap
                   markers={locationMarkers}
                   focusedId={locationMarkers[0]?.id ?? null}
-                  richMarkerIds={locationMarkers.map((marker) => marker.id)}
+                  showFocusedAsRich={false}
+                  fitToMarkers
                   mode="base"
                 />
               </div>

@@ -4,11 +4,13 @@ import type {
   CommunityPostRow,
   CommunityPostStatus,
   CommunityTabKey,
+  CommunityUserRole,
 } from "../domain/community";
 
 type CommunityPostWithAuthorDbRow = {
   id: string;
   status: string | null;
+  is_agent_only: boolean | null;
   title: string | null;
   body: string | null;
   like_count: number | null;
@@ -30,6 +32,7 @@ type CommunityPostWithAuthorDbRow = {
 type CommunityPostBaseDbRow = {
   id: string;
   status: string | null;
+  is_agent_only: boolean | null;
   title: string | null;
   body: string | null;
   like_count: number | null;
@@ -81,7 +84,11 @@ type CreateCommunityPostResult =
 const mapPostRow = (row: CommunityPostWithAuthorDbRow): CommunityPostRow => {
   const isAnonymous = row.is_anonymous === true;
   const uiStatus: CommunityPostStatus =
-    Boolean(row.visited_on) ? "visited" : "thinking";
+    row.is_agent_only === true
+      ? "agent_only"
+      : Boolean(row.visited_on)
+        ? "visited"
+        : "thinking";
   const anonymousName =
     row.anonymous_nickname && row.anonymous_nickname.trim().length > 0
       ? row.anonymous_nickname.trim()
@@ -110,6 +117,7 @@ const mapPostRow = (row: CommunityPostWithAuthorDbRow): CommunityPostRow => {
 const postBaseSelect = `
   id,
   status,
+  is_agent_only,
   title,
   body,
   like_count,
@@ -121,6 +129,55 @@ const postBaseSelect = `
   anonymous_nickname,
   property_id
 `;
+
+function canReadAgentOnlyRole(role: CommunityUserRole | null | undefined) {
+  return role === "agent" || role === "admin";
+}
+
+function canWriteAgentOnlyRole(role: CommunityUserRole | null | undefined) {
+  return role === "agent";
+}
+
+async function getViewerRole(
+  supabase: ReturnType<typeof createSupabaseClient>,
+): Promise<CommunityUserRole | null> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user?.id) return null;
+
+  const { data } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const role = (data as { role?: CommunityUserRole | null } | null)?.role;
+  return role ?? null;
+}
+
+function isVisiblePostStatus(status: string | null | undefined) {
+  const normalized = (status ?? "").trim().toLowerCase();
+  if (!normalized) return true;
+  return (
+    normalized !== "hidden" &&
+    normalized !== "deleted" &&
+    normalized !== "draft"
+  );
+}
+
+function isInvalidCommunityStatusError(error: unknown) {
+  const message = String(
+    (error as { message?: unknown })?.message ??
+      (error as { details?: unknown })?.details ??
+      "",
+  ).toLowerCase();
+  return (
+    message.includes("invalid input value for enum") &&
+    message.includes("community_post_status")
+  );
+}
 
 async function enrichPostRows(
   rows: CommunityPostBaseDbRow[],
@@ -193,15 +250,21 @@ async function getPostsByIdsPreserveOrder(
   const { data, error } = await supabase
     .from("community_posts")
     .select(postBaseSelect)
-    .in("id", ids)
-    .eq("status", "published");
+    .in("id", ids);
 
   if (error) {
     console.error("community posts by ids load error:", error.message);
     return [];
   }
 
-  const enriched = await enrichPostRows((data ?? []) as CommunityPostBaseDbRow[]);
+  const viewerRole = await getViewerRole(supabase);
+  const canViewAgentOnly = canReadAgentOnlyRole(viewerRole);
+  const visibleRows = ((data ?? []) as CommunityPostBaseDbRow[]).filter(
+    (row) =>
+      isVisiblePostStatus(row.status) &&
+      (canViewAgentOnly || row.is_agent_only !== true),
+  );
+  const enriched = await enrichPostRows(visibleRows);
   const byId = new Map<string, CommunityPostWithAuthorDbRow>();
   enriched.forEach((row) => byId.set(row.id, row));
 
@@ -261,14 +324,25 @@ export async function getCommunityFeed(
   tabKey: CommunityTabKey,
 ): Promise<CommunityPostRow[]> {
   const supabase = createSupabaseClient();
+  const viewerRole = await getViewerRole(supabase);
+  const canViewAgentOnly = canReadAgentOnlyRole(viewerRole);
+
+  if (tabKey === "agent_only" && !canViewAgentOnly) {
+    return [];
+  }
 
   let query = supabase
     .from("community_posts")
     .select(postBaseSelect)
-    .eq("status", "published")
     .order("created_at", { ascending: false });
 
-  if (tabKey !== "all") {
+  if (tabKey === "agent_only") {
+    query = query.eq("is_agent_only", true);
+  } else {
+    query = query.eq("is_agent_only", false);
+  }
+
+  if (tabKey !== "all" && tabKey !== "agent_only") {
     if (tabKey === "visited") {
       query = query.not("visited_on", "is", null);
     } else {
@@ -283,7 +357,10 @@ export async function getCommunityFeed(
     return [];
   }
 
-  const enriched = await enrichPostRows((data ?? []) as CommunityPostBaseDbRow[]);
+  const visibleRows = ((data ?? []) as CommunityPostBaseDbRow[]).filter((row) =>
+    isVisiblePostStatus(row.status),
+  );
+  const enriched = await enrichPostRows(visibleRows);
   return attachViewerReactions(enriched.map((row) => mapPostRow(row)));
 }
 
@@ -292,15 +369,25 @@ export async function getCommunityProfileFeed(
   tabKey: CommunityTabKey,
 ): Promise<CommunityPostRow[]> {
   const supabase = createSupabaseClient();
+  const viewerRole = await getViewerRole(supabase);
+  const canViewAgentOnly = canReadAgentOnlyRole(viewerRole);
 
   let query = supabase
     .from("community_posts")
     .select(postBaseSelect)
-    .eq("status", "published")
     .eq("author_profile_id", profileId)
     .order("created_at", { ascending: false });
 
-  if (tabKey !== "all") {
+  if (!canViewAgentOnly) {
+    query = query.eq("is_agent_only", false);
+  }
+
+  if (tabKey === "agent_only") {
+    if (!canViewAgentOnly) return [];
+    query = query.eq("is_agent_only", true);
+  }
+
+  if (tabKey !== "all" && tabKey !== "agent_only") {
     if (tabKey === "visited") {
       query = query.not("visited_on", "is", null);
     } else {
@@ -315,7 +402,10 @@ export async function getCommunityProfileFeed(
     return [];
   }
 
-  const enriched = await enrichPostRows((data ?? []) as CommunityPostBaseDbRow[]);
+  const visibleRows = ((data ?? []) as CommunityPostBaseDbRow[]).filter((row) =>
+    isVisiblePostStatus(row.status),
+  );
+  const enriched = await enrichPostRows(visibleRows);
   return attachViewerReactions(enriched.map((row) => mapPostRow(row)));
 }
 
@@ -323,21 +413,31 @@ export async function getCommunityTrendingPosts(
   limit = 4,
 ): Promise<CommunityPostRow[]> {
   const supabase = createSupabaseClient();
+  const viewerRole = await getViewerRole(supabase);
+  const canViewAgentOnly = canReadAgentOnlyRole(viewerRole);
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("community_posts")
     .select(postBaseSelect)
-    .eq("status", "published")
     .order("comment_count", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(limit);
+
+  if (!canViewAgentOnly) {
+    query = query.eq("is_agent_only", false);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error("community trending load error:", error.message);
     return [];
   }
 
-  const enriched = await enrichPostRows((data ?? []) as CommunityPostBaseDbRow[]);
+  const visibleRows = ((data ?? []) as CommunityPostBaseDbRow[]).filter((row) =>
+    isVisiblePostStatus(row.status),
+  );
+  const enriched = await enrichPostRows(visibleRows);
   return attachViewerReactions(enriched.map((row) => mapPostRow(row)));
 }
 
@@ -417,6 +517,18 @@ export async function createCommunityPost(
     return { ok: false, message: "로그인이 필요합니다." };
   }
 
+  const { data: profileData } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+  const userRole = (profileData as { role?: CommunityUserRole | null } | null)?.role;
+  const isAgentOnlyPost = args.status === "agent_only";
+
+  if (isAgentOnlyPost && !canWriteAgentOnlyRole(userRole)) {
+    return { ok: false, message: "상담사만 상담사 전용 글을 작성할 수 있습니다." };
+  }
+
   if (args.status === "visited") {
     if (!args.propertyId) {
       return { ok: false, message: "다녀온 현장을 선택해주세요." };
@@ -445,25 +557,63 @@ export async function createCommunityPost(
     }
   }
 
-  const { data, error } = await supabase
-    .from("community_posts")
-    .insert({
-      author_profile_id: user.id,
-      property_id: args.propertyId,
-      status: "published",
-      title: args.title,
-      body: args.body,
-      like_count: 0,
-      comment_count: 0,
-      visited_on: args.visitedOn ?? null,
-      is_anonymous: args.isAnonymous ?? false,
-      anonymous_nickname:
-        args.isAnonymous && args.anonymousNickname
-          ? args.anonymousNickname.trim()
-          : null,
-    })
-    .select("id")
-    .single();
+  const insertBase = {
+    author_profile_id: user.id,
+    property_id: args.propertyId,
+    title: args.title,
+    body: args.body,
+    like_count: 0,
+    comment_count: 0,
+    visited_on: args.visitedOn ?? null,
+    is_anonymous: args.isAnonymous ?? false,
+    anonymous_nickname:
+      args.isAnonymous && args.anonymousNickname
+        ? args.anonymousNickname.trim()
+        : null,
+    is_agent_only: isAgentOnlyPost,
+  };
+
+  let data: { id?: string } | null = null;
+  let error: { message?: string } | null = null;
+
+  // 1) status에 visited/thinking을 쓰는 스키마 우선
+  {
+    const result = await supabase
+      .from("community_posts")
+      .insert({
+        ...insertBase,
+        status: args.status,
+      })
+      .select("id")
+      .single();
+    data = result.data as { id?: string } | null;
+    error = (result.error as { message?: string } | null) ?? null;
+  }
+
+  // 2) 레거시 스키마(published) fallback
+  if ((!data?.id || error) && isInvalidCommunityStatusError(error)) {
+    const result = await supabase
+      .from("community_posts")
+      .insert({
+        ...insertBase,
+        status: "published",
+      })
+      .select("id")
+      .single();
+    data = result.data as { id?: string } | null;
+    error = (result.error as { message?: string } | null) ?? null;
+  }
+
+  // 3) 최종 fallback: status 생략(DB default)
+  if ((!data?.id || error) && isInvalidCommunityStatusError(error)) {
+    const result = await supabase
+      .from("community_posts")
+      .insert(insertBase)
+      .select("id")
+      .single();
+    data = result.data as { id?: string } | null;
+    error = (result.error as { message?: string } | null) ?? null;
+  }
 
   if (error || !data?.id) {
     console.error("community post create error:", error?.message);

@@ -76,7 +76,6 @@ const isPropertyRow = (value: unknown): value is PropertyRow =>
   isNullableString(value.image_url) &&
   isNullableString(value.confirmed_comment) &&
   isNullableString(value.estimated_comment) &&
-  isNullableString(value.pending_comment) &&
   isRowOrArray(value.property_locations, isLocationRow) &&
   isRowOrArray(value.property_specs, isSpecRow) &&
   isRowOrArray(value.property_timeline, isTimelineRow) &&

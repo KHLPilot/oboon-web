@@ -416,7 +416,7 @@
     "permissive": "PERMISSIVE",
     "roles": "{public}",
     "cmd": "DELETE",
-    "using_expression": "((auth.uid() IS NOT NULL) AND (profile_id = auth.uid()))",
+    "using_expression": "((auth.uid() IS NOT NULL) AND (profile_id = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM community_posts cp\n  WHERE ((cp.id = community_bookmarks.post_id) AND ((cp.is_agent_only = false) OR (EXISTS ( SELECT 1\n           FROM profiles p\n          WHERE ((p.id = auth.uid()) AND (p.role = ANY (ARRAY['agent'::text, 'admin'::text]))))))))))",
     "with_check_expression": null
   },
   {
@@ -427,7 +427,7 @@
     "roles": "{public}",
     "cmd": "INSERT",
     "using_expression": null,
-    "with_check_expression": "((auth.uid() IS NOT NULL) AND (profile_id = auth.uid()))"
+    "with_check_expression": "((auth.uid() IS NOT NULL) AND (profile_id = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM community_posts cp\n  WHERE ((cp.id = community_bookmarks.post_id) AND ((cp.is_agent_only = false) OR (EXISTS ( SELECT 1\n           FROM profiles p\n          WHERE ((p.id = auth.uid()) AND (p.role = ANY (ARRAY['agent'::text, 'admin'::text]))))))))))"
   },
   {
     "schemaname": "public",
@@ -436,7 +436,7 @@
     "permissive": "PERMISSIVE",
     "roles": "{public}",
     "cmd": "SELECT",
-    "using_expression": "((auth.uid() IS NOT NULL) AND (profile_id = auth.uid()))",
+    "using_expression": "((auth.uid() IS NOT NULL) AND (profile_id = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM community_posts cp\n  WHERE ((cp.id = community_bookmarks.post_id) AND ((cp.is_agent_only = false) OR (EXISTS ( SELECT 1\n           FROM profiles p\n          WHERE ((p.id = auth.uid()) AND (p.role = ANY (ARRAY['agent'::text, 'admin'::text]))))))))))",
     "with_check_expression": null
   },
   {
@@ -446,7 +446,7 @@
     "permissive": "PERMISSIVE",
     "roles": "{public}",
     "cmd": "DELETE",
-    "using_expression": "((auth.uid() IS NOT NULL) AND (profile_id = auth.uid()))",
+    "using_expression": "((auth.uid() IS NOT NULL) AND (profile_id = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM (community_comments cc\n     JOIN community_posts cp ON ((cp.id = cc.post_id)))\n  WHERE ((cc.id = community_comment_likes.comment_id) AND ((cp.is_agent_only = false) OR (EXISTS ( SELECT 1\n           FROM profiles p\n          WHERE ((p.id = auth.uid()) AND (p.role = ANY (ARRAY['agent'::text, 'admin'::text]))))))))))",
     "with_check_expression": null
   },
   {
@@ -457,7 +457,7 @@
     "roles": "{public}",
     "cmd": "INSERT",
     "using_expression": null,
-    "with_check_expression": "((auth.uid() IS NOT NULL) AND (profile_id = auth.uid()))"
+    "with_check_expression": "((auth.uid() IS NOT NULL) AND (profile_id = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM (community_comments cc\n     JOIN community_posts cp ON ((cp.id = cc.post_id)))\n  WHERE ((cc.id = community_comment_likes.comment_id) AND ((cp.is_agent_only = false) OR (EXISTS ( SELECT 1\n           FROM profiles p\n          WHERE ((p.id = auth.uid()) AND (p.role = ANY (ARRAY['agent'::text, 'admin'::text]))))))))))"
   },
   {
     "schemaname": "public",
@@ -466,7 +466,7 @@
     "permissive": "PERMISSIVE",
     "roles": "{public}",
     "cmd": "SELECT",
-    "using_expression": "((auth.uid() IS NOT NULL) AND (profile_id = auth.uid()))",
+    "using_expression": "((auth.uid() IS NOT NULL) AND (profile_id = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM (community_comments cc\n     JOIN community_posts cp ON ((cp.id = cc.post_id)))\n  WHERE ((cc.id = community_comment_likes.comment_id) AND ((cp.is_agent_only = false) OR (EXISTS ( SELECT 1\n           FROM profiles p\n          WHERE ((p.id = auth.uid()) AND (p.role = ANY (ARRAY['agent'::text, 'admin'::text]))))))))))",
     "with_check_expression": null
   },
   {
@@ -476,7 +476,7 @@
     "permissive": "PERMISSIVE",
     "roles": "{public}",
     "cmd": "DELETE",
-    "using_expression": "((auth.uid() IS NOT NULL) AND ((author_profile_id = auth.uid()) OR is_admin() OR is_admin(auth.uid())))",
+    "using_expression": "((auth.uid() IS NOT NULL) AND ((author_profile_id = auth.uid()) OR is_admin() OR is_admin(auth.uid())) AND (EXISTS ( SELECT 1\n   FROM community_posts cp\n  WHERE ((cp.id = community_comments.post_id) AND ((cp.is_agent_only = false) OR is_admin() OR is_admin(auth.uid()) OR (EXISTS ( SELECT 1\n           FROM profiles p\n          WHERE ((p.id = auth.uid()) AND (p.role = ANY (ARRAY['agent'::text, 'admin'::text]))))))))))",
     "with_check_expression": null
   },
   {
@@ -487,7 +487,7 @@
     "roles": "{public}",
     "cmd": "INSERT",
     "using_expression": null,
-    "with_check_expression": "((auth.uid() IS NOT NULL) AND (author_profile_id = auth.uid()))"
+    "with_check_expression": "((auth.uid() IS NOT NULL) AND (author_profile_id = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM community_posts cp\n  WHERE ((cp.id = community_comments.post_id) AND ((cp.is_agent_only = false) OR (EXISTS ( SELECT 1\n           FROM profiles p\n          WHERE ((p.id = auth.uid()) AND (p.role = ANY (ARRAY['agent'::text, 'admin'::text]))))))))))"
   },
   {
     "schemaname": "public",
@@ -496,7 +496,7 @@
     "permissive": "PERMISSIVE",
     "roles": "{public}",
     "cmd": "SELECT",
-    "using_expression": "true",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM community_posts cp\n  WHERE ((cp.id = community_comments.post_id) AND ((cp.is_agent_only = false) OR ((auth.uid() IS NOT NULL) AND (EXISTS ( SELECT 1\n           FROM profiles p\n          WHERE ((p.id = auth.uid()) AND (p.role = ANY (ARRAY['agent'::text, 'admin'::text]))))))))))",
     "with_check_expression": null
   },
   {
@@ -506,8 +506,8 @@
     "permissive": "PERMISSIVE",
     "roles": "{public}",
     "cmd": "UPDATE",
-    "using_expression": "((auth.uid() IS NOT NULL) AND ((author_profile_id = auth.uid()) OR is_admin() OR is_admin(auth.uid())))",
-    "with_check_expression": "((auth.uid() IS NOT NULL) AND ((author_profile_id = auth.uid()) OR is_admin() OR is_admin(auth.uid())))"
+    "using_expression": "((auth.uid() IS NOT NULL) AND ((author_profile_id = auth.uid()) OR is_admin() OR is_admin(auth.uid())) AND (EXISTS ( SELECT 1\n   FROM community_posts cp\n  WHERE ((cp.id = community_comments.post_id) AND ((cp.is_agent_only = false) OR is_admin() OR is_admin(auth.uid()) OR (EXISTS ( SELECT 1\n           FROM profiles p\n          WHERE ((p.id = auth.uid()) AND (p.role = ANY (ARRAY['agent'::text, 'admin'::text]))))))))))",
+    "with_check_expression": "((auth.uid() IS NOT NULL) AND ((author_profile_id = auth.uid()) OR is_admin() OR is_admin(auth.uid())) AND (EXISTS ( SELECT 1\n   FROM community_posts cp\n  WHERE ((cp.id = community_comments.post_id) AND ((cp.is_agent_only = false) OR is_admin() OR is_admin(auth.uid()) OR (EXISTS ( SELECT 1\n           FROM profiles p\n          WHERE ((p.id = auth.uid()) AND (p.role = ANY (ARRAY['agent'::text, 'admin'::text]))))))))))"
   },
   {
     "schemaname": "public",
@@ -546,7 +546,7 @@
     "permissive": "PERMISSIVE",
     "roles": "{public}",
     "cmd": "DELETE",
-    "using_expression": "((auth.uid() IS NOT NULL) AND (profile_id = auth.uid()))",
+    "using_expression": "((auth.uid() IS NOT NULL) AND (profile_id = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM community_posts cp\n  WHERE ((cp.id = community_likes.post_id) AND ((cp.is_agent_only = false) OR (EXISTS ( SELECT 1\n           FROM profiles p\n          WHERE ((p.id = auth.uid()) AND (p.role = ANY (ARRAY['agent'::text, 'admin'::text]))))))))))",
     "with_check_expression": null
   },
   {
@@ -557,7 +557,7 @@
     "roles": "{public}",
     "cmd": "INSERT",
     "using_expression": null,
-    "with_check_expression": "((auth.uid() IS NOT NULL) AND (profile_id = auth.uid()))"
+    "with_check_expression": "((auth.uid() IS NOT NULL) AND (profile_id = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM community_posts cp\n  WHERE ((cp.id = community_likes.post_id) AND ((cp.is_agent_only = false) OR (EXISTS ( SELECT 1\n           FROM profiles p\n          WHERE ((p.id = auth.uid()) AND (p.role = ANY (ARRAY['agent'::text, 'admin'::text]))))))))))"
   },
   {
     "schemaname": "public",
@@ -566,7 +566,7 @@
     "permissive": "PERMISSIVE",
     "roles": "{public}",
     "cmd": "SELECT",
-    "using_expression": "((auth.uid() IS NOT NULL) AND (profile_id = auth.uid()))",
+    "using_expression": "((auth.uid() IS NOT NULL) AND (profile_id = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM community_posts cp\n  WHERE ((cp.id = community_likes.post_id) AND ((cp.is_agent_only = false) OR (EXISTS ( SELECT 1\n           FROM profiles p\n          WHERE ((p.id = auth.uid()) AND (p.role = ANY (ARRAY['agent'::text, 'admin'::text]))))))))))",
     "with_check_expression": null
   },
   {
@@ -587,7 +587,7 @@
     "roles": "{public}",
     "cmd": "INSERT",
     "using_expression": null,
-    "with_check_expression": "((auth.uid() IS NOT NULL) AND (author_profile_id = auth.uid()))"
+    "with_check_expression": "((auth.uid() IS NOT NULL) AND (author_profile_id = auth.uid()) AND ((is_agent_only = false) OR (EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = 'agent'::text))))))"
   },
   {
     "schemaname": "public",
@@ -596,7 +596,7 @@
     "permissive": "PERMISSIVE",
     "roles": "{public}",
     "cmd": "SELECT",
-    "using_expression": "true",
+    "using_expression": "((is_agent_only = false) OR ((auth.uid() IS NOT NULL) AND (EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = ANY (ARRAY['agent'::text, 'admin'::text])))))))",
     "with_check_expression": null
   },
   {
@@ -607,7 +607,7 @@
     "roles": "{public}",
     "cmd": "UPDATE",
     "using_expression": "((auth.uid() IS NOT NULL) AND ((author_profile_id = auth.uid()) OR is_admin() OR is_admin(auth.uid())))",
-    "with_check_expression": "((auth.uid() IS NOT NULL) AND ((author_profile_id = auth.uid()) OR is_admin() OR is_admin(auth.uid())))"
+    "with_check_expression": "((auth.uid() IS NOT NULL) AND ((author_profile_id = auth.uid()) OR is_admin() OR is_admin(auth.uid())) AND ((is_agent_only = false) OR is_admin() OR is_admin(auth.uid()) OR (EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = 'agent'::text))))))"
   },
   {
     "schemaname": "public",

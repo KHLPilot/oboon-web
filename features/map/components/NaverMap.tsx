@@ -47,6 +47,9 @@ const NaverMap = forwardRef<
     hoveredId?: number | null;
     focusedId?: number | null;
     richMarkerIds?: number[];
+    showFocusedAsRich?: boolean;
+    fitToMarkers?: boolean;
+    initialZoom?: number;
     onMarkerSelect?: (id: number) => void;
     onHoverChange?: (id: number | null) => void;
     onVisibleIdsChange?: (ids: number[]) => void;
@@ -61,6 +64,9 @@ const NaverMap = forwardRef<
       hoveredId = null,
       focusedId = null,
       richMarkerIds = [],
+      showFocusedAsRich = true,
+      fitToMarkers = false,
+      initialZoom = 12,
       onMarkerSelect,
       onHoverChange = () => {},
       onVisibleIdsChange,
@@ -92,9 +98,13 @@ const NaverMap = forwardRef<
     const focusedIdRef = useRef(focusedId);
     const hoveredIdRef = useRef(hoveredId);
     const richMarkerIdsRef = useRef<number[]>(richMarkerIds);
+    const showFocusedAsRichRef = useRef(showFocusedAsRich);
+    const markerClickTsRef = useRef<number>(0);
+    const lastFittedMarkersKeyRef = useRef<string>("");
     focusedIdRef.current = focusedId;
     hoveredIdRef.current = hoveredId;
     richMarkerIdsRef.current = richMarkerIds;
+    showFocusedAsRichRef.current = showFocusedAsRich;
     const applyMarkerStyleByIdRef = useRef<
       (naverObj: NaverGlobal, id: number) => void
     >(
@@ -127,7 +137,9 @@ const NaverMap = forwardRef<
 
     function shouldBeRich(m: MapMarker) {
       // 기본은 focused 마커만 rich, 필요 시 richMarkerIds로 추가 지정 가능
-      if (focusedIdRef.current === m.id) return true;
+      if (showFocusedAsRichRef.current && focusedIdRef.current === m.id) {
+        return true;
+      }
       return richMarkerIdsRef.current.includes(m.id);
     }
 
@@ -152,7 +164,8 @@ const NaverMap = forwardRef<
         type: m.type,
         state,
         viewType: isRich ? "rich" : "compact",
-        topLabel: m.label,
+        label: m.label,
+        topLabel: m.topLabel,
         mainLabel: m.mainLabel,
       });
 
@@ -219,6 +232,49 @@ const NaverMap = forwardRef<
       });
     }
 
+    function fitMapToMarkers(naverObj: NaverGlobal, next: MapMarker[]) {
+      const map = mapRef.current;
+      if (!map || !fitToMarkers || next.length < 2) return;
+
+      const markersKey = next
+        .map((m) => `${m.id}:${m.lat.toFixed(6)},${m.lng.toFixed(6)}`)
+        .join("|");
+      if (markersKey === lastFittedMarkersKeyRef.current) return;
+
+      const lats = next.map((m) => m.lat);
+      const lngs = next.map((m) => m.lng);
+      const minLat = Math.min(...lats);
+      const maxLat = Math.max(...lats);
+      const minLng = Math.min(...lngs);
+      const maxLng = Math.max(...lngs);
+
+      const centerLat = (minLat + maxLat) / 2;
+      const centerLng = (minLng + maxLng) / 2;
+      const span = Math.max(maxLat - minLat, maxLng - minLng);
+
+      // 마커 간 거리(span)에 따라 대략적인 줌을 선택
+      const targetZoom =
+        span > 1
+          ? 8
+          : span > 0.5
+            ? 9
+            : span > 0.2
+              ? 10
+              : span > 0.1
+                ? 11
+                : span > 0.05
+                  ? 12
+                  : span > 0.02
+                    ? 13
+                    : span > 0.01
+                      ? 14
+                      : 15;
+
+      map.panTo(new naverObj.maps.LatLng(centerLat, centerLng));
+      map.setZoom(targetZoom, true);
+      lastFittedMarkersKeyRef.current = markersKey;
+    }
+
     function upsertMarkers(next: MapMarker[], map: naver.maps.Map, naverObj: NaverGlobal) {
       const nextIds = new Set<number>();
       for (const m of next) nextIds.add(m.id);
@@ -249,6 +305,7 @@ const NaverMap = forwardRef<
 
           naverObj.maps.Event.addListener(mk, "click", (e?: unknown) => {
             const event = e as MapClickEvent | undefined;
+            markerClickTsRef.current = Date.now();
             if (event?.domEvent) {
               event.domEvent.preventDefault();
               event.domEvent.stopPropagation();
@@ -323,7 +380,7 @@ const NaverMap = forwardRef<
 
         const map = new naverObj.maps.Map(mapContainerRef.current, {
           center: new naverObj.maps.LatLng(37.5127, 126.9706),
-          zoom: 12,
+          zoom: initialZoom,
           zoomControl: false,
         });
         mapRef.current = map;
@@ -359,12 +416,16 @@ const NaverMap = forwardRef<
         };
         triggerInitialResize();
 
-        if (markers.length > 0) upsertMarkers(markers, map, naverObj);
+      if (markers.length > 0) upsertMarkers(markers, map, naverObj);
+      if (markers.length > 0) fitMapToMarkers(naverObj, markers);
 
         const clickListener = naverObj.maps.Event.addListener(
           map,
           "click",
           (e?: unknown) => {
+            // 마커 클릭 직후 발생하는 지도 클릭 버블링성 이벤트는 무시
+            if (Date.now() - markerClickTsRef.current < 250) return;
+
             const event = e as MapClickEvent | undefined;
             if (callbacksRef.current.mode === "select") {
               const lat =
@@ -468,6 +529,7 @@ const NaverMap = forwardRef<
 
       if (naverObj?.maps && map) {
         upsertMarkers(markers, map, naverObj);
+        fitMapToMarkers(naverObj, markers);
       } else {
         // 지도 준비 전 스냅샷만 갱신
         markerDataByIdRef.current = new Map(markers.map((m) => [m.id, m]));

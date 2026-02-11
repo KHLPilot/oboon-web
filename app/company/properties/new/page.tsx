@@ -23,6 +23,7 @@ import {
   PROPERTY_STATUS_OPTIONS,
   type PropertyStatus,
 } from "@/features/property/domain/propertyStatus";
+import { createSupabaseClient } from "@/lib/supabaseClient";
 
 type PropertyForm = {
   name: string;
@@ -31,7 +32,6 @@ type PropertyForm = {
   description: string;
   confirmed_comment: string;
   estimated_comment: string;
-  pending_comment: string;
 };
 
 type PendingGalleryImage = {
@@ -62,12 +62,12 @@ export default function PropertyCreatePage() {
     description: "",
     confirmed_comment: "",
     estimated_comment: "",
-    pending_comment: "",
   });
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
 
   // 대표 이미지 파일 + 미리보기
   const [mainImageFile, setMainImageFile] = useState<File | null>(null);
@@ -120,6 +120,14 @@ export default function PropertyCreatePage() {
         return;
       }
       setUserId(userId);
+
+      const supabase = createSupabaseClient();
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", userId)
+        .single();
+      setUserRole(profile?.role ?? null);
     }
     checkUser();
   }, [router]);
@@ -237,7 +245,6 @@ export default function PropertyCreatePage() {
         description: form.description.trim() || null,
         confirmed_comment: form.confirmed_comment.trim() || null,
         estimated_comment: form.estimated_comment.trim() || null,
-        pending_comment: form.pending_comment.trim() || null,
 
         created_by: userId,
       };
@@ -258,23 +265,25 @@ export default function PropertyCreatePage() {
 
       const propertyId = data.id as number;
 
-      // 상담사 계정인 경우: 새 현장 등록 직후 자동 소속 시도
-      try {
-        const affiliationResponse = await fetch("/api/property-agents", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            property_id: propertyId,
-          }),
-        });
-        if (!affiliationResponse.ok) {
-          const affiliationData = await affiliationResponse
-            .json()
-            .catch(() => null);
-          console.error("자동 소속 처리 실패:", affiliationData);
+      // 상담사 계정인 경우에만: 새 현장 등록 직후 자동 소속 시도
+      if (userRole === "agent") {
+        try {
+          const affiliationResponse = await fetch("/api/property-agents", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              property_id: propertyId,
+            }),
+          });
+          if (!affiliationResponse.ok) {
+            const affiliationData = await affiliationResponse
+              .json()
+              .catch(() => null);
+            console.error("자동 소속 처리 실패:", affiliationData);
+          }
+        } catch (affiliationError) {
+          console.error("자동 소속 API 호출 오류:", affiliationError);
         }
-      } catch (affiliationError) {
-        console.error("자동 소속 API 호출 오류:", affiliationError);
       }
 
       // 대표 이미지 업로드 (선택)

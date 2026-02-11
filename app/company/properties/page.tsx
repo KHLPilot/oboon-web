@@ -39,7 +39,6 @@ type PropertyRow = {
   property_unit_types?: PropertyListRow["property_unit_types"];
   confirmed_comment?: PropertyListRow["confirmed_comment"];
   estimated_comment?: PropertyListRow["estimated_comment"];
-  pending_comment?: PropertyListRow["pending_comment"];
   request_status?: "pending" | "approved" | "rejected" | null;
   request_requested_at?: string | null;
   request_rejection_reason?: string | null;

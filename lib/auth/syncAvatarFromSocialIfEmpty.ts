@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { normalizeAvatarUrl } from "@/shared/imageUrl";
 
 type IdentityData = Record<string, unknown> | undefined;
 type UserMetadata = Record<string, unknown> | undefined;
@@ -15,13 +16,11 @@ const getSocialAvatarUrl = (
     identity?.profile_image_url,
   ];
 
-  const url = candidates.find(
-    (value) =>
-      typeof value === "string" &&
-      (value.startsWith("http://") || value.startsWith("https://")),
-  );
+  const url = candidates
+    .map((value) => normalizeAvatarUrl(value))
+    .find((value): value is string => typeof value === "string");
 
-  return (url as string | undefined) ?? null;
+  return url ?? null;
 };
 
 export async function syncAvatarFromSocialIfEmpty(

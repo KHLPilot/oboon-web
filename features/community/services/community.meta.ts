@@ -1,6 +1,7 @@
 import { createSupabaseClient } from "@/lib/supabaseClient";
 
 import type { CommunityPropertyOption } from "../domain/community";
+import type { CommunityUserRole } from "../domain/community";
 
 type ConsultationPropertyRow = {
   property_id: number | null;
@@ -24,9 +25,22 @@ export async function getCommunityAuthStatus() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  let role: CommunityUserRole | null = null;
+  if (user?.id) {
+    const { data } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    const nextRole = (data as { role?: CommunityUserRole | null } | null)?.role;
+    role = nextRole ?? null;
+  }
+
   return {
     isLoggedIn: Boolean(user),
     user,
+    role,
   };
 }
 

@@ -24,6 +24,7 @@ export default function OfferingDetailTabs({
         hasMemo ? { id: "memo", label: "감정평가사 메모" } : null,
         { id: "prices", label: "분양가 표" },
         hasTimeline ? { id: "timeline", label: "일정" } : null,
+        { id: "location", label: "위치" },
       ].filter((tab): tab is Tab => tab !== null),
     [hasMemo, hasTimeline],
   );

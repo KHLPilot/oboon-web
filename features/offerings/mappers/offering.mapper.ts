@@ -29,7 +29,6 @@ export type PropertyRow = {
   image_url: string | null;
   confirmed_comment: string | null;
   estimated_comment: string | null;
-  pending_comment: string | null;
   property_locations: PropertyLocationRow[] | null;
   property_unit_types: PropertyUnitTypeRow[] | null;
 };
@@ -48,11 +47,7 @@ function pickFirstNonEmpty(...values: Array<string | null | undefined>) {
 
 export function hasAppraiserComment(row: PropertyRow) {
   const v = (s: string | null) => (s ?? "").trim().length > 0;
-  return (
-    v(row.confirmed_comment) ||
-    v(row.estimated_comment) ||
-    v(row.pending_comment)
-  );
+  return v(row.confirmed_comment) || v(row.estimated_comment);
 }
 
 function aggregatePrice(unitTypes: PropertyUnitTypeRow[] | null | undefined) {

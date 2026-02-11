@@ -42,7 +42,9 @@ export default function OfferingDetailRight({
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [loadingAgents, setLoadingAgents] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const isLoggedIn = Boolean(user);
+  const isBookingBlockedRole = userRole === "agent" || userRole === "admin";
   const hasBookableAgent = hasApprovedAgent && agents.length > 0;
 
   const handleConsultationClick = useCallback(() => {
@@ -64,6 +66,18 @@ export default function OfferingDetailRight({
         } = await supabase.auth.getUser();
         if (!isMounted) return;
         setUser(currentUser);
+
+        if (currentUser) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("role")
+            .eq("id", currentUser.id)
+            .maybeSingle();
+          if (!isMounted) return;
+          setUserRole((profile?.role as string | null) ?? null);
+        } else {
+          setUserRole(null);
+        }
 
         const { data: propertyAgents } = await supabase
           .from("property_agents")
@@ -130,16 +144,27 @@ export default function OfferingDetailRight({
                 variant="primary"
                 size="md"
                 shape="pill"
+                disabled={isBookingBlockedRole}
                 onClick={() => {
                   if (!isLoggedIn) {
                     router.push("/auth/login");
                     return;
                   }
+                  if (isBookingBlockedRole) return;
                   handleConsultationClick();
                 }}
               >
-                {isLoggedIn ? "예약하기" : "로그인 후 예약하기"}
+                {!isLoggedIn
+                  ? "로그인 후 예약하기"
+                  : isBookingBlockedRole
+                    ? "예약 불가 계정"
+                    : "예약하기"}
               </Button>
+              {isBookingBlockedRole ? (
+                <div className="ob-typo-caption text-(--oboon-text-muted)">
+                  관리자/상담사 계정은 상담 예약을 할 수 없습니다.
+                </div>
+              ) : null}
             </div>
           ) : (
             <div className="mt-4 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-4 py-6 text-center ob-typo-caption text-(--oboon-text-muted)">
@@ -167,15 +192,21 @@ export default function OfferingDetailRight({
                 <Button
                   className="flex-1"
                   variant="primary"
+                  disabled={isBookingBlockedRole}
                   onClick={() => {
                     if (!isLoggedIn) {
                       router.push("/auth/login");
                       return;
                     }
+                    if (isBookingBlockedRole) return;
                     handleConsultationClick();
                   }}
                 >
-                  {isLoggedIn ? "상담 신청" : "로그인 후 상담 신청"}
+                  {!isLoggedIn
+                    ? "로그인 후 상담 신청"
+                    : isBookingBlockedRole
+                      ? "예약 불가 계정"
+                      : "상담 신청"}
                 </Button>
               ) : (
                 <div className="flex-1 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-2.5 text-center ob-typo-caption text-(--oboon-text-muted)">

@@ -8,6 +8,24 @@ const adminSupabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
+function isBlockedPostStatus(status: string | null | undefined) {
+  const normalized = (status ?? "").trim().toLowerCase();
+  return normalized === "hidden" || normalized === "deleted" || normalized === "draft";
+}
+
+function canAccessAgentOnlyRole(role: string | null | undefined) {
+  return role === "agent" || role === "admin";
+}
+
+async function getProfileRole(profileId: string) {
+  const { data } = await adminSupabase
+    .from("profiles")
+    .select("role")
+    .eq("id", profileId)
+    .maybeSingle();
+  return (data as { role?: string | null } | null)?.role ?? null;
+}
+
 type CommentRow = {
   id: string;
   body: string;
@@ -60,6 +78,44 @@ export async function GET(
     const {
       data: { user },
     } = await supabase.auth.getUser();
+
+    const { data: postRow, error: postError } = await adminSupabase
+      .from("community_posts")
+      .select("id, status, is_agent_only")
+      .eq("id", postId)
+      .maybeSingle();
+
+    if (postError) {
+      return NextResponse.json(
+        { error: "게시글 상태를 확인하지 못했습니다." },
+        { status: 500 },
+      );
+    }
+
+    if (!postRow || isBlockedPostStatus((postRow as { status?: string | null }).status)) {
+      return NextResponse.json(
+        { error: "접근할 수 없는 게시글입니다." },
+        { status: 404 },
+      );
+    }
+
+    const isAgentOnlyPost =
+      (postRow as { is_agent_only?: boolean | null }).is_agent_only === true;
+    if (isAgentOnlyPost) {
+      if (!user?.id) {
+        return NextResponse.json(
+          { error: "상담사 전용 게시글입니다." },
+          { status: 403 },
+        );
+      }
+      const role = await getProfileRole(user.id);
+      if (!canAccessAgentOnlyRole(role)) {
+        return NextResponse.json(
+          { error: "상담사 전용 게시글입니다." },
+          { status: 403 },
+        );
+      }
+    }
 
     const { data: comments, error: commentsError } = await adminSupabase
       .from("community_comments")
@@ -179,6 +235,38 @@ export async function POST(
 
     if (!user) {
       return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
+    }
+
+    const { data: postRow, error: postError } = await adminSupabase
+      .from("community_posts")
+      .select("id, status, is_agent_only")
+      .eq("id", postId)
+      .maybeSingle();
+
+    if (postError) {
+      return NextResponse.json(
+        { error: "게시글 상태를 확인하지 못했습니다." },
+        { status: 500 },
+      );
+    }
+
+    if (!postRow || isBlockedPostStatus((postRow as { status?: string | null }).status)) {
+      return NextResponse.json(
+        { error: "접근할 수 없는 게시글입니다." },
+        { status: 404 },
+      );
+    }
+
+    const isAgentOnlyPost =
+      (postRow as { is_agent_only?: boolean | null }).is_agent_only === true;
+    if (isAgentOnlyPost) {
+      const role = await getProfileRole(user.id);
+      if (!canAccessAgentOnlyRole(role)) {
+        return NextResponse.json(
+          { error: "상담사 전용 게시글입니다." },
+          { status: 403 },
+        );
+      }
     }
 
     const body = await req.json();

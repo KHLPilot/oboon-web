@@ -22,6 +22,13 @@ export async function fetchMyPropertyRequest(propertyId: number) {
 }
 
 export async function fetchMyDeleteRequest(propertyId: number) {
+  if (!Number.isFinite(propertyId) || propertyId <= 0) {
+    return {
+      data: null,
+      error: new Error("유효하지 않은 propertyId입니다."),
+    } as PropertyRequestResult<PropertyRequestRow>;
+  }
+
   const supabase = createSupabaseClient();
   const {
     data: { user },
@@ -55,6 +62,13 @@ async function fetchMyPropertyRequestByType(
   propertyId: number,
   requestType: PropertyRequestType,
 ) {
+  if (!Number.isFinite(propertyId) || propertyId <= 0) {
+    return {
+      data: null,
+      error: new Error("유효하지 않은 propertyId입니다."),
+    } as PropertyRequestResult<PropertyRequestRow>;
+  }
+
   const supabase = createSupabaseClient();
   const {
     data: { user },
@@ -84,6 +98,13 @@ export async function createPropertyRequest(
   propertyId: number,
   options?: { force?: boolean; requestType?: PropertyRequestType; reason?: string },
 ) {
+  if (!Number.isFinite(propertyId) || propertyId <= 0) {
+    return {
+      data: null,
+      error: new Error("유효하지 않은 propertyId입니다."),
+    } as PropertyRequestResult<PropertyRequestRow>;
+  }
+
   try {
     const response = await fetch("/api/property-requests", {
       method: "POST",

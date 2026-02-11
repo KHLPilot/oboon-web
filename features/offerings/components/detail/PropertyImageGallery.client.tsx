@@ -47,7 +47,7 @@ export default function PropertyImageGallery({
               alt={`${title} 이미지 ${safeIndex + 1}`}
               fill
               className="object-contain"
-              priority={safeIndex === 0}
+              sizes="(max-width: 768px) 100vw, 1200px"
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-sm text-(--oboon-text-muted)">
@@ -98,6 +98,7 @@ export default function PropertyImageGallery({
                 alt={`${title} 썸네일 ${index + 1}`}
                 fill
                 className="object-cover"
+                sizes="96px"
               />
             </button>
           ))}

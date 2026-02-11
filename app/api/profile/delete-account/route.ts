@@ -12,6 +12,21 @@ const supabaseAdmin = createClient(
 
 const ACTIVE_CONSULTATION_STATUSES = ["requested", "pending", "confirmed"] as const;
 
+function isWithdrawnSchemaIssue(error: unknown): boolean {
+    if (!error || typeof error !== "object") return false;
+    const message = String(
+        (error as { message?: unknown }).message ??
+        (error as { details?: unknown }).details ??
+        "",
+    ).toLowerCase();
+    return (
+        message.includes("withdrawn") ||
+        message.includes("property_agents_status_check") ||
+        message.includes("check constraint") ||
+        message.includes("enum")
+    );
+}
+
 export async function POST(req: Request) {
     try {
         const cookieStore = await cookies();
@@ -111,7 +126,66 @@ export async function POST(req: Request) {
             );
         }
 
-        // 3. profiles 익명화 + deleted_at 설정 (Soft Delete)
+        // 3. 상담사 소속 자동 해제
+        const { data: affiliatedRows, error: affiliatedLoadError } = await supabaseAdmin
+            .from("property_agents")
+            .select("id")
+            .eq("agent_id", userId)
+            .in("status", ["approved", "pending"]);
+
+        if (affiliatedLoadError) {
+            console.error("❌ 계정 삭제 전 소속 조회 실패:", affiliatedLoadError);
+            return NextResponse.json(
+                { error: "소속 정보를 확인하지 못했습니다." },
+                { status: 500 },
+            );
+        }
+
+        if (affiliatedRows && affiliatedRows.length > 0) {
+            const affiliationIds = affiliatedRows.map((row) => row.id);
+            const withdrawnAt = new Date().toISOString();
+
+            const { error: withdrawError } = await supabaseAdmin
+                .from("property_agents")
+                .update({
+                    status: "withdrawn",
+                    withdrawn_at: withdrawnAt,
+                    approved_at: null,
+                    approved_by: null,
+                })
+                .in("id", affiliationIds);
+
+            if (withdrawError) {
+                if (!isWithdrawnSchemaIssue(withdrawError)) {
+                    console.error("❌ 계정 삭제 전 소속 해제 실패:", withdrawError);
+                    return NextResponse.json(
+                        { error: "소속 해제에 실패했습니다." },
+                        { status: 500 },
+                    );
+                }
+
+                const { error: fallbackError } = await supabaseAdmin
+                    .from("property_agents")
+                    .update({
+                        status: "rejected",
+                        rejected_at: withdrawnAt,
+                        rejection_reason: "account_deleted_legacy",
+                        approved_at: null,
+                        approved_by: null,
+                    })
+                    .in("id", affiliationIds);
+
+                if (fallbackError) {
+                    console.error("❌ 계정 삭제 전 소속 해제 fallback 실패:", fallbackError);
+                    return NextResponse.json(
+                        { error: "소속 해제에 실패했습니다." },
+                        { status: 500 },
+                    );
+                }
+            }
+        }
+
+        // 4. profiles 익명화 + deleted_at 설정 (Soft Delete)
         const { error: updateError } = await supabaseAdmin
             .from("profiles")
             .update({
@@ -132,7 +206,7 @@ export async function POST(req: Request) {
             );
         }
 
-        // 4. auth.users는 그대로 유지 (ban 하지 않음)
+        // 5. auth.users는 그대로 유지 (ban 하지 않음)
         // 로그인 시 deleted_at 체크로 탈퇴 계정 판별
 
         return NextResponse.json({

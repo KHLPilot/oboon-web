@@ -19,6 +19,7 @@ import {
 import type {
   CommunityPostStatus,
   CommunityPropertyOption,
+  CommunityUserRole,
 } from "../../domain/community";
 import { createCommunityPost } from "../../services/community.posts";
 import {
@@ -33,16 +34,19 @@ const WRITE_TYPE_OPTIONS: Array<{
 }> = [
   { key: "thinking", label: "지금 고민 올리기" },
   { key: "visited", label: "다녀온 현장 남기기" },
+  { key: "agent_only", label: "상담사 전용 기록 남기기" },
 ];
 
 export default function CommunityWriteModal({
   open,
   onClose,
   isLoggedIn = false,
+  userRole = null,
 }: {
   open: boolean;
   onClose: () => void;
   isLoggedIn?: boolean;
+  userRole?: CommunityUserRole | null;
 }) {
   const [writeType, setWriteType] = useState<CommunityPostStatus>("thinking");
   const [title, setTitle] = useState("");
@@ -65,10 +69,25 @@ export default function CommunityWriteModal({
   const [canWriteVisited, setCanWriteVisited] = useState(true);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  const currentLabel = useMemo(
-    () => WRITE_TYPE_OPTIONS.find((opt) => opt.key === writeType)?.label ?? "",
-    [writeType],
+  const writeTypeOptions = useMemo(
+    () =>
+      WRITE_TYPE_OPTIONS.filter(
+        (option) => option.key !== "agent_only" || userRole === "agent",
+      ),
+    [userRole],
   );
+
+  const currentLabel = useMemo(
+    () => writeTypeOptions.find((opt) => opt.key === writeType)?.label ?? "",
+    [writeType, writeTypeOptions],
+  );
+
+  useEffect(() => {
+    const hasCurrentType = writeTypeOptions.some((option) => option.key === writeType);
+    if (!hasCurrentType) {
+      setWriteType("thinking");
+    }
+  }, [writeType, writeTypeOptions]);
 
   const selectedVisitedDateLabel = useMemo(() => {
     if (writeType !== "visited" || !selectedProperty?.visitedOn) return null;
@@ -240,7 +259,7 @@ export default function CommunityWriteModal({
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" matchTriggerWidth>
-                {WRITE_TYPE_OPTIONS.map((option) => (
+                {writeTypeOptions.map((option) => (
                   <DropdownMenuItem
                     key={option.key}
                     onClick={() => setWriteType(option.key)}
@@ -291,7 +310,9 @@ export default function CommunityWriteModal({
                 <Input
                   className="ob-typo-body"
                   placeholder={
-                    writeType === "thinking"
+                    writeType === "agent_only"
+                      ? "상담사 전용으로 공유할 핵심 포인트를 적어주세요"
+                      : writeType === "thinking"
                       ? "가장 헷갈리는 한 가지를 질문으로 적어주세요"
                       : "다녀와서 가장 먼저 든 생각을 한 문장으로 적어주세요"
                   }
@@ -302,7 +323,9 @@ export default function CommunityWriteModal({
                 <Textarea
                   className="min-h-30 resize-none"
                   placeholder={
-                    writeType === "thinking"
+                    writeType === "agent_only"
+                      ? "상담사끼리 공유할 실무 메모나 이슈를 자유롭게 작성해주세요"
+                      : writeType === "thinking"
                       ? "왜 고민되는지 배경을 조금만 적어주세요"
                       : "어떤 점이 고민되었는지 자유롭게 적어주세요\n괜찮았던 점과 아쉬운 점을 함께 써도 괜찮아요"
                   }
@@ -441,7 +464,9 @@ export default function CommunityWriteModal({
                 >
                   {writeType === "thinking"
                     ? "고민 올리기"
-                    : "다녀온 현장 기록하기"}
+                    : writeType === "visited"
+                      ? "다녀온 현장 기록하기"
+                      : "상담사 전용 기록하기"}
                 </Button>
               </>
             )}

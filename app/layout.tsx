@@ -69,6 +69,7 @@ const suit = localFont({
     },
   ],
   display: "swap",
+  preload: false,
   variable: "--font-suit",
 });
 
@@ -81,8 +82,23 @@ export default function RootLayout({
   const clarityProjectId = process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID;
 
   return (
-    <html lang="ko" className={suit.variable}>
+    <html lang="ko" className={suit.variable} suppressHydrationWarning>
       <head>
+        <Script id="theme-init" strategy="beforeInteractive">
+          {`
+            (function () {
+              try {
+                var saved = window.localStorage.getItem("oboon-theme");
+                var theme = saved === "light" || saved === "dark"
+                  ? saved
+                  : (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+                document.documentElement.dataset.theme = theme;
+              } catch (e) {
+                document.documentElement.dataset.theme = "dark";
+              }
+            })();
+          `}
+        </Script>
         {/* Google Analytics */}
         <Script
           src="https://www.googletagmanager.com/gtag/js?id=G-XF92GCM2KV"
@@ -90,21 +106,26 @@ export default function RootLayout({
         />
         <Script id="gtag-init" strategy="afterInteractive">
           {`
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            gtag('config', 'G-XF92GCM2KV');
+            try {
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
+              gtag('config', 'G-XF92GCM2KV');
+            } catch (e) {}
           `}
         </Script>
         {/* Microsoft Clarity (production only) */}
         {isProduction && clarityProjectId ? (
           <Script id="clarity-init" strategy="afterInteractive">
             {`
-              (function(c,l,a,r,i,t,y){
-                c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
-                t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
-                y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
-              })(window, document, "clarity", "script", "${clarityProjectId}");
+              try {
+                (function(c,l,a,r,i,t,y){
+                  c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+                  t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+                  y=l.getElementsByTagName(r)[0];
+                  if (y && y.parentNode) y.parentNode.insertBefore(t,y);
+                })(window, document, "clarity", "script", "${clarityProjectId}");
+              } catch (e) {}
             `}
           </Script>
         ) : null}

@@ -211,7 +211,7 @@ export default function Header() {
             {userRole === "agent" && (
               <>
                 <Button
-                  variant="secondary"
+                  variant="primary"
                   size="sm"
                   shape="pill"
                   className="flex items-center gap-2"

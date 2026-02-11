@@ -2,6 +2,7 @@ export const COMMUNITY_TABS = [
   { key: "all", label: "전체" },
   { key: "visited", label: "다녀왔어요" },
   { key: "thinking", label: "고민 중이에요" },
+  { key: "agent_only", label: "상담사 전용" },
 ] as const;
 
 export const COMMUNITY_PROFILE_TABS = [
@@ -14,6 +15,7 @@ export const COMMUNITY_PROFILE_TABS = [
 export const COMMUNITY_STATUS_LABELS = {
   visited: "다녀왔어요",
   thinking: "고민 중이에요",
+  agent_only: "상담사 전용",
 } as const;
 
 export const COMMUNITY_ROLE_LABELS = {

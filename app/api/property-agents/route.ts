@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     }
 
     // agent 권한 확인
-    if (profile.role !== "agent" && profile.role !== "admin") {
+    if (profile.role !== "agent") {
       return NextResponse.json(
         { error: "상담사만 현장 소속을 신청할 수 있습니다" },
         { status: 403 }

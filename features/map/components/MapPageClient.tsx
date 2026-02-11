@@ -156,6 +156,7 @@ export default function MapPageClient() {
               <NaverMap
                 ref={mapApiRef}
                 markers={markers}
+                initialZoom={13}
                 hoveredId={hoveredId}
                 focusedId={focusedId}
                 onVisibleIdsChange={setVisibleIds}

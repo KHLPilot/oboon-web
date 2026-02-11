@@ -4,7 +4,7 @@ export async function fetchPropertyComments(propertyId: number) {
   const supabase = createSupabaseClient();
   return supabase
     .from("properties")
-    .select("confirmed_comment, estimated_comment, pending_comment")
+    .select("confirmed_comment, estimated_comment")
     .eq("id", propertyId)
     .maybeSingle();
 }

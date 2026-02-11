@@ -13,13 +13,11 @@ import { fetchPropertyComments, updatePropertyComments } from "@/features/compan
 type commentForm = {
   confirmed_comment: string;
   estimated_comment: string;
-  pending_comment: string;
 };
 
 const EMPTY_FORM: commentForm = {
   confirmed_comment: "",
   estimated_comment: "",
-  pending_comment: "",
 };
 
 function cn(...classes: Array<string | undefined | false | null>) {
@@ -63,7 +61,6 @@ export default function PropertycommentPage() {
         setForm({
           confirmed_comment: data?.confirmed_comment ?? "",
           estimated_comment: data?.estimated_comment ?? "",
-          pending_comment: data?.pending_comment ?? "",
         });
       }
 
@@ -85,7 +82,6 @@ export default function PropertycommentPage() {
     const payload = {
       confirmed_comment: form.confirmed_comment.trim() || null,
       estimated_comment: form.estimated_comment.trim() || null,
-      pending_comment: form.pending_comment.trim() || null,
     };
 
     const { error } = await updatePropertyComments(propertyId, payload);
@@ -118,7 +114,7 @@ export default function PropertycommentPage() {
                 감정평가사 메모
               </div>
               <p className="ob-typo-body text-(--oboon-text-muted)">
-                확정/추정/미정 메모를 분리해 입력합니다.
+                확정/추정 메모를 분리해 입력합니다.
               </p>
             </div>
 
@@ -175,24 +171,6 @@ export default function PropertycommentPage() {
                   setForm((prev) => ({
                     ...prev,
                     estimated_comment: e.target.value,
-                  }))
-                }
-              />
-            </section>
-
-            <section>
-              <div className="ob-typo-h3 mb-1">미정 내용</div>
-              <p className="ob-typo-body text-(--oboon-text-muted) mb-3">
-                확인 필요/추적 중인 항목을 리스트업합니다.
-              </p>
-              <Textarea
-                className={cn(TEXTAREA_BASE, "min-h-[120px]")}
-                placeholder="아직 확인이 필요한 항목을 기록하세요."
-                value={form.pending_comment}
-                onChange={(e) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    pending_comment: e.target.value,
                   }))
                 }
               />

@@ -9,7 +9,7 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 
 import { COMMUNITY_TABS } from "../../domain/community";
-import type { CommunityTabKey } from "../../domain/community";
+import type { CommunityTabKey, CommunityUserRole } from "../../domain/community";
 import { mapCommunityPost } from "../../mappers/community.mapper";
 import { getCommunityAuthStatus } from "../../services/community.meta";
 import {
@@ -53,6 +53,7 @@ export default function CommunityFeed() {
   const [activeTab, setActiveTab] = useState<CommunityTabKey>("all");
   const [writeOpen, setWriteOpen] = useState(searchParams.get("write") === "1");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userRole, setUserRole] = useState<CommunityUserRole | null>(null);
   const [posts, setPosts] = useState<ReturnType<typeof mapCommunityPost>[]>([]);
   const [loading, setLoading] = useState(true);
   const [likeLoadingId, setLikeLoadingId] = useState<string | null>(null);
@@ -110,15 +111,28 @@ export default function CommunityFeed() {
   useEffect(() => {
     let isMounted = true;
 
-    getCommunityAuthStatus().then(({ isLoggedIn: loggedIn }) => {
+    getCommunityAuthStatus().then(({ isLoggedIn: loggedIn, role }) => {
       if (!isMounted) return;
       setIsLoggedIn(loggedIn);
+      setUserRole(role ?? null);
     });
 
     return () => {
       isMounted = false;
     };
   }, []);
+
+  const visibleTabs = COMMUNITY_TABS.filter(
+    (tab) => tab.key !== "agent_only" || userRole === "agent" || userRole === "admin",
+  );
+
+  useEffect(() => {
+    if (userRole === "agent" || userRole === "admin") return;
+    if (activeTab === "agent_only") {
+      setActiveTab("all");
+      setLoading(true);
+    }
+  }, [activeTab, userRole]);
 
   const handleToggleLike = async (postId: string) => {
     if (!isLoggedIn) {
@@ -594,7 +608,7 @@ export default function CommunityFeed() {
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
           <CommunityTabs
-            tabs={COMMUNITY_TABS}
+            tabs={visibleTabs}
             value={activeTab}
             onChange={(tab) => {
               setLoading(true);
@@ -628,7 +642,18 @@ export default function CommunityFeed() {
       </Card>
 
       {!loading && posts.length === 0 ? (
-        <CommunityEmpty />
+        <CommunityEmpty
+          title={
+            activeTab === "agent_only"
+              ? "아직 상담사 전용 기록이 없습니다"
+              : undefined
+          }
+          description={
+            activeTab === "agent_only"
+              ? "현장 응대 중 알게 된 포인트나 상담 노하우를 첫 기록으로 남겨보세요."
+              : undefined
+          }
+        />
       ) : (
         <div className="space-y-3">
           {loading && (
@@ -658,6 +683,7 @@ export default function CommunityFeed() {
         open={writeOpen}
         onClose={() => setWriteOpen(false)}
         isLoggedIn={isLoggedIn}
+        userRole={userRole}
       />
     </div>
   );

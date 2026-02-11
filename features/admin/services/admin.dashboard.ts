@@ -123,7 +123,6 @@ export async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
             name,
             confirmed_comment,
             estimated_comment,
-            pending_comment,
             property_locations(id),
             property_facilities(id),
             property_specs!properties_id(*),

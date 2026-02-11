@@ -22,7 +22,6 @@ async function syncPublicSnapshot(propertyId: number) {
       image_url,
       confirmed_comment,
       estimated_comment,
-      pending_comment,
       property_gallery_images (
         id,
         property_id,

@@ -65,7 +65,6 @@ type PropertyRow = {
   image_url: string | null;
   confirmed_comment: string | null;
   estimated_comment: string | null;
-  pending_comment: string | null;
 };
 
 type RelationRow = { id: number };
@@ -245,6 +244,7 @@ function PropertyDetailPageInner() {
   const router = useRouter();
   const toast = useToast();
   const id = Number(params.id);
+  const isValidPropertyId = Number.isFinite(id) && id > 0;
 
   // 상태 관리
   const [data, setData] = useState<PropertyDetail | null>(null);
@@ -295,6 +295,11 @@ function PropertyDetailPageInner() {
 
   // 데이터 로드
   const load = useCallback(async () => {
+    if (!isValidPropertyId) {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     const supabase = createSupabaseClient();
     const {
@@ -336,7 +341,6 @@ function PropertyDetailPageInner() {
         image_url: res.image_url,
         confirmed_comment: res.confirmed_comment,
         estimated_comment: res.estimated_comment,
-        pending_comment: res.pending_comment,
       });
       await fetchGalleryImages(res.id);
     }
@@ -347,7 +351,7 @@ function PropertyDetailPageInner() {
     }
 
     setLoading(false);
-  }, [fetchGalleryImages, id]);
+  }, [fetchGalleryImages, id, isValidPropertyId]);
 
   useEffect(() => {
     load();

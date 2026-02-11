@@ -7,7 +7,6 @@ export type PropertyCreatePayload = {
   description: string | null;
   confirmed_comment: string | null;
   estimated_comment: string | null;
-  pending_comment: string | null;
   created_by: string;
 };
 

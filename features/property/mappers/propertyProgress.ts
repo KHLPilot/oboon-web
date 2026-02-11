@@ -44,7 +44,6 @@ export type PropertyProgressRow = {
   property_unit_types?: RelationRow[] | null;
   confirmed_comment?: string | null;
   estimated_comment?: string | null;
-  pending_comment?: string | null;
 };
 
 function hasMany(v?: RelationRow[] | null) {
@@ -124,7 +123,6 @@ export function getPropertySectionStatus(row: PropertyProgressRow) {
   const commentStatus: SectionStatus = statusFromValues([
     row.confirmed_comment,
     row.estimated_comment,
-    row.pending_comment,
   ]);
 
   const specsRequiredFields = [
