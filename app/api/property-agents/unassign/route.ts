@@ -9,6 +9,21 @@ const adminSupabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
+function isWithdrawnSchemaIssue(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const message = String(
+    (error as { message?: unknown }).message ??
+      (error as { details?: unknown }).details ??
+      "",
+  ).toLowerCase();
+  return (
+    message.includes("withdrawn") ||
+    message.includes("property_agents_status_check") ||
+    message.includes("check constraint") ||
+    message.includes("enum")
+  );
+}
+
 async function hasBlockingConsultations(
   supabase: SupabaseClient,
   agentId: string,
@@ -108,25 +123,60 @@ export async function POST() {
     }
 
     const approvedIds = approvedRows.map((row) => row.id);
+    const withdrawnAt = new Date().toISOString();
+
     const { data: updatedRows, error: updateError } = await adminSupabase
       .from("property_agents")
       .update({
         status: "withdrawn",
-        withdrawn_at: new Date().toISOString(),
+        withdrawn_at: withdrawnAt,
         approved_at: null,
         approved_by: null,
       })
       .in("id", approvedIds)
       .select("id");
 
+    let finalUpdatedRows = updatedRows;
     if (updateError) {
-      console.error("무소속 전환 오류:", updateError);
-      return NextResponse.json(
-        { error: "무소속 전환에 실패했습니다" },
-        { status: 500 },
-      );
+      if (!isWithdrawnSchemaIssue(updateError)) {
+        console.error("무소속 전환 오류:", updateError);
+        return NextResponse.json(
+          { error: "무소속 전환에 실패했습니다" },
+          { status: 500 },
+        );
+      }
+
+      // 레거시 DB( withdrawn 미지원 ) 호환용 fallback
+      const { data: fallbackRows, error: fallbackError } = await adminSupabase
+        .from("property_agents")
+        .update({
+          status: "rejected",
+          rejected_at: withdrawnAt,
+          rejection_reason: "self_unassigned_legacy",
+          approved_at: null,
+          approved_by: null,
+        })
+        .in("id", approvedIds)
+        .select("id");
+
+      if (fallbackError) {
+        console.error(
+          "무소속 전환 fallback 오류(legacy rejected):",
+          fallbackError,
+        );
+        return NextResponse.json(
+          {
+            error:
+              "무소속 전환에 실패했습니다. DB 마이그레이션(022_property_agents_add_withdrawn_status.sql) 적용이 필요합니다.",
+          },
+          { status: 500 },
+        );
+      }
+
+      finalUpdatedRows = fallbackRows;
     }
-    if (!updatedRows || updatedRows.length === 0) {
+
+    if (!finalUpdatedRows || finalUpdatedRows.length === 0) {
       return NextResponse.json(
         { error: "무소속 전환 반영에 실패했습니다." },
         { status: 500 },
