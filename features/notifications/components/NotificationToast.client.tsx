@@ -30,6 +30,7 @@ type ThreadItem = {
   counterpartAvatarUrl: string | null;
   lastMessage: string;
   lastMessageAt: string;
+  hasLatestMessage: boolean;
   unreadCount: number;
 };
 
@@ -280,6 +281,7 @@ export default function NotificationToastManager() {
           const latest = latestByRoom.get(room.id);
           const lastMessageAt = latest?.created_at || room.updated_at;
           const unreadCount = unreadByConsultation.get(room.consultation_id) ?? 0;
+          const hasLatestMessage = Boolean(latest?.content?.trim());
 
           return {
             roomId: room.id,
@@ -289,6 +291,7 @@ export default function NotificationToastManager() {
             counterpartAvatarUrl: profile?.avatar_url ?? null,
             lastMessage: latest?.content?.trim() || "대화를 시작해보세요.",
             lastMessageAt,
+            hasLatestMessage,
             unreadCount,
           } satisfies ThreadItem;
         })
@@ -396,9 +399,9 @@ export default function NotificationToastManager() {
                           {thread.counterpartName}
                         </div>
                         <div className="mt-0.5 truncate ob-typo-caption text-(--oboon-text-muted)">
-                          {thread.lastMessage}
-                          {" · "}
-                          {formatTimeAgo(thread.lastMessageAt)}
+                          {thread.hasLatestMessage
+                            ? `${thread.lastMessage} · ${formatTimeAgo(thread.lastMessageAt)}`
+                            : thread.lastMessage}
                         </div>
                       </div>
 
