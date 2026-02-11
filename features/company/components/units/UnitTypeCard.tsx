@@ -171,19 +171,31 @@ export default function UnitTypeCard({
           <p className="ob-typo-h3 text-(--oboon-text-title) truncate">
             {title}
           </p>
-          <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+          <p className="mt-1 ob-typo-body text-(--oboon-text-muted)">
             전용{" "}
             {formatM2(isEditing ? draft?.exclusive_area : unit.exclusive_area)}
             ㎡ · 공급{" "}
             {formatM2(isEditing ? draft?.supply_area : unit.supply_area)}㎡
           </p>
-          <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+          <p className="mt-1 ob-typo-body text-(--oboon-text-muted)">
             {summarizeRoomsBaths(unit.rooms, unit.bathrooms)}
           </p>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
           <StatusBadge status={isEditing ? "수정 중" : status} />
+          <Badge
+            variant={
+              (isEditing ? draft?.is_price_public : unit.is_price_public)
+                ? "primary"
+                : "warning"
+            }
+            className="ob-typo-caption"
+          >
+            {(isEditing ? draft?.is_price_public : unit.is_price_public)
+              ? "가격 공개"
+              : "가격 비공개"}
+          </Badge>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -210,11 +222,11 @@ export default function UnitTypeCard({
       {/* Summary */}
       <div className="mt-4">
         {summaryPrice ? (
-          <p className="ob-typo-body text-(--oboon-text-title)">
+          <p className="ob-typo-h4 text-(--oboon-text-title)">
             {summaryPrice}
           </p>
         ) : (
-          <p className="ob-typo-body text-(--oboon-text-muted)">
+          <p className="ob-typo-h4 text-(--oboon-text-muted)">
             가격 정보 없음
           </p>
         )}
@@ -326,6 +338,39 @@ export default function UnitTypeCard({
                   가격 미리보기 · {inlinePreview}
                 </p>
               ) : null}
+
+              <div className="flex items-center justify-between rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle)/50 px-3 py-2">
+                <div>
+                  <p className="ob-typo-body text-(--oboon-text-title)">
+                    가격 공개
+                  </p>
+                  <p className="ob-typo-caption text-(--oboon-text-muted)">
+                    끄면 게시된 화면에서 이 평면 타입 가격이 비공개 처리됩니다.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={draft.is_price_public}
+                  aria-label="가격 공개"
+                  onClick={() =>
+                    onChange("is_price_public", !draft.is_price_public)
+                  }
+                  className={[
+                    "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
+                    draft.is_price_public
+                      ? "bg-(--oboon-primary)"
+                      : "bg-(--oboon-bg-subtle)",
+                  ].join(" ")}
+                >
+                  <span
+                    className={[
+                      "inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform",
+                      draft.is_price_public ? "translate-x-5" : "translate-x-1",
+                    ].join(" ")}
+                  />
+                </button>
+              </div>
             </div>
 
             <Field label="세대수">

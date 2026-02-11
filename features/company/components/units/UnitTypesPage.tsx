@@ -39,6 +39,7 @@ function buildDraftFromRow(row: UnitRow): UnitDraft {
     orientation: row.orientation ?? null,
     price_min: row.price_min ?? null,
     price_max: row.price_max ?? null,
+    is_price_public: row.is_price_public ?? true,
     unit_count: row.unit_count ?? null,
     supply_count: row.supply_count ?? null,
     floor_plan_url: row.floor_plan_url ?? null,
@@ -81,6 +82,7 @@ export default function UnitTypesPage() {
     orientation: null,
     price_min: null,
     price_max: null,
+    is_price_public: true,
     unit_count: null,
     supply_count: null,
     floor_plan_url: null,
@@ -222,6 +224,7 @@ export default function UnitTypesPage() {
       orientation: null,
       price_min: null,
       price_max: null,
+      is_price_public: true,
       unit_count: null,
       supply_count: null,
       floor_plan_url: null,
@@ -473,6 +476,44 @@ export default function UnitTypesPage() {
                       가격 미리보기 · {createPricePreview}
                     </p>
                   ) : null}
+
+                  <div className="mt-3 flex items-center justify-between rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle)/50 px-3 py-2">
+                    <div>
+                      <p className="ob-typo-body text-(--oboon-text-title)">
+                        가격 공개
+                      </p>
+                      <p className="ob-typo-caption text-(--oboon-text-muted)">
+                        끄면 게시된 화면에서 이 평면 타입 가격이 비공개 처리됩니다.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={createDraft.is_price_public}
+                      aria-label="가격 공개"
+                      onClick={() =>
+                        setCreateDraft((d) => ({
+                          ...d,
+                          is_price_public: !d.is_price_public,
+                        }))
+                      }
+                      className={[
+                        "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
+                        createDraft.is_price_public
+                          ? "bg-(--oboon-primary)"
+                          : "bg-(--oboon-bg-subtle)",
+                      ].join(" ")}
+                    >
+                      <span
+                        className={[
+                          "inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform",
+                          createDraft.is_price_public
+                            ? "translate-x-5"
+                            : "translate-x-1",
+                        ].join(" ")}
+                      />
+                    </button>
+                  </div>
                 </div>
 
                 {/* 세대수 */}

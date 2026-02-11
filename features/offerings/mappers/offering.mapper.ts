@@ -17,6 +17,7 @@ type PropertyLocationRow = {
 type PropertyUnitTypeRow = {
   price_min: number | string | null;
   price_max: number | string | null;
+  is_price_public?: boolean | null;
 };
 
 export type PropertyRow = {
@@ -57,15 +58,22 @@ export function hasAppraiserComment(row: PropertyRow) {
 function aggregatePrice(unitTypes: PropertyUnitTypeRow[] | null | undefined) {
   let min: number | null = null;
   let max: number | null = null;
+  let hasPrivate = false;
+  let hasPublic = false;
 
   for (const u of unitTypes ?? []) {
+    if (u.is_price_public === false) {
+      hasPrivate = true;
+      continue;
+    }
+    hasPublic = true;
     const pMin = toNumber(u.price_min);
     const pMax = toNumber(u.price_max);
     if (pMin != null) min = min == null ? pMin : Math.min(min, pMin);
     if (pMax != null) max = max == null ? pMax : Math.max(max, pMax);
   }
 
-  return { min, max };
+  return { min, max, isPrivate: hasPrivate && !hasPublic };
 }
 
 export function mapPropertyRowToOffering(
@@ -80,7 +88,7 @@ export function mapPropertyRowToOffering(
       : addr
     : fallback.addressShort;
 
-  const { min, max } = aggregatePrice(row.property_unit_types);
+  const { min, max, isPrivate } = aggregatePrice(row.property_unit_types);
   const statusValue = normalizeOfferingStatusValue(row.status);
   const status = statusLabelOf(statusValue);
 
@@ -99,6 +107,7 @@ export function mapPropertyRowToOffering(
     imageUrl: row.image_url,
     priceMin억: min,
     priceMax억: max,
+    isPricePrivate: isPrivate,
   };
 
   return offering;

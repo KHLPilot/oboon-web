@@ -16,6 +16,8 @@ export const UXCopy = {
   // 가격/범위
   priceRange: "가격을 확인 중이에요",
   priceRangeShort: "가격 확인 중",
+  pricePrivate: "상담 시 안내",
+  pricePrivateShort: "분양가는 상담 시 안내돼요",
 
   // 주소
   address: "주소를 확인 중이에요",

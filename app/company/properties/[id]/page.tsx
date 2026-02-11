@@ -27,9 +27,7 @@ import {
 import { deletePropertyCascade, fetchPropertyDetail, updatePropertyBasicInfo } from "@/features/company/services/property.detail";
 import {
   cancelPropertyRequest,
-  createPropertyRequest,
   fetchMyDeleteRequest,
-  fetchMyPropertyRequest,
   type PropertyRequestStatus,
 } from "@/features/company/services/property.request";
 import { validateRequiredOrShowModal } from "@/shared/validationMessage";
@@ -269,16 +267,9 @@ function PropertyDetailPageInner() {
   const [dragOverGalleryImageId, setDragOverGalleryImageId] = useState<
     string | null
   >(null);
-  const [requestStatus, setRequestStatus] =
-    useState<PropertyRequestStatus | null>(null);
   const [deleteRequestStatus, setDeleteRequestStatus] =
     useState<PropertyRequestStatus | null>(null);
   const [deleteRequestId, setDeleteRequestId] = useState<string | number | null>(null);
-  const [requestRejectionReason, setRequestRejectionReason] = useState<
-    string | null
-  >(null);
-  const [requestLoading, setRequestLoading] = useState(false);
-  const [needsReapproval, setNeedsReapproval] = useState(false);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isAffiliatedAgent, setIsAffiliatedAgent] = useState(false);
@@ -349,14 +340,7 @@ function PropertyDetailPageInner() {
       });
       await fetchGalleryImages(res.id);
     }
-    const [requestResult, deleteRequestResult] = await Promise.all([
-      fetchMyPropertyRequest(id),
-      fetchMyDeleteRequest(id),
-    ]);
-    if (!requestResult.error) {
-      setRequestStatus(requestResult.data?.status ?? null);
-      setRequestRejectionReason(requestResult.data?.rejection_reason ?? null);
-    }
+    const deleteRequestResult = await fetchMyDeleteRequest(id);
     if (!deleteRequestResult.error) {
       setDeleteRequestStatus(deleteRequestResult.data?.status ?? null);
       setDeleteRequestId(deleteRequestResult.data?.id ?? null);
@@ -423,9 +407,6 @@ function PropertyDetailPageInner() {
     setLocalPreview(null);
     setImageFileName(null);
     setEditMode(false);
-    if (requestStatus === "approved" && currentUserRole !== "admin") {
-      setNeedsReapproval(true);
-    }
     load();
   }
 
@@ -479,39 +460,6 @@ function PropertyDetailPageInner() {
         "삭제 실패: " +
           (err instanceof Error ? (err instanceof Error ? err.message : "알 수 없는 오류") : "알 수 없는 오류"),
       );
-    }
-  }
-
-  async function handlePublishRequest() {
-    if (deleteRequestStatus === "pending") {
-      showAlert("삭제 요청 처리 중에는 게시 요청을 할 수 없습니다.");
-      return;
-    }
-    if (requestLoading) return;
-    setRequestLoading(true);
-    const { error } = await createPropertyRequest(id, {
-      force: (editMode || needsReapproval) && requestStatus === "approved",
-    });
-    setRequestLoading(false);
-
-    if (error) {
-      toast.error((error instanceof Error ? error.message : "알 수 없는 오류") ?? "알 수 없는 오류", "요청 실패");
-      return;
-    }
-
-    toast.success("게시 요청이 접수되었습니다.", "완료");
-    const [requestResult, deleteRequestResult] = await Promise.all([
-      fetchMyPropertyRequest(id),
-      fetchMyDeleteRequest(id),
-    ]);
-    if (!requestResult.error) {
-      setRequestStatus(requestResult.data?.status ?? null);
-      setRequestRejectionReason(requestResult.data?.rejection_reason ?? null);
-      setNeedsReapproval(false);
-    }
-    if (!deleteRequestResult.error) {
-      setDeleteRequestStatus(deleteRequestResult.data?.status ?? null);
-      setDeleteRequestId(deleteRequestResult.data?.id ?? null);
     }
   }
 
@@ -712,42 +660,6 @@ function PropertyDetailPageInner() {
   const canEditProperty =
     (canDelete || (currentUserRole === "agent" && isAffiliatedAgent)) &&
     !hasPendingDeleteRequest;
-  const requestStatusLabel = needsReapproval
-    ? "재승인 필요"
-    : requestStatus
-      ? requestStatus === "pending"
-        ? "검토 대기"
-        : requestStatus === "approved"
-          ? "승인 완료"
-          : "반려됨"
-      : null;
-  const requestBadgeVariant = needsReapproval
-    ? "warning"
-    : requestStatus === "approved"
-      ? "success"
-      : requestStatus === "rejected"
-        ? "danger"
-        : "warning";
-  const publishButtonLabel = needsReapproval
-    ? "재승인"
-    : editMode
-      ? "재승인"
-      : requestStatus
-        ? requestStatus === "pending"
-          ? "요청 중"
-          : requestStatus === "approved"
-            ? "승인 완료"
-            : "재요청"
-        : currentUserRole === "admin"
-          ? "게시"
-          : "게시 요청";
-  const publishDisabled =
-    requestLoading || requestStatus === "pending" || hasPendingDeleteRequest;
-  const showPublishButton =
-    !requestStatus ||
-    requestStatus !== "approved" ||
-    needsReapproval ||
-    (editMode && currentUserRole !== "admin");
   const displayImageFileName =
     imageFileName ||
     (() => {
@@ -785,11 +697,6 @@ function PropertyDetailPageInner() {
               <Badge variant="status" className="text-[11px]">
                 {statusLabel}
               </Badge>
-              {requestStatusLabel ? (
-                <Badge variant={requestBadgeVariant} className="text-[11px]">
-                  게시 요청 · {requestStatusLabel}
-                </Badge>
-              ) : null}
               {hasPendingDeleteRequest ? (
                 <Badge variant="danger" className="text-[11px]">
                   삭제 요청 처리 중
@@ -805,18 +712,6 @@ function PropertyDetailPageInner() {
                   >
                     목록
                   </Button>
-                  {showPublishButton ? (
-                    <Button
-                      variant={publishDisabled ? "secondary" : "primary"}
-                      size="sm"
-                      shape="pill"
-                      disabled={publishDisabled}
-                      loading={requestLoading}
-                      onClick={handlePublishRequest}
-                    >
-                      {publishButtonLabel}
-                    </Button>
-                  ) : null}
                   {canDelete ? (
                     <Button
                       variant="danger"
@@ -876,7 +771,7 @@ function PropertyDetailPageInner() {
                   <div className="mt-3 flex flex-wrap items-start gap-2">
                     {hasPendingDeleteRequest ? (
                       <span className="inline-flex max-w-full rounded-full border border-(--oboon-danger-border) bg-(--oboon-danger-bg) px-3 py-1.5 ob-typo-body text-(--oboon-on-danger)">
-                        삭제 요청 처리 중이라 편집과 게시 요청이 잠시 비활성화됩니다.
+                        삭제 요청 처리 중이라 편집이 잠시 비활성화됩니다.
                       </span>
                     ) : (
                       <>
@@ -892,12 +787,6 @@ function PropertyDetailPageInner() {
                             모든 섹션 입력 완료
                           </span>
                         )}
-                        {requestStatus === "rejected" && requestRejectionReason ? (
-                          <span className="inline-flex max-w-full flex-col rounded-xl bg-(--oboon-danger-bg) px-3 py-1.5 text-(--oboon-danger)">
-                            <span className="ob-typo-caption font-bold">반려 사유</span>
-                            <span className="ob-typo-body break-words">{requestRejectionReason}</span>
-                          </span>
-                        ) : null}
                       </>
                     )}
                   </div>

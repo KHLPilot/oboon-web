@@ -14,6 +14,7 @@ import NaverMap, {
 } from "@/features/map/components/NaverMap";
 import type { DbOffering } from "@/features/map/mappers/mapOffering.mapper";
 import { useRouter } from "next/navigation";
+import { UXCopy } from "@/shared/uxCopy";
 
 import OfferingBadge from "@/features/offerings/components/OfferingBadges";
 import type { OfferingStatusValue } from "@/features/offerings/domain/offering.types";
@@ -245,7 +246,11 @@ export default function FullscreenMapOverlay({
                           {formatPriceRange(
                             sheetOffering.priceMinWon,
                             sheetOffering.priceMaxWon,
-                            { unknownLabel: "가격 미정" }
+                            {
+                              unknownLabel: sheetOffering.isPricePrivate
+                                ? UXCopy.pricePrivate
+                                : UXCopy.priceRange,
+                            }
                           )}
                         </div>
                       </div>

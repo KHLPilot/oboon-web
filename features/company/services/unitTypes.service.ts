@@ -5,7 +5,7 @@ const SELECT_COLUMNS = `
   id, created_at, properties_id,
   type_name, exclusive_area, supply_area, rooms, bathrooms,
   building_layout, orientation,
-  price_min, price_max, unit_count, supply_count,
+  price_min, price_max, is_price_public, unit_count, supply_count,
   floor_plan_url, image_url
 `;
 
@@ -36,6 +36,7 @@ function buildUpdatePayload(draft: UnitDraft): Partial<UnitRow> {
     orientation: normalizeText(draft.orientation),
     price_min: draft.price_min,
     price_max: draft.price_max,
+    is_price_public: draft.is_price_public,
     unit_count: draft.unit_count,
     supply_count: draft.supply_count,
     floor_plan_url: normalizeText(draft.floor_plan_url),

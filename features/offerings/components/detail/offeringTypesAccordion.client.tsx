@@ -12,6 +12,7 @@ type UnitTypeRow = {
   type_name: string | null;
   price_min: number | null;
   price_max: number | null;
+  is_price_public?: boolean | null;
 
   // 이미지 URL (둘 중 하나 또는 둘 다 올 수 있음)
   floor_plan_url: string | null;
@@ -418,7 +419,10 @@ export default function OfferingUnitTypesAccordion({
                   </div>
                   <div className="ob-typo-h4 text-(--oboon-text-muted) whitespace-nowrap">
                     {formatPriceRange(u.price_min, u.price_max, {
-                      unknownLabel: UXCopy.priceRange,
+                      unknownLabel:
+                        u.is_price_public === false
+                          ? UXCopy.pricePrivate
+                          : UXCopy.priceRange,
                     })}
                   </div>
 

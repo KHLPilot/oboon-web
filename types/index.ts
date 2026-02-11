@@ -23,6 +23,7 @@ export interface Offering {
   // 가격 (억 단위 숫자, 필터/집계용)
   priceMin억: number | null;
   priceMax억: number | null;
+  isPricePrivate?: boolean;
 
   imageUrl?: string | null;
   deadlineLabel?: string | null;

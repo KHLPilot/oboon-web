@@ -26,7 +26,9 @@ export default function OfferingCard({ offering }: { offering: Offering }) {
     offering.priceMin억,
     offering.priceMax억,
     {
-      unknownLabel: UXCopy.priceRangeShort,
+      unknownLabel: offering.isPricePrivate
+        ? UXCopy.pricePrivateShort
+        : UXCopy.priceRangeShort,
     },
   );
 

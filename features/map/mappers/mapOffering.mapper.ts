@@ -20,6 +20,7 @@ type PropertyLocationRow = {
 type PropertyUnitTypeRow = {
   price_min: number | string | null;
   price_max: number | string | null;
+  is_price_public?: boolean | null;
 };
 
 export type MapPropertyRow = {
@@ -40,6 +41,7 @@ export type DbOffering = {
   addressFull: string;
   priceMinWon: number | null;
   priceMaxWon: number | null;
+  isPricePrivate: boolean;
   statusEnum: OfferingStatusValue | null;
   lat: number;
   lng: number;
@@ -99,10 +101,15 @@ export function mapPropertyRowsToDbOfferings(rows: MapPropertyRow[]) {
       if (lat == null || lng == null) return null;
 
       const prices = (r.property_unit_types ?? []).flatMap((u) => {
+        if (u.is_price_public === false) return [];
         const min = toNumber(u.price_min);
         const max = toNumber(u.price_max);
         return [...(min == null ? [] : [min]), ...(max == null ? [] : [max])];
       });
+
+      const unitTypes = r.property_unit_types ?? [];
+      const hasPrivate = unitTypes.some((u) => u.is_price_public === false);
+      const hasPublic = unitTypes.some((u) => u.is_price_public !== false);
 
       const priceMin = prices.length ? Math.min(...prices) : null;
       const priceMax = prices.length ? Math.max(...prices) : null;
@@ -119,6 +126,7 @@ export function mapPropertyRowsToDbOfferings(rows: MapPropertyRow[]) {
         addressFull: getAddressFull(loc0),
         priceMinWon: priceMin,
         priceMaxWon: priceMax,
+        isPricePrivate: hasPrivate && !hasPublic,
         statusEnum,
         lat,
         lng,

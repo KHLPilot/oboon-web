@@ -73,6 +73,7 @@ type PropertyUnitTypeRow = {
   type_name: string | null;
   price_min: number | null;
   price_max: number | null;
+  is_price_public?: boolean | null;
   floor_plan_url: string | null;
   image_url: string | null;
   exclusive_area: number | null;
@@ -248,6 +249,10 @@ export default function OfferingDetailLeft({
     .slice()
     .sort((a, b) => (a.type_name ?? "").localeCompare(b.type_name ?? ""));
 
+  const hasPrivatePriceUnits = unitTypes.some((u) => u.is_price_public === false);
+  const hasPublicPriceUnits = unitTypes.some((u) => u.is_price_public !== false);
+  const isPricePrivate = hasPrivatePriceUnits && !hasPublicPriceUnits;
+
   const address = fmtAddr(loc0);
   const statusValue =
     typeof p.status === "string" && isOfferingStatusValue(p.status)
@@ -258,12 +263,14 @@ export default function OfferingDetailLeft({
 
   const priceMin =
     unitTypes
+      .filter((u) => u.is_price_public !== false)
       .map((u) => u.price_min)
       .filter((n): n is number => n !== null)
       .sort((a, b) => a - b)[0] ?? null;
 
   const priceMax =
     unitTypes
+      .filter((u) => u.is_price_public !== false)
       .map((u) => u.price_max)
       .filter((n): n is number => n !== null)
       .sort((a, b) => b - a)[0] ?? null;
@@ -297,7 +304,9 @@ export default function OfferingDetailLeft({
         <StatCard
           label="분양가 범위"
           value={formatPriceRange(priceMin, priceMax, {
-            unknownLabel: UXCopy.priceRange,
+            unknownLabel: isPricePrivate
+              ? UXCopy.pricePrivate
+              : UXCopy.priceRange,
           })}
         />
         <StatCard

@@ -45,7 +45,9 @@ function toMarker(m: DbOffering): MapMarker {
     lng: m.lng,
     topLabel: m.region,
     mainLabel: formatPriceRange(m.priceMinWon, m.priceMaxWon, {
-      unknownLabel: UXCopy.priceRangeShort,
+      unknownLabel: m.isPricePrivate
+        ? UXCopy.pricePrivateShort
+        : UXCopy.priceRangeShort,
     }),
   };
 }
@@ -56,7 +58,9 @@ function toCompactItem(m: DbOffering): MapOfferingCompactItem {
     title: m.title,
     address: m.addressFull,
     priceRange: formatPriceRange(m.priceMinWon, m.priceMaxWon, {
-      unknownLabel: UXCopy.priceRangeShort,
+      unknownLabel: m.isPricePrivate
+        ? UXCopy.pricePrivateShort
+        : UXCopy.priceRangeShort,
     }),
     statusValue: m.statusEnum,
   };

@@ -8,60 +8,7 @@ const adminSupabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
-async function syncPublicSnapshot(propertyId: number) {
-  const { data: property, error: propertyError } = await adminSupabase
-    .from("properties")
-    .select(
-      `
-      id,
-      created_at,
-      name,
-      property_type,
-      status,
-      description,
-      image_url,
-      confirmed_comment,
-      estimated_comment,
-      pending_comment,
-      property_gallery_images (
-        id,
-        property_id,
-        image_url,
-        sort_order,
-        created_at
-      ),
-      property_locations (*),
-      property_specs (*),
-      property_timeline (*),
-      property_unit_types (*)
-    `,
-    )
-    .eq("id", propertyId)
-    .single();
-
-  if (propertyError || !property) {
-    throw propertyError ?? new Error("현장 데이터를 찾을 수 없습니다.");
-  }
-
-  const now = new Date().toISOString();
-  const { error: snapshotError } = await adminSupabase
-    .from("property_public_snapshots")
-    .upsert(
-      {
-        property_id: propertyId,
-        snapshot: property,
-        published_at: now,
-        updated_at: now,
-      },
-      { onConflict: "property_id" },
-    );
-
-  if (snapshotError) {
-    throw snapshotError;
-  }
-}
-
-// PATCH - 관리자가 게시 요청 승인/반려
+// PATCH - 관리자가 삭제 요청 승인/반려
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } },
@@ -193,26 +140,21 @@ export async function PATCH(
       }
     }
 
-    if (status === "approved" && updatedRequest.request_type === "publish") {
-      try {
-        await syncPublicSnapshot(updatedRequest.property_id);
-      } catch (snapshotError) {
-        console.error("게시 승인 후 스냅샷 동기화 오류:", snapshotError);
-        return NextResponse.json(
-          { error: "게시 승인 후 게시본 반영에 실패했습니다." },
-          { status: 500 },
-        );
-      }
+    if (updatedRequest.request_type === "publish") {
+      return NextResponse.json(
+        { error: "게시 승인 플로우는 비활성화되었습니다." },
+        { status: 410 },
+      );
     }
 
     const message =
       status === "approved"
         ? updatedRequest.request_type === "delete"
           ? "현장 삭제 요청이 승인되었습니다"
-          : "게시 요청이 승인되었습니다"
+          : "요청이 승인되었습니다"
         : updatedRequest.request_type === "delete"
           ? "현장 삭제 요청이 반려되었습니다"
-          : "게시 요청이 반려되었습니다";
+          : "요청이 반려되었습니다";
 
     return NextResponse.json({
       success: true,
