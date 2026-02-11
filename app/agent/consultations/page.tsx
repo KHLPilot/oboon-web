@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { Suspense, useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowRight,
@@ -109,7 +109,7 @@ const STATUS_LABELS: Record<
 
 type ReservationTab = "summary" | "list" | "schedule";
 
-export default function AgentConsultationsPage() {
+function AgentConsultationsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -1184,5 +1184,13 @@ export default function AgentConsultationsPage() {
         </div>
       </Modal>
     </PageContainer>
+  );
+}
+
+export default function AgentConsultationsPage() {
+  return (
+    <Suspense fallback={<div className="min-h-[1px]" />}>
+      <AgentConsultationsPageContent />
+    </Suspense>
   );
 }
