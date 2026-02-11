@@ -24,6 +24,7 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Bookmarks from "../CommunitySidebars/Bookmarks";
 import Interest from "../CommunitySidebars/Interest";
+import { getAvatarUrlOrDefault } from "@/shared/imageUrl";
 
 type CommunityEmptyProps = {
   title?: string;
@@ -61,23 +62,18 @@ function CommunityProfileHeader({
   profile: CommunityProfileViewModel | null;
 }) {
   const stats = profile?.stats ?? { posts: 0, comments: 0, bookmarks: 0 };
+  const avatarUrl = getAvatarUrlOrDefault(profile?.avatarUrl);
 
   return (
     <div className="flex items-center gap-3 mb-5">
       <div className="h-14 w-14 rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle) flex items-center justify-center overflow-hidden">
-        {profile?.avatarUrl ? (
-          <Image
-            src={profile.avatarUrl}
-            alt={profile.displayName}
-            width={56}
-            height={56}
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <span className="ob-typo-h4 text-(--oboon-text-body)">
-            {(profile?.displayName ?? "사용자").slice(0, 1)}
-          </span>
-        )}
+        <Image
+          src={avatarUrl}
+          alt={profile?.displayName ?? "사용자"}
+          width={56}
+          height={56}
+          className="h-full w-full object-cover"
+        />
       </div>
       <div>
         <div className="ob-typo-h4 font-semibold text-(--oboon-text-title)">

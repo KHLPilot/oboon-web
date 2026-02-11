@@ -7,6 +7,7 @@ import Card from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import Textarea from "@/components/ui/Textarea";
+import { getAvatarUrlOrDefault } from "@/shared/imageUrl";
 
 type ReservationRow = {
   id: string;
@@ -44,32 +45,14 @@ function Avatar({
   name?: string | null;
   url?: string | null;
 }) {
-  const initial = (name ?? "").slice(0, 1) || "?";
-
-  if (url) {
-    return (
-      <Image
-        src={url}
-        alt={`${name ?? "사용자"} 프로필`}
-        width={32}
-        height={32}
-        className="h-8 w-8 rounded-full border border-(--oboon-border-default) object-cover"
-      />
-    );
-  }
-
   return (
-    <span
-      className={[
-        "h-8 w-8 rounded-full bg-(--oboon-bg-subtle)",
-        "border border-(--oboon-border-default)",
-        "inline-flex items-center justify-center",
-        "ob-typo-caption text-(--oboon-text-muted)",
-      ].join(" ")}
-      aria-hidden
-    >
-      {initial}
-    </span>
+    <Image
+      src={getAvatarUrlOrDefault(url)}
+      alt={`${name ?? "사용자"} 프로필`}
+      width={32}
+      height={32}
+      className="h-8 w-8 rounded-full border border-(--oboon-border-default) object-cover"
+    />
   );
 }
 

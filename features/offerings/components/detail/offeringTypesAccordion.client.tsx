@@ -70,6 +70,13 @@ function pickImageUrl(u: UnitTypeRow) {
   return null;
 }
 
+function formatTypeTitle(typeName: string | null) {
+  const raw = (typeName ?? "").trim();
+  if (!raw) return "타입";
+  if (/(㎡|m²|m2)\s*$/i.test(raw)) return raw;
+  return `${raw}㎡`;
+}
+
 /* -----------------------------
    Local modal (이미지 확대)
 -------------------------------- */
@@ -396,7 +403,7 @@ export default function OfferingUnitTypesAccordion({
       <div className="divide-y divide-(--oboon-border-default)">
         {rows.map((u) => {
           const isOpen = openId === u.id;
-          const title = u.type_name ?? "타입";
+          const title = formatTypeTitle(u.type_name);
 
           const img = pickImageUrl(u);
 
@@ -412,7 +419,7 @@ export default function OfferingUnitTypesAccordion({
                 onClick={() => setOpenId(isOpen ? null : u.id)}
               >
                 <div className="flex items-center gap-3">
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0 flex-1 pl-1">
                     <div className="ob-typo-h4 text-(--oboon-text-title) truncate">
                       {title}
                     </div>
@@ -446,12 +453,17 @@ export default function OfferingUnitTypesAccordion({
                   <div className="mt-3 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-3">
                     {/* Image (click -> modal) */}
                     <div className="relative mx-auto h-full w-full max-w-4xl pointer-events-auto touch-auto">
-                      <div className="relative aspect-video w-full">
+                      <div
+                        className={cn(
+                          "relative w-full overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-default)",
+                          img ? "" : "aspect-video",
+                        )}
+                      >
                         {img ? (
                           <Button
                             type="button"
                             variant="ghost"
-                            className="absolute inset-0 h-full w-full p-0"
+                            className="relative h-auto w-full p-0"
                             onClick={() =>
                               setZoom({ open: true, title, src: img })
                             }
@@ -460,8 +472,9 @@ export default function OfferingUnitTypesAccordion({
                             <Image
                               src={img}
                               alt={`${title} 평면도`}
-                              fill
-                              className="object-cover rounded-xl"
+                              width={1600}
+                              height={1200}
+                              className="h-auto w-full object-contain"
                               sizes="(max-width: 768px) 100vw, 700px"
                             />
                             <div className="absolute right-2 top-2 inline-flex items-center gap-2 rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-surface)/90 px-3 py-1.5 ob-typo-caption text-(--oboon-text-muted)">

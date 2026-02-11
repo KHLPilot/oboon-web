@@ -12,6 +12,7 @@ import Card from "@/components/ui/Card";
 import OfferingDetailTabs from "@/features/offerings/components/detail/OfferingDetailTabs.client";
 import OfferingUnitTypesAccordion from "./offeringTypesAccordion.client";
 import PropertyImageGallery from "./PropertyImageGallery.client";
+import NaverMap, { type MapMarker } from "@/features/map/components/NaverMap";
 import { UXCopy } from "@/shared/uxCopy";
 import OfferingBadge from "@/features/offerings/components/OfferingBadges";
 import { isOfferingStatusValue } from "@/features/offerings/domain/offering.constants";
@@ -37,6 +38,7 @@ export type PropertyRow = {
   property_specs: PropertySpecRow[] | PropertySpecRow | null;
   property_timeline: PropertyTimelineRow[] | PropertyTimelineRow | null;
   property_unit_types: PropertyUnitTypeRow[] | PropertyUnitTypeRow | null;
+  property_facilities?: PropertyFacilityRow[] | PropertyFacilityRow | null;
   property_gallery_images?:
     | PropertyGalleryImageRow[]
     | PropertyGalleryImageRow
@@ -54,8 +56,22 @@ type PropertyLocationRow = {
 };
 
 type PropertySpecRow = {
+  sale_type: string | null;
+  trust_company: string | null;
+  developer: string | null;
+  builder: string | null;
+  site_area: number | null;
+  building_area: number | null;
+  building_coverage_ratio: number | null;
+  floor_area_ratio: number | null;
+  floor_ground: number | null;
+  floor_underground: number | null;
+  building_count: number | null;
   household_total: number | null;
   parking_total: number | null;
+  parking_per_household: number | null;
+  heating_type: string | null;
+  amenities: string | string[] | null;
 };
 
 type PropertyTimelineRow = {
@@ -84,6 +100,15 @@ type PropertyUnitTypeRow = {
   orientation: string | null;
   unit_count: number | null;
   supply_count: number | null;
+};
+
+type PropertyFacilityRow = {
+  id: number;
+  type: string | null;
+  road_address: string | null;
+  lat: number | string | null;
+  lng: number | string | null;
+  is_active?: boolean | null;
 };
 
 type PropertyGalleryImageRow = {
@@ -176,6 +201,32 @@ function fmtRange(a: string | null | undefined, b: string | null | undefined) {
   return `${fa} ~ ${fb}`;
 }
 
+function fmtText(value: string | null | undefined) {
+  return pickFirstNonEmpty(value) ?? UXCopy.checking;
+}
+
+function fmtNumber(value: number | null | undefined, unit = "") {
+  if (value == null || !Number.isFinite(value)) return UXCopy.checking;
+  return `${value.toLocaleString("ko-KR")}${unit}`;
+}
+
+function fmtAmenities(value: string | string[] | null | undefined) {
+  if (Array.isArray(value)) {
+    const items = value
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+    return items.length > 0 ? items.join(", ") : UXCopy.checking;
+  }
+  return fmtText(value);
+}
+
+function toNumberOrNull(value: number | string | null | undefined) {
+  if (value == null) return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 /* ---------------- Page-local UI atoms ---------------- */
 
 function CardBox({
@@ -244,6 +295,7 @@ export default function OfferingDetailLeft({
   const loc0 = firstRow<PropertyLocationRow>(p.property_locations);
   const specs0 = firstRow<PropertySpecRow>(p.property_specs);
   const timeline0 = firstRow<PropertyTimelineRow>(p.property_timeline);
+  const facilities = asArray<PropertyFacilityRow>(p.property_facilities);
 
   const unitTypes = asArray<PropertyUnitTypeRow>(p.property_unit_types)
     .slice()
@@ -260,6 +312,10 @@ export default function OfferingDetailLeft({
       : null;
 
   const galleryImageUrls = buildGalleryImageUrls(p);
+  const hasMemo =
+    pickFirstNonEmpty(p.confirmed_comment) !== null ||
+    pickFirstNonEmpty(p.estimated_comment) !== null ||
+    pickFirstNonEmpty(p.pending_comment) !== null;
 
   const priceMin =
     unitTypes
@@ -276,6 +332,87 @@ export default function OfferingDetailLeft({
       .sort((a, b) => b - a)[0] ?? null;
 
   const moveIn = fmtYMOrYMD(timeline0?.move_in_date);
+  const hasTimeline =
+    timeline0?.announcement_date != null ||
+    timeline0?.application_start != null ||
+    timeline0?.application_end != null ||
+    timeline0?.winner_announce != null ||
+    timeline0?.contract_start != null ||
+    timeline0?.contract_end != null ||
+    timeline0?.move_in_date != null;
+  const businessInfoItems = [
+    { label: "건물 유형", value: fmtText(p.property_type) },
+    { label: "주소", value: address },
+    { label: "분양 유형", value: fmtText(specs0?.sale_type) },
+    { label: "신탁사", value: fmtText(specs0?.trust_company) },
+    { label: "시행사", value: fmtText(specs0?.developer) },
+    { label: "시공사", value: fmtText(specs0?.builder) },
+  ];
+
+  const areaRatioItems = [
+    { label: "대지면적(㎡)", value: fmtNumber(specs0?.site_area, "㎡") },
+    { label: "건축면적(㎡)", value: fmtNumber(specs0?.building_area, "㎡") },
+    {
+      label: "건폐율(%)",
+      value: fmtNumber(specs0?.building_coverage_ratio, "%"),
+    },
+    { label: "용적률(%)", value: fmtNumber(specs0?.floor_area_ratio, "%") },
+  ];
+
+  const scaleEtcItems = [
+    { label: "지상층수", value: fmtNumber(specs0?.floor_ground, "층") },
+    { label: "지하층수", value: fmtNumber(specs0?.floor_underground, "층") },
+    { label: "건물 동수", value: fmtNumber(specs0?.building_count, "동") },
+    { label: "총 세대수", value: fmtNumber(specs0?.household_total, "세대") },
+    { label: "총 주차대수", value: fmtNumber(specs0?.parking_total, "대") },
+    {
+      label: "세대당 주차대수",
+      value: fmtNumber(specs0?.parking_per_household, "대"),
+    },
+    { label: "난방방식", value: fmtText(specs0?.heating_type) },
+    { label: "어메니티", value: fmtAmenities(specs0?.amenities) },
+  ];
+
+  const siteLat = toNumberOrNull(loc0?.lat);
+  const siteLng = toNumberOrNull(loc0?.lng);
+  const modelHouse = facilities.find(
+    (facility) =>
+      facility.type === "MODELHOUSE" &&
+      facility.is_active !== false &&
+      toNumberOrNull(facility.lat) != null &&
+      toNumberOrNull(facility.lng) != null,
+  );
+  const modelHouseLat = toNumberOrNull(modelHouse?.lat);
+  const modelHouseLng = toNumberOrNull(modelHouse?.lng);
+
+  const locationMarkers: MapMarker[] = [
+    ...(siteLat != null && siteLng != null
+      ? [
+          {
+            id: 1,
+            label: "현장 위치",
+            lat: siteLat,
+            lng: siteLng,
+            type: "ready" as const,
+            topLabel: null,
+            mainLabel: "현장 위치",
+          },
+        ]
+      : []),
+    ...(modelHouseLat != null && modelHouseLng != null
+      ? [
+          {
+            id: 2,
+            label: "모델하우스",
+            lat: modelHouseLat,
+            lng: modelHouseLng,
+            type: "open" as const,
+            topLabel: null,
+            mainLabel: "모델하우스",
+          },
+        ]
+      : []),
+  ];
 
   return (
     <div className="[--oboon-shadow-card:none]">
@@ -346,7 +483,7 @@ export default function OfferingDetailLeft({
           "bg-(--oboon-bg-default)",
         ].join(" ")}
       >
-        <OfferingDetailTabs />
+        <OfferingDetailTabs hasMemo={hasMemo} hasTimeline={hasTimeline} />
       </div>
 
       {/* Basic */}
@@ -357,94 +494,102 @@ export default function OfferingDetailLeft({
           desc="판단에 필요한 현장 정보를 한 화면에서 확인합니다."
         />
 
-        <div className="mt-3">
+        <div className="mt-3 space-y-3">
           <Card className="px-5 py-3">
-            <div className="grid grid-cols-1 gap-y-4 md:grid-cols-2 md:gap-x-10">
-              <div className="space-y-3">
-                <div>
+            <div className="ob-typo-subtitle text-(--oboon-text-title)">
+              분양·사업 정보
+            </div>
+            <div className="mt-3 grid grid-cols-1 gap-y-4 md:grid-cols-2 md:gap-x-10">
+              {businessInfoItems.map((item) => (
+                <div key={item.label}>
                   <div className="ob-typo-caption text-(--oboon-text-muted)">
-                    건물 유형
+                    {item.label}
                   </div>
                   <div className="mt-1 ob-typo-h4 text-(--oboon-text-title)">
-                    {p.property_type || UXCopy.checking}
+                    {item.value}
                   </div>
                 </div>
+              ))}
+            </div>
+          </Card>
 
-                <div>
+          <Card className="px-5 py-3">
+            <div className="ob-typo-subtitle text-(--oboon-text-title)">
+              면적·비율
+            </div>
+            <div className="mt-3 grid grid-cols-1 gap-y-4 md:grid-cols-2 md:gap-x-10">
+              {areaRatioItems.map((item) => (
+                <div key={item.label}>
                   <div className="ob-typo-caption text-(--oboon-text-muted)">
-                    주소
+                    {item.label}
                   </div>
                   <div className="mt-1 ob-typo-h4 text-(--oboon-text-title)">
-                    {address}
+                    {item.value}
                   </div>
                 </div>
-              </div>
+              ))}
+            </div>
+          </Card>
 
-              <div className="space-y-3">
-                <div>
+          <Card className="px-5 py-3">
+            <div className="ob-typo-subtitle text-(--oboon-text-title)">
+              규모·주차·난방·기타
+            </div>
+            <div className="mt-3 grid grid-cols-1 gap-y-4 md:grid-cols-2 md:gap-x-10">
+              {scaleEtcItems.map((item) => (
+                <div key={item.label}>
                   <div className="ob-typo-caption text-(--oboon-text-muted)">
-                    총 세대수
+                    {item.label}
                   </div>
                   <div className="mt-1 ob-typo-h4 text-(--oboon-text-title)">
-                    {specs0?.household_total
-                      ? `${specs0.household_total}세대`
-                      : UXCopy.checking}
+                    {item.value}
                   </div>
                 </div>
-
-                <div>
-                  <div className="ob-typo-caption text-(--oboon-text-muted)">
-                    세대 당 주차대수
-                  </div>
-                  <div className="mt-1 ob-typo-h4 text-(--oboon-text-title)">
-                    {specs0?.parking_total
-                      ? `${specs0.parking_total}대`
-                      : UXCopy.checking}
-                  </div>
-                </div>
-              </div>
+              ))}
             </div>
           </Card>
         </div>
       </div>
 
       {/* Memo */}
-      <div id="memo" className="mt-10 scroll-mt-30 lg:scroll-mt-30">
-        <SectionTitle
-          icon={<Info className="h-5 w-5" />}
-          title="감정평가사 메모"
-          desc="등록된 항목만 노출합니다."
-        />
+      {hasMemo ? (
+        <div id="memo" className="mt-10 scroll-mt-30 lg:scroll-mt-30">
+          <SectionTitle
+            icon={<Info className="h-5 w-5" />}
+            title="감정평가사 메모"
+            desc="등록된 항목만 노출합니다."
+          />
 
-        <div className="mt-3 space-y-3">
-          <Card className="px-5 py-3">
-            <div className="ob-typo-caption text-(--oboon-text-muted)">
-              확정 내용
-            </div>
-            <div className="mt-2 whitespace-pre-wrap ob-typo-h4 text-(--oboon-text-title)">
-              {pickFirstNonEmpty(p.confirmed_comment) ?? UXCopy.notRegistered}
-            </div>
-          </Card>
+          <div className="mt-3 space-y-3">
+            <Card className="px-5 py-3">
+              <div className="ob-typo-caption text-(--oboon-text-muted)">
+                확정 내용
+              </div>
+              <div className="mt-2 whitespace-pre-wrap ob-typo-h4 text-(--oboon-text-title)">
+                {pickFirstNonEmpty(p.confirmed_comment) ?? UXCopy.notRegistered}
+              </div>
+            </Card>
 
-          <Card className="px-5 py-3">
-            <div className="ob-typo-caption text-(--oboon-text-muted)">
-              추정 내용
-            </div>
-            <div className="mt-2 whitespace-pre-wrap ob-typo-h4 text-(--oboon-text-title)">
-              {pickFirstNonEmpty(p.estimated_comment) ?? UXCopy.notRegistered}
-            </div>
-          </Card>
+            <Card className="px-5 py-3">
+              <div className="ob-typo-caption text-(--oboon-text-muted)">
+                추정 내용
+              </div>
+              <div className="mt-2 whitespace-pre-wrap ob-typo-h4 text-(--oboon-text-title)">
+                {pickFirstNonEmpty(p.estimated_comment) ?? UXCopy.notRegistered}
+              </div>
+            </Card>
 
-          <Card className="px-5 py-3">
-            <div className="ob-typo-caption text-(--oboon-text-muted)">
-              미정 내용
-            </div>
-            <div className="mt-2 whitespace-pre-wrap ob-typo-h4 text-(--oboon-text-title)">
-              {pickFirstNonEmpty(p.pending_comment) ?? UXCopy.notRegistered}
-            </div>
-          </Card>
+            <Card className="px-5 py-3">
+              <div className="ob-typo-caption text-(--oboon-text-muted)">
+                미정 내용
+              </div>
+              <div className="mt-2 whitespace-pre-wrap ob-typo-h4 text-(--oboon-text-title)">
+                {pickFirstNonEmpty(p.pending_comment) ?? UXCopy.notRegistered}
+              </div>
+            </Card>
+          </div>
         </div>
-      </div>
+      ) : null}
 
       {/* Prices */}
       <div id="prices" className="mt-10 scroll-mt-30 lg:scroll-mt-30">
@@ -466,48 +611,77 @@ export default function OfferingDetailLeft({
       </div>
 
       {/* Timeline */}
-      <div id="timeline" className="mt-10 scroll-mt-30 lg:scroll-mt-30">
+      {hasTimeline ? (
+        <div id="timeline" className="mt-10 scroll-mt-30 lg:scroll-mt-30">
+          <SectionTitle
+            icon={<CalendarDays className="h-5 w-5" />}
+            title="분양 일정"
+            desc="공고/청약/계약/입주 핵심만 요약합니다."
+          />
+
+          <div className="mt-3">
+            <Card className="p-3">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <StatCard
+                  label="모집공고"
+                  value={fmtYMOrYMD(timeline0?.announcement_date)}
+                />
+                <StatCard
+                  label="청약 접수"
+                  value={fmtRange(
+                    timeline0?.application_start,
+                    timeline0?.application_end
+                  )}
+                />
+                <StatCard
+                  label="당첨자 발표"
+                  value={fmtYMOrYMD(timeline0?.winner_announce)}
+                />
+                <StatCard
+                  label="계약"
+                  value={fmtRange(
+                    timeline0?.contract_start,
+                    timeline0?.contract_end
+                  )}
+                />
+                <StatCard
+                  label="입주 예정"
+                  value={fmtYMOrYMD(timeline0?.move_in_date)}
+                />
+              </div>
+
+              <div className="mt-2 px-2 py-1 ob-typo-caption text-(--oboon-text-muted)">
+                입주 예정일은 &quot;년도-월&quot; 또는 &quot;년도-월-일&quot; 형식이 혼재할 수 있어요.
+                <br />월 단위 표기는 해당 월로 안내되는 정보를 의미합니다.
+              </div>
+            </Card>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="mt-10">
         <SectionTitle
-          icon={<CalendarDays className="h-5 w-5" />}
-          title="분양 일정"
-          desc="공고/청약/계약/입주 핵심만 요약합니다."
+          icon={<MapPin className="h-5 w-5" />}
+          title="현장/모델하우스 위치"
+          desc="분양 일정 아래에서 위치를 바로 확인할 수 있습니다."
         />
 
         <div className="mt-3">
           <Card className="p-3">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <StatCard
-                label="모집공고"
-                value={fmtYMOrYMD(timeline0?.announcement_date)}
-              />
-              <StatCard
-                label="청약 접수"
-                value={fmtRange(
-                  timeline0?.application_start,
-                  timeline0?.application_end
-                )}
-              />
-              <StatCard
-                label="당첨자 발표"
-                value={fmtYMOrYMD(timeline0?.winner_announce)}
-              />
-              <StatCard
-                label="계약"
-                value={fmtRange(
-                  timeline0?.contract_start,
-                  timeline0?.contract_end
-                )}
-              />
-              <StatCard
-                label="입주 예정"
-                value={fmtYMOrYMD(timeline0?.move_in_date)}
-              />
-            </div>
-
-            <div className="mt-2 px-2 py-1 ob-typo-caption text-(--oboon-text-muted)">
-              입주 예정일은 &quot;년도-월&quot; 또는 &quot;년도-월-일&quot; 형식이 혼재할 수 있어요.
-              <br />월 단위 표기는 해당 월로 안내되는 정보를 의미합니다.
-            </div>
+            {locationMarkers.length > 0 ? (
+              <div className="h-72 overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)">
+                <NaverMap
+                  markers={locationMarkers}
+                  focusedId={locationMarkers[0]?.id ?? null}
+                  richMarkerIds={locationMarkers.map((marker) => marker.id)}
+                  mode="base"
+                />
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-(--oboon-border-default) p-4 text-center ob-typo-body text-(--oboon-text-muted)">
+                등록된 위치 좌표가 없어 지도를 표시할 수 없습니다.
+              </div>
+            )}
           </Card>
         </div>
       </div>

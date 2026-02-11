@@ -23,6 +23,7 @@ import { createSupabaseClient } from "@/lib/supabaseClient";
 import { trackEvent } from "@/lib/analytics";
 
 import { showAlert } from "@/shared/alert";
+import { getAvatarUrlOrDefault } from "@/shared/imageUrl";
 
 interface Agent {
   id: string;
@@ -117,6 +118,7 @@ export default function BookingModal({
   );
   const [bankName, setBankName] = useState("");
   const [bankAccountNumber, setBankAccountNumber] = useState("");
+  const [bankAccountHolder, setBankAccountHolder] = useState("");
   const [bankSaving, setBankSaving] = useState(false);
 
   // 약관 상태
@@ -140,8 +142,11 @@ export default function BookingModal({
   };
 
   const hasBankInfo = useMemo(
-    () => bankName.trim().length > 0 && bankAccountNumber.trim().length > 0,
-    [bankAccountNumber, bankName],
+    () =>
+      bankName.trim().length > 0 &&
+      bankAccountNumber.trim().length > 0 &&
+      bankAccountHolder.trim().length > 0,
+    [bankAccountHolder, bankAccountNumber, bankName],
   );
 
   useEffect(() => {
@@ -170,11 +175,12 @@ export default function BookingModal({
         if (currentUser) {
           const { data: profile } = await supabase
             .from("profiles")
-            .select("bank_name, bank_account_number")
+            .select("bank_name, bank_account_number, bank_account_holder")
             .eq("id", currentUser.id)
             .maybeSingle();
           setBankName(profile?.bank_name ?? "");
           setBankAccountNumber(profile?.bank_account_number ?? "");
+          setBankAccountHolder(profile?.bank_account_holder ?? "");
 
           const { data: existingData } = await supabase
             .from("consultations")
@@ -191,7 +197,7 @@ export default function BookingModal({
             .in("status", ["requested", "pending", "confirmed"])
             .order("created_at", { ascending: false })
             .limit(1)
-            .single();
+            .maybeSingle();
 
           if (existingData) {
             const row = existingData as {
@@ -476,8 +482,9 @@ export default function BookingModal({
   async function handleSaveBankAndNext() {
     const trimmedBankName = bankName.trim();
     const trimmedAccountNumber = bankAccountNumber.trim();
-    if (!trimmedBankName || !trimmedAccountNumber) {
-      showAlert("은행과 계좌번호를 모두 입력해주세요");
+    const trimmedAccountHolder = bankAccountHolder.trim();
+    if (!trimmedBankName || !trimmedAccountNumber || !trimmedAccountHolder) {
+      showAlert("은행, 계좌번호, 입금자명을 모두 입력해주세요");
       return;
     }
 
@@ -497,6 +504,7 @@ export default function BookingModal({
         .update({
           bank_name: trimmedBankName,
           bank_account_number: trimmedAccountNumber,
+          bank_account_holder: trimmedAccountHolder,
         })
         .eq("id", currentUser.id);
 
@@ -637,7 +645,7 @@ export default function BookingModal({
               <div className="flex flex-col gap-3 max-h-72 overflow-y-auto">
                 {agents.map((agent) => {
                   const isSelected = selectedAgent?.id === agent.id;
-                  const avatarUrl = (agent.avatar_url ?? "").trim() || null;
+                  const avatarUrl = getAvatarUrlOrDefault(agent.avatar_url);
                   return (
                     <Card
                       key={agent.id}
@@ -655,19 +663,13 @@ export default function BookingModal({
                     >
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-(--oboon-bg-subtle)">
-                          {avatarUrl ? (
-                            <Image
-                              src={avatarUrl}
-                              alt={`${agent.name} 아바타`}
-                              width={40}
-                              height={40}
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center ob-typo-subtitle text-(--oboon-text-title)">
-                              {agent.name?.slice(0, 1) || "상"}
-                            </div>
-                          )}
+                          <Image
+                            src={avatarUrl}
+                            alt={`${agent.name} 아바타`}
+                            width={40}
+                            height={40}
+                            className="h-full w-full object-cover"
+                          />
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="ob-typo-caption text-(--oboon-text-muted)">
@@ -748,6 +750,13 @@ export default function BookingModal({
                   {availableSlots.map((slot) => {
                     const active = selectedTime === slot.time;
                     const isDisabled = !slot.available;
+                    const slotLabel = isDisabled
+                      ? slot.reason === "booked"
+                        ? "예약됨"
+                        : slot.reason === "closed"
+                          ? "마감"
+                          : "지남"
+                      : slot.time;
                     return (
                       <button
                         key={slot.time}
@@ -767,7 +776,7 @@ export default function BookingModal({
                         }}
                         disabled={isDisabled}
                       >
-                        {isDisabled ? "지남" : slot.time}
+                        {slotLabel}
                       </button>
                     );
                   })}
@@ -815,7 +824,7 @@ export default function BookingModal({
               <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
                 방문 보상금 지급 및 환불 처리를 위해 사용됩니다.
               </p>
-              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
                 <Input
                   value={bankName}
                   onChange={(e) => setBankName(e.target.value)}
@@ -826,6 +835,12 @@ export default function BookingModal({
                   value={bankAccountNumber}
                   onChange={(e) => setBankAccountNumber(e.target.value)}
                   placeholder="계좌번호"
+                  disabled={bankSaving}
+                />
+                <Input
+                  value={bankAccountHolder}
+                  onChange={(e) => setBankAccountHolder(e.target.value)}
+                  placeholder="입금자명"
                   disabled={bankSaving}
                 />
               </div>
@@ -1067,7 +1082,13 @@ export default function BookingModal({
 
             <div className="mt-5 flex items-center gap-3">
               <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle) text-(--oboon-text-title) flex items-center justify-center ob-typo-subtitle">
-                {previewAgent.name?.slice(0, 1) || "상"}
+                <Image
+                  src={getAvatarUrlOrDefault(previewAgent.avatar_url)}
+                  alt={`${previewAgent.name} 아바타`}
+                  width={48}
+                  height={48}
+                  className="h-full w-full object-cover"
+                />
               </div>
               <div>
                 <div className="ob-typo-caption text-(--oboon-text-muted)">

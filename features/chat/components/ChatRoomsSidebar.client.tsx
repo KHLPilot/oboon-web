@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { ArrowLeft } from "lucide-react";
 import Button from "@/components/ui/Button";
+import { getAvatarUrlOrDefault } from "@/shared/imageUrl";
 
 type ChatRoomItem = {
   room_id: string;
@@ -125,8 +126,9 @@ export default function ChatRoomsSidebar({
           <ul>
             {rooms.map((room) => {
               const isActive = activeConsultationId === room.consultation_id;
-              const initial =
-                (room.counterpart?.name ?? "?").trim().charAt(0).toUpperCase() || "?";
+              const counterpartAvatarUrl = getAvatarUrlOrDefault(
+                room.counterpart?.avatar_url,
+              );
 
               return (
                 <li key={room.room_id}>
@@ -143,19 +145,13 @@ export default function ChatRoomsSidebar({
                     }`}
                   >
                     <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-page)">
-                      {room.counterpart?.avatar_url ? (
-                        <Image
-                          src={room.counterpart.avatar_url}
-                          alt={room.counterpart.name ?? "상대방"}
-                          fill
-                          className="object-cover"
-                          sizes="48px"
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center text-sm font-semibold text-(--oboon-text-muted)">
-                          {initial}
-                        </div>
-                      )}
+                      <Image
+                        src={counterpartAvatarUrl}
+                        alt={room.counterpart?.name ?? "상대방"}
+                        fill
+                        className="object-cover"
+                        sizes="48px"
+                      />
                     </div>
 
                     <div className="min-w-0 flex-1">

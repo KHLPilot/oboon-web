@@ -46,6 +46,7 @@ const NaverMap = forwardRef<
     markers?: MapMarker[];
     hoveredId?: number | null;
     focusedId?: number | null;
+    richMarkerIds?: number[];
     onMarkerSelect?: (id: number) => void;
     onHoverChange?: (id: number | null) => void;
     onVisibleIdsChange?: (ids: number[]) => void;
@@ -59,6 +60,7 @@ const NaverMap = forwardRef<
       markers = [],
       hoveredId = null,
       focusedId = null,
+      richMarkerIds = [],
       onMarkerSelect,
       onHoverChange = () => {},
       onVisibleIdsChange,
@@ -89,8 +91,10 @@ const NaverMap = forwardRef<
 
     const focusedIdRef = useRef(focusedId);
     const hoveredIdRef = useRef(hoveredId);
+    const richMarkerIdsRef = useRef<number[]>(richMarkerIds);
     focusedIdRef.current = focusedId;
     hoveredIdRef.current = hoveredId;
+    richMarkerIdsRef.current = richMarkerIds;
     const applyMarkerStyleByIdRef = useRef<
       (naverObj: NaverGlobal, id: number) => void
     >(
@@ -122,8 +126,9 @@ const NaverMap = forwardRef<
     });
 
     function shouldBeRich(m: MapMarker) {
-      // 정책: focused 마커만 rich
-      return focusedIdRef.current === m.id;
+      // 기본은 focused 마커만 rich, 필요 시 richMarkerIds로 추가 지정 가능
+      if (focusedIdRef.current === m.id) return true;
+      return richMarkerIdsRef.current.includes(m.id);
     }
 
     function applyMarkerStyleById(naverObj: NaverGlobal, id: number) {

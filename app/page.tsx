@@ -31,17 +31,21 @@ export default function HomePage() {
 function HeroSection() {
   return (
     <section className="pt-20 pb-10 sm:pt-20 flex flex-col items-center gap-6 sm:gap-7 text-center">
-      <div className="space-y-5">
+      <div>
         <div className="ob-typo-display text-(--oboon-text-title)">
           오늘의 분양
-          <br />
-          데이터를 투명하게
+          <br/>
+          분양 정보부터 상담 연결까지 한 번에.
         </div>
 
-        <p className="ob-typo-body text-(--oboon-text-body)">
-          복잡한 공고문 대신 핵심만 간단하게 정리해 드립니다.
+        <p className="ob-typo-h1 text-(--oboon-text-body)">
+        </p>
+
+        <p className="ob-typo-h4 text-(--oboon-text-body)">
           <br />
-          빅데이터 기반의 객관적인 분양 정보를 만나보세요.
+          현장을 비교하고
+          <br />
+          원하는 상담사를 직접 선택하세요.
         </p>
       </div>
 

@@ -11,6 +11,7 @@ import type { User } from "@supabase/supabase-js";
 
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { trackEvent } from "@/lib/analytics";
+import { getAvatarUrlOrDefault, normalizeImageUrl } from "@/shared/imageUrl";
 import ThemeToggle from "./ThemeToggle";
 import Button from "../ui/Button";
 
@@ -63,7 +64,7 @@ export default function Header() {
       const displayName = profile.nickname || profile.name;
       const realName = displayName && displayName !== "temp" ? displayName : "";
       setProfileName(realName);
-      setProfileAvatarUrl(profile.avatar_url ?? null);
+      setProfileAvatarUrl(normalizeImageUrl(profile.avatar_url));
       setUserRole(profile.role || "user");
     }
   };
@@ -134,6 +135,13 @@ export default function Header() {
   }, [isHidden]);
 
   if (isHidden) return null;
+
+  const metadataAvatarUrl = normalizeImageUrl(
+    (user?.user_metadata as Record<string, unknown> | undefined)?.avatar_url,
+  );
+  const currentAvatarUrl = getAvatarUrlOrDefault(
+    profileAvatarUrl ?? metadataAvatarUrl,
+  );
 
   // iOS safe-area 포함 헤더 총 높이(스페이서에 동일하게 사용)
   const HEADER_HEIGHT = "var(--oboon-header-offset)";
@@ -247,22 +255,13 @@ export default function Header() {
                           backgroundColor: "var(--oboon-bg-subtle)",
                         }}
                       >
-                        {profileAvatarUrl ?? user.user_metadata?.avatar_url ? (
-                          <Image
-                            src={(profileAvatarUrl ?? user.user_metadata?.avatar_url) as string}
-                            alt="Profile"
-                            width={32}
-                            height={32}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <span
-                            className="ob-typo-caption"
-                            style={{ color: "var(--oboon-text-body)" }}
-                          >
-                            {getDisplayName().slice(0, 1)}
-                          </span>
-                        )}
+                        <Image
+                          src={currentAvatarUrl}
+                          alt="Profile"
+                          width={32}
+                          height={32}
+                          className="h-full w-full object-cover"
+                        />
                       </div>
 
                       <span

@@ -9,6 +9,7 @@ import { subscribeToChatRoom } from "@/features/chat/services/chat.realtime";
 import Button from "@/components/ui/Button";
 import { showAlert } from "@/shared/alert";
 import ChatRoomsSidebar from "@/features/chat/components/ChatRoomsSidebar.client";
+import { getAvatarUrlOrDefault } from "@/shared/imageUrl";
 
 interface Message {
   id: string;
@@ -288,6 +289,7 @@ export default function ChatPage() {
   const agent = first(consultation?.agent);
   const property = first(consultation?.property);
   const otherParty = currentUserId === customer?.id ? agent : customer;
+  const otherPartyAvatarUrl = getAvatarUrlOrDefault(otherParty?.avatar_url);
 
   if (loading) {
     return (
@@ -341,19 +343,13 @@ export default function ChatPage() {
             </button>
             <div className="flex min-w-0 flex-1 items-center gap-2.5">
               <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle)">
-                {otherParty?.avatar_url ? (
-                  <Image
-                    src={otherParty.avatar_url}
-                    alt={otherParty.name || "상대방"}
-                    fill
-                    className="object-cover"
-                    sizes="40px"
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center ob-typo-caption text-(--oboon-text-muted)">
-                    {(otherParty?.name ?? "?").trim().charAt(0).toUpperCase() || "?"}
-                  </div>
-                )}
+                <Image
+                  src={otherPartyAvatarUrl}
+                  alt={otherParty?.name || "상대방"}
+                  fill
+                  className="object-cover"
+                  sizes="40px"
+                />
               </div>
               <div className="min-w-0">
                 <div className="ob-typo-h2 text-(--oboon-text-title) truncate">

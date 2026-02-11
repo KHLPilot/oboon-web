@@ -63,9 +63,9 @@ type PropertyRow = {
   status: string | null;
   description: string | null;
   image_url: string | null;
-  confirmed_note: string | null;
-  estimated_note: string | null;
-  undecided_note: string | null;
+  confirmed_comment: string | null;
+  estimated_comment: string | null;
+  pending_comment: string | null;
 };
 
 type RelationRow = { id: number };
@@ -334,9 +334,9 @@ function PropertyDetailPageInner() {
         status: res.status,
         description: res.description,
         image_url: res.image_url,
-        confirmed_note: res.confirmed_note,
-        estimated_note: res.estimated_note,
-        undecided_note: res.undecided_note,
+        confirmed_comment: res.confirmed_comment,
+        estimated_comment: res.estimated_comment,
+        pending_comment: res.pending_comment,
       });
       await fetchGalleryImages(res.id);
     }
@@ -399,7 +399,13 @@ function PropertyDetailPageInner() {
     if (!form) return;
     if (!validateRequiredOrShowModal(form.name, "현장명")) return;
     setSaving(true);
-    const { error } = await updatePropertyBasicInfo(id, { ...form });
+    const { error } = await updatePropertyBasicInfo(id, {
+      name: form.name?.trim() ?? "",
+      property_type: form.property_type?.trim() || null,
+      status: form.status || null,
+      description: form.description?.trim() || null,
+      image_url: form.image_url || null,
+    });
     setSaving(false);
 
     if (error) return showAlert("저장 실패: " + (error instanceof Error ? error.message : "알 수 없는 오류"));

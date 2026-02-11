@@ -80,6 +80,13 @@ function Field({
   );
 }
 
+function formatUnitTypeTitle(typeName: string | null | undefined) {
+  const raw = (typeName ?? "").trim();
+  if (!raw) return "-";
+  if (/(㎡|m²|m2)\s*$/i.test(raw)) return raw;
+  return `${raw}㎡`;
+}
+
 export default function UnitTypeCard({
   unit,
   status,
@@ -104,8 +111,8 @@ export default function UnitTypeCard({
   onChange: <K extends keyof UnitDraft>(key: K, value: UnitDraft[K]) => void;
 }) {
   const title = isEditing
-    ? draft?.type_name || unit.type_name || "-"
-    : unit.type_name || "-";
+    ? formatUnitTypeTitle(draft?.type_name || unit.type_name)
+    : formatUnitTypeTitle(unit.type_name);
 
   const summaryPrice = formatPriceRange(
     isEditing ? draft?.price_min : unit.price_min,
@@ -413,8 +420,7 @@ export default function UnitTypeCard({
                       shape="pill"
                       disabled={saving || floorUploading}
                       onClick={() => {
-                        onChange("floor_plan_url", null);
-                        setFloorPlanFileName(null);
+                        floorPlanInputRef.current?.click();
                       }}
                     >
                       파일 선택

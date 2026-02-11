@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { approveAgent, restoreAccount } from "./serverActions";
 import { fetchAdminDashboardData } from "@/features/admin/services/admin.dashboard";
+import { DEFAULT_AVATAR_URL, getAvatarUrlOrDefault } from "@/shared/imageUrl";
 
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -107,6 +108,7 @@ type SettlementRow = {
   customer_avatar_url: string | null;
   customer_bank_name: string | null;
   customer_bank_account_number: string | null;
+  customer_bank_account_holder: string | null;
   agent_name: string | null;
   agent_avatar_url: string | null;
   deposit_amount: number;
@@ -955,30 +957,17 @@ function AdminPageInner() {
     url?: string | null;
   }) => {
     const [error, setError] = useState(false);
-    const initial = (name ?? "").slice(0, 1) || "?";
-    const showImage = Boolean(url) && !error;
+    const safeUrl = error ? DEFAULT_AVATAR_URL : getAvatarUrlOrDefault(url);
 
-    return showImage ? (
+    return (
       <Image
-        src={url ?? ""}
+        src={safeUrl}
         alt={`${name ?? "사용자"} 프로필`}
         width={28}
         height={28}
         className="h-7 w-7 rounded-full border border-(--oboon-border-default) object-cover"
         onError={() => setError(true)}
       />
-    ) : (
-      <span
-        className={[
-          "h-7 w-7 rounded-full bg-(--oboon-bg-subtle)",
-          "border border-(--oboon-border-default)",
-          "inline-flex items-center justify-center",
-          "ob-typo-caption text-(--oboon-text-muted)",
-        ].join(" ")}
-        aria-hidden
-      >
-        {initial}
-      </span>
     );
   };
 

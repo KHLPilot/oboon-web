@@ -61,6 +61,7 @@ import {
   oboonFieldBaseClass,
   oboonTextareaBaseClass,
 } from "@/lib/ui/formFieldStyles";
+import { getAvatarUrlOrDefault } from "@/shared/imageUrl";
 
 type Role =
   | "user"
@@ -134,6 +135,7 @@ export default function ProfilePage({
   const [phone, setPhone] = useState("");
   const [bankName, setBankName] = useState("");
   const [bankAccountNumber, setBankAccountNumber] = useState("");
+  const [bankAccountHolder, setBankAccountHolder] = useState("");
   const [role, setRole] = useState<Role>("user");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
@@ -159,6 +161,7 @@ export default function ProfilePage({
     phone?: string;
     bankName?: string;
     bankAccountNumber?: string;
+    bankAccountHolder?: string;
   }>({});
 
   // ✅ 닉네임 중복 체크
@@ -184,14 +187,14 @@ export default function ProfilePage({
   >(null);
   const [agentSearchKeyword, setAgentSearchKeyword] = useState("");
   const [visiblePropertyCount, setVisiblePropertyCount] = useState(9);
-  const [isChangingAffiliation, setIsChangingAffiliation] = useState(false);
   const [agentMenuTab, setAgentMenuTab] = useState<AgentMenuTab>("profile");
   const [userMenuTab, setUserMenuTab] = useState<UserMenuTab>("profile");
   const [registeredPropertyRows, setRegisteredPropertyRows] = useState<
     PropertyListRow[]
   >([]);
-  const [isUnassigningAffiliation, setIsUnassigningAffiliation] =
-    useState(false);
+  const [withdrawingRequestId, setWithdrawingRequestId] = useState<string | null>(
+    null,
+  );
 
   const closeDeleteModal = () => {
     setShowDeleteModal(false);
@@ -236,7 +239,7 @@ export default function ProfilePage({
       const { data } = await supabase
         .from("profiles")
         .select(
-          "name, nickname, phone_number, role, avatar_url, agent_bio, bank_name, bank_account_number",
+          "name, nickname, phone_number, role, avatar_url, agent_bio, bank_name, bank_account_number, bank_account_holder",
         )
         .eq("id", user.id)
         .single();
@@ -248,6 +251,7 @@ export default function ProfilePage({
         setPhone(data.phone_number ?? "");
         setBankName(data.bank_name ?? "");
         setBankAccountNumber(data.bank_account_number ?? "");
+        setBankAccountHolder(data.bank_account_holder ?? "");
         setRole(data.role as Role);
         setAvatarUrl(data.avatar_url ?? null);
         setAgentEtc(data.agent_bio ?? "");
@@ -322,6 +326,15 @@ export default function ProfilePage({
 
     if (errors.bankName) {
       setErrors((prev) => ({ ...prev, bankName: undefined }));
+    }
+  };
+
+  const handleBankAccountHolderChange = (value: string) => {
+    const sanitized = sanitizeInput(value, "name");
+    setBankAccountHolder(sanitized);
+
+    if (errors.bankAccountHolder) {
+      setErrors((prev) => ({ ...prev, bankAccountHolder: undefined }));
     }
   };
 
@@ -607,13 +620,14 @@ export default function ProfilePage({
 
     const phoneError = validatePhone(phone);
     if (phoneError) newErrors.phone = phoneError;
-    if (!showAgentProfile) {
-      if (!bankName.trim()) {
-        newErrors.bankName = "은행명을 입력해주세요.";
-      }
-      if (!bankAccountNumber.trim()) {
-        newErrors.bankAccountNumber = "계좌번호를 입력해주세요.";
-      }
+    if (!bankName.trim()) {
+      newErrors.bankName = "은행명을 입력해주세요.";
+    }
+    if (!bankAccountNumber.trim()) {
+      newErrors.bankAccountNumber = "계좌번호를 입력해주세요.";
+    }
+    if (!bankAccountHolder.trim()) {
+      newErrors.bankAccountHolder = "입금자명을 입력해주세요.";
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -648,6 +662,7 @@ export default function ProfilePage({
       phone_number: string;
       bank_name?: string;
       bank_account_number?: string;
+      bank_account_holder?: string;
       agent_bio?: string | null;
     } = {
       name: name.trim(),
@@ -655,11 +670,11 @@ export default function ProfilePage({
       phone_number: phone.replace(/-/g, ""), // 하이픈 제거
     };
 
+    updatePayload.bank_name = bankName.trim();
+    updatePayload.bank_account_number = bankAccountNumber.trim();
+    updatePayload.bank_account_holder = bankAccountHolder.trim();
     if (showAgentProfile) {
       updatePayload.agent_bio = agentEtc.trim() || null;
-    } else {
-      updatePayload.bank_name = bankName.trim();
-      updatePayload.bank_account_number = bankAccountNumber.trim();
     }
 
     const { error } = await supabase
@@ -732,16 +747,9 @@ export default function ProfilePage({
             : role === "admin"
               ? "관리자"
               : role;
-  const latestApprovedRequest = [...agentRequests]
-    .filter((request) => request.status === "approved")
-    .sort((a, b) => {
-      const aTime = new Date(a.approved_at ?? a.requested_at).getTime();
-      const bTime = new Date(b.approved_at ?? b.requested_at).getTime();
-      return bTime - aTime;
-    })[0];
-  const currentApprovedPropertyId = latestApprovedRequest?.property_id ?? null;
-  const hasApprovedProperty = currentApprovedPropertyId !== null;
-  const hasPendingRequest = agentRequests.some((r) => r.status === "pending");
+  const hasApprovedProperty = agentRequests.some(
+    (request) => request.status === "approved",
+  );
   const latestRegisteredProperty = registeredPropertyRows[0] ?? null;
 
   const getPropertyStatusLabel = (
@@ -824,16 +832,7 @@ export default function ProfilePage({
     const request = agentRequests.find(
       (requestItem) => requestItem.property_id === propertyId,
     );
-
-    if (!request) return null;
-    if (
-      request.status === "approved" &&
-      propertyId !== currentApprovedPropertyId
-    ) {
-      return null;
-    }
-
-    return request;
+    return request ?? null;
   };
 
   const getStatusBadge = (status: "pending" | "approved" | "rejected") => {
@@ -932,10 +931,7 @@ export default function ProfilePage({
     return () => window.removeEventListener("hashchange", syncTabFromHash);
   }, [showAgentProfile]);
 
-  const handleAgentPropertyApply = async (
-    propertyId: number,
-    changeRequest = false,
-  ) => {
+  const handleAgentPropertyApply = async (propertyId: number) => {
     setAgentSubmittingPropertyId(propertyId);
     try {
       const response = await fetch("/api/property-agents", {
@@ -943,7 +939,6 @@ export default function ProfilePage({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           property_id: propertyId,
-          change_request: changeRequest,
         }),
       });
       const data = await response.json();
@@ -954,7 +949,6 @@ export default function ProfilePage({
 
       showAlert(data.message || "소속 신청이 완료되었습니다.");
       await reloadAgentDashboard();
-      setIsChangingAffiliation(false);
     } catch (error: unknown) {
       showAlert(getErrorMessage(error, "소속 신청 중 오류가 발생했습니다."));
     } finally {
@@ -962,28 +956,34 @@ export default function ProfilePage({
     }
   };
 
-  const handleUnassignAffiliation = async () => {
-    const confirmed = confirm("현재 소속을 해제하고 무소속으로 전환할까요?");
+  const handleWithdrawAffiliation = async (
+    propertyAgentId: string,
+    propertyName: string,
+  ) => {
+    const confirmed = confirm(`'${propertyName}' 소속을 해제할까요?`);
     if (!confirmed) return;
 
-    setIsUnassigningAffiliation(true);
+    setWithdrawingRequestId(propertyAgentId);
     try {
-      const response = await fetch("/api/property-agents/unassign", {
-        method: "POST",
+      const response = await fetch(`/api/property-agents/${propertyAgentId}`, {
+        method: "DELETE",
       });
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "무소속 전환에 실패했습니다.");
+        throw new Error(data.error || "소속 해제에 실패했습니다.");
       }
 
-      showAlert(data.message || "무소속으로 전환되었습니다.");
-      setIsChangingAffiliation(false);
+      showAlert(data.message || "소속이 해제되었습니다.");
       await reloadAgentDashboard();
+      setAgentMenuTab("affiliation");
+      if (typeof window !== "undefined") {
+        window.location.hash = "#affiliation-section";
+      }
     } catch (error: unknown) {
-      showAlert(getErrorMessage(error, "무소속 전환 중 오류가 발생했습니다."));
+      showAlert(getErrorMessage(error, "소속 해제 중 오류가 발생했습니다."));
     } finally {
-      setIsUnassigningAffiliation(false);
+      setWithdrawingRequestId(null);
     }
   };
 
@@ -1154,6 +1154,71 @@ export default function ProfilePage({
                         />
                       </div>
                     </div>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      <div className="space-y-2">
+                        <Label>은행 *</Label>
+                        <Input
+                          value={bankName}
+                          disabled={!isEditing}
+                          onChange={(e) => handleBankNameChange(e.target.value)}
+                          placeholder="예: 토스뱅크"
+                          maxLength={30}
+                          className={[
+                            oboonFieldBaseClass,
+                            errors.bankName ? "border-(--oboon-danger-border)" : "",
+                          ].join(" ")}
+                        />
+                        {errors.bankName && (
+                          <p className="ob-typo-caption text-(--oboon-danger) mt-1">
+                            {errors.bankName}
+                          </p>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label>계좌번호 *</Label>
+                        <Input
+                          value={bankAccountNumber}
+                          disabled={!isEditing}
+                          onChange={(e) => handleBankAccountChange(e.target.value)}
+                          placeholder="숫자와 -만 입력"
+                          maxLength={40}
+                          className={[
+                            oboonFieldBaseClass,
+                            errors.bankAccountNumber
+                              ? "border-(--oboon-danger-border)"
+                              : "",
+                          ].join(" ")}
+                        />
+                        {errors.bankAccountNumber && (
+                          <p className="ob-typo-caption text-(--oboon-danger) mt-1">
+                            {errors.bankAccountNumber}
+                          </p>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label>입금자명 *</Label>
+                        <Input
+                          value={bankAccountHolder}
+                          disabled={!isEditing}
+                          onChange={(e) =>
+                            handleBankAccountHolderChange(e.target.value)
+                          }
+                          placeholder="예금주 이름"
+                          maxLength={50}
+                          className={[
+                            oboonFieldBaseClass,
+                            errors.bankAccountHolder
+                              ? "border-(--oboon-danger-border)"
+                              : "",
+                          ].join(" ")}
+                        />
+                        {errors.bankAccountHolder && (
+                          <p className="ob-typo-caption text-(--oboon-danger) mt-1">
+                            {errors.bankAccountHolder}
+                          </p>
+                        )}
+                      </div>
+                    </div>
 
                     <div className="space-y-2">
                       <Label>기타</Label>
@@ -1167,10 +1232,10 @@ export default function ProfilePage({
                       />
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
                       {!isEditing ? (
                         <Button
-                          variant="ghost"
+                          variant="secondary"
                           size="sm"
                           onClick={() => setIsEditing(true)}
                         >
@@ -1201,21 +1266,13 @@ export default function ProfilePage({
                     <Label>프로필 이미지</Label>
                     <div className="relative mx-auto h-48 w-48 sm:h-60 sm:w-60 lg:h-75 lg:w-75">
                       <div className="h-48 w-48 overflow-hidden rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle) sm:h-60 sm:w-60 lg:h-75 lg:w-75">
-                        {avatarUrl ? (
-                          <Image
-                            src={avatarUrl}
-                            alt="프로필 이미지"
-                            width={300}
-                            height={300}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center ob-typo-display text-(--oboon-text-muted)">
-                            {(nickname || name || email || "U")
-                              .slice(0, 1)
-                              .toUpperCase()}
-                          </div>
-                        )}
+                        <Image
+                          src={getAvatarUrlOrDefault(avatarUrl)}
+                          alt="프로필 이미지"
+                          width={300}
+                          height={300}
+                          className="h-full w-full object-cover"
+                        />
                       </div>
                       <input
                         ref={fileInputRef}
@@ -1335,32 +1392,6 @@ export default function ProfilePage({
                 <div className="ob-typo-h2 text-(--oboon-text-title)">
                   소속 등록
                 </div>
-                {hasApprovedProperty ? (
-                  <div className="ml-auto flex items-center gap-2">
-                    {isChangingAffiliation ? (
-                      <Button
-                        variant="danger"
-                        size="sm"
-                        shape="pill"
-                        onClick={handleUnassignAffiliation}
-                        disabled={isUnassigningAffiliation}
-                        loading={isUnassigningAffiliation}
-                      >
-                        소속 없음
-                      </Button>
-                    ) : null}
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      shape="pill"
-                      onClick={() =>
-                        setIsChangingAffiliation((prev) => !prev)
-                      }
-                    >
-                      {isChangingAffiliation ? "소속 변경 취소" : "소속 변경"}
-                    </Button>
-                  </div>
-                ) : null}
               </div>
 
               {!hasApprovedProperty ? (
@@ -1404,30 +1435,12 @@ export default function ProfilePage({
               >
                 {visibleAgentProperties.map((property) => {
                   const request = getRequestStatus(property.id);
-                  const isCurrentApprovedProperty =
-                    currentApprovedPropertyId !== null &&
-                    property.id === currentApprovedPropertyId;
-                  const canApply =
-                    !hasApprovedProperty &&
-                    !hasPendingRequest &&
-                    (!request || request.status === "rejected");
-                  const canChangeApply =
-                    isChangingAffiliation &&
-                    hasApprovedProperty &&
-                    !hasPendingRequest &&
-                    !isCurrentApprovedProperty &&
-                    (!request || request.status === "rejected");
-                  const helperText =
-                    hasApprovedProperty && !request
-                      ? "이미 다른 현장에 소속됨"
-                      : !hasApprovedProperty && hasPendingRequest && !request
-                        ? "다른 현장 승인 대기 중"
-                        : null;
+                  const canApply = !request || request.status === "rejected";
 
                   return (
-                    <Card key={property.id} className="px-4 py-3">
+                    <Card key={property.id} className="p-3">
                       <div className="flex items-start gap-3 sm:items-center">
-                        <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-(--oboon-bg-subtle) sm:h-24 sm:w-24">
+                        <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-(--oboon-bg-subtle) sm:h-24 sm:w-24">
                           {property.image_url ? (
                             <Image
                               src={property.image_url}
@@ -1441,6 +1454,11 @@ export default function ProfilePage({
                               <Building2 className="h-6 w-6 text-(--oboon-text-muted)" />
                             </div>
                           )}
+                          {request?.status === "approved" ? (
+                            <span className="absolute left-1.5 top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full border border-(--oboon-primary) bg-(--oboon-primary) text-(--oboon-on-primary) shadow-sm">
+                              <CheckCircle className="h-4 w-4" />
+                            </span>
+                          ) : null}
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="mt-1 truncate ob-typo-h3 text-(--oboon-text-title)">
@@ -1451,29 +1469,26 @@ export default function ProfilePage({
                           </div>
                           <div className="mt-2 flex items-center justify-start sm:justify-end">
                             {request ? (
-                              getStatusBadge(request.status)
-                            ) : canChangeApply ? (
-                              <Button
-                                variant="primary"
-                                size="sm"
-                                shape="pill"
-                                className="h-8 whitespace-nowrap"
-                                disabled={
-                                  agentSubmittingPropertyId === property.id
-                                }
-                                onClick={() =>
-                                  handleAgentPropertyApply(property.id, true)
-                                }
-                              >
-                                {agentSubmittingPropertyId === property.id ? (
-                                  <span className="flex items-center gap-2">
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                    변경 신청 중...
-                                  </span>
-                                ) : (
-                                  "소속 변경 신청"
-                                )}
-                              </Button>
+                              request.status === "approved" ? (
+                                <Button
+                                  variant="danger"
+                                  size="sm"
+                                  shape="pill"
+                                  className="h-8 whitespace-nowrap"
+                                  disabled={withdrawingRequestId === request.id}
+                                  loading={withdrawingRequestId === request.id}
+                                  onClick={() =>
+                                    handleWithdrawAffiliation(
+                                      request.id,
+                                      property.name,
+                                    )
+                                  }
+                                >
+                                  소속 해제
+                                </Button>
+                              ) : (
+                                getStatusBadge(request.status)
+                              )
                             ) : canApply ? (
                               <Button
                                 variant="primary"
@@ -1483,9 +1498,7 @@ export default function ProfilePage({
                                 disabled={
                                   agentSubmittingPropertyId === property.id
                                 }
-                                onClick={() =>
-                                  handleAgentPropertyApply(property.id, false)
-                                }
+                                onClick={() => handleAgentPropertyApply(property.id)}
                               >
                                 {agentSubmittingPropertyId === property.id ? (
                                   <span className="flex items-center gap-2">
@@ -1496,10 +1509,6 @@ export default function ProfilePage({
                                   "소속 신청"
                                 )}
                               </Button>
-                            ) : helperText ? (
-                              <span className="ob-typo-body text-(--oboon-warning)">
-                                {helperText}
-                              </span>
                             ) : (
                               null
                             )}
@@ -1788,245 +1797,247 @@ export default function ProfilePage({
                     </Card>
                   </div>
 
-                  <div>
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="ob-typo-h3 text-(--oboon-text-title)">
-                        기본 정보
+                  <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_350px]">
+                    <div className="order-2 space-y-4 lg:order-1">
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>이름 *</Label>
+                          <Input
+                            value={name}
+                            disabled={!isEditing}
+                            onChange={(e) => handleNameChange(e.target.value)}
+                            placeholder="김오분 (한글/영문 2-20자)"
+                            maxLength={20}
+                            className={[
+                              oboonFieldBaseClass,
+                              errors.name ? "border-(--oboon-danger-border)" : "",
+                            ].join(" ")}
+                          />
+                          {errors.name && (
+                            <p className="ob-typo-caption text-(--oboon-danger) mt-1">
+                              {errors.name}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>연락처 *</Label>
+                          <Input
+                            value={phone}
+                            disabled={!isEditing}
+                            onChange={(e) => handlePhoneChange(e.target.value)}
+                            placeholder="01012345678"
+                            maxLength={13}
+                            className={[
+                              oboonFieldBaseClass,
+                              errors.phone ? "border-(--oboon-danger-border)" : "",
+                            ].join(" ")}
+                          />
+                          {errors.phone && (
+                            <p className="ob-typo-caption text-(--oboon-danger) mt-1">
+                              {errors.phone}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                      {!isEditing && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-(--oboon-text-muted) hover:text-(--oboon-text-title)"
-                          onClick={() => setIsEditing(true)}
-                        >
-                          정보 수정
-                        </Button>
-                      )}
-                    </div>
 
-                    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_350px]">
-                      <div className="order-2 space-y-4 lg:order-1">
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                          <div className="space-y-2">
-                            <Label>이름 *</Label>
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>닉네임</Label>
+                          <div className="flex flex-col gap-2 sm:flex-row">
                             <Input
-                              value={name}
-                              disabled={!isEditing}
-                              onChange={(e) => handleNameChange(e.target.value)}
-                              placeholder="김오분 (한글/영문 2-20자)"
-                              maxLength={20}
-                              className={[
-                                oboonFieldBaseClass,
-                                errors.name ? "border-(--oboon-danger-border)" : "",
-                              ].join(" ")}
-                            />
-                            {errors.name && (
-                              <p className="ob-typo-caption text-(--oboon-danger) mt-1">
-                                {errors.name}
-                              </p>
-                            )}
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label>연락처 *</Label>
-                            <Input
-                              value={phone}
-                              disabled={!isEditing}
-                              onChange={(e) => handlePhoneChange(e.target.value)}
-                              placeholder="01012345678"
-                              maxLength={13}
-                              className={[
-                                oboonFieldBaseClass,
-                                errors.phone ? "border-(--oboon-danger-border)" : "",
-                              ].join(" ")}
-                            />
-                            {errors.phone && (
-                              <p className="ob-typo-caption text-(--oboon-danger) mt-1">
-                                {errors.phone}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                          <div className="space-y-2">
-                            <Label>닉네임</Label>
-                            <div className="flex flex-col gap-2 sm:flex-row">
-                              <Input
-                                value={nickname}
-                                disabled={!isEditing}
-                                onChange={(e) =>
-                                  handleNicknameChange(e.target.value)
-                                }
-                                placeholder="오분이 (선택, 2-15자)"
-                                maxLength={15}
-                                className={[
-                                  "flex-1",
-                                  oboonFieldBaseClass,
-                                  errors.nickname
-                                    ? "border-(--oboon-danger-border)"
-                                    : "",
-                                ].join(" ")}
-                              />
-                              {isEditing &&
-                                nickname &&
-                                nickname !== originalNickname && (
-                                  <Button
-                                    variant="secondary"
-                                    size="sm"
-                                    className="w-full sm:w-auto"
-                                    onClick={checkNickname}
-                                    disabled={nicknameChecking}
-                                  >
-                                    {nicknameChecking ? "확인중..." : "중복확인"}
-                                  </Button>
-                                )}
-                            </div>
-                            {errors.nickname && (
-                              <p className="ob-typo-caption text-(--oboon-danger) mt-1">
-                                {errors.nickname}
-                              </p>
-                            )}
-                            {nicknameAvailable === true &&
-                              nickname !== originalNickname && (
-                                <p className="ob-typo-caption text-(--oboon-safe) mt-1">
-                                  사용 가능한 닉네임입니다.
-                                </p>
-                              )}
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label>이메일</Label>
-                            <Input
-                              value={email}
-                              disabled
-                              className={oboonFieldBaseClass}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                          <div className="space-y-2">
-                            <Label>은행 *</Label>
-                            <Input
-                              value={bankName}
-                              disabled={!isEditing}
-                              onChange={(e) => handleBankNameChange(e.target.value)}
-                              placeholder="예: 토스뱅크"
-                              maxLength={30}
-                              className={[
-                                oboonFieldBaseClass,
-                                errors.bankName ? "border-(--oboon-danger-border)" : "",
-                              ].join(" ")}
-                            />
-                            {errors.bankName && (
-                              <p className="ob-typo-caption text-(--oboon-danger) mt-1">
-                                {errors.bankName}
-                              </p>
-                            )}
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label>계좌번호 *</Label>
-                            <Input
-                              value={bankAccountNumber}
+                              value={nickname}
                               disabled={!isEditing}
                               onChange={(e) =>
-                                handleBankAccountChange(e.target.value)
+                                handleNicknameChange(e.target.value)
                               }
-                              placeholder="숫자와 -만 입력"
-                              maxLength={40}
+                              placeholder="오분이 (선택, 2-15자)"
+                              maxLength={15}
                               className={[
+                                "flex-1",
                                 oboonFieldBaseClass,
-                                errors.bankAccountNumber
+                                errors.nickname
                                   ? "border-(--oboon-danger-border)"
                                   : "",
                               ].join(" ")}
                             />
-                            {errors.bankAccountNumber && (
-                              <p className="ob-typo-caption text-(--oboon-danger) mt-1">
-                                {errors.bankAccountNumber}
+                            {isEditing &&
+                              nickname &&
+                              nickname !== originalNickname && (
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  className="w-full sm:w-auto"
+                                  onClick={checkNickname}
+                                  disabled={nicknameChecking}
+                                >
+                                  {nicknameChecking ? "확인중..." : "중복확인"}
+                                </Button>
+                              )}
+                          </div>
+                          {errors.nickname && (
+                            <p className="ob-typo-caption text-(--oboon-danger) mt-1">
+                              {errors.nickname}
+                            </p>
+                          )}
+                          {nicknameAvailable === true &&
+                            nickname !== originalNickname && (
+                              <p className="ob-typo-caption text-(--oboon-safe) mt-1">
+                                사용 가능한 닉네임입니다.
                               </p>
                             )}
-                          </div>
+                        </div>
 
-                          <div className="space-y-2 sm:col-span-2">
-                            <Label>계정 유형</Label>
-                            <Input
-                              value={accountStatusLabel}
-                              disabled
-                              className={oboonFieldBaseClass}
-                            />
-                          </div>
+                        <div className="space-y-2">
+                          <Label>이메일</Label>
+                          <Input
+                            value={email}
+                            disabled
+                            className={oboonFieldBaseClass}
+                          />
                         </div>
                       </div>
 
-                      <div className="order-1 space-y-2 lg:order-2">
-                        <Label>프로필 이미지</Label>
-                        <div className="relative mx-auto h-48 w-48 sm:h-60 sm:w-60 lg:h-75 lg:w-75">
-                          <div className="h-48 w-48 overflow-hidden rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle) sm:h-60 sm:w-60 lg:h-75 lg:w-75">
-                            {avatarUrl ? (
-                              <Image
-                                src={avatarUrl}
-                                alt="프로필 이미지"
-                                width={300}
-                                height={300}
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              <div className="flex h-full w-full items-center justify-center ob-typo-display text-(--oboon-text-muted)">
-                                {(nickname || name || email || "U")
-                                  .slice(0, 1)
-                                  .toUpperCase()}
-                              </div>
-                            )}
-                          </div>
-                          <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={handleAvatarSelect}
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                        <div className="space-y-2">
+                          <Label>은행 *</Label>
+                          <Input
+                            value={bankName}
+                            disabled={!isEditing}
+                            onChange={(e) => handleBankNameChange(e.target.value)}
+                            placeholder="예: 토스뱅크"
+                            maxLength={30}
+                            className={[
+                              oboonFieldBaseClass,
+                              errors.bankName ? "border-(--oboon-danger-border)" : "",
+                            ].join(" ")}
                           />
-                          <Button
-                            variant="primary"
-                            shape="pill"
-                            size="sm"
-                            className="!h-8 !w-8 !p-0 absolute -bottom-1 -right-1 z-20 shadow-md"
-                            onClick={() => fileInputRef.current?.click()}
-                            disabled={avatarUploading}
-                            loading={avatarUploading}
-                          >
-                            {!avatarUploading && <Pencil className="h-4 w-4" />}
-                          </Button>
+                          {errors.bankName && (
+                            <p className="ob-typo-caption text-(--oboon-danger) mt-1">
+                              {errors.bankName}
+                            </p>
+                          )}
                         </div>
+
+                        <div className="space-y-2">
+                          <Label>계좌번호 *</Label>
+                          <Input
+                            value={bankAccountNumber}
+                            disabled={!isEditing}
+                            onChange={(e) =>
+                              handleBankAccountChange(e.target.value)
+                            }
+                            placeholder="숫자와 -만 입력"
+                            maxLength={40}
+                            className={[
+                              oboonFieldBaseClass,
+                              errors.bankAccountNumber
+                                ? "border-(--oboon-danger-border)"
+                                : "",
+                            ].join(" ")}
+                          />
+                          {errors.bankAccountNumber && (
+                            <p className="ob-typo-caption text-(--oboon-danger) mt-1">
+                              {errors.bankAccountNumber}
+                            </p>
+                          )}
+                        </div>
+                        <div className="space-y-2">
+                          <Label>입금자명 *</Label>
+                          <Input
+                            value={bankAccountHolder}
+                            disabled={!isEditing}
+                            onChange={(e) =>
+                              handleBankAccountHolderChange(e.target.value)
+                            }
+                            placeholder="예금주 이름"
+                            maxLength={50}
+                            className={[
+                              oboonFieldBaseClass,
+                              errors.bankAccountHolder
+                                ? "border-(--oboon-danger-border)"
+                                : "",
+                            ].join(" ")}
+                          />
+                          {errors.bankAccountHolder && (
+                            <p className="ob-typo-caption text-(--oboon-danger) mt-1">
+                              {errors.bankAccountHolder}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="space-y-2 sm:col-span-3">
+                          <Label>계정 유형</Label>
+                          <Input
+                            value={accountStatusLabel}
+                            disabled
+                            className={oboonFieldBaseClass}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+                        {!isEditing ? (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => setIsEditing(true)}
+                          >
+                            정보 수정
+                          </Button>
+                        ) : (
+                          <>
+                            <Button variant="primary" size="sm" onClick={saveProfile}>
+                              저장
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => {
+                                setIsEditing(false);
+                                setErrors({});
+                                setNicknameAvailable(null);
+                              }}
+                            >
+                              취소
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </div>
 
-                    {isEditing && (
-                      <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                    <div className="order-1 space-y-2 lg:order-2">
+                      <Label>프로필 이미지</Label>
+                      <div className="relative mx-auto h-48 w-48 sm:h-60 sm:w-60 lg:h-75 lg:w-75">
+                        <div className="h-48 w-48 overflow-hidden rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle) sm:h-60 sm:w-60 lg:h-75 lg:w-75">
+                          <Image
+                            src={getAvatarUrlOrDefault(avatarUrl)}
+                            alt="프로필 이미지"
+                            width={300}
+                            height={300}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleAvatarSelect}
+                        />
                         <Button
                           variant="primary"
-                          size="md"
-                          onClick={saveProfile}
-                          className="flex-1"
+                          shape="pill"
+                          size="sm"
+                          className="!h-8 !w-8 !p-0 absolute -bottom-1 -right-1 z-20 shadow-md"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={avatarUploading}
+                          loading={avatarUploading}
                         >
-                          저장하기
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          size="md"
-                          onClick={() => {
-                            setIsEditing(false);
-                            setErrors({});
-                            setNicknameAvailable(null);
-                          }}
-                        >
-                          취소
+                          {!avatarUploading && <Pencil className="h-4 w-4" />}
                         </Button>
                       </div>
-                    )}
+                    </div>
                   </div>
 
                   <div className="mt-10 border-t border-(--oboon-border-default) pt-10">

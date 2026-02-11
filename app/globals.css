@@ -116,6 +116,19 @@ a {
   text-decoration: none;
 }
 
+/* Hide browser-native password reveal/clear buttons to avoid duplicate eye icons. */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none;
+}
+
+input[type="password"]::-webkit-credentials-auto-fill-button,
+input[type="password"]::-webkit-contacts-auto-fill-button {
+  display: none !important;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 /* =========================================================
    OBOON Core Tokens (Semantic)
    - These tokens are referenced across UI components

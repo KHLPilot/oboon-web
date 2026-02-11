@@ -73,6 +73,44 @@ export default function GpsVisitVerifyModal({
   }, [open]);
 
   useEffect(() => {
+    if (!open || !consultationId) return;
+
+    let cancelled = false;
+
+    const fetchModelHouseLocation = async () => {
+      try {
+        const response = await fetch(`/api/consultations/${consultationId}`);
+        const data = await response.json();
+        if (!response.ok || cancelled) return;
+
+        const facilities = Array.isArray(data?.consultation?.property?.property_facilities)
+          ? data.consultation.property.property_facilities
+          : [];
+
+        const modelHouse = facilities.find(
+          (facility: { type?: string; is_active?: boolean; lat?: unknown; lng?: unknown }) =>
+            facility.type === "MODELHOUSE" &&
+            facility.is_active &&
+            typeof facility.lat === "number" &&
+            typeof facility.lng === "number",
+        );
+
+        if (modelHouse && !cancelled) {
+          setModelHouseLatLng({ lat: modelHouse.lat, lng: modelHouse.lng });
+        }
+      } catch {
+        // 위치 조회 실패는 인증 플로우를 막지 않음
+      }
+    };
+
+    void fetchModelHouseLocation();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, consultationId]);
+
+  useEffect(() => {
     if (manualStatus !== "waiting" || !manualRequestId) return;
     const timer = setInterval(async () => {
       try {

@@ -25,6 +25,7 @@ import CommunityPostCard from "./CommunityPostCard";
 import CommunityTabs from "./CommunityTabs";
 import CommunityWriteModal from "./CommunityWriteModal";
 import { showAlert } from "@/shared/alert";
+import { getAvatarUrlOrDefault } from "@/shared/imageUrl";
 
 type CommunityEmptyProps = {
   title?: string;
@@ -420,19 +421,13 @@ export default function CommunityFeed() {
                 <div key={comment.id} className="space-y-2">
                   <div className="flex items-start gap-2">
                     <div className="h-7 w-7 shrink-0 rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle) overflow-hidden flex items-center justify-center">
-                      {comment.authorAvatarUrl ? (
-                        <Image
-                          src={comment.authorAvatarUrl}
-                          alt={comment.authorName}
-                          width={28}
-                          height={28}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <span className="ob-typo-caption text-(--oboon-text-body)">
-                          {comment.authorName.slice(0, 1)}
-                        </span>
-                      )}
+                      <Image
+                        src={getAvatarUrlOrDefault(comment.authorAvatarUrl)}
+                        alt={comment.authorName}
+                        width={28}
+                        height={28}
+                        className="h-full w-full object-cover"
+                      />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="ob-typo-subtitle text-(--oboon-text-title)">
@@ -550,19 +545,13 @@ export default function CommunityFeed() {
                         <div key={reply.id} className="flex items-start gap-2">
                           <CornerDownRight className="mt-1 h-3.5 w-3.5 text-(--oboon-text-muted)" />
                           <div className="h-6 w-6 shrink-0 rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle) overflow-hidden flex items-center justify-center">
-                            {reply.authorAvatarUrl ? (
-                              <Image
-                                src={reply.authorAvatarUrl}
-                                alt={reply.authorName}
-                                width={24}
-                                height={24}
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              <span className="ob-typo-caption text-(--oboon-text-body)">
-                                {reply.authorName.slice(0, 1)}
-                              </span>
-                            )}
+                            <Image
+                              src={getAvatarUrlOrDefault(reply.authorAvatarUrl)}
+                              alt={reply.authorName}
+                              width={24}
+                              height={24}
+                              className="h-full w-full object-cover"
+                            />
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="ob-typo-caption text-(--oboon-text-title)">

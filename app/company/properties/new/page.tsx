@@ -78,6 +78,7 @@ export default function PropertyCreatePage() {
   const galleryInputRef = useRef<HTMLInputElement | null>(null);
   const [galleryImages, setGalleryImages] = useState<PendingGalleryImage[]>([]);
   const galleryImagesRef = useRef<PendingGalleryImage[]>([]);
+  const submitLockRef = useRef(false);
   const [draggingGalleryImageId, setDraggingGalleryImageId] = useState<
     string | null
   >(null);
@@ -215,7 +216,7 @@ export default function PropertyCreatePage() {
   };
 
   async function handleSubmit() {
-    if (loading) return;
+    if (loading || submitLockRef.current) return;
     setError(null);
 
     if (!validateRequiredOrShowModal(form.name, "현장명")) return;
@@ -225,105 +226,110 @@ export default function PropertyCreatePage() {
       return;
     }
 
+    submitLockRef.current = true;
     setLoading(true);
 
-    const payload = {
-      name: form.name.trim(),
-      property_type: form.property_type.trim() || null,
-      status: form.status || null,
-      description: form.description.trim() || null,
-      confirmed_comment: form.confirmed_comment.trim() || null,
-      estimated_comment: form.estimated_comment.trim() || null,
-      pending_comment: form.pending_comment.trim() || null,
-
-      created_by: userId,
-    };
-
-    const { data, error } = await createProperty(payload);
-
-    setLoading(false);
-
-    if (error) {
-      setError(error.message);
-      return;
-    }
-
-    if (!data?.id) {
-      setError(
-        "등록은 되었지만 id가 돌아오지 않았습니다. 잠시 뒤 다시 시도해주세요.",
-      );
-      return;
-    }
-
-    const propertyId = data.id as number;
-
-    // 상담사 계정인 경우: 새 현장 등록 직후 자동 소속 시도
     try {
-      const affiliationResponse = await fetch("/api/property-agents", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          property_id: propertyId,
-          change_request: false,
-        }),
-      });
-      if (!affiliationResponse.ok) {
-        const affiliationData = await affiliationResponse.json().catch(() => null);
-        console.error("자동 소속 처리 실패:", affiliationData);
+      const payload = {
+        name: form.name.trim(),
+        property_type: form.property_type.trim() || null,
+        status: form.status || null,
+        description: form.description.trim() || null,
+        confirmed_comment: form.confirmed_comment.trim() || null,
+        estimated_comment: form.estimated_comment.trim() || null,
+        pending_comment: form.pending_comment.trim() || null,
+
+        created_by: userId,
+      };
+
+      const { data, error } = await createProperty(payload);
+
+      if (error) {
+        setError(error.message);
+        return;
       }
-    } catch (affiliationError) {
-      console.error("자동 소속 API 호출 오류:", affiliationError);
+
+      if (!data?.id) {
+        setError(
+          "등록은 되었지만 id가 돌아오지 않았습니다. 잠시 뒤 다시 시도해주세요.",
+        );
+        return;
+      }
+
+      const propertyId = data.id as number;
+
+      // 상담사 계정인 경우: 새 현장 등록 직후 자동 소속 시도
+      try {
+        const affiliationResponse = await fetch("/api/property-agents", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            property_id: propertyId,
+          }),
+        });
+        if (!affiliationResponse.ok) {
+          const affiliationData = await affiliationResponse
+            .json()
+            .catch(() => null);
+          console.error("자동 소속 처리 실패:", affiliationData);
+        }
+      } catch (affiliationError) {
+        console.error("자동 소속 API 호출 오류:", affiliationError);
+      }
+
+      // 대표 이미지 업로드 (선택)
+      if (mainImageFile) {
+        const fd = new FormData();
+        fd.append("file", mainImageFile);
+        fd.append("propertyId", String(propertyId));
+        fd.append("mode", "property_main");
+
+        const res = await fetch("/api/r2/upload", {
+          method: "POST",
+          body: fd,
+        });
+
+        if (!res.ok) {
+          setError("대표 이미지 업로드에 실패했습니다.");
+          return;
+        }
+
+        const { url } = (await res.json()) as { url?: string };
+        if (!url) {
+          setError("대표 이미지 업로드 응답에 url이 없습니다.");
+          return;
+        }
+
+        const { error: updateErr } = await updatePropertyImage(propertyId, url);
+
+        if (updateErr) {
+          setError("대표 이미지 저장에 실패했습니다.");
+          return;
+        }
+      }
+
+      // 추가 사진 업로드 (선택)
+      if (galleryImages.length > 0) {
+        const fd = new FormData();
+        fd.append("propertyId", String(propertyId));
+        galleryImages.forEach((item) => fd.append("files", item.file));
+
+        const res = await fetch("/api/property/gallery", {
+          method: "POST",
+          body: fd,
+        });
+        const payload = await res.json().catch(() => null);
+        if (!res.ok) {
+          setError(payload?.error || "추가 사진 업로드에 실패했습니다.");
+          return;
+        }
+      }
+
+      router.push(`/company/properties/${propertyId}`);
+    } finally {
+      submitLockRef.current = false;
+      setLoading(false);
     }
-
-    // 대표 이미지 업로드 (선택)
-    if (mainImageFile) {
-      const fd = new FormData();
-      fd.append("file", mainImageFile);
-      fd.append("propertyId", String(propertyId));
-      fd.append("mode", "property_main");
-
-      const res = await fetch("/api/r2/upload", {
-        method: "POST",
-        body: fd,
-      });
-
-      if (!res.ok) {
-        setError("대표 이미지 업로드에 실패했습니다.");
-        return;
-      }
-
-      const { url } = (await res.json()) as { url?: string };
-      if (!url) {
-        setError("대표 이미지 업로드 응답에 url이 없습니다.");
-        return;
-      }
-
-      const { error: updateErr } = await updatePropertyImage(propertyId, url);
-
-      if (updateErr) {
-        setError("대표 이미지 저장에 실패했습니다.");
-        return;
-      }
-    }
-
-    // 추가 사진 업로드 (선택)
-    if (galleryImages.length > 0) {
-      const fd = new FormData();
-      fd.append("propertyId", String(propertyId));
-      galleryImages.forEach((item) => fd.append("files", item.file));
-
-      const res = await fetch("/api/property/gallery", {
-        method: "POST",
-        body: fd,
-      });
-      const payload = await res.json().catch(() => null);
-      if (!res.ok) {
-        setError(payload?.error || "추가 사진 업로드에 실패했습니다.");
-        return;
-      }
-    }
-
-    router.push(`/company/properties/${propertyId}`);
   }
 
   // 유저 확인 중

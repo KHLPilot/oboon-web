@@ -2,20 +2,64 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { cookies } from "next/headers";
+import { createServerClient } from "@supabase/ssr";
 
 const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+const ACTIVE_CONSULTATION_STATUSES = ["requested", "pending", "confirmed"] as const;
+
 export async function POST(req: Request) {
     try {
+        const cookieStore = await cookies();
+        const supabase = createServerClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            {
+                cookies: {
+                    getAll() {
+                        return cookieStore.getAll();
+                    },
+                    setAll(cookiesToSet) {
+                        try {
+                            cookiesToSet.forEach(({ name, value, options }) => {
+                                cookieStore.set(name, value, options);
+                            });
+                        } catch {
+                            // 읽기 전용 컨텍스트에서는 무시
+                        }
+                    },
+                },
+            }
+        );
+
+        const {
+            data: { user: authUser },
+        } = await supabase.auth.getUser();
+
+        if (!authUser) {
+            return NextResponse.json(
+                { error: "로그인이 필요합니다." },
+                { status: 401 }
+            );
+        }
+
         const { userId } = await req.json();
 
         if (!userId) {
             return NextResponse.json(
                 { error: "userId가 필요합니다." },
                 { status: 400 }
+            );
+        }
+
+        if (authUser.id !== userId) {
+            return NextResponse.json(
+                { error: "본인 계정만 삭제할 수 있습니다." },
+                { status: 403 }
             );
         }
 
@@ -29,7 +73,45 @@ export async function POST(req: Request) {
             );
         }
 
-        // 2. profiles 익명화 + deleted_at 설정 (Soft Delete)
+        // 2. 진행중/예정 상담 여부 확인 (고객/상담사 모두 차단)
+        const [
+            { count: customerActiveCount, error: customerConsultationError },
+            { count: agentActiveCount, error: agentConsultationError },
+        ] = await Promise.all([
+            supabaseAdmin
+                .from("consultations")
+                .select("id", { count: "exact", head: true })
+                .eq("customer_id", userId)
+                .in("status", [...ACTIVE_CONSULTATION_STATUSES]),
+            supabaseAdmin
+                .from("consultations")
+                .select("id", { count: "exact", head: true })
+                .eq("agent_id", userId)
+                .in("status", [...ACTIVE_CONSULTATION_STATUSES]),
+        ]);
+
+        if (customerConsultationError || agentConsultationError) {
+            console.error("❌ 계정 삭제 전 상담 확인 오류:", {
+                customerConsultationError,
+                agentConsultationError,
+            });
+            return NextResponse.json(
+                { error: "진행중 상담 정보를 확인하지 못했습니다." },
+                { status: 500 }
+            );
+        }
+
+        const activeConsultationCount =
+            (customerActiveCount ?? 0) + (agentActiveCount ?? 0);
+
+        if (activeConsultationCount > 0) {
+            return NextResponse.json(
+                { error: "진행중이거나 예정된 상담이 있어 계정 탈퇴가 불가능합니다." },
+                { status: 409 }
+            );
+        }
+
+        // 3. profiles 익명화 + deleted_at 설정 (Soft Delete)
         const { error: updateError } = await supabaseAdmin
             .from("profiles")
             .update({
@@ -37,6 +119,7 @@ export async function POST(req: Request) {
                 nickname: null,
                 phone_number: null,
                 email: `deleted_${userId}@deleted.com`,
+                bank_account_holder: null,
                 deleted_at: new Date().toISOString(),
             })
             .eq("id", userId);
@@ -49,7 +132,7 @@ export async function POST(req: Request) {
             );
         }
 
-        // 3. auth.users는 그대로 유지 (ban 하지 않음)
+        // 4. auth.users는 그대로 유지 (ban 하지 않음)
         // 로그인 시 deleted_at 체크로 탈퇴 계정 판별
 
         return NextResponse.json({

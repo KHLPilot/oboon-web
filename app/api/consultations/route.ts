@@ -9,6 +9,7 @@ const adminSupabase = createClient(
 );
 
 const DEPOSIT_AMOUNT = 1000;
+const BLOCKING_BOOKING_STATUSES = ["requested", "pending", "confirmed"] as const;
 
 // 예약 생성
 export async function POST(req: Request) {
@@ -80,7 +81,7 @@ export async function POST(req: Request) {
     // 정산 계좌 정보 필수 검증 (서버 사이드)
     const { data: customerProfile, error: profileError } = await adminSupabase
       .from("profiles")
-      .select("bank_name, bank_account_number")
+      .select("role, bank_name, bank_account_number, bank_account_holder")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -92,12 +93,20 @@ export async function POST(req: Request) {
       );
     }
 
+    if (customerProfile?.role === "agent") {
+      return NextResponse.json(
+        { error: "상담사 계정은 상담 예약을 할 수 없습니다" },
+        { status: 403 },
+      );
+    }
+
     const bankName = customerProfile?.bank_name?.trim() ?? "";
     const bankAccountNumber = customerProfile?.bank_account_number?.trim() ?? "";
-    if (!bankName || !bankAccountNumber) {
+    const bankAccountHolder = customerProfile?.bank_account_holder?.trim() ?? "";
+    if (!bankName || !bankAccountNumber || !bankAccountHolder) {
       return NextResponse.json(
         {
-          error: "예약 전 은행과 계좌번호를 입력해주세요",
+          error: "예약 전 은행, 계좌번호, 입금자명을 입력해주세요",
           error_code: "BANK_INFO_REQUIRED",
         },
         { status: 400 },
@@ -105,6 +114,32 @@ export async function POST(req: Request) {
     }
 
     const scheduledDate = new Date(scheduled_at);
+    const scheduledAtIso = scheduledDate.toISOString();
+
+    // 동일 상담사/동일 시간대 중복 예약 사전 차단
+    const { data: existingBooking, error: duplicateCheckError } = await adminSupabase
+      .from("consultations")
+      .select("id")
+      .eq("agent_id", agent_id)
+      .eq("scheduled_at", scheduledAtIso)
+      .in("status", [...BLOCKING_BOOKING_STATUSES])
+      .limit(1)
+      .maybeSingle();
+
+    if (duplicateCheckError) {
+      console.error("중복 예약 확인 오류:", duplicateCheckError);
+      return NextResponse.json(
+        { error: "예약 가능 여부 확인에 실패했습니다" },
+        { status: 500 },
+      );
+    }
+
+    if (existingBooking) {
+      return NextResponse.json(
+        { error: "해당 시간은 이미 예약이 완료되었습니다. 다른 시간을 선택해주세요." },
+        { status: 409 },
+      );
+    }
 
     // 포인트 예약은 관리자 승인 없이 즉시 상담사에게 배정한다.
     const initialStatus = isPointReservation ? "pending" : "requested";
@@ -116,7 +151,7 @@ export async function POST(req: Request) {
         customer_id: user.id,
         agent_id,
         property_id,
-        scheduled_at: scheduledDate.toISOString(),
+        scheduled_at: scheduledAtIso,
         status: initialStatus,
       })
       .select()
@@ -124,6 +159,12 @@ export async function POST(req: Request) {
 
     if (error) {
       console.error("예약 생성 오류:", error);
+      if ((error as { code?: string }).code === "23505") {
+        return NextResponse.json(
+          { error: "해당 시간은 이미 예약이 완료되었습니다. 다른 시간을 선택해주세요." },
+          { status: 409 },
+        );
+      }
       return NextResponse.json(
         { error: "예약 생성에 실패했습니다" },
         { status: 500 },

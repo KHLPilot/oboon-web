@@ -69,6 +69,7 @@ type ProfileRow = {
   avatar_url: string | null;
   bank_name: string | null;
   bank_account_number: string | null;
+  bank_account_holder: string | null;
 };
 
 function toLocalDateTime(iso: string) {
@@ -193,7 +194,7 @@ export async function GET() {
       profileIds.length
         ? adminSupabase
             .from("profiles")
-            .select("id, name, nickname, avatar_url, bank_name, bank_account_number")
+            .select("id, name, nickname, avatar_url, bank_name, bank_account_number, bank_account_holder")
             .in("id", profileIds)
         : Promise.resolve({ data: [] as ProfileRow[] }),
     ]);
@@ -365,6 +366,8 @@ export async function GET() {
         const customerBankName = customerProfile?.bank_name ?? null;
         const customerBankAccountNumber =
           customerProfile?.bank_account_number ?? null;
+        const customerBankAccountHolder =
+          customerProfile?.bank_account_holder ?? null;
         const agentAvatar =
           agentPublic?.avatar_url ??
           agentFromJoin?.avatar_url ??
@@ -395,6 +398,7 @@ export async function GET() {
           customer_avatar_url: customerAvatar,
           customer_bank_name: customerBankName,
           customer_bank_account_number: customerBankAccountNumber,
+          customer_bank_account_holder: customerBankAccountHolder,
           agent_name: agentName,
           agent_avatar_url: agentAvatar,
           deposit_amount: depositAmount,

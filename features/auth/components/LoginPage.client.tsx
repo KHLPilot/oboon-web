@@ -542,6 +542,8 @@ export default function LoginPage() {
               type="button"
               className="
                 mx-1
+                cursor-pointer
+                disabled:cursor-not-allowed
                 text-(--oboon-primary)
                 underline
                 underline-offset-4

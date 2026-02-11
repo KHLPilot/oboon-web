@@ -133,6 +133,7 @@ function AgentConsultationsPageContent() {
   const [termsConfirming, setTermsConfirming] = useState(false);
   const [refundBankName, setRefundBankName] = useState("");
   const [refundBankAccountNumber, setRefundBankAccountNumber] = useState("");
+  const [refundBankAccountHolder, setRefundBankAccountHolder] = useState("");
   const [requireRefundAccountInput, setRequireRefundAccountInput] =
     useState(false);
   const [termsAccordionOpen, setTermsAccordionOpen] = useState(false);
@@ -346,13 +347,16 @@ function AgentConsultationsPageContent() {
       if (user) {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("bank_name, bank_account_number")
+          .select("bank_name, bank_account_number, bank_account_holder")
           .eq("id", user.id)
           .maybeSingle();
         const fetchedBankName = profile?.bank_name ?? "";
         const fetchedBankAccountNumber = profile?.bank_account_number ?? "";
+        const fetchedBankAccountHolder = profile?.bank_account_holder ?? "";
         setRequireRefundAccountInput(
-          !fetchedBankName.trim() || !fetchedBankAccountNumber.trim(),
+          !fetchedBankName.trim() ||
+            !fetchedBankAccountNumber.trim() ||
+            !fetchedBankAccountHolder.trim(),
         );
 
         // 모달을 열고 사용자가 입력을 시작한 뒤 비동기 응답이 도착해도
@@ -362,6 +366,9 @@ function AgentConsultationsPageContent() {
         );
         setRefundBankAccountNumber((prev) =>
           prev.trim().length > 0 ? prev : fetchedBankAccountNumber,
+        );
+        setRefundBankAccountHolder((prev) =>
+          prev.trim().length > 0 ? prev : fetchedBankAccountHolder,
         );
       }
       } catch (err) {
@@ -386,9 +393,10 @@ function AgentConsultationsPageContent() {
     if (!termsModalConsultationId || !agreedToTerms) return;
     const trimmedBankName = refundBankName.trim();
     const trimmedAccountNumber = refundBankAccountNumber.trim();
+    const trimmedAccountHolder = refundBankAccountHolder.trim();
     const needsRefundAccount =
       requireRefundAccountInput &&
-      (!trimmedBankName || !trimmedAccountNumber);
+      (!trimmedBankName || !trimmedAccountNumber || !trimmedAccountHolder);
 
     setTermsConfirming(true);
     try {
@@ -406,12 +414,13 @@ function AgentConsultationsPageContent() {
         return;
       }
 
-      if (trimmedBankName && trimmedAccountNumber) {
+      if (trimmedBankName && trimmedAccountNumber && trimmedAccountHolder) {
         const { error: bankUpdateError } = await supabase
           .from("profiles")
           .update({
             bank_name: trimmedBankName,
             bank_account_number: trimmedAccountNumber,
+            bank_account_holder: trimmedAccountHolder,
           })
           .eq("id", user.id);
         if (bankUpdateError) {
@@ -1090,7 +1099,7 @@ function AgentConsultationsPageContent() {
             <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
               예약 취소/정산 이슈 발생 시 환불 및 정산 처리를 위해 사용됩니다.
             </p>
-            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
               <Input
                 value={refundBankName}
                 onChange={(e) => setRefundBankName(e.target.value)}
@@ -1101,6 +1110,12 @@ function AgentConsultationsPageContent() {
                 value={refundBankAccountNumber}
                 onChange={(e) => setRefundBankAccountNumber(e.target.value)}
                 placeholder="계좌번호"
+                disabled={termsConfirming}
+              />
+              <Input
+                value={refundBankAccountHolder}
+                onChange={(e) => setRefundBankAccountHolder(e.target.value)}
+                placeholder="입금자명"
                 disabled={termsConfirming}
               />
             </div>

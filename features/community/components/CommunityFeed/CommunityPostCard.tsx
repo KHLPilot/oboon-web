@@ -6,6 +6,7 @@ import Image from "next/image";
 
 import { Badge } from "@/components/ui/Badge";
 import Card from "@/components/ui/Card";
+import { getAvatarUrlOrDefault } from "@/shared/imageUrl";
 
 import type { CommunityPostViewModel } from "../../domain/community";
 
@@ -51,19 +52,13 @@ export default function CommunityPostCard({
       <div className="mt-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="h-7 w-7 rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle) overflow-hidden flex items-center justify-center">
-            {post.authorAvatarUrl ? (
-              <Image
-                src={post.authorAvatarUrl}
-                alt={post.authorName}
-                width={28}
-                height={28}
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <span className="ob-typo-caption text-(--oboon-text-body)">
-                {post.authorName.slice(0, 1)}
-              </span>
-            )}
+            <Image
+              src={getAvatarUrlOrDefault(post.authorAvatarUrl)}
+              alt={post.authorName}
+              width={28}
+              height={28}
+              className="h-full w-full object-cover"
+            />
           </div>
           <span className="ob-typo-subtitle text-(--oboon-text-body)">
             {post.authorName}

@@ -7,6 +7,7 @@ import Card from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
+import { DEFAULT_AVATAR_URL, getAvatarUrlOrDefault } from "@/shared/imageUrl";
 
 type SettlementRow = {
   id: string;
@@ -20,6 +21,7 @@ type SettlementRow = {
   customer_avatar_url: string | null;
   customer_bank_name: string | null;
   customer_bank_account_number: string | null;
+  customer_bank_account_holder: string | null;
   agent_name: string | null;
   agent_avatar_url: string | null;
   deposit_amount: number;
@@ -65,30 +67,17 @@ function Avatar({
   url?: string | null;
 }) {
   const [error, setError] = useState(false);
-  const initial = (name ?? "").slice(0, 1) || "?";
-  const showImage = Boolean(url) && !error;
+  const safeUrl = error ? DEFAULT_AVATAR_URL : getAvatarUrlOrDefault(url);
 
-  return showImage ? (
+  return (
     <Image
-      src={url ?? ""}
+      src={safeUrl}
       alt={`${name ?? "사용자"} 프로필`}
       width={28}
       height={28}
       className="h-7 w-7 rounded-full border border-(--oboon-border-default) object-cover"
       onError={() => setError(true)}
     />
-  ) : (
-    <span
-      className={[
-        "h-7 w-7 rounded-full bg-(--oboon-bg-subtle)",
-        "border border-(--oboon-border-default)",
-        "inline-flex items-center justify-center",
-        "ob-typo-caption text-(--oboon-text-muted)",
-      ].join(" ")}
-      aria-hidden
-    >
-      {initial}
-    </span>
   );
 }
 
@@ -353,8 +342,8 @@ export default function SettlementDetailModal({
             <div className="ob-typo-body text-(--oboon-text-title)">
               고객 정산 계좌 정보
             </div>
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div>
+            <div className="mt-3 grid grid-cols-3 gap-3">
+              <div className="min-w-0">
                 <div className="ob-typo-body text-(--oboon-text-muted)">
                   은행
                 </div>
@@ -362,12 +351,20 @@ export default function SettlementDetailModal({
                   {row.customer_bank_name?.trim() || "미등록"}
                 </div>
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="ob-typo-body text-(--oboon-text-muted)">
                   계좌번호
                 </div>
                 <div className="mt-1 ob-typo-subtitle text-(--oboon-text-title)">
                   {row.customer_bank_account_number?.trim() || "미등록"}
+                </div>
+              </div>
+              <div className="min-w-0">
+                <div className="ob-typo-body text-(--oboon-text-muted)">
+                  입금자명
+                </div>
+                <div className="mt-1 ob-typo-subtitle text-(--oboon-text-title)">
+                  {row.customer_bank_account_holder?.trim() || "미등록"}
                 </div>
               </div>
             </div>

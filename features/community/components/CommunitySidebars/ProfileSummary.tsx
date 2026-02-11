@@ -6,6 +6,7 @@ import Image from "next/image";
 import { ChevronRight } from "lucide-react";
 
 import Card from "@/components/ui/Card";
+import { getAvatarUrlOrDefault } from "@/shared/imageUrl";
 
 import type { CommunityProfileViewModel } from "../../domain/community";
 import { mapCommunityProfile } from "../../mappers/community.mapper";
@@ -29,6 +30,7 @@ export default function ProfileSummary() {
   }, []);
 
   const stats = profile?.stats ?? { posts: 0, comments: 0, bookmarks: 0 };
+  const avatarUrl = getAvatarUrlOrDefault(profile?.avatarUrl);
 
   return (
     <div className="space-y-4">
@@ -40,19 +42,13 @@ export default function ProfileSummary() {
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle) overflow-hidden flex items-center justify-center">
-                {profile?.avatarUrl ? (
-                  <Image
-                    src={profile.avatarUrl}
-                    alt={profile.displayName}
-                    width={40}
-                    height={40}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <span className="ob-typo-caption text-(--oboon-text-body)">
-                    {(profile?.displayName ?? "사용자").slice(0, 1)}
-                  </span>
-                )}
+                <Image
+                  src={avatarUrl}
+                  alt={profile?.displayName ?? "사용자"}
+                  width={40}
+                  height={40}
+                  className="h-full w-full object-cover"
+                />
               </div>
               <div>
                 <div className="ob-typo-h3 font-semibold text-(--oboon-text-title)">

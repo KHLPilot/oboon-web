@@ -12,6 +12,11 @@ const isNullableString = (value: unknown): value is string | null =>
 const isNullableNumber = (value: unknown): value is number | null =>
   value === null || (typeof value === "number" && Number.isFinite(value));
 
+const isNullableNumberLike = (value: unknown) =>
+  value === null ||
+  (typeof value === "number" && Number.isFinite(value)) ||
+  (typeof value === "string" && value.trim().length > 0 && Number.isFinite(Number(value)));
+
 const isLocationRow = (value: unknown) =>
   isRecord(value) &&
   isNullableString(value.road_address) &&
@@ -36,6 +41,16 @@ const isTimelineRow = (value: unknown) =>
   isNullableString(value.contract_start) &&
   isNullableString(value.contract_end) &&
   isNullableString(value.move_in_date);
+
+const isFacilityRow = (value: unknown) =>
+  isRecord(value) &&
+  isNullableString(value.type) &&
+  isNullableString(value.road_address) &&
+  isNullableNumberLike(value.lat) &&
+  isNullableNumberLike(value.lng) &&
+  (value.is_active === undefined ||
+    value.is_active === null ||
+    typeof value.is_active === "boolean");
 
 const isUnitTypeRow = (value: unknown) =>
   isRecord(value) &&
@@ -81,7 +96,22 @@ export async function fetchOfferingDetail(
   if (error || !snapshotRow?.snapshot) return null;
   if (!isPropertyRow(snapshotRow.snapshot)) return null;
 
-  return snapshotRow.snapshot;
+  const base = snapshotRow.snapshot as PropertyRow;
+
+  const { data: facilitiesRows } = await supabase
+    .from("property_facilities")
+    .select("id, type, road_address, lat, lng, is_active")
+    .eq("properties_id", id)
+    .order("created_at", { ascending: true });
+
+  const propertyFacilities = Array.isArray(facilitiesRows)
+    ? facilitiesRows.filter(isFacilityRow)
+    : [];
+
+  return {
+    ...base,
+    property_facilities: propertyFacilities,
+  } as PropertyRow;
 }
 
 // 해당 현장에 승인된 상담사가 있는지 확인

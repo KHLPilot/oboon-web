@@ -1,30 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
-const BLOCKING_CONSULTATION_STATUSES = ["requested", "pending", "confirmed"];
 const adminSupabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
-
-async function hasBlockingConsultations(
-  supabase: SupabaseClient,
-  agentId: string,
-) {
-  const { count, error } = await supabase
-    .from("consultations")
-    .select("id", { count: "exact", head: true })
-    .eq("agent_id", agentId)
-    .in("status", BLOCKING_CONSULTATION_STATUSES);
-
-  if (error) {
-    throw error;
-  }
-
-  return (count ?? 0) > 0;
-}
 
 // POST - 상담사가 현장 소속 신청
 export async function POST(request: NextRequest) {
@@ -84,7 +66,7 @@ export async function POST(request: NextRequest) {
 
     // 요청 본문 파싱
     const body = await request.json();
-    const { property_id, change_request } = body;
+    const { property_id } = body;
 
     if (!property_id) {
       return NextResponse.json(
@@ -104,82 +86,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "현장을 찾을 수 없습니다" },
         { status: 404 }
-      );
-    }
-
-    // 이미 다른 현장에 소속되어 있는지 확인 (한 명당 한 곳만 가능)
-    const { data: existingApprovedRows, error: approvedCheckError } = await adminSupabase
-      .from("property_agents")
-      .select("id, property_id, status, properties:property_id(id, name)")
-      .eq("agent_id", user.id)
-      .eq("status", "approved")
-      .order("approved_at", { ascending: false, nullsFirst: false })
-      .order("requested_at", { ascending: false, nullsFirst: false });
-
-    if (approvedCheckError) {
-      console.error("기존 승인 조회 오류:", approvedCheckError);
-      return NextResponse.json(
-        { error: "소속 확인 중 오류가 발생했습니다" },
-        { status: 500 }
-      );
-    }
-
-    const existingApproved = existingApprovedRows?.[0] ?? null;
-
-    if ((existingApprovedRows?.length ?? 0) > 1) {
-      console.warn("중복 승인 소속 감지:", {
-        agent_id: user.id,
-        approved_count: existingApprovedRows?.length ?? 0,
-      });
-    }
-
-    if (existingApproved && existingApproved.property_id === property_id) {
-      return NextResponse.json(
-        { error: "이미 해당 현장에 소속되어 있습니다" },
-        { status: 409 }
-      );
-    }
-
-    if (existingApproved && !change_request) {
-      const propertyName =
-        (existingApproved as { properties?: { name?: string } | null }).properties
-          ?.name || "다른 현장";
-      return NextResponse.json(
-        { error: `이미 ${propertyName}에 소속되어 있습니다. 한 명의 상담사는 한 곳의 현장에만 소속될 수 있습니다.` },
-        { status: 409 }
-      );
-    }
-
-    if (existingApproved && change_request) {
-      try {
-        const blocking = await hasBlockingConsultations(supabase, user.id);
-        if (blocking) {
-          return NextResponse.json(
-            { error: "진행중 상담이 있어 소속 변경이 불가능합니다." },
-            { status: 409 },
-          );
-        }
-      } catch (blockingError) {
-        console.error("진행중 상담 확인 오류:", blockingError);
-        return NextResponse.json(
-          { error: "진행중 상담 확인 중 오류가 발생했습니다" },
-          { status: 500 },
-        );
-      }
-    }
-
-    // 기존 pending 이력 정리 (즉시 승인 정책)
-    const { error: clearPendingError } = await adminSupabase
-      .from("property_agents")
-      .delete()
-      .eq("agent_id", user.id)
-      .eq("status", "pending");
-
-    if (clearPendingError) {
-      console.error("기존 pending 정리 오류:", clearPendingError);
-      return NextResponse.json(
-        { error: "기존 요청 정리 중 오류가 발생했습니다" },
-        { status: 500 }
       );
     }
 
@@ -204,22 +110,6 @@ export async function POST(request: NextRequest) {
         { error: "이미 해당 현장에 소속되어 있습니다" },
         { status: 409 }
       );
-    }
-
-    if (existingApproved && change_request) {
-      const { error: deleteApprovedError } = await adminSupabase
-        .from("property_agents")
-        .delete()
-        .eq("agent_id", user.id)
-        .eq("status", "approved");
-
-      if (deleteApprovedError) {
-        console.error("기존 승인 소속 정리 오류:", deleteApprovedError);
-        return NextResponse.json(
-          { error: "기존 소속 정리 중 오류가 발생했습니다" },
-          { status: 500 }
-        );
-      }
     }
 
     const nowIso = new Date().toISOString();
@@ -275,9 +165,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       propertyAgent,
-      message: change_request
-        ? "소속이 변경되었습니다."
-        : "현장 소속이 등록되었습니다.",
+      message: "현장 소속이 등록되었습니다.",
     });
   } catch (error) {
     console.error("POST /api/property-agents 오류:", error);

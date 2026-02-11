@@ -8,15 +8,24 @@ type Tab = {
   label: string;
 };
 
-export default function OfferingDetailTabs() {
+type Props = {
+  hasMemo?: boolean;
+  hasTimeline?: boolean;
+};
+
+export default function OfferingDetailTabs({
+  hasMemo = true,
+  hasTimeline = true,
+}: Props) {
   const tabs: Tab[] = useMemo(
-    () => [
-      { id: "basic", label: "기본 정보" },
-      { id: "memo", label: "감정평가사 메모" },
-      { id: "prices", label: "분양가 표" },
-      { id: "timeline", label: "일정" },
-    ],
-    []
+    () =>
+      [
+        { id: "basic", label: "기본 정보" },
+        hasMemo ? { id: "memo", label: "감정평가사 메모" } : null,
+        { id: "prices", label: "분양가 표" },
+        hasTimeline ? { id: "timeline", label: "일정" } : null,
+      ].filter((tab): tab is Tab => tab !== null),
+    [hasMemo, hasTimeline],
   );
 
   const [activeId, setActiveId] = useState<string>(tabs[0]?.id ?? "basic");

@@ -7,6 +7,7 @@ import Image from "next/image";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { useNotifications } from "./NotificationProvider.client";
 import { NOTIFICATION_TYPES, type Notification } from "../domain/notification.types";
+import { getAvatarUrlOrDefault } from "@/shared/imageUrl";
 
 type SenderProfile = {
   id: string;
@@ -66,26 +67,18 @@ function SenderAvatar({
   size?: number;
   borderClassName?: string;
 }) {
-  const fallback = (profile.name ?? "?").trim().charAt(0).toUpperCase() || "?";
-
   return (
     <div
       className={`relative overflow-hidden rounded-full border bg-(--oboon-bg-subtle) ${borderClassName}`}
       style={{ width: size, height: size }}
     >
-      {profile.avatar_url ? (
-        <Image
-          src={profile.avatar_url}
-          alt={profile.name ?? "상대방"}
-          fill
-          className="object-cover"
-          sizes={`${size}px`}
-        />
-      ) : (
-        <div className="flex h-full w-full items-center justify-center text-[11px] font-semibold text-(--oboon-text-muted)">
-          {fallback}
-        </div>
-      )}
+      <Image
+        src={getAvatarUrlOrDefault(profile.avatar_url)}
+        alt={profile.name ?? "상대방"}
+        fill
+        className="object-cover"
+        sizes={`${size}px`}
+      />
     </div>
   );
 }
