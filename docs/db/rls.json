@@ -60,6 +60,11 @@
     "rls_forced": false
   },
   {
+    "table_name": "community_comment_likes",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
     "table_name": "community_comments",
     "rls_enabled": true,
     "rls_forced": false
@@ -111,6 +116,11 @@
   },
   {
     "table_name": "payout_requests",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "profile_bank_accounts",
     "rls_enabled": true,
     "rls_forced": false
   },
@@ -191,7 +201,7 @@
   },
   {
     "table_name": "term_consents",
-    "rls_enabled": false,
+    "rls_enabled": true,
     "rls_forced": false
   },
   {

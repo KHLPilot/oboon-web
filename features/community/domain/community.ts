@@ -41,6 +41,8 @@ export type CommunityPostRow = {
   authorAvatarUrl?: string | null;
   likes: number;
   comments: number;
+  isLiked: boolean;
+  isBookmarked: boolean;
   createdAt: string;
 };
 
@@ -55,6 +57,8 @@ export type CommunityPostViewModel = {
   authorAvatarUrl?: string | null;
   likes: number;
   comments: number;
+  isLiked: boolean;
+  isBookmarked: boolean;
   timeLabel: string;
 };
 

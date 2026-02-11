@@ -8,6 +8,7 @@ export const NOTIFICATION_TYPES = {
   CONSULTATION_REQUEST: "consultation_request",
   CONSULTATION_CONFIRMED: "consultation_confirmed",
   CONSULTATION_CANCELLED: "consultation_cancelled",
+  CONSULTATION_REJECTED: "consultation_rejected",
   CUSTOMER_ARRIVAL: "customer_arrival",
 
   // 사용자/권한
@@ -15,6 +16,7 @@ export const NOTIFICATION_TYPES = {
   PROPERTY_AGENT_APPROVED: "property_agent_approved",
   PROPERTY_AGENT_REJECTED: "property_agent_rejected",
   ADMIN_PROPERTY_REVIEW_REQUEST: "admin_property_review_request",
+  ADMIN_PROPERTY_DELETE_REQUEST: "admin_property_delete_request",
   ADMIN_NEW_RESERVATION: "admin_new_reservation",
   ADMIN_DEPOSIT_UPDATE: "admin_deposit_update",
   ADMIN_NEW_QNA: "admin_new_qna",

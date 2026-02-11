@@ -18,6 +18,7 @@ import { OboonInlineDatePicker } from "@/components/ui/DatePicker";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
+import Input from "@/components/ui/Input";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { trackEvent } from "@/lib/analytics";
 
@@ -27,6 +28,7 @@ interface Agent {
   id: string;
   name: string;
   email: string;
+  avatar_url?: string | null;
   phone_number?: string | null;
   agent_bio?: string | null;
 }
@@ -220,6 +222,7 @@ export default function BookingModal({
               id,
               name,
               email,
+              avatar_url,
               phone_number,
               agent_bio
             )
@@ -233,12 +236,37 @@ export default function BookingModal({
           setError("상담사 목록을 불러오는데 실패했습니다");
         } else {
           // property_agents에서 profiles 정보만 추출
-          const agentList = (propertyAgents || [])
+          const baseAgentList = (propertyAgents || [])
             .map((pa) => pickFirst((pa as PropertyAgentRow).profiles))
             .filter(
               (profile): profile is Agent =>
                 profile !== null && profile.id !== currentUser?.id,
             );
+
+          const agentIds = baseAgentList.map((agent) => agent.id);
+          let agentList = baseAgentList;
+
+          // 아바타는 profiles 테이블에서 직접 조회해 단일 소스로 사용한다.
+          if (agentIds.length > 0) {
+            const { data: avatarRows } = await supabase
+              .from("profiles")
+              .select("id, avatar_url")
+              .in("id", agentIds);
+
+            const avatarMap = new Map<string, string | null>(
+              (avatarRows || []).map((row) => [
+                (row as { id: string; avatar_url: string | null }).id,
+                (row as { id: string; avatar_url: string | null }).avatar_url,
+              ]),
+            );
+
+            agentList = baseAgentList.map((agent) => ({
+              ...agent,
+              avatar_url: avatarMap.has(agent.id)
+                ? (avatarMap.get(agent.id) ?? null)
+                : (agent.avatar_url ?? null),
+            }));
+          }
 
           setAgents(agentList);
           if (defaultAgentId) {
@@ -250,7 +278,6 @@ export default function BookingModal({
             setSelectedAgent(null);
           }
 
-          const agentIds = agentList.map((agent) => agent.id);
           if (agentIds.length > 0) {
             const { data: galleryRows } = await supabase
               .from("profile_gallery_images")
@@ -610,6 +637,7 @@ export default function BookingModal({
               <div className="flex flex-col gap-3 max-h-72 overflow-y-auto">
                 {agents.map((agent) => {
                   const isSelected = selectedAgent?.id === agent.id;
+                  const avatarUrl = (agent.avatar_url ?? "").trim() || null;
                   return (
                     <Card
                       key={agent.id}
@@ -626,8 +654,20 @@ export default function BookingModal({
                       }
                     >
                       <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 shrink-0 rounded-full bg-(--oboon-bg-subtle) text-(--oboon-text-title) flex items-center justify-center ob-typo-subtitle">
-                          {agent.name?.slice(0, 1) || "상"}
+                        <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-(--oboon-bg-subtle)">
+                          {avatarUrl ? (
+                            <Image
+                              src={avatarUrl}
+                              alt={`${agent.name} 아바타`}
+                              width={40}
+                              height={40}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center ob-typo-subtitle text-(--oboon-text-title)">
+                              {agent.name?.slice(0, 1) || "상"}
+                            </div>
+                          )}
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="ob-typo-caption text-(--oboon-text-muted)">
@@ -768,37 +808,25 @@ export default function BookingModal({
       ) : step === "bank" ? (
         <>
           <div className="mt-5">
-            <div className="ob-typo-h3 text-(--oboon-text-title) mb-2">
-              정산 계좌 정보 입력
-            </div>
-            <div className="ob-typo-caption text-(--oboon-text-muted)">
-              방문 보상금 지급을 위해 은행과 계좌번호를 입력해주세요.
-            </div>
-
-            <div className="mt-4 space-y-3">
-              <div>
-                <label className="ob-typo-caption text-(--oboon-text-muted)">
-                  은행
-                </label>
-                <input
-                  type="text"
+            <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-4 py-3">
+              <div className="ob-typo-subtitle text-(--oboon-text-title)">
+                환불계좌 입력
+              </div>
+              <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+                방문 보상금 지급 및 환불 처리를 위해 사용됩니다.
+              </p>
+              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <Input
                   value={bankName}
                   onChange={(e) => setBankName(e.target.value)}
-                  placeholder="OO은행"
-                  className="mt-1 w-full rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-2.5 ob-typo-body text-(--oboon-text-title) outline-none focus:border-(--oboon-primary)"
+                  placeholder="은행명"
+                  disabled={bankSaving}
                 />
-              </div>
-
-              <div>
-                <label className="ob-typo-caption text-(--oboon-text-muted)">
-                  계좌번호
-                </label>
-                <input
-                  type="text"
+                <Input
                   value={bankAccountNumber}
                   onChange={(e) => setBankAccountNumber(e.target.value)}
-                  placeholder="123-456-789012"
-                  className="mt-1 w-full rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-2.5 ob-typo-body text-(--oboon-text-title) outline-none focus:border-(--oboon-primary)"
+                  placeholder="계좌번호"
+                  disabled={bankSaving}
                 />
               </div>
             </div>
@@ -923,7 +951,13 @@ export default function BookingModal({
                 </span>
               </div>
               <ul className="mt-4 list-disc space-y-1 pl-5 ob-typo-body text-(--oboon-text-muted)">
-                <li>예약 후 실제 방문이 확인되면, 프로필에 등록된 계좌로 방문 보상금 10,000원이 지급됩니다.</li>
+                <li>
+                  예약 후 실제 방문이 확인되면, 프로필에 등록된 계좌로 방문{" "}
+                  <span className="rounded-md bg-(--oboon-primary)/15 px-1.5 py-0.5 font-semibold text-(--oboon-primary)">
+                    보상금 10,000원
+                  </span>
+                  이 지급됩니다.
+                </li>
               </ul>
             </div>
 
@@ -945,7 +979,7 @@ export default function BookingModal({
                 aria-expanded={termsAccordionOpen}
               >
                 <span className="ob-typo-subtitle text-(--oboon-text-title)">
-                  고객 예약 전 필수 동의 약관 (베타운영)
+                  약관 전문
                 </span>
                 <ChevronDown
                   className={[
@@ -954,21 +988,13 @@ export default function BookingModal({
                   ].join(" ")}
                 />
               </button>
-              <div
-                className={[
-                  "overflow-hidden transition-all duration-200",
-                  termsAccordionOpen ? "max-h-72 mt-3" : "max-h-0",
-                ].join(" ")}
-              >
-                <div
-                  className={[
-                    "max-h-48 overflow-y-auto whitespace-pre-wrap text-(--oboon-text-body)",
-                    "ob-typo-body",
-                  ].join(" ")}
-                >
-                  {terms?.content || "약관을 불러오는 중..."}
+              {termsAccordionOpen ? (
+                <div className="mt-3 max-h-64 overflow-y-auto rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-3">
+                  <p className="ob-typo-caption whitespace-pre-wrap text-(--oboon-text-muted)">
+                    {terms?.content || "약관을 불러오는 중..."}
+                  </p>
                 </div>
-              </div>
+              ) : null}
             </div>
 
             <div

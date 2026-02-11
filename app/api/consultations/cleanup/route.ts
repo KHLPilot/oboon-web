@@ -8,7 +8,7 @@ const adminSupabase = createClient(
 
 /**
  * POST /api/consultations/cleanup
- * 취소된 지 3일이 지난 예약을 삭제합니다.
+ * 취소된 지 3일이 지난 예약을 소프트 삭제 처리합니다.
  * Supabase cron job이나 외부 스케줄러에서 호출할 수 있습니다.
  */
 export async function POST(req: Request) {
@@ -47,53 +47,35 @@ export async function POST(req: Request) {
     if (!oldCancelled || oldCancelled.length === 0) {
       return NextResponse.json({
         success: true,
-        message: "삭제할 예약이 없습니다",
-        deletedCount: 0,
+        message: "처리할 예약이 없습니다",
+        hiddenCount: 0,
       });
     }
 
-    const idsToDelete = oldCancelled.map((c) => c.id);
+    const idsToHide = oldCancelled.map((c) => c.id);
 
-    // 관련 채팅방 먼저 삭제
-    const { error: chatRoomError } = await adminSupabase
-      .from("chat_rooms")
-      .delete()
-      .in("consultation_id", idsToDelete);
-
-    if (chatRoomError) {
-      console.error("채팅방 삭제 오류:", chatRoomError);
-      // 채팅방 삭제 실패해도 계속 진행
-    }
-
-    // 관련 채팅 메시지 삭제 (chat_rooms에 cascade가 없는 경우)
-    const { error: messageError } = await adminSupabase
-      .from("chat_messages")
-      .delete()
-      .in("consultation_id", idsToDelete);
-
-    if (messageError) {
-      console.error("채팅 메시지 삭제 오류:", messageError);
-    }
-
-    // 예약 삭제
-    const { error: deleteError } = await adminSupabase
+    // 예약 소프트 삭제 처리
+    const { error: hideError } = await adminSupabase
       .from("consultations")
-      .delete()
-      .in("id", idsToDelete);
+      .update({
+        hidden_by_customer: true,
+        hidden_by_agent: true,
+      })
+      .in("id", idsToHide);
 
-    if (deleteError) {
-      console.error("예약 삭제 오류:", deleteError);
+    if (hideError) {
+      console.error("예약 소프트 삭제 처리 오류:", hideError);
       return NextResponse.json(
-        { error: "삭제 중 오류가 발생했습니다" },
+        { error: "소프트 삭제 처리 중 오류가 발생했습니다" },
         { status: 500 }
       );
     }
 
     return NextResponse.json({
       success: true,
-      message: `${idsToDelete.length}개의 예약이 삭제되었습니다`,
-      deletedCount: idsToDelete.length,
-      deletedIds: idsToDelete,
+      message: `${idsToHide.length}개의 예약이 소프트 삭제 처리되었습니다`,
+      hiddenCount: idsToHide.length,
+      hiddenIds: idsToHide,
     });
   } catch (err: unknown) {
     console.error("정리 API 오류:", err);

@@ -19,7 +19,7 @@ export default function CommunityTabs<K extends string>({
   onChange,
 }: CommunityTabsProps<K>) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-1 scrollbar-none sm:flex-wrap sm:overflow-visible sm:whitespace-normal">
       {tabs.map((tab) => {
         const isActive = tab.key === value;
         return (
@@ -28,7 +28,7 @@ export default function CommunityTabs<K extends string>({
             variant={isActive ? "primary" : "secondary"}
             size="sm"
             shape="pill"
-            className={isActive ? "" : "text-(--oboon-text-title)"}
+            className={isActive ? "shrink-0" : "shrink-0 text-(--oboon-text-title)"}
             onClick={() => onChange(tab.key)}
           >
             {tab.label}

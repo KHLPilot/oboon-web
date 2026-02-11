@@ -441,6 +441,36 @@
   },
   {
     "schemaname": "public",
+    "tablename": "community_comment_likes",
+    "policyname": "community_comment_likes_delete_own",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "using_expression": "((auth.uid() IS NOT NULL) AND (profile_id = auth.uid()))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "community_comment_likes",
+    "policyname": "community_comment_likes_insert_own",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "((auth.uid() IS NOT NULL) AND (profile_id = auth.uid()))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "community_comment_likes",
+    "policyname": "community_comment_likes_select_own",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "((auth.uid() IS NOT NULL) AND (profile_id = auth.uid()))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
     "tablename": "community_comments",
     "policyname": "community_comments_delete_own_or_admin",
     "permissive": "PERMISSIVE",
@@ -737,6 +767,16 @@
     "roles": "{public}",
     "cmd": "ALL",
     "using_expression": "(EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = 'admin'::text))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "profile_bank_accounts",
+    "policyname": "profile_bank_accounts_owner_all",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "(profile_id = auth.uid())",
     "with_check_expression": null
   },
   {
@@ -1457,6 +1497,36 @@
     "roles": "{public}",
     "cmd": "UPDATE",
     "using_expression": "((author_profile_id = auth.uid()) OR (EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))",
+    "with_check_expression": "((author_profile_id = auth.uid()) OR (EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "term_consents",
+    "policyname": "service_insert_consents",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "true"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "term_consents",
+    "policyname": "service_read_all_consents",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "term_consents",
+    "policyname": "users_read_own_consents",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "(auth.uid() = user_id)",
     "with_check_expression": null
   },
   {

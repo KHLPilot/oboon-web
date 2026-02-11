@@ -786,15 +786,6 @@ export default function ProfilePage({
   const latestPropertyProgress = latestRegisteredProperty
     ? getPropertyInputProgress(latestRegisteredProperty).percent
     : 0;
-  const latestPropertyInputLabel = latestRegisteredProperty
-    ? (() => {
-        const { inputCount, totalCount } =
-          getPropertyInputProgress(latestRegisteredProperty);
-        return inputCount === totalCount
-          ? "입력 완료"
-          : `입력 상태 ${inputCount}/${totalCount}`;
-      })()
-    : "입력중";
   const latestPropertyRequestedAtLabel = latestRegisteredProperty
     ? latestRegisteredProperty.request_requested_at
       ? new Date(latestRegisteredProperty.request_requested_at).toLocaleString(
@@ -1039,7 +1030,7 @@ export default function ProfilePage({
 
   if (showAgentProfile) {
     return (
-      <main className="bg-(--oboon-bg-page) min-h-full">
+      <main className="bg-(--oboon-bg-page) min-h-full overflow-x-hidden">
         <PageContainer className="pb-6">
           <div className="w-full space-y-6">
             <section className="space-y-1">
@@ -1053,7 +1044,7 @@ export default function ProfilePage({
             </section>
 
             <section className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
-              <aside className="h-fit">
+              <aside className="hidden lg:block h-fit">
                 <div className="rounded-2xl">
                   <div className="space-y-0.5">
                     {[
@@ -1092,7 +1083,29 @@ export default function ProfilePage({
                 </div>
               </aside>
 
-              <div className="space-y-4">
+              <div className="min-w-0 space-y-4">
+              <div className="lg:hidden">
+                <div className="flex max-w-full gap-2 overflow-x-auto pb-2 scrollbar-none">
+                  {[
+                    { id: "profile" as const, label: "상담사 프로필" },
+                    { id: "affiliation" as const, label: "소속 등록" },
+                    { id: "property" as const, label: "현장 등록" },
+                    { id: "community" as const, label: "커뮤니티 프로필" },
+                  ].map((tab) => (
+                    <Button
+                      key={tab.id}
+                      type="button"
+                      size="sm"
+                      shape="pill"
+                      variant={agentMenuTab === tab.id ? "primary" : "secondary"}
+                      className="shrink-0"
+                      onClick={() => setAgentMenuTab(tab.id)}
+                    >
+                      {tab.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
               <section
                 className={[
                   "space-y-6",
@@ -1100,7 +1113,7 @@ export default function ProfilePage({
                 ].join(" ")}
               >
                 <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_350px]">
-                  <div className="space-y-3">
+                  <div className="order-2 space-y-3 lg:order-1">
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div className="space-y-2">
                         <Label>이름</Label>
@@ -1154,7 +1167,7 @@ export default function ProfilePage({
                       />
                     </div>
 
-                    <div className="flex items-center gap-2 pt-1">
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
                       {!isEditing ? (
                         <Button
                           variant="ghost"
@@ -1184,10 +1197,10 @@ export default function ProfilePage({
                     </div>
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="order-1 space-y-2 lg:order-2">
                     <Label>프로필 이미지</Label>
-                    <div className="relative mx-auto h-75 w-75">
-                      <div className="h-75 w-75 overflow-hidden rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle)">
+                    <div className="relative mx-auto h-48 w-48 sm:h-60 sm:w-60 lg:h-75 lg:w-75">
+                      <div className="h-48 w-48 overflow-hidden rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle) sm:h-60 sm:w-60 lg:h-75 lg:w-75">
                         {avatarUrl ? (
                           <Image
                             src={avatarUrl}
@@ -1323,7 +1336,7 @@ export default function ProfilePage({
                   소속 등록
                 </div>
                 {hasApprovedProperty ? (
-                  <div className="flex items-center gap-2">
+                  <div className="ml-auto flex items-center gap-2">
                     {isChangingAffiliation ? (
                       <Button
                         variant="danger"
@@ -1352,7 +1365,7 @@ export default function ProfilePage({
 
               {!hasApprovedProperty ? (
                 <Card className="p-4">
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
                     <p className="ob-typo-body text-(--oboon-text-muted)">
                       현재 소속된 현장이 없습니다. 새 현장을 등록하면 자동으로 소속됩니다.
                     </p>
@@ -1361,6 +1374,7 @@ export default function ProfilePage({
                         <Link
                           href="/company/properties/new"
                           className="inline-flex items-center gap-1.5"
+                          style={{ color: "var(--oboon-on-primary)" }}
                         >
                           <Plus className="h-4 w-4" />새 현장 등록
                         </Link>
@@ -1412,8 +1426,8 @@ export default function ProfilePage({
 
                   return (
                     <Card key={property.id} className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-(--oboon-bg-subtle)">
+                      <div className="flex items-start gap-3 sm:items-center">
+                        <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-(--oboon-bg-subtle) sm:h-24 sm:w-24">
                           {property.image_url ? (
                             <Image
                               src={property.image_url}
@@ -1435,7 +1449,7 @@ export default function ProfilePage({
                           <div className="mt-0.5 truncate ob-typo-subtitle text-(--oboon-text-muted)">
                             {property.property_type}
                           </div>
-                          <div className="mt-2 flex items-center justify-end">
+                          <div className="mt-2 flex items-center justify-start sm:justify-end">
                             {request ? (
                               getStatusBadge(request.status)
                             ) : canChangeApply ? (
@@ -1552,6 +1566,7 @@ export default function ProfilePage({
                     <Link
                       href="/company/properties/new"
                       className="inline-flex items-center gap-1.5"
+                      style={{ color: "var(--oboon-on-primary)" }}
                     >
                       <Plus className="h-4 w-4" />
                       새 현장 등록
@@ -1567,11 +1582,11 @@ export default function ProfilePage({
               <Card className="p-5 mt-6">
                 {latestRegisteredProperty ? (
                   <>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="ob-typo-h2 text-(--oboon-text-title)">
-                        {latestRegisteredProperty.name}
-                      </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1 truncate ob-typo-h2 text-(--oboon-text-title)">
+                          {latestRegisteredProperty.name}
+                        </div>
+                        <div className="ml-auto flex shrink-0 items-center gap-2">
                         <Badge
                           variant={getPropertyStatusVariant(
                             latestRegisteredProperty.request_status,
@@ -1581,9 +1596,6 @@ export default function ProfilePage({
                           {getPropertyStatusLabel(
                             latestRegisteredProperty.request_status,
                           )}
-                        </Badge>
-                        <Badge variant="status" className="px-3 py-1">
-                          {latestPropertyInputLabel}
                         </Badge>
                         <Button
                           variant="primary"
@@ -1634,6 +1646,7 @@ export default function ProfilePage({
                       <Link
                         href="/company/properties/new"
                         className="inline-flex items-center gap-1.5"
+                        style={{ color: "var(--oboon-on-primary)" }}
                       >
                         <Plus className="h-4 w-4" />새 현장 등록
                       </Link>
@@ -1664,7 +1677,7 @@ export default function ProfilePage({
   }
 
   return (
-    <main className="bg-(--oboon-bg-page) min-h-full">
+    <main className="bg-(--oboon-bg-page) min-h-full overflow-x-hidden">
       <PageContainer className="pb-6">
         <div className="w-full space-y-6">
           <section className="space-y-1">
@@ -1677,7 +1690,7 @@ export default function ProfilePage({
           </section>
 
           <section className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
-            <aside className="h-fit">
+            <aside className="hidden lg:block h-fit">
               <div className="rounded-2xl">
                 <div className="space-y-0.5">
                   {[
@@ -1718,7 +1731,31 @@ export default function ProfilePage({
               </div>
             </aside>
 
-            <div className="space-y-4">
+            <div className="min-w-0 space-y-4">
+              <div className="lg:hidden">
+                <div className="flex max-w-full gap-2 overflow-x-auto pb-2 scrollbar-none">
+                  {[
+                    { id: "profile" as const, label: "기본 프로필" },
+                    { id: "consultations" as const, label: "내 상담 예약" },
+                    ...(showPersonalizationTab
+                      ? [{ id: "personalization" as const, label: "맞춤 정보" }]
+                      : []),
+                    { id: "community" as const, label: "커뮤니티 프로필" },
+                  ].map((tab) => (
+                    <Button
+                      key={tab.id}
+                      type="button"
+                      size="sm"
+                      shape="pill"
+                      variant={userMenuTab === tab.id ? "primary" : "secondary"}
+                      className="shrink-0"
+                      onClick={() => setUserMenuTab(tab.id)}
+                    >
+                      {tab.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
               <section className={userMenuTab === "profile" ? "" : "hidden"}>
                 <div className="space-y-4">
                   <div
@@ -1769,7 +1806,7 @@ export default function ProfilePage({
                     </div>
 
                     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_350px]">
-                      <div className="space-y-4">
+                      <div className="order-2 space-y-4 lg:order-1">
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                           <div className="space-y-2">
                             <Label>이름 *</Label>
@@ -1815,7 +1852,7 @@ export default function ProfilePage({
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                           <div className="space-y-2">
                             <Label>닉네임</Label>
-                            <div className="flex gap-2">
+                            <div className="flex flex-col gap-2 sm:flex-row">
                               <Input
                                 value={nickname}
                                 disabled={!isEditing}
@@ -1838,6 +1875,7 @@ export default function ProfilePage({
                                   <Button
                                     variant="secondary"
                                     size="sm"
+                                    className="w-full sm:w-auto"
                                     onClick={checkNickname}
                                     disabled={nicknameChecking}
                                   >
@@ -1924,10 +1962,10 @@ export default function ProfilePage({
                         </div>
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="order-1 space-y-2 lg:order-2">
                         <Label>프로필 이미지</Label>
-                        <div className="relative mx-auto h-75 w-75">
-                          <div className="h-75 w-75 overflow-hidden rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle)">
+                        <div className="relative mx-auto h-48 w-48 sm:h-60 sm:w-60 lg:h-75 lg:w-75">
+                          <div className="h-48 w-48 overflow-hidden rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle) sm:h-60 sm:w-60 lg:h-75 lg:w-75">
                             {avatarUrl ? (
                               <Image
                                 src={avatarUrl}

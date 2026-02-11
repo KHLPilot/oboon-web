@@ -1,6 +1,7 @@
 "use client";
 
-import { Clock, Heart, MessageCircle } from "lucide-react";
+import type { ReactNode } from "react";
+import { Bookmark, Clock, Heart, MessageCircle } from "lucide-react";
 import Image from "next/image";
 
 import { Badge } from "@/components/ui/Badge";
@@ -10,8 +11,22 @@ import type { CommunityPostViewModel } from "../../domain/community";
 
 export default function CommunityPostCard({
   post,
+  onToggleLike,
+  onToggleBookmark,
+  onToggleComments,
+  likeLoading = false,
+  bookmarkLoading = false,
+  commentsExpanded = false,
+  commentsPanel,
 }: {
   post: CommunityPostViewModel;
+  onToggleLike?: () => void;
+  onToggleBookmark?: () => void;
+  onToggleComments?: () => void;
+  likeLoading?: boolean;
+  bookmarkLoading?: boolean;
+  commentsExpanded?: boolean;
+  commentsPanel?: ReactNode;
 }) {
   return (
     <Card className="p-4">
@@ -56,20 +71,91 @@ export default function CommunityPostCard({
         </div>
 
         <div className="flex items-center gap-3 text-(--oboon-text-muted)">
-          <span className="inline-flex items-center gap-1 ob-typo-caption">
-            <Heart className="h-4 w-4" />
-            {post.likes}
-          </span>
-          <span className="inline-flex items-center gap-1 ob-typo-caption">
-            <MessageCircle className="h-4 w-4" />
-            {post.comments}
-          </span>
+          {onToggleLike ? (
+            <button
+              type="button"
+              disabled={likeLoading}
+              onClick={onToggleLike}
+              className="inline-flex items-center gap-1 ob-typo-caption disabled:opacity-50"
+              aria-label="좋아요"
+            >
+              <Heart
+                className={[
+                  "h-4 w-4",
+                  post.isLiked ? "fill-(--oboon-primary) text-(--oboon-primary)" : "",
+                ].join(" ")}
+              />
+              {post.likes}
+            </button>
+          ) : (
+            <span className="inline-flex items-center gap-1 ob-typo-caption">
+              <Heart
+                className={[
+                  "h-4 w-4",
+                  post.isLiked ? "fill-(--oboon-primary) text-(--oboon-primary)" : "",
+                ].join(" ")}
+              />
+              {post.likes}
+            </span>
+          )}
+          {onToggleBookmark ? (
+            <button
+              type="button"
+              disabled={bookmarkLoading}
+              onClick={onToggleBookmark}
+              className="inline-flex items-center gap-1 ob-typo-caption disabled:opacity-50"
+              aria-label="북마크"
+            >
+              <Bookmark
+                className={[
+                  "h-4 w-4",
+                  post.isBookmarked
+                    ? "fill-(--oboon-primary) text-(--oboon-primary)"
+                    : "",
+                ].join(" ")}
+              />
+            </button>
+          ) : (
+            <span className="inline-flex items-center gap-1 ob-typo-caption">
+              <Bookmark
+                className={[
+                  "h-4 w-4",
+                  post.isBookmarked
+                    ? "fill-(--oboon-primary) text-(--oboon-primary)"
+                    : "",
+                ].join(" ")}
+              />
+            </span>
+          )}
+          {onToggleComments ? (
+            <button
+              type="button"
+              onClick={onToggleComments}
+              className="inline-flex items-center gap-1 ob-typo-caption"
+              aria-expanded={commentsExpanded}
+              aria-label="댓글 펼치기"
+            >
+              <MessageCircle className="h-4 w-4" />
+              {post.comments}
+            </button>
+          ) : (
+            <span className="inline-flex items-center gap-1 ob-typo-caption">
+              <MessageCircle className="h-4 w-4" />
+              {post.comments}
+            </span>
+          )}
           <span className="inline-flex items-center gap-1 ob-typo-caption">
             <Clock className="h-4 w-4" />
             {post.timeLabel}
           </span>
         </div>
       </div>
+
+      {commentsExpanded && commentsPanel ? (
+        <div className="mt-3 border-t border-(--oboon-border-default) pt-3">
+          {commentsPanel}
+        </div>
+      ) : null}
     </Card>
   );
 }

@@ -25,7 +25,7 @@ const STATUSES: Array<OfferingStatusValue | "전체"> = [
   ...OFFERING_STATUS_VALUES,
 ];
 
-const BUDGET_PRESETS = [
+const BUDGET_PRESETS: Array<{ label: string; min: number; max: number | null }> = [
   { label: "1억 미만", min: 0, max: 1 },
   { label: "1–3억", min: 1, max: 3 },
   { label: "3–5억", min: 3, max: 5 },
@@ -33,13 +33,15 @@ const BUDGET_PRESETS = [
   { label: "10–20억", min: 10, max: 20 },
   { label: "20–30억", min: 20, max: 30 },
   { label: "30–50억", min: 30, max: 50 },
+  { label: "50–100억", min: 50, max: 100 },
+  { label: "100억 이상", min: 100, max: null },
 ];
 
-const PURPOSES = [
-  { label: "실거주", value: "residence" },
-  { label: "투자", value: "investment" },
-  { label: "기타", value: "other" },
-];
+const AGENT_FILTERS = [
+  { label: "전체", value: "전체" },
+  { label: "상담 가능", value: "has" },
+] as const;
+type AgentFilterValue = (typeof AGENT_FILTERS)[number]["value"];
 
 function MobileChipRow({
   children,
@@ -49,13 +51,13 @@ function MobileChipRow({
   className?: string;
 }) {
   return (
-    <div className={cn("sm:hidden -mx-5", className)}>
-      <div className="relative px-5">
+    <div className={cn("sm:hidden -mx-4", className)}>
+      <div className="relative px-4">
         <div
           className={cn(
             "flex gap-2 overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch]",
             "scrollbar-none",
-            "scroll-pl-5 scroll-pr-5"
+            "scroll-pl-4 scroll-pr-4"
           )}
         >
           {children}
@@ -167,7 +169,8 @@ function FilterBarBody({
   const rawStatus = sp.get("status");
   const status: OfferingStatusValue | "전체" =
     rawStatus && isOfferingStatusValue(rawStatus) ? rawStatus : "전체";
-  const purpose = sp.get("purpose") ?? "";
+  const rawAgent = sp.get("agent");
+  const agentFilter: AgentFilterValue = rawAgent === "has" ? "has" : "전체";
 
   const [q, setQ] = useState(urlQ);
   const [budgetMin, setBudgetMin] = useState(urlBudgetMin);
@@ -177,6 +180,7 @@ function FilterBarBody({
 
   function pushParams(pairs: Record<string, string | null | undefined>) {
     const next = new URLSearchParams(qs.toString());
+    next.delete("purpose");
 
     for (const [key, value] of Object.entries(pairs)) {
       const v = (value ?? "").trim();
@@ -202,7 +206,7 @@ function FilterBarBody({
   const activeCount =
     (region !== "전체" ? 1 : 0) +
     (status !== "전체" ? 1 : 0) +
-    (purpose ? 1 : 0) +
+    (agentFilter !== "전체" ? 1 : 0) +
     (urlBudgetMin || urlBudgetMax ? 1 : 0);
 
   const minVal = parseEok(budgetMin);
@@ -290,8 +294,8 @@ function FilterBarBody({
             <SlidersHorizontal
               className={cn(
                 "h-4 w-4 transition-colors",
-                open && activeCount > 0
-                  ? "text-(--oboon-text-inverse)"
+                open
+                  ? "text-(--oboon-on-primary)"
                   : activeCount > 0
                   ? "text-(--oboon-primary)"
                   : "text-(--oboon-text-muted)"
@@ -351,8 +355,8 @@ function FilterBarBody({
             <SlidersHorizontal
               className={cn(
                 "h-4 w-4 transition-colors",
-                open && activeCount > 0
-                  ? "text-(--oboon-text-inverse)"
+                open
+                  ? "text-(--oboon-on-primary)"
                   : activeCount > 0
                   ? "text-(--oboon-primary)"
                   : "text-(--oboon-text-muted)"
@@ -497,9 +501,11 @@ function FilterBarBody({
             </Button>
 
             {BUDGET_PRESETS.map((p) => {
+              const presetMin = String(p.min);
+              const presetMax = p.max == null ? "" : String(p.max);
               const active =
-                String(p.min) === urlBudgetMin &&
-                String(p.max) === urlBudgetMax;
+                presetMin === urlBudgetMin &&
+                presetMax === urlBudgetMax;
               return (
                 <Button
                   key={p.label}
@@ -509,11 +515,14 @@ function FilterBarBody({
                   variant={active ? "primary" : "secondary"}
                   className="h-9 px-4 ob-typo-button shrink-0"
                   onClick={() => {
-                    const nextMin = String(p.min);
-                    const nextMax = String(p.max);
+                    const nextMin = presetMin;
+                    const nextMax = presetMax;
                     setBudgetMin(nextMin);
                     setBudgetMax(nextMax);
-                    pushParams({ budgetMin: nextMin, budgetMax: nextMax });
+                    pushParams({
+                      budgetMin: nextMin,
+                      budgetMax: nextMax || null,
+                    });
                   }}
                 >
                   {p.label}
@@ -538,9 +547,11 @@ function FilterBarBody({
               전체
             </Button>
             {BUDGET_PRESETS.map((p) => {
+              const presetMin = String(p.min);
+              const presetMax = p.max == null ? "" : String(p.max);
               const active =
-                String(p.min) === urlBudgetMin &&
-                String(p.max) === urlBudgetMax;
+                presetMin === urlBudgetMin &&
+                presetMax === urlBudgetMax;
               return (
                 <Button
                   key={p.label}
@@ -550,11 +561,14 @@ function FilterBarBody({
                   variant={active ? "primary" : "secondary"}
                   className="h-9 px-4 ob-typo-button shrink-0"
                   onClick={() => {
-                    const nextMin = String(p.min);
-                    const nextMax = String(p.max);
+                    const nextMin = presetMin;
+                    const nextMax = presetMax;
                     setBudgetMin(nextMin);
                     setBudgetMax(nextMax);
-                    pushParams({ budgetMin: nextMin, budgetMax: nextMax });
+                    pushParams({
+                      budgetMin: nextMin,
+                      budgetMax: nextMax || null,
+                    });
                   }}
                 >
                   {p.label}
@@ -644,62 +658,46 @@ function FilterBarBody({
           ) : null}
         </div>
 
-        {/* 용도 */}
+        {/* 상담사 */}
         <div className="mt-5 space-y-2">
-          <div className="ob-typo-subtitle text-(--oboon-text-title)">용도</div>
+          <div className="ob-typo-subtitle text-(--oboon-text-title)">상담사</div>
           <MobileChipRow>
-            <Button
-              type="button"
-              size="sm"
-              shape="pill"
-              variant={!purpose ? "primary" : "secondary"}
-              className="h-9 px-4 ob-typo-button shrink-0"
-              onClick={() => pushParams({ purpose: null })}
-            >
-              전체
-            </Button>
-            {PURPOSES.map((p) => {
-              const active = purpose === p.value;
+            {AGENT_FILTERS.map((item) => {
+              const active = agentFilter === item.value;
               return (
                 <Button
-                  key={p.value}
+                  key={item.value}
                   type="button"
                   size="sm"
                   shape="pill"
                   variant={active ? "primary" : "secondary"}
                   className="h-9 px-4 ob-typo-button shrink-0"
-                  onClick={() => pushParams({ purpose: p.value })}
+                  onClick={() =>
+                    pushParams({ agent: item.value === "전체" ? null : item.value })
+                  }
                 >
-                  {p.label}
+                  {item.label}
                 </Button>
               );
             })}
           </MobileChipRow>
 
           <div className="hidden sm:flex flex-wrap gap-2">
-            <Button
-              type="button"
-              size="sm"
-              shape="pill"
-              variant={!purpose ? "primary" : "secondary"}
-              className="h-9 px-4 ob-typo-button shrink-0"
-              onClick={() => pushParams({ purpose: null })}
-            >
-              전체
-            </Button>
-            {PURPOSES.map((p) => {
-              const active = purpose === p.value;
+            {AGENT_FILTERS.map((item) => {
+              const active = agentFilter === item.value;
               return (
                 <Button
-                  key={p.value}
+                  key={item.value}
                   type="button"
                   size="sm"
                   shape="pill"
                   variant={active ? "primary" : "secondary"}
                   className="h-9 px-4 ob-typo-button shrink-0"
-                  onClick={() => pushParams({ purpose: p.value })}
+                  onClick={() =>
+                    pushParams({ agent: item.value === "전체" ? null : item.value })
+                  }
                 >
-                  {p.label}
+                  {item.label}
                 </Button>
               );
             })}

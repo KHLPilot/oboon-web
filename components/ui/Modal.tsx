@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
@@ -56,12 +56,17 @@ export default function Modal({
   panelClassName,
   zIndexOffset,
 }: ModalProps) {
+  const onCloseRef = useRef(onClose);
   const [portalEl] = useState<HTMLDivElement | null>(() => {
     if (typeof document === "undefined") return null;
     const el = document.createElement("div");
     el.setAttribute("data-oboon-modal-root", "true");
     return el;
   });
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open || !portalEl) return;
@@ -79,7 +84,7 @@ export default function Modal({
         target.tagName === "TEXTAREA" ||
         target.isContentEditable;
 
-      if (e.key === "Escape" && !isInputElement) onClose();
+      if (e.key === "Escape" && !isInputElement) onCloseRef.current();
     };
     window.addEventListener("keydown", onKeyDown);
 
@@ -88,7 +93,7 @@ export default function Modal({
       document.body.style.overflow = prevOverflow;
       if (portalEl.parentNode) portalEl.parentNode.removeChild(portalEl);
     };
-  }, [open, portalEl, onClose]);
+  }, [open, portalEl]);
 
   const panelSizeClass = useMemo(() => SIZE_CLASS[size], [size]);
   const overlayStyle = useMemo(() => {
@@ -104,7 +109,7 @@ export default function Modal({
       style={overlayStyle}
       onMouseDown={(e) => {
         // 배경 클릭 닫기 (패널 클릭은 무시)
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget) onCloseRef.current();
       }}
     >
       <div
@@ -119,7 +124,7 @@ export default function Modal({
         {showCloseIcon ? (
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => onCloseRef.current()}
             aria-label="닫기"
             className="absolute right-3 top-3 sm:right-4 sm:top-4 z-10 inline-flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-(--oboon-bg-surface) hover:bg-(--oboon-bg-subtle)"
           >

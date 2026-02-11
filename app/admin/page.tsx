@@ -2,7 +2,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { approveAgent, restoreAccount } from "./serverActions";
 import { fetchAdminDashboardData } from "@/features/admin/services/admin.dashboard";
@@ -180,6 +180,15 @@ type ConfirmState =
       confirmLabel: string;
     };
 
+const ADMIN_TABS = [
+  { id: "summary", label: "요약" },
+  { id: "users", label: "사용자 관리" },
+  { id: "properties", label: "현장 관리" },
+  { id: "reservations", label: "예약 관리" },
+  { id: "settlements", label: "정산 관리" },
+  { id: "terms", label: "약관 관리" },
+] as const;
+
 export default function AdminPage() {
   return (
     <ToastProvider>
@@ -190,6 +199,7 @@ export default function AdminPage() {
 
 function AdminPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [propertyAgents, setPropertyAgents] = useState<PropertyAgent[]>([]);
@@ -772,18 +782,37 @@ function AdminPageInner() {
     }
   };
 
-  const tabs = [
-    { id: "summary", label: "요약" },
-    { id: "users", label: "사용자 관리" },
-    { id: "properties", label: "현장 관리" },
-    { id: "reservations", label: "예약 관리" },
-    { id: "settlements", label: "정산 관리" },
-    { id: "terms", label: "약관 관리" },
-  ] as const;
+  const tabs = ADMIN_TABS;
 
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]["id"]>(
     "summary",
   );
+  const validReservationStatuses = useMemo(
+    () =>
+      new Set([
+        "all",
+        "requested",
+        "pending",
+        "confirmed",
+        "visited",
+        "contracted",
+        "cancelled",
+        "no_show",
+      ]),
+    [],
+  );
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab && tabs.some((item) => item.id === tab)) {
+      setActiveTab(tab as (typeof tabs)[number]["id"]);
+    }
+
+    const status = searchParams.get("reservationStatus");
+    if (status && validReservationStatuses.has(status)) {
+      setReservationStatus(status);
+    }
+  }, [searchParams, tabs, validReservationStatuses]);
 
   const refreshCurrentTab = useCallback(() => {
     loadData();
@@ -1026,7 +1055,7 @@ function AdminPageInner() {
         </div>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[220px_1fr]">
-          <aside className="h-fit">
+          <aside className="hidden lg:block h-fit">
             <div className="rounded-2xl">
               <div className="space-y-0.5">
                 {tabs.map((tab) => (
@@ -1060,7 +1089,24 @@ function AdminPageInner() {
             </div>
           </aside>
 
-          <section className="space-y-4">
+          <section className="min-w-0 space-y-4">
+            <div className="lg:hidden">
+              <div className="flex max-w-full gap-2 overflow-x-auto pb-2 scrollbar-none">
+                {tabs.map((tab) => (
+                  <Button
+                    key={tab.id}
+                    type="button"
+                    size="sm"
+                    shape="pill"
+                    variant={activeTab === tab.id ? "primary" : "secondary"}
+                    className="shrink-0"
+                    onClick={() => setActiveTab(tab.id)}
+                  >
+                    {tab.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
             {activeTab === "summary" && (
               <>
                 <div className="flex items-center justify-between">
@@ -1478,12 +1524,13 @@ function AdminPageInner() {
                   </Button>
                 </div>
 
-                <div className="grid grid-cols-3 items-center gap-3">
+                <div className="grid grid-cols-1 items-center gap-3 sm:grid-cols-3">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button
                         variant="secondary"
                         size="md"
+                        className="w-full justify-between"
                       >
                         <span>
                           {reservationStatus === "all"

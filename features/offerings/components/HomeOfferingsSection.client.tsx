@@ -25,6 +25,9 @@ export default function HomeOfferingsSection() {
 
   const [rows, setRows] = useState<PropertyRow[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [consultablePropertyIds, setConsultablePropertyIds] = useState<number[]>(
+    [],
+  );
   const [selectedRegion, setSelectedRegion] =
     useState<OfferingRegionTab>("전체");
 
@@ -45,7 +48,38 @@ export default function HomeOfferingsSection() {
       }
 
       setLoadError(null);
-      setRows((data ?? []) as PropertyRow[]);
+      const nextRows = (data ?? []) as PropertyRow[];
+      setRows(nextRows);
+
+      const propertyIds = nextRows
+        .map((row) => Number(row.id))
+        .filter((id) => Number.isFinite(id));
+
+      if (propertyIds.length === 0) {
+        setConsultablePropertyIds([]);
+        return;
+      }
+
+      const { data: propertyAgents, error: agentError } = await supabase
+        .from("property_agents")
+        .select("property_id")
+        .in("property_id", propertyIds)
+        .eq("status", "approved");
+
+      if (agentError) {
+        console.error("[home consultable properties] load error:", agentError);
+        setConsultablePropertyIds([]);
+        return;
+      }
+
+      const uniqueIds = [
+        ...new Set(
+          (propertyAgents ?? [])
+            .map((row) => Number(row.property_id))
+            .filter((id) => Number.isFinite(id)),
+        ),
+      ];
+      setConsultablePropertyIds(uniqueIds);
     })();
 
     return () => {
@@ -72,6 +106,11 @@ export default function HomeOfferingsSection() {
       .map((row) => mapPropertyRowToOffering(row, fallback));
   }, [rows, fallback]);
 
+  const consultableOfferings: Offering[] = useMemo(() => {
+    const idSet = new Set(consultablePropertyIds);
+    return offerings.filter((offering) => idSet.has(Number(offering.id)));
+  }, [consultablePropertyIds, offerings]);
+
   const popularOfferings: Offering[] = useMemo(() => {
     const base =
       selectedRegion === "전체"
@@ -83,6 +122,23 @@ export default function HomeOfferingsSection() {
 
   return (
     <>
+      {/* 상담 신청 가능 현장 */}
+      <section className="mt-8 sm:mt-10 flex flex-col gap-2">
+        <SectionHeader
+          title="상담 신청 가능 현장"
+          caption="상담사 연결이 완료되어 바로 상담 예약이 가능한 현장입니다."
+          rightLink={{ href: "/offerings", label: "전체보기" }}
+        />
+
+        {consultableOfferings.length === 0 ? (
+          <Card className="p-6 ob-typo-body text-(--oboon-text-muted)">
+            지금은 상담 신청 가능한 현장이 아직 없어요.
+          </Card>
+        ) : (
+          <ResponsiveOfferingRow items={consultableOfferings} />
+        )}
+      </section>
+
       {/* 감정평가사 한줄평 */}
       <section className="mt-8 sm:mt-10 flex flex-col gap-2">
         <SectionHeader

@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowRight,
   BarChart3,
@@ -16,12 +16,14 @@ import {
   Trash2,
   Settings,
   Bell,
+  ChevronDown,
 } from "lucide-react";
 
 import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
+import Input from "@/components/ui/Input";
 import { fetchAgentAccess } from "@/features/agent/services/agent.auth";
 import AgentScheduleSettings from "@/features/agent/components/AgentScheduleSettings.client";
 import ConsultationCard from "@/features/consultations/components/ConsultationCard.client";
@@ -109,6 +111,7 @@ type ReservationTab = "summary" | "list" | "schedule";
 
 export default function AgentConsultationsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [consultations, setConsultations] = useState<Consultation[]>([]);
   const [allConsultations, setAllConsultations] = useState<Consultation[]>([]);
@@ -128,6 +131,36 @@ export default function AgentConsultationsPage() {
   const [agentTerms, setAgentTerms] = useState<{ title: string; content: string } | null>(null);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [termsConfirming, setTermsConfirming] = useState(false);
+  const [refundBankName, setRefundBankName] = useState("");
+  const [refundBankAccountNumber, setRefundBankAccountNumber] = useState("");
+  const [requireRefundAccountInput, setRequireRefundAccountInput] =
+    useState(false);
+  const [termsAccordionOpen, setTermsAccordionOpen] = useState(false);
+
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    const filterParam = searchParams.get("filter");
+
+    if (
+      tabParam === "summary" ||
+      tabParam === "list" ||
+      tabParam === "schedule"
+    ) {
+      setActiveTab(tabParam);
+    }
+
+    const validFilters = new Set([
+      "all",
+      "pending",
+      "confirmed",
+      "visited",
+      "contracted",
+      "cancelled",
+    ]);
+    if (filterParam && validFilters.has(filterParam)) {
+      setFilter(filterParam);
+    }
+  }, [searchParams]);
 
   const fetchConsultations = useCallback(async () => {
     try {
@@ -301,7 +334,40 @@ export default function AgentConsultationsPage() {
   async function openTermsModal(consultationId: string) {
     setTermsModalConsultationId(consultationId);
     setAgreedToTerms(false);
+    setTermsAccordionOpen(false);
+    setRequireRefundAccountInput(false);
     setTermsModalOpen(true);
+
+    try {
+      const supabase = createSupabaseClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("bank_name, bank_account_number")
+          .eq("id", user.id)
+          .maybeSingle();
+        const fetchedBankName = profile?.bank_name ?? "";
+        const fetchedBankAccountNumber = profile?.bank_account_number ?? "";
+        setRequireRefundAccountInput(
+          !fetchedBankName.trim() || !fetchedBankAccountNumber.trim(),
+        );
+
+        // 모달을 열고 사용자가 입력을 시작한 뒤 비동기 응답이 도착해도
+        // 이미 입력한 값을 덮어쓰지 않도록 보호한다.
+        setRefundBankName((prev) =>
+          prev.trim().length > 0 ? prev : fetchedBankName,
+        );
+        setRefundBankAccountNumber((prev) =>
+          prev.trim().length > 0 ? prev : fetchedBankAccountNumber,
+        );
+      }
+      } catch (err) {
+        console.error("계좌 정보 로드 오류:", err);
+        setRequireRefundAccountInput(true);
+      }
 
     // 약관 로드
     try {
@@ -318,9 +384,42 @@ export default function AgentConsultationsPage() {
   // 약관 동의 후 실제 승인 처리
   async function confirmWithTerms() {
     if (!termsModalConsultationId || !agreedToTerms) return;
+    const trimmedBankName = refundBankName.trim();
+    const trimmedAccountNumber = refundBankAccountNumber.trim();
+    const needsRefundAccount =
+      requireRefundAccountInput &&
+      (!trimmedBankName || !trimmedAccountNumber);
 
     setTermsConfirming(true);
     try {
+      const supabase = createSupabaseClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        showAlert("로그인이 필요합니다");
+        return;
+      }
+
+      if (needsRefundAccount) {
+        showAlert("환불 계좌 정보를 모두 입력해주세요");
+        return;
+      }
+
+      if (trimmedBankName && trimmedAccountNumber) {
+        const { error: bankUpdateError } = await supabase
+          .from("profiles")
+          .update({
+            bank_name: trimmedBankName,
+            bank_account_number: trimmedAccountNumber,
+          })
+          .eq("id", user.id);
+        if (bankUpdateError) {
+          showAlert("환불 계좌 저장에 실패했습니다");
+          return;
+        }
+      }
+
       const response = await fetch(`/api/consultations/${termsModalConsultationId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -336,6 +435,8 @@ export default function AgentConsultationsPage() {
         showAlert("예약이 확정되었습니다");
         setTermsModalOpen(false);
         setTermsModalConsultationId(null);
+        setRefundBankName(trimmedBankName);
+        setRefundBankAccountNumber(trimmedAccountNumber);
       } else {
         const data = await response.json();
         showAlert(data.error || "확정에 실패했습니다");
@@ -972,6 +1073,8 @@ export default function AgentConsultationsPage() {
           if (!termsConfirming) {
             setTermsModalOpen(false);
             setTermsModalConsultationId(null);
+            setRequireRefundAccountInput(false);
+            setTermsAccordionOpen(false);
           }
         }}
       >
@@ -979,10 +1082,66 @@ export default function AgentConsultationsPage() {
           {agentTerms?.title || "방문성과비 이용약관"}
         </div>
 
-        <div className="mt-4 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-4 py-4 max-h-64 overflow-y-auto">
-          <p className="ob-typo-caption text-(--oboon-text-muted) whitespace-pre-wrap">
-            {agentTerms?.content || "약관을 불러오는 중..."}
-          </p>
+        {requireRefundAccountInput && (
+          <div className="mt-4 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-4 py-3">
+            <div className="ob-typo-subtitle text-(--oboon-text-title)">
+              환불계좌 입력
+            </div>
+            <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+              예약 취소/정산 이슈 발생 시 환불 및 정산 처리를 위해 사용됩니다.
+            </p>
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <Input
+                value={refundBankName}
+                onChange={(e) => setRefundBankName(e.target.value)}
+                placeholder="은행명"
+                disabled={termsConfirming}
+              />
+              <Input
+                value={refundBankAccountNumber}
+                onChange={(e) => setRefundBankAccountNumber(e.target.value)}
+                placeholder="계좌번호"
+                disabled={termsConfirming}
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="mt-3 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-4 py-3">
+          <div className="ob-typo-subtitle text-(--oboon-text-title)">
+            약관 요약
+          </div>
+          <ul className="mt-2 list-disc space-y-1 pl-5 ob-typo-caption text-(--oboon-text-muted)">
+            <li>예약을 승인하면 해당 시간은 확정 처리됩니다.</li>
+            <li>방문/취소 상태에 따라 예약금 및 방문성과비 정산이 진행됩니다.</li>
+            <li>최종 상세 기준은 아래 약관 전문을 따릅니다.</li>
+          </ul>
+        </div>
+
+        <div className="mt-3 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-4 py-4">
+          <button
+            type="button"
+            className="flex w-full items-center justify-between gap-3 text-left"
+            onClick={() => setTermsAccordionOpen((prev) => !prev)}
+            aria-expanded={termsAccordionOpen}
+          >
+            <span className="ob-typo-subtitle text-(--oboon-text-title)">
+              약관 전문
+            </span>
+            <ChevronDown
+              className={[
+                "h-5 w-5 text-(--oboon-text-muted) transition-transform duration-200",
+                termsAccordionOpen ? "rotate-180" : "",
+              ].join(" ")}
+            />
+          </button>
+          {termsAccordionOpen ? (
+            <div className="mt-3 max-h-64 overflow-y-auto rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-3">
+              <p className="ob-typo-caption whitespace-pre-wrap text-(--oboon-text-muted)">
+                {agentTerms?.content || "약관을 불러오는 중..."}
+              </p>
+            </div>
+          ) : null}
         </div>
 
         <label className="mt-4 flex items-center gap-2 cursor-pointer">

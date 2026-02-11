@@ -228,10 +228,34 @@
     "definition": "PRIMARY KEY (post_id, profile_id)"
   },
   {
+    "table_name": "community_comment_likes",
+    "constraint_name": "community_comment_likes_comment_id_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (comment_id) REFERENCES community_comments(id) ON DELETE CASCADE"
+  },
+  {
+    "table_name": "community_comment_likes",
+    "constraint_name": "community_comment_likes_profile_id_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE"
+  },
+  {
+    "table_name": "community_comment_likes",
+    "constraint_name": "community_comment_likes_pkey",
+    "constraint_type": "p",
+    "definition": "PRIMARY KEY (comment_id, profile_id)"
+  },
+  {
     "table_name": "community_comments",
     "constraint_name": "community_comments_author_profile_id_fkey",
     "constraint_type": "f",
     "definition": "FOREIGN KEY (author_profile_id) REFERENCES profiles(id) ON DELETE CASCADE"
+  },
+  {
+    "table_name": "community_comments",
+    "constraint_name": "community_comments_parent_comment_id_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (parent_comment_id) REFERENCES community_comments(id) ON DELETE CASCADE"
   },
   {
     "table_name": "community_comments",
@@ -516,6 +540,18 @@
     "definition": "UNIQUE (consultation_id, type)"
   },
   {
+    "table_name": "profile_bank_accounts",
+    "constraint_name": "profile_bank_accounts_profile_id_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE"
+  },
+  {
+    "table_name": "profile_bank_accounts",
+    "constraint_name": "profile_bank_accounts_pkey",
+    "constraint_type": "p",
+    "definition": "PRIMARY KEY (id)"
+  },
+  {
     "table_name": "profile_gallery_images",
     "constraint_name": "profile_gallery_images_sort_order_check",
     "constraint_type": "c",
@@ -645,7 +681,7 @@
     "table_name": "property_locations",
     "constraint_name": "property_locations_properties_id_fkey",
     "constraint_type": "f",
-    "definition": "FOREIGN KEY (properties_id) REFERENCES properties(id)"
+    "definition": "FOREIGN KEY (properties_id) REFERENCES properties(id) ON DELETE CASCADE"
   },
   {
     "table_name": "property_locations",
@@ -817,9 +853,9 @@
   },
   {
     "table_name": "terms",
-    "constraint_name": "terms_type_key",
+    "constraint_name": "terms_type_version_unique",
     "constraint_type": "u",
-    "definition": "UNIQUE (type)"
+    "definition": "UNIQUE (type, version)"
   },
   {
     "table_name": "verification_tokens",

@@ -150,21 +150,93 @@ export async function POST(req: Request) {
     }
 
     // 8. 모델하우스 위치 조회
-    const { data: facilities, error: facilityError } = await adminSupabase
-      .from("property_facilities")
-      .select("lat, lng")
-      .eq("property_id", consultation.property_id)
-      .eq("type", "MODELHOUSE")
-      .eq("is_active", true)
-      .limit(1);
+    // - 시설 입력 화면은 properties_id를 사용하므로 이를 우선 조회
+    // - 레거시 스키마 호환을 위해 property_id도 fallback 조회
+    // - 좌표가 있는 행만 사용
+    const fetchModelHouse = async (
+      key: "properties_id" | "property_id",
+      activeOnly: boolean,
+    ) => {
+      let query = adminSupabase
+        .from("property_facilities")
+        .select("lat, lng")
+        .eq(key, consultation.property_id)
+        .eq("type", "MODELHOUSE")
+        .not("lat", "is", null)
+        .not("lng", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (activeOnly) {
+        query = query.eq("is_active", true);
+      }
+      return query;
+    };
+
+    let facilities: Array<{ lat: number | string | null; lng: number | string | null }> | null = null;
+    let facilityError: { message?: string } | null = null;
+
+    const activeByPropertiesId = await fetchModelHouse("properties_id", true);
+    facilities = activeByPropertiesId.data as Array<{
+      lat: number | string | null;
+      lng: number | string | null;
+    }> | null;
+    facilityError = activeByPropertiesId.error
+      ? { message: activeByPropertiesId.error.message }
+      : null;
+
+    // 활성 모델하우스가 없으면(또는 컬럼 이슈) fallback
+    if (!facilities?.length || facilityError) {
+      const activeByPropertyId = await fetchModelHouse("property_id", true);
+      if (activeByPropertyId.data?.length) {
+        facilities = activeByPropertyId.data as Array<{
+          lat: number | string | null;
+          lng: number | string | null;
+        }>;
+        facilityError = null;
+      } else if (
+        !facilities?.length &&
+        !facilityError
+      ) {
+        // 마지막 fallback: 과거 데이터에서 is_active가 비어있을 수 있음
+        const anyByPropertiesId = await fetchModelHouse("properties_id", false);
+        if (anyByPropertiesId.data?.length) {
+          facilities = anyByPropertiesId.data as Array<{
+            lat: number | string | null;
+            lng: number | string | null;
+          }>;
+        } else {
+          const anyByPropertyId = await fetchModelHouse("property_id", false);
+          facilities = anyByPropertyId.data as Array<{
+            lat: number | string | null;
+            lng: number | string | null;
+          }> | null;
+          if (anyByPropertyId.error) {
+            facilityError = { message: anyByPropertyId.error.message };
+          }
+        }
+      }
+    }
 
     const modelHouse = facilities?.[0];
+    const modelHouseLat = modelHouse?.lat != null ? Number(modelHouse.lat) : null;
+    const modelHouseLng = modelHouse?.lng != null ? Number(modelHouse.lng) : null;
+    const currentLat = Number(lat);
+    const currentLng = Number(lng);
 
-    if (facilityError || !modelHouse || !modelHouse.lat || !modelHouse.lng) {
+    if (
+      facilityError ||
+      !modelHouse ||
+      modelHouseLat == null ||
+      modelHouseLng == null
+    ) {
+      console.error("모델하우스 위치 조회 실패:", facilityError?.message ?? "no row");
       return NextResponse.json(
         {
           error: "모델하우스 위치 정보를 찾을 수 없습니다",
           code: ERROR_CODES.PROPERTY_LOCATION_NOT_FOUND,
+          currentLat,
+          currentLng,
         },
         { status: 404 }
       );
@@ -172,10 +244,10 @@ export async function POST(req: Request) {
 
     // 9. 거리 계산
     const distance = calculateDistance(
-      lat,
-      lng,
-      Number(modelHouse.lat),
-      Number(modelHouse.lng)
+      currentLat,
+      currentLng,
+      modelHouseLat,
+      modelHouseLng
     );
 
     if (distance > ALLOWED_RADIUS_METERS) {
@@ -185,6 +257,10 @@ export async function POST(req: Request) {
           code: ERROR_CODES.OUT_OF_RANGE,
           distance: Math.round(distance),
           allowedRadius: ALLOWED_RADIUS_METERS,
+          modelHouseLat,
+          modelHouseLng,
+          currentLat,
+          currentLng,
         },
         { status: 400 }
       );
@@ -282,6 +358,10 @@ export async function POST(req: Request) {
       pendingApproval: true,
       requested_at: nowIso,
       distance: Math.round(distance),
+      modelHouseLat,
+      modelHouseLng,
+      currentLat,
+      currentLng,
     });
   } catch (err: unknown) {
     console.error("GPS 방문 인증 API 오류:", err);

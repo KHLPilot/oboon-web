@@ -76,6 +76,13 @@ const STATUS_LABELS: Record<
   cancelled: { label: "취소됨", variant: "default" },
 };
 
+const OBOON_DEPOSIT_INFO = {
+  bank: "토스뱅크",
+  accountNumber: "1002-3131-0563",
+  holder: "OBOON",
+  amount: "1,000원",
+};
+
 type ConsultationsListPanelProps = {
   embedded?: boolean;
   onNavigate?: () => void;
@@ -243,10 +250,13 @@ export default function ConsultationsListPanel({
   }
 
   const containerClassName = embedded ? "space-y-4" : "space-y-5 sm:space-y-6";
+  const hasRequestedConsultation = consultations.some(
+    (consultation) => consultation.status === "requested",
+  );
 
   return (
     <div className={containerClassName}>
-      <div className="-mx-4 pl-4 flex gap-2 overflow-x-auto pb-2 px-2 sm:mx-0 sm:px-0 scrollbar-none">
+      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
         {[
           { key: "all", label: "전체" },
           { key: "requested", label: "승인요청" },
@@ -286,39 +296,61 @@ export default function ConsultationsListPanel({
           </Link>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {consultations.slice(0, visibleCount).map((consultation) => (
-            <ConsultationCard
-              key={consultation.id}
-              statusLabel={
-                STATUS_LABELS[consultation.status]?.label || consultation.status
-              }
-              statusVariant={
-                STATUS_LABELS[consultation.status]?.variant || "default"
-              }
-              reservationId={consultation.id.slice(0, 8)}
-              property={consultation.property}
-              scheduledAtLabel={formatDate(consultation.scheduled_at)}
-              onNavigate={() => onNavigate?.()}
-              meta={<span>상담사: {consultation.agent.name}</span>}
-              note={
-                consultation.status === "requested" ? (
-                  <p className="ob-typo-body text-(--oboon-warning)">
-                    관리자 승인 대기중입니다
-                  </p>
-                ) : consultation.status === "pending" ? (
-                  <p className="ob-typo-body text-(--oboon-warning)">
-                    상담사 확인 대기중입니다
-                  </p>
-                ) : consultation.status === "cancelled" &&
-                  consultation.cancelled_at ? (
-                  <p className="ob-typo-caption text-(--oboon-danger)">
-                    {getTimeUntilDeletion(consultation.cancelled_at)}
-                  </p>
-                ) : null
-              }
-              actions={
-                <>
+        <div className="space-y-4">
+          {hasRequestedConsultation ? (
+            <Card className="border-(--oboon-warning-border) bg-(--oboon-warning-bg) p-4">
+              <p className="ob-typo-subtitle text-(--oboon-warning)">
+                관리자 승인 대기중인 예약이 있어요.
+              </p>
+              <p className="mt-1 ob-typo-body text-(--oboon-text-muted)">
+                입금이 아직이라면 아래 계좌로 예약금({OBOON_DEPOSIT_INFO.amount})을
+                입금해 주세요.
+              </p>
+              <div className="mt-3 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-2">
+                <p className="ob-typo-body text-(--oboon-text-title)">
+                  {OBOON_DEPOSIT_INFO.bank} {OBOON_DEPOSIT_INFO.accountNumber}
+                </p>
+                <p className="mt-1 ob-typo-body text-(--oboon-text-muted)">
+                  예금주 {OBOON_DEPOSIT_INFO.holder} · 예약금{" "}
+                  {OBOON_DEPOSIT_INFO.amount}
+                </p>
+              </div>
+            </Card>
+          ) : null}
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {consultations.slice(0, visibleCount).map((consultation) => (
+              <ConsultationCard
+                key={consultation.id}
+                statusLabel={
+                  STATUS_LABELS[consultation.status]?.label || consultation.status
+                }
+                statusVariant={
+                  STATUS_LABELS[consultation.status]?.variant || "default"
+                }
+                reservationId={consultation.id.slice(0, 8)}
+                property={consultation.property}
+                scheduledAtLabel={formatDate(consultation.scheduled_at)}
+                onNavigate={() => onNavigate?.()}
+                meta={<span>상담사: {consultation.agent.name}</span>}
+                note={
+                  consultation.status === "requested" ? (
+                    <p className="ob-typo-body text-(--oboon-warning)">
+                      관리자 승인 대기중입니다
+                    </p>
+                  ) : consultation.status === "pending" ? (
+                    <p className="ob-typo-body text-(--oboon-warning)">
+                      상담사 확인 대기중입니다
+                    </p>
+                  ) : consultation.status === "cancelled" &&
+                    consultation.cancelled_at ? (
+                    <p className="ob-typo-body text-(--oboon-danger)">
+                      {getTimeUntilDeletion(consultation.cancelled_at)}
+                    </p>
+                  ) : null
+                }
+                actions={
+                  <>
                   {consultation.status === "confirmed" && (
                     <Button
                       size="md"
@@ -379,10 +411,11 @@ export default function ConsultationsListPanel({
                       예약 취소
                     </Button>
                   )}
-                </>
-              }
-            />
-          ))}
+                  </>
+                }
+              />
+            ))}
+          </div>
         </div>
       )}
 

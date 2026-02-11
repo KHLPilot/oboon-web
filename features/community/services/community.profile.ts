@@ -48,7 +48,7 @@ export async function getCommunityProfile(): Promise<CommunityProfileRow | null>
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("name, nickname, role")
+    .select("name, nickname, role, avatar_url")
     .eq("id", user.id)
     .single();
 
@@ -67,7 +67,7 @@ export async function getCommunityProfile(): Promise<CommunityProfileRow | null>
     nickname: profile?.nickname ?? null,
     role: (profile?.role ?? "user") as CommunityUserRole,
     metaName,
-    avatarUrl: meta.avatar_url ?? null,
+    avatarUrl: profile?.avatar_url ?? meta.avatar_url ?? null,
     stats,
   };
 }

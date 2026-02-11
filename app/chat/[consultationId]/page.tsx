@@ -3,11 +3,12 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Send, Loader2, MoreVertical, Trash2, CalendarDays } from "lucide-react";
+import Image from "next/image";
 import { fetchCurrentUserId } from "@/features/chat/services/chat.auth";
 import { subscribeToChatRoom } from "@/features/chat/services/chat.realtime";
-import PageContainer from "@/components/shared/PageContainer";
 import Button from "@/components/ui/Button";
 import { showAlert } from "@/shared/alert";
+import ChatRoomsSidebar from "@/features/chat/components/ChatRoomsSidebar.client";
 
 interface Message {
   id: string;
@@ -22,22 +23,49 @@ interface Message {
 
 interface ConsultationInfo {
   id: string;
-  property: {
-    id: number;
-    name: string;
-  };
-  customer: {
-    id: string;
-    name: string;
-  };
-  agent: {
-    id: string;
-    name: string;
-  };
+  property:
+    | {
+        id: number;
+        name: string;
+      }
+    | {
+        id: number;
+        name: string;
+      }[]
+    | null;
+  customer:
+    | {
+        id: string;
+        name: string;
+        avatar_url?: string | null;
+      }
+    | {
+        id: string;
+        name: string;
+        avatar_url?: string | null;
+      }[]
+    | null;
+  agent:
+    | {
+        id: string;
+        name: string;
+        avatar_url?: string | null;
+      }
+    | {
+        id: string;
+        name: string;
+        avatar_url?: string | null;
+      }[]
+    | null;
 }
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
+}
+
+function first<T>(value: T | T[] | null | undefined): T | null {
+  if (!value) return null;
+  return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
 export default function ChatPage() {
@@ -57,7 +85,6 @@ export default function ChatPage() {
   );
   const [chatRoomId, setChatRoomId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [userRole, setUserRole] = useState<"customer" | "agent" | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -98,11 +125,10 @@ export default function ChatPage() {
           const data = await messagesRes.json();
           throw new Error(data.error || "메시지를 불러올 수 없습니다");
         }
-        const { messages: messagesData, chatRoomId: roomId, userRole: role } =
+        const { messages: messagesData, chatRoomId: roomId } =
           await messagesRes.json();
         setMessages(messagesData);
         setChatRoomId(roomId);
-        setUserRole(role);
 
         // 해당 상담의 모든 채팅 알림을 읽음 처리
         fetch("/api/notifications", {
@@ -258,110 +284,136 @@ export default function ChatPage() {
   };
 
   // 상대방 정보
-  const otherParty =
-    currentUserId === consultation?.customer.id
-      ? consultation?.agent
-      : consultation?.customer;
+  const customer = first(consultation?.customer);
+  const agent = first(consultation?.agent);
+  const property = first(consultation?.property);
+  const otherParty = currentUserId === customer?.id ? agent : customer;
 
   if (loading) {
     return (
-      <main className="bg-(--oboon-bg-page) min-h-screen">
-        <PageContainer className="pb-10">
-          <div className="flex items-center justify-center h-64">
+      <main className="bg-(--oboon-bg-page) h-dvh lg:p-6">
+        <div className="mx-auto h-full w-full lg:grid lg:max-w-[1360px] lg:grid-cols-[360px_minmax(0,1fr)] lg:gap-4">
+          <aside className="hidden lg:block h-full">
+            <ChatRoomsSidebar mode="page" activeConsultationId={consultationId} />
+          </aside>
+          <div className="flex h-full items-center justify-center lg:rounded-2xl lg:border lg:border-(--oboon-border-default) lg:bg-(--oboon-bg-surface)">
             <Loader2 className="h-8 w-8 animate-spin text-(--oboon-primary)" />
           </div>
-        </PageContainer>
+        </div>
       </main>
     );
   }
 
   if (error) {
     return (
-      <main className="bg-(--oboon-bg-page) min-h-screen">
-        <PageContainer className="pb-10">
-          <div className="text-center">
-            <p className="text-(--oboon-danger) mb-4">{error}</p>
+      <main className="bg-(--oboon-bg-page) h-dvh lg:p-6">
+        <div className="mx-auto h-full w-full lg:grid lg:max-w-[1360px] lg:grid-cols-[360px_minmax(0,1fr)] lg:gap-4">
+          <aside className="hidden lg:block h-full">
+            <ChatRoomsSidebar mode="page" activeConsultationId={consultationId} />
+          </aside>
+          <div className="flex h-full items-center justify-center text-center lg:rounded-2xl lg:border lg:border-(--oboon-border-default) lg:bg-(--oboon-bg-surface)">
+            <p className="ob-typo-body mb-4 text-(--oboon-danger)">{error}</p>
             <Button variant="secondary" onClick={() => router.back()}>
               돌아가기
             </Button>
           </div>
-        </PageContainer>
+        </div>
       </main>
     );
   }
 
   return (
-    <main className="bg-(--oboon-bg-page) h-dvh flex flex-col">
-      {/* 채팅 헤더 */}
-      <div className="shrink-0 bg-(--oboon-bg-surface) border-b border-(--oboon-border-default) safe-area-top">
-        <PageContainer>
-          <div className="flex items-center gap-3 py-2 sm:py-3">
+    <main className="bg-(--oboon-bg-page) h-dvh lg:p-6">
+      <div className="mx-auto h-full w-full lg:grid lg:max-w-[1360px] lg:grid-cols-[360px_minmax(0,1fr)] lg:gap-4">
+        <aside className="hidden lg:block h-full">
+          <ChatRoomsSidebar mode="page" activeConsultationId={consultationId} />
+        </aside>
+
+        <section className="min-h-0 flex h-full flex-col lg:rounded-2xl lg:border lg:border-(--oboon-border-default) lg:bg-(--oboon-bg-surface) lg:overflow-hidden">
+          {/* 채팅 헤더 */}
+          <div className="relative shrink-0 bg-(--oboon-bg-subtle) border-b border-(--oboon-border-default) safe-area-top px-4 sm:px-6 lg:px-8">
+            <div className="flex h-20 items-center gap-3">
             <button
               onClick={() => router.back()}
-              className="p-2 -ml-2 rounded-lg hover:bg-(--oboon-bg-subtle) active:bg-(--oboon-bg-subtle) transition-colors"
+              className="p-2 -ml-2 rounded-lg hover:bg-(--oboon-bg-subtle) active:bg-(--oboon-bg-subtle) transition-colors lg:hidden"
             >
               <ArrowLeft className="h-5 w-5 text-(--oboon-text-title)" />
             </button>
-            <div className="flex-1 min-w-0">
-              <h1 className="text-sm sm:text-base font-semibold text-(--oboon-text-title) truncate">
-                {otherParty?.name || "채팅"}
-              </h1>
-              <p className="text-xs text-(--oboon-text-muted) truncate">
-                {consultation?.property.name}
-              </p>
+            <div className="flex min-w-0 flex-1 items-center gap-2.5">
+              <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle)">
+                {otherParty?.avatar_url ? (
+                  <Image
+                    src={otherParty.avatar_url}
+                    alt={otherParty.name || "상대방"}
+                    fill
+                    className="object-cover"
+                    sizes="40px"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center ob-typo-caption text-(--oboon-text-muted)">
+                    {(otherParty?.name ?? "?").trim().charAt(0).toUpperCase() || "?"}
+                  </div>
+                )}
+              </div>
+              <div className="min-w-0">
+                <div className="ob-typo-h2 text-(--oboon-text-title) truncate">
+                  {otherParty?.name || "채팅"}
+                </div>
+                <p className="ob-typo-body text-(--oboon-text-muted) truncate">
+                  {property?.name ?? "현장 정보 없음"}
+                </p>
+              </div>
             </div>
             {/* 메뉴 버튼 */}
-            <div className="relative">
-              <button
+            <div>
+              <Button
+                size="sm"
+                variant="ghost"
+                shape="pill"
                 onClick={() => setShowMenu(!showMenu)}
-                className="p-2 rounded-lg hover:bg-(--oboon-bg-subtle) active:bg-(--oboon-bg-subtle) transition-colors"
+                className="h-9 w-9 p-0"
+                aria-label="메뉴 열기"
               >
                 <MoreVertical className="h-5 w-5 text-(--oboon-text-muted)" />
-              </button>
-              {showMenu && (
-                <>
-                  <div
-                    className="fixed inset-0 z-10"
-                    onClick={() => setShowMenu(false)}
-                  />
-                  <div className="absolute right-0 top-full mt-1 z-20 w-44 rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) shadow-lg overflow-hidden">
-                    <button
-                      onClick={() => {
-                        setShowMenu(false);
-                        router.push(
-                          userRole === "agent"
-                            ? "/agent/consultations"
-                            : "/profile?consultations=1"
-                        );
-                      }}
-                      className="flex items-center gap-2 w-full px-4 py-3 text-sm text-(--oboon-text-body) hover:bg-(--oboon-bg-subtle) transition-colors"
-                    >
-                      <CalendarDays className="h-4 w-4" />
-                      상담예약 내역
-                    </button>
-                    <button
-                      onClick={handleDeleteChat}
-                      disabled={deleting}
-                      className="flex items-center gap-2 w-full px-4 py-3 text-sm text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      {deleting ? "삭제 중..." : "채팅 내역 삭제"}
-                    </button>
-                  </div>
-                </>
-              )}
+              </Button>
             </div>
+            </div>
+            {showMenu && (
+              <>
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setShowMenu(false)}
+                />
+                <div className="absolute right-4 top-full z-20 mt-1 w-44 overflow-hidden rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) shadow-lg sm:right-6 lg:right-8">
+                  <button
+                    onClick={() => {
+                      setShowMenu(false);
+                      router.push("/profile?consultations=1");
+                    }}
+                    className="flex w-full items-center gap-2 px-4 py-3 ob-typo-body text-(--oboon-text-body) hover:bg-(--oboon-bg-subtle) transition-colors"
+                  >
+                    <CalendarDays className="h-4 w-4" />
+                    상담예약 내역
+                  </button>
+                  <button
+                    onClick={handleDeleteChat}
+                    disabled={deleting}
+                    className="flex w-full items-center gap-2 px-4 py-3 ob-typo-body text-(--oboon-danger) hover:bg-(--oboon-danger-bg) transition-colors disabled:opacity-50"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    {deleting ? "삭제 중..." : "채팅 내역 삭제"}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
-        </PageContainer>
-      </div>
 
-      {/* 메시지 영역 */}
-      <div className="flex-1 overflow-y-auto min-h-0">
-        <PageContainer className="pb-4">
-          <div className="space-y-4">
+          {/* 메시지 영역 */}
+          <div className="flex-1 overflow-y-auto min-h-0 px-4 pb-4 sm:px-6 lg:px-8">
+            <div className="space-y-4">
             {messages.length === 0 ? (
               <div className="text-center py-10">
-                <p className="text-sm text-(--oboon-text-muted)">
+                <p className="ob-typo-body text-(--oboon-text-muted)">
                   아직 메시지가 없습니다.
                   <br />첫 메시지를 보내보세요!
                 </p>
@@ -379,7 +431,7 @@ export default function ChatPage() {
                   <div key={message.id}>
                     {showDateDivider && (
                       <div className="flex items-center justify-center my-4">
-                        <div className="px-3 py-1 rounded-full bg-(--oboon-bg-subtle) text-xs text-(--oboon-text-muted)">
+                        <div className="rounded-full bg-(--oboon-bg-subtle) px-3 py-1 ob-typo-caption text-(--oboon-text-muted)">
                           {formatDate(message.created_at)}
                         </div>
                       </div>
@@ -391,23 +443,23 @@ export default function ChatPage() {
                         className={`max-w-[85%] sm:max-w-[75%] ${isMe ? "order-2" : "order-1"}`}
                       >
                         {!isMe && (
-                          <p className="text-xs text-(--oboon-text-muted) mb-1 ml-1">
+                          <p className="mb-1 ml-1 ob-typo-caption text-(--oboon-text-muted)">
                             {message.sender?.name}
                           </p>
                         )}
                         <div
                           className={`rounded-2xl px-4 py-2 ${
                             isMe
-                              ? "bg-(--oboon-primary) text-white rounded-br-md"
+                              ? "bg-(--oboon-primary) text-(--oboon-on-primary) rounded-br-md"
                               : "bg-(--oboon-bg-surface) border border-(--oboon-border-default) text-(--oboon-text-body) rounded-bl-md"
                           }`}
                         >
-                          <p className="text-sm whitespace-pre-wrap break-words">
+                          <p className="ob-typo-body whitespace-pre-wrap break-words">
                             {message.content}
                           </p>
                         </div>
                         <p
-                          className={`text-xs text-(--oboon-text-muted) mt-1 ${
+                          className={`mt-1 ob-typo-caption text-(--oboon-text-muted) ${
                             isMe ? "text-right mr-1" : "ml-1"
                           }`}
                         >
@@ -420,14 +472,12 @@ export default function ChatPage() {
               })
             )}
             <div ref={messagesEndRef} />
+            </div>
           </div>
-        </PageContainer>
-      </div>
 
-      {/* 입력 영역 */}
-      <div className="shrink-0 bg-(--oboon-bg-surface) border-t border-(--oboon-border-default) safe-area-bottom">
-        <PageContainer>
-          <div className="flex items-center gap-2 py-2 sm:py-3">
+          {/* 입력 영역 */}
+          <div className="shrink-0 bg-(--oboon-bg-surface) border-t border-(--oboon-border-default) safe-area-bottom px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center gap-2 py-2 sm:py-3">
             <input
               ref={inputRef}
               type="text"
@@ -435,13 +485,13 @@ export default function ChatPage() {
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="메시지를 입력하세요"
-              className="flex-1 px-4 py-2.5 sm:py-3 rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-default) text-(--oboon-text-body) text-sm focus:outline-none focus:ring-2 focus:ring-(--oboon-primary)"
+              className="flex-1 rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-default) px-4 py-2.5 ob-typo-body text-(--oboon-text-body) sm:py-3 focus:outline-none focus:ring-2 focus:ring-(--oboon-primary)"
               disabled={sending}
             />
             <button
               onClick={handleSendMessage}
               disabled={!newMessage.trim() || sending}
-              className="p-2.5 sm:p-3 rounded-full bg-(--oboon-primary) text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-(--oboon-primary-hover) active:scale-95 transition-all"
+              className="p-2.5 sm:p-3 rounded-full bg-(--oboon-primary) text-(--oboon-on-primary) disabled:opacity-50 disabled:cursor-not-allowed hover:bg-(--oboon-primary-hover) active:scale-95 transition-all"
             >
               {sending ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -449,8 +499,9 @@ export default function ChatPage() {
                 <Send className="h-5 w-5" />
               )}
             </button>
+            </div>
           </div>
-        </PageContainer>
+        </section>
       </div>
     </main>
   );

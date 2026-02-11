@@ -12,6 +12,7 @@ import {
   validateNickname,
   validatePhone,
 } from "@/lib/validators/profileValidation";
+import { validateRequiredOrShowModal } from "@/shared/validationMessage";
 
 import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
@@ -56,6 +57,13 @@ export default function SignupProfileClient() {
   const [selectedRole, setSelectedRole] = useState<"user" | "agent">("user");
 
   const [errors, setErrors] = useState<FieldErrors>({});
+  const [nicknameChecking, setNicknameChecking] = useState(false);
+  const [nicknameAvailable, setNicknameAvailable] = useState<boolean | null>(
+    null,
+  );
+  const [nicknameFormatError, setNicknameFormatError] = useState<string | null>(
+    null,
+  );
 
   // 이용약관 동의
   const [agreements, setAgreements] = useState({
@@ -147,7 +155,11 @@ export default function SignupProfileClient() {
     (field: "name" | "nickname" | "phone") => (value: string) => {
       const sanitized = sanitizeInput(value, field);
       if (field === "name") setName(sanitized);
-      if (field === "nickname") setNickname(sanitized);
+      if (field === "nickname") {
+        setNickname(sanitized);
+        setNicknameAvailable(null);
+        setNicknameFormatError(null);
+      }
       if (field === "phone") setPhoneNumber(sanitized);
 
       setErrors((prev) => ({
@@ -161,6 +173,45 @@ export default function SignupProfileClient() {
         return prev.field === mapped ? null : prev;
       });
     };
+
+  const checkNickname = async () => {
+    clearFieldError();
+    setNicknameFormatError(null);
+
+    if (!validateRequiredOrShowModal(nickname, "닉네임")) {
+      setNicknameAvailable(null);
+      return;
+    }
+
+    const nicknameValidationError = validateNickname(nickname);
+    if (nicknameValidationError) {
+      setNicknameAvailable(null);
+      setNicknameFormatError(nicknameValidationError);
+      return;
+    }
+
+    setNicknameChecking(true);
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      const response = await fetch("/api/profile/check-nickname", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nickname,
+          currentUserId: user?.id ?? null,
+        }),
+      });
+      const json = await response.json();
+      setNicknameAvailable(Boolean(json?.available));
+    } catch {
+      setFatalError("닉네임 중복 확인 중 오류가 발생했습니다.");
+    } finally {
+      setNicknameChecking(false);
+    }
+  };
 
   // 1) token으로 인증 확인
   useEffect(() => {
@@ -308,6 +359,21 @@ export default function SignupProfileClient() {
         return;
       }
 
+      if (nickname) {
+        if (nicknameAvailable === null) {
+          openFieldError("nickname", "닉네임 중복 확인을 먼저 해주세요.");
+          return;
+        }
+        if (nicknameAvailable === false) {
+          openFieldError("nickname", "이미 사용 중인 닉네임입니다.");
+          return;
+        }
+        if (nicknameFormatError) {
+          openFieldError("nickname", nicknameFormatError);
+          return;
+        }
+      }
+
       if (!requiredAgreed) {
         setAgreementError("필수 약관에 모두 동의해주세요.");
         return;
@@ -350,6 +416,26 @@ export default function SignupProfileClient() {
         role: selectedRole,
       });
       if (upsertError) throw upsertError;
+
+      // 가입 직후 홈 헤더/프로필에서 최신 닉네임이 바로 보이도록
+      // profiles 반영 확인 + 세션 메타데이터 갱신을 한 번 보장한다.
+      const expectedNickname = nickname || null;
+      for (let i = 0; i < 6; i += 1) {
+        const { data: refreshedProfile } = await supabase
+          .from("profiles")
+          .select("name, nickname")
+          .eq("id", user.id)
+          .single();
+        if (
+          refreshedProfile &&
+          refreshedProfile.name === name &&
+          (refreshedProfile.nickname ?? null) === expectedNickname
+        ) {
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+      await supabase.auth.refreshSession();
 
       // 약관 동의 기록 저장 (법적 증거용)
       const agreedTermTypes = [
@@ -476,29 +562,67 @@ export default function SignupProfileClient() {
 
                     <div>
                       <Label>닉네임 (선택)</Label>
-                      <Input
-                        ref={nicknameRef}
-                        value={nickname}
-                        onChange={(e) =>
-                          setSanitized("nickname")(e.target.value)
-                        }
-                        onFocus={clearFieldError}
-                        placeholder="오분이"
-                        maxLength={15}
-                        disabled={!canSubmit || loading}
-                        className={cx(
-                          "h-11",
-                          errors.nickname
-                            ? "border-(--oboon-border-danger)"
-                            : "",
-                        )}
-                        aria-invalid={errors.nickname ? "true" : undefined}
-                        aria-describedby={
-                          fieldError?.field === "nickname"
-                            ? bubbleId
-                            : undefined
-                        }
-                      />
+                      <div className="mt-2 flex gap-2">
+                        <Input
+                          ref={nicknameRef}
+                          value={nickname}
+                          onChange={(e) =>
+                            setSanitized("nickname")(e.target.value)
+                          }
+                          onFocus={clearFieldError}
+                          placeholder="오분이"
+                          maxLength={15}
+                          disabled={!canSubmit || loading}
+                          className={cx(
+                            "h-11",
+                            errors.nickname
+                              ? "border-(--oboon-border-danger)"
+                              : "",
+                          )}
+                          aria-invalid={errors.nickname ? "true" : undefined}
+                          aria-describedby={
+                            fieldError?.field === "nickname"
+                              ? bubbleId
+                              : undefined
+                          }
+                        />
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          shape="pill"
+                          className="h-11 shrink-0 px-4"
+                          disabled={
+                            !nickname ||
+                            nicknameChecking ||
+                            loading ||
+                            !canSubmit
+                          }
+                          loading={nicknameChecking}
+                          onClick={checkNickname}
+                        >
+                          중복확인
+                        </Button>
+                      </div>
+                      {nickname ? (
+                        <p
+                          className={cx(
+                            "mt-1 ob-typo-caption",
+                            nicknameFormatError || nicknameAvailable === false
+                              ? "text-(--oboon-danger)"
+                              : nicknameAvailable === true
+                                ? "text-(--oboon-primary)"
+                                : "text-(--oboon-text-muted)",
+                          )}
+                        >
+                          {nicknameFormatError
+                            ? nicknameFormatError
+                            : nicknameAvailable === true
+                              ? "사용 가능한 닉네임입니다."
+                              : nicknameAvailable === false
+                                ? "이미 사용 중인 닉네임입니다."
+                                : "닉네임 중복 확인을 진행해주세요."}
+                        </p>
+                      ) : null}
                     </div>
 
                     <div>

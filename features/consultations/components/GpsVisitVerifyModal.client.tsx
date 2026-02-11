@@ -12,6 +12,7 @@ import {
 import Modal from "@/components/ui/Modal";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
+import NaverMap, { type MapMarker } from "@/features/map/components/NaverMap";
 import { detectInAppBrowser, getExternalBrowserUrl, InAppBrowserInfo } from "@/lib/inAppBrowser";
 import { showAlert } from "@/shared/alert";
 
@@ -29,6 +30,10 @@ type VerifyErrorInfo = {
   code?: string;
   distance?: number;
   accuracy?: number;
+  modelHouseLat?: number;
+  modelHouseLng?: number;
+  currentLat?: number;
+  currentLng?: number;
 };
 
 type ManualStatus = "idle" | "waiting" | "approved" | "rejected";
@@ -46,6 +51,15 @@ export default function GpsVisitVerifyModal({
   const [inAppInfo, setInAppInfo] = useState<InAppBrowserInfo | null>(null);
   const [manualStatus, setManualStatus] = useState<ManualStatus>("idle");
   const [manualRequestId, setManualRequestId] = useState<string | null>(null);
+  const [modelHouseLatLng, setModelHouseLatLng] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
+  const [currentLatLng, setCurrentLatLng] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
+  const [distanceMeters, setDistanceMeters] = useState<number | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -53,6 +67,9 @@ export default function GpsVisitVerifyModal({
     setErrorInfo(null);
     setManualStatus("idle");
     setManualRequestId(null);
+    setModelHouseLatLng(null);
+    setCurrentLatLng(null);
+    setDistanceMeters(null);
   }, [open]);
 
   useEffect(() => {
@@ -94,6 +111,39 @@ export default function GpsVisitVerifyModal({
     }
   }, [errorInfo?.code]);
 
+  const mapMarkers = useMemo<MapMarker[]>(() => {
+    const markers: MapMarker[] = [];
+    if (modelHouseLatLng) {
+      markers.push({
+        id: 1,
+        label: "모델하우스",
+        lat: modelHouseLatLng.lat,
+        lng: modelHouseLatLng.lng,
+        type: "open",
+        topLabel: "모델하우스",
+        mainLabel: "기준 위치",
+      });
+    }
+    if (currentLatLng) {
+      markers.push({
+        id: 2,
+        label: "내 위치",
+        lat: currentLatLng.lat,
+        lng: currentLatLng.lng,
+        type: "ready",
+        topLabel: "내 위치",
+        mainLabel: "GPS",
+      });
+    }
+    return markers;
+  }, [currentLatLng, modelHouseLatLng]);
+
+  const focusedMarkerId = useMemo<number | null>(() => {
+    if (modelHouseLatLng) return 1;
+    if (currentLatLng) return 2;
+    return null;
+  }, [currentLatLng, modelHouseLatLng]);
+
   function handleOpenExternal() {
     if (!inAppInfo?.isInApp) return;
     const currentUrl = window.location.href;
@@ -117,25 +167,51 @@ export default function GpsVisitVerifyModal({
 
     navigator.geolocation.getCurrentPosition(
       async (position) => {
+        const clientLat = position.coords.latitude;
+        const clientLng = position.coords.longitude;
+        setCurrentLatLng({ lat: clientLat, lng: clientLng });
         try {
           const response = await fetch("/api/visits/verify-gps", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               consultationId,
-              lat: position.coords.latitude,
-              lng: position.coords.longitude,
+              lat: clientLat,
+              lng: clientLng,
               accuracy: position.coords.accuracy,
             }),
           });
 
           const data = await response.json();
+          if (
+            typeof data.modelHouseLat === "number" &&
+            typeof data.modelHouseLng === "number"
+          ) {
+            setModelHouseLatLng({
+              lat: data.modelHouseLat,
+              lng: data.modelHouseLng,
+            });
+          }
+          if (
+            typeof data.currentLat === "number" &&
+            typeof data.currentLng === "number"
+          ) {
+            setCurrentLatLng({ lat: data.currentLat, lng: data.currentLng });
+          }
+          if (typeof data.distance === "number") {
+            setDistanceMeters(data.distance);
+          }
+
           if (!response.ok) {
             setErrorInfo({
               message: data.error || "방문 인증에 실패했습니다.",
               code: data.code,
               distance: data.distance,
               accuracy: data.accuracy,
+              modelHouseLat: data.modelHouseLat,
+              modelHouseLng: data.modelHouseLng,
+              currentLat: data.currentLat,
+              currentLng: data.currentLng,
             });
             return;
           }
@@ -232,6 +308,18 @@ export default function GpsVisitVerifyModal({
       <p className="mt-4 ob-typo-body text-(--oboon-text-muted)">
         현재 위치 기반으로 방문 인증을 진행합니다.
       </p>
+
+      <Card className="mt-3 p-3 shadow-none">
+        <div className="ob-typo-caption text-(--oboon-text-muted)">
+          지도 기준 정보
+        </div>
+        <div className="mt-2 h-52 overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)">
+          <NaverMap markers={mapMarkers} focusedId={focusedMarkerId} mode="base" />
+        </div>
+        <div className="mt-3 ob-typo-caption text-(--oboon-text-muted)">
+          거리: {typeof distanceMeters === "number" ? `${Math.round(distanceMeters)}m` : "-"}
+        </div>
+      </Card>
 
       {manualStatus === "waiting" ? (
         <Card className="mt-3 p-3 border-(--oboon-warning-border) bg-(--oboon-warning-bg) shadow-none">

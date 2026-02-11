@@ -28,6 +28,7 @@ export default function Header() {
 
   const [user, setUser] = useState<User | null>(null);
   const [profileName, setProfileName] = useState<string>("");
+  const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
 
   const NAV_ITEMS = useMemo(
@@ -47,13 +48,14 @@ export default function Header() {
 
     if (!currentUser) {
       setProfileName("");
+      setProfileAvatarUrl(null);
       setUserRole(null);
       return;
     }
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("name, nickname, role")
+      .select("name, nickname, role, avatar_url")
       .eq("id", currentUser.id)
       .single();
 
@@ -61,6 +63,7 @@ export default function Header() {
       const displayName = profile.nickname || profile.name;
       const realName = displayName && displayName !== "temp" ? displayName : "";
       setProfileName(realName);
+      setProfileAvatarUrl(profile.avatar_url ?? null);
       setUserRole(profile.role || "user");
     }
   };
@@ -107,6 +110,7 @@ export default function Header() {
     }
     setUser(null);
     setProfileName("");
+    setProfileAvatarUrl(null);
     setUserRole(null);
     router.push("/");
     router.refresh();
@@ -243,9 +247,9 @@ export default function Header() {
                           backgroundColor: "var(--oboon-bg-subtle)",
                         }}
                       >
-                        {user.user_metadata?.avatar_url ? (
+                        {profileAvatarUrl ?? user.user_metadata?.avatar_url ? (
                           <Image
-                            src={user.user_metadata.avatar_url}
+                            src={(profileAvatarUrl ?? user.user_metadata?.avatar_url) as string}
                             alt="Profile"
                             width={32}
                             height={32}

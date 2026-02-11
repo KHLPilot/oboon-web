@@ -53,8 +53,8 @@ export async function GET(
             .from("consultations")
             .select(`
                 *,
-                customer:profiles!consultations_customer_id_fkey(id, name, email, phone_number),
-                agent:profiles!consultations_agent_id_fkey(id, name, email, phone_number),
+                customer:profiles!consultations_customer_id_fkey(id, name, email, phone_number, avatar_url),
+                agent:profiles!consultations_agent_id_fkey(id, name, email, phone_number, avatar_url),
                 property:properties(id, name, image_url, property_type, property_facilities(id, lat, lng, road_address, type, is_active)),
                 chat_rooms(id)
             `)
@@ -538,6 +538,29 @@ export async function PATCH(
             await adminSupabase.from("notifications").insert(notification);
         }
 
+        // 고객 알림: 상담사에 의한 예약 취소
+        if (status === "cancelled" && isAgent && !isAdminRejectingRequest) {
+            const { data: property } = await adminSupabase
+                .from("properties")
+                .select("id, name")
+                .eq("id", existingConsultation.property_id)
+                .maybeSingle();
+
+            await adminSupabase.from("notifications").insert({
+                recipient_id: existingConsultation.customer_id,
+                type: "consultation_cancelled",
+                title: "상담 예약이 취소되었어요",
+                message: `${property?.name ?? "현장"} 상담 예약이 상담사 사정으로 취소되었어요.`,
+                consultation_id: id,
+                metadata: {
+                    reservation_id: id,
+                    property_id: existingConsultation.property_id,
+                    tab: "consultations",
+                    cancelled_by: "agent",
+                },
+            });
+        }
+
         // 상담사가 예약 확정 시 약관 동의 기록 저장 (법적 증거용)
         if (status === "confirmed" && isAgent) {
             const ipAddress =
@@ -592,7 +615,7 @@ export async function PATCH(
 }
 
 // 예약 숨기기 (소프트 삭제 - 각자 화면에서만 숨김)
-// 둘 다 숨기면 DB에서 완전 삭제
+// 고객/상담사 삭제는 정산/환급 이력 보존을 위해 DB에서 완전 삭제하지 않음
 export async function DELETE(
     req: Request,
     { params }: { params: Promise<{ id: string }> }
@@ -672,11 +695,14 @@ export async function DELETE(
             );
         }
 
-        // 관리자는 바로 삭제
+        // 관리자는 소프트 삭제 (정산/환급 이력 보존)
         if (isAdmin) {
             const { error } = await adminSupabase
                 .from("consultations")
-                .delete()
+                .update({
+                    hidden_by_customer: true,
+                    hidden_by_agent: true,
+                })
                 .eq("id", id);
 
             if (error) {
@@ -686,7 +712,7 @@ export async function DELETE(
                     { status: 500 }
                 );
             }
-            return NextResponse.json({ success: true, deleted: true });
+            return NextResponse.json({ success: true, hidden: true });
         }
 
         // 소프트 삭제: 해당 사용자의 hidden 필드만 업데이트
@@ -709,19 +735,6 @@ export async function DELETE(
                 { error: "삭제에 실패했습니다" },
                 { status: 500 }
             );
-        }
-
-        // 둘 다 숨겼으면 완전 삭제
-        const newHiddenByCustomer = isCustomer ? true : consultation.hidden_by_customer;
-        const newHiddenByAgent = isAgent ? true : consultation.hidden_by_agent;
-
-        if (newHiddenByCustomer && newHiddenByAgent) {
-            await adminSupabase
-                .from("consultations")
-                .delete()
-                .eq("id", id);
-
-            return NextResponse.json({ success: true, deleted: true });
         }
 
         return NextResponse.json({ success: true, hidden: true });

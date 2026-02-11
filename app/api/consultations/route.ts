@@ -147,8 +147,17 @@ export async function POST(req: Request) {
 
     if (ledgerError) {
       console.error("예약금 원장 기록 오류:", ledgerError);
-      // 정합성 보호: 금전 원장 기록 실패 시 예약도 롤백
-      await adminSupabase.from("consultations").delete().eq("id", consultation.id);
+      // 정합성 보호: 금전 원장 기록 실패 시 예약은 소프트 삭제 처리
+      await adminSupabase
+        .from("consultations")
+        .update({
+          status: "cancelled",
+          cancelled_at: new Date().toISOString(),
+          cancelled_by: "customer",
+          hidden_by_customer: true,
+          hidden_by_agent: true,
+        })
+        .eq("id", consultation.id);
       return NextResponse.json(
         { error: "예약금 기록에 실패했습니다" },
         { status: 500 },
@@ -345,6 +354,9 @@ export async function GET(req: Request) {
           { status: 403 },
         );
       }
+      query = query.or(
+        "hidden_by_customer.is.null,hidden_by_customer.eq.false,hidden_by_agent.is.null,hidden_by_agent.eq.false",
+      );
     } else if (role === "agent") {
       query = query
         .eq("agent_id", user.id)
@@ -375,7 +387,6 @@ export async function GET(req: Request) {
     const now = new Date();
     const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
 
-    // 3일 지난 취소 예약은 백그라운드에서 삭제 (비동기, 응답 대기 안함)
     type ConsultationListRow = {
       id: string;
       status: string;
@@ -387,31 +398,6 @@ export async function GET(req: Request) {
       agent?: { avatar_url?: string | null } | null;
     };
     const consultationRows = (consultations || []) as ConsultationListRow[];
-
-    const oldCancelledIds = consultationRows
-      .filter((c) => {
-        if (c.status === "cancelled" && c.cancelled_at) {
-          const cancelledAt = new Date(c.cancelled_at);
-          return cancelledAt < threeDaysAgo;
-        }
-        return false;
-      })
-      .map((c) => c.id);
-
-    if (oldCancelledIds.length > 0) {
-      // 비동기로 삭제 (응답 대기 안함)
-      void (async () => {
-        const { error } = await adminSupabase
-          .from("consultations")
-          .delete()
-          .in("id", oldCancelledIds);
-
-        if (error) throw error;
-
-      })().catch((err) => {
-        console.error("오래된 취소 예약 자동 삭제 오류:", err);
-      });
-    }
 
     const filteredConsultations = consultationRows
       .filter((c) => {

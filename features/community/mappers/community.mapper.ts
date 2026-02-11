@@ -35,6 +35,8 @@ export function mapCommunityPost(
     authorAvatarUrl: row.authorAvatarUrl,
     likes: row.likes,
     comments: row.comments,
+    isLiked: row.isLiked,
+    isBookmarked: row.isBookmarked,
     timeLabel: formatTimeLabel(row.createdAt),
   };
 }

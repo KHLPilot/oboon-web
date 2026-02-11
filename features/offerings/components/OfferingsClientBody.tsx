@@ -33,7 +33,7 @@ type SearchParams = {
   q?: string;
   budgetMin?: string; // 억 단위
   budgetMax?: string; // 억 단위
-  purpose?: string;
+  agent?: string;
 };
 
 function isRegionTab(v: string): v is OfferingRegionTab {
@@ -65,13 +65,11 @@ function pickOfferingStatus(o: Offering): string | null {
   return typeof s === "string" && s.trim() ? s.trim() : null;
 }
 
-function pickOfferingPurpose(o: Offering): string | null {
-  const anyO = toUnknownRecord(o);
-  const p = anyO.purpose ?? anyO.type ?? anyO.category;
-  return typeof p === "string" && p.trim() ? p.trim() : null;
-}
-
-function filterOfferings(all: Offering[], sp: SearchParams): Offering[] {
+function filterOfferings(
+  all: Offering[],
+  sp: SearchParams,
+  approvedAgentPropertyIds: ReadonlySet<string>
+): Offering[] {
   const rawRegion = sp.region ?? "전체";
   const region: OfferingRegionTab =
     rawRegion && isRegionTab(rawRegion) ? rawRegion : "전체";
@@ -96,8 +94,8 @@ function filterOfferings(all: Offering[], sp: SearchParams): Offering[] {
       ? Math.max(0, Math.floor(budgetMaxEok * 100_000_000))
       : null;
 
-  const rawPurpose = (sp.purpose ?? "").trim();
-  const purpose = rawPurpose ? rawPurpose : "전체";
+  const rawAgent = (sp.agent ?? "").trim();
+  const agentFilter = rawAgent === "has" ? "has" : "전체";
 
   return all.filter((o) => {
     // region
@@ -114,10 +112,9 @@ function filterOfferings(all: Offering[], sp: SearchParams): Offering[] {
       if (!s || s !== status) return false;
     }
 
-    // purpose (있을 때만 적용)
-    if (purpose !== "전체") {
-      const p = pickOfferingPurpose(o);
-      if (!p || p !== purpose) return false;
+    // agent
+    if (agentFilter === "has" && !approvedAgentPropertyIds.has(String(o.id))) {
+      return false;
     }
 
     // budget (o.priceMin/o.priceMax는 원(won) 단위로 가정)
@@ -154,12 +151,15 @@ export default function OfferingsClientBody() {
       q: sp.get("q") ?? undefined,
       budgetMin: sp.get("budgetMin") ?? undefined,
       budgetMax: sp.get("budgetMax") ?? undefined,
-      purpose: sp.get("purpose") ?? undefined,
+      agent: sp.get("agent") ?? undefined,
     };
   }, [sp]);
 
   const supabase = useMemo(() => createSupabaseClient(), []);
   const [rows, setRows] = useState<PropertyRow[]>([]);
+  const [approvedAgentPropertyIds, setApprovedAgentPropertyIds] = useState<
+    Set<string>
+  >(new Set());
   const [loadError, setLoadError] = useState<string | null>(null);
 
   /* ---------- fetch ---------- */
@@ -167,9 +167,16 @@ export default function OfferingsClientBody() {
     let mounted = true;
 
     (async () => {
-      const { data, error } = await fetchPropertiesForOfferings(supabase, {
-        limit: 200,
-      });
+      const [{ data, error }, { data: propertyAgents, error: agentError }] =
+        await Promise.all([
+          fetchPropertiesForOfferings(supabase, {
+            limit: 200,
+          }),
+          supabase
+            .from("property_agents")
+            .select("property_id")
+            .eq("status", "approved"),
+        ]);
 
       if (!mounted) return;
 
@@ -177,6 +184,22 @@ export default function OfferingsClientBody() {
         setLoadError(error.message ?? "데이터를 불러오지 못했어요.");
         setRows([]);
         return;
+      }
+
+      if (agentError) {
+        console.error("상담사 필터 데이터 조회 실패:", agentError);
+        setApprovedAgentPropertyIds(new Set());
+      } else {
+        const ids = new Set(
+          (propertyAgents ?? [])
+            .map((row) => row.property_id)
+            .filter(
+              (id): id is number | string =>
+                typeof id === "number" || typeof id === "string"
+            )
+            .map((id) => String(id))
+        );
+        setApprovedAgentPropertyIds(ids);
       }
 
       setLoadError(null);
@@ -201,8 +224,8 @@ export default function OfferingsClientBody() {
   }, [rows, fallback]);
 
   const filtered = useMemo<Offering[]>(
-    () => filterOfferings(offerings, searchParams),
-    [offerings, searchParams],
+    () => filterOfferings(offerings, searchParams, approvedAgentPropertyIds),
+    [offerings, searchParams, approvedAgentPropertyIds],
   );
 
   return (

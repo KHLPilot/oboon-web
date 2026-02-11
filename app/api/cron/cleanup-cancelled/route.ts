@@ -8,7 +8,7 @@ const adminSupabase = createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// 취소된 예약 정리 (3일 경과 후 삭제)
+// 취소된 예약 정리 (3일 경과 후 소프트 삭제 처리)
 // Vercel Cron 또는 외부 스케줄러에서 호출
 export async function GET(req: Request) {
     try {
@@ -46,62 +46,35 @@ export async function GET(req: Request) {
         if (!expiredConsultations || expiredConsultations.length === 0) {
             return NextResponse.json({
                 success: true,
-                message: "삭제할 예약이 없습니다",
-                deleted: 0,
+                message: "처리할 예약이 없습니다",
+                hidden: 0,
             });
         }
 
         const consultationIds = expiredConsultations.map(c => c.id);
 
-        // 1. 관련 채팅 메시지 삭제
-        const { data: chatRooms } = await adminSupabase
-            .from("chat_rooms")
-            .select("id")
-            .in("consultation_id", consultationIds);
-
-        if (chatRooms && chatRooms.length > 0) {
-            const roomIds = chatRooms.map(r => r.id);
-
-            // 채팅 메시지 삭제
-            const { error: msgDeleteError } = await adminSupabase
-                .from("chat_messages")
-                .delete()
-                .in("room_id", roomIds);
-
-            if (msgDeleteError) {
-                console.error("채팅 메시지 삭제 오류:", msgDeleteError);
-            }
-
-            // 채팅방 삭제
-            const { error: roomDeleteError } = await adminSupabase
-                .from("chat_rooms")
-                .delete()
-                .in("id", roomIds);
-
-            if (roomDeleteError) {
-                console.error("채팅방 삭제 오류:", roomDeleteError);
-            }
-        }
-
-        // 2. 예약 삭제
-        const { error: deleteError } = await adminSupabase
+        // 예약 소프트 삭제 처리
+        const { error: hideError } = await adminSupabase
             .from("consultations")
-            .delete()
+            .update({
+                hidden_by_customer: true,
+                hidden_by_agent: true,
+            })
             .in("id", consultationIds);
 
-        if (deleteError) {
-            console.error("예약 삭제 오류:", deleteError);
+        if (hideError) {
+            console.error("예약 소프트 삭제 처리 오류:", hideError);
             return NextResponse.json(
-                { error: "삭제 실패", details: deleteError.message },
+                { error: "소프트 삭제 처리 실패", details: hideError.message },
                 { status: 500 }
             );
         }
 
         return NextResponse.json({
             success: true,
-            message: `${consultationIds.length}개의 예약이 삭제되었습니다`,
-            deleted: consultationIds.length,
-            deletedIds: consultationIds,
+            message: `${consultationIds.length}개의 예약이 소프트 삭제 처리되었습니다`,
+            hidden: consultationIds.length,
+            hiddenIds: consultationIds,
         });
 
     } catch (err: unknown) {
