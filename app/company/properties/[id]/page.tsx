@@ -251,6 +251,7 @@ function PropertyDetailPageInner() {
   const [form, setForm] = useState<PropertyRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [imageUploading, setImageUploading] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [showFullDesc, setShowFullDesc] = useState(false);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
@@ -404,6 +405,10 @@ function PropertyDetailPageInner() {
   // 기본 정보 저장
   async function saveBasicInfo() {
     if (!form) return;
+    if (imageUploading) {
+      showAlert("대표 이미지 업로드가 완료된 후 저장해주세요.");
+      return;
+    }
     if (!validateRequiredOrShowModal(form.name, "현장명")) return;
     setSaving(true);
     const { error } = await updatePropertyBasicInfo(id, {
@@ -493,6 +498,7 @@ function PropertyDetailPageInner() {
 
     setLocalPreview(URL.createObjectURL(file));
     setImageFileName(file.name);
+    setImageUploading(true);
 
     try {
       const formData = new FormData();
@@ -515,6 +521,7 @@ function PropertyDetailPageInner() {
       setImageFileName(null);
       setLocalPreview(null);
     } finally {
+      setImageUploading(false);
       input.value = "";
     }
   }
@@ -840,9 +847,10 @@ function PropertyDetailPageInner() {
                   size="sm"
                   shape="pill"
                   onClick={saveBasicInfo}
-                  loading={saving}
+                  loading={saving || imageUploading}
+                  disabled={imageUploading}
                 >
-                  저장
+                  {imageUploading ? "이미지 업로드 중..." : "저장"}
                 </Button>
               )}
             </div>
@@ -953,7 +961,7 @@ function PropertyDetailPageInner() {
                         ref={fileInputRef}
                         className="sr-only"
                         accept="image/*"
-                        disabled={saving}
+                        disabled={saving || imageUploading}
                         onChange={handleImageUpload}
                       />
 
@@ -962,7 +970,8 @@ function PropertyDetailPageInner() {
                           variant="secondary"
                           size="sm"
                           shape="pill"
-                          disabled={saving}
+                          disabled={saving || imageUploading}
+                          loading={imageUploading}
                           onClick={() => fileInputRef.current?.click()}
                         >
                           파일 선택
@@ -1000,7 +1009,7 @@ function PropertyDetailPageInner() {
                               variant="secondary"
                               size="sm"
                               shape="pill"
-                              disabled={saving}
+                              disabled={saving || imageUploading}
                               onClick={() => {
                                 setForm({ ...form, image_url: null });
                                 setLocalPreview(null);
