@@ -278,6 +278,7 @@ function PropertyDetailPageInner() {
     currentUserRole === "agent"
       ? "/agent/profile#property-register"
       : "/company/properties";
+  const canSeeCommentSection = currentUserRole === "admin";
 
   const fetchGalleryImages = useCallback(async (propertyId: number) => {
     try {
@@ -374,8 +375,10 @@ function PropertyDetailPageInner() {
         { name: "일정", status: status.timelineStatus },
         { name: "평면 타입", status: status.unitStatus },
         { name: "홍보시설", status: status.facilityStatus },
-        { name: "감정평가사 메모", status: status.commentStatus },
       ];
+      if (canSeeCommentSection) {
+        sections.push({ name: "감정평가사 메모", status: status.commentStatus });
+      }
 
       const completedCount = sections.filter((s) => s.status === "full").length;
       const partialCount = sections.filter(
@@ -396,7 +399,7 @@ function PropertyDetailPageInner() {
         progressPercent: percent,
         incompleteSectionNames: incompleteNames,
       };
-    }, [data]);
+    }, [canSeeCommentSection, data]);
 
   // 기본 정보 저장
   async function saveBasicInfo() {
@@ -475,12 +478,13 @@ function PropertyDetailPageInner() {
 
   // 이미지 업로드
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const input = e.currentTarget;
     const file = e.target.files?.[0];
     if (!file || !form) return;
 
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
       showAlert("대표 이미지는 jpg/png/webp 파일만 가능합니다.");
-      e.currentTarget.value = "";
+      input.value = "";
       return;
     }
 
@@ -511,7 +515,7 @@ function PropertyDetailPageInner() {
       setImageFileName(null);
       setLocalPreview(null);
     } finally {
-      e.currentTarget.value = "";
+      input.value = "";
     }
   }
 
@@ -906,107 +910,122 @@ function PropertyDetailPageInner() {
               </div>
             ) : (
               /* 편집 모드 UI */
-              <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                <FormField label="현장명">
-                  <Input
-                    value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  />
-                </FormField>
-                <FormField label="분양 유형">
-                  <Input
-                    value={form.property_type ?? ""}
-                    onChange={(e) =>
-                      setForm({ ...form, property_type: e.target.value })
-                    }
-                  />
-                </FormField>
-                <FormField label="분양 상태">
-                  <PropertyStatusSelect
-                    value={
-                      isPropertyStatus(form.status)
-                        ? form.status
-                        : PROPERTY_STATUS_OPTIONS[0].value
-                    }
-                    onChange={(v) => setForm({ ...form, status: v })}
-                  />
-                </FormField>
-                <FormField label="설명" className="md:col-span-2">
-                  <Textarea
-                    className="w-full min-h-25 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-3 ob-typo-body focus:outline-none focus:ring-2 focus:ring-(--oboon-primary)/20"
-                    value={form.description ?? ""}
-                    onChange={(e) =>
-                      setForm({ ...form, description: e.target.value })
-                    }
-                  />
-                </FormField>
-                <FormField label="대표 이미지" className="md:col-span-2">
-                  <div className="flex flex-col gap-3">
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        shape="pill"
-                        onClick={() => fileInputRef.current?.click()}
-                      >
-                        이미지 업로드
-                      </Button>
-                      {localPreview || form.image_url ? (
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          shape="pill"
-                          onClick={() => {
-                            setForm({ ...form, image_url: null });
-                            setLocalPreview(null);
-                            setImageFileName(null);
-                          }}
-                        >
-                          삭제
-                        </Button>
-                      ) : null}
-                      <p className="ob-typo-caption text-(--oboon-text-muted) truncate">
-                        {displayImageFileName ? (
-                          <>
-                            선택된 파일:{" "}
-                            <span className="text-(--oboon-text-title)">
-                              {displayImageFileName}
-                            </span>
-                          </>
-                        ) : (
-                          "선택된 파일 없음"
-                        )}
-                      </p>
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:items-start">
+                  <div className="space-y-4">
+                    <FormField label="현장명">
+                      <Input
+                        value={form.name}
+                        placeholder="예) 더샵 아르테 미사, 힐스테이트 광안"
+                        onChange={(e) =>
+                          setForm({ ...form, name: e.target.value })
+                        }
+                        disabled={saving}
+                      />
+                    </FormField>
+                    <FormField label="분양 유형">
+                      <Input
+                        value={form.property_type ?? ""}
+                        placeholder="예) 아파트 / 오피스텔 / 상업시설"
+                        onChange={(e) =>
+                          setForm({ ...form, property_type: e.target.value })
+                        }
+                        disabled={saving}
+                      />
+                    </FormField>
+                    <FormField label="분양 상태">
+                      <PropertyStatusSelect
+                        value={
+                          isPropertyStatus(form.status)
+                            ? form.status
+                            : PROPERTY_STATUS_OPTIONS[0].value
+                        }
+                        onChange={(v) => setForm({ ...form, status: v })}
+                        disabled={saving}
+                      />
+                    </FormField>
+                  </div>
 
+                  <FormField label="대표 이미지">
+                    <div className="space-y-2">
                       <input
                         type="file"
                         ref={fileInputRef}
                         className="sr-only"
                         accept="image/*"
-                        onChange={(e) => {
-                          handleImageUpload(e);
-                          e.currentTarget.value = "";
-                        }}
+                        disabled={saving}
+                        onChange={handleImageUpload}
                       />
-                    </div>
 
-                    {/* 이미지 카드 */}
-                    <div className="relative grid-cols-2 aspect-video w-full max-w-sm overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)">
+                      <div className="flex items-center gap-3">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          shape="pill"
+                          disabled={saving}
+                          onClick={() => fileInputRef.current?.click()}
+                        >
+                          파일 선택
+                        </Button>
+                        <p className="ob-typo-caption text-(--oboon-text-muted) truncate">
+                          {displayImageFileName ? (
+                            <>
+                              선택된 파일:{" "}
+                              <span className="text-(--oboon-text-title)">
+                                {displayImageFileName}
+                              </span>
+                            </>
+                          ) : (
+                            "선택된 파일 없음"
+                          )}
+                        </p>
+                      </div>
+
                       {localPreview || form.image_url ? (
-                        <Image
-                          src={localPreview || form.image_url || ""}
-                          className="h-full w-full object-cover"
-                          alt="Preview"
-                          width={640}
-                          height={360}
-                        />
-                      ) : (
-                        <div className="flex h-full items-center justify-center ob-typo-caption text-(--oboon-text-muted)">
-                          이미지가 없습니다
+                        <div className="space-y-2">
+                          <div className="overflow-hidden rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)">
+                            <Image
+                              src={localPreview || form.image_url || ""}
+                              alt="대표 이미지 미리보기"
+                              width={640}
+                              height={360}
+                              className="h-auto w-full object-cover"
+                            />
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <div className="ob-typo-caption text-(--oboon-text-muted)">
+                              이미지를 선택하면 저장 시 자동으로 반영됩니다.
+                            </div>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              shape="pill"
+                              disabled={saving}
+                              onClick={() => {
+                                setForm({ ...form, image_url: null });
+                                setLocalPreview(null);
+                                setImageFileName(null);
+                              }}
+                            >
+                              선택 해제
+                            </Button>
+                          </div>
                         </div>
-                      )}
+                      ) : null}
                     </div>
-                  </div>
+                  </FormField>
+                </div>
+
+                <FormField label="설명">
+                  <Textarea
+                    className="w-full min-h-25 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-3 ob-typo-body focus:outline-none focus:ring-2 focus:ring-(--oboon-primary)/20"
+                    placeholder="현장의 주요 특장점과 간단 설명"
+                    value={form.description ?? ""}
+                    onChange={(e) =>
+                      setForm({ ...form, description: e.target.value })
+                    }
+                    disabled={saving}
+                  />
                 </FormField>
               </div>
             )}
@@ -1168,19 +1187,21 @@ function PropertyDetailPageInner() {
               icon={Landmark}
               editDisabled={!canEditProperty}
             />
-            <SectionCard
-              title="감정평가사 메모"
-              description="감정평가사가 직접 평가한 메모"
-              status={completion?.facilityStatus ?? "none"}
-              summary={
-                completion?.facilityStatus !== "none"
-                  ? "메모가 등록되었습니다"
-                  : null
-              }
-              href={`/company/properties/${id}/comment`}
-              icon={Landmark}
-              editDisabled={!canEditProperty}
-            />
+            {canSeeCommentSection ? (
+              <SectionCard
+                title="감정평가사 메모"
+                description="감정평가사가 직접 평가한 메모"
+                status={completion?.commentStatus ?? "none"}
+                summary={
+                  completion?.commentStatus !== "none"
+                    ? "메모가 등록되었습니다"
+                    : null
+                }
+                href={`/company/properties/${id}/comment`}
+                icon={Landmark}
+                editDisabled={!canEditProperty}
+              />
+            ) : null}
           </section>
         </div>
       </PageContainer>

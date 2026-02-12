@@ -171,6 +171,11 @@
   },
   {
     "table_name": "chat_rooms",
+    "index_name": "chat_rooms_unique_triplet_idx",
+    "definition": "CREATE UNIQUE INDEX chat_rooms_unique_triplet_idx ON public.chat_rooms USING btree (property_id, customer_id, agent_id) WHERE (property_id IS NOT NULL)"
+  },
+  {
+    "table_name": "chat_rooms",
     "index_name": "idx_chat_rooms_agent",
     "definition": "CREATE INDEX idx_chat_rooms_agent ON public.chat_rooms USING btree (agent_id)"
   },
@@ -183,6 +188,16 @@
     "table_name": "chat_rooms",
     "index_name": "idx_chat_rooms_customer",
     "definition": "CREATE INDEX idx_chat_rooms_customer ON public.chat_rooms USING btree (customer_id)"
+  },
+  {
+    "table_name": "chat_rooms",
+    "index_name": "idx_chat_rooms_last_consultation_id",
+    "definition": "CREATE INDEX idx_chat_rooms_last_consultation_id ON public.chat_rooms USING btree (last_consultation_id)"
+  },
+  {
+    "table_name": "chat_rooms",
+    "index_name": "idx_chat_rooms_property_customer_agent",
+    "definition": "CREATE INDEX idx_chat_rooms_property_customer_agent ON public.chat_rooms USING btree (property_id, customer_id, agent_id)"
   },
   {
     "table_name": "community_bookmarks",

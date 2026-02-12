@@ -11,7 +11,7 @@ export type AgentProperty = {
 export type AgentPropertyRequest = {
   id: string;
   property_id: number;
-  status: "pending" | "approved" | "rejected";
+  status: "pending" | "approved" | "rejected" | "withdrawn";
   requested_at: string;
   approved_at?: string | null;
   rejected_at?: string | null;
@@ -65,7 +65,7 @@ export async function fetchAgentPropertyDashboard(): Promise<AgentPropertyDashbo
       `,
     )
     .eq("agent_id", user.id)
-    .in("status", ["pending", "approved", "rejected"])
+    .in("status", ["pending", "approved", "rejected", "withdrawn"])
     .order("requested_at", { ascending: false });
 
   let enrichedRequests: AgentPropertyRequest[] = [];

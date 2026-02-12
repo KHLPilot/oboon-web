@@ -3,6 +3,12 @@ import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 
+function isMissingSchemaError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const code = String((error as { code?: unknown }).code ?? "");
+  return code === "42P01" || code === "42703";
+}
+
 /**
  * GET /api/notifications
  * 사용자의 알림 목록 조회 (최근 50개)
@@ -58,6 +64,9 @@ export async function GET() {
       .limit(50);
 
     if (error) {
+      if (isMissingSchemaError(error)) {
+        return NextResponse.json({ notifications: [] });
+      }
       console.error("알림 조회 오류:", error);
       return NextResponse.json(
         { error: "알림 조회에 실패했습니다" },

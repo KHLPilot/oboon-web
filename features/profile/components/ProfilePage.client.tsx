@@ -14,7 +14,6 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { createSupabaseClient } from "@/lib/supabaseClient";
-import { syncAvatarFromSocialIfEmpty } from "@/lib/auth/syncAvatarFromSocialIfEmpty";
 import {
   validateName,
   validateNickname,
@@ -255,21 +254,6 @@ export default function ProfilePage({
         setRole(data.role as Role);
         setAvatarUrl(data.avatar_url ?? null);
         setAgentEtc(data.agent_bio ?? "");
-        syncAvatarFromSocialIfEmpty(supabase)
-          .then(async () => {
-            if ((data.avatar_url ?? "").trim()) return;
-            const { data: refreshed } = await supabase
-              .from("profiles")
-              .select("avatar_url")
-              .eq("id", user.id)
-              .single();
-            if (refreshed?.avatar_url) {
-              setAvatarUrl(refreshed.avatar_url);
-            }
-          })
-          .catch((error) => {
-            console.error("social avatar sync error:", error);
-          });
       }
 
       await fetchGalleryImages(user.id);
@@ -838,7 +822,9 @@ export default function ProfilePage({
     return request ?? null;
   };
 
-  const getStatusBadge = (status: "pending" | "approved" | "rejected") => {
+  const getStatusBadge = (
+    status: "pending" | "approved" | "rejected" | "withdrawn",
+  ) => {
     switch (status) {
       case "approved":
         return (
@@ -861,6 +847,8 @@ export default function ProfilePage({
             거절됨
           </Badge>
         );
+      default:
+        return null;
     }
   };
 
@@ -1159,7 +1147,56 @@ export default function ProfilePage({
                         />
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 gap-3">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>닉네임</Label>
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <Input
+                            value={nickname}
+                            disabled={!isEditing}
+                            onChange={(e) =>
+                              handleNicknameChange(
+                                e.target.value,
+                                (e.nativeEvent as InputEvent).isComposing ??
+                                  false,
+                              )
+                            }
+                            placeholder="오분이 (선택, 2-15자)"
+                            maxLength={15}
+                            className={[
+                              "flex-1",
+                              oboonFieldBaseClass,
+                              errors.nickname
+                                ? "border-(--oboon-danger-border)"
+                                : "",
+                            ].join(" ")}
+                          />
+                          {isEditing &&
+                            nickname &&
+                            nickname !== originalNickname && (
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                className="w-full sm:w-auto"
+                                onClick={checkNickname}
+                                disabled={nicknameChecking}
+                              >
+                                {nicknameChecking ? "확인중..." : "중복확인"}
+                              </Button>
+                            )}
+                        </div>
+                        {errors.nickname && (
+                          <p className="ob-typo-caption text-(--oboon-danger) mt-1">
+                            {errors.nickname}
+                          </p>
+                        )}
+                        {nicknameAvailable === true &&
+                          nickname !== originalNickname && (
+                            <p className="ob-typo-caption text-(--oboon-safe) mt-1">
+                              사용 가능한 닉네임입니다.
+                            </p>
+                          )}
+                      </div>
                       <div className="space-y-2">
                         <Label>이메일</Label>
                         <Input
@@ -1460,7 +1497,13 @@ export default function ProfilePage({
               >
                 {visibleAgentProperties.map((property) => {
                   const request = getRequestStatus(property.id);
-                  const canApply = !request || request.status === "rejected";
+                  const canApply =
+                    !request ||
+                    request.status === "rejected" ||
+                    request.status === "withdrawn";
+                  const isApproved = request?.status === "approved";
+                  const isPending = request?.status === "pending";
+                  const isRejected = request?.status === "rejected";
 
                   return (
                     <Card key={property.id} className="p-3">
@@ -1493,27 +1536,48 @@ export default function ProfilePage({
                             {property.property_type}
                           </div>
                           <div className="mt-2 flex items-center justify-start sm:justify-end">
-                            {request ? (
-                              request.status === "approved" ? (
+                            {isApproved ? (
+                              <Button
+                                variant="danger"
+                                size="sm"
+                                shape="pill"
+                                className="h-8 whitespace-nowrap"
+                                disabled={withdrawingRequestId === request.id}
+                                loading={withdrawingRequestId === request.id}
+                                onClick={() =>
+                                  handleWithdrawAffiliation(
+                                    request.id,
+                                    property.name,
+                                  )
+                                }
+                              >
+                                소속 해제
+                              </Button>
+                            ) : isPending ? (
+                              getStatusBadge(request.status)
+                            ) : isRejected ? (
+                              <div className="flex items-center gap-2">
+                                {getStatusBadge("rejected")}
                                 <Button
-                                  variant="danger"
+                                  variant="primary"
                                   size="sm"
                                   shape="pill"
                                   className="h-8 whitespace-nowrap"
-                                  disabled={withdrawingRequestId === request.id}
-                                  loading={withdrawingRequestId === request.id}
-                                  onClick={() =>
-                                    handleWithdrawAffiliation(
-                                      request.id,
-                                      property.name,
-                                    )
+                                  disabled={
+                                    agentSubmittingPropertyId === property.id
                                   }
+                                  onClick={() => handleAgentPropertyApply(property.id)}
                                 >
-                                  소속 해제
+                                  {agentSubmittingPropertyId === property.id ? (
+                                    <span className="flex items-center gap-2">
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                      신청 중...
+                                    </span>
+                                  ) : (
+                                    "재신청"
+                                  )}
                                 </Button>
-                              ) : (
-                                getStatusBadge(request.status)
-                              )
+                              </div>
                             ) : canApply ? (
                               <Button
                                 variant="primary"

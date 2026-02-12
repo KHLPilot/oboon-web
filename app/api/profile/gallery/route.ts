@@ -31,6 +31,12 @@ type GalleryUpdateItem = {
   caption?: string | null;
 };
 
+function isMissingSchemaError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const code = String((error as { code?: unknown }).code ?? "");
+  return code === "42P01" || code === "42703";
+}
+
 function extFromMimeType(mimeType: string) {
   if (mimeType === "image/jpeg") return "jpg";
   if (mimeType === "image/png") return "png";
@@ -94,6 +100,9 @@ export async function GET(req: Request) {
       .order("created_at", { ascending: true });
 
     if (error) {
+      if (isMissingSchemaError(error)) {
+        return NextResponse.json({ images: [] });
+      }
       return NextResponse.json(
         { error: "갤러리 조회에 실패했습니다" },
         { status: 500 },

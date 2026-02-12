@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
-const BLOCKING_CONSULTATION_STATUSES = ["requested", "pending", "confirmed"];
 const adminSupabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -22,23 +21,6 @@ function isWithdrawnSchemaIssue(error: unknown): boolean {
     message.includes("check constraint") ||
     message.includes("enum")
   );
-}
-
-async function hasBlockingConsultations(
-  supabase: SupabaseClient,
-  agentId: string,
-) {
-  const { count, error } = await supabase
-    .from("consultations")
-    .select("id", { count: "exact", head: true })
-    .eq("agent_id", agentId)
-    .in("status", BLOCKING_CONSULTATION_STATUSES);
-
-  if (error) {
-    throw error;
-  }
-
-  return (count ?? 0) > 0;
 }
 
 // POST - 상담사가 현재 소속을 무소속으로 전환
@@ -91,14 +73,6 @@ export async function POST() {
       );
     }
 
-    const blocking = await hasBlockingConsultations(supabase, user.id);
-    if (blocking) {
-      return NextResponse.json(
-        { error: "진행중 상담이 있어 무소속 전환이 불가능합니다." },
-        { status: 409 },
-      );
-    }
-
     const { data: approvedRows, error: approvedError } = await adminSupabase
       .from("property_agents")
       .select("id, property_id")
@@ -136,34 +110,10 @@ export async function POST() {
       .in("id", approvedIds)
       .select("id");
 
-    let finalUpdatedRows = updatedRows;
+    const finalUpdatedRows = updatedRows;
     if (updateError) {
-      if (!isWithdrawnSchemaIssue(updateError)) {
-        console.error("무소속 전환 오류:", updateError);
-        return NextResponse.json(
-          { error: "무소속 전환에 실패했습니다" },
-          { status: 500 },
-        );
-      }
-
-      // 레거시 DB( withdrawn 미지원 ) 호환용 fallback
-      const { data: fallbackRows, error: fallbackError } = await adminSupabase
-        .from("property_agents")
-        .update({
-          status: "rejected",
-          rejected_at: withdrawnAt,
-          rejection_reason: "self_unassigned_legacy",
-          approved_at: null,
-          approved_by: null,
-        })
-        .in("id", approvedIds)
-        .select("id");
-
-      if (fallbackError) {
-        console.error(
-          "무소속 전환 fallback 오류(legacy rejected):",
-          fallbackError,
-        );
+      console.error("무소속 전환 오류:", updateError);
+      if (isWithdrawnSchemaIssue(updateError)) {
         return NextResponse.json(
           {
             error:
@@ -172,8 +122,10 @@ export async function POST() {
           { status: 500 },
         );
       }
-
-      finalUpdatedRows = fallbackRows;
+      return NextResponse.json(
+        { error: "무소속 전환에 실패했습니다" },
+        { status: 500 },
+      );
     }
 
     if (!finalUpdatedRows || finalUpdatedRows.length === 0) {

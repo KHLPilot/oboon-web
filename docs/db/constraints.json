@@ -205,6 +205,18 @@
   },
   {
     "table_name": "chat_rooms",
+    "constraint_name": "chat_rooms_last_consultation_id_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (last_consultation_id) REFERENCES consultations(id) ON DELETE SET NULL"
+  },
+  {
+    "table_name": "chat_rooms",
+    "constraint_name": "chat_rooms_property_id_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE"
+  },
+  {
+    "table_name": "chat_rooms",
     "constraint_name": "chat_rooms_pkey",
     "constraint_type": "p",
     "definition": "PRIMARY KEY (id)"

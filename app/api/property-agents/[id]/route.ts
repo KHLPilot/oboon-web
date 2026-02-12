@@ -3,7 +3,6 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
-const BLOCKING_CONSULTATION_STATUSES = ["requested", "pending", "confirmed"];
 const adminSupabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -292,28 +291,6 @@ export async function DELETE(
         );
       }
 
-      const { count, error: consultationError } = await adminSupabase
-        .from("consultations")
-        .select("id", { count: "exact", head: true })
-        .eq("agent_id", user.id)
-        .eq("property_id", existingRequest.property_id)
-        .in("status", BLOCKING_CONSULTATION_STATUSES);
-
-      if (consultationError) {
-        console.error("진행중 상담 확인 오류:", consultationError);
-        return NextResponse.json(
-          { error: "진행중 상담 확인 중 오류가 발생했습니다" },
-          { status: 500 }
-        );
-      }
-
-      if ((count ?? 0) > 0) {
-        return NextResponse.json(
-          { error: "해당 현장에 진행중 상담이 있어 소속 해제가 불가능합니다." },
-          { status: 409 }
-        );
-      }
-
       const withdrawnAt = new Date().toISOString();
       const { data: withdrawnRows, error: withdrawError } = await adminSupabase
         .from("property_agents")
@@ -328,41 +305,20 @@ export async function DELETE(
         .select("id");
 
       if (withdrawError) {
-        if (!isWithdrawnSchemaIssue(withdrawError)) {
-          console.error("소속 해제 오류:", withdrawError);
+        console.error("소속 해제 오류:", withdrawError);
+        if (isWithdrawnSchemaIssue(withdrawError)) {
           return NextResponse.json(
-            { error: "소속 해제에 실패했습니다" },
+            {
+              error:
+                "소속 해제에 실패했습니다. DB 마이그레이션(022_property_agents_add_withdrawn_status.sql) 적용이 필요합니다.",
+            },
             { status: 500 }
           );
         }
-
-        const { data: fallbackRows, error: fallbackError } = await adminSupabase
-          .from("property_agents")
-          .update({
-            status: "rejected",
-            rejected_at: withdrawnAt,
-            rejection_reason: "self_unassigned_legacy",
-            approved_at: null,
-            approved_by: null,
-          })
-          .eq("id", propertyAgentId)
-          .eq("agent_id", user.id)
-          .select("id");
-
-        if (fallbackError) {
-          console.error("소속 해제 fallback 오류:", fallbackError);
-          return NextResponse.json(
-            { error: "소속 해제에 실패했습니다" },
-            { status: 500 }
-          );
-        }
-
-        if (!fallbackRows || fallbackRows.length === 0) {
-          return NextResponse.json(
-            { error: "소속 해제 반영에 실패했습니다" },
-            { status: 409 }
-          );
-        }
+        return NextResponse.json(
+          { error: "소속 해제에 실패했습니다" },
+          { status: 500 }
+        );
       } else if (!withdrawnRows || withdrawnRows.length === 0) {
         return NextResponse.json(
           { error: "소속 해제 반영에 실패했습니다" },

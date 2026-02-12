@@ -45,7 +45,10 @@ export function NotificationProvider({
         setNotifications(data.notifications || []);
       }
     } catch (err) {
-      console.error("알림 조회 오류:", err);
+      const message = err instanceof Error ? err.message : String(err);
+      if (!message.toLowerCase().includes("load failed")) {
+        console.error("알림 조회 오류:", err);
+      }
     } finally {
       setLoading(false);
     }
