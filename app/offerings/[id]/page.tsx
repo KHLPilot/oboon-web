@@ -7,6 +7,7 @@ import { fetchOfferingDetail } from "@/features/offerings/services/offeringDetai
 import { formatPriceRange } from "@/shared/price";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://oboon.co.kr";
+const defaultOgImage = `${siteUrl}/logo.svg`;
 
 type UnitType = {
   price_min: number | null;
@@ -109,6 +110,7 @@ export async function generateMetadata({
     : `${property.name} 분양 정보. 분양가: ${priceRange}.`;
   const canonicalPath = `/offerings/${property.id}`;
   const imageUrl = pickImage(property);
+  const ogImage = imageUrl || defaultOgImage;
 
   return {
     title: `${property.name} 분양 정보`,
@@ -121,13 +123,13 @@ export async function generateMetadata({
       description,
       url: canonicalPath,
       type: "article",
-      images: imageUrl ? [imageUrl] : undefined,
+      images: [ogImage],
     },
     twitter: {
-      card: imageUrl ? "summary_large_image" : "summary",
+      card: "summary_large_image",
       title: `${property.name} 분양 정보`,
       description,
-      images: imageUrl ? [imageUrl] : undefined,
+      images: [ogImage],
     },
   };
 }

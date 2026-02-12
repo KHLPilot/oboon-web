@@ -17,16 +17,52 @@ const publicPaths = [
 
 type BoardRow = { key?: string } | { key?: string }[] | null;
 type CategoryRow = { key?: string } | { key?: string }[] | null;
+type OfferingSnapshotRow = {
+  property_id: number | string | null;
+  published_at: string | null;
+};
+type BriefingPostRow = {
+  slug: string | null;
+  created_at: string | null;
+  published_at: string | null;
+  board: BoardRow;
+  category: CategoryRow;
+};
 
 function pickFirst<T>(value: T | T[] | null | undefined): T | null {
   if (!value) return null;
   return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
-async function fetchDynamicUrls(): Promise<MetadataRoute.Sitemap> {
+function toDateOrNull(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function latestDateOf(values: Array<Date | null | undefined>): Date | null {
+  let latest: Date | null = null;
+  for (const value of values) {
+    if (!value) continue;
+    if (!latest || value.getTime() > latest.getTime()) latest = value;
+  }
+  return latest;
+}
+
+async function fetchDynamicUrls(): Promise<{
+  urls: MetadataRoute.Sitemap;
+  latestOfferingModified: Date | null;
+  latestBriefingModified: Date | null;
+}> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !supabaseAnonKey) return [];
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return {
+      urls: [],
+      latestOfferingModified: null,
+      latestBriefingModified: null,
+    };
+  }
 
   const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -54,17 +90,21 @@ async function fetchDynamicUrls(): Promise<MetadataRoute.Sitemap> {
   ]);
 
   const dynamic: MetadataRoute.Sitemap = [];
+  let latestOfferingModified: Date | null = null;
+  let latestBriefingModified: Date | null = null;
 
   if (!offeringsRes.error && offeringsRes.data) {
     const seenPropertyIds = new Set<number>();
-    for (const row of offeringsRes.data) {
+    for (const row of offeringsRes.data as OfferingSnapshotRow[]) {
       const propertyId = Number(row.property_id);
       if (!Number.isFinite(propertyId) || seenPropertyIds.has(propertyId)) continue;
       seenPropertyIds.add(propertyId);
+      const modifiedAt = toDateOrNull(row.published_at);
+      latestOfferingModified = latestDateOf([latestOfferingModified, modifiedAt]);
 
       dynamic.push({
         url: `${siteUrl}/offerings/${propertyId}`,
-        lastModified: row.published_at ? new Date(row.published_at) : new Date(),
+        lastModified: modifiedAt ?? new Date(),
         changeFrequency: "daily",
         priority: 0.8,
       });
@@ -72,13 +112,7 @@ async function fetchDynamicUrls(): Promise<MetadataRoute.Sitemap> {
   }
 
   if (!briefingRes.error && briefingRes.data) {
-    for (const row of briefingRes.data as Array<{
-      slug: string | null;
-      created_at: string | null;
-      published_at: string | null;
-      board: BoardRow;
-      category: CategoryRow;
-    }>) {
+    for (const row of briefingRes.data as BriefingPostRow[]) {
       const slug = row.slug ? String(row.slug).trim() : "";
       if (!slug) continue;
 
@@ -95,32 +129,91 @@ async function fetchDynamicUrls(): Promise<MetadataRoute.Sitemap> {
       }
 
       if (!href) continue;
+      const modifiedAt = toDateOrNull(row.published_at) ?? toDateOrNull(row.created_at);
+      latestBriefingModified = latestDateOf([latestBriefingModified, modifiedAt]);
 
       dynamic.push({
         url: `${siteUrl}${href}`,
-        lastModified: row.published_at
-          ? new Date(row.published_at)
-          : row.created_at
-            ? new Date(row.created_at)
-            : new Date(),
+        lastModified: modifiedAt ?? new Date(),
         changeFrequency: "weekly",
         priority: 0.7,
       });
     }
   }
 
-  return dynamic;
+  return {
+    urls: dynamic,
+    latestOfferingModified,
+    latestBriefingModified,
+  };
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const now = new Date();
-  const dynamicUrls = await fetchDynamicUrls();
+  const generatedAt = new Date();
+  const { urls: dynamicUrls, latestOfferingModified, latestBriefingModified } =
+    await fetchDynamicUrls();
+  const latestSiteModified = latestDateOf([
+    latestOfferingModified,
+    latestBriefingModified,
+    generatedAt,
+  ]) ?? generatedAt;
+
+  const staticRouteMeta: Record<
+    (typeof publicPaths)[number],
+    { changeFrequency: "daily" | "weekly"; priority: number; lastModified: Date }
+  > = {
+    "/": {
+      changeFrequency: "daily",
+      priority: 1,
+      lastModified: latestSiteModified,
+    },
+    "/offerings": {
+      changeFrequency: "daily",
+      priority: 0.8,
+      lastModified: latestOfferingModified ?? latestSiteModified,
+    },
+    "/briefing": {
+      changeFrequency: "weekly",
+      priority: 0.7,
+      lastModified: latestBriefingModified ?? latestSiteModified,
+    },
+    "/briefing/oboon-original": {
+      changeFrequency: "weekly",
+      priority: 0.7,
+      lastModified: latestBriefingModified ?? latestSiteModified,
+    },
+    "/map": {
+      changeFrequency: "weekly",
+      priority: 0.7,
+      lastModified: latestSiteModified,
+    },
+    "/community": {
+      changeFrequency: "weekly",
+      priority: 0.7,
+      lastModified: latestSiteModified,
+    },
+    "/support": {
+      changeFrequency: "weekly",
+      priority: 0.7,
+      lastModified: latestSiteModified,
+    },
+    "/support/faq": {
+      changeFrequency: "weekly",
+      priority: 0.7,
+      lastModified: latestSiteModified,
+    },
+    "/support/qna": {
+      changeFrequency: "weekly",
+      priority: 0.7,
+      lastModified: latestSiteModified,
+    },
+  };
 
   const staticUrls: MetadataRoute.Sitemap = publicPaths.map((path) => ({
     url: `${siteUrl}${path}`,
-    lastModified: now,
-    changeFrequency: path === "/" ? "daily" : "weekly",
-    priority: path === "/" ? 1 : 0.7,
+    lastModified: staticRouteMeta[path].lastModified,
+    changeFrequency: staticRouteMeta[path].changeFrequency,
+    priority: staticRouteMeta[path].priority,
   }));
 
   return [...staticUrls, ...dynamicUrls];

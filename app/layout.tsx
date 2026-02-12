@@ -9,6 +9,7 @@ import Footer from "@/components/shared/Footer";
 import Providers from "./providers";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://oboon.co.kr";
+const defaultOgImage = `${siteUrl}/logo.svg`;
 const structuredData = [
   {
     "@context": "https://schema.org",
@@ -48,11 +49,13 @@ export const metadata: Metadata = {
     siteName: "OBOON",
     locale: "ko_KR",
     type: "website",
+    images: [defaultOgImage],
   },
   twitter: {
     card: "summary_large_image",
     title: "OBOON 분양 플랫폼",
     description: "분양 정보 탐색부터 상담 연결까지 한 번에 진행하는 OBOON 분양 플랫폼.",
+    images: [defaultOgImage],
   },
   robots: {
     index: true,
