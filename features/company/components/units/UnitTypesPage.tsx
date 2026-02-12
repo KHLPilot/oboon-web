@@ -27,6 +27,23 @@ import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import { FormField } from "@/components/shared/FormField";
 
+function hasAreaUnitSuffix(value: string | null | undefined) {
+  return /(㎡|m²|m2)\s*$/i.test((value ?? "").trim());
+}
+
+function ensureAreaUnitSuffix(value: string | null | undefined) {
+  const raw = (value ?? "").trim();
+  if (!raw) return "";
+  if (hasAreaUnitSuffix(raw)) return raw;
+  return `${raw}㎡`;
+}
+
+function stripAreaUnitSuffix(value: string | null | undefined) {
+  const raw = (value ?? "").trim();
+  if (!raw) return "";
+  return raw.replace(/\s*(㎡|m²|m2)\s*$/i, "").trim();
+}
+
 function buildDraftFromRow(row: UnitRow): UnitDraft {
   return {
     properties_id: row.properties_id,
@@ -93,6 +110,7 @@ export default function UnitTypesPage() {
   >({});
 
   const [floorPlanUploading, setFloorPlanUploading] = useState(false);
+  const [appendAreaUnit, setAppendAreaUnit] = useState(false);
 
   // 인라인 수정(단일 카드만)
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -196,14 +214,21 @@ export default function UnitTypesPage() {
     clearError();
     setCreateFieldErrors({});
 
-    const v = validateUnitDraft(createDraft);
+    const draftForCreate: UnitDraft = {
+      ...createDraft,
+      type_name: appendAreaUnit
+        ? ensureAreaUnitSuffix(createDraft.type_name)
+        : (createDraft.type_name ?? "").trim(),
+    };
+
+    const v = validateUnitDraft(draftForCreate);
     if (!v.ok) {
       setCreateFieldErrors(v.fieldErrors);
       return;
     }
 
     setCreating(true);
-    const res = await createUnit(createDraft);
+    const res = await createUnit(draftForCreate);
     setCreating(false);
 
     if (!res.ok) {
@@ -301,10 +326,31 @@ export default function UnitTypesPage() {
                     onChange={(e) =>
                       setCreateDraft((d) => ({
                         ...d,
-                        type_name: e.target.value,
+                        type_name: appendAreaUnit
+                          ? ensureAreaUnitSuffix(e.target.value)
+                          : e.target.value,
                       }))
                     }
                   />
+                  <label className="inline-flex cursor-pointer items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={appendAreaUnit}
+                      onChange={(e) => {
+                        const nextChecked = e.target.checked;
+                        setAppendAreaUnit(nextChecked);
+                        setCreateDraft((d) => ({
+                          ...d,
+                          type_name: nextChecked
+                            ? ensureAreaUnitSuffix(d.type_name)
+                            : stripAreaUnitSuffix(d.type_name),
+                        }));
+                      }}
+                    />
+                    <span className="ob-typo-caption text-(--oboon-text-muted)">
+                      타입명 뒤에 ㎡ 붙이기
+                    </span>
+                  </label>
                   {createFieldErrors.type_name ? (
                     <p className="ob-typo-caption text-red-500">
                       {createFieldErrors.type_name}
@@ -646,7 +692,7 @@ export default function UnitTypesPage() {
                   등록된 평면 타입
                 </p>
               </div>
-              <p className="mb-4 ob-typob-bod text-(--oboon-text-muted)">
+              <p className="mb-4 ob-typo-body text-(--oboon-text-muted)">
                 {unitCountText}
               </p>
 

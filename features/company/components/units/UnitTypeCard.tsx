@@ -83,8 +83,24 @@ function Field({
 function formatUnitTypeTitle(typeName: string | null | undefined) {
   const raw = (typeName ?? "").trim();
   if (!raw) return "-";
-  if (/(㎡|m²|m2)\s*$/i.test(raw)) return raw;
+  return raw;
+}
+
+function hasAreaUnitSuffix(value: string | null | undefined) {
+  return /(㎡|m²|m2)\s*$/i.test((value ?? "").trim());
+}
+
+function ensureAreaUnitSuffix(value: string | null | undefined) {
+  const raw = (value ?? "").trim();
+  if (!raw) return "";
+  if (hasAreaUnitSuffix(raw)) return raw;
   return `${raw}㎡`;
+}
+
+function stripAreaUnitSuffix(value: string | null | undefined) {
+  const raw = (value ?? "").trim();
+  if (!raw) return "";
+  return raw.replace(/\s*(㎡|m²|m2)\s*$/i, "").trim();
 }
 
 export default function UnitTypeCard({
@@ -126,6 +142,7 @@ export default function UnitTypeCard({
   const [exclusiveText, setExclusiveText] = useState("");
   const [supplyText, setSupplyText] = useState("");
   const [floorUploading, setFloorUploading] = useState(false);
+  const [appendAreaUnit, setAppendAreaUnit] = useState(false);
   const [floorPlanFileName, setFloorPlanFileName] = useState<string | null>(
     null,
   );
@@ -141,6 +158,7 @@ export default function UnitTypeCard({
         draft.exclusive_area != null ? String(draft.exclusive_area) : "",
       );
       setSupplyText(draft.supply_area != null ? String(draft.supply_area) : "");
+      setAppendAreaUnit(hasAreaUnitSuffix(draft.type_name));
     }
 
     if (leavingEdit) {
@@ -252,10 +270,37 @@ export default function UnitTypeCard({
         <div className="mt-4 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-default) p-4">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Field label="평면 타입 이름">
-              <Input
-                value={draft.type_name ?? ""}
-                onChange={(e) => onChange("type_name", e.target.value)}
-              />
+              <div className="space-y-2">
+                <Input
+                  value={draft.type_name ?? ""}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    onChange(
+                      "type_name",
+                      appendAreaUnit ? ensureAreaUnitSuffix(next) : next,
+                    );
+                  }}
+                />
+                <label className="inline-flex cursor-pointer items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={appendAreaUnit}
+                    onChange={(e) => {
+                      const nextChecked = e.target.checked;
+                      setAppendAreaUnit(nextChecked);
+                      onChange(
+                        "type_name",
+                        nextChecked
+                          ? ensureAreaUnitSuffix(draft.type_name)
+                          : stripAreaUnitSuffix(draft.type_name),
+                      );
+                    }}
+                  />
+                  <span className="ob-typo-caption text-(--oboon-text-muted)">
+                    타입명 뒤에 ㎡ 붙이기
+                  </span>
+                </label>
+              </div>
             </Field>
 
             <Field label="전용 면적 (㎡)">

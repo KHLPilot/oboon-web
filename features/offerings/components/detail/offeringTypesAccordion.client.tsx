@@ -73,8 +73,7 @@ function pickImageUrl(u: UnitTypeRow) {
 function formatTypeTitle(typeName: string | null) {
   const raw = (typeName ?? "").trim();
   if (!raw) return "타입";
-  if (/(㎡|m²|m2)\s*$/i.test(raw)) return raw;
-  return `${raw}㎡`;
+  return raw;
 }
 
 /* -----------------------------

@@ -201,11 +201,11 @@ function fmtRange(a: string | null | undefined, b: string | null | undefined) {
 }
 
 function fmtText(value: string | null | undefined) {
-  return pickFirstNonEmpty(value) ?? UXCopy.checking;
+  return pickFirstNonEmpty(value) ?? "";
 }
 
 function fmtNumber(value: number | null | undefined, unit = "") {
-  if (value == null || !Number.isFinite(value)) return UXCopy.checking;
+  if (value == null || !Number.isFinite(value)) return "";
   return `${value.toLocaleString("ko-KR")}${unit}`;
 }
 
@@ -214,7 +214,7 @@ function fmtAmenities(value: string | string[] | null | undefined) {
     const items = value
       .map((item) => item.trim())
       .filter((item) => item.length > 0);
-    return items.length > 0 ? items.join(", ") : UXCopy.checking;
+    return items.length > 0 ? items.join(", ") : "";
   }
   return fmtText(value);
 }
@@ -222,8 +222,71 @@ function fmtAmenities(value: string | string[] | null | undefined) {
 function toNumberOrNull(value: number | string | null | undefined) {
   if (value == null) return null;
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
-  const parsed = Number(value);
+  const normalized = value.trim().replaceAll(",", "");
+  if (!normalized) return null;
+  const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeKoreaCoords(
+  lat: number | null,
+  lng: number | null,
+): { lat: number | null; lng: number | null } {
+  if (lat == null || lng == null) return { lat, lng };
+
+  const isKoreaLat = lat >= 30 && lat <= 45;
+  const isKoreaLng = lng >= 120 && lng <= 135;
+  if (isKoreaLat && isKoreaLng) return { lat, lng };
+
+  // 위/경도가 뒤바뀌어 저장된 케이스 보정
+  const isSwappedKoreaLat = lng >= 30 && lng <= 45;
+  const isSwappedKoreaLng = lat >= 120 && lat <= 135;
+  if (isSwappedKoreaLat && isSwappedKoreaLng) {
+    return { lat: lng, lng: lat };
+  }
+
+  return { lat, lng };
+}
+
+function isValidKoreaCoords(lat: number | null, lng: number | null) {
+  return (
+    lat != null &&
+    lng != null &&
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    lat >= 30 &&
+    lat <= 45 &&
+    lng >= 120 &&
+    lng <= 135
+  );
+}
+
+function distanceSquared(
+  aLat: number,
+  aLng: number,
+  bLat: number,
+  bLng: number,
+) {
+  const dLat = aLat - bLat;
+  const dLng = aLng - bLng;
+  return dLat * dLat + dLng * dLng;
+}
+
+function distanceKm(
+  aLat: number,
+  aLng: number,
+  bLat: number,
+  bLng: number,
+) {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(bLat - aLat);
+  const dLng = toRad(bLng - aLng);
+  const lat1 = toRad(aLat);
+  const lat2 = toRad(bLat);
+  const h =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return 6371 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
 }
 
 function isModelHouseType(value: string | null | undefined) {
@@ -310,6 +373,7 @@ export default function OfferingDetailLeft({
   const unitTypes = asArray<PropertyUnitTypeRow>(p.property_unit_types)
     .slice()
     .sort((a, b) => (a.type_name ?? "").localeCompare(b.type_name ?? ""));
+  const hasPriceTable = unitTypes.length > 0;
 
   const hasPrivatePriceUnits = unitTypes.some((u) => u.is_price_public === false);
   const hasPublicPriceUnits = unitTypes.some((u) => u.is_price_public !== false);
@@ -383,20 +447,53 @@ export default function OfferingDetailLeft({
     { label: "어메니티", value: fmtAmenities(specs0?.amenities) },
   ];
 
-  const siteLat = toNumberOrNull(loc0?.lat);
-  const siteLng = toNumberOrNull(loc0?.lng);
-  const modelHouseCandidates = facilities.filter(
-    (facility) =>
-      isModelHouseType(facility.type) &&
-      toNumberOrNull(facility.lat) != null &&
-      toNumberOrNull(facility.lng) != null,
+  const siteCoords = normalizeKoreaCoords(
+    toNumberOrNull(loc0?.lat),
+    toNumberOrNull(loc0?.lng),
   );
-  const modelHouse =
-    modelHouseCandidates.find((facility) => facility.is_active !== false) ??
-    modelHouseCandidates[0] ??
-    null;
-  const modelHouseLat = toNumberOrNull(modelHouse?.lat);
-  const modelHouseLng = toNumberOrNull(modelHouse?.lng);
+  const siteLat = isValidKoreaCoords(siteCoords.lat, siteCoords.lng)
+    ? siteCoords.lat
+    : null;
+  const siteLng = isValidKoreaCoords(siteCoords.lat, siteCoords.lng)
+    ? siteCoords.lng
+    : null;
+  const modelHouseCandidates = facilities
+    .filter((facility) => isModelHouseType(facility.type))
+    .map((facility) => {
+      const normalized = normalizeKoreaCoords(
+        toNumberOrNull(facility.lat),
+        toNumberOrNull(facility.lng),
+      );
+      return {
+        facility,
+        lat: normalized.lat,
+        lng: normalized.lng,
+      };
+    })
+    .filter((candidate) => isValidKoreaCoords(candidate.lat, candidate.lng));
+
+  const activeCandidates = modelHouseCandidates.filter(
+    (candidate) => candidate.facility.is_active !== false,
+  );
+  const prioritizedCandidates =
+    activeCandidates.length > 0 ? activeCandidates : modelHouseCandidates;
+
+  const selectedModelHouseCandidate =
+    siteLat != null && siteLng != null
+      ? prioritizedCandidates
+          .slice()
+          .sort((a, b) => {
+            const aDistance = distanceSquared(a.lat!, a.lng!, siteLat, siteLng);
+            const bDistance = distanceSquared(b.lat!, b.lng!, siteLat, siteLng);
+            return aDistance - bDistance;
+          })[0] ?? null
+      : prioritizedCandidates[0] ?? null;
+
+  const modelHouseCoords = selectedModelHouseCandidate
+    ? { lat: selectedModelHouseCandidate.lat, lng: selectedModelHouseCandidate.lng }
+    : { lat: null, lng: null };
+  const modelHouseLat = modelHouseCoords.lat;
+  const modelHouseLng = modelHouseCoords.lng;
   const overlapsWithSite =
     siteLat != null &&
     siteLng != null &&
@@ -437,6 +534,15 @@ export default function OfferingDetailLeft({
         ]
       : []),
   ];
+  const shouldFitLocationMarkers =
+    locationMarkers.length >= 2
+      ? distanceKm(
+          locationMarkers[0].lat,
+          locationMarkers[0].lng,
+          locationMarkers[1].lat,
+          locationMarkers[1].lng,
+        ) <= 20
+      : locationMarkers.length === 1;
 
   return (
     <div className="[--oboon-shadow-card:none]">
@@ -520,7 +626,11 @@ export default function OfferingDetailLeft({
           "bg-(--oboon-bg-default)",
         ].join(" ")}
       >
-        <OfferingDetailTabs hasMemo={hasMemo} hasTimeline={hasTimeline} />
+        <OfferingDetailTabs
+          hasMemo={hasMemo}
+          hasPrices={hasPriceTable}
+          hasTimeline={hasTimeline}
+        />
       </div>
 
       {/* Basic */}
@@ -631,23 +741,25 @@ export default function OfferingDetailLeft({
       ) : null}
 
       {/* Prices */}
-      <div id="prices" className="mt-10 scroll-mt-30 lg:scroll-mt-30">
-        <SectionTitle
-          icon={<BadgeCheck className="h-5 w-5" />}
-          title="분양가표"
-          desc="전용면적별 최소/최대 범위를 요약합니다."
-        />
+      {hasPriceTable ? (
+        <div id="prices" className="mt-10 scroll-mt-30 lg:scroll-mt-30">
+          <SectionTitle
+            icon={<BadgeCheck className="h-5 w-5" />}
+            title="분양가표"
+            desc="전용면적별 최소/최대 범위를 요약합니다."
+          />
 
-        <div className="mt-3">
-          <Card className="p-3">
-            <OfferingUnitTypesAccordion
-              unitTypes={unitTypes}
-              emptyText={UXCopy.checking}
-              imagePlaceholderText={UXCopy.imagePlaceholder}
-            />
-          </Card>
+          <div className="mt-3">
+            <Card className="p-3">
+              <OfferingUnitTypesAccordion
+                unitTypes={unitTypes}
+                emptyText={UXCopy.checking}
+                imagePlaceholderText={UXCopy.imagePlaceholder}
+              />
+            </Card>
+          </div>
         </div>
-      </div>
+      ) : null}
 
       {/* Timeline */}
       {hasTimeline ? (
@@ -708,12 +820,12 @@ export default function OfferingDetailLeft({
         <div className="mt-3">
           <Card className="p-3">
             {locationMarkers.length > 0 ? (
-              <div className="h-72 overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)">
+              <div className="h-[25rem] overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)">
                 <NaverMap
                   markers={locationMarkers}
                   focusedId={locationMarkers[0]?.id ?? null}
                   showFocusedAsRich={false}
-                  fitToMarkers
+                  fitToMarkers={shouldFitLocationMarkers}
                   mode="base"
                 />
               </div>

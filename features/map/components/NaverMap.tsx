@@ -113,6 +113,9 @@ const NaverMap = forwardRef<
     const applyFocusHoverDeltaStylesRef = useRef<(naverObj: NaverGlobal) => void>(
       () => {},
     );
+    const fitMapToMarkersRef = useRef<
+      (naverObj: NaverGlobal, next: MapMarker[], force?: boolean) => void
+    >(() => {});
 
     // 콜백 Ref
     const callbacksRef = useRef({
@@ -232,58 +235,86 @@ const NaverMap = forwardRef<
       });
     }
 
-    function fitMapToMarkers(naverObj: NaverGlobal, next: MapMarker[]) {
+    function fitMapToMarkers(
+      naverObj: NaverGlobal,
+      next: MapMarker[],
+      force = false,
+    ) {
       const map = mapRef.current;
-      if (!map || !fitToMarkers || next.length < 2) return;
+      if (!map || !fitToMarkers || next.length < 1) return;
+
+      if (next.length === 1) {
+        const single = next[0];
+        map.panTo(new naverObj.maps.LatLng(single.lat, single.lng));
+        if (map.getZoom() < 14) {
+          map.setZoom(14, true);
+        }
+        lastFittedMarkersKeyRef.current = `${single.id}:${single.lat.toFixed(6)},${single.lng.toFixed(6)}`;
+        return;
+      }
 
       const markersKey = next
         .map((m) => `${m.id}:${m.lat.toFixed(6)},${m.lng.toFixed(6)}`)
         .join("|");
-      if (markersKey === lastFittedMarkersKeyRef.current) return;
+      if (!force && markersKey === lastFittedMarkersKeyRef.current) return;
 
-      const mapsAny = naverObj.maps as unknown as {
-        LatLngBounds?: new () => { extend: (point: unknown) => void };
+      const lats = next.map((m) => m.lat);
+      const lngs = next.map((m) => m.lng);
+      const minLat = Math.min(...lats);
+      const maxLat = Math.max(...lats);
+      const minLng = Math.min(...lngs);
+      const maxLng = Math.max(...lngs);
+
+      const centerLat = (minLat + maxLat) / 2;
+      const centerLng = (minLng + maxLng) / 2;
+
+      // 마커가 화면 가장자리에 걸리지 않도록 최소한의 여유만 적용
+      const latSpan = Math.max(maxLat - minLat, 0.0002) * 1.2;
+      const lngSpan = Math.max(maxLng - minLng, 0.0002) * 1.2;
+      const span = Math.max(latSpan, lngSpan);
+
+      const targetZoom =
+        span > 1
+          ? 9
+          : span > 0.5
+            ? 10
+            : span > 0.2
+              ? 11
+              : span > 0.1
+                ? 12
+                : span > 0.05
+                  ? 13
+                  : span > 0.02
+                    ? 14
+                    : span > 0.01
+                      ? 15
+                      : 16;
+
+      map.panTo(new naverObj.maps.LatLng(centerLat, centerLng));
+      map.setZoom(targetZoom, true);
+
+      // 일부 환경에서 setCenter/setZoom 이후 실제 bounds 계산이 늦게 반영되어
+      // 마커 일부가 화면 밖으로 남는 경우가 있어, 후검증으로 보정한다.
+      const ensureVisible = (attempt: number) => {
+        const currentMap = mapRef.current;
+        if (!currentMap) return;
+        if (attempt >= 2) return;
+
+        const bounds = currentMap.getBounds();
+        const allVisible = next.every((m) =>
+          bounds.hasLatLng(new naverObj.maps.LatLng(m.lat, m.lng)),
+        );
+        if (allVisible) return;
+
+        const nextZoom = Math.max(currentMap.getZoom() - 1, 13);
+        if (nextZoom === currentMap.getZoom()) return;
+        currentMap.setZoom(nextZoom, true);
+        window.setTimeout(() => ensureVisible(attempt + 1), 120);
       };
-      const mapAny = map as unknown as { fitBounds?: (bounds: unknown) => void };
-
-      if (mapsAny.LatLngBounds && typeof mapAny.fitBounds === "function") {
-        const bounds = new mapsAny.LatLngBounds();
-        next.forEach((m) => {
-          bounds.extend(new naverObj.maps.LatLng(m.lat, m.lng));
-        });
-        mapAny.fitBounds(bounds);
-      } else {
-        const lats = next.map((m) => m.lat);
-        const lngs = next.map((m) => m.lng);
-        const minLat = Math.min(...lats);
-        const maxLat = Math.max(...lats);
-        const minLng = Math.min(...lngs);
-        const maxLng = Math.max(...lngs);
-
-        const centerLat = (minLat + maxLat) / 2;
-        const centerLng = (minLng + maxLng) / 2;
-        const span = Math.max(maxLat - minLat, maxLng - minLng);
-        const targetZoom =
-          span > 1
-            ? 8
-            : span > 0.5
-              ? 9
-              : span > 0.2
-                ? 10
-                : span > 0.1
-                  ? 11
-                  : span > 0.05
-                    ? 12
-                    : span > 0.02
-                      ? 13
-                      : span > 0.01
-                        ? 14
-                        : 15;
-        map.panTo(new naverObj.maps.LatLng(centerLat, centerLng));
-        map.setZoom(targetZoom, true);
-      }
+      window.setTimeout(() => ensureVisible(0), 180);
       lastFittedMarkersKeyRef.current = markersKey;
     }
+    fitMapToMarkersRef.current = fitMapToMarkers;
 
     function upsertMarkers(next: MapMarker[], map: naver.maps.Map, naverObj: NaverGlobal) {
       const nextIds = new Set<number>();
@@ -409,6 +440,11 @@ const NaverMap = forwardRef<
               // resize 직후 가시영역/스타일 동기화
               scheduleVisibleSync();
               applyFocusHoverDeltaStyles(naverObj);
+              fitMapToMarkers(
+                naverObj,
+                Array.from(markerDataByIdRef.current.values()),
+                true,
+              );
             });
           });
           // 일부 iOS에서 1회 더 필요할 때가 있어 보수적으로 1번만 추가
@@ -422,6 +458,11 @@ const NaverMap = forwardRef<
 
             scheduleVisibleSync();
             applyFocusHoverDeltaStyles(naverObj);
+            fitMapToMarkers(
+              naverObj,
+              Array.from(markerDataByIdRef.current.values()),
+              true,
+            );
           }, 250);
         };
         triggerInitialResize();
@@ -521,6 +562,12 @@ const NaverMap = forwardRef<
         markerByIdRef.current.forEach((_mk, id) => {
           applyMarkerStyleByIdRef.current(naverObj, id);
         });
+
+        fitMapToMarkersRef.current(
+          naverObj,
+          Array.from(markerDataByIdRef.current.values()),
+          true,
+        );
       };
 
       window.addEventListener("pageshow", forceRefresh);
