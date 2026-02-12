@@ -13,6 +13,7 @@ type UnitTypeRow = {
   price_min: number | null;
   price_max: number | null;
   is_price_public?: boolean | null;
+  is_public?: boolean | null;
 
   // 이미지 URL (둘 중 하나 또는 둘 다 올 수 있음)
   floor_plan_url: string | null;
@@ -380,6 +381,7 @@ export default function OfferingUnitTypesAccordion({
 }) {
   const rows = useMemo(() => {
     return (unitTypes ?? [])
+      .filter((u) => u.is_public !== false)
       .slice()
       .sort((a, b) => (a.type_name ?? "").localeCompare(b.type_name ?? ""));
   }, [unitTypes]);

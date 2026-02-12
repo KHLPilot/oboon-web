@@ -19,6 +19,7 @@ export type UnitRow = {
   price_min: number | null;
   price_max: number | null;
   is_price_public: boolean;
+  is_public: boolean;
 
   unit_count: number | null;
   supply_count: number | null;

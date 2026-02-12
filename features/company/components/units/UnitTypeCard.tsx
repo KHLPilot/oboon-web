@@ -111,6 +111,7 @@ export default function UnitTypeCard({
   saving,
   onStartEdit,
   onDelete,
+  onTogglePublic,
   onCancel,
   onSave,
   onChange,
@@ -122,6 +123,7 @@ export default function UnitTypeCard({
   saving: boolean;
   onStartEdit: () => void;
   onDelete: () => void;
+  onTogglePublic: (nextIsPublic: boolean) => Promise<void> | void;
   onCancel: () => void;
   onSave: () => void;
   onChange: <K extends keyof UnitDraft>(key: K, value: UnitDraft[K]) => void;
@@ -143,6 +145,7 @@ export default function UnitTypeCard({
   const [supplyText, setSupplyText] = useState("");
   const [floorUploading, setFloorUploading] = useState(false);
   const [appendAreaUnit, setAppendAreaUnit] = useState(false);
+  const [togglingPublic, setTogglingPublic] = useState(false);
   const [floorPlanFileName, setFloorPlanFileName] = useState<string | null>(
     null,
   );
@@ -193,6 +196,7 @@ export default function UnitTypeCard({
   }
 
   const disabled = Boolean(saving || floorUploading);
+  const isUnitPublic = isEditing ? Boolean(draft?.is_public) : Boolean(unit.is_public);
 
   return (
     <Card
@@ -218,9 +222,15 @@ export default function UnitTypeCard({
         <div className="flex items-center gap-2 shrink-0">
           <StatusBadge status={isEditing ? "수정 중" : status} />
           <Badge
+            variant={isUnitPublic ? "default" : "warning"}
+            className="ob-typo-caption"
+          >
+            {isUnitPublic ? "게시" : "미게시"}
+          </Badge>
+          <Badge
             variant={
               (isEditing ? draft?.is_price_public : unit.is_price_public)
-                ? "primary"
+                ? "default"
                 : "warning"
             }
             className="ob-typo-caption"
@@ -244,6 +254,24 @@ export default function UnitTypeCard({
 
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={onStartEdit}>수정</DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={async () => {
+                  if (togglingPublic) return;
+                  const nextIsPublic = !isUnitPublic;
+                  if (isEditing && draft) {
+                    onChange("is_public", nextIsPublic);
+                    return;
+                  }
+                  try {
+                    setTogglingPublic(true);
+                    await onTogglePublic(nextIsPublic);
+                  } finally {
+                    setTogglingPublic(false);
+                  }
+                }}
+              >
+                {isUnitPublic ? "미게시로 전환" : "게시로 전환"}
+              </DropdownMenuItem>
               <DropdownMenuItem destructive onClick={onDelete}>
                 삭제
               </DropdownMenuItem>

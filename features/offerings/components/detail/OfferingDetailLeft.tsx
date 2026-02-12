@@ -89,6 +89,7 @@ type PropertyUnitTypeRow = {
   price_min: number | null;
   price_max: number | null;
   is_price_public?: boolean | null;
+  is_public?: boolean | null;
   floor_plan_url: string | null;
   image_url: string | null;
   exclusive_area: number | null;
@@ -371,6 +372,7 @@ export default function OfferingDetailLeft({
   const facilities = asArray<PropertyFacilityRow>(p.property_facilities);
 
   const unitTypes = asArray<PropertyUnitTypeRow>(p.property_unit_types)
+    .filter((u) => u.is_public !== false)
     .slice()
     .sort((a, b) => (a.type_name ?? "").localeCompare(b.type_name ?? ""));
   const hasPriceTable = unitTypes.length > 0;

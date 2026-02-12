@@ -18,6 +18,7 @@ type PropertyUnitTypeRow = {
   price_min: number | string | null;
   price_max: number | string | null;
   is_price_public?: boolean | null;
+  is_public?: boolean | null;
 };
 
 export type PropertyRow = {
@@ -57,6 +58,7 @@ function aggregatePrice(unitTypes: PropertyUnitTypeRow[] | null | undefined) {
   let hasPublic = false;
 
   for (const u of unitTypes ?? []) {
+    if (u.is_public === false) continue;
     if (u.is_price_public === false) {
       hasPrivate = true;
       continue;

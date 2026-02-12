@@ -57,6 +57,7 @@ function buildDraftFromRow(row: UnitRow): UnitDraft {
     price_min: row.price_min ?? null,
     price_max: row.price_max ?? null,
     is_price_public: row.is_price_public ?? true,
+    is_public: row.is_public ?? true,
     unit_count: row.unit_count ?? null,
     supply_count: row.supply_count ?? null,
     floor_plan_url: row.floor_plan_url ?? null,
@@ -100,6 +101,7 @@ export default function UnitTypesPage() {
     price_min: null,
     price_max: null,
     is_price_public: true,
+    is_public: true,
     unit_count: null,
     supply_count: null,
     floor_plan_url: null,
@@ -250,6 +252,7 @@ export default function UnitTypesPage() {
       price_min: null,
       price_max: null,
       is_price_public: true,
+      is_public: true,
       unit_count: null,
       supply_count: null,
       floor_plan_url: null,
@@ -269,6 +272,14 @@ export default function UnitTypesPage() {
     setDeletingId(null);
 
     if (editingId === id) cancelInlineEdit();
+  }
+
+  async function handleToggleUnitPublic(unit: UnitRow, nextIsPublic: boolean) {
+    const nextDraft: UnitDraft = {
+      ...buildDraftFromRow(unit),
+      is_public: nextIsPublic,
+    };
+    await updateUnit(unit.id, nextDraft);
   }
 
   return (
@@ -301,7 +312,7 @@ export default function UnitTypesPage() {
 
             {/* Error (hook) */}
             {errorMsg ? (
-              <div className="rounded-2xl border border-(--oboon-danger-border) bg-(--oboon-danger) px-4 py-3">
+              <div className="rounded-2xl border border-(--oboon-danger-border) bg-(--oboon-danger-bg) px-4 py-3">
                 <p className="ob-typo-body text-(--oboon-danger)">{errorMsg}</p>
               </div>
             ) : null}
@@ -352,7 +363,7 @@ export default function UnitTypesPage() {
                     </span>
                   </label>
                   {createFieldErrors.type_name ? (
-                    <p className="ob-typo-caption text-red-500">
+                    <p className="ob-typo-caption text-(--oboon-danger)">
                       {createFieldErrors.type_name}
                     </p>
                   ) : null}
@@ -709,6 +720,9 @@ export default function UnitTypesPage() {
                       saving={savingInline}
                       onStartEdit={() => startInlineEdit(u)}
                       onDelete={() => handleDelete(u.id)}
+                      onTogglePublic={(nextIsPublic) =>
+                        handleToggleUnitPublic(u, nextIsPublic)
+                      }
                       onCancel={cancelInlineEdit}
                       onSave={saveInlineEdit}
                       onChange={(key, value) =>
