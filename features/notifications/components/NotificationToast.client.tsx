@@ -17,7 +17,8 @@ type SenderProfile = {
 
 type RoomRow = {
   id: string;
-  consultation_id: string;
+  consultation_id: string | null;
+  last_consultation_id: string | null;
   customer_id: string;
   agent_id: string;
   updated_at: string;
@@ -158,7 +159,9 @@ export default function NotificationToastManager() {
 
       const { data: rooms, error: roomError } = await supabase
         .from("chat_rooms")
-        .select("id, consultation_id, customer_id, agent_id, updated_at")
+        .select(
+          "id, consultation_id, last_consultation_id, customer_id, agent_id, updated_at",
+        )
         .or(`customer_id.eq.${user.id},agent_id.eq.${user.id}`)
         .order("updated_at", { ascending: false })
         .limit(50);
@@ -268,17 +271,21 @@ export default function NotificationToastManager() {
 
       const items = roomRows
         .map((room) => {
+          const activeConsultationId =
+            room.last_consultation_id ?? room.consultation_id;
+          if (!activeConsultationId) return null;
+
           const counterpartId =
             room.customer_id === currentUserId ? room.agent_id : room.customer_id;
           const profile = senderProfiles[counterpartId];
           const latest = latestByRoom.get(room.id);
           const lastMessageAt = latest?.created_at || room.updated_at;
-          const unreadCount = unreadByConsultation.get(room.consultation_id) ?? 0;
+          const unreadCount = unreadByConsultation.get(activeConsultationId) ?? 0;
           const hasLatestMessage = Boolean(latest?.content?.trim());
 
           return {
             roomId: room.id,
-            consultationId: room.consultation_id,
+            consultationId: activeConsultationId,
             counterpartId,
             counterpartName: profile?.name ?? "알 수 없음",
             counterpartAvatarUrl: profile?.avatar_url ?? null,
@@ -288,6 +295,7 @@ export default function NotificationToastManager() {
             unreadCount,
           } satisfies ThreadItem;
         })
+        .filter((item): item is ThreadItem => Boolean(item))
         .sort(
           (a, b) =>
             new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime(),

@@ -130,19 +130,27 @@ export default function UnitTypeCard({
     null,
   );
   const floorPlanInputRef = useRef<HTMLInputElement | null>(null);
+  const wasEditingRef = useRef(false);
 
   useEffect(() => {
-    if (isEditing && draft) {
+    const enteringEdit = isEditing && !wasEditingRef.current;
+    const leavingEdit = !isEditing && wasEditingRef.current;
+
+    if (enteringEdit && draft) {
       setExclusiveText(
         draft.exclusive_area != null ? String(draft.exclusive_area) : "",
       );
       setSupplyText(draft.supply_area != null ? String(draft.supply_area) : "");
-    } else {
+    }
+
+    if (leavingEdit) {
       setExclusiveText("");
       setSupplyText("");
       setFloorPlanFileName(null);
     }
-  }, [isEditing, draft, draft?.exclusive_area, draft?.supply_area]);
+
+    wasEditingRef.current = isEditing;
+  }, [isEditing, draft]);
 
   async function handlePickFloorPlan(file: File) {
     if (!draft) return;

@@ -32,8 +32,12 @@ export default function UnitTypeCreateForm({
   creating,
   pricePreview,
 }: Props) {
-  const [exclusiveText, setExclusiveText] = React.useState("");
-  const [supplyText, setSupplyText] = React.useState("");
+  const [exclusiveText, setExclusiveText] = React.useState(
+    value.exclusive_area != null ? String(value.exclusive_area) : "",
+  );
+  const [supplyText, setSupplyText] = React.useState(
+    value.supply_area != null ? String(value.supply_area) : "",
+  );
   const [floorUploading, setFloorUploading] = React.useState(false);
   const [floorPlanFileName, setFloorPlanFileName] = React.useState<
     string | null
@@ -41,14 +45,24 @@ export default function UnitTypeCreateForm({
   const floorPlanInputRef = useRef<HTMLInputElement | null>(null);
 
   React.useEffect(() => {
-    setExclusiveText(
-      value.exclusive_area != null ? String(value.exclusive_area) : "",
-    );
-  }, [value.exclusive_area]);
+    if (value.exclusive_area == null) {
+      if (exclusiveText !== "") setExclusiveText("");
+      return;
+    }
+    if (exclusiveText === "") {
+      setExclusiveText(String(value.exclusive_area));
+    }
+  }, [value.exclusive_area, exclusiveText]);
 
   React.useEffect(() => {
-    setSupplyText(value.supply_area != null ? String(value.supply_area) : "");
-  }, [value.supply_area]);
+    if (value.supply_area == null) {
+      if (supplyText !== "") setSupplyText("");
+      return;
+    }
+    if (supplyText === "") {
+      setSupplyText(String(value.supply_area));
+    }
+  }, [value.supply_area, supplyText]);
 
   async function handlePickFloorPlan(file: File) {
     const propertyId = value.properties_id;

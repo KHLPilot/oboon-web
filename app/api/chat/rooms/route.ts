@@ -5,7 +5,9 @@ import { createClient } from "@supabase/supabase-js";
 
 type RoomRow = {
   id: string;
-  consultation_id: string;
+  consultation_id: string | null;
+  last_consultation_id: string | null;
+  property_id: number | null;
   customer_id: string;
   agent_id: string;
   updated_at: string;
@@ -98,7 +100,9 @@ export async function GET() {
 
     const { data: roomsData, error: roomError } = await db
       .from("chat_rooms")
-      .select("id, consultation_id, customer_id, agent_id, updated_at")
+      .select(
+        "id, consultation_id, last_consultation_id, property_id, customer_id, agent_id, updated_at",
+      )
       .or(`customer_id.eq.${user.id},agent_id.eq.${user.id}`)
       .order("updated_at", { ascending: false })
       .limit(100);
@@ -113,8 +117,18 @@ export async function GET() {
       return NextResponse.json({ rooms: [] });
     }
 
-    const consultationIds = [...new Set(rooms.map((r) => r.consultation_id))];
+    const consultationIds = [
+      ...new Set(
+        rooms
+          .map((r) => r.last_consultation_id ?? r.consultation_id)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
     const roomIds = [...new Set(rooms.map((r) => r.id))];
+
+    if (consultationIds.length === 0) {
+      return NextResponse.json({ rooms: [] });
+    }
 
     const [{ data: consultationsData, error: consultationError }, { data: messageData, error: messageError }] =
       await Promise.all([
@@ -164,7 +178,13 @@ export async function GET() {
     });
 
     const payload = rooms.map((room) => {
-      const consultation = consultationMap.get(room.consultation_id);
+      const activeConsultationId = room.last_consultation_id ?? room.consultation_id;
+      if (!activeConsultationId) return null;
+
+      const consultation = consultationMap.get(activeConsultationId);
+      if (!consultation) return null;
+      if (consultation.status === "cancelled") return null;
+
       const customer = first(consultation?.customer);
       const agent = first(consultation?.agent);
       const property = first(consultation?.property);
@@ -172,7 +192,7 @@ export async function GET() {
       const latest = latestByRoom.get(room.id);
       return {
         room_id: room.id,
-        consultation_id: room.consultation_id,
+        consultation_id: activeConsultationId,
         updated_at: room.updated_at,
         status: consultation?.status ?? null,
         scheduled_at: consultation?.scheduled_at ?? null,
@@ -189,7 +209,7 @@ export async function GET() {
         latest_message: latest?.content ?? null,
         latest_message_at: latest?.created_at ?? room.updated_at,
       };
-    });
+    }).filter((room): room is NonNullable<typeof room> => Boolean(room));
 
     return NextResponse.json({ rooms: payload });
   } catch (error: unknown) {

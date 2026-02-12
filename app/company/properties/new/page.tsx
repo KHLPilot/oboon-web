@@ -416,6 +416,22 @@ export default function PropertyCreatePage() {
                       const f = e.target.files?.[0] ?? null;
                       // 같은 파일 재선택 가능하도록 초기화
                       e.currentTarget.value = "";
+                      if (f) {
+                        if (
+                          !["image/jpeg", "image/png", "image/webp"].includes(
+                            f.type,
+                          )
+                        ) {
+                          showAlert(
+                            "대표 이미지는 jpg/png/webp 파일만 가능합니다.",
+                          );
+                          return;
+                        }
+                        if (f.size > 5 * 1024 * 1024) {
+                          showAlert("대표 이미지는 5MB 이하만 가능합니다.");
+                          return;
+                        }
+                      }
                       setMainImageFile(f);
                       setMainImageFileName(f ? f.name : null);
                     }}

@@ -152,8 +152,9 @@ export default function SignupProfileClient() {
   );
 
   const setSanitized =
-    (field: "name" | "nickname" | "phone") => (value: string) => {
-      const sanitized = sanitizeInput(value, field);
+    (field: "name" | "nickname" | "phone") =>
+    (value: string, isComposing = false) => {
+      const sanitized = isComposing ? value : sanitizeInput(value, field);
       if (field === "name") setName(sanitized);
       if (field === "nickname") {
         setNickname(sanitized);
@@ -544,7 +545,12 @@ export default function SignupProfileClient() {
                       <Input
                         ref={nameRef}
                         value={name}
-                        onChange={(e) => setSanitized("name")(e.target.value)}
+                        onChange={(e) =>
+                          setSanitized("name")(
+                            e.target.value,
+                            (e.nativeEvent as InputEvent).isComposing ?? false,
+                          )
+                        }
                         onFocus={clearFieldError}
                         placeholder="김오분"
                         maxLength={20}
@@ -567,7 +573,11 @@ export default function SignupProfileClient() {
                           ref={nicknameRef}
                           value={nickname}
                           onChange={(e) =>
-                            setSanitized("nickname")(e.target.value)
+                            setSanitized("nickname")(
+                              e.target.value,
+                              (e.nativeEvent as InputEvent).isComposing ??
+                                false,
+                            )
                           }
                           onFocus={clearFieldError}
                           placeholder="오분이"
@@ -630,7 +640,12 @@ export default function SignupProfileClient() {
                       <Input
                         ref={phoneRef}
                         value={phoneNumber}
-                        onChange={(e) => setSanitized("phone")(e.target.value)}
+                        onChange={(e) =>
+                          setSanitized("phone")(
+                            e.target.value,
+                            (e.nativeEvent as InputEvent).isComposing ?? false,
+                          )
+                        }
                         onFocus={clearFieldError}
                         placeholder="01012345678"
                         maxLength={13}

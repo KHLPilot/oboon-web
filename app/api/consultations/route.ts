@@ -242,22 +242,39 @@ export async function POST(req: Request) {
       }
     }
 
-    // 포인트 예약은 즉시 배정 처리: 채팅방 생성 + 상담사 알림
-    if (isPointReservation) {
+    // 상담이 생성되면 (현장+고객+상담사) 기준으로 채팅방을 재사용/생성
+    {
       const { data: existingRoom } = await adminSupabase
         .from("chat_rooms")
         .select("id")
-        .eq("consultation_id", consultation.id)
+        .eq("property_id", property_id)
+        .eq("customer_id", user.id)
+        .eq("agent_id", agent_id)
         .limit(1)
         .maybeSingle();
 
-      if (!existingRoom) {
+      if (existingRoom) {
+        await adminSupabase
+          .from("chat_rooms")
+          .update({
+            consultation_id: consultation.id,
+            last_consultation_id: consultation.id,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existingRoom.id);
+      } else {
         await adminSupabase.from("chat_rooms").insert({
           consultation_id: consultation.id,
+          last_consultation_id: consultation.id,
+          property_id,
           customer_id: user.id,
           agent_id,
         });
       }
+    }
+
+    // 포인트 예약은 즉시 배정 처리: 상담사 알림
+    if (isPointReservation) {
 
       const { data: property } = await adminSupabase
         .from("properties")

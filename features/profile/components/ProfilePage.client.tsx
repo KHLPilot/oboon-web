@@ -281,8 +281,8 @@ export default function ProfilePage({
   /* =====================
      실시간 입력 제한
      ===================== */
-  const handleNameChange = (value: string) => {
-    const sanitized = sanitizeInput(value, "name");
+  const handleNameChange = (value: string, isComposing = false) => {
+    const sanitized = isComposing ? value : sanitizeInput(value, "name");
     setName(sanitized);
 
     if (errors.name) {
@@ -290,8 +290,8 @@ export default function ProfilePage({
     }
   };
 
-  const handleNicknameChange = (value: string) => {
-    const sanitized = sanitizeInput(value, "nickname");
+  const handleNicknameChange = (value: string, isComposing = false) => {
+    const sanitized = isComposing ? value : sanitizeInput(value, "nickname");
     setNickname(sanitized);
 
     if (errors.nickname) {
@@ -302,8 +302,8 @@ export default function ProfilePage({
     setNicknameAvailable(null);
   };
 
-  const handlePhoneChange = (value: string) => {
-    const sanitized = sanitizeInput(value, "phone");
+  const handlePhoneChange = (value: string, isComposing = false) => {
+    const sanitized = isComposing ? value : sanitizeInput(value, "phone");
     setPhone(sanitized);
 
     if (errors.phone) {
@@ -320,8 +320,8 @@ export default function ProfilePage({
     }
   };
 
-  const handleBankNameChange = (value: string) => {
-    const sanitized = sanitizeInput(value, "name");
+  const handleBankNameChange = (value: string, isComposing = false) => {
+    const sanitized = isComposing ? value : sanitizeInput(value, "name");
     setBankName(sanitized);
 
     if (errors.bankName) {
@@ -329,8 +329,11 @@ export default function ProfilePage({
     }
   };
 
-  const handleBankAccountHolderChange = (value: string) => {
-    const sanitized = sanitizeInput(value, "name");
+  const handleBankAccountHolderChange = (
+    value: string,
+    isComposing = false,
+  ) => {
+    const sanitized = isComposing ? value : sanitizeInput(value, "name");
     setBankAccountHolder(sanitized);
 
     if (errors.bankAccountHolder) {
@@ -1120,7 +1123,13 @@ export default function ProfilePage({
                         <Input
                           value={name}
                           disabled={!isEditing}
-                          onChange={(e) => handleNameChange(e.target.value)}
+                          onChange={(e) =>
+                            handleNameChange(
+                              e.target.value,
+                              (e.nativeEvent as InputEvent).isComposing ??
+                                false,
+                            )
+                          }
                           placeholder="이름"
                           maxLength={20}
                           className={[
@@ -1134,7 +1143,13 @@ export default function ProfilePage({
                         <Input
                           value={phone}
                           disabled={!isEditing}
-                          onChange={(e) => handlePhoneChange(e.target.value)}
+                          onChange={(e) =>
+                            handlePhoneChange(
+                              e.target.value,
+                              (e.nativeEvent as InputEvent).isComposing ??
+                                false,
+                            )
+                          }
                           placeholder="연락처"
                           maxLength={13}
                           className={[
@@ -1160,7 +1175,13 @@ export default function ProfilePage({
                         <Input
                           value={bankName}
                           disabled={!isEditing}
-                          onChange={(e) => handleBankNameChange(e.target.value)}
+                          onChange={(e) =>
+                            handleBankNameChange(
+                              e.target.value,
+                              (e.nativeEvent as InputEvent).isComposing ??
+                                false,
+                            )
+                          }
                           placeholder="예: 토스뱅크"
                           maxLength={30}
                           className={[
@@ -1201,7 +1222,11 @@ export default function ProfilePage({
                           value={bankAccountHolder}
                           disabled={!isEditing}
                           onChange={(e) =>
-                            handleBankAccountHolderChange(e.target.value)
+                            handleBankAccountHolderChange(
+                              e.target.value,
+                              (e.nativeEvent as InputEvent).isComposing ??
+                                false,
+                            )
                           }
                           placeholder="예금주 이름"
                           maxLength={50}
@@ -1805,7 +1830,13 @@ export default function ProfilePage({
                           <Input
                             value={name}
                             disabled={!isEditing}
-                            onChange={(e) => handleNameChange(e.target.value)}
+                            onChange={(e) =>
+                              handleNameChange(
+                                e.target.value,
+                                (e.nativeEvent as InputEvent).isComposing ??
+                                  false,
+                              )
+                            }
                             placeholder="김오분 (한글/영문 2-20자)"
                             maxLength={20}
                             className={[
@@ -1825,7 +1856,13 @@ export default function ProfilePage({
                           <Input
                             value={phone}
                             disabled={!isEditing}
-                            onChange={(e) => handlePhoneChange(e.target.value)}
+                            onChange={(e) =>
+                              handlePhoneChange(
+                                e.target.value,
+                                (e.nativeEvent as InputEvent).isComposing ??
+                                  false,
+                              )
+                            }
                             placeholder="01012345678"
                             maxLength={13}
                             className={[
@@ -1849,7 +1886,11 @@ export default function ProfilePage({
                               value={nickname}
                               disabled={!isEditing}
                               onChange={(e) =>
-                                handleNicknameChange(e.target.value)
+                                handleNicknameChange(
+                                  e.target.value,
+                                  (e.nativeEvent as InputEvent).isComposing ??
+                                    false,
+                                )
                               }
                               placeholder="오분이 (선택, 2-15자)"
                               maxLength={15}
@@ -1904,7 +1945,13 @@ export default function ProfilePage({
                           <Input
                             value={bankName}
                             disabled={!isEditing}
-                            onChange={(e) => handleBankNameChange(e.target.value)}
+                            onChange={(e) =>
+                              handleBankNameChange(
+                                e.target.value,
+                                (e.nativeEvent as InputEvent).isComposing ??
+                                  false,
+                              )
+                            }
                             placeholder="예: 토스뱅크"
                             maxLength={30}
                             className={[
@@ -1948,7 +1995,11 @@ export default function ProfilePage({
                             value={bankAccountHolder}
                             disabled={!isEditing}
                             onChange={(e) =>
-                              handleBankAccountHolderChange(e.target.value)
+                              handleBankAccountHolderChange(
+                                e.target.value,
+                                (e.nativeEvent as InputEvent).isComposing ??
+                                  false,
+                              )
                             }
                             placeholder="예금주 이름"
                             maxLength={50}

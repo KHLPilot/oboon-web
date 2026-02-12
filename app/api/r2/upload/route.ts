@@ -58,7 +58,9 @@ export async function POST(req: Request) {
         );
       }
 
-      const key = `properties/${propertyId}/main.${ext}`;
+      // 대표 이미지는 교체 업로드가 잦아 고정 경로를 쓰면 CDN/브라우저 캐시로
+      // 이전 이미지가 보일 수 있어 버전 키를 사용한다.
+      const key = `properties/${propertyId}/main-${Date.now()}.${ext}`;
 
       const arrayBuffer = await file.arrayBuffer();
       const body = Buffer.from(arrayBuffer);

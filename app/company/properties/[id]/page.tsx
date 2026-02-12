@@ -478,6 +478,12 @@ function PropertyDetailPageInner() {
     const file = e.target.files?.[0];
     if (!file || !form) return;
 
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      showAlert("대표 이미지는 jpg/png/webp 파일만 가능합니다.");
+      e.currentTarget.value = "";
+      return;
+    }
+
     if (file.size > 5 * 1024 * 1024)
       return showAlert("이미지는 5MB 이하만 가능합니다.");
 
@@ -497,12 +503,15 @@ function PropertyDetailPageInner() {
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Upload failed");
 
-      setForm({ ...form, image_url: result.url });
+      setForm((prev) => (prev ? { ...prev, image_url: result.url } : prev));
     } catch (err) {
       showAlert(
         "업로드 실패: " + (err instanceof Error ? (err instanceof Error ? err.message : "알 수 없는 오류") : "오류"),
       );
       setImageFileName(null);
+      setLocalPreview(null);
+    } finally {
+      e.currentTarget.value = "";
     }
   }
 

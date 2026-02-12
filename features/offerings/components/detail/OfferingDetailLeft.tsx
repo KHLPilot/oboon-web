@@ -226,6 +226,17 @@ function toNumberOrNull(value: number | string | null | undefined) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function isModelHouseType(value: string | null | undefined) {
+  const raw = (value ?? "").trim();
+  if (!raw) return false;
+  const normalized = raw.toLowerCase().replace(/[\s_-]/g, "");
+  return (
+    normalized === "modelhouse" ||
+    normalized === "modelhome" ||
+    raw.includes("모델하우스")
+  );
+}
+
 /* ---------------- Page-local UI atoms ---------------- */
 
 function CardBox({
@@ -374,15 +385,29 @@ export default function OfferingDetailLeft({
 
   const siteLat = toNumberOrNull(loc0?.lat);
   const siteLng = toNumberOrNull(loc0?.lng);
-  const modelHouse = facilities.find(
+  const modelHouseCandidates = facilities.filter(
     (facility) =>
-      facility.type === "MODELHOUSE" &&
-      facility.is_active !== false &&
+      isModelHouseType(facility.type) &&
       toNumberOrNull(facility.lat) != null &&
       toNumberOrNull(facility.lng) != null,
   );
+  const modelHouse =
+    modelHouseCandidates.find((facility) => facility.is_active !== false) ??
+    modelHouseCandidates[0] ??
+    null;
   const modelHouseLat = toNumberOrNull(modelHouse?.lat);
   const modelHouseLng = toNumberOrNull(modelHouse?.lng);
+  const overlapsWithSite =
+    siteLat != null &&
+    siteLng != null &&
+    modelHouseLat != null &&
+    modelHouseLng != null &&
+    Math.abs(siteLat - modelHouseLat) < 0.000001 &&
+    Math.abs(siteLng - modelHouseLng) < 0.000001;
+  const adjustedModelHouseLat =
+    overlapsWithSite && modelHouseLat != null ? modelHouseLat + 0.00012 : modelHouseLat;
+  const adjustedModelHouseLng =
+    overlapsWithSite && modelHouseLng != null ? modelHouseLng + 0.00012 : modelHouseLng;
 
   const locationMarkers: MapMarker[] = [
     ...(siteLat != null && siteLng != null
@@ -398,13 +423,13 @@ export default function OfferingDetailLeft({
           },
         ]
       : []),
-    ...(modelHouseLat != null && modelHouseLng != null
+    ...(adjustedModelHouseLat != null && adjustedModelHouseLng != null
       ? [
           {
             id: 2,
             label: "모델하우스",
-            lat: modelHouseLat,
-            lng: modelHouseLng,
+            lat: adjustedModelHouseLat,
+            lng: adjustedModelHouseLng,
             type: "open" as const,
             topLabel: null,
             mainLabel: "모델하우스",

@@ -241,37 +241,47 @@ const NaverMap = forwardRef<
         .join("|");
       if (markersKey === lastFittedMarkersKeyRef.current) return;
 
-      const lats = next.map((m) => m.lat);
-      const lngs = next.map((m) => m.lng);
-      const minLat = Math.min(...lats);
-      const maxLat = Math.max(...lats);
-      const minLng = Math.min(...lngs);
-      const maxLng = Math.max(...lngs);
+      const mapsAny = naverObj.maps as unknown as {
+        LatLngBounds?: new () => { extend: (point: unknown) => void };
+      };
+      const mapAny = map as unknown as { fitBounds?: (bounds: unknown) => void };
 
-      const centerLat = (minLat + maxLat) / 2;
-      const centerLng = (minLng + maxLng) / 2;
-      const span = Math.max(maxLat - minLat, maxLng - minLng);
+      if (mapsAny.LatLngBounds && typeof mapAny.fitBounds === "function") {
+        const bounds = new mapsAny.LatLngBounds();
+        next.forEach((m) => {
+          bounds.extend(new naverObj.maps.LatLng(m.lat, m.lng));
+        });
+        mapAny.fitBounds(bounds);
+      } else {
+        const lats = next.map((m) => m.lat);
+        const lngs = next.map((m) => m.lng);
+        const minLat = Math.min(...lats);
+        const maxLat = Math.max(...lats);
+        const minLng = Math.min(...lngs);
+        const maxLng = Math.max(...lngs);
 
-      // 마커 간 거리(span)에 따라 대략적인 줌을 선택
-      const targetZoom =
-        span > 1
-          ? 8
-          : span > 0.5
-            ? 9
-            : span > 0.2
-              ? 10
-              : span > 0.1
-                ? 11
-                : span > 0.05
-                  ? 12
-                  : span > 0.02
-                    ? 13
-                    : span > 0.01
-                      ? 14
-                      : 15;
-
-      map.panTo(new naverObj.maps.LatLng(centerLat, centerLng));
-      map.setZoom(targetZoom, true);
+        const centerLat = (minLat + maxLat) / 2;
+        const centerLng = (minLng + maxLng) / 2;
+        const span = Math.max(maxLat - minLat, maxLng - minLng);
+        const targetZoom =
+          span > 1
+            ? 8
+            : span > 0.5
+              ? 9
+              : span > 0.2
+                ? 10
+                : span > 0.1
+                  ? 11
+                  : span > 0.05
+                    ? 12
+                    : span > 0.02
+                      ? 13
+                      : span > 0.01
+                        ? 14
+                        : 15;
+        map.panTo(new naverObj.maps.LatLng(centerLat, centerLng));
+        map.setZoom(targetZoom, true);
+      }
       lastFittedMarkersKeyRef.current = markersKey;
     }
 
@@ -548,6 +558,7 @@ const NaverMap = forwardRef<
     useEffect(() => {
       const map = mapRef.current;
       if (!map || !focusedId || lastFocusedIdRef.current === focusedId) return;
+      if (fitToMarkers && markers.length > 1) return;
 
       const target = markerDataByIdRef.current.get(focusedId);
       if (!target) return;
@@ -573,7 +584,7 @@ const NaverMap = forwardRef<
       }
 
       lastFocusedIdRef.current = focusedId;
-    }, [focusedId, mode]);
+    }, [focusedId, mode, fitToMarkers, markers.length]);
 
     return (
       <div className="relative w-full h-full">

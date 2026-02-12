@@ -112,7 +112,10 @@ export async function POST(req: Request) {
       .or(`customer_id.eq.${userId},agent_id.eq.${userId}`);
     if (consultations && consultations.length > 0) {
       const consultationIds = consultations.map((c) => c.id);
-      await supabaseAdmin.from("chat_rooms").delete().in("consultation_id", consultationIds);
+      await supabaseAdmin
+        .from("chat_rooms")
+        .delete()
+        .or(`customer_id.eq.${userId},agent_id.eq.${userId}`);
       await supabaseAdmin.from("consultation_logs").delete().in("consultation_id", consultationIds);
       await supabaseAdmin.from("consultations").delete().in("id", consultationIds);
     }

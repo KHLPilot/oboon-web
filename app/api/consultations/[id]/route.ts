@@ -284,21 +284,37 @@ export async function PATCH(
             const { data: existingRoom } = await adminSupabase
                 .from("chat_rooms")
                 .select("id")
-                .eq("consultation_id", id)
+                .eq("property_id", existingConsultation.property_id)
+                .eq("customer_id", existingConsultation.customer_id)
+                .eq("agent_id", existingConsultation.agent_id)
                 .limit(1)
                 .maybeSingle();
 
-            if (!existingRoom) {
-                const { error: chatRoomError } = await adminSupabase
+            if (existingRoom) {
+                const { error: chatRoomUpdateError } = await adminSupabase
+                    .from("chat_rooms")
+                    .update({
+                        consultation_id: id,
+                        last_consultation_id: id,
+                        updated_at: new Date().toISOString(),
+                    })
+                    .eq("id", existingRoom.id);
+                if (chatRoomUpdateError) {
+                    console.error("승인 후 채팅방 갱신 오류:", chatRoomUpdateError);
+                }
+            } else {
+                const { error: chatRoomInsertError } = await adminSupabase
                     .from("chat_rooms")
                     .insert({
                         consultation_id: id,
+                        last_consultation_id: id,
+                        property_id: existingConsultation.property_id,
                         customer_id: existingConsultation.customer_id,
                         agent_id: existingConsultation.agent_id,
                     });
 
-                if (chatRoomError) {
-                    console.error("승인 후 채팅방 생성 오류:", chatRoomError);
+                if (chatRoomInsertError) {
+                    console.error("승인 후 채팅방 생성 오류:", chatRoomInsertError);
                 }
             }
 

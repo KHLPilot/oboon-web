@@ -93,6 +93,7 @@ function filterOfferings(
     budgetMaxEok != null && Number.isFinite(budgetMaxEok)
       ? Math.max(0, Math.floor(budgetMaxEok * 100_000_000))
       : null;
+  const hasBudgetFilter = budgetMinWon != null || budgetMaxWon != null;
 
   const rawAgent = (sp.agent ?? "").trim();
   const agentFilter = rawAgent === "has" ? "has" : "전체";
@@ -122,10 +123,18 @@ function filterOfferings(
     const priceMin = typeof anyO.priceMin === "number" ? anyO.priceMin : null;
     const priceMax = typeof anyO.priceMax === "number" ? anyO.priceMax : null;
 
-    if (budgetMinWon != null && priceMax != null && priceMax < budgetMinWon)
-      return false;
-    if (budgetMaxWon != null && priceMin != null && priceMin > budgetMaxWon)
-      return false;
+    // budget (o.priceMin/o.priceMax는 원(won) 단위로 가정)
+    // 예산 필터가 켜져 있을 때 가격 정보가 전혀 없으면 결과에서 제외한다.
+    if (hasBudgetFilter && priceMin == null && priceMax == null) return false;
+
+    if (budgetMinWon != null) {
+      const upper = priceMax ?? priceMin;
+      if (upper == null || upper < budgetMinWon) return false;
+    }
+    if (budgetMaxWon != null) {
+      const lower = priceMin ?? priceMax;
+      if (lower == null || lower > budgetMaxWon) return false;
+    }
 
     // q
     if (q) {

@@ -8,6 +8,76 @@ const adminSupabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+type ConsultationForChat = {
+  id: string;
+  property_id: number | null;
+  customer_id: string;
+  agent_id: string;
+};
+
+async function getConsultationForChat(consultationId: string) {
+  const { data } = await adminSupabase
+    .from("consultations")
+    .select("id, property_id, customer_id, agent_id")
+    .eq("id", consultationId)
+    .single();
+
+  return (data ?? null) as ConsultationForChat | null;
+}
+
+async function findRoomIdForConsultation(consultation: ConsultationForChat) {
+  if (consultation.property_id != null) {
+    const { data: roomByTriplet } = await adminSupabase
+      .from("chat_rooms")
+      .select("id")
+      .eq("property_id", consultation.property_id)
+      .eq("customer_id", consultation.customer_id)
+      .eq("agent_id", consultation.agent_id)
+      .limit(1)
+      .maybeSingle();
+
+    if (roomByTriplet?.id) return roomByTriplet.id as string;
+  }
+
+  const { data: roomByConsultation } = await adminSupabase
+    .from("chat_rooms")
+    .select("id")
+    .eq("consultation_id", consultation.id)
+    .limit(1)
+    .maybeSingle();
+
+  return (roomByConsultation?.id as string | undefined) ?? null;
+}
+
+async function ensureRoomIdForConsultation(consultation: ConsultationForChat) {
+  const existingRoomId = await findRoomIdForConsultation(consultation);
+  if (existingRoomId) {
+    await adminSupabase
+      .from("chat_rooms")
+      .update({
+        consultation_id: consultation.id,
+        last_consultation_id: consultation.id,
+        property_id: consultation.property_id,
+      })
+      .eq("id", existingRoomId);
+    return existingRoomId;
+  }
+
+  const { data: insertedRoom } = await adminSupabase
+    .from("chat_rooms")
+    .insert({
+      consultation_id: consultation.id,
+      last_consultation_id: consultation.id,
+      property_id: consultation.property_id,
+      customer_id: consultation.customer_id,
+      agent_id: consultation.agent_id,
+    })
+    .select("id")
+    .single();
+
+  return (insertedRoom?.id as string | undefined) ?? null;
+}
+
 // 메시지 조회
 export async function GET(
   req: Request,
@@ -46,11 +116,7 @@ export async function GET(
     }
 
     // 해당 상담 예약의 참여자인지 확인
-    const { data: consultation } = await adminSupabase
-      .from("consultations")
-      .select("customer_id, agent_id")
-      .eq("id", consultationId)
-      .single();
+    const consultation = await getConsultationForChat(consultationId);
 
     if (!consultation) {
       return NextResponse.json({ error: "상담을 찾을 수 없습니다" }, { status: 404 });
@@ -64,13 +130,8 @@ export async function GET(
     }
 
     // 채팅방 조회
-    const { data: chatRoom } = await adminSupabase
-      .from("chat_rooms")
-      .select("id")
-      .eq("consultation_id", consultationId)
-      .single();
-
-    if (!chatRoom) {
+    const chatRoomId = await findRoomIdForConsultation(consultation);
+    if (!chatRoomId) {
       return NextResponse.json({ error: "채팅방을 찾을 수 없습니다" }, { status: 404 });
     }
 
@@ -92,7 +153,7 @@ export async function GET(
         sender:profiles!chat_messages_sender_id_fkey(id, name)
       `
       )
-      .eq("room_id", chatRoom.id)
+      .eq("room_id", chatRoomId)
       .order("created_at", { ascending: false })
       .limit(limit);
 
@@ -116,7 +177,7 @@ export async function GET(
         // relation does not exist
         return NextResponse.json({
           messages: [],
-          chatRoomId: chatRoom.id,
+          chatRoomId,
         });
       }
       return NextResponse.json({ error: "메시지 조회에 실패했습니다" }, { status: 500 });
@@ -124,7 +185,7 @@ export async function GET(
 
     return NextResponse.json({
       messages: (messages || []).reverse(),
-      chatRoomId: chatRoom.id,
+      chatRoomId,
       userRole: isCustomer ? "customer" : "agent",
     });
   } catch (err: unknown) {
@@ -178,11 +239,7 @@ export async function POST(
     }
 
     // 해당 상담 예약의 참여자인지 확인
-    const { data: consultation } = await adminSupabase
-      .from("consultations")
-      .select("customer_id, agent_id")
-      .eq("id", consultationId)
-      .single();
+    const consultation = await getConsultationForChat(consultationId);
 
     if (!consultation) {
       return NextResponse.json({ error: "상담을 찾을 수 없습니다" }, { status: 404 });
@@ -193,13 +250,8 @@ export async function POST(
     }
 
     // 채팅방 조회
-    const { data: chatRoom } = await adminSupabase
-      .from("chat_rooms")
-      .select("id")
-      .eq("consultation_id", consultationId)
-      .single();
-
-    if (!chatRoom) {
+    const chatRoomId = await ensureRoomIdForConsultation(consultation);
+    if (!chatRoomId) {
       return NextResponse.json({ error: "채팅방을 찾을 수 없습니다" }, { status: 404 });
     }
 
@@ -207,7 +259,7 @@ export async function POST(
     const { data: message, error } = await adminSupabase
       .from("chat_messages")
       .insert({
-        room_id: chatRoom.id,
+        room_id: chatRoomId,
         sender_id: user.id,
         content: content.trim(),
       })
@@ -236,8 +288,12 @@ export async function POST(
     // 채팅방 updated_at 갱신
     await adminSupabase
       .from("chat_rooms")
-      .update({ updated_at: new Date().toISOString() })
-      .eq("id", chatRoom.id);
+      .update({
+        updated_at: new Date().toISOString(),
+        consultation_id: consultationId,
+        last_consultation_id: consultationId,
+      })
+      .eq("id", chatRoomId);
 
     // 상대방에게 알림 전송
     const isCustomer = consultation.customer_id === user.id;
@@ -344,11 +400,7 @@ export async function DELETE(
     }
 
     // 해당 상담 예약의 참여자인지 확인
-    const { data: consultation } = await adminSupabase
-      .from("consultations")
-      .select("customer_id, agent_id")
-      .eq("id", consultationId)
-      .single();
+    const consultation = await getConsultationForChat(consultationId);
 
     if (!consultation) {
       return NextResponse.json({ error: "상담을 찾을 수 없습니다" }, { status: 404 });
@@ -362,13 +414,8 @@ export async function DELETE(
     }
 
     // 채팅방 조회
-    const { data: chatRoom } = await adminSupabase
-      .from("chat_rooms")
-      .select("id")
-      .eq("consultation_id", consultationId)
-      .single();
-
-    if (!chatRoom) {
+    const chatRoomId = await findRoomIdForConsultation(consultation);
+    if (!chatRoomId) {
       return NextResponse.json({ error: "채팅방을 찾을 수 없습니다" }, { status: 404 });
     }
 
@@ -378,7 +425,7 @@ export async function DELETE(
     const { error: updateError } = await adminSupabase
       .from("chat_messages")
       .update({ [updateField]: true })
-      .eq("room_id", chatRoom.id);
+      .eq("room_id", chatRoomId);
 
     if (updateError) {
       console.error("채팅 삭제 오류:", updateError);
@@ -389,7 +436,7 @@ export async function DELETE(
     const { error: hardDeleteError } = await adminSupabase
       .from("chat_messages")
       .delete()
-      .eq("room_id", chatRoom.id)
+      .eq("room_id", chatRoomId)
       .eq("deleted_by_customer", true)
       .eq("deleted_by_agent", true);
 
