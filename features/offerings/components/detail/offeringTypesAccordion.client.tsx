@@ -98,6 +98,7 @@ function ImageModal({
   const [zoomed, setZoomed] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
+  const [imageNatural, setImageNatural] = useState({ width: 0, height: 0 });
 
   // pan state
   const [pos, setPos] = useState({ x: 0, y: 0 });
@@ -185,16 +186,35 @@ function ImageModal({
   }, [open]);
 
   const panBounds = useMemo(() => {
-    const w = viewportSize.width;
-    const h = viewportSize.height;
+    const vw = viewportSize.width;
+    const vh = viewportSize.height;
+    const iw = imageNatural.width;
+    const ih = imageNatural.height;
 
-    // "fill" + cover 기준으로 컨테이너를 꽉 채우고,
-    // 확대(scale)되면 추가로 넘치는 만큼만 이동을 허용
-    const maxX = Math.max(0, (w * (ZOOM - 1)) / 2);
-    const maxY = Math.max(0, (h * (ZOOM - 1)) / 2);
+    if (!vw || !vh || !iw || !ih) return { maxX: 0, maxY: 0 };
 
-    return { maxX, maxY };
-  }, [viewportSize.height, viewportSize.width, ZOOM]);
+    // object-contain 기준 렌더 크기 계산
+    const imageRatio = iw / ih;
+    const viewportRatio = vw / vh;
+    let baseW = 0;
+    let baseH = 0;
+
+    if (imageRatio > viewportRatio) {
+      baseW = vw;
+      baseH = vw / imageRatio;
+    } else {
+      baseH = vh;
+      baseW = vh * imageRatio;
+    }
+
+    const scaledW = baseW * ZOOM;
+    const scaledH = baseH * ZOOM;
+
+    return {
+      maxX: Math.max(0, (scaledW - vw) / 2),
+      maxY: Math.max(0, (scaledH - vh) / 2),
+    };
+  }, [viewportSize.height, viewportSize.width, imageNatural.height, imageNatural.width, ZOOM]);
 
   if (!open) return null;
 
@@ -298,7 +318,7 @@ function ImageModal({
             setZoomed((v) => !v);
           }}
         >
-          <div className="relative aspect-16/10 w-full select-none">
+          <div className="relative h-[68vh] w-full max-h-[78vh] select-none sm:h-[74vh]">
             {src ? (
               <div
                 className="absolute inset-0"
@@ -316,11 +336,13 @@ function ImageModal({
                   alt={`${title} 평면도`}
                   fill
                   draggable={false}
-                  className={cn(
-                    "select-none",
-                    // 기본은 꽉 채우기
-                    zoomed ? "object-cover" : "object-cover"
-                  )}
+                  onLoadingComplete={(img) => {
+                    setImageNatural({
+                      width: img.naturalWidth || 0,
+                      height: img.naturalHeight || 0,
+                    });
+                  }}
+                  className={cn("select-none object-contain")}
                   sizes="(max-width: 768px) 92vw, 1000px"
                 />
               </div>

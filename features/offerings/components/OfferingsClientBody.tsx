@@ -270,6 +270,7 @@ export default function OfferingsClientBody() {
               ))}
             </div>
           )}
+
         </div>
       </PageContainer>
     </main>
