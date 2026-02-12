@@ -1,5 +1,13 @@
+import type { Metadata } from "next";
 import PageContainer from "@/components/shared/PageContainer";
 import { CommunityProfilePage as CommunityProfilePageView } from "@/features/community";
+
+export const metadata: Metadata = {
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 export default function CommunityProfilePage() {
   return (

@@ -8,9 +8,56 @@ import Header from "@/components/shared/Header";
 import Footer from "@/components/shared/Footer";
 import Providers from "./providers";
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://oboon.co.kr";
+const structuredData = [
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "OBOON",
+    url: siteUrl,
+    logo: `${siteUrl}/logo.svg`,
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "OBOON",
+    url: siteUrl,
+    inLanguage: "ko-KR",
+    potentialAction: {
+      "@type": "SearchAction",
+      target: `${siteUrl}/offerings?search={search_term_string}`,
+      "query-input": "required name=search_term_string",
+    },
+  },
+];
+
 export const metadata: Metadata = {
-  title: "OBOON 분양 플랫폼",
-  description: "Offerings · Briefing · Overview · Options · Navigation",
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: "OBOON 분양 플랫폼",
+    template: "%s | OBOON",
+  },
+  description: "분양 정보 탐색부터 상담 연결까지 한 번에 진행하는 OBOON 분양 플랫폼.",
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    title: "OBOON 분양 플랫폼",
+    description: "분양 정보 탐색부터 상담 연결까지 한 번에 진행하는 OBOON 분양 플랫폼.",
+    url: "/",
+    siteName: "OBOON",
+    locale: "ko_KR",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "OBOON 분양 플랫폼",
+    description: "분양 정보 탐색부터 상담 연결까지 한 번에 진행하는 OBOON 분양 플랫폼.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export const viewport: Viewport = {
@@ -129,6 +176,12 @@ export default function RootLayout({
             `}
           </Script>
         ) : null}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(structuredData).replace(/</g, "\\u003c"),
+          }}
+        />
       </head>
       <body className="min-h-dvh flex flex-col">
         <Script

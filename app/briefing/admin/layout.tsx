@@ -1,4 +1,3 @@
-// app/company/properties/layout.tsx
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
@@ -9,10 +8,10 @@ export const metadata: Metadata = {
   },
 };
 
-export default function PropertiesLayout({
+export default function BriefingAdminLayout({
   children,
 }: {
   children: ReactNode;
 }) {
-  return <div className="flex-1 bg-(--oboon-bg-page)">{children}</div>;
+  return <>{children}</>;
 }
