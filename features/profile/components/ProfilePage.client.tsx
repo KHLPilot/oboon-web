@@ -23,6 +23,7 @@ import {
 import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
+import Modal from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import Input from "@/components/ui/Input";
 import Textarea from "@/components/ui/Textarea";
@@ -32,6 +33,7 @@ import {
   Building2,
   CalendarDays,
   CheckCircle,
+  ChevronLeft,
   ChevronRight,
   Clock,
   Edit2,
@@ -199,6 +201,14 @@ export default function ProfilePage({
   // 마케팅 수신 동의 상태
   const [marketingConsent, setMarketingConsent] = useState(false);
   const [marketingConsentLoading, setMarketingConsentLoading] = useState(false);
+  const [showAgentProfilePreview, setShowAgentProfilePreview] = useState(false);
+  const [previewImages, setPreviewImages] = useState<string[]>([]);
+  const [previewImageIndex, setPreviewImageIndex] = useState<number | null>(null);
+
+  const agentPreviewName = useMemo(() => {
+    const trimmedName = name.trim();
+    return trimmedName || "상담사";
+  }, [name]);
 
   const closeDeleteModal = () => {
     setShowDeleteModal(false);
@@ -1354,6 +1364,13 @@ export default function ProfilePage({
                     </div>
 
                     <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setShowAgentProfilePreview(true)}
+                      >
+                        미리보기
+                      </Button>
                       {!isEditing ? (
                         <Button
                           variant="secondary"
@@ -1825,6 +1842,138 @@ export default function ProfilePage({
               onClose={closeDeleteModal}
               onDelete={deleteAccount}
             />
+            <Modal
+              open={showAgentProfilePreview}
+              onClose={() => setShowAgentProfilePreview(false)}
+            >
+              <>
+                <div className="ob-typo-h2 text-(--oboon-text-title)">
+                  상담사 프로필
+                </div>
+
+                <div className="mt-5 flex items-center gap-3">
+                  <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle) text-(--oboon-text-title) flex items-center justify-center ob-typo-subtitle">
+                    <Image
+                      src={getAvatarUrlOrDefault(avatarUrl)}
+                      alt={`${agentPreviewName} 아바타`}
+                      width={48}
+                      height={48}
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                  <div>
+                    <div className="ob-typo-caption text-(--oboon-text-muted)">
+                      분양상담사
+                    </div>
+                    <div className="ob-typo-subtitle text-(--oboon-text-title)">
+                      {agentPreviewName}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-6 whitespace-pre-line ob-typo-body text-(--oboon-text-title)">
+                  {agentEtc.trim() || "등록된 상담사 소개가 없습니다."}
+                </div>
+
+                {galleryImages.length > 0 ? (
+                  <div className="mt-6">
+                    <div className="ob-typo-subtitle text-(--oboon-text-title)">
+                      추가 사진
+                    </div>
+                    <div className="mt-3 -mx-1 overflow-x-auto pb-1">
+                      <div className="flex gap-2 px-1">
+                        {galleryImages.slice(0, 10).map((image, index) => (
+                          <button
+                            key={`${image.user_id}-${image.sort_order}-${index}`}
+                            type="button"
+                            className="h-36 w-36 shrink-0 overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle)"
+                            onClick={() => {
+                              const urls = galleryImages
+                                .slice(0, 10)
+                                .map((item) => item.image_url);
+                              setPreviewImages(urls);
+                              setPreviewImageIndex(index);
+                            }}
+                            aria-label={`${agentPreviewName} 상담사 추가 사진 ${index + 1} 확대 보기`}
+                          >
+                            <Image
+                              src={image.image_url}
+                              alt={`${agentPreviewName} 상담사 추가 사진 ${index + 1}`}
+                              width={144}
+                              height={144}
+                              className="h-full w-full object-cover"
+                            />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </>
+            </Modal>
+
+            <Modal
+              open={previewImageIndex !== null}
+              onClose={() => {
+                setPreviewImageIndex(null);
+                setPreviewImages([]);
+              }}
+              showCloseIcon={false}
+              panelClassName="!p-0 !border-0 !bg-transparent !shadow-none w-[min(100%-2rem,920px)] !overflow-visible"
+            >
+              {previewImageIndex !== null && previewImages[previewImageIndex] ? (
+                <div className="flex items-center justify-center">
+                  <div className="relative inline-block">
+                    <Image
+                      src={previewImages[previewImageIndex]}
+                      alt="상담사 추가 사진 확대 보기"
+                      width={920}
+                      height={720}
+                      className="max-h-[80vh] max-w-[min(100%,920px)] h-auto w-auto rounded-xl"
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/50 text-white"
+                      onClick={() => {
+                        setPreviewImageIndex(null);
+                        setPreviewImages([]);
+                      }}
+                      aria-label="닫기"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      className="absolute left-3 top-1/2 -translate-y-1/2 inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white"
+                      onClick={() =>
+                        setPreviewImageIndex((prev) => {
+                          if (prev == null) return prev;
+                          if (previewImages.length === 0) return prev;
+                          return (prev - 1 + previewImages.length) % previewImages.length;
+                        })
+                      }
+                      aria-label="이전 사진"
+                    >
+                      <ChevronLeft className="h-5 w-5" />
+                    </button>
+                    <button
+                      type="button"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white"
+                      onClick={() =>
+                        setPreviewImageIndex((prev) => {
+                          if (prev == null) return prev;
+                          if (previewImages.length === 0) return prev;
+                          return (prev + 1) % previewImages.length;
+                        })
+                      }
+                      aria-label="다음 사진"
+                    >
+                      <ChevronRight className="h-5 w-5" />
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </Modal>
           </div>
           </section>
           </div>

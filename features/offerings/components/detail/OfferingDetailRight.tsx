@@ -157,7 +157,7 @@ export default function OfferingDetailRight({
                 {!isLoggedIn
                   ? "로그인 후 예약하기"
                   : isBookingBlockedRole
-                    ? "예약 불가 계정"
+                    ? "일반 회원만 예약 가능"
                     : "예약하기"}
               </Button>
               {isBookingBlockedRole ? (
@@ -205,15 +205,20 @@ export default function OfferingDetailRight({
                   {!isLoggedIn
                     ? "로그인 후 상담 신청"
                     : isBookingBlockedRole
-                      ? "예약 불가 계정"
+                      ? "일반 회원만 예약 가능"
                       : "상담 신청"}
                 </Button>
               ) : (
                 <div className="flex-1 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-2.5 text-center ob-typo-caption text-(--oboon-text-muted)">
-                  상담사 없음
+                  상담 가능 상담사 없음
                 </div>
               )}
             </div>
+            {hasBookableAgent && isBookingBlockedRole ? (
+              <div className="mt-2 text-center ob-typo-caption text-(--oboon-text-muted)">
+                관리자/상담사 계정은 예약할 수 없습니다.
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
