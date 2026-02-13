@@ -53,7 +53,7 @@ export function FAQAccordion({ items }: FAQAccordionProps) {
 
             {isOpen && (
               <div className="mt-3 pl-0 md:pl-4">
-                <div className="ob-typo-body whitespace-pre-wrap rounded-lg bg-(--oboon-bg-subtle) p-4 text-(--oboon-text-body)">
+                <div className="ob-typo-body whitespace-pre-wrap wrap-break-word rounded-lg bg-(--oboon-bg-subtle) p-4 text-(--oboon-text-body)">
                   {item.answer}
                 </div>
               </div>

@@ -202,7 +202,7 @@ export function QnADetail({
             </div>
           </div>
         ) : (
-          <div className="whitespace-pre-wrap text-(--oboon-text-body) ob-typo-body">
+          <div className="whitespace-pre-wrap wrap-break-word text-(--oboon-text-body) ob-typo-body">
             {data.body}
           </div>
         )}
@@ -222,7 +222,7 @@ export function QnADetail({
               {data.answer.authorName} | {data.answer.formattedDate}
             </span>
           </div>
-          <div className="whitespace-pre-wrap text-(--oboon-text-body) ob-typo-body">
+          <div className="whitespace-pre-wrap wrap-break-word text-(--oboon-text-body) ob-typo-body">
             {data.answer.body}
           </div>
         </div>

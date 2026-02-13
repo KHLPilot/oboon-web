@@ -612,7 +612,7 @@ export default function OfferingDetailLeft({
             <div className="ob-typo-caption text-(--oboon-text-muted)">
               현장 설명
             </div>
-            <div className="mt-2 whitespace-pre-wrap ob-typo-body text-(--oboon-text-title)">
+            <div className="mt-2 whitespace-pre-wrap wrap-break-word ob-typo-body text-(--oboon-text-title)">
               {propertyDescription}
             </div>
           </Card>
@@ -715,7 +715,7 @@ export default function OfferingDetailLeft({
                 <div className="ob-typo-caption text-(--oboon-text-muted)">
                   확정 내용
                 </div>
-                <div className="mt-2 whitespace-pre-wrap ob-typo-h4 text-(--oboon-text-title)">
+                <div className="mt-2 whitespace-pre-wrap wrap-break-word ob-typo-h4 text-(--oboon-text-title)">
                   {confirmedMemo}
                 </div>
               </Card>
@@ -726,7 +726,7 @@ export default function OfferingDetailLeft({
                 <div className="ob-typo-caption text-(--oboon-text-muted)">
                   추정 내용
                 </div>
-                <div className="mt-2 whitespace-pre-wrap ob-typo-h4 text-(--oboon-text-title)">
+                <div className="mt-2 whitespace-pre-wrap wrap-break-word ob-typo-h4 text-(--oboon-text-title)">
                   {estimatedMemo}
                 </div>
               </Card>

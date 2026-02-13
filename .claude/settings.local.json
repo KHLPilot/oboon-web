@@ -32,7 +32,9 @@
       "Bash(supabase link:*)",
       "Bash(supabase db push:*)",
       "Bash(supabase db execute:*)",
-      "Bash(npx supabase:*)"
+      "Bash(npx supabase:*)",
+      "Bash(git ls-tree:*)",
+      "Bash(git checkout:*)"
     ]
   }
 }
