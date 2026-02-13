@@ -1,7 +1,7 @@
 // app/company/properties/new/page.tsx
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { X } from "lucide-react";
@@ -41,6 +41,20 @@ type PendingGalleryImage = {
   previewUrl: string;
 };
 
+type DuplicatePropertyCandidate = {
+  id: number;
+  name: string | null;
+  property_type: string | null;
+  image_url: string | null;
+  status: string | null;
+};
+
+type AffiliationStatus = "pending" | "approved" | "rejected" | "withdrawn" | null;
+
+function normalizePropertyName(value: string) {
+  return value.replace(/\s+/g, "").toLowerCase();
+}
+
 function cn(...classes: Array<string | undefined | false | null>) {
   return classes.filter(Boolean).join(" ");
 }
@@ -67,6 +81,17 @@ export default function PropertyCreatePage() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [duplicateCandidates, setDuplicateCandidates] = useState<
+    DuplicatePropertyCandidate[]
+  >([]);
+  const [hasExactDuplicate, setHasExactDuplicate] = useState(false);
+  const [affiliationStatusMap, setAffiliationStatusMap] = useState<
+    Record<number, AffiliationStatus>
+  >({});
+  const [checkingDuplicateName, setCheckingDuplicateName] = useState(false);
+  const [isNameComposing, setIsNameComposing] = useState(false);
+  const [applyingAffiliationPropertyId, setApplyingAffiliationPropertyId] =
+    useState<number | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
 
@@ -80,6 +105,8 @@ export default function PropertyCreatePage() {
   const [galleryImages, setGalleryImages] = useState<PendingGalleryImage[]>([]);
   const galleryImagesRef = useRef<PendingGalleryImage[]>([]);
   const submitLockRef = useRef(false);
+  const duplicateCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const duplicateCheckRequestIdRef = useRef(0);
   const [draggingGalleryImageId, setDraggingGalleryImageId] = useState<
     string | null
   >(null);
@@ -224,11 +251,212 @@ export default function PropertyCreatePage() {
     handleGalleryDragEnd();
   };
 
+  const loadAffiliationStatuses = useCallback(async (propertyIds: number[]) => {
+    if (!userId || userRole !== "agent" || propertyIds.length === 0) {
+      setAffiliationStatusMap({});
+      return;
+    }
+
+    const supabase = createSupabaseClient();
+    const { data, error } = await supabase
+      .from("property_agents")
+      .select("property_id, status, requested_at")
+      .eq("agent_id", userId)
+      .in("property_id", propertyIds)
+      .order("requested_at", { ascending: false });
+
+    if (error) {
+      console.error("소속 상태 조회 오류:", error);
+      setAffiliationStatusMap({});
+      return;
+    }
+
+    const latestStatusMap: Record<number, AffiliationStatus> = {};
+    for (const item of data ?? []) {
+      if (latestStatusMap[item.property_id] !== undefined) continue;
+      latestStatusMap[item.property_id] = (item.status ?? null) as AffiliationStatus;
+    }
+    setAffiliationStatusMap(latestStatusMap);
+  }, [userId, userRole]);
+
+  const checkDuplicatePropertyName = useCallback(async (rawName: string) => {
+    const requestId = ++duplicateCheckRequestIdRef.current;
+    const isStale = () => requestId !== duplicateCheckRequestIdRef.current;
+    const trimmedName = rawName.trim();
+    if (!trimmedName) {
+      if (!isStale()) {
+        setCheckingDuplicateName(false);
+        setHasExactDuplicate(false);
+        setDuplicateCandidates([]);
+      }
+      return false;
+    }
+
+    setCheckingDuplicateName(true);
+    try {
+      const supabase = createSupabaseClient();
+      const tokenPattern = `%${trimmedName.split(/\s+/).filter(Boolean).join("%")}%`;
+      const compactName = trimmedName.replace(/\s+/g, "");
+      const charPattern = `%${compactName.split("").join("%")}%`;
+
+      const { data: tokenData, error: tokenError } = await supabase
+        .from("properties")
+        .select("id, name, property_type, image_url, status")
+        .ilike("name", tokenPattern)
+        .limit(30);
+
+      if (tokenError) {
+        console.error("현장명 중복 확인 오류(토큰):", tokenError);
+        if (!isStale()) setCheckingDuplicateName(false);
+        return false;
+      }
+      if (isStale()) return false;
+
+      let candidates = tokenData ?? [];
+
+      if (charPattern !== tokenPattern) {
+        const { data: charData, error: charError } = await supabase
+          .from("properties")
+          .select("id, name, property_type, image_url, status")
+          .ilike("name", charPattern)
+          .limit(30);
+
+        if (charError) {
+          console.error("현장명 중복 확인 오류(문자):", charError);
+          if (!isStale()) setCheckingDuplicateName(false);
+          return false;
+        }
+        if (isStale()) return false;
+
+        if (charData?.length) {
+          const merged = new Map<number, DuplicatePropertyCandidate>();
+          for (const item of candidates) merged.set(item.id, item);
+          for (const item of charData) merged.set(item.id, item);
+          candidates = Array.from(merged.values());
+        }
+      }
+
+      const normalizedInput = normalizePropertyName(trimmedName);
+      const exactMatches = candidates.filter(
+        (item) => normalizePropertyName(item.name ?? "") === normalizedInput,
+      );
+      const isDuplicate = exactMatches.length > 0;
+
+      const suggestionMatches = candidates
+        .map((item) => ({
+          ...item,
+          normalizedName: normalizePropertyName(item.name ?? ""),
+        }))
+        .filter((item) => item.normalizedName.includes(normalizedInput))
+        .sort((a, b) => {
+          const aStartsWith = a.normalizedName.startsWith(normalizedInput) ? 1 : 0;
+          const bStartsWith = b.normalizedName.startsWith(normalizedInput) ? 1 : 0;
+          if (aStartsWith !== bStartsWith) return bStartsWith - aStartsWith;
+          return a.normalizedName.length - b.normalizedName.length;
+        });
+
+      const nextCandidates = suggestionMatches.slice(0, 3).map((item) => ({
+        id: item.id,
+        name: item.name,
+        property_type: item.property_type ?? null,
+        image_url: item.image_url ?? null,
+        status: item.status ?? null,
+      }));
+
+      if (isStale()) return false;
+      setHasExactDuplicate(isDuplicate);
+      setDuplicateCandidates(nextCandidates);
+      await loadAffiliationStatuses(nextCandidates.map((item) => item.id));
+      if (isStale()) return false;
+      return isDuplicate;
+    } finally {
+      if (!isStale()) {
+        setCheckingDuplicateName(false);
+      }
+    }
+  }, [loadAffiliationStatuses]);
+
+  useEffect(() => {
+    if (duplicateCheckTimerRef.current) {
+      clearTimeout(duplicateCheckTimerRef.current);
+      duplicateCheckTimerRef.current = null;
+    }
+
+    if (isNameComposing) return;
+
+    const trimmedName = form.name.trim();
+    if (!trimmedName || trimmedName.length < 2) {
+      duplicateCheckRequestIdRef.current += 1;
+      setCheckingDuplicateName(false);
+      setHasExactDuplicate(false);
+      setDuplicateCandidates([]);
+      return;
+    }
+
+    duplicateCheckTimerRef.current = setTimeout(() => {
+      void checkDuplicatePropertyName(trimmedName);
+    }, 400);
+
+    return () => {
+      if (duplicateCheckTimerRef.current) {
+        clearTimeout(duplicateCheckTimerRef.current);
+        duplicateCheckTimerRef.current = null;
+      }
+    };
+  }, [form.name, isNameComposing, checkDuplicatePropertyName]);
+
+  const handleApplyAffiliation = async (propertyId: number) => {
+    if (userRole !== "agent") {
+      showAlert("상담사 계정만 소속 신청을 할 수 있습니다.");
+      return;
+    }
+
+    setApplyingAffiliationPropertyId(propertyId);
+    try {
+      const response = await fetch("/api/property-agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ property_id: propertyId }),
+      });
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        showAlert(data?.error || "소속 신청에 실패했습니다.");
+        return;
+      }
+
+      showAlert(data?.message || "소속 신청이 완료되었습니다.");
+      const nextStatus = (data?.propertyAgent?.status ?? "approved") as AffiliationStatus;
+      setAffiliationStatusMap((prev) => ({ ...prev, [propertyId]: nextStatus }));
+      router.push("/agent/profile#affiliation-section");
+    } catch (affiliationError) {
+      console.error("소속 신청 오류:", affiliationError);
+      showAlert("소속 신청 중 오류가 발생했습니다.");
+    } finally {
+      setApplyingAffiliationPropertyId(null);
+    }
+  };
+
+  const getAffiliationButtonLabel = (propertyId: number) => {
+    const status = affiliationStatusMap[propertyId] ?? null;
+    if (status === "approved") return "소속됨";
+    if (status === "pending") return "처리 중";
+    return "소속 신청";
+  };
+
+  const isAffiliationButtonDisabled = (propertyId: number) => {
+    const status = affiliationStatusMap[propertyId] ?? null;
+    if (status === "approved" || status === "pending") return true;
+    return applyingAffiliationPropertyId === propertyId;
+  };
+
   async function handleSubmit() {
     if (loading || submitLockRef.current) return;
     setError(null);
 
     if (!validateRequiredOrShowModal(form.name, "현장명")) return;
+    const isDuplicateName = await checkDuplicatePropertyName(form.name);
+    if (isDuplicateName) return;
 
     if (!userId) {
       setError("사용자 정보를 확인할 수 없습니다. 다시 로그인해주세요.");
@@ -380,13 +608,75 @@ export default function PropertyCreatePage() {
               <div className="space-y-4">
                 <Field label="현장명" required>
                   <Input
-                    
                     value={form.name}
                     placeholder="예) 더샵 아르테 미사, 힐스테이트 광안"
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    onChange={(e) => {
+                      const nextName = e.target.value;
+                      setForm({ ...form, name: nextName });
+                    }}
+                    onBlur={() => {
+                      void checkDuplicatePropertyName(form.name);
+                    }}
+                    onCompositionStart={() => setIsNameComposing(true)}
+                    onCompositionEnd={() => setIsNameComposing(false)}
                     autoFocus
                     disabled={loading}
                   />
+                  {checkingDuplicateName ? (
+                    <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+                      현장명 중복 확인 중...
+                    </p>
+                  ) : null}
+                  {duplicateCandidates.length > 0 ? (
+                    <div className="mt-3 space-y-2 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-3">
+                      <p className="ob-typo-subtitle text-(--oboon-text-title)">
+                        {hasExactDuplicate ? "혹시 이 현장인가요?" : "이런 현장이 있어요"}
+                      </p>
+                      <p className="ob-typo-caption text-(--oboon-text-muted)">
+                        {hasExactDuplicate
+                          ? "이미 등록된 현장이면 새 등록 대신 소속 신청을 진행해주세요."
+                          : "입력하신 이름과 비슷한 현장입니다. 해당 현장이 맞다면 소속 신청을 진행해주세요."}
+                      </p>
+                      <div className="space-y-2">
+                        {duplicateCandidates.map((candidate) => (
+                          <div
+                            key={candidate.id}
+                            className="flex items-center gap-3 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-3"
+                          >
+                            <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-(--oboon-bg-subtle)">
+                              {candidate.image_url ? (
+                                <Image
+                                  src={candidate.image_url}
+                                  alt={`${candidate.name ?? "현장"} 대표 이미지`}
+                                  width={56}
+                                  height={56}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : null}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate ob-typo-body text-(--oboon-text-title)">
+                                {candidate.name ?? "이름 없는 현장"}
+                              </p>
+                              <p className="truncate ob-typo-caption text-(--oboon-text-muted)">
+                                {candidate.property_type || "분양 유형 미설정"}
+                              </p>
+                            </div>
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              shape="pill"
+                              disabled={isAffiliationButtonDisabled(candidate.id)}
+                              loading={applyingAffiliationPropertyId === candidate.id}
+                              onClick={() => handleApplyAffiliation(candidate.id)}
+                            >
+                              {getAffiliationButtonLabel(candidate.id)}
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </Field>
 
                 <Field label="분양 유형">
