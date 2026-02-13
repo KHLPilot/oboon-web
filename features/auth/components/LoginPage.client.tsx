@@ -138,6 +138,18 @@ export default function LoginPage() {
     };
   }, []);
 
+  const isAbortLikeError = (input: unknown) => {
+    if (!input) return false;
+    const message =
+      input instanceof Error
+        ? input.message
+        : typeof input === "object" && input !== null && "message" in input
+          ? String((input as { message?: unknown }).message ?? "")
+          : String(input);
+    const lower = message.toLowerCase();
+    return lower.includes("aborterror") || lower.includes("signal is aborted");
+  };
+
   async function handleLogin(e: FormEvent) {
     e.preventDefault();
     trackEvent("login_click", { method: "email" });
@@ -180,16 +192,28 @@ export default function LoginPage() {
 
       if (!data.session) throw new Error("로그인 세션 생성에 실패했습니다.");
 
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("name, phone_number, role, deleted_at")
-        .eq("id", data.user.id)
-        .single();
+      const fetchProfile = async () =>
+        await supabase
+          .from("profiles")
+          .select("name, phone_number, role, deleted_at")
+          .eq("id", data.user.id)
+          .single();
+
+      let profileResult = await fetchProfile();
+      if (profileResult.error && isAbortLikeError(profileResult.error)) {
+        // 네트워크/브라우저 순간 중단에 대비해 1회 재시도
+        await new Promise((resolve) => window.setTimeout(resolve, 300));
+        profileResult = await fetchProfile();
+      }
+
+      const { data: profile, error: profileError } = profileResult;
 
       if (profileError) {
         console.error("Profile Error Detail:", profileError);
         if (profileError.code === "PGRST116") {
           router.replace("/auth/onboarding");
+        } else if (isAbortLikeError(profileError)) {
+          setError("네트워크가 일시적으로 불안정합니다. 잠시 후 다시 시도해주세요.");
         } else {
           setError(
             `권한 오류: ${profileError.message} (관리자에게 문의하세요)`,
@@ -238,6 +262,10 @@ export default function LoginPage() {
       }
     } catch (err: unknown) {
       setLoading(false);
+      if (isAbortLikeError(err)) {
+        setError("네트워크가 일시적으로 불안정합니다. 잠시 후 다시 시도해주세요.");
+        return;
+      }
       setError(toKoreanErrorMessage(err, "로그인 중 오류가 발생했습니다."));
     }
   }
