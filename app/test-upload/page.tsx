@@ -4,7 +4,14 @@ import { useState } from 'react';
 import type { PropertyExtractionData } from '@/lib/schema/property-schema';
 
 type ExtractResult = PropertyExtractionData & {
-  _meta?: { fileCount: number; textLength: number; truncated: boolean };
+  location: PropertyExtractionData['location'] & { lat?: number | null; lng?: number | null };
+  _meta?: { fileCount: number; textLength: number; truncated: boolean; geocoded: boolean };
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  READY: '분양 예정',
+  OPEN: '분양 중',
+  CLOSED: '분양 종료',
 };
 
 export default function TestUploadPage() {
@@ -93,12 +100,14 @@ export default function TestUploadPage() {
             <p style={{ color: '#888', fontSize: '0.85rem' }}>
               PDF {result._meta.fileCount}개 / 텍스트 {result._meta.textLength.toLocaleString()}자
               {result._meta.truncated && ' (일부만 분석됨)'}
+              {result._meta.geocoded && ' / 지오코딩 완료'}
             </p>
           )}
 
           <Section title="기본 정보">
             <Row label="현장명" value={val(result.properties?.name)} />
             <Row label="분양 유형" value={val(result.properties?.property_type)} />
+            <Row label="분양 상태" value={result.properties?.status ? STATUS_LABEL[result.properties.status] ?? result.properties.status : '-'} />
             <Row label="설명" value={val(result.properties?.description)} />
           </Section>
 
@@ -109,6 +118,8 @@ export default function TestUploadPage() {
               [result.location?.region_1depth, result.location?.region_2depth, result.location?.region_3depth]
                 .filter(Boolean).join(' ') || '-'
             } />
+            <Row label="위도" value={val(result.location?.lat)} />
+            <Row label="경도" value={val(result.location?.lng)} />
           </Section>
 
           <Section title="사업 개요">
@@ -116,6 +127,7 @@ export default function TestUploadPage() {
             <Row label="시공사" value={val(result.specs?.builder)} />
             <Row label="신탁사" value={val(result.specs?.trust_company)} />
             <Row label="분양 방식" value={val(result.specs?.sale_type)} />
+            <Row label="용도지역" value={val(result.specs?.land_use_zone)} />
             <Row label="대지면적" value={result.specs?.site_area != null ? `${result.specs.site_area} m²` : '-'} />
             <Row label="건축면적" value={result.specs?.building_area != null ? `${result.specs.building_area} m²` : '-'} />
             <Row label="규모" value={
@@ -184,14 +196,18 @@ export default function TestUploadPage() {
           )}
 
           {result.facilities && result.facilities.length > 0 && (
-            <Section title="주변 시설">
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {result.facilities.map((f, i) => (
-                  <span key={i} style={{ background: '#e8f4fd', padding: '4px 10px', borderRadius: 16, fontSize: '0.85rem' }}>
-                    [{f.type}] {f.name}
-                  </span>
-                ))}
-              </div>
+            <Section title="홍보시설">
+              {result.facilities.map((f, i) => (
+                <div key={i} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
+                  <div style={{ fontWeight: 600 }}>[{f.type}] {f.name}</div>
+                  {f.road_address && <div style={{ color: '#666', fontSize: '0.85rem' }}>주소: {f.road_address}</div>}
+                  {(f.open_start || f.open_end) && (
+                    <div style={{ color: '#666', fontSize: '0.85rem' }}>
+                      운영시간: {f.open_start ?? '?'} ~ {f.open_end ?? '?'}
+                    </div>
+                  )}
+                </div>
+              ))}
             </Section>
           )}
 

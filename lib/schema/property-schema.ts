@@ -3,7 +3,8 @@ import { z } from 'zod';
 // properties 테이블
 const propertiesSchema = z.object({
   name: z.string().describe("분양 현장명/단지명 (예: 힐스테이트 광안)"),
-  property_type: z.string().nullable().describe("분양 유형 (예: 아파트, 오피스텔, 상업시설)"),
+  property_type: z.string().nullable().describe("분양 유형 (예: 아파트, 오피스텔, 상업시설, 주상복합)"),
+  status: z.enum(["READY", "OPEN", "CLOSED"]).nullable().describe("분양 상태: READY(분양 예정), OPEN(분양 중), CLOSED(분양 종료). 모집공고 전이면 READY, 청약접수 중이면 OPEN, 계약 종료 후면 CLOSED"),
   description: z.string().nullable().describe("현장에 대한 간단 설명/특징"),
 });
 
@@ -22,6 +23,7 @@ const propertySpecsSchema = z.object({
   builder: z.string().nullable().describe("시공사 명칭"),
   trust_company: z.string().nullable().describe("신탁사 명칭"),
   sale_type: z.string().nullable().describe("분양 방식 (예: 일반분양, 후분양)"),
+  land_use_zone: z.string().nullable().describe("용도지역 (예: 제3종일반주거지역, 준주거지역)"),
   site_area: z.number().nullable().describe("대지면적 (m2)"),
   building_area: z.number().nullable().describe("건축면적 (m2)"),
   floor_ground: z.number().nullable().describe("지상 층수"),
@@ -59,10 +61,13 @@ const propertyUnitTypeSchema = z.object({
   unit_count: z.number().nullable().describe("해당 타입 세대수"),
 });
 
-// property_facilities 테이블
+// property_facilities 테이블 (홍보시설/모델하우스)
 const propertyFacilitySchema = z.object({
-  type: z.string().describe("시설 유형 (예: 교육, 교통, 의료, 편의, 공원)"),
-  name: z.string().describe("시설 명칭 (예: OO초등학교, OO역)"),
+  type: z.string().describe("시설 유형 (예: 모델하우스, 홍보관, 견본주택)"),
+  name: z.string().describe("시설 명칭 (예: OO 모델하우스)"),
+  road_address: z.string().nullable().describe("시설 도로명 주소"),
+  open_start: z.string().nullable().describe("운영 시작시간 (예: 10:00)"),
+  open_end: z.string().nullable().describe("운영 종료시간 (예: 18:00)"),
 });
 
 export const propertyExtractionSchema = z.object({
