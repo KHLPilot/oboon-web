@@ -1534,22 +1534,9 @@ export default function ProfilePage({
 
               {!hasApprovedProperty ? (
                 <Card className="p-4">
-                  <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-                    <p className="ob-typo-body text-(--oboon-text-muted)">
-                      현재 소속된 현장이 없습니다. 새 현장을 등록하면 자동으로 소속됩니다.
-                    </p>
-                    <div className="shrink-0">
-                      <Button asChild variant="primary" size="sm" shape="pill">
-                        <Link
-                          href="/company/properties/new"
-                          className="inline-flex items-center gap-1.5"
-                          style={{ color: "var(--oboon-on-primary)" }}
-                        >
-                          <Plus className="h-4 w-4" />새 현장 등록
-                        </Link>
-                      </Button>
-                    </div>
-                  </div>
+                  <p className="ob-typo-body text-(--oboon-text-muted)">
+                    현재 소속된 현장이 없습니다. 아래에서 현장을 검색하여 소속 신청하세요.
+                  </p>
                 </Card>
               ) : null}
 
