@@ -2,37 +2,12 @@
   {
     "enum_name": "community_post_status",
     "sort_order": 1,
-    "enum_value": "draft"
+    "enum_value": "visited"
   },
   {
     "enum_name": "community_post_status",
     "sort_order": 2,
-    "enum_value": "published"
-  },
-  {
-    "enum_name": "community_post_status",
-    "sort_order": 3,
-    "enum_value": "hidden"
-  },
-  {
-    "enum_name": "community_post_status",
-    "sort_order": 4,
-    "enum_value": "deleted"
-  },
-  {
-    "enum_name": "confirm_request_status",
-    "sort_order": 1,
-    "enum_value": "pending"
-  },
-  {
-    "enum_name": "confirm_request_status",
-    "sort_order": 2,
-    "enum_value": "approved"
-  },
-  {
-    "enum_name": "confirm_request_status",
-    "sort_order": 3,
-    "enum_value": "rejected"
+    "enum_value": "thinking"
   },
   {
     "enum_name": "content_status",
@@ -43,20 +18,5 @@
     "enum_name": "content_status",
     "sort_order": 2,
     "enum_value": "published"
-  },
-  {
-    "enum_name": "content_status",
-    "sort_order": 3,
-    "enum_value": "archived"
-  },
-  {
-    "enum_name": "visit_method",
-    "sort_order": 1,
-    "enum_value": "gps"
-  },
-  {
-    "enum_name": "visit_method",
-    "sort_order": 2,
-    "enum_value": "manual"
   }
 ]

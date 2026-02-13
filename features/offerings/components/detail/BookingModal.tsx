@@ -32,6 +32,7 @@ interface Agent {
   email: string;
   avatar_url?: string | null;
   phone_number?: string | null;
+  agent_summary?: string | null;
   agent_bio?: string | null;
 }
 
@@ -231,6 +232,7 @@ export default function BookingModal({
               email,
               avatar_url,
               phone_number,
+              agent_summary,
               agent_bio
             )
           `,
@@ -679,6 +681,11 @@ export default function BookingModal({
                           <div className="ob-typo-subtitle text-(--oboon-text-title) truncate">
                             {agent.name}
                           </div>
+                          {agent.agent_summary?.trim() ? (
+                            <div className="ob-typo-body text-(--oboon-text-muted) truncate">
+                              {agent.agent_summary.trim()}
+                            </div>
+                          ) : null}
                         </div>
                         <Button
                           variant="secondary"
@@ -1101,8 +1108,21 @@ export default function BookingModal({
               </div>
             </div>
 
-            <div className="mt-6 whitespace-pre-line ob-typo-body text-(--oboon-text-title)">
-              {previewAgent.agent_bio?.trim() || "등록된 상담사 소개가 없습니다."}
+            {previewAgent.agent_summary?.trim() ? (
+              <div className="mt-4 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-2">
+                <div className="ob-typo-body text-(--oboon-text-title)">
+                  {previewAgent.agent_summary.trim()}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="mt-4 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-4 py-3">
+              <div className="ob-typo-caption text-(--oboon-text-muted)">
+                상담사 소개
+              </div>
+              <div className="mt-2 whitespace-pre-line ob-typo-body text-(--oboon-text-title)">
+                {previewAgent.agent_bio?.trim() || "등록된 상담사 소개가 없습니다."}
+              </div>
             </div>
 
             {(agentGalleryMap[previewAgent.id] || []).length > 0 ? (

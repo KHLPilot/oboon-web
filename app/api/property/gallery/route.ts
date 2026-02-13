@@ -8,7 +8,7 @@ import {
 } from "@aws-sdk/client-s3";
 
 const TABLE_NAME = "property_gallery_images";
-const MAX_IMAGES = 5;
+const MAX_IMAGES = 10;
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const R2_BUCKET_NAME = process.env.CLOUDFLARE_R2_BUCKET_NAME!;

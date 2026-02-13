@@ -1,7 +1,7 @@
 // app/company/properties/[id]/facilities/page.tsx
 "use client";
 
-import { ChevronDown, Trash2 } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
@@ -9,6 +9,7 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Label from "@/components/ui/Label";
+import Modal from "@/components/ui/Modal";
 import PageContainer from "@/components/shared/PageContainer";
 import { Badge } from "@/components/ui/Badge";
 import {
@@ -67,6 +68,27 @@ type FacilityForm = {
   hasSelectedPosition?: boolean;
 };
 
+function buildEmptyFacilityDraft(): FacilityForm {
+  return {
+    type: "MODELHOUSE",
+    name: "",
+    road_address: "",
+    jibun_address: "",
+    address_detail: "",
+    lat: null,
+    lng: null,
+    region_1depth: null,
+    region_2depth: null,
+    region_3depth: null,
+    open_start: null,
+    open_end: null,
+    is_active: true,
+    isEditing: true,
+    manualMode: false,
+    hasSelectedPosition: false,
+  };
+}
+
 function facilityTypeLabel(t: FacilityType) {
   return t === "MODELHOUSE"
     ? "모델하우스"
@@ -96,6 +118,13 @@ function formatLocalDateToYm(date: Date | null): string | null {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   return `${year}-${month}`;
+}
+
+function formatOperatingPeriod(start: string | null, end: string | null) {
+  if (start && end) return `${start} ~ ${end}`;
+  if (start) return `${start} ~`;
+  if (end) return `~ ${end}`;
+  return "미입력";
 }
 
 // Input과 같은 룩을 select에도 맞추기 위한 토큰 기반 클래스
@@ -198,6 +227,11 @@ export default function PropertyFacilitiesPage() {
 
   const [facilities, setFacilities] = useState<FacilityForm[]>([]);
   const [loading, setLoading] = useState(false);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createDraft, setCreateDraft] = useState<FacilityForm>(
+    buildEmptyFacilityDraft(),
+  );
 
   const fetchFacilities = useCallback(
     async (id: number) => {
@@ -280,27 +314,91 @@ export default function PropertyFacilitiesPage() {
   }
 
   function addFacility() {
-    setFacilities((prev) => [
-      ...prev,
-      {
-        type: "MODELHOUSE",
-        name: "",
-        road_address: "",
-        jibun_address: "",
-        address_detail: "",
-        lat: null,
-        lng: null,
-        region_1depth: null,
-        region_2depth: null,
-        region_3depth: null,
-        open_start: null,
-        open_end: null,
-        is_active: true,
-        isEditing: true,
-        manualMode: false,
-        hasSelectedPosition: false,
+    setCreateDraft(buildEmptyFacilityDraft());
+    setCreateModalOpen(true);
+  }
+
+  function updateCreateField<K extends keyof FacilityForm>(
+    key: K,
+    value: FacilityForm[K],
+  ) {
+    setCreateDraft((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function openCreatePostcode() {
+    const Postcode = window.daum?.Postcode as
+      | DaumPostcodeConstructor
+      | undefined;
+    if (!Postcode) return;
+
+    new Postcode({
+      oncomplete: async (data: DaumPostcodeResult) => {
+        const query = data.roadAddress || data.jibunAddress;
+        const res = await fetch(
+          `/api/geo/address?query=${encodeURIComponent(query)}`,
+        );
+        const geo = (await res.json()) as GeoResult;
+
+        setCreateDraft((prev) => ({
+          ...prev,
+          road_address: data.roadAddress,
+          jibun_address: data.jibunAddress,
+          lat: geo.lat,
+          lng: geo.lng,
+          region_1depth: geo.region_1depth,
+          region_2depth: geo.region_2depth,
+          region_3depth: geo.region_3depth,
+          hasSelectedPosition: Boolean(geo.lat && geo.lng),
+        }));
       },
-    ]);
+    }).open();
+  }
+
+  async function handleCreateFacility() {
+    if (creating) return;
+    if (!validateRequiredOrShowModal(createDraft.name, "시설명")) return;
+
+    if (!createDraft.lat || !createDraft.lng) {
+      showAlert("주소를 검색하거나 지도에서 위치를 선택해주세요.");
+      return;
+    }
+
+    setCreating(true);
+    try {
+      const payload = {
+        properties_id: propertyId,
+        type: createDraft.type,
+        name: createDraft.name,
+        road_address: createDraft.road_address,
+        jibun_address: createDraft.jibun_address,
+        address_detail: createDraft.address_detail,
+        lat: createDraft.lat,
+        lng: createDraft.lng,
+        region_1depth: createDraft.region_1depth,
+        region_2depth: createDraft.region_2depth,
+        region_3depth: createDraft.region_3depth,
+        open_start: createDraft.open_start,
+        open_end: createDraft.open_end,
+        is_active: createDraft.is_active,
+      };
+
+      const { data, error } = await savePropertyFacility(payload);
+      if (error) {
+        showAlert(toKoreanErrorMessage(error, "저장에 실패했습니다."));
+        return;
+      }
+      if (!data) {
+        showAlert("저장 권한이 없거나 시설을 생성할 수 없습니다.");
+        return;
+      }
+
+      setCreateModalOpen(false);
+      setCreateDraft(buildEmptyFacilityDraft());
+      await fetchFacilities(propertyId);
+      showAlert("저장되었습니다.");
+    } finally {
+      setCreating(false);
+    }
   }
 
   async function saveFacility(f: FacilityForm) {
@@ -428,240 +526,256 @@ export default function PropertyFacilitiesPage() {
               </div>
             </header>
 
-            {facilities.map((f, idx) => (
-              <Card key={idx} className="p-5">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="status" className="text-[12px]">
-                      {facilityTypeLabel(f.type)}
-                    </Badge>
-                    <span className="ob-typo-caption text-(--oboon-text-muted)">
-                      {f.is_active ? "운영 중" : "미운영"}
-                    </span>
-                  </div>
+            <Modal
+              open={createModalOpen}
+              onClose={() => setCreateModalOpen(false)}
+              size="lg"
+            >
+              <div className="mb-5 space-y-1">
+                <p className="ob-typo-h3 text-(--oboon-text-title)">
+                  새 시설 추가
+                </p>
+                <p className="ob-typo-body text-(--oboon-text-muted)">
+                  시설 정보를 입력한 뒤 저장해 주세요.
+                </p>
+              </div>
 
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    aria-label="삭제"
-                    onClick={() => deleteFacility(f)}
-                    disabled={loading}
-                    className="ml-auto h-8 w-8 min-w-0 shrink-0 rounded-full p-0 text-(--oboon-danger) hover:bg-(--oboon-danger-bg) focus-visible:ring-(--oboon-danger)/30"
-                  >
-                    <Trash2 size={16} />
-                  </Button>
+              <div className="grid grid-cols-1 gap-4">
+                <FormField label="시설명">
+                  <Input
+                    placeholder="시설명"
+                    value={createDraft.name}
+                    onChange={(e) => updateCreateField("name", e.target.value)}
+                  />
+                </FormField>
+
+                <div className="space-y-2">
+                  <Label>시설 유형</Label>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="secondary"
+                        size="md"
+                        shape="default"
+                        className="h-11 w-full justify-between"
+                      >
+                        <span>{facilityTypeLabel(createDraft.type)}</span>
+                        <ChevronDown className="h-4 w-4 text-(--oboon-text-muted)" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" matchTriggerWidth>
+                      {FACILITY_TYPE_OPTIONS.map((opt) => (
+                        <DropdownMenuItem
+                          key={opt.value}
+                          onClick={() => updateCreateField("type", opt.value)}
+                        >
+                          {opt.label}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
 
-                <div className="mt-4 grid grid-cols-1 gap-4">
-                  <FormField label="시설명">
-                    <Input
-                      placeholder="시설명"
-                      disabled={!f.isEditing}
-                      value={f.name}
-                      onChange={(e) => updateField(idx, "name", e.target.value)}
-                    />
-                  </FormField>
-
-                  <div className="space-y-2">
-                    <Label>시설 유형</Label>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="secondary"
-                          size="md"
-                          shape="default"
-                          className="h-11 w-full justify-between"
-                          disabled={!f.isEditing}
-                        >
-                          <span>{facilityTypeLabel(f.type)}</span>
-                          <ChevronDown className="h-4 w-4 text-(--oboon-text-muted)" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" matchTriggerWidth>
-                        {FACILITY_TYPE_OPTIONS.map((opt) => (
-                          <DropdownMenuItem
-                            key={opt.value}
-                            onClick={() => updateField(idx, "type", opt.value)}
-                          >
-                            {opt.label}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                {createDraft.road_address ? (
+                  <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-4 py-3">
+                    <div className="ob-typo-caption text-(--oboon-text-muted)">
+                      도로명주소
+                    </div>
+                    <div className="mt-1 ob-typo-body text-(--oboon-text-title)">
+                      {createDraft.road_address}
+                    </div>
+                    {createDraft.jibun_address ? (
+                      <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+                        {createDraft.jibun_address}
+                      </div>
+                    ) : null}
                   </div>
+                ) : null}
 
-                  {f.road_address ? (
-                    <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-4 py-3">
-                      <div className="ob-typo-caption text-(--oboon-text-muted)">
-                        도로명주소
-                      </div>
-                      <div className="mt-1 ob-typo-body text-(--oboon-text-title)">
-                        {f.road_address}
-                      </div>
-                      {f.jibun_address ? (
-                        <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
-                          {f.jibun_address}
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
-
-                  {f.isEditing && !f.manualMode ? (
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      <Button
-                        variant="secondary"
-                        size="md"
-                        shape="pill"
-                        className="w-full justify-center"
-                        onClick={() => openPostcode(idx)}
-                      >
-                        주소 검색
-                      </Button>
-
-                      <Button
-                        variant="secondary"
-                        size="md"
-                        shape="pill"
-                        className="w-full justify-center"
-                        onClick={() => updateField(idx, "manualMode", true)}
-                      >
-                        직접 위치 등록
-                      </Button>
-                    </div>
-                  ) : null}
-
-                  {f.manualMode ? (
+                {!createDraft.manualMode ? (
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <Button
                       variant="secondary"
                       size="md"
                       shape="pill"
                       className="w-full justify-center"
-                      onClick={() => updateField(idx, "manualMode", false)}
+                      onClick={openCreatePostcode}
                     >
-                      돌아가기
+                      주소 검색
                     </Button>
-                  ) : null}
+                    <Button
+                      variant="secondary"
+                      size="md"
+                      shape="pill"
+                      className="w-full justify-center"
+                      onClick={() => updateCreateField("manualMode", true)}
+                    >
+                      직접 위치 등록
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    variant="secondary"
+                    size="md"
+                    shape="pill"
+                    className="w-full justify-center"
+                    onClick={() => updateCreateField("manualMode", false)}
+                  >
+                    돌아가기
+                  </Button>
+                )}
 
-                  {f.isEditing && f.manualMode ? (
-                    <>
-                      <FacilityMapSelect
-                        enabled={true}
-                        hasSelectedPosition={Boolean(f.hasSelectedPosition)}
-                        onSelectPosition={async (lat, lng) => {
-                          const res = await fetch(
-                            `/api/geo/reverse?lat=${lat}&lng=${lng}`,
-                          );
-                          const geo = await res.json();
+                {createDraft.manualMode ? (
+                  <>
+                    <FacilityMapSelect
+                      enabled={true}
+                      hasSelectedPosition={Boolean(createDraft.hasSelectedPosition)}
+                      onSelectPosition={async (lat, lng) => {
+                        const res = await fetch(
+                          `/api/geo/reverse?lat=${lat}&lng=${lng}`,
+                        );
+                        const geo = await res.json();
 
-                          const composedRoadAddress = [
-                            geo.region_1depth,
-                            geo.region_2depth,
-                            geo.region_3depth,
-                          ]
-                            .filter(Boolean)
-                            .join(" ");
+                        const composedRoadAddress = [
+                          geo.region_1depth,
+                          geo.region_2depth,
+                          geo.region_3depth,
+                        ]
+                          .filter(Boolean)
+                          .join(" ");
 
-                          setFacilities((prev) =>
-                            prev.map((x, i) =>
-                              i === idx
-                                ? {
-                                    ...x,
-                                    lat,
-                                    lng,
-                                    road_address: composedRoadAddress,
-                                    jibun_address: "",
-                                    region_1depth: geo.region_1depth,
-                                    region_2depth: geo.region_2depth,
-                                    region_3depth: geo.region_3depth,
-                                    hasSelectedPosition: true,
-                                  }
-                                : x,
-                            ),
-                          );
-                        }}
-                      />
-
-                      <FormField
-                        label="행정구역"
-                        labelClassName="ob-typo-caption text-(--oboon-text-muted)"
-                      >
-                        <Input
-                          readOnly
-                          value={[
-                            f.region_1depth,
-                            f.region_2depth,
-                            f.region_3depth,
-                          ]
-                            .filter(Boolean)
-                            .join(" ")}
-                          placeholder="지도에서 위치를 선택하세요"
-                        />
-                      </FormField>
-                    </>
-                  ) : null}
-
-                  <FormField label="상세 주소">
-                    <Input
-                      placeholder="예: ○○아파트 인근"
-                      disabled={!f.isEditing}
-                      value={f.address_detail}
-                      onChange={(e) =>
-                        updateField(idx, "address_detail", e.target.value)
-                      }
+                        setCreateDraft((prev) => ({
+                          ...prev,
+                          lat,
+                          lng,
+                          road_address: composedRoadAddress,
+                          jibun_address: "",
+                          region_1depth: geo.region_1depth,
+                          region_2depth: geo.region_2depth,
+                          region_3depth: geo.region_3depth,
+                          hasSelectedPosition: true,
+                        }));
+                      }}
                     />
-                  </FormField>
 
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>운영 시작 월</Label>
-                      <OboonDatePicker
-                        selected={parseYmToLocalDate(f.open_start)}
-                        onChange={(date: Date | null) =>
-                          updateField(idx, "open_start", formatLocalDateToYm(date))
-                        }
-                        disabled={!f.isEditing}
-                        showMonthYearPicker
-                        dateFormat="yyyy-MM"
-                        textFormat="yyyy-MM"
-                        inputClassName={CONTROL_LIKE}
-                        placeholder="예) 2026-01"
+                    <FormField
+                      label="행정구역"
+                      labelClassName="ob-typo-caption text-(--oboon-text-muted)"
+                    >
+                      <Input
+                        readOnly
+                        value={[
+                          createDraft.region_1depth,
+                          createDraft.region_2depth,
+                          createDraft.region_3depth,
+                        ]
+                          .filter(Boolean)
+                          .join(" ")}
+                        placeholder="지도에서 위치를 선택하세요"
                       />
-                    </div>
+                    </FormField>
+                  </>
+                ) : null}
 
-                    <div className="space-y-2">
-                      <Label>운영 종료 월</Label>
-                      <OboonDatePicker
-                        selected={parseYmToLocalDate(f.open_end)}
-                        onChange={(date: Date | null) =>
-                          updateField(idx, "open_end", formatLocalDateToYm(date))
-                        }
-                        disabled={!f.isEditing}
-                        showMonthYearPicker
-                        dateFormat="yyyy-MM"
-                        textFormat="yyyy-MM"
-                        inputClassName={CONTROL_LIKE}
-                        placeholder="예) 2026-03"
-                      />
-                    </div>
+                <FormField label="상세 주소">
+                  <Input
+                    placeholder="예: ○○아파트 인근"
+                    value={createDraft.address_detail}
+                    onChange={(e) =>
+                      updateCreateField("address_detail", e.target.value)
+                    }
+                  />
+                </FormField>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>운영 시작 월</Label>
+                    <OboonDatePicker
+                      selected={parseYmToLocalDate(createDraft.open_start)}
+                      onChange={(date: Date | null) =>
+                        updateCreateField("open_start", formatLocalDateToYm(date))
+                      }
+                      showMonthYearPicker
+                      dateFormat="yyyy-MM"
+                      textFormat="yyyy-MM"
+                      inputClassName={CONTROL_LIKE}
+                      placeholder="예) 2026-01"
+                    />
                   </div>
 
-                  <label className="flex items-center gap-2 ob-typo-body text-(--oboon-text-body)">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 rounded border border-(--oboon-border-default) bg-(--oboon-bg-surface) accent-(--oboon-primary)"
-                      disabled={!f.isEditing}
-                      checked={f.is_active}
-                      onChange={(e) =>
-                        updateField(idx, "is_active", e.target.checked)
+                  <div className="space-y-2">
+                    <Label>운영 종료 월</Label>
+                    <OboonDatePicker
+                      selected={parseYmToLocalDate(createDraft.open_end)}
+                      onChange={(date: Date | null) =>
+                        updateCreateField("open_end", formatLocalDateToYm(date))
                       }
+                      showMonthYearPicker
+                      dateFormat="yyyy-MM"
+                      textFormat="yyyy-MM"
+                      inputClassName={CONTROL_LIKE}
+                      placeholder="예) 2026-03"
                     />
-                    운영 중
-                  </label>
+                  </div>
+                </div>
 
-                  <div className="flex justify-end gap-2">
+                <label className="flex items-center gap-2 ob-typo-body text-(--oboon-text-body)">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border border-(--oboon-border-default) bg-(--oboon-bg-surface) accent-(--oboon-primary)"
+                    checked={createDraft.is_active}
+                    onChange={(e) =>
+                      updateCreateField("is_active", e.target.checked)
+                    }
+                  />
+                  운영 중
+                </label>
+
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    shape="pill"
+                    onClick={() => setCreateModalOpen(false)}
+                    disabled={creating}
+                  >
+                    취소
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    shape="pill"
+                    onClick={handleCreateFacility}
+                    disabled={creating}
+                  >
+                    저장
+                  </Button>
+                </div>
+              </div>
+            </Modal>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              {facilities.map((f, idx) => (
+                <Card
+                  key={idx}
+                  className={f.isEditing ? "p-5 md:col-span-2" : "p-5"}
+                >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="status" className="text-[12px]">
+                      {facilityTypeLabel(f.type)}
+                    </Badge>
+                    <Badge
+                      variant={f.is_active ? "default" : "warning"}
+                      className="text-[12px]"
+                    >
+                      {f.is_active ? "운영 중" : "미운영"}
+                    </Badge>
+                  </div>
+
+                  <div className="shrink-0">
                     {f.isEditing ? (
-                      <>
+                      <div className="flex items-center gap-2">
                         <Button
                           variant="secondary"
                           size="sm"
@@ -671,7 +785,6 @@ export default function PropertyFacilitiesPage() {
                         >
                           취소
                         </Button>
-
                         <Button
                           variant="primary"
                           size="sm"
@@ -681,22 +794,288 @@ export default function PropertyFacilitiesPage() {
                         >
                           저장
                         </Button>
-                      </>
+                      </div>
                     ) : (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        shape="pill"
-                        onClick={() => updateField(idx, "isEditing", true)}
-                        disabled={loading}
-                      >
-                        수정
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            aria-label="메뉴"
+                            className="h-8 w-8 min-w-0 rounded-full p-0 text-(--oboon-text-muted)"
+                            disabled={loading}
+                          >
+                            ⋮
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => updateField(idx, "isEditing", true)}
+                          >
+                            수정
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            destructive
+                            onClick={() => deleteFacility(f)}
+                          >
+                            삭제
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     )}
                   </div>
                 </div>
-              </Card>
-            ))}
+
+                <p className="mt-2 ob-typo-h3 text-(--oboon-text-title)">
+                  {f.name.trim() || "새 시설"}
+                </p>
+
+                {!f.isEditing ? (
+                  <div className="mt-2 space-y-1">
+                    <p className="ob-typo-body text-(--oboon-text-muted)">
+                      주소: {f.road_address || f.jibun_address || "미입력"}
+                    </p>
+                    <p className="ob-typo-body text-(--oboon-text-muted)">
+                      운영 기간:{" "}
+                      <span className="whitespace-nowrap">
+                        {formatOperatingPeriod(f.open_start, f.open_end)}
+                      </span>
+                    </p>
+                  </div>
+                ) : null}
+
+                {!f.manualMode &&
+                Number.isFinite(f.lat) &&
+                Number.isFinite(f.lng) ? (
+                  <div className="mt-4 space-y-2">
+                    <p className="ob-typo-caption text-(--oboon-text-muted)">
+                      시설 위치
+                    </p>
+                    <div className="h-64 overflow-hidden rounded-2xl border border-(--oboon-border-default)">
+                      <NaverMap
+                        mode="base"
+                        markers={[
+                          {
+                            id: 1,
+                            label: facilityTypeLabel(f.type),
+                            lat: Number(f.lat),
+                            lng: Number(f.lng),
+                            type: "open",
+                            topLabel: null,
+                            mainLabel: facilityTypeLabel(f.type),
+                          },
+                        ]}
+                        fitToMarkers
+                        initialZoom={16}
+                        interactive={false}
+                      />
+                    </div>
+                  </div>
+                ) : null}
+
+                {f.isEditing ? (
+                  <div className="mt-4 grid grid-cols-1 gap-4">
+                    <FormField label="시설명">
+                      <Input
+                        placeholder="시설명"
+                        value={f.name}
+                        onChange={(e) => updateField(idx, "name", e.target.value)}
+                      />
+                    </FormField>
+
+                    <div className="space-y-2">
+                      <Label>시설 유형</Label>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="secondary"
+                            size="md"
+                            shape="default"
+                            className="h-11 w-full justify-between"
+                          >
+                            <span>{facilityTypeLabel(f.type)}</span>
+                            <ChevronDown className="h-4 w-4 text-(--oboon-text-muted)" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" matchTriggerWidth>
+                          {FACILITY_TYPE_OPTIONS.map((opt) => (
+                            <DropdownMenuItem
+                              key={opt.value}
+                              onClick={() => updateField(idx, "type", opt.value)}
+                            >
+                              {opt.label}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+
+                    {f.road_address ? (
+                      <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-4 py-3">
+                        <div className="ob-typo-caption text-(--oboon-text-muted)">
+                          도로명주소
+                        </div>
+                        <div className="mt-1 ob-typo-body text-(--oboon-text-title)">
+                          {f.road_address}
+                        </div>
+                        {f.jibun_address ? (
+                          <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+                            {f.jibun_address}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    {!f.manualMode ? (
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <Button
+                          variant="secondary"
+                          size="md"
+                          shape="pill"
+                          className="w-full justify-center"
+                          onClick={() => openPostcode(idx)}
+                        >
+                          주소 검색
+                        </Button>
+
+                        <Button
+                          variant="secondary"
+                          size="md"
+                          shape="pill"
+                          className="w-full justify-center"
+                          onClick={() => updateField(idx, "manualMode", true)}
+                        >
+                          직접 위치 등록
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        variant="secondary"
+                        size="md"
+                        shape="pill"
+                        className="w-full justify-center"
+                        onClick={() => updateField(idx, "manualMode", false)}
+                      >
+                        돌아가기
+                      </Button>
+                    )}
+
+                    {f.manualMode ? (
+                      <>
+                        <FacilityMapSelect
+                          enabled={true}
+                          hasSelectedPosition={Boolean(f.hasSelectedPosition)}
+                          onSelectPosition={async (lat, lng) => {
+                            const res = await fetch(
+                              `/api/geo/reverse?lat=${lat}&lng=${lng}`,
+                            );
+                            const geo = await res.json();
+
+                            const composedRoadAddress = [
+                              geo.region_1depth,
+                              geo.region_2depth,
+                              geo.region_3depth,
+                            ]
+                              .filter(Boolean)
+                              .join(" ");
+
+                            setFacilities((prev) =>
+                              prev.map((x, i) =>
+                                i === idx
+                                  ? {
+                                      ...x,
+                                      lat,
+                                      lng,
+                                      road_address: composedRoadAddress,
+                                      jibun_address: "",
+                                      region_1depth: geo.region_1depth,
+                                      region_2depth: geo.region_2depth,
+                                      region_3depth: geo.region_3depth,
+                                      hasSelectedPosition: true,
+                                    }
+                                  : x,
+                              ),
+                            );
+                          }}
+                        />
+
+                        <FormField
+                          label="행정구역"
+                          labelClassName="ob-typo-caption text-(--oboon-text-muted)"
+                        >
+                          <Input
+                            readOnly
+                            value={[
+                              f.region_1depth,
+                              f.region_2depth,
+                              f.region_3depth,
+                            ]
+                              .filter(Boolean)
+                              .join(" ")}
+                            placeholder="지도에서 위치를 선택하세요"
+                          />
+                        </FormField>
+                      </>
+                    ) : null}
+
+                    <FormField label="상세 주소">
+                      <Input
+                        placeholder="예: ○○아파트 인근"
+                        value={f.address_detail}
+                        onChange={(e) =>
+                          updateField(idx, "address_detail", e.target.value)
+                        }
+                      />
+                    </FormField>
+
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>운영 시작 월</Label>
+                        <OboonDatePicker
+                          selected={parseYmToLocalDate(f.open_start)}
+                          onChange={(date: Date | null) =>
+                            updateField(idx, "open_start", formatLocalDateToYm(date))
+                          }
+                          showMonthYearPicker
+                          dateFormat="yyyy-MM"
+                          textFormat="yyyy-MM"
+                          inputClassName={CONTROL_LIKE}
+                          placeholder="예) 2026-01"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>운영 종료 월</Label>
+                        <OboonDatePicker
+                          selected={parseYmToLocalDate(f.open_end)}
+                          onChange={(date: Date | null) =>
+                            updateField(idx, "open_end", formatLocalDateToYm(date))
+                          }
+                          showMonthYearPicker
+                          dateFormat="yyyy-MM"
+                          textFormat="yyyy-MM"
+                          inputClassName={CONTROL_LIKE}
+                          placeholder="예) 2026-03"
+                        />
+                      </div>
+                    </div>
+
+                    <label className="flex items-center gap-2 ob-typo-body text-(--oboon-text-body)">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border border-(--oboon-border-default) bg-(--oboon-bg-surface) accent-(--oboon-primary)"
+                        checked={f.is_active}
+                        onChange={(e) =>
+                          updateField(idx, "is_active", e.target.checked)
+                        }
+                      />
+                      운영 중
+                    </label>
+                  </div>
+                ) : null}
+                </Card>
+              ))}
+            </div>
           </div>
         </div>
       </PageContainer>

@@ -218,8 +218,8 @@ export default function Header() {
                   onClick={() => router.push("/agent/consultations")}
                 >
                   <Calendar className="w-4 h-4" />
-                  <span className="hidden sm:inline">예약 관리</span>
-                  <span className="sm:hidden">예약</span>
+                  <span className="hidden lg:inline">예약 관리</span>
+                  <span className="lg:hidden">예약</span>
                 </Button>
               </>
             )}
@@ -230,10 +230,10 @@ export default function Header() {
                 size="sm"
                 shape="pill"
                 className="flex items-center gap-2"
-                onClick={() => router.push("/company/properties")}
+                onClick={() => router.push("/admin")}
               >
-                <span className="hidden sm:inline">현장 등록하기</span>
-                <span className="sm:hidden ob-typo-caption">현장 등록</span>
+                <span className="hidden lg:inline">관리자 대시보드</span>
+                <span className="lg:hidden ob-typo-caption">대시보드</span>
               </Button>
             )}
 
@@ -243,7 +243,7 @@ export default function Header() {
             {user && <NotificationBell />}
 
             {/* Auth / Profile */}
-            <div className="hidden md:block">
+            <div className="hidden lg:block">
               {user ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -300,7 +300,7 @@ export default function Header() {
               )}
             </div>
             {/* Mobile nav */}
-            <div className="md:hidden">
+            <div className="lg:hidden">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button

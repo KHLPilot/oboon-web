@@ -5,7 +5,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { approveAgent, restoreAccount } from "./serverActions";
-import { fetchAdminDashboardData } from "@/features/admin/services/admin.dashboard";
+import {
+  fetchAdminDashboardData,
+  type AdminPropertyCard,
+} from "@/features/admin/services/admin.dashboard";
 import { DEFAULT_AVATAR_URL, getAvatarUrlOrDefault } from "@/shared/imageUrl";
 
 import Card from "@/components/ui/Card";
@@ -38,9 +41,11 @@ import {
   RefreshCw,
   Search,
   Scale,
+  Trash2,
   User,
   Users,
 } from "lucide-react";
+import { deletePropertyById } from "@/features/company/services/property.list";
 
 type Profile = {
   id: string;
@@ -50,30 +55,6 @@ type Profile = {
   role: string;
   created_at: string;
   deleted_at: string | null;
-};
-
-type PropertyAgent = {
-  id: string;
-  property_id: number;
-  agent_id: string;
-  request_type: "publish" | "delete";
-  status: "pending" | "approved" | "rejected";
-  reason?: string | null;
-  rejection_reason?: string | null;
-  requested_at: string;
-  properties: {
-    id: number;
-    name: string;
-    progressPercent?: number;
-    inputCount?: number;
-    totalCount?: number;
-  } | null;
-  profiles: {
-    id: string;
-    name: string;
-    email: string;
-    role?: string | null;
-  } | null;
 };
 
 type ReservationRow = {
@@ -126,6 +107,30 @@ type Term = {
   updated_at: string;
   created_at: string;
 };
+
+function MissingPill({ label }: { label: string }) {
+  return (
+    <Badge variant="warning" className="ob-typo-caption px-2.5 py-1">
+      {label}
+    </Badge>
+  );
+}
+
+function MorePill({ count }: { count: number }) {
+  return (
+    <span
+      className={[
+        "inline-flex items-center rounded-full px-2.5 py-1",
+        "border border-(--oboon-border-default)",
+        "bg-(--oboon-bg-subtle)",
+        "text-(--oboon-text-body)",
+        "ob-typo-caption",
+      ].join(" ")}
+    >
+      +{count}
+    </span>
+  );
+}
 
 function roleLabel(role: string) {
   switch (role) {
@@ -205,7 +210,7 @@ function AdminPageInner() {
   const searchParams = useSearchParams();
   const toast = useToast();
   const [loading, setLoading] = useState(true);
-  const [propertyAgents, setPropertyAgents] = useState<PropertyAgent[]>([]);
+  const [allPropertyCards, setAllPropertyCards] = useState<AdminPropertyCard[]>([]);
   const [publishedPropertyCount, setPublishedPropertyCount] = useState(0);
   const [todayNewConsultations, setTodayNewConsultations] = useState(0);
   const [todayVisitConsultations, setTodayVisitConsultations] = useState(0);
@@ -216,7 +221,7 @@ function AdminPageInner() {
   const [roleSort, setRoleSort] = useState<"none" | "asc" | "desc">("none");
   const [searchQuery, setSearchQuery] = useState("");
   const [propertyStatusFilter, setPropertyStatusFilter] = useState<
-    "all" | "pending" | "rejected" | "approved"
+    "all" | "incomplete"
   >("all");
   const [confirm, setConfirm] = useState<ConfirmState>({ open: false });
   const [confirmLoading, setConfirmLoading] = useState(false);
@@ -225,6 +230,9 @@ function AdminPageInner() {
     action: "approve" | "reject";
     loading: boolean;
   } | null>(null);
+  const [propertyDeleteLoadingId, setPropertyDeleteLoadingId] = useState<number | null>(
+    null,
+  );
   const [reservations, setReservations] = useState<ReservationRow[]>([]);
   const [reservationsLoading, setReservationsLoading] = useState(false);
   const [reservationAction, setReservationAction] = useState<{
@@ -272,7 +280,7 @@ function AdminPageInner() {
       return;
     }
 
-    setPropertyAgents(data.propertyAgents);
+    setAllPropertyCards(data.propertyCards);
     setPublishedPropertyCount(data.publishedPropertyCount);
     setTodayNewConsultations(data.todayNewConsultations);
     setTodayVisitConsultations(data.todayVisitConsultations);
@@ -459,6 +467,25 @@ function AdminPageInner() {
       toast.error(getErrorMessage(error, "거절에 실패했습니다"), "오류");
     } finally {
       setPropertyAgentAction(null);
+    }
+  };
+
+  const handlePropertyDelete = async (propertyId: number) => {
+    const ok = window.confirm("이 현장을 삭제할까요? 이 작업은 되돌릴 수 없습니다.");
+    if (!ok) return;
+
+    setPropertyDeleteLoadingId(propertyId);
+    try {
+      const { error } = await deletePropertyById(propertyId);
+      if (error) {
+        throw error;
+      }
+      toast.success("현장이 삭제되었습니다", "완료");
+      await loadData();
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "삭제에 실패했습니다"), "오류");
+    } finally {
+      setPropertyDeleteLoadingId(null);
     }
   };
 
@@ -665,58 +692,18 @@ function AdminPageInner() {
     return { total, delta: newToday, percent };
   }, [activeUsers]);
 
-  const pendingPropertyAgentCount = useMemo(
-    () => propertyAgents.filter((pa) => pa.status === "pending").length,
-    [propertyAgents],
+  const pendingPropertyRequestCount = useMemo(
+    () => allPropertyCards.filter((card) => card.status === "pending").length,
+    [allPropertyCards],
   );
 
   const propertyCards = useMemo(() => {
-    const cards = propertyAgents.map((pa) => ({
-      id: pa.id,
-      propertyId: pa.property_id,
-      requestType: pa.request_type,
-      title: pa.properties?.name || "-",
-      progressPercent: pa.properties?.progressPercent ?? null,
-      inputCount: pa.properties?.inputCount ?? null,
-      totalCount: pa.properties?.totalCount ?? null,
-      agent: pa.profiles?.name || "-",
-      agentRole: pa.profiles?.role ?? null,
-      email: pa.profiles?.email || "-",
-      requestedAt: pa.requested_at,
-      status: pa.status,
-      reason: pa.reason ?? null,
-      rejectionReason: pa.rejection_reason ?? null,
-    }));
+    if (propertyStatusFilter === "all") return allPropertyCards;
+    return allPropertyCards.filter((card) => card.missingLabels.length > 0);
+  }, [allPropertyCards, propertyStatusFilter]);
+  const visiblePropertyCount = propertyCards.length;
 
-    const latestPerProperty = new Map<number, (typeof cards)[number]>();
-    cards.forEach((card) => {
-      const prev = latestPerProperty.get(card.propertyId);
-      if (!prev) {
-        latestPerProperty.set(card.propertyId, card);
-        return;
-      }
-      const prevPriority = prev.status === "pending" ? 2 : 1;
-      const nextPriority = card.status === "pending" ? 2 : 1;
-      if (nextPriority > prevPriority) {
-        latestPerProperty.set(card.propertyId, card);
-        return;
-      }
-      if (
-        nextPriority === prevPriority &&
-        new Date(card.requestedAt).getTime() > new Date(prev.requestedAt).getTime()
-      ) {
-        latestPerProperty.set(card.propertyId, card);
-      }
-    });
-
-    const deduped = Array.from(latestPerProperty.values()).sort(
-      (a, b) => new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime(),
-    );
-    if (propertyStatusFilter === "all") return deduped;
-    return deduped.filter((card) => card.status === propertyStatusFilter);
-  }, [propertyAgents, propertyStatusFilter]);
-
-  const propertyProgress = (status: PropertyAgent["status"]) => {
+  const propertyProgress = (status: AdminPropertyCard["status"]) => {
     switch (status) {
       case "pending":
         return 40;
@@ -732,54 +719,16 @@ function AdminPageInner() {
   const getCardProgress = (card: (typeof propertyCards)[number]) =>
     card.progressPercent ?? propertyProgress(card.status);
 
-  const getInputStatusLabel = (card: (typeof propertyCards)[number]) => {
-    if (card.inputCount == null || card.totalCount == null) return "입력중";
-    return card.inputCount === card.totalCount
-      ? "입력 완료"
-      : `입력 상태 ${card.inputCount}/${card.totalCount}`;
-  };
-
-  const propertyStateLabel = (
-    requestType: PropertyAgent["request_type"],
-    status: PropertyAgent["status"],
-    requesterRole?: string | null,
-  ) => {
-    if (requestType === "publish") {
-      if (status === "pending") {
-        return requesterRole === "admin" ? "게시" : "게시 요청";
-      }
-      if (status === "approved") return "게시됨";
-      if (status === "rejected") return "게시 반려";
-    }
-    if (requestType === "delete") {
-      if (status === "pending") return "삭제 요청";
-      if (status === "approved") return "삭제 완료";
-      if (status === "rejected") return "삭제 반려";
-    }
-    return status;
-  };
-
-  const propertyStateVariant = (
-    requestType: PropertyAgent["request_type"],
-    status: PropertyAgent["status"],
-  ): "status" | "warning" | "danger" | "success" => {
-    if (requestType === "delete") {
-      if (status === "pending") return "danger";
-      if (status === "approved") return "danger";
-      if (status === "rejected") return "warning";
-    }
-    if (status === "pending") return "warning";
-    if (status === "approved") return "success";
-    if (status === "rejected") return "danger";
-    return "status";
-  };
-
   const requesterRoleLabel = (role?: string | null) => {
     switch (role) {
       case "admin":
         return "관리자";
       case "agent":
         return "분양상담사";
+      case "builder":
+        return "시공사";
+      case "developer":
+        return "시행사";
       default:
         return role ?? "-";
     }
@@ -1186,7 +1135,7 @@ function AdminPageInner() {
                           승인 대기
                         </div>
                         <div className="mt-1 ob-typo-h3 text-(--oboon-text-title)">
-                          {pendingPropertyAgentCount}건
+                          {pendingPropertyRequestCount}건
                         </div>
                       </div>
                       <div className="h-10 w-px bg-(--oboon-border-default)" />
@@ -1764,9 +1713,7 @@ function AdminPageInner() {
                     <div className="ob-typo-h2 text-(--oboon-text-title)">
                       현장 관리
                     </div>
-                    <Badge variant="status">
-                      {pendingPropertyAgentCount}건
-                    </Badge>
+                    <Badge variant="status">{visiblePropertyCount}건</Badge>
                   </div>
                   <Button
                     variant="secondary"
@@ -1779,31 +1726,39 @@ function AdminPageInner() {
                     <RefreshCw className="h-4 w-4" />
                   </Button>
                 </div>
-                <div className="flex items-center gap-2">
-                  {[
-                    { id: "all", label: "전체" },
-                    { id: "pending", label: "검토 대기" },
-                    { id: "rejected", label: "반려됨" },
-                    { id: "approved", label: "게시됨" },
-                  ].map((tab) => {
-                    const isActive = propertyStatusFilter === tab.id;
-                    return (
-                      <Button
-                        key={tab.id}
-                        onClick={() =>
-                          setPropertyStatusFilter(
-                            tab.id as "all" | "pending" | "rejected" | "approved",
-                          )
-                        }
-                        variant={isActive ? "primary" : "secondary"}
-                        size="sm"
-                        shape="pill"
-                        className="text-xs"
-                      >
-                        {tab.label}
-                      </Button>
-                    );
-                  })}
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    {[
+                      { id: "all", label: "전체" },
+                      { id: "incomplete", label: "미완성" },
+                    ].map((tab) => {
+                      const isActive = propertyStatusFilter === tab.id;
+                      return (
+                        <Button
+                          key={tab.id}
+                          onClick={() =>
+                            setPropertyStatusFilter(
+                              tab.id as "all" | "incomplete",
+                            )
+                          }
+                          variant={isActive ? "primary" : "secondary"}
+                          size="sm"
+                          shape="pill"
+                          className="text-xs"
+                        >
+                          {tab.label}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    shape="pill"
+                    onClick={() => router.push("/company/properties/new")}
+                  >
+                    + 새 현장 등록
+                  </Button>
                 </div>
 
                 {propertyCards.length === 0 ? (
@@ -1814,36 +1769,43 @@ function AdminPageInner() {
                   </Card>
                 ) : (
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    {propertyCards.map((card) => (
-                      <Card
-                        key={card.id}
-                        className="p-4 shadow-none cursor-pointer transition-colors hover:bg-(--oboon-bg-subtle)"
-                        onClick={() => router.push(`/company/properties/${card.propertyId}`)}
-                      >
+                    {propertyCards.map((card) => {
+                      const MAX_PILLS = 3;
+                      const visibleMissing = card.missingLabels.slice(0, MAX_PILLS);
+                      const hiddenCount = Math.max(0, card.missingLabels.length - MAX_PILLS);
+
+                      return (
+                        <Card
+                          key={card.propertyId}
+                          className="p-4 shadow-none cursor-pointer transition-colors hover:bg-(--oboon-bg-subtle)"
+                          onClick={() => router.push(`/company/properties/${card.propertyId}`)}
+                        >
                         <div className="flex items-start justify-between gap-3">
                           <div className="mt-1 min-w-0 flex-1 ob-typo-h3 text-(--oboon-text-title)">
                             <span className="block truncate whitespace-nowrap">
                               {card.title}
                             </span>
                           </div>
-                          <div className="flex shrink-0 items-center gap-2">
-                            <Badge
-                              variant={propertyStateVariant(card.requestType, card.status)}
-                              className="ob-typo-caption px-2 py-0.5"
-                            >
-                              {propertyStateLabel(
-                                card.requestType,
-                                card.status,
-                                card.agentRole,
-                              )}
-                            </Badge>
-                            <Badge
-                              variant="status"
-                              className="ob-typo-caption px-2 py-0.5"
-                            >
-                              {getInputStatusLabel(card)}
-                            </Badge>
-                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePropertyDelete(card.propertyId);
+                            }}
+                            disabled={propertyDeleteLoadingId === card.propertyId}
+                            aria-label="삭제"
+                            className={[
+                              "inline-flex h-8 w-8 items-center justify-center rounded-full p-0 cursor-pointer transition-colors shrink-0",
+                              "text-(--oboon-danger)",
+                              "hover:bg-(--oboon-danger-bg)",
+                              "focus:outline-none focus:ring-2 focus:ring-(--oboon-danger)/30",
+                              propertyDeleteLoadingId === card.propertyId
+                                ? "opacity-50 cursor-not-allowed"
+                                : "",
+                            ].join(" ")}
+                          >
+                            <Trash2 size={16} />
+                          </button>
                         </div>
                         <div className="mt-2 space-y-1 ob-typo-body text-(--oboon-text-muted)">
                           <div className="flex items-center gap-2">
@@ -1855,7 +1817,7 @@ function AdminPageInner() {
                           <div className="flex items-center gap-2">
                             <Calendar className="h-4 w-4 text-(--oboon-text-muted)" />
                             <span>
-                              {new Date(card.requestedAt).toLocaleString(
+                              {new Date(card.createdAt).toLocaleString(
                                 "ko-KR",
                                 {
                                   year: "numeric",
@@ -1886,8 +1848,17 @@ function AdminPageInner() {
                               }}
                             />
                           </div>
+                          {card.missingLabels.length > 0 ? (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {visibleMissing.map((label) => (
+                                <MissingPill key={label} label={label} />
+                              ))}
+                              {hiddenCount > 0 ? <MorePill count={hiddenCount} /> : null}
+                            </div>
+                          ) : null}
                           {card.status === "pending" &&
-                          !resolvedPropertyRequests[card.id] ? (
+                          card.latestRequestId &&
+                          !resolvedPropertyRequests[card.latestRequestId] ? (
                             <div className="mt-3 flex items-center justify-between gap-3">
                               {card.requestType === "delete" && card.reason ? (
                                 <div className="ob-typo-body text-(--oboon-danger) truncate">
@@ -1902,12 +1873,15 @@ function AdminPageInner() {
                                   shape="pill"
                                   variant="primary"
                                   disabled={
-                                    propertyAgentAction?.id === card.id &&
+                                    propertyAgentAction?.id === card.latestRequestId &&
                                     propertyAgentAction?.loading
                                   }
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handlePropertyAgentApprove(card.id, card.requestType);
+                                    const requestId = card.latestRequestId;
+                                    const requestType = card.requestType;
+                                    if (!requestId || !requestType) return;
+                                    handlePropertyAgentApprove(requestId, requestType);
                                   }}
                                 >
                                   승인
@@ -1917,12 +1891,15 @@ function AdminPageInner() {
                                   shape="pill"
                                   variant="secondary"
                                   disabled={
-                                    propertyAgentAction?.id === card.id &&
+                                    propertyAgentAction?.id === card.latestRequestId &&
                                     propertyAgentAction?.loading
                                   }
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handlePropertyAgentReject(card.id, card.requestType);
+                                    const requestId = card.latestRequestId;
+                                    const requestType = card.requestType;
+                                    if (!requestId || !requestType) return;
+                                    handlePropertyAgentReject(requestId, requestType);
                                   }}
                                 >
                                   반려
@@ -1935,8 +1912,9 @@ function AdminPageInner() {
                             </div>
                           ) : null}
                         </div>
-                      </Card>
-                    ))}
+                        </Card>
+                      );
+                    })}
                   </div>
                 )}
               </div>

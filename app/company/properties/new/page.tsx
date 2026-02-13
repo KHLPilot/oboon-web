@@ -88,12 +88,17 @@ export default function PropertyCreatePage() {
   const [affiliationStatusMap, setAffiliationStatusMap] = useState<
     Record<number, AffiliationStatus>
   >({});
-  const [checkingDuplicateName, setCheckingDuplicateName] = useState(false);
   const [isNameComposing, setIsNameComposing] = useState(false);
   const [applyingAffiliationPropertyId, setApplyingAffiliationPropertyId] =
     useState<number | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
+
+  const cancelHref = useMemo(() => {
+    if (userRole === "agent") return "/agent/profile#property-register";
+    if (userRole === "admin") return "/admin?tab=properties";
+    return "/";
+  }, [userRole]);
 
   // 대표 이미지 파일 + 미리보기
   const [mainImageFile, setMainImageFile] = useState<File | null>(null);
@@ -167,8 +172,8 @@ export default function PropertyCreatePage() {
     event.currentTarget.value = "";
     if (files.length === 0) return;
 
-    if (galleryImages.length + files.length > 5) {
-      showAlert("추가 사진은 최대 5장까지 선택할 수 있습니다.");
+    if (galleryImages.length + files.length > 10) {
+      showAlert("추가 사진은 최대 10장까지 선택할 수 있습니다.");
       return;
     }
 
@@ -285,19 +290,16 @@ export default function PropertyCreatePage() {
     const trimmedName = rawName.trim();
     if (!trimmedName) {
       if (!isStale()) {
-        setCheckingDuplicateName(false);
         setHasExactDuplicate(false);
         setDuplicateCandidates([]);
       }
       return false;
     }
 
-    setCheckingDuplicateName(true);
-    try {
-      const supabase = createSupabaseClient();
-      const tokenPattern = `%${trimmedName.split(/\s+/).filter(Boolean).join("%")}%`;
-      const compactName = trimmedName.replace(/\s+/g, "");
-      const charPattern = `%${compactName.split("").join("%")}%`;
+    const supabase = createSupabaseClient();
+    const tokenPattern = `%${trimmedName.split(/\s+/).filter(Boolean).join("%")}%`;
+    const compactName = trimmedName.replace(/\s+/g, "");
+    const charPattern = `%${compactName.split("").join("%")}%`;
 
       const { data: tokenData, error: tokenError } = await supabase
         .from("properties")
@@ -307,7 +309,6 @@ export default function PropertyCreatePage() {
 
       if (tokenError) {
         console.error("현장명 중복 확인 오류(토큰):", tokenError);
-        if (!isStale()) setCheckingDuplicateName(false);
         return false;
       }
       if (isStale()) return false;
@@ -323,7 +324,6 @@ export default function PropertyCreatePage() {
 
         if (charError) {
           console.error("현장명 중복 확인 오류(문자):", charError);
-          if (!isStale()) setCheckingDuplicateName(false);
           return false;
         }
         if (isStale()) return false;
@@ -368,12 +368,7 @@ export default function PropertyCreatePage() {
       setDuplicateCandidates(nextCandidates);
       await loadAffiliationStatuses(nextCandidates.map((item) => item.id));
       if (isStale()) return false;
-      return isDuplicate;
-    } finally {
-      if (!isStale()) {
-        setCheckingDuplicateName(false);
-      }
-    }
+    return isDuplicate;
   }, [loadAffiliationStatuses]);
 
   useEffect(() => {
@@ -387,7 +382,6 @@ export default function PropertyCreatePage() {
     const trimmedName = form.name.trim();
     if (!trimmedName || trimmedName.length < 2) {
       duplicateCheckRequestIdRef.current += 1;
-      setCheckingDuplicateName(false);
       setHasExactDuplicate(false);
       setDuplicateCandidates([]);
       return;
@@ -445,6 +439,7 @@ export default function PropertyCreatePage() {
   };
 
   const isAffiliationButtonDisabled = (propertyId: number) => {
+    if (userRole !== "agent") return true;
     const status = affiliationStatusMap[propertyId] ?? null;
     if (status === "approved" || status === "pending") return true;
     return applyingAffiliationPropertyId === propertyId;
@@ -622,11 +617,6 @@ export default function PropertyCreatePage() {
                     autoFocus
                     disabled={loading}
                   />
-                  {checkingDuplicateName ? (
-                    <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
-                      현장명 중복 확인 중...
-                    </p>
-                  ) : null}
                   {duplicateCandidates.length > 0 ? (
                     <div className="mt-3 space-y-2 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-3">
                       <p className="ob-typo-subtitle text-(--oboon-text-title)">
@@ -814,7 +804,7 @@ export default function PropertyCreatePage() {
               label="추가 사진 (선택)"
               rightMeta={
                 <span className="ob-typo-body text-(--oboon-text-muted)">
-                  {galleryImages.length}/5
+                  {galleryImages.length}/10
                 </span>
               }
             >
@@ -825,20 +815,20 @@ export default function PropertyCreatePage() {
                   accept="image/jpeg,image/png,image/webp"
                   multiple
                   className="hidden"
-                  disabled={disabled || galleryImages.length >= 5}
+                  disabled={disabled || galleryImages.length >= 10}
                   onChange={handleGallerySelect}
                 />
                 <Button
                   variant="secondary"
                   size="sm"
                   className="w-full"
-                  disabled={disabled || galleryImages.length >= 5}
+                  disabled={disabled || galleryImages.length >= 10}
                   onClick={() => galleryInputRef.current?.click()}
                 >
                   이미지 업로드
                 </Button>
                 <p className="ob-typo-caption text-(--oboon-text-muted)">
-                  jpg/png/webp, 파일당 5MB, 최대 5장까지 등록할 수 있습니다.
+                  jpg/png/webp, 파일당 5MB, 최대 10장까지 등록할 수 있습니다.
                 </p>
 
                 {galleryImages.length === 0 ? (
@@ -910,7 +900,7 @@ export default function PropertyCreatePage() {
                 variant="secondary"
                 size="md"
                 shape="pill"
-                onClick={() => router.push("/company/properties")}
+                onClick={() => router.push(cancelHref)}
                 disabled={disabled}
                 className="w-full justify-center sm:w-auto"
               >

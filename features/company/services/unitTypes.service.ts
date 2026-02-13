@@ -22,6 +22,7 @@ function buildCreatePayload(propertyId: number, draft: UnitDraft): UnitDraft {
     building_layout: normalizeText(draft.building_layout),
     orientation: normalizeText(draft.orientation),
     floor_plan_url: normalizeText(draft.floor_plan_url),
+    image_url: normalizeText(draft.image_url),
   };
 }
 
@@ -41,6 +42,7 @@ function buildUpdatePayload(draft: UnitDraft): Partial<UnitRow> {
     unit_count: draft.unit_count,
     supply_count: draft.supply_count,
     floor_plan_url: normalizeText(draft.floor_plan_url),
+    image_url: normalizeText(draft.image_url),
   };
 }
 

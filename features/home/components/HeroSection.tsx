@@ -17,10 +17,52 @@ type AgentAvatar = {
   avatarUrl: string | null;
 };
 
+type HeroCounselor = {
+  name: string;
+  field: string;
+  intro: string;
+  image: string;
+};
+
+type PropertyInfo = {
+  name?: string | null;
+};
+
+function pickRandomItems<T>(items: T[], count: number): T[] {
+  const shuffled = [...items];
+  for (let i = shuffled.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled.slice(0, Math.min(count, shuffled.length));
+}
+
+function deriveCounselorField(summary: string | null, bio: string | null): string {
+  const source = (summary || bio || "")
+    .replace(/[.,/]/g, "·")
+    .split("·")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const tags = Array.from(new Set(source)).slice(0, 2);
+  return tags.length > 0 ? tags.join(" · ") : "소속 현장 미등록";
+}
+
+function deriveCounselorIntro(summary: string | null, bio: string | null): string {
+  const summaryText = (summary ?? "").trim();
+  if (summaryText) return summaryText;
+
+  const bioText = (bio ?? "").trim();
+  if (!bioText) return "상담 스타일과 전문 분야를 확인하고 선택해 보세요.";
+
+  return bioText.length > 28 ? `${bioText.slice(0, 28).trim()}...` : bioText;
+}
+
 export default function HeroSection() {
   const supabase = useMemo(() => createSupabaseClient(), []);
   const [agentCount, setAgentCount] = useState(0);
   const [agentAvatars, setAgentAvatars] = useState<AgentAvatar[]>([]);
+  const [previewCounselors, setPreviewCounselors] = useState<HeroCounselor[]>([]);
+  const [agentsLoaded, setAgentsLoaded] = useState(false);
   const [isLightMode, setIsLightMode] = useState(false);
 
   useEffect(() => {
@@ -29,35 +71,99 @@ export default function HeroSection() {
     (async () => {
       const { data, error } = await supabase
         .from("property_agents")
-        .select("agent_id, profiles:agent_id(id, name, avatar_url)")
+        .select(
+          "agent_id, profiles:agent_id(id, name, avatar_url, agent_summary, agent_bio), properties:property_id(name)",
+        )
         .eq("status", "approved");
 
-      if (!mounted || error) return;
+      if (!mounted) return;
+      if (error) {
+        setAgentsLoaded(true);
+        return;
+      }
 
       const rows = (data ?? []) as Array<{
         agent_id: string | null;
         profiles?:
-          | { id?: string | null; name?: string | null; avatar_url?: string | null }
-          | Array<{ id?: string | null; name?: string | null; avatar_url?: string | null }>
+          | {
+              id?: string | null;
+              name?: string | null;
+              avatar_url?: string | null;
+              agent_summary?: string | null;
+              agent_bio?: string | null;
+            }
+          | Array<{
+              id?: string | null;
+              name?: string | null;
+              avatar_url?: string | null;
+              agent_summary?: string | null;
+              agent_bio?: string | null;
+            }>
           | null;
+        properties?: PropertyInfo | PropertyInfo[] | null;
       }>;
 
       const uniqueAgents = new Map<string, AgentAvatar>();
+      const counselorMap = new Map<
+        string,
+        {
+          name: string;
+          image: string;
+          intro: string;
+          properties: Set<string>;
+        }
+      >();
       for (const row of rows) {
         const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
         const id = String(profile?.id ?? row.agent_id ?? "").trim();
-        if (!id || uniqueAgents.has(id)) continue;
+        if (!id) continue;
 
-        uniqueAgents.set(id, {
-          id,
-          name: profile?.name?.trim() || "상담사",
-          avatarUrl: profile?.avatar_url ?? null,
-        });
+        const property = Array.isArray(row.properties)
+          ? row.properties[0]
+          : row.properties;
+        const propertyName = (property?.name ?? "").trim();
+
+        if (!uniqueAgents.has(id)) {
+          uniqueAgents.set(id, {
+            id,
+            name: profile?.name?.trim() || "상담사",
+            avatarUrl: profile?.avatar_url ?? null,
+          });
+        }
+
+        const existing = counselorMap.get(id);
+        if (!existing) {
+          counselorMap.set(id, {
+            name: profile?.name?.trim() || "상담사",
+            image: getAvatarUrlOrDefault(profile?.avatar_url ?? null),
+            intro: deriveCounselorIntro(
+              profile?.agent_summary ?? null,
+              profile?.agent_bio ?? null,
+            ),
+            properties: propertyName ? new Set([propertyName]) : new Set<string>(),
+          });
+          continue;
+        }
+
+        if (propertyName) {
+          existing.properties.add(propertyName);
+        }
       }
 
       const allAgents = Array.from(uniqueAgents.values());
       setAgentCount(allAgents.length);
       setAgentAvatars(allAgents.slice(0, 3));
+
+      const allCounselors = Array.from(counselorMap.values()).map((item) => ({
+        name: item.name,
+        field:
+          Array.from(item.properties).slice(0, 2).join(" · ") ||
+          deriveCounselorField(null, null),
+        intro: item.intro,
+        image: item.image,
+      }));
+      setPreviewCounselors(pickRandomItems(allCounselors, 4));
+      setAgentsLoaded(true);
     })();
 
     return () => {
@@ -215,7 +321,10 @@ export default function HeroSection() {
         </div>
 
         <div className="lg:pl-2">
-          <HeroCounselorPreview />
+          <HeroCounselorPreview
+            counselors={previewCounselors}
+            showFallback={agentsLoaded && agentCount === 0}
+          />
         </div>
       </div>
     </section>

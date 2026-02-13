@@ -118,6 +118,41 @@ type UserMenuTab =
   | "personalization"
   | "community";
 
+const AGENT_PROFILE_GUIDE_EXAMPLES = [
+  {
+    id: "trust",
+    label: "신뢰형",
+    summary: "정확한 정보와 책임감 있는 후속 관리 중심",
+    text: `서울 서북권(마포·은평·서대문) 아파트/오피스텔 분양 상담을 전문으로 하고 있습니다.
+신규 분양 현장 상담 경력 7년, 청약·대출·계약 절차를 실제 사례 중심으로 정확히 안내드립니다.
+고객 상황에 맞는 단지 비교표와 리스크 포인트를 먼저 정리해 드리며, 상담 후에도 일정·서류·자금 계획까지 책임 있게 관리하겠습니다.`,
+  },
+  {
+    id: "sales",
+    label: "영업형",
+    summary: "속도감 있게 비교·추천하고 빠른 의사결정을 유도",
+    text: `요즘 가장 문의 많은 서울 핵심 분양 단지, 빠르게 비교해 드립니다.
+청약 가능성 진단부터 대출 시뮬레이션, 계약 타이밍까지 한 번에 정리해 드려 상담 시간이 짧고 명확합니다.
+방문 전 체크리스트와 맞춤 추천 타입을 먼저 전달해 드리니, 처음 상담하셔도 바로 의사결정이 가능합니다.`,
+  },
+  {
+    id: "calm",
+    label: "차분형",
+    summary: "초보 고객도 편하게 이해하도록 단계별 안내",
+    text: `분양 상담이 처음이신 분도 이해하기 쉽도록 단계별로 차근차근 안내해 드립니다.
+과한 권유 없이 고객님의 예산과 일정에 맞는 선택지를 함께 검토하고, 필요한 정보만 명확하게 정리해 드립니다.
+상담 후에도 궁금한 점은 편하게 다시 문의하실 수 있도록 끝까지 도와드리겠습니다.`,
+  },
+  {
+    id: "expert",
+    label: "전문가형",
+    summary: "데이터 기반 분석과 리스크 점검 중심 제안",
+    text: `분양가·옵션·중도금 조건·세금 이슈까지 계약 전 의사결정에 필요한 핵심 데이터를 구조적으로 제공합니다.
+청약 경쟁률 흐름, 지역 공급 일정, 타입별 수요를 기반으로 우선순위를 제안드리며, 리스크 항목도 함께 안내드립니다.
+단순 소개를 넘어 고객 상황에 맞춘 실행 가능한 전략 상담을 목표로 합니다.`,
+  },
+] as const;
+
 export default function ProfilePage({
   forceAgentView = false,
   redirectAgentOnProfile = false,
@@ -197,11 +232,16 @@ export default function ProfilePage({
   const [withdrawingRequestId, setWithdrawingRequestId] = useState<string | null>(
     null,
   );
+  const [agentSummary, setAgentSummary] = useState("");
 
   // 마케팅 수신 동의 상태
   const [marketingConsent, setMarketingConsent] = useState(false);
   const [marketingConsentLoading, setMarketingConsentLoading] = useState(false);
   const [showAgentProfilePreview, setShowAgentProfilePreview] = useState(false);
+  const [showAgentProfileGuide, setShowAgentProfileGuide] = useState(false);
+  const [openGuideExampleIds, setOpenGuideExampleIds] = useState<string[]>([
+    "trust",
+  ]);
   const [previewImages, setPreviewImages] = useState<string[]>([]);
   const [previewImageIndex, setPreviewImageIndex] = useState<number | null>(null);
 
@@ -253,7 +293,7 @@ export default function ProfilePage({
       const { data } = await supabase
         .from("profiles")
         .select(
-          "name, nickname, phone_number, role, avatar_url, agent_bio, bank_name, bank_account_number, bank_account_holder",
+          "name, nickname, phone_number, role, avatar_url, agent_summary, agent_bio, bank_name, bank_account_number, bank_account_holder",
         )
         .eq("id", user.id)
         .single();
@@ -268,6 +308,7 @@ export default function ProfilePage({
         setBankAccountHolder(data.bank_account_holder ?? "");
         setRole(data.role as Role);
         setAvatarUrl(data.avatar_url ?? null);
+        setAgentSummary(data.agent_summary ?? "");
         setAgentEtc(data.agent_bio ?? "");
       }
 
@@ -719,6 +760,7 @@ export default function ProfilePage({
       bank_name?: string;
       bank_account_number?: string;
       bank_account_holder?: string;
+      agent_summary?: string | null;
       agent_bio?: string | null;
     } = {
       name: name.trim(),
@@ -730,6 +772,7 @@ export default function ProfilePage({
     updatePayload.bank_account_number = bankAccountNumber.trim();
     updatePayload.bank_account_holder = bankAccountHolder.trim();
     if (showAgentProfile) {
+      updatePayload.agent_summary = agentSummary.trim() || null;
       updatePayload.agent_bio = agentEtc.trim() || null;
     }
 
@@ -1352,6 +1395,21 @@ export default function ProfilePage({
                     </div>
 
                     <div className="space-y-2">
+                      <Label>한 줄 소개</Label>
+                      <Input
+                        value={agentSummary}
+                        disabled={!isEditing}
+                        onChange={(e) => setAgentSummary(e.target.value)}
+                        placeholder="예: 청약·대출·계약까지 한 번에 정리해 드리는 실전형 상담사"
+                        className={oboonFieldBaseClass}
+                        maxLength={120}
+                      />
+                      <p className="ob-typo-caption text-(--oboon-text-muted)">
+                        고객이 상담사를 빠르게 이해할 수 있는 문장을 적어주세요. (최대 120자)
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
                       <Label>기타</Label>
                       <Textarea
                         value={agentEtc}
@@ -1364,6 +1422,14 @@ export default function ProfilePage({
                     </div>
 
                     <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setShowAgentProfileGuide(true)}
+                        aria-label="상담사 프로필 작성 예시 보기"
+                      >
+                        ⓘ
+                      </Button>
                       <Button
                         variant="secondary"
                         size="sm"
@@ -1830,6 +1896,75 @@ export default function ProfilePage({
               onDelete={deleteAccount}
             />
             <Modal
+              open={showAgentProfileGuide}
+              onClose={() => setShowAgentProfileGuide(false)}
+              size="lg"
+            >
+              <div className="ob-typo-h2 text-(--oboon-text-title)">
+                예시 프로필 작성법
+              </div>
+
+              <div className="mt-4 space-y-3">
+                <p className="ob-typo-body text-(--oboon-text-muted)">
+                  고객이 빠르게 신뢰할 수 있도록 핵심 정보부터 짧고 구체적으로 작성해 주세요.
+                </p>
+                <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-4">
+                  <p className="ob-typo-caption text-(--oboon-text-muted)">
+                    권장 구성
+                  </p>
+                  <p className="mt-2 ob-typo-body text-(--oboon-text-title)">
+                    1) 전문 지역/상품군 2) 경력/실적 3) 상담 방식 4) 고객 약속
+                  </p>
+                </div>
+                <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-4">
+                  <p className="ob-typo-caption text-(--oboon-text-muted)">예시 문구</p>
+                  <div className="mt-2 space-y-2">
+                    {AGENT_PROFILE_GUIDE_EXAMPLES.map((example) => {
+                      const isOpen = openGuideExampleIds.includes(example.id);
+                      return (
+                        <div
+                          key={example.id}
+                          className="overflow-hidden rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-subtle)"
+                        >
+                          <button
+                            type="button"
+                            className="w-full px-3 py-2 text-left"
+                            onClick={() =>
+                              setOpenGuideExampleIds((prev) =>
+                                prev.includes(example.id)
+                                  ? prev.filter((id) => id !== example.id)
+                                  : [...prev, example.id],
+                              )
+                            }
+                            aria-expanded={isOpen}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="ob-typo-caption text-(--oboon-text-muted)">
+                                  {example.label}
+                                </p>
+                                <p className="mt-0.5 ob-typo-caption text-(--oboon-text-muted)">
+                                  {example.summary}
+                                </p>
+                              </div>
+                              <span className="ob-typo-caption text-(--oboon-text-muted) shrink-0">
+                                {isOpen ? "접기" : "펼치기"}
+                              </span>
+                            </div>
+                          </button>
+                          {isOpen ? (
+                            <p className="border-t border-(--oboon-border-default) px-3 py-3 whitespace-pre-line ob-typo-body text-(--oboon-text-title)">
+                              {example.text}
+                            </p>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </Modal>
+            <Modal
               open={showAgentProfilePreview}
               onClose={() => setShowAgentProfilePreview(false)}
             >
@@ -1858,8 +1993,21 @@ export default function ProfilePage({
                   </div>
                 </div>
 
-                <div className="mt-6 whitespace-pre-line ob-typo-body text-(--oboon-text-title)">
-                  {agentEtc.trim() || "등록된 상담사 소개가 없습니다."}
+                {agentSummary.trim() ? (
+                  <div className="mt-4 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-2">
+                    <div className="ob-typo-body text-(--oboon-text-title)">
+                      {agentSummary.trim()}
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="mt-4 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-4 py-3">
+                  <div className="ob-typo-caption text-(--oboon-text-muted)">
+                    상담사 소개
+                  </div>
+                  <div className="mt-2 whitespace-pre-line ob-typo-body text-(--oboon-text-title)">
+                    {agentEtc.trim() || "등록된 상담사 소개가 없습니다."}
+                  </div>
                 </div>
 
                 {galleryImages.length > 0 ? (

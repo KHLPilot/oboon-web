@@ -83,6 +83,26 @@ export default function PropertyLocationPage() {
     () => Boolean(site.road_address || site.jibun_address),
     [site.road_address, site.jibun_address],
   );
+  const siteLat = Number(site.lat);
+  const siteLng = Number(site.lng);
+  const hasMapCoords = Number.isFinite(siteLat) && Number.isFinite(siteLng);
+  const locationMarkers = useMemo(
+    () =>
+      hasMapCoords
+        ? [
+            {
+              id: 1,
+              label: "현장 위치",
+              lat: siteLat,
+              lng: siteLng,
+              type: "ready" as const,
+              topLabel: null,
+              mainLabel: "현장 위치",
+            },
+          ]
+        : [],
+    [hasMapCoords, siteLat, siteLng],
+  );
 
   useEffect(() => {
     if (accessLoading || !canAccessProperty) return;
@@ -294,6 +314,23 @@ export default function PropertyLocationPage() {
                   </div>
                 )}
               </div>
+
+              {!manualMode && hasMapCoords ? (
+                <div className="mt-4 space-y-2">
+                  <p className="ob-typo-caption text-(--oboon-text-muted)">
+                    지도 위치
+                  </p>
+                  <div className="h-64 overflow-hidden rounded-xl border border-(--oboon-border-default)">
+                    <NaverMap
+                      mode="base"
+                      markers={locationMarkers}
+                      fitToMarkers
+                      initialZoom={16}
+                      interactive={false}
+                    />
+                  </div>
+                </div>
+              ) : null}
 
               {/* CTA */}
               {!manualMode && (isEditing || !hasAnyAddress) ? (

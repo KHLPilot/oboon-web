@@ -1,8 +1,9 @@
 // app/company/properties/[id]/units/page.tsx
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { X } from "lucide-react";
 
 import Button from "@/components/ui/Button";
 import UnitTypeCard from "./UnitTypeCard";
@@ -24,8 +25,8 @@ import { showAlert } from "@/shared/alert";
 import { useRequirePropertyEditAccess } from "@/features/company/hooks/useRequirePropertyEditAccess";
 
 import PageContainer from "@/components/shared/PageContainer";
-import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
+import Modal from "@/components/ui/Modal";
 import { FormField } from "@/components/shared/FormField";
 
 function hasAreaUnitSuffix(value: string | null | undefined) {
@@ -43,6 +44,17 @@ function stripAreaUnitSuffix(value: string | null | undefined) {
   const raw = (value ?? "").trim();
   if (!raw) return "";
   return raw.replace(/\s*(㎡|m²|m2)\s*$/i, "").trim();
+}
+
+function toFloorPlanPayload(urls: string[]) {
+  const normalized = Array.from(
+    new Set(urls.map((v) => v.trim()).filter((v) => v.length > 0)),
+  );
+  return {
+    floor_plan_url: normalized[0] ?? null,
+    image_url:
+      normalized.length > 0 ? JSON.stringify(normalized) : null,
+  };
 }
 
 function buildDraftFromRow(row: UnitRow): UnitDraft {
@@ -78,7 +90,6 @@ export default function UnitTypesPage() {
 
   const {
     units,
-    loading,
     errorMsg,
     createUnit,
     updateUnit,
@@ -116,18 +127,15 @@ export default function UnitTypesPage() {
 
   const [floorPlanUploading, setFloorPlanUploading] = useState(false);
   const [appendAreaUnit, setAppendAreaUnit] = useState(false);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [createFloorPlanUrls, setCreateFloorPlanUrls] = useState<string[]>([]);
+  const createFloorPlanInputRef = useRef<HTMLInputElement | null>(null);
 
   // 인라인 수정(단일 카드만)
   const [editingId, setEditingId] = useState<number | null>(null);
   const [inlineDraft, setInlineDraft] = useState<UnitDraft | null>(null);
   const [savingInline, setSavingInline] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
-
-  const unitCountText = useMemo(() => {
-    if (loading) return "불러오는 중...";
-    if (units.length === 0) return "아직 등록된 평면 타입이 없어요.";
-    return `${units.length}개 평면 타입이 등록되어 있어요.`;
-  }, [loading, units.length]);
 
   const createPricePreview = useMemo(
     () => formatPriceRange(createDraft.price_min, createDraft.price_max),
@@ -190,20 +198,30 @@ export default function UnitTypesPage() {
     cancelInlineEdit();
   }
 
-  // ✅ 평면도 파일 선택 → 업로드 → floor_plan_url 세팅
-  async function handlePickFloorPlan(file: File) {
+  async function handlePickFloorPlans(files: File[]) {
     if (!safePropertyId) return;
+    if (files.length === 0) return;
+
+    if (createFloorPlanUrls.length + files.length > 5) {
+      showAlert("평면도 이미지는 최대 5장까지 업로드할 수 있습니다.");
+      return;
+    }
 
     try {
       setFloorPlanUploading(true);
+      const uploaded: string[] = [];
+      for (const file of files) {
+        const url = await uploadFloorPlan({
+          file,
+          propertyId: safePropertyId,
+          unitTypeName: (createDraft.type_name ?? "").trim() || undefined,
+        });
+        uploaded.push(url);
+      }
 
-      const url = await uploadFloorPlan({
-        file,
-        propertyId: safePropertyId,
-        unitTypeName: (createDraft.type_name ?? "").trim() || undefined,
-      });
-
-      setCreateDraft((d) => ({ ...d, floor_plan_url: url }));
+      setCreateFloorPlanUrls((prev) =>
+        Array.from(new Set([...prev, ...uploaded])),
+      );
     } catch (e: unknown) {
       const msg =
         e instanceof Error ? (e instanceof Error ? e.message : "알 수 없는 오류") : "평면도 업로드에 실패했어요.";
@@ -219,11 +237,14 @@ export default function UnitTypesPage() {
     clearError();
     setCreateFieldErrors({});
 
+    const floorPlanPayload = toFloorPlanPayload(createFloorPlanUrls);
     const draftForCreate: UnitDraft = {
       ...createDraft,
       type_name: appendAreaUnit
         ? ensureAreaUnitSuffix(createDraft.type_name)
         : (createDraft.type_name ?? "").trim(),
+      floor_plan_url: floorPlanPayload.floor_plan_url,
+      image_url: floorPlanPayload.image_url,
     };
 
     const v = validateUnitDraft(draftForCreate);
@@ -261,8 +282,10 @@ export default function UnitTypesPage() {
       floor_plan_url: null,
       image_url: null,
     }));
+    setCreateFloorPlanUrls([]);
     setExclusiveAreaText("");
     setSupplyAreaText("");
+    setCreateModalOpen(false);
   }
 
   async function handleDelete(id: number) {
@@ -313,6 +336,14 @@ export default function UnitTypesPage() {
 
               <div className="flex shrink-0 items-center gap-2">
                 <Button
+                  variant="primary"
+                  size="sm"
+                  shape="pill"
+                  onClick={() => setCreateModalOpen(true)}
+                >
+                  새 평면 타입 등록
+                </Button>
+                <Button
                   variant="secondary"
                   size="sm"
                   shape="pill"
@@ -330,8 +361,11 @@ export default function UnitTypesPage() {
               </div>
             ) : null}
 
-            {/* Create Form */}
-            <Card className="p-5">
+            <Modal
+              open={createModalOpen}
+              onClose={() => setCreateModalOpen(false)}
+              size="lg"
+            >
               <div className="mb-5 space-y-1">
                 <p className="ob-typo-h3 text-(--oboon-text-title)">
                   새 평면 타입 등록
@@ -629,67 +663,76 @@ export default function UnitTypesPage() {
                 {/* 평면도 이미지 */}
                 <div className="md:col-span-2">
                   <FormField label="평면도 이미지" className="gap-2">
-                    <div className="flex flex-col gap-2">
+                    <div className="space-y-2">
                       <input
+                        ref={createFloorPlanInputRef}
                         type="file"
                         accept="image/*"
+                        multiple
+                        className="hidden"
                         disabled={!safePropertyId || floorPlanUploading}
                         onChange={(e) => {
-                          const f = e.target.files?.[0] ?? null;
-                          if (!f) return;
+                          const files = Array.from(e.target.files ?? []);
                           e.currentTarget.value = "";
-                          void handlePickFloorPlan(f);
+                          void handlePickFloorPlans(files);
                         }}
-                        className="block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-(--oboon-bg-subtle) file:px-4 file:py-2 file:text-sm file:font-medium file:text-(--oboon-text-title) hover:file:bg-(--oboon-bg-subtle)/80"
                       />
 
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="w-full"
+                        disabled={!safePropertyId || floorPlanUploading}
+                        onClick={() => createFloorPlanInputRef.current?.click()}
+                      >
+                        이미지 업로드
+                      </Button>
+
                       <p className="ob-typo-caption text-(--oboon-text-muted)">
-                        이미지 선택 시 자동 업로드됩니다.
+                        {floorPlanUploading
+                          ? "업로드 중..."
+                          : `이미지 선택 시 자동 업로드됩니다. (${createFloorPlanUrls.length}/5)`}
                       </p>
 
-                      {createDraft.floor_plan_url ? (
-                        <div className="mt-2 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-4">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <p className="ob-typo-caption text-(--oboon-text-title)">
-                                업로드 완료
-                              </p>
-                              <p className="mt-1 ob-typo-caption text-(--oboon-text-muted) break-all">
-                                {createDraft.floor_plan_url}
-                              </p>
-                            </div>
-
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              shape="pill"
-                              onClick={() =>
-                                setCreateDraft((d) => ({
-                                  ...d,
-                                  floor_plan_url: null,
-                                }))
-                              }
-                            >
-                              삭제
-                            </Button>
-                          </div>
-
-                          <div className="mt-3 overflow-hidden rounded-xl border border-(--oboon-border-default)">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={createDraft.floor_plan_url}
-                              alt="floor plan preview"
-                              className="h-auto w-full object-cover"
-                            />
-                          </div>
+                      {createFloorPlanUrls.length === 0 ? (
+                        <div className="rounded-xl border border-dashed border-(--oboon-border-default) p-4 text-center ob-typo-caption text-(--oboon-text-muted)">
+                          등록된 평면도 이미지가 없습니다.
                         </div>
-                      ) : null}
-
-                      {floorPlanUploading ? (
-                        <p className="ob-typo-caption text-(--oboon-text-muted)">
-                          업로드 중...
-                        </p>
-                      ) : null}
+                      ) : (
+                        <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 md:grid md:grid-cols-5 md:overflow-visible">
+                          {createFloorPlanUrls.map((url, index) => (
+                            <div
+                              key={`${url}-${index}`}
+                              className="relative w-28 shrink-0 snap-start overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) md:w-auto"
+                            >
+                              <div className="relative aspect-square w-full overflow-hidden bg-(--oboon-bg-subtle)">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={url}
+                                  alt={`floor plan ${index + 1}`}
+                                  className="h-full w-full object-cover"
+                                />
+                                <div className="pointer-events-none absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-(--oboon-overlay) ob-typo-caption font-medium text-(--oboon-on-primary)">
+                                  {index + 1}
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="absolute right-2 top-1 h-6 w-6 min-w-0 rounded-full p-0 !bg-transparent text-(--oboon-on-primary) hover:!bg-transparent hover:text-(--oboon-on-primary)"
+                                  disabled={floorPlanUploading}
+                                  onClick={() =>
+                                    setCreateFloorPlanUrls((prev) =>
+                                      prev.filter((_, i) => i !== index),
+                                    )
+                                  }
+                                >
+                                  <X className="h-4 w-4 text-(--oboon-danger)" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </FormField>
                 </div>
@@ -707,19 +750,10 @@ export default function UnitTypesPage() {
                   저장
                 </Button>
               </div>
-            </Card>
+            </Modal>
 
             {/* List */}
             <section className="mt-2">
-              <div className="flex items-center justify-between">
-                <p className="ob-typo-h2 text-(--oboon-text-title)">
-                  등록된 평면 타입
-                </p>
-              </div>
-              <p className="mb-4 ob-typo-body text-(--oboon-text-muted)">
-                {unitCountText}
-              </p>
-
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:grid-flow-row-dense">
                 {units.map((u) => {
                   const isEditing = editingId === u.id;

@@ -280,8 +280,10 @@ function PropertyDetailPageInner() {
 
   const getPropertyListHref = () =>
     currentUserRole === "agent"
-      ? "/agent/profile#affiliation-section"
-      : "/company/properties";
+      ? "/agent/profile#property-register"
+      : currentUserRole === "admin"
+        ? "/admin?tab=properties"
+        : "/";
   const canSeeCommentSection = currentUserRole === "admin";
 
   const fetchGalleryImages = useCallback(async (propertyId: number) => {
@@ -537,8 +539,8 @@ function PropertyDetailPageInner() {
     const files = Array.from(event.target.files ?? []);
     if (files.length === 0) return;
 
-    if (galleryImages.length + files.length > 5) {
-      toast.error("추가 사진은 최대 5장까지 업로드할 수 있습니다.", "업로드 실패");
+    if (galleryImages.length + files.length > 10) {
+      toast.error("추가 사진은 최대 10장까지 업로드할 수 있습니다.", "업로드 실패");
       event.target.value = "";
       return;
     }
@@ -1059,7 +1061,7 @@ function PropertyDetailPageInner() {
                   추가 사진 (선택)
                 </h3>
                 <span className="ob-typo-caption text-(--oboon-text-muted)">
-                  {galleryImages.length}/5
+                  {galleryImages.length}/10
                 </span>
               </div>
 
@@ -1078,13 +1080,13 @@ function PropertyDetailPageInner() {
                     size="sm"
                     className="w-full"
                     onClick={() => galleryInputRef.current?.click()}
-                    disabled={galleryUploading || galleryImages.length >= 5}
+                    disabled={galleryUploading || galleryImages.length >= 10}
                     loading={galleryUploading}
                   >
                     이미지 업로드
                   </Button>
                   <p className="ob-typo-caption text-(--oboon-text-muted)">
-                    jpg/png/webp, 파일당 5MB, 최대 5장까지 등록할 수 있습니다.
+                    jpg/png/webp, 파일당 5MB, 최대 10장까지 등록할 수 있습니다.
                   </p>
                 </>
               ) : null}

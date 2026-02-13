@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import { X } from "lucide-react";
 
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -103,6 +104,48 @@ function stripAreaUnitSuffix(value: string | null | undefined) {
   return raw.replace(/\s*(㎡|m²|m2)\s*$/i, "").trim();
 }
 
+function parseFloorPlanUrls(
+  floorPlanUrl: string | null | undefined,
+  imageUrl: string | null | undefined,
+) {
+  const urls: string[] = [];
+  const primary = (floorPlanUrl ?? "").trim();
+  if (primary) urls.push(primary);
+
+  const rawImage = (imageUrl ?? "").trim();
+  if (rawImage) {
+    if (rawImage.startsWith("[")) {
+      try {
+        const parsed = JSON.parse(rawImage);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((item) => {
+            if (typeof item !== "string") return;
+            const u = item.trim();
+            if (u) urls.push(u);
+          });
+        }
+      } catch {
+        urls.push(rawImage);
+      }
+    } else {
+      urls.push(rawImage);
+    }
+  }
+
+  return Array.from(new Set(urls));
+}
+
+function toFloorPlanPayload(urls: string[]) {
+  const normalized = Array.from(
+    new Set(urls.map((v) => v.trim()).filter((v) => v.length > 0)),
+  );
+  return {
+    floor_plan_url: normalized[0] ?? null,
+    image_url:
+      normalized.length > 0 ? JSON.stringify(normalized) : null,
+  };
+}
+
 export default function UnitTypeCard({
   unit,
   status,
@@ -146,9 +189,7 @@ export default function UnitTypeCard({
   const [floorUploading, setFloorUploading] = useState(false);
   const [appendAreaUnit, setAppendAreaUnit] = useState(false);
   const [togglingPublic, setTogglingPublic] = useState(false);
-  const [floorPlanFileName, setFloorPlanFileName] = useState<string | null>(
-    null,
-  );
+  const [floorPlanUrls, setFloorPlanUrls] = useState<string[]>([]);
   const floorPlanInputRef = useRef<HTMLInputElement | null>(null);
   const wasEditingRef = useRef(false);
 
@@ -162,30 +203,49 @@ export default function UnitTypeCard({
       );
       setSupplyText(draft.supply_area != null ? String(draft.supply_area) : "");
       setAppendAreaUnit(hasAreaUnitSuffix(draft.type_name));
+      setFloorPlanUrls(
+        parseFloorPlanUrls(draft.floor_plan_url, draft.image_url),
+      );
     }
 
     if (leavingEdit) {
       setExclusiveText("");
       setSupplyText("");
-      setFloorPlanFileName(null);
+      setFloorPlanUrls([]);
     }
 
     wasEditingRef.current = isEditing;
   }, [isEditing, draft]);
 
-  async function handlePickFloorPlan(file: File) {
+  function applyFloorPlanUrls(nextUrls: string[]) {
+    const payload = toFloorPlanPayload(nextUrls);
+    onChange("floor_plan_url", payload.floor_plan_url);
+    onChange("image_url", payload.image_url);
+    setFloorPlanUrls(nextUrls);
+  }
+
+  async function handlePickFloorPlans(files: File[]) {
     if (!draft) return;
+    if (files.length === 0) return;
+
+    if (floorPlanUrls.length + files.length > 5) {
+      showAlert("평면도 이미지는 최대 5장까지 업로드할 수 있습니다.");
+      return;
+    }
 
     try {
       setFloorUploading(true);
+      const uploaded: string[] = [];
+      for (const file of files) {
+        const url = await uploadFloorPlan({
+          file,
+          propertyId: unit.properties_id,
+          unitTypeName: (draft.type_name ?? "").trim() || undefined,
+        });
+        uploaded.push(url);
+      }
 
-      const url = await uploadFloorPlan({
-        file,
-        propertyId: unit.properties_id,
-        unitTypeName: (draft.type_name ?? "").trim() || undefined,
-      });
-
-      onChange("floor_plan_url", url);
+      applyFloorPlanUrls(Array.from(new Set([...floorPlanUrls, ...uploaded])));
     } catch (e: unknown) {
       const msg =
         e instanceof Error ? (e instanceof Error ? e.message : "알 수 없는 오류") : "평면도 업로드에 실패했습니다.";
@@ -203,19 +263,10 @@ export default function UnitTypeCard({
       className={cn("p-5", isEditing ? "md:col-span-2 md:col-start-1" : "")}
     >
       {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0 flex-1">
           <p className="ob-typo-h3 text-(--oboon-text-title) truncate">
             {title}
-          </p>
-          <p className="mt-1 ob-typo-body text-(--oboon-text-muted)">
-            전용{" "}
-            {formatM2(isEditing ? draft?.exclusive_area : unit.exclusive_area)}
-            ㎡ · 공급{" "}
-            {formatM2(isEditing ? draft?.supply_area : unit.supply_area)}㎡
-          </p>
-          <p className="mt-1 ob-typo-body text-(--oboon-text-muted)">
-            {summarizeRoomsBaths(unit.rooms, unit.bathrooms)}
           </p>
         </div>
 
@@ -278,6 +329,15 @@ export default function UnitTypeCard({
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+      </div>
+      <div className="mt-2 min-w-0">
+        <p className="ob-typo-body text-(--oboon-text-muted)">
+          전용 {formatM2(isEditing ? draft?.exclusive_area : unit.exclusive_area)}㎡ · 공급{" "}
+          {formatM2(isEditing ? draft?.supply_area : unit.supply_area)}㎡
+        </p>
+        <p className="mt-1 ob-typo-body text-(--oboon-text-muted)">
+          {summarizeRoomsBaths(unit.rooms, unit.bathrooms)}
+        </p>
       </div>
 
       {/* Summary */}
@@ -479,95 +539,78 @@ export default function UnitTypeCard({
                     ref={floorPlanInputRef}
                     type="file"
                     accept="image/*"
+                    multiple
                     className="sr-only"
                     disabled={saving || floorUploading}
                     onChange={(e) => {
-                      const f = e.target.files?.[0] ?? null;
+                      const files = Array.from(e.target.files ?? []);
                       e.currentTarget.value = "";
-                      if (!f) {
-                        setFloorPlanFileName(null);
-                        return;
-                      }
-                      setFloorPlanFileName(f.name);
-                      void handlePickFloorPlan(f);
+                      if (files.length === 0) return;
+                      void handlePickFloorPlans(files);
                     }}
                   />
 
-                  {/* 트리거 + 파일명 */}
-                  <div className="flex items-center gap-3">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      shape="pill"
-                      disabled={saving || floorUploading}
-                      onClick={() => {
-                        floorPlanInputRef.current?.click();
-                      }}
-                    >
-                      파일 선택
-                    </Button>
-
-                    <p className="ob-typo-caption text-(--oboon-text-muted) truncate">
-                      {floorPlanFileName ? (
-                        <>
-                          선택된 파일:{" "}
-                          <span className="text-(--oboon-text-title)">
-                            {floorPlanFileName}
-                          </span>
-                        </>
-                      ) : (
-                        "선택된 파일 없음"
-                      )}
-                    </p>
-                  </div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="w-full"
+                    disabled={saving || floorUploading}
+                    onClick={() => {
+                      floorPlanInputRef.current?.click();
+                    }}
+                  >
+                    이미지 업로드
+                  </Button>
 
                   <p className="ob-typo-caption text-(--oboon-text-muted)">
                     {floorUploading
                       ? "업로드 중..."
-                      : "이미지 선택 시 자동 업로드됩니다."}
+                      : `이미지 선택 시 자동 업로드됩니다. (${floorPlanUrls.length}/5)`}
                   </p>
 
-                  {draft.floor_plan_url ? (
-                    <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="ob-typo-caption text-(--oboon-text-muted) break-all">
-                            {draft.floor_plan_url}
-                          </p>
-                        </div>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          shape="pill"
-                          disabled={disabled}
-                          onClick={() => onChange("floor_plan_url", null)}
-                        >
-                          삭제
-                        </Button>
-                      </div>
-
-                      <div className="mt-3 overflow-hidden rounded-xl border border-(--oboon-border-default)">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={draft.floor_plan_url}
-                          alt="floor plan preview"
-                          className="h-auto w-full object-cover"
-                        />
-                      </div>
+                  {floorPlanUrls.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-(--oboon-border-default) p-4 text-center ob-typo-caption text-(--oboon-text-muted)">
+                      등록된 평면도 이미지가 없습니다.
                     </div>
-                  ) : null}
+                  ) : (
+                    <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 md:grid md:grid-cols-5 md:overflow-visible">
+                      {floorPlanUrls.map((url, index) => (
+                        <div
+                          key={`${url}-${index}`}
+                          className="relative w-28 shrink-0 snap-start overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) md:w-auto"
+                        >
+                          <div className="relative aspect-square w-full overflow-hidden bg-(--oboon-bg-subtle)">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={url}
+                              alt={`floor plan ${index + 1}`}
+                              className="h-full w-full object-cover"
+                            />
+                            <div className="pointer-events-none absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-(--oboon-overlay) ob-typo-caption font-medium text-(--oboon-on-primary)">
+                              {index + 1}
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="absolute right-2 top-1 h-6 w-6 min-w-0 rounded-full p-0 !bg-transparent text-(--oboon-on-primary) hover:!bg-transparent hover:text-(--oboon-on-primary)"
+                              disabled={disabled}
+                              onClick={() =>
+                                applyFloorPlanUrls(
+                                  floorPlanUrls.filter((_, i) => i !== index),
+                                )
+                              }
+                            >
+                              <X className="h-4 w-4 text-(--oboon-danger)" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </Field>
             </div>
 
-            {/* image_url (유지) */}
-            <Field label="이미지 URL" className="md:col-span-2">
-              <Input
-                value={draft.image_url ?? ""}
-                placeholder="https://..."
-                onChange={(e) => onChange("image_url", e.target.value)}
-              />
-            </Field>
           </div>
 
           <div className="mt-5 flex justify-end gap-2">

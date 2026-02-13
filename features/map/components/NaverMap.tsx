@@ -56,6 +56,7 @@ const NaverMap = forwardRef<
     onClearFocus?: () => void;
     mode?: MapMode;
     onSelectPosition?: (lat: number, lng: number) => void | Promise<void>;
+    interactive?: boolean;
   }
 >(
   (
@@ -73,6 +74,7 @@ const NaverMap = forwardRef<
       onClearFocus,
       mode = "base",
       onSelectPosition,
+      interactive = true,
     },
     ref,
   ) => {
@@ -636,6 +638,7 @@ const NaverMap = forwardRef<
     return (
       <div className="relative w-full h-full">
         <div ref={mapContainerRef} className="w-full h-full" />
+        {!interactive ? <div className="absolute inset-0 z-10" aria-hidden="true" /> : null}
       </div>
     );
   },

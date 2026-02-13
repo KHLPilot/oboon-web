@@ -44,8 +44,20 @@ const STACK_POSITIONS = [
   "bottom-4 right-2 rotate-1",
 ];
 
-export default function HeroCounselorPreview() {
+export default function HeroCounselorPreview({
+  counselors,
+  showFallback,
+}: {
+  counselors?: Counselor[];
+  showFallback?: boolean;
+}) {
   const [entered, setEntered] = useState(false);
+  const previewItems =
+    counselors && counselors.length > 0
+      ? counselors
+      : showFallback
+        ? COUNSELOR_PREVIEW
+        : [];
 
   useEffect(() => {
     const timer = window.setTimeout(() => setEntered(true), 40);
@@ -75,7 +87,7 @@ export default function HeroCounselorPreview() {
       <div className="md:hidden">
         <div className="-mx-1 overflow-x-auto pb-1">
           <div className="flex snap-x snap-mandatory gap-3 px-1">
-            {COUNSELOR_PREVIEW.map((counselor, index) => (
+            {previewItems.map((counselor, index) => (
               <article
                 key={counselor.name}
                 className={[
@@ -95,7 +107,7 @@ export default function HeroCounselorPreview() {
       </div>
 
       <div className="relative hidden min-h-[320px] md:block">
-        {COUNSELOR_PREVIEW.map((counselor, index) => (
+        {previewItems.map((counselor, index) => (
           <div key={counselor.name} className={["absolute w-[48%] lg:w-[47%]", STACK_POSITIONS[index]].join(" ")}>
             <article
               className={[
@@ -121,6 +133,7 @@ function CardBody({ counselor }: { counselor: Counselor }) {
     .split("·")
     .map((tag) => tag.trim())
     .filter(Boolean);
+  const safeTags = fieldTags.length > 0 ? fieldTags : ["소속 현장 미등록"];
 
   return (
     <div>
@@ -135,6 +148,7 @@ function CardBody({ counselor }: { counselor: Counselor }) {
           />
         </div>
         <div className="min-w-0">
+          <p className="ob-typo-caption text-black/65">분양상담사</p>
           <p className="truncate ob-typo-body2 text-black">
             {counselor.name}
           </p>
@@ -142,14 +156,15 @@ function CardBody({ counselor }: { counselor: Counselor }) {
       </div>
 
       <div className="mt-3 flex flex-wrap gap-1.5">
-        {fieldTags.map((tag) => (
+        {safeTags.map((tag) => (
           <span
             key={`${counselor.name}-${tag}`}
-            className="inline-flex items-center rounded-full border-2 px-2.5 py-1 ob-typo-caption text-black"
+            className="inline-flex items-center rounded-full border px-2.5 py-1 ob-typo-caption text-black/90"
             style={{
               borderColor:
                 "color-mix(in srgb, var(--oboon-primary) 35%, var(--oboon-border-default))",
-              background: "color-mix(in srgb, var(--oboon-bg-subtle) 30%, white)",
+              background:
+                "color-mix(in srgb, var(--oboon-primary) 10%, var(--oboon-bg-subtle))",
             }}
           >
             {tag}
@@ -157,7 +172,7 @@ function CardBody({ counselor }: { counselor: Counselor }) {
         ))}
       </div>
 
-      <p className="mt-2 ob-typo-body text-black/80">{counselor.intro}</p>
+      <p className="mt-2 ob-typo-body text-black/85">{counselor.intro}</p>
     </div>
   );
 }
