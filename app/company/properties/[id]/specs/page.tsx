@@ -11,6 +11,8 @@ import PageContainer from "@/components/shared/PageContainer";
 import { FormField } from "@/components/shared/FormField";
 import { fetchPropertySpecs, fetchPropertyUnitTypes, upsertPropertySpecs } from "@/features/company/services/property.specs";
 import { showAlert } from "@/shared/alert";
+import { useRequirePropertyEditAccess } from "@/features/company/hooks/useRequirePropertyEditAccess";
+import { toKoreanErrorMessage } from "@/shared/errorMessage";
 
 type SpecsForm = {
   id?: number;
@@ -37,6 +39,8 @@ export default function PropertySpecsPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const propertyId = Number(params?.id);
+  const { loading: accessLoading, allowed: canAccessProperty } =
+    useRequirePropertyEditAccess(propertyId);
 
   const [form, setForm] = useState<SpecsForm>({ properties_id: propertyId });
   const [loading, setLoading] = useState(true);
@@ -48,6 +52,7 @@ export default function PropertySpecsPage() {
   );
 
   useEffect(() => {
+    if (accessLoading || !canAccessProperty) return;
     if (!Number.isFinite(propertyId)) return;
 
     const fetchUnitTypes = async () => {
@@ -62,7 +67,7 @@ export default function PropertySpecsPage() {
     };
 
     fetchUnitTypes();
-  }, [propertyId]);
+  }, [accessLoading, canAccessProperty, propertyId]);
 
   const calculatedHouseholdTotal = useMemo(() => {
     return unitTypes.reduce((sum, u) => sum + (u.unit_count ?? 0), 0);
@@ -72,6 +77,7 @@ export default function PropertySpecsPage() {
     let alive = true;
 
     async function load() {
+      if (accessLoading || !canAccessProperty) return;
       if (!Number.isFinite(propertyId)) {
         setLoading(false);
         return;
@@ -100,7 +106,7 @@ export default function PropertySpecsPage() {
     return () => {
       alive = false;
     };
-  }, [propertyId]);
+  }, [accessLoading, canAccessProperty, propertyId]);
 
   const update = <K extends keyof SpecsForm>(key: K, value: SpecsForm[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -109,6 +115,16 @@ export default function PropertySpecsPage() {
   const updateNumber = (key: keyof SpecsForm, value: number | null) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
+
+  if (accessLoading) {
+    return (
+      <div className="px-4 py-8 ob-typo-body text-(--oboon-text-muted)">
+        권한 확인 중...
+      </div>
+    );
+  }
+
+  if (!canAccessProperty) return null;
 
   async function handleSave() {
     if (saving) return;
@@ -134,11 +150,16 @@ export default function PropertySpecsPage() {
       amenities: form.amenities ?? null,
     };
 
-    const { error } = await upsertPropertySpecs(payload);
+    const { data, error } = await upsertPropertySpecs(payload);
     setSaving(false);
 
     if (error) {
-      showAlert("저장 실패: " + error.message);
+      showAlert(toKoreanErrorMessage(error, "저장에 실패했습니다."));
+      return;
+    }
+
+    if (!data) {
+      showAlert("저장 권한이 없거나 수정할 건물 스펙을 찾을 수 없습니다.");
       return;
     }
 

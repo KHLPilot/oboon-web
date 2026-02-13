@@ -95,10 +95,15 @@ export async function updateUnitType(
 export async function deleteUnitType(id: number): Promise<void> {
   const supabase = createSupabaseClient();
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("property_unit_types")
     .delete()
-    .eq("id", id);
+    .eq("id", id)
+    .select("id")
+    .maybeSingle();
 
   if (error) throw error;
+  if (!data) {
+    throw new Error("삭제 권한이 없거나 삭제할 평면 타입을 찾을 수 없습니다.");
+  }
 }

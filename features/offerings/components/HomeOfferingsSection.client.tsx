@@ -19,6 +19,7 @@ import type { OfferingRegionTab } from "@/features/offerings/domain/offering.typ
 
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import type { Offering } from "@/types/index";
+import { toKoreanErrorMessage } from "@/shared/errorMessage";
 
 export default function HomeOfferingsSection() {
   const supabase = useMemo(() => createSupabaseClient(), []);
@@ -42,7 +43,7 @@ export default function HomeOfferingsSection() {
       if (!mounted) return;
 
       if (error) {
-        setLoadError(error.message ?? "데이터를 불러오지 못했어요.");
+        setLoadError(toKoreanErrorMessage(error, "데이터를 불러오지 못했어요."));
         setRows([]);
         return;
       }

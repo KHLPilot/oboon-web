@@ -22,9 +22,11 @@ export async function createProperty(payload: PropertyCreatePayload) {
 
 export async function updatePropertyImage(propertyId: number, url: string) {
   const supabase = createSupabaseClient();
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("properties")
     .update({ image_url: url })
-    .eq("id", propertyId);
-  return { error };
+    .eq("id", propertyId)
+    .select("id")
+    .maybeSingle();
+  return { data, error };
 }

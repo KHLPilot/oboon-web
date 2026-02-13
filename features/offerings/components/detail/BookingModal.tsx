@@ -24,6 +24,7 @@ import { trackEvent } from "@/lib/analytics";
 
 import { showAlert } from "@/shared/alert";
 import { getAvatarUrlOrDefault } from "@/shared/imageUrl";
+import { toKoreanErrorMessage } from "@/shared/errorMessage";
 
 interface Agent {
   id: string;
@@ -464,7 +465,7 @@ export default function BookingModal({
       router.push("/profile?consultations=1");
     } catch (err: unknown) {
       console.error("예약 오류:", err);
-      setError((err instanceof Error ? err.message : "알 수 없는 오류") || "예약에 실패했습니다");
+      setError(toKoreanErrorMessage(err, "예약에 실패했습니다"));
     } finally {
       setSubmitting(false);
     }
@@ -514,7 +515,7 @@ export default function BookingModal({
 
       setStep("confirm");
     } catch (err: unknown) {
-      setError((err instanceof Error ? err.message : "알 수 없는 오류") || "계좌 정보 저장에 실패했습니다");
+      setError(toKoreanErrorMessage(err, "계좌 정보 저장에 실패했습니다"));
     } finally {
       setBankSaving(false);
     }

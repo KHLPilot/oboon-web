@@ -15,12 +15,17 @@ export async function savePropertyFacility(
 ) {
   const supabase = createSupabaseClient();
   if (id) {
-    return supabase.from("property_facilities").update(payload).eq("id", id);
+    return supabase
+      .from("property_facilities")
+      .update(payload)
+      .eq("id", id)
+      .select("id")
+      .maybeSingle();
   }
-  return supabase.from("property_facilities").insert(payload);
+  return supabase.from("property_facilities").insert(payload).select("id").single();
 }
 
 export async function deletePropertyFacility(id: number) {
   const supabase = createSupabaseClient();
-  return supabase.from("property_facilities").delete().eq("id", id);
+  return supabase.from("property_facilities").delete().eq("id", id).select("id").maybeSingle();
 }

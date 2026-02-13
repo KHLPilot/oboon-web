@@ -10,6 +10,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { toKoreanErrorMessage } from "@/shared/errorMessage";
 
 type ToastVariant = "success" | "error" | "warning" | "info";
 
@@ -101,7 +102,12 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       success: (message, title) =>
         push({ message, title, variant: "success", durationMs: 2500 }),
       error: (message, title) =>
-        push({ message, title, variant: "error", durationMs: 3500 }),
+        push({
+          message: toKoreanErrorMessage(message),
+          title,
+          variant: "error",
+          durationMs: 3500,
+        }),
       warning: (message, title) =>
         push({ message, title, variant: "warning", durationMs: 3000 }),
       info: (message, title) =>

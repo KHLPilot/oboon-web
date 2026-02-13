@@ -10,6 +10,7 @@ import Button from "@/components/ui/Button";
 import { showAlert } from "@/shared/alert";
 import ChatRoomsSidebar from "@/features/chat/components/ChatRoomsSidebar.client";
 import { getAvatarUrlOrDefault } from "@/shared/imageUrl";
+import { toKoreanErrorMessage } from "@/shared/errorMessage";
 
 interface Message {
   id: string;
@@ -61,7 +62,7 @@ interface ConsultationInfo {
 }
 
 function getErrorMessage(error: unknown, fallback: string) {
-  return error instanceof Error ? error.message : fallback;
+  return toKoreanErrorMessage(error, fallback);
 }
 
 function first<T>(value: T | T[] | null | undefined): T | null {

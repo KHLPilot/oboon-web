@@ -13,6 +13,7 @@ import {
   validatePhone,
 } from "@/lib/validators/profileValidation";
 import { validateRequiredOrShowModal } from "@/shared/validationMessage";
+import { toKoreanErrorMessage } from "@/shared/errorMessage";
 
 import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
@@ -476,7 +477,7 @@ export default function SignupProfileClient() {
       router.replace("/");
       router.refresh();
     } catch (err: unknown) {
-      setFatalError(err instanceof Error ? err.message : "처리 중 오류가 발생했습니다.");
+      setFatalError(toKoreanErrorMessage(err, "처리 중 오류가 발생했습니다."));
     } finally {
       setLoading(false);
     }

@@ -7,6 +7,7 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import { showAlert } from "@/shared/alert";
+import { toKoreanErrorMessage } from "@/shared/errorMessage";
 import { RefreshCw, UserPlus } from "lucide-react";
 
 export default function RestorePage() {
@@ -43,7 +44,7 @@ export default function RestorePage() {
       showAlert("계정이 복구되었습니다. 다시 로그인해주세요.");
       router.push("/auth/login");
     } catch (err: unknown) {
-      setError((err instanceof Error ? err.message : "알 수 없는 오류") || "계정 복구 중 오류가 발생했습니다.");
+      setError(toKoreanErrorMessage(err, "계정 복구 중 오류가 발생했습니다."));
     } finally {
       setLoading(false);
     }
@@ -73,7 +74,7 @@ export default function RestorePage() {
       showAlert("새로 가입을 진행해주세요.");
       router.push("/auth/signup");
     } catch (err: unknown) {
-      setError((err instanceof Error ? err.message : "알 수 없는 오류") || "계정 처리 중 오류가 발생했습니다.");
+      setError(toKoreanErrorMessage(err, "계정 처리 중 오류가 발생했습니다."));
     } finally {
       setLoading(false);
     }

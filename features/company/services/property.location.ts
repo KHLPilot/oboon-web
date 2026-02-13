@@ -19,10 +19,16 @@ export async function savePropertyLocation(
     return supabase
       .from("property_locations")
       .update(payload)
-      .eq("properties_id", propertyId);
+      .eq("properties_id", propertyId)
+      .select("id")
+      .maybeSingle();
   }
-  return supabase.from("property_locations").insert({
-    ...payload,
-    properties_id: propertyId,
-  });
+  return supabase
+    .from("property_locations")
+    .insert({
+      ...payload,
+      properties_id: propertyId,
+    })
+    .select("id")
+    .single();
 }

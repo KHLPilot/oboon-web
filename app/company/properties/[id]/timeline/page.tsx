@@ -13,6 +13,8 @@ import { fetchPropertyTimeline, savePropertyTimeline } from "@/features/company/
 import { showAlert } from "@/shared/alert";
 import OboonDatePicker from "@/components/ui/DatePicker";
 import PrecisionDateInput from "@/components/ui/PercisionDateInput";
+import { useRequirePropertyEditAccess } from "@/features/company/hooks/useRequirePropertyEditAccess";
+import { toKoreanErrorMessage } from "@/shared/errorMessage";
 
 type TimelineForm = {
   announcement_date: string | null;
@@ -130,6 +132,8 @@ export default function PropertyTimelinePage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const propertyId = Number(params?.id);
+  const { loading: accessLoading, allowed: canAccessProperty } =
+    useRequirePropertyEditAccess(propertyId);
 
   const [form, setForm] = useState<TimelineForm>(EMPTY_FORM);
   const [loading, setLoading] = useState(true);
@@ -159,6 +163,7 @@ export default function PropertyTimelinePage() {
     let alive = true;
 
     async function load() {
+      if (accessLoading || !canAccessProperty) return;
       if (!Number.isFinite(propertyId)) return;
 
       setLoading(true);
@@ -204,7 +209,7 @@ export default function PropertyTimelinePage() {
     return () => {
       alive = false;
     };
-  }, [propertyId]);
+  }, [accessLoading, canAccessProperty, propertyId]);
 
   const handlePrecisionChange = (newPrecision: "day" | "month") => {
     setMoveInPrecision(newPrecision);
@@ -230,24 +235,46 @@ export default function PropertyTimelinePage() {
         : null,
     };
 
-    const { error } = await savePropertyTimeline(
+    const { data, error } = await savePropertyTimeline(
       propertyId,
       payload,
       timelineId,
     );
     setSaving(false);
 
-    if (!error) {
-      router.push(`/company/properties/${propertyId}`);
-    } else {
-      showAlert(`저장 실패: ${error.message}`);
+    if (error) {
+      showAlert(toKoreanErrorMessage(error, "저장에 실패했습니다."));
+      return;
     }
+
+    if (!data) {
+      showAlert("저장 권한이 없거나 수정할 분양 일정을 찾을 수 없습니다.");
+      return;
+    }
+
+    router.push(`/company/properties/${propertyId}`);
   }
 
   const handleDateChange = (key: keyof TimelineForm, date: Date | null) => {
     const dateStr = formatLocalDateToYmd(date);
     setForm((prev) => ({ ...prev, [key]: dateStr }));
   };
+
+  if (accessLoading) {
+    return (
+      <main className="bg-(--oboon-bg-default)">
+        <PageContainer>
+          <div className="py-8">
+            <div className="ob-typo-body text-(--oboon-text-muted)">
+              권한 확인 중...
+            </div>
+          </div>
+        </PageContainer>
+      </main>
+    );
+  }
+
+  if (!canAccessProperty) return null;
 
   if (loading) {
     return (

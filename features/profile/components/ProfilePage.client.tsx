@@ -61,6 +61,7 @@ import {
   oboonTextareaBaseClass,
 } from "@/lib/ui/formFieldStyles";
 import { getAvatarUrlOrDefault } from "@/shared/imageUrl";
+import { toKoreanErrorMessage } from "@/shared/errorMessage";
 
 type Role =
   | "user"
@@ -81,7 +82,7 @@ type GalleryImage = {
 };
 
 function getErrorMessage(error: unknown, fallback: string) {
-  return error instanceof Error ? error.message : fallback;
+  return toKoreanErrorMessage(error, fallback);
 }
 
 const interestRegions = [

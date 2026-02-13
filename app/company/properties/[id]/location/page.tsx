@@ -13,6 +13,7 @@ import { showAlert } from "@/shared/alert";
 
 import NaverMap from "@/features/map/components/NaverMap";
 import { fetchPropertyLocation, savePropertyLocation } from "@/features/company/services/property.location";
+import { useRequirePropertyEditAccess } from "@/features/company/hooks/useRequirePropertyEditAccess";
 
 type LocationForm = {
   road_address: string;
@@ -55,6 +56,8 @@ export default function PropertyLocationPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const propertyId = Number(params.id);
+  const { loading: accessLoading, allowed: canAccessProperty } =
+    useRequirePropertyEditAccess(propertyId);
 
   const [loading, setLoading] = useState(false);
   const [isEdit, setIsEdit] = useState(false);
@@ -82,6 +85,8 @@ export default function PropertyLocationPage() {
   );
 
   useEffect(() => {
+    if (accessLoading || !canAccessProperty) return;
+
     async function fetchLocation() {
       const { data } = await fetchPropertyLocation(propertyId);
 
@@ -101,7 +106,7 @@ export default function PropertyLocationPage() {
     }
 
     fetchLocation();
-  }, [propertyId]);
+  }, [accessLoading, canAccessProperty, propertyId]);
 
   // ✅ manualMode 진입 시: 오버레이 표시 → 2초 후 페이드아웃 → 제거
   useEffect(() => {
@@ -186,7 +191,13 @@ export default function PropertyLocationPage() {
 
     setLoading(true);
     try {
-      await savePropertyLocation(propertyId, payload, isEdit);
+      const { data, error } = await savePropertyLocation(propertyId, payload, isEdit);
+      if (error) {
+        throw error;
+      }
+      if (!data) {
+        throw new Error("저장 권한이 없거나 수정할 위치 정보를 찾을 수 없습니다.");
+      }
 
       router.push(`/company/properties/${propertyId}`);
     } catch (err: unknown) {
@@ -196,6 +207,16 @@ export default function PropertyLocationPage() {
       setLoading(false);
     }
   }
+
+  if (accessLoading) {
+    return (
+      <div className="px-4 py-8 ob-typo-body text-(--oboon-text-muted)">
+        권한 확인 중...
+      </div>
+    );
+  }
+
+  if (!canAccessProperty) return null;
 
   return (
     <main className="bg-(--oboon-bg-dafault)">

@@ -8,6 +8,7 @@ import { Eye, EyeOff } from "lucide-react";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { validatePassword } from "@/lib/validators/profileValidation";
 import { validateRequiredOrShowModal } from "@/shared/validationMessage";
+import { toKoreanErrorMessage } from "@/shared/errorMessage";
 
 import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
@@ -311,7 +312,7 @@ export default function SignupPage() {
 
       setVerification({ isEmailSent: true, token });
     } catch (err: unknown) {
-      setFatalError(err instanceof Error ? err.message : "요청 중 오류가 발생했습니다.");
+      setFatalError(toKoreanErrorMessage(err, "요청 중 오류가 발생했습니다."));
     } finally {
       setLoading(false);
     }
@@ -345,7 +346,7 @@ export default function SignupPage() {
       stopPolling();
       goStep2(token);
     } catch (err: unknown) {
-      setFatalError(err instanceof Error ? err.message : "확인 중 오류가 발생했습니다.");
+      setFatalError(toKoreanErrorMessage(err, "확인 중 오류가 발생했습니다."));
     } finally {
       setLoading(false);
     }

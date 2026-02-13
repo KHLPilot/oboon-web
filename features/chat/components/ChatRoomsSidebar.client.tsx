@@ -6,6 +6,7 @@ import Image from "next/image";
 import { ArrowLeft } from "lucide-react";
 import Button from "@/components/ui/Button";
 import { getAvatarUrlOrDefault } from "@/shared/imageUrl";
+import { toKoreanErrorMessage } from "@/shared/errorMessage";
 
 type ChatRoomItem = {
   room_id: string;
@@ -67,7 +68,7 @@ export default function ChatRoomsSidebar({
       setRooms((data?.rooms ?? []) as ChatRoomItem[]);
     } catch (err: unknown) {
       console.error("[chat rooms sidebar] load error:", err);
-      setError(err instanceof Error ? err.message : "채팅방 목록을 불러오지 못했습니다.");
+      setError(toKoreanErrorMessage(err, "채팅방 목록을 불러오지 못했습니다."));
       setRooms([]);
     } finally {
       setLoading(false);

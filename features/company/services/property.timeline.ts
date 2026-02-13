@@ -16,10 +16,19 @@ export async function savePropertyTimeline(
 ) {
   const supabase = createSupabaseClient();
   if (timelineId) {
-    return supabase.from("property_timeline").update(payload).eq("id", timelineId);
+    return supabase
+      .from("property_timeline")
+      .update(payload)
+      .eq("id", timelineId)
+      .select("id")
+      .maybeSingle();
   }
-  return supabase.from("property_timeline").insert({
-    ...payload,
-    properties_id: propertyId,
-  });
+  return supabase
+    .from("property_timeline")
+    .insert({
+      ...payload,
+      properties_id: propertyId,
+    })
+    .select("id")
+    .single();
 }

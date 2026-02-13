@@ -24,6 +24,7 @@ import Modal from "@/components/ui/Modal";
 import { ToastProvider, useToast } from "@/components/ui/Toast";
 import SettlementDetailModal from "@/features/admin/components/SettlementDetailModal";
 import ReservationDetailModal from "@/features/admin/components/ReservationDetailModal";
+import { toKoreanErrorMessage } from "@/shared/errorMessage";
 import {
   AlertTriangle,
   ArrowRight,
@@ -166,7 +167,7 @@ function termTypeLabel(type: string) {
 }
 
 function getErrorMessage(error: unknown, fallback: string) {
-  return error instanceof Error ? error.message : fallback;
+  return toKoreanErrorMessage(error, fallback);
 }
 
 

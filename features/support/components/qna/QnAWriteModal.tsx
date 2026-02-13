@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Modal from "@/components/ui/Modal";
 import Textarea from "@/components/ui/Textarea";
+import { toKoreanErrorMessage } from "@/shared/errorMessage";
 
 type QnAWriteModalProps = {
   isOpen: boolean;
@@ -69,7 +70,7 @@ export function QnAWriteModal({ isOpen, onClose, onSubmit }: QnAWriteModalProps)
       setAnonymousNickname("");
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "등록에 실패했습니다.");
+      setError(toKoreanErrorMessage(err, "등록에 실패했습니다."));
     } finally {
       setLoading(false);
     }

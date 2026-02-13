@@ -14,5 +14,10 @@ export async function updatePropertyComments(
   payload: Record<string, string | null>,
 ) {
   const supabase = createSupabaseClient();
-  return supabase.from("properties").update(payload).eq("id", propertyId);
+  return supabase
+    .from("properties")
+    .update(payload)
+    .eq("id", propertyId)
+    .select("id")
+    .maybeSingle();
 }

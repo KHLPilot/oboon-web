@@ -23,7 +23,7 @@ export async function updatePropertyBasicInfo(
   payload: Record<string, unknown>,
 ) {
   const supabase = createSupabaseClient();
-  return supabase.from("properties").update(payload).eq("id", id);
+  return supabase.from("properties").update(payload).eq("id", id).select("id").maybeSingle();
 }
 
 export async function deletePropertyCascade(id: number) {
@@ -37,8 +37,23 @@ export async function deletePropertyCascade(id: number) {
   ];
 
   for (const table of tables) {
-    await supabase.from(table).delete().eq("properties_id", id);
+    const { error } = await supabase.from(table).delete().eq("properties_id", id);
+    if (error) {
+      throw error;
+    }
   }
 
-  return supabase.from("properties").delete().eq("id", id);
+  const { data, error } = await supabase
+    .from("properties")
+    .delete()
+    .eq("id", id)
+    .select("id")
+    .maybeSingle();
+  if (error) {
+    throw error;
+  }
+  if (!data) {
+    throw new Error("삭제 권한이 없거나 삭제할 현장을 찾을 수 없습니다.");
+  }
+  return { data };
 }

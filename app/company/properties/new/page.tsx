@@ -17,6 +17,7 @@ import { fetchCompanyUserId } from "@/features/company/services/company.auth";
 import { createProperty, updatePropertyImage } from "@/features/company/services/property.create";
 import { validateRequiredOrShowModal } from "@/shared/validationMessage";
 import { showAlert } from "@/shared/alert";
+import { toKoreanErrorMessage } from "@/shared/errorMessage";
 
 import PropertyStatusSelect from "@/app/company/properties/PropertyStatusSelect";
 import {
@@ -252,7 +253,7 @@ export default function PropertyCreatePage() {
       const { data, error } = await createProperty(payload);
 
       if (error) {
-        setError(error.message);
+        setError(toKoreanErrorMessage(error));
         return;
       }
 
@@ -309,10 +310,17 @@ export default function PropertyCreatePage() {
           return;
         }
 
-        const { error: updateErr } = await updatePropertyImage(propertyId, url);
+        const { data: updateData, error: updateErr } = await updatePropertyImage(
+          propertyId,
+          url,
+        );
 
         if (updateErr) {
           setError("대표 이미지 저장에 실패했습니다.");
+          return;
+        }
+        if (!updateData) {
+          setError("대표 이미지 저장 권한이 없거나 대상을 찾을 수 없습니다.");
           return;
         }
       }
@@ -579,13 +587,13 @@ export default function PropertyCreatePage() {
                             height={320}
                             className="h-full w-full object-cover"
                           />
-                          <div className="pointer-events-none absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/55 ob-typo-caption font-medium text-white">
+                          <div className="pointer-events-none absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-(--oboon-overlay) ob-typo-caption font-medium text-(--oboon-on-primary)">
                             {index + 1}
                           </div>
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="absolute right-2 top-1 h-6 w-6 min-w-0 rounded-full p-0 !bg-transparent text-white hover:!bg-transparent hover:text-white"
+                            className="absolute right-2 top-1 h-6 w-6 min-w-0 rounded-full p-0 !bg-transparent text-(--oboon-on-primary) hover:!bg-transparent hover:text-(--oboon-on-primary)"
                             disabled={disabled}
                             onClick={() => removeGalleryImage(image.id)}
                           >

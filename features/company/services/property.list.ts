@@ -192,6 +192,16 @@ export async function fetchPropertyListData() {
 
 export async function deletePropertyById(id: number) {
   const supabase = createSupabaseClient();
-  const { error } = await supabase.from("properties").delete().eq("id", id);
+  const { data, error } = await supabase
+    .from("properties")
+    .delete()
+    .eq("id", id)
+    .select("id")
+    .maybeSingle();
+  if (!error && !data) {
+    return {
+      error: new Error("삭제 권한이 없거나 삭제할 현장을 찾을 수 없습니다."),
+    };
+  }
   return { error };
 }

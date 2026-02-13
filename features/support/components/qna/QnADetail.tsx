@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Lock, Pencil, Trash2 } from "lucide-react";
+import { toKoreanErrorMessage } from "@/shared/errorMessage";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import Input from "@/components/ui/Input";
@@ -82,7 +83,7 @@ export function QnADetail({
       await onUpdate({ title: editTitle.trim(), body: editBody.trim() });
       setIsEditing(false);
     } catch (error: unknown) {
-      alert(error instanceof Error ? error.message : "수정에 실패했습니다.");
+      alert(toKoreanErrorMessage(error, "수정에 실패했습니다."));
     } finally {
       setSubmitting(false);
     }

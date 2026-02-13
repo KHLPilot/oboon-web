@@ -1,7 +1,7 @@
 // app/company/properties/[id]/facilities/page.tsx
 "use client";
 
-import { Trash2 } from "lucide-react";
+import { ChevronDown, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
@@ -11,13 +11,21 @@ import Input from "@/components/ui/Input";
 import Label from "@/components/ui/Label";
 import PageContainer from "@/components/shared/PageContainer";
 import { Badge } from "@/components/ui/Badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/DropdownMenu";
 
 import { deletePropertyFacility, fetchPropertyFacilities, savePropertyFacility } from "@/features/company/services/property.facilities";
 import { validateRequiredOrShowModal } from "@/shared/validationMessage";
 import { FormField } from "@/components/shared/FormField";
 import { showAlert } from "@/shared/alert";
-import PrecisionDateInput from "@/components/ui/PercisionDateInput";
+import OboonDatePicker from "@/components/ui/DatePicker";
 import NaverMap from "@/features/map/components/NaverMap";
+import { useRequirePropertyEditAccess } from "@/features/company/hooks/useRequirePropertyEditAccess";
+import { toKoreanErrorMessage } from "@/shared/errorMessage";
 
 type DaumPostcodeResult = {
   roadAddress: string;
@@ -67,10 +75,34 @@ function facilityTypeLabel(t: FacilityType) {
       : "팝업";
 }
 
+const FACILITY_TYPE_OPTIONS: Array<{ value: FacilityType; label: string }> = [
+  { value: "MODELHOUSE", label: "모델하우스" },
+  { value: "PROMOTION", label: "홍보관" },
+  { value: "POPUP", label: "팝업" },
+];
+
+function parseYmToLocalDate(ym: string | null | undefined): Date | null {
+  if (!ym) return null;
+  const m = /^(\d{4})-(\d{2})/.exec(ym.trim());
+  if (!m) return null;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  if (!year || month < 1 || month > 12) return null;
+  return new Date(year, month - 1, 1);
+}
+
+function formatLocalDateToYm(date: Date | null): string | null {
+  if (!date) return null;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+}
+
 // Input과 같은 룩을 select에도 맞추기 위한 토큰 기반 클래스
 const CONTROL_LIKE = [
   "w-full",
   "",
+  "h-11",
   "rounded-xl",
   "border border-(--oboon-border-default)",
   "bg-(--oboon-bg-surface)",
@@ -161,6 +193,8 @@ export default function PropertyFacilitiesPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const propertyId = Number(params.id);
+  const { loading: accessLoading, allowed: canAccessProperty } =
+    useRequirePropertyEditAccess(propertyId);
 
   const [facilities, setFacilities] = useState<FacilityForm[]>([]);
   const [loading, setLoading] = useState(false);
@@ -200,9 +234,10 @@ export default function PropertyFacilitiesPage() {
   );
 
   useEffect(() => {
+    if (accessLoading || !canAccessProperty) return;
     if (Number.isNaN(propertyId)) return;
     fetchFacilities(propertyId);
-  }, [propertyId, fetchFacilities]);
+  }, [accessLoading, canAccessProperty, propertyId, fetchFacilities]);
 
   const countText = useMemo(() => {
     if (facilities.length === 0) return "아직 등록된 홍보시설이 없습니다.";
@@ -297,10 +332,15 @@ export default function PropertyFacilitiesPage() {
         is_active: f.is_active,
       };
 
-      const { error } = await savePropertyFacility(payload, f.id);
+      const { data, error } = await savePropertyFacility(payload, f.id);
 
       if (error) {
-        showAlert(error.message);
+        showAlert(toKoreanErrorMessage(error, "저장에 실패했습니다."));
+        return;
+      }
+
+      if (!data) {
+        showAlert("저장 권한이 없거나 수정할 시설을 찾을 수 없습니다.");
         return;
       }
 
@@ -313,7 +353,15 @@ export default function PropertyFacilitiesPage() {
 
   async function deleteFacility(f: FacilityForm) {
     if (f.id) {
-      await deletePropertyFacility(f.id);
+      const { data, error } = await deletePropertyFacility(f.id);
+      if (error) {
+        showAlert(toKoreanErrorMessage(error, "삭제에 실패했습니다."));
+        return;
+      }
+      if (!data) {
+        showAlert("삭제 권한이 없거나 삭제할 시설을 찾을 수 없습니다.");
+        return;
+      }
     }
     setFacilities((prev) => prev.filter((x) => x !== f));
   }
@@ -327,6 +375,16 @@ export default function PropertyFacilitiesPage() {
       prev.map((f, i) => (i === index ? { ...f, [key]: value } : f)),
     );
   }
+
+  if (accessLoading) {
+    return (
+      <div className="px-4 py-8 ob-typo-body text-(--oboon-text-muted)">
+        권한 확인 중...
+      </div>
+    );
+  }
+
+  if (!canAccessProperty) return null;
 
   return (
     <main className="bg-(--oboon-bg-default)">
@@ -382,15 +440,17 @@ export default function PropertyFacilitiesPage() {
                     </span>
                   </div>
 
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="sm"
                     aria-label="삭제"
                     onClick={() => deleteFacility(f)}
                     disabled={loading}
-                    className="ml-auto shrink-0 rounded-full p-1.5 text-red-500 hover:bg-red-500/10 focus:outline-none focus:ring-2 focus:ring-red-500/30 disabled:opacity-50"
+                    className="ml-auto h-8 w-8 min-w-0 shrink-0 rounded-full p-0 text-(--oboon-danger) hover:bg-(--oboon-danger-bg) focus-visible:ring-(--oboon-danger)/30"
                   >
                     <Trash2 size={16} />
-                  </button>
+                  </Button>
                 </div>
 
                 <div className="mt-4 grid grid-cols-1 gap-4">
@@ -405,18 +465,30 @@ export default function PropertyFacilitiesPage() {
 
                   <div className="space-y-2">
                     <Label>시설 유형</Label>
-                    <select
-                      className={CONTROL_LIKE}
-                      disabled={!f.isEditing}
-                      value={f.type}
-                      onChange={(e) =>
-                        updateField(idx, "type", e.target.value as FacilityType)
-                      }
-                    >
-                      <option value="MODELHOUSE">모델하우스</option>
-                      <option value="PROMOTION">홍보관</option>
-                      <option value="POPUP">팝업</option>
-                    </select>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="secondary"
+                          size="md"
+                          shape="default"
+                          className="h-11 w-full justify-between"
+                          disabled={!f.isEditing}
+                        >
+                          <span>{facilityTypeLabel(f.type)}</span>
+                          <ChevronDown className="h-4 w-4 text-(--oboon-text-muted)" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" matchTriggerWidth>
+                        {FACILITY_TYPE_OPTIONS.map((opt) => (
+                          <DropdownMenuItem
+                            key={opt.value}
+                            onClick={() => updateField(idx, "type", opt.value)}
+                          >
+                            {opt.label}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
 
                   {f.road_address ? (
@@ -543,13 +615,15 @@ export default function PropertyFacilitiesPage() {
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label>운영 시작 월</Label>
-                      <PrecisionDateInput
-                        value={f.open_start}
-                        onChange={(next) =>
-                          updateField(idx, "open_start", next)
+                      <OboonDatePicker
+                        selected={parseYmToLocalDate(f.open_start)}
+                        onChange={(date: Date | null) =>
+                          updateField(idx, "open_start", formatLocalDateToYm(date))
                         }
                         disabled={!f.isEditing}
-                        policy="month"
+                        showMonthYearPicker
+                        dateFormat="yyyy-MM"
+                        textFormat="yyyy-MM"
                         inputClassName={CONTROL_LIKE}
                         placeholder="예) 2026-01"
                       />
@@ -557,11 +631,15 @@ export default function PropertyFacilitiesPage() {
 
                     <div className="space-y-2">
                       <Label>운영 종료 월</Label>
-                      <PrecisionDateInput
-                        value={f.open_end}
-                        onChange={(next) => updateField(idx, "open_end", next)}
+                      <OboonDatePicker
+                        selected={parseYmToLocalDate(f.open_end)}
+                        onChange={(date: Date | null) =>
+                          updateField(idx, "open_end", formatLocalDateToYm(date))
+                        }
                         disabled={!f.isEditing}
-                        policy="month"
+                        showMonthYearPicker
+                        dateFormat="yyyy-MM"
+                        textFormat="yyyy-MM"
                         inputClassName={CONTROL_LIKE}
                         placeholder="예) 2026-03"
                       />
@@ -571,6 +649,7 @@ export default function PropertyFacilitiesPage() {
                   <label className="flex items-center gap-2 ob-typo-body text-(--oboon-text-body)">
                     <input
                       type="checkbox"
+                      className="h-4 w-4 rounded border border-(--oboon-border-default) bg-(--oboon-bg-surface) accent-(--oboon-primary)"
                       disabled={!f.isEditing}
                       checked={f.is_active}
                       onChange={(e) =>

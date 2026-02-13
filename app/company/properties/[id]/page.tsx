@@ -51,6 +51,7 @@ import {
 import { getPropertySectionStatus } from "@/features/property/components/propertyProgress";
 import { showAlert } from "@/shared/alert";
 import { createSupabaseClient } from "@/lib/supabaseClient";
+import { useRequirePropertyEditAccess } from "@/features/company/hooks/useRequirePropertyEditAccess";
 
 /* ==================================================
    타입 정의
@@ -245,6 +246,8 @@ function PropertyDetailPageInner() {
   const toast = useToast();
   const id = Number(params.id);
   const isValidPropertyId = Number.isFinite(id) && id > 0;
+  const { loading: accessLoading, allowed: canAccessProperty } =
+    useRequirePropertyEditAccess(id);
 
   // 상태 관리
   const [data, setData] = useState<PropertyDetail | null>(null);
@@ -277,7 +280,7 @@ function PropertyDetailPageInner() {
 
   const getPropertyListHref = () =>
     currentUserRole === "agent"
-      ? "/agent/profile#property-register"
+      ? "/agent/profile#affiliation-section"
       : "/company/properties";
   const canSeeCommentSection = currentUserRole === "admin";
 
@@ -356,8 +359,9 @@ function PropertyDetailPageInner() {
   }, [fetchGalleryImages, id, isValidPropertyId]);
 
   useEffect(() => {
+    if (accessLoading || !canAccessProperty) return;
     load();
-  }, [load]);
+  }, [accessLoading, canAccessProperty, load]);
 
   // 진행도 계산
   const { completion, progressPercent, incompleteSectionNames } =
@@ -411,7 +415,7 @@ function PropertyDetailPageInner() {
     }
     if (!validateRequiredOrShowModal(form.name, "현장명")) return;
     setSaving(true);
-    const { error } = await updatePropertyBasicInfo(id, {
+    const { data, error } = await updatePropertyBasicInfo(id, {
       name: form.name?.trim() ?? "",
       property_type: form.property_type?.trim() || null,
       status: form.status || null,
@@ -421,6 +425,7 @@ function PropertyDetailPageInner() {
     setSaving(false);
 
     if (error) return showAlert("저장 실패: " + (error instanceof Error ? error.message : "알 수 없는 오류"));
+    if (!data) return showAlert("저장 권한이 없거나 수정할 현장을 찾을 수 없습니다.");
 
     setLocalPreview(null);
     setImageFileName(null);
@@ -668,6 +673,13 @@ function PropertyDetailPageInner() {
     await saveGalleryOrder(reordered);
   };
 
+  if (accessLoading)
+    return (
+      <div className="flex h-40 items-center justify-center ob-typo-body text-(--oboon-text-muted)">
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 권한 확인 중...
+      </div>
+    );
+  if (!canAccessProperty) return null;
   if (loading)
     return (
       <div className="flex h-40 items-center justify-center ob-typo-body text-(--oboon-text-muted)">
@@ -903,13 +915,15 @@ function PropertyDetailPageInner() {
                         </p>
 
                         {data.description && data.description.length > 80 ? (
-                          <button
+                          <Button
                             type="button"
+                            variant="ghost"
+                            size="sm"
                             onClick={() => setShowFullDesc((v) => !v)}
-                            className="mt-2 inline-flex ob-typo-body font-semibold text-(--oboon-primary)"
+                            className="mt-2 h-auto px-0 text-(--oboon-primary) hover:bg-transparent"
                           >
                             {showFullDesc ? "접기" : "더보기"}
-                          </button>
+                          </Button>
                         ) : null}
                       </div>
                     }
@@ -1107,14 +1121,14 @@ function PropertyDetailPageInner() {
                           height={320}
                           className="h-full w-full object-cover"
                         />
-                        <div className="pointer-events-none absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/55 ob-typo-caption font-medium text-white">
+                        <div className="pointer-events-none absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-(--oboon-overlay) ob-typo-caption font-medium text-(--oboon-on-primary)">
                           {index + 1}
                         </div>
                         {editMode ? (
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="absolute right-2 top-1 h-6 w-6 min-w-0 rounded-full p-0 !bg-transparent text-white hover:!bg-transparent hover:text-white"
+                            className="absolute right-2 top-1 h-6 w-6 min-w-0 rounded-full p-0 !bg-transparent text-(--oboon-on-primary) hover:!bg-transparent hover:text-(--oboon-on-primary)"
                             disabled={galleryDeletingId === image.id}
                             onClick={() => handleGalleryDelete(image.id)}
                           >

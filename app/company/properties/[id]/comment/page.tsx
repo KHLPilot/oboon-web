@@ -9,6 +9,8 @@ import Card from "@/components/ui/Card";
 import Textarea from "@/components/ui/Textarea";
 import PageContainer from "@/components/shared/PageContainer";
 import { fetchPropertyComments, updatePropertyComments } from "@/features/company/services/property.comment";
+import { useRequirePropertyEditAccess } from "@/features/company/hooks/useRequirePropertyEditAccess";
+import { toKoreanErrorMessage } from "@/shared/errorMessage";
 
 type commentForm = {
   confirmed_comment: string;
@@ -35,6 +37,8 @@ export default function PropertycommentPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const propertyId = Number(params?.id);
+  const { loading: accessLoading, allowed: canAccessProperty } =
+    useRequirePropertyEditAccess(propertyId);
 
   const [form, setForm] = useState<commentForm>(EMPTY_FORM);
   const [loading, setLoading] = useState(true);
@@ -45,6 +49,7 @@ export default function PropertycommentPage() {
     let alive = true;
 
     async function load() {
+      if (accessLoading || !canAccessProperty) return;
       if (!Number.isFinite(propertyId)) return;
 
       setLoading(true);
@@ -55,7 +60,7 @@ export default function PropertycommentPage() {
       if (!alive) return;
 
       if (error) {
-        setError(error.message);
+        setError(toKoreanErrorMessage(error));
         setForm(EMPTY_FORM);
       } else {
         setForm({
@@ -71,7 +76,17 @@ export default function PropertycommentPage() {
     return () => {
       alive = false;
     };
-  }, [propertyId]);
+  }, [accessLoading, canAccessProperty, propertyId]);
+
+  if (accessLoading) {
+    return (
+      <div className="px-4 py-8 ob-typo-body text-(--oboon-text-muted)">
+        권한 확인 중...
+      </div>
+    );
+  }
+
+  if (!canAccessProperty) return null;
 
   async function handleSave() {
     if (!Number.isFinite(propertyId)) return;
@@ -84,12 +99,17 @@ export default function PropertycommentPage() {
       estimated_comment: form.estimated_comment.trim() || null,
     };
 
-    const { error } = await updatePropertyComments(propertyId, payload);
+    const { data, error } = await updatePropertyComments(propertyId, payload);
 
     setSaving(false);
 
     if (error) {
-      setError(error.message);
+      setError(toKoreanErrorMessage(error));
+      return;
+    }
+
+    if (!data) {
+      setError("저장 권한이 없거나 수정할 현장을 찾을 수 없습니다.");
       return;
     }
 

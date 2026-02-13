@@ -21,6 +21,7 @@ import {
 import { validateUnitDraft } from "@/features/company/domain/unit.validation";
 import { mapSupabaseErrorToKorean } from "@/features/company/domain/unit.errors";
 import { showAlert } from "@/shared/alert";
+import { useRequirePropertyEditAccess } from "@/features/company/hooks/useRequirePropertyEditAccess";
 
 import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
@@ -71,6 +72,8 @@ export default function UnitTypesPage() {
 
   const propertyId = Number(params?.id);
   const safePropertyId = Number.isFinite(propertyId) ? propertyId : null;
+  const { loading: accessLoading, allowed: canAccessProperty } =
+    useRequirePropertyEditAccess(propertyId);
   const cancelHref = `/company/properties/${propertyId}`;
 
   const {
@@ -281,6 +284,16 @@ export default function UnitTypesPage() {
     };
     await updateUnit(unit.id, nextDraft);
   }
+
+  if (accessLoading) {
+    return (
+      <div className="px-4 py-8 ob-typo-body text-(--oboon-text-muted)">
+        권한 확인 중...
+      </div>
+    );
+  }
+
+  if (!canAccessProperty) return null;
 
   return (
     <main className="bg-(--oboon-bg-default)">

@@ -9,6 +9,7 @@ import { createSupabaseClient } from "@/lib/supabaseClient";
 import type { Offering } from "@/types/index";
 import PageContainer from "@/components/shared/PageContainer";
 import { UXCopy } from "@/shared/uxCopy";
+import { toKoreanErrorMessage } from "@/shared/errorMessage";
 import { fetchPropertiesForOfferings } from "@/features/offerings/services/offering.query";
 import {
   mapPropertyRowToOffering,
@@ -190,7 +191,7 @@ export default function OfferingsClientBody() {
       if (!mounted) return;
 
       if (error) {
-        setLoadError(error.message ?? "데이터를 불러오지 못했어요.");
+        setLoadError(toKoreanErrorMessage(error, "데이터를 불러오지 못했어요."));
         setRows([]);
         return;
       }
