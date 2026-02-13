@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const validContexts = ['signup', 'reservation', 'agent_approval'];
+    const validContexts = ['signup', 'reservation', 'agent_approval', 'profile_update'];
     if (!context || !validContexts.includes(context)) {
       return NextResponse.json(
         { error: `context는 ${validContexts.join(', ')} 중 하나여야 합니다.` },
@@ -181,6 +181,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const context = searchParams.get('context');
     const contextId = searchParams.get('contextId');
+    const termType = searchParams.get('termType');
 
     let query = supabase
       .from('term_consents')
@@ -193,6 +194,9 @@ export async function GET(request: NextRequest) {
     }
     if (contextId) {
       query = query.eq('context_id', contextId);
+    }
+    if (termType) {
+      query = query.eq('term_type', termType);
     }
 
     const { data: consents, error: queryError } = await query;
@@ -208,6 +212,83 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ consents });
   } catch (error) {
     console.error('term-consents GET API 오류:', error);
+    return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
+  }
+}
+
+/**
+ * DELETE /api/term-consents
+ * 특정 약관 동의 철회 (마케팅 수신 동의 등)
+ *
+ * Request body:
+ * {
+ *   termType: string  // 'signup_marketing' 등
+ * }
+ */
+export async function DELETE(request: NextRequest) {
+  try {
+    const cookieStore = await cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll();
+          },
+          setAll(cookiesToSet) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) => {
+                cookieStore.set(name, value, options);
+              });
+            } catch {
+              // 읽기 전용 컨텍스트에서는 무시
+            }
+          },
+        },
+      }
+    );
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { termType } = body;
+
+    if (!termType || typeof termType !== 'string') {
+      return NextResponse.json(
+        { error: 'termType은 필수입니다.' },
+        { status: 400 }
+      );
+    }
+
+    // 해당 타입의 동의 기록 삭제
+    const { error: deleteError } = await supabase
+      .from('term_consents')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('term_type', termType);
+
+    if (deleteError) {
+      console.error('동의 기록 삭제 실패:', deleteError);
+      return NextResponse.json(
+        { error: '동의 철회에 실패했습니다.' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: `${termType} 동의가 철회되었습니다.`,
+    });
+  } catch (error) {
+    console.error('term-consents DELETE API 오류:', error);
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }

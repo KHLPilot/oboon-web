@@ -196,6 +196,10 @@ export default function ProfilePage({
     null,
   );
 
+  // 마케팅 수신 동의 상태
+  const [marketingConsent, setMarketingConsent] = useState(false);
+  const [marketingConsentLoading, setMarketingConsentLoading] = useState(false);
+
   const closeDeleteModal = () => {
     setShowDeleteModal(false);
   };
@@ -259,6 +263,18 @@ export default function ProfilePage({
 
       await fetchGalleryImages(user.id);
 
+      // 마케팅 동의 상태 조회
+      try {
+        const res = await fetch("/api/term-consents?termType=signup_marketing");
+        if (res.ok) {
+          const json = await res.json();
+          // 최신 동의 기록이 있으면 동의한 것으로 간주
+          setMarketingConsent(json.consents && json.consents.length > 0);
+        }
+      } catch (e) {
+        console.error("마케팅 동의 상태 조회 오류:", e);
+      }
+
       setLoading(false);
     })();
   }, [supabase]);
@@ -311,6 +327,48 @@ export default function ProfilePage({
 
     if (errors.bankName) {
       setErrors((prev) => ({ ...prev, bankName: undefined }));
+    }
+  };
+
+  // 마케팅 동의 토글 핸들러
+  const handleMarketingConsentToggle = async () => {
+    setMarketingConsentLoading(true);
+    try {
+      if (marketingConsent) {
+        // 동의 철회: term_consents에서 삭제
+        const res = await fetch("/api/term-consents", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ termType: "signup_marketing" }),
+        });
+        if (res.ok) {
+          setMarketingConsent(false);
+          toast.success("마케팅 수신 동의가 철회되었습니다.", "완료");
+        } else {
+          toast.error("처리 중 오류가 발생했습니다.", "오류");
+        }
+      } else {
+        // 동의: term_consents에 추가
+        const res = await fetch("/api/term-consents", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            termTypes: ["signup_marketing"],
+            context: "profile_update",
+          }),
+        });
+        if (res.ok) {
+          setMarketingConsent(true);
+          toast.success("마케팅 수신에 동의하셨습니다.", "완료");
+        } else {
+          toast.error("처리 중 오류가 발생했습니다.", "오류");
+        }
+      }
+    } catch (e) {
+      console.error("마케팅 동의 토글 오류:", e);
+      toast.error("처리 중 오류가 발생했습니다.", "오류");
+    } finally {
+      setMarketingConsentLoading(false);
     }
   };
 
@@ -2249,6 +2307,34 @@ export default function ProfilePage({
                     </div>
                   </Card>
                 </div>
+
+                {/* 마케팅 수신 동의 */}
+                <Card className="mt-4 p-4 sm:p-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="ob-typo-h3 text-(--oboon-text-title)">
+                        마케팅 수신 동의
+                      </div>
+                      <p className="ob-typo-caption text-(--oboon-text-muted) mt-1">
+                        이벤트, 프로모션 등 마케팅 정보를 받아보실 수 있습니다.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleMarketingConsentToggle}
+                      disabled={marketingConsentLoading}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-(--oboon-primary) focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
+                        marketingConsent ? "bg-(--oboon-primary)" : "bg-(--oboon-border-default)"
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                          marketingConsent ? "translate-x-5" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </Card>
               </section>
 
               <section className={userMenuTab === "community" ? "" : "hidden"}>

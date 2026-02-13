@@ -6,6 +6,7 @@ import { ToastProvider } from "@/components/ui/Toast";
 import AuthBootstrap from "@/components/shared/AuthBootstrap.client";
 import { NotificationProvider } from "@/features/notifications/components/NotificationProvider.client";
 import NotificationToastManager from "@/features/notifications/components/NotificationToast.client";
+import TermsConsentProvider from "@/components/shared/TermsConsentProvider";
 
 export default function Providers({ children }: { children: ReactNode }) {
   return (
@@ -15,6 +16,7 @@ export default function Providers({ children }: { children: ReactNode }) {
         {children}
         <AlertModalProvider />
         <NotificationToastManager />
+        <TermsConsentProvider />
       </NotificationProvider>
     </ToastProvider>
   );

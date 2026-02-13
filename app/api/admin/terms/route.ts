@@ -62,10 +62,12 @@ export async function GET() {
     }
 
     // 활성 버전만 조회 (버전 관리용 - 각 타입별 활성 버전)
+    // signup_age_check는 전문이 없으므로 관리자 페이지에서 제외
     const { data, error } = await adminSupabase
       .from("terms")
       .select("*")
       .eq("is_active", true)
+      .neq("type", "signup_age_check")
       .order("display_order", { ascending: true })
       .order("type", { ascending: true });
 
@@ -77,7 +79,23 @@ export async function GET() {
       );
     }
 
-    return NextResponse.json({ terms: data || [] });
+    // 한국 시간(KST)으로 변환하여 반환
+    const termsWithKST = (data || []).map((term) => ({
+      ...term,
+      updated_at_kst: term.updated_at
+        ? new Date(term.updated_at).toLocaleString("ko-KR", {
+            timeZone: "Asia/Seoul",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+          })
+        : null,
+    }));
+
+    return NextResponse.json({ terms: termsWithKST });
   } catch (err: unknown) {
     console.error("관리자 약관 API 오류:", err);
     return NextResponse.json(
@@ -214,8 +232,19 @@ export async function PATCH(req: Request) {
       );
     }
 
+    // 한국 시간으로 변환하여 반환
+    const kstUpdatedAt = new Date(newTerm.updated_at).toLocaleString("ko-KR", {
+      timeZone: "Asia/Seoul",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+
     return NextResponse.json({
-      term: newTerm,
+      term: { ...newTerm, updated_at_kst: kstUpdatedAt },
       message: `v${newVersion}으로 업데이트되었습니다.`,
       previousVersion: existingTerm.version
     });
