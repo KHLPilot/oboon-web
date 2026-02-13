@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: {
+    serverComponentsExternalPackages: ['pdf-parse'],
+  },
   images: {
     remotePatterns: [
       // 운영 안정 우선: HTTPS 전체 도메인 허용
