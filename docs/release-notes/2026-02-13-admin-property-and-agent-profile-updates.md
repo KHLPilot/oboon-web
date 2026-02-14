@@ -105,3 +105,46 @@
 
 ## 참고
 - 빌드 중 일부 API route에서 `DYNAMIC_SERVER_USAGE` 및 Supabase DNS 관련 로그가 출력될 수 있으나, 이번 검증에서는 빌드 자체는 성공했습니다.
+
+---
+
+## 추가 업데이트 (2026-02-14)
+
+### 1) 예약 모달 단계 순서 조정
+- 대상 파일: `features/offerings/components/detail/BookingModal.tsx`
+- 변경 내용:
+  - 예약 단계 순서를 `약관 동의 → 환불 계좌 입력` 기준으로 정리
+  - 계좌 정보가 이미 등록된 경우, 약관 동의 단계에서 바로 예약 완료 가능하도록 CTA 분기 추가
+  - 계좌 미등록 시에만 환불 계좌 입력 단계로 이동
+
+### 2) 프로필 갤러리 500 오류 방어
+- 대상 파일:
+  - `features/profile/components/ProfilePage.client.tsx`
+  - `app/api/profile/gallery/route.ts`
+- 변경 내용:
+  - 일반 사용자/관리자(`role !== agent`)는 프로필 갤러리 API를 호출하지 않도록 가드 추가
+  - 갤러리 API에서 스키마 캐시 관련 오류(`PGRST204`, `schema cache`)를 빈 배열 응답으로 안전 처리
+  - 결과적으로 비상담사 계정에서 불필요한 `/api/profile/gallery` 500 로그 노출 방지
+
+### 3) 상담사 마이페이지 탭명 정리 반영
+- 대상 파일: `features/profile/components/ProfilePage.client.tsx`
+- 변경 내용:
+  - `현장 등록` 표기를 `현장 정보 수정`으로 일관 변경(탭/섹션 제목)
+
+## 추가 검증 결과 (2026-02-14)
+- 린트: 통과 (`pnpm lint`, 경고 1건 - Hook dependency)
+- 타입 체크: 통과 (`pnpm typecheck`)
+- 프로덕션 빌드: 성공 (`pnpm build`)
+
+### 4) 일반 사용자 맞춤 정보 임시 비활성화
+- 대상 파일: `features/profile/components/ProfilePage.client.tsx`
+- 변경 내용:
+  - 일반 사용자 마이페이지의 `맞춤 정보` 탭 노출 임시 주석 처리(PC/모바일)
+  - `맞춤 정보` 섹션 렌더도 임시 비활성화(`hidden`)
+
+### 5) 구조화 데이터(JSON-LD) 안정화
+- 대상 파일: `app/layout.tsx`
+- 변경 내용:
+  - 루트 구조화 데이터를 배열 방식에서 `@graph` 방식으로 전환
+  - `@context`를 루트에 두고 `Organization`, `WebSite`를 그래프 노드로 구성
+  - 일부 환경에서 발생하던 `@context` 접근 오류(`toLowerCase`) 호환성 개선

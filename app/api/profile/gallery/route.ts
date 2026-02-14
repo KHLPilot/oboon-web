@@ -34,7 +34,13 @@ type GalleryUpdateItem = {
 function isMissingSchemaError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
   const code = String((error as { code?: unknown }).code ?? "");
-  return code === "42P01" || code === "42703";
+  const message = String((error as { message?: unknown }).message ?? "");
+  return (
+    code === "42P01" ||
+    code === "42703" ||
+    code === "PGRST204" ||
+    message.includes("schema cache")
+  );
 }
 
 function extFromMimeType(mimeType: string) {

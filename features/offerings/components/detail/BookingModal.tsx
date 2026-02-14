@@ -475,14 +475,10 @@ export default function BookingModal({
 
   async function handleTimeNext() {
     if (!canGoNext) return;
-    if (!hasBankInfo) {
-      setStep("bank");
-      return;
-    }
     setStep("confirm");
   }
 
-  async function handleSaveBankAndNext() {
+  async function handleSaveBankAndSubmit() {
     const trimmedBankName = bankName.trim();
     const trimmedAccountNumber = bankAccountNumber.trim();
     const trimmedAccountHolder = bankAccountHolder.trim();
@@ -515,7 +511,7 @@ export default function BookingModal({
         throw new Error("계좌 정보 저장에 실패했습니다");
       }
 
-      setStep("confirm");
+      await handleSubmit();
     } catch (err: unknown) {
       setError(toKoreanErrorMessage(err, "계좌 정보 저장에 실패했습니다"));
     } finally {
@@ -523,8 +519,7 @@ export default function BookingModal({
     }
   }
 
-  const canSubmit =
-    selectedAgent && selectedDate && selectedTime && !submitting && agreedToTerms;
+  const canSubmit = selectedAgent && selectedDate && selectedTime && !submitting;
   const canGoNext = Boolean(selectedAgent && selectedDate && selectedTime);
 
   const formatBookingDate = (dateStr: string) => {
@@ -867,7 +862,7 @@ export default function BookingModal({
               variant="secondary"
               size="md"
               shape="pill"
-              onClick={() => setStep("time")}
+              onClick={() => setStep("confirm")}
               disabled={bankSaving}
             >
               이전 단계
@@ -877,16 +872,16 @@ export default function BookingModal({
               variant="primary"
               size="md"
               shape="pill"
-              disabled={!hasBankInfo || bankSaving}
-              onClick={handleSaveBankAndNext}
+              disabled={!hasBankInfo || bankSaving || submitting}
+              onClick={handleSaveBankAndSubmit}
             >
-              {bankSaving ? (
+              {bankSaving || submitting ? (
                 <span className="flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  저장 중...
+                  처리 중...
                 </span>
               ) : (
-                "저장하고 다음"
+                "저장하고 예약"
               )}
             </Button>
           </div>
@@ -1061,17 +1056,16 @@ export default function BookingModal({
               variant="primary"
               size="md"
               shape="pill"
-              disabled={!canSubmit}
-              onClick={handleSubmit}
+              disabled={!agreedToTerms || !canSubmit}
+              onClick={() => {
+                if (hasBankInfo) {
+                  void handleSubmit();
+                  return;
+                }
+                setStep("bank");
+              }}
             >
-              {submitting ? (
-                <span className="flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  예약 중...
-                </span>
-              ) : (
-                "예약금 입금 완료"
-              )}
+              {hasBankInfo ? "예약금 입금 완료" : "다음 단계"}
             </Button>
           </div>
         </>

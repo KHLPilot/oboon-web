@@ -263,7 +263,16 @@ export default function ProfilePage({
     setUserMenuTab("consultations");
   }, [openConsultationsByQuery]);
 
-  const fetchGalleryImages = async (targetUserId: string) => {
+  const fetchGalleryImages = async (
+    targetUserId: string,
+    targetRole?: Role | null,
+  ) => {
+    const effectiveRole = targetRole ?? role;
+    if (effectiveRole !== "agent") {
+      setGalleryImages([]);
+      return;
+    }
+
     try {
       const response = await fetch(`/api/profile/gallery?userId=${targetUserId}`);
       const data = await response.json();
@@ -310,9 +319,12 @@ export default function ProfilePage({
         setAvatarUrl(data.avatar_url ?? null);
         setAgentSummary(data.agent_summary ?? "");
         setAgentEtc(data.agent_bio ?? "");
+        if ((data.role as Role) === "agent") {
+          await fetchGalleryImages(user.id, data.role as Role);
+        } else {
+          setGalleryImages([]);
+        }
       }
-
-      await fetchGalleryImages(user.id);
 
       // 마케팅 동의 상태 조회
       try {
@@ -1153,7 +1165,7 @@ export default function ProfilePage({
                     {[
                       { id: "profile" as const, label: "상담사 프로필" },
                       { id: "affiliation" as const, label: "소속 등록" },
-                      { id: "property" as const, label: "현장 등록" },
+                      { id: "property" as const, label: "현장 정보 수정" },
                       { id: "community" as const, label: "커뮤니티 프로필" },
                     ].map((tab) => (
                       <button
@@ -1192,7 +1204,7 @@ export default function ProfilePage({
                   {[
                     { id: "profile" as const, label: "상담사 프로필" },
                     { id: "affiliation" as const, label: "소속 등록" },
-                    { id: "property" as const, label: "현장 등록" },
+                    { id: "property" as const, label: "현장 정보 수정" },
                     { id: "community" as const, label: "커뮤니티 프로필" },
                   ].map((tab) => (
                     <Button
@@ -1787,7 +1799,7 @@ export default function ProfilePage({
             >
                 <div className="flex items-center justify-between gap-3">
                   <div className="ob-typo-h2 text-(--oboon-text-title)">
-                    현장 등록
+                    현장 정보 수정
                   </div>
                   <Button asChild variant="primary" size="sm" shape="pill">
                     <Link
@@ -2137,9 +2149,10 @@ export default function ProfilePage({
                   {[
                     { id: "profile" as const, label: "기본 프로필" },
                     { id: "consultations" as const, label: "내 상담 예약" },
-                    ...(showPersonalizationTab
-                      ? [{ id: "personalization" as const, label: "맞춤 정보" }]
-                      : []),
+                    // 맞춤 정보 탭 임시 주석 처리
+                    // ...(showPersonalizationTab
+                    //   ? [{ id: "personalization" as const, label: "맞춤 정보" }]
+                    //   : []),
                     { id: "community" as const, label: "커뮤니티 프로필" },
                   ].map((tab) => (
                     <button
@@ -2178,9 +2191,10 @@ export default function ProfilePage({
                   {[
                     { id: "profile" as const, label: "기본 프로필" },
                     { id: "consultations" as const, label: "내 상담 예약" },
-                    ...(showPersonalizationTab
-                      ? [{ id: "personalization" as const, label: "맞춤 정보" }]
-                      : []),
+                    // 맞춤 정보 탭 임시 주석 처리
+                    // ...(showPersonalizationTab
+                    //   ? [{ id: "personalization" as const, label: "맞춤 정보" }]
+                    //   : []),
                     { id: "community" as const, label: "커뮤니티 프로필" },
                   ].map((tab) => (
                     <Button
@@ -2539,11 +2553,8 @@ export default function ProfilePage({
               </section>
 
               <section
-                className={
-                  showPersonalizationTab && userMenuTab === "personalization"
-                    ? ""
-                    : "hidden"
-                }
+                // 맞춤 정보 페이지 임시 주석 처리
+                className="hidden"
               >
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                   <Card className="p-4 sm:p-5">

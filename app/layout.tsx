@@ -10,27 +10,28 @@ import Providers from "./providers";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://oboon.co.kr";
 const defaultOgImage = `${siteUrl}/logo.svg`;
-const structuredData = [
-  {
-    "@context": "https://schema.org",
-    "@type": "Organization",
-    name: "OBOON",
-    url: siteUrl,
-    logo: `${siteUrl}/logo.svg`,
-  },
-  {
-    "@context": "https://schema.org",
-    "@type": "WebSite",
-    name: "OBOON",
-    url: siteUrl,
-    inLanguage: "ko-KR",
-    potentialAction: {
-      "@type": "SearchAction",
-      target: `${siteUrl}/offerings?search={search_term_string}`,
-      "query-input": "required name=search_term_string",
+const structuredData = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      name: "OBOON",
+      url: siteUrl,
+      logo: `${siteUrl}/logo.svg`,
     },
-  },
-];
+    {
+      "@type": "WebSite",
+      name: "OBOON",
+      url: siteUrl,
+      inLanguage: "ko-KR",
+      potentialAction: {
+        "@type": "SearchAction",
+        target: `${siteUrl}/offerings?search={search_term_string}`,
+        "query-input": "required name=search_term_string",
+      },
+    },
+  ],
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
