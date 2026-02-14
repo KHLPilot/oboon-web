@@ -263,11 +263,11 @@ export default function ProfilePage({
     setUserMenuTab("consultations");
   }, [openConsultationsByQuery]);
 
-  const fetchGalleryImages = async (
+  const fetchGalleryImages = useCallback(async (
     targetUserId: string,
     targetRole?: Role | null,
   ) => {
-    const effectiveRole = targetRole ?? role;
+    const effectiveRole = targetRole ?? null;
     if (effectiveRole !== "agent") {
       setGalleryImages([]);
       return;
@@ -284,7 +284,7 @@ export default function ProfilePage({
       console.error("갤러리 조회 오류:", error);
       setGalleryImages([]);
     }
-  };
+  }, []);
 
   /* =====================
      프로필 불러오기
@@ -340,7 +340,7 @@ export default function ProfilePage({
 
       setLoading(false);
     })();
-  }, [supabase]);
+  }, [supabase, fetchGalleryImages]);
 
   /* =====================
      실시간 입력 제한
@@ -595,7 +595,7 @@ export default function ProfilePage({
         throw new Error(data.error || "업로드에 실패했습니다");
       }
 
-      await fetchGalleryImages(userId);
+      await fetchGalleryImages(userId, role);
       toast.success("추가 사진이 업로드되었습니다.", "완료");
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, "업로드 중 오류가 발생했습니다."), "업로드 실패");

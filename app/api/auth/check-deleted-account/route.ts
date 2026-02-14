@@ -30,7 +30,8 @@ export async function POST(req: Request) {
     }
 
     // ban 여부 확인
-    const isBanned = user.banned_until !== null;
+    const isBanned =
+      ((user as { banned_until?: string | null }).banned_until ?? null) !== null;
 
     // profiles에서 deleted_at 확인
     const { data: profile } = await supabaseAdmin

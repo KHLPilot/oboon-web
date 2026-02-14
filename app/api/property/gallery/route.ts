@@ -192,13 +192,16 @@ export async function POST(req: Request) {
     for (const file of files) {
       if (!ALLOWED_MIME_TYPES.has(file.type)) {
         return NextResponse.json(
-          { error: "jpg, png, webp 파일만 업로드할 수 있습니다" },
+          {
+            error:
+              "지원 형식이 아니에요. JPG, PNG, WEBP 파일만 업로드할 수 있어요.",
+          },
           { status: 400 },
         );
       }
       if (file.size > MAX_FILE_SIZE_BYTES) {
         return NextResponse.json(
-          { error: "파일당 5MB 이하만 업로드할 수 있습니다" },
+          { error: "사진이 너무 커요. 한 장당 5MB 이하로 올려주세요." },
           { status: 400 },
         );
       }
@@ -219,7 +222,7 @@ export async function POST(req: Request) {
     const existingCount = existingRows?.length ?? 0;
     if (existingCount + files.length > MAX_IMAGES) {
       return NextResponse.json(
-        { error: `최대 ${MAX_IMAGES}장까지 업로드할 수 있습니다` },
+        { error: `추가 사진은 최대 ${MAX_IMAGES}장까지 등록할 수 있어요.` },
         { status: 400 },
       );
     }
@@ -275,7 +278,10 @@ export async function POST(req: Request) {
 
         console.error("R2 업로드 오류:", uploadError);
         return NextResponse.json(
-          { error: "이미지 업로드에 실패했습니다" },
+          {
+            error:
+              "한 번에 올리는 용량이 커서 업로드가 중단됐어요. 사진 수를 줄이거나 용량을 낮춰 다시 시도해 주세요.",
+          },
           { status: 500 },
         );
       }
@@ -304,7 +310,7 @@ export async function POST(req: Request) {
       }
 
       return NextResponse.json(
-        { error: "추가 사진 저장에 실패했습니다" },
+        { error: "업로드 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요." },
         { status: 500 },
       );
     }

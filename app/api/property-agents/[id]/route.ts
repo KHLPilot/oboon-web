@@ -26,7 +26,7 @@ function isWithdrawnSchemaIssue(error: unknown): boolean {
 // PATCH - 관리자가 소속 신청 승인/거절
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -99,7 +99,7 @@ export async function PATCH(
       );
     }
 
-    const propertyAgentId = params.id;
+    const { id: propertyAgentId } = await params;
 
     // 해당 소속 신청 조회
     const { data: existingRequest, error: fetchError } = await adminSupabase
@@ -178,7 +178,7 @@ export async function PATCH(
 // DELETE - 소속 신청 취소 (상담사) 또는 삭제 (관리자)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -226,7 +226,7 @@ export async function DELETE(
       );
     }
 
-    const propertyAgentId = params.id;
+    const { id: propertyAgentId } = await params;
 
     // 해당 소속 신청 조회
     const { data: existingRequest, error: fetchError } = await adminSupabase

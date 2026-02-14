@@ -173,17 +173,19 @@ export default function PropertyCreatePage() {
     if (files.length === 0) return;
 
     if (galleryImages.length + files.length > 10) {
-      showAlert("추가 사진은 최대 10장까지 선택할 수 있습니다.");
+      showAlert("추가 사진은 최대 10장까지 등록할 수 있어요.");
       return;
     }
 
     for (const file of files) {
       if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-        showAlert("추가 사진은 jpg/png/webp 파일만 가능합니다.");
+        showAlert(
+          "지원 형식이 아니에요. JPG, PNG, WEBP 파일만 업로드할 수 있어요.",
+        );
         return;
       }
       if (file.size > 5 * 1024 * 1024) {
-        showAlert("추가 사진은 파일당 5MB 이하만 가능합니다.");
+        showAlert("사진이 너무 커요. 한 장당 5MB 이하로 올려주세요.");
         return;
       }
     }
@@ -560,7 +562,9 @@ export default function PropertyCreatePage() {
         });
         const payload = await res.json().catch(() => null);
         if (!res.ok) {
-          setError(payload?.error || "추가 사진 업로드에 실패했습니다.");
+          setError(
+            payload?.error || "업로드 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.",
+          );
           return;
         }
       }
@@ -828,7 +832,7 @@ export default function PropertyCreatePage() {
                   이미지 업로드
                 </Button>
                 <p className="ob-typo-caption text-(--oboon-text-muted)">
-                  jpg/png/webp, 파일당 5MB, 최대 10장까지 등록할 수 있습니다.
+                  JPG, PNG, WEBP · 한 장당 5MB 이하 · 최대 10장
                 </p>
 
                 {galleryImages.length === 0 ? (

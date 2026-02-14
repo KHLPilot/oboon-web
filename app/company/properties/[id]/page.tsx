@@ -540,7 +540,7 @@ function PropertyDetailPageInner() {
     if (files.length === 0) return;
 
     if (galleryImages.length + files.length > 10) {
-      toast.error("추가 사진은 최대 10장까지 업로드할 수 있습니다.", "업로드 실패");
+      toast.error("추가 사진은 최대 10장까지 등록할 수 있어요.", "업로드 실패");
       event.target.value = "";
       return;
     }
@@ -557,7 +557,9 @@ function PropertyDetailPageInner() {
       });
       const payload = await response.json();
       if (!response.ok) {
-        throw new Error(payload.error || "업로드에 실패했습니다");
+        throw new Error(
+          payload.error || "업로드 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.",
+        );
       }
 
       setGalleryImages((payload.images || []) as PropertyGalleryImage[]);
@@ -1086,7 +1088,7 @@ function PropertyDetailPageInner() {
                     이미지 업로드
                   </Button>
                   <p className="ob-typo-caption text-(--oboon-text-muted)">
-                    jpg/png/webp, 파일당 5MB, 최대 10장까지 등록할 수 있습니다.
+                    JPG, PNG, WEBP · 한 장당 5MB 이하 · 최대 10장
                   </p>
                 </>
               ) : null}

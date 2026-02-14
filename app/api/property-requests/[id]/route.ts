@@ -11,7 +11,7 @@ const adminSupabase = createClient(
 // PATCH - 관리자가 삭제 요청 승인/반려
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const cookieStore = await cookies();
@@ -74,7 +74,7 @@ export async function PATCH(
       );
     }
 
-    const requestId = params.id;
+    const { id: requestId } = await params;
 
     const { data: existingRequest, error: fetchError } = await supabase
       .from("property_requests")
@@ -173,7 +173,7 @@ export async function PATCH(
 // DELETE - 요청 철회 (요청자 본인 또는 관리자)
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const cookieStore = await cookies();
@@ -219,7 +219,7 @@ export async function DELETE(
       );
     }
 
-    const requestId = params.id;
+    const { id: requestId } = await params;
     const { data: existingRequest, error: fetchError } = await adminSupabase
       .from("property_requests")
       .select("id, agent_id, request_type, status")
