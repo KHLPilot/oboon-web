@@ -634,6 +634,14 @@ export default function OfferingDetailLeft({
         ? poi.subway_lines
         : [];
     if (lines[0]) return lines[0];
+
+    const namedLineCandidates =
+      poi.name.match(/[가-힣A-Za-z0-9-]+(?:[0-9]+호선|선)/g) ?? [];
+    const namedLine = namedLineCandidates.find((candidate) =>
+      Boolean(getSubwayIconPath(candidate)),
+    );
+    if (namedLine) return namedLine;
+
     const fromName = poi.name.match(/([0-9]+)호선/);
     return fromName ? `${fromName[1]}호선` : null;
   };

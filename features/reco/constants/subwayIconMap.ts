@@ -2,7 +2,14 @@ const normalizeLine = (line: string) => line.toLowerCase().replace(/\s+/g, "");
 
 const SUBWAY_ICON_MAPPINGS: Array<{ keywords: string[]; path: string }> = [
   {
-    keywords: ["부산김해", "김해경전철", "busangimhae", "busan-gimhae"],
+    keywords: [
+      "부산김해",
+      "부산김해경전철",
+      "김해경전철",
+      "busangimhae",
+      "busan-gimhae",
+      "busangimhaelrt",
+    ],
     path: "/icons/subway/Busan-Gimhae-LRT.svg",
   },
   {
@@ -26,7 +33,7 @@ const SUBWAY_ICON_MAPPINGS: Array<{ keywords: string[]; path: string }> = [
     path: "/icons/subway/Daegusaneop-Line.svg",
   },
   {
-    keywords: ["대경선", "daegyeong"],
+    keywords: ["대경선", "대구권광역철도", "daegyeong", "daegyeongline"],
     path: "/icons/subway/Daegyeong-Line.svg",
   },
   {
@@ -64,23 +71,47 @@ const SUBWAY_ICON_MAPPINGS: Array<{ keywords: string[]; path: string }> = [
     path: "/icons/subway/Dongtan-Indeogwon-Line.svg",
   },
   {
-    keywords: ["gtx-a", "gtxa", "수도권광역급행a"],
+    keywords: [
+      "gtx-a",
+      "gtxa",
+      "gtxaline",
+      "수도권광역급행a",
+      "수도권광역급행철도a",
+    ],
     path: "/icons/subway/GTX-Line-A.svg",
   },
   {
-    keywords: ["gtx-b", "gtxb", "수도권광역급행b"],
+    keywords: [
+      "gtx-b",
+      "gtxb",
+      "gtxbline",
+      "수도권광역급행b",
+      "수도권광역급행철도b",
+    ],
     path: "/icons/subway/GTX-Line-B.svg",
   },
   {
-    keywords: ["gtx-c", "gtxc", "수도권광역급행c"],
+    keywords: [
+      "gtx-c",
+      "gtxc",
+      "gtxcline",
+      "수도권광역급행c",
+      "수도권광역급행철도c",
+    ],
     path: "/icons/subway/GTX-Line-C.svg",
   },
   {
-    keywords: ["gtx-d", "gtxd", "수도권광역급행d"],
+    keywords: [
+      "gtx-d",
+      "gtxd",
+      "gtxdline",
+      "수도권광역급행d",
+      "수도권광역급행철도d",
+    ],
     path: "/icons/subway/GTX-Line-D.svg",
   },
   {
-    keywords: ["김포골드", "김포골드라인", "gimpo-goldline"],
+    keywords: ["김포골드", "김포골드라인", "gimpo-goldline", "gimpogoldline"],
     path: "/icons/subway/Gimpo-Goldline.svg",
   },
   {
@@ -100,7 +131,14 @@ const SUBWAY_ICON_MAPPINGS: Array<{ keywords: string[]; path: string }> = [
     path: "/icons/subway/Gyeonggang-Line.svg",
   },
   {
-    keywords: ["경의중앙선", "경의중앙", "gyeongui-jungang"],
+    keywords: [
+      "경의중앙선",
+      "경의중앙",
+      "경의선",
+      "중앙선",
+      "gyeongui-jungang",
+      "gyeonguijungang",
+    ],
     path: "/icons/subway/Gyeongui-Jungang-Line.svg",
   },
   {
@@ -111,7 +149,10 @@ const SUBWAY_ICON_MAPPINGS: Array<{ keywords: string[]; path: string }> = [
     keywords: ["인천2호선", "incheon-line-2", "incheon2"],
     path: "/icons/subway/Incheon-line-2.svg",
   },
-  { keywords: ["서해선", "seohae"], path: "/icons/subway/Seohae-Line.svg" },
+  {
+    keywords: ["서해선", "서해라인", "seohae", "seohaeline"],
+    path: "/icons/subway/Seohae-Line.svg",
+  },
   {
     keywords: ["서울1호선", "수도권1호선", "seoul-line-1", "seoul1"],
     path: "/icons/subway/Seoul-line-1.svg",
@@ -149,27 +190,27 @@ const SUBWAY_ICON_MAPPINGS: Array<{ keywords: string[]; path: string }> = [
     path: "/icons/subway/Seoul-line-9.svg",
   },
   {
-    keywords: ["신분당선", "신분당", "shinbundang"],
+    keywords: ["신분당선", "신분당", "신분당라인", "shinbundang", "shinbundangline"],
     path: "/icons/subway/Shinbundang-Line.svg",
   },
   {
-    keywords: ["신림선", "신림", "sillim"],
+    keywords: ["신림선", "신림", "신림라인", "sillim", "sillimline"],
     path: "/icons/subway/Sillim-Line.svg",
   },
   {
-    keywords: ["신안산선", "신안산", "sinansan"],
+    keywords: ["신안산선", "신안산", "신안산라인", "sinansan", "sinansanline"],
     path: "/icons/subway/Sinansan-Line.svg",
   },
   {
-    keywords: ["수인분당선", "수인분당", "suin-bundang"],
+    keywords: ["수인분당선", "수인분당", "suin-bundang", "suinbundang", "suinbundangline"],
     path: "/icons/subway/Suin-Bundang-Line.svg",
   },
   {
-    keywords: ["의정부경전철", "u-line", "uline"],
+    keywords: ["의정부경전철", "u라인", "u-line", "uline"],
     path: "/icons/subway/U-Line.svg",
   },
   {
-    keywords: ["우이신설선", "우이신설", "ui-sinseol"],
+    keywords: ["우이신설선", "우이신설", "우이신설라인", "ui-sinseol", "uisinseol"],
     path: "/icons/subway/Ui-Sinseol-Line.svg",
   },
   {
@@ -181,11 +222,11 @@ const SUBWAY_ICON_MAPPINGS: Array<{ keywords: string[]; path: string }> = [
     path: "/icons/subway/Yangsan-Line.svg",
   },
   {
-    keywords: ["용인에버라인", "에버라인", "yongin-everline"],
+    keywords: ["용인에버라인", "에버라인", "yongin-everline", "everline", "yongineverline"],
     path: "/icons/subway/Yongin-EverLine.svg",
   },
   {
-    keywords: ["공항철도", "arex", "airport-railroad"],
+    keywords: ["공항철도", "인천공항철도", "arex", "airport-railroad", "airportrailroad"],
     path: "/icons/subway/Airport-Railroad-Express.svg",
   },
 ];

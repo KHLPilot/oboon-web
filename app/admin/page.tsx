@@ -1069,12 +1069,14 @@ function AdminPageInner() {
                     오늘의 운영 요약
                   </div>
                   <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
-                    {new Date().toLocaleDateString("ko-KR", {
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                      weekday: "long",
-                    })}
+                    <span suppressHydrationWarning>
+                      {new Date().toLocaleDateString("ko-KR", {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                        weekday: "long",
+                      })}
+                    </span>
                   </div>
                 </Card>
 

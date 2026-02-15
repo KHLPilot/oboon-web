@@ -122,8 +122,10 @@ export default function Footer() {
 
         {/* Bottom */}
         <div className="pt-6 text-center ob-typo-caption leading-5 text-(--oboon-text-muted)">
-          © {year} OBOON Inc. All rights reserved. Generated based on OBOON
-          Guidelines v1.0.
+          <span suppressHydrationWarning>
+            © {year} OBOON Inc. All rights reserved. Generated based on OBOON
+            Guidelines v1.0.
+          </span>
         </div>
       </div>
     </footer>
