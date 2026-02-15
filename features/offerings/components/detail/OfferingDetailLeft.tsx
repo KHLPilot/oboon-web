@@ -975,13 +975,12 @@ export default function OfferingDetailLeft({
                       },
                       (poi) => {
                         const primary = extractSubwayPrimaryLine(poi);
-                        if (!primary) return null;
-                        const iconPath = getSubwayIconPath(primary);
+                        const iconPath = getSubwayIconPath(primary ?? poi.name);
                         if (!iconPath) return null;
                         return (
                           <Image
                             src={iconPath}
-                            alt={primary}
+                            alt={primary ?? poi.name}
                             width={20}
                             height={20}
                             className="h-5 w-5 rounded-full"

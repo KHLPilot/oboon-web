@@ -111,7 +111,15 @@ const SUBWAY_ICON_MAPPINGS: Array<{ keywords: string[]; path: string }> = [
     path: "/icons/subway/GTX-Line-D.svg",
   },
   {
-    keywords: ["김포골드", "김포골드라인", "gimpo-goldline", "gimpogoldline"],
+    keywords: [
+      "김포골드",
+      "김포골드라인",
+      "김포도시철도",
+      "gimpo-goldline",
+      "gimpogoldline",
+      "gimpogold",
+      "goldline",
+    ],
     path: "/icons/subway/Gimpo-Goldline.svg",
   },
   {
