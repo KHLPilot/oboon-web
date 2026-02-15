@@ -76,7 +76,6 @@ type SpecsRow = {
   trust_company?: string | null;
   developer?: string | null;
   builder?: string | null;
-  land_use_zone?: string | null;
   site_area?: number | null;
   building_area?: number | null;
   building_coverage_ratio?: number | null;
