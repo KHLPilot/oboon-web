@@ -1,5 +1,6 @@
 export type RecoPoiCategory =
   | "HOSPITAL"
+  | "CLINIC_DAILY"
   | "MART"
   | "SUBWAY"
   | "SCHOOL"

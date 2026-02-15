@@ -69,9 +69,12 @@ const isUnitTypeRow = (value: unknown) =>
 
 const isRecoPoiCategory = (value: unknown) =>
   value === "HOSPITAL" ||
+  value === "CLINIC_DAILY" ||
   value === "MART" ||
   value === "SUBWAY" ||
-  value === "SCHOOL";
+  value === "SCHOOL" ||
+  value === "DEPARTMENT_STORE" ||
+  value === "SHOPPING_MALL";
 
 const isRecoSchoolLevel = (value: unknown) =>
   value === null ||

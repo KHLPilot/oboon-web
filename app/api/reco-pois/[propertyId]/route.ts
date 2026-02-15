@@ -107,6 +107,13 @@ export async function GET(
       distance_m: toFiniteNumber(r.distance_m) ?? 0,
     }));
 
+  const clinic_daily = rows
+    .filter((r) => r.category === "CLINIC_DAILY")
+    .map((r) => ({
+      name: r.name,
+      distance_m: toFiniteNumber(r.distance_m) ?? 0,
+    }));
+
   const department_store = rows
     .filter((r) => r.category === "DEPARTMENT_STORE")
     .map((r) => ({
@@ -134,6 +141,7 @@ export async function GET(
     school_tabs: schoolTabs,
     mart,
     hospital,
+    clinic_daily,
     department_store,
     shopping_mall,
     _meta: {

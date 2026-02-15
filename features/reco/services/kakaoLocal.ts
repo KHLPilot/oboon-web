@@ -160,8 +160,6 @@ const HOSPITAL_GENERAL_EXCLUDE_KEYWORDS = [
   "한의원",
   "한방병원",
   "한방",
-  "의원",
-  "내과의원",
   "동물병원",
   "동물의료센터",
   "약국",
@@ -184,6 +182,15 @@ const HOSPITAL_GENERAL_EXCLUDE_KEYWORDS = [
   "재생의학",
 ] as const;
 
+const HOSPITAL_DAILY_KEYWORDS = [
+  "내과",
+  "소아청소년과",
+  "이비인후과",
+  "가정의학과",
+  "정형외과",
+  "산부인과",
+] as const;
+
 export type MartFilterResult =
   | { include: true; kind: "MART_LARGE"; tier: 1 | 2; reason: string }
   | { include: true; kind: "DEPARTMENT_STORE"; tier: 3; reason: string }
@@ -192,7 +199,7 @@ export type MartFilterResult =
 
 export type HospitalFilterResult =
   | { include: true; kind: "HOSPITAL_LARGE"; reason: string }
-  | { include: true; kind: "HOSPITAL_GENERAL"; reason: string }
+  | { include: true; kind: "CLINIC_DAILY"; reason: string }
   | { include: false; kind: "REJECT"; reason: string };
 
 function toFiniteNumber(v: string | number | null | undefined): number | null {
@@ -359,5 +366,12 @@ export function filterHospitalTiered(place: KakaoPlace): HospitalFilterResult {
     return { include: true, kind: "HOSPITAL_LARGE", reason: "large:hospital+category" };
   }
 
-  return { include: true, kind: "HOSPITAL_GENERAL", reason: "general:hospital" };
+  if (
+    includesAny(nameN, HOSPITAL_DAILY_KEYWORDS) ||
+    includesAny(catN, HOSPITAL_DAILY_KEYWORDS)
+  ) {
+    return { include: true, kind: "CLINIC_DAILY", reason: "daily:major_departments" };
+  }
+
+  return { include: false, kind: "REJECT", reason: "no_match" };
 }

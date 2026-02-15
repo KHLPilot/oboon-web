@@ -8,7 +8,9 @@
 
 ## 스키마
 - 마이그레이션:
-  - `supabase/migrations/051_property_reco_pois_pipeline.sql`
+  - `supabase/migrations/052_property_reco_pois_pipeline.sql`
+  - `supabase/migrations/053_property_poi_category_extend.sql`
+  - `supabase/migrations/054_property_poi_category_clinic_daily.sql`
 - 주요 테이블:
   - `property_reco_pois`: 카테고리별 POI(이름/거리/좌표/메타/원본)
   - `property_reco_poi_jobs`: 증분 갱신 큐
@@ -80,13 +82,16 @@ select cron.schedule(
 - 마트:
   - 카카오 `MT1` 결과를 tier 규칙으로 분류 저장
   - `MART`(대형마트), `DEPARTMENT_STORE`(백화점), `SHOPPING_MALL`(쇼핑몰)
+- 병원:
+  - 카카오 `HP8` 결과를 tier 규칙으로 분류 저장
+  - `HOSPITAL`(대형병원), `CLINIC_DAILY`(생활밀착 진료과 중심 의원/병원)
 
 ## 조회 API(프론트용)
 - `GET /api/reco-pois/[propertyId]`
 - 응답:
   - `subway`: `{ station_name, lines[], distance_m, walk_min }[]`
   - `school_tabs`: `elementary/middle/high/university/other`
-  - `mart`, `hospital`, `department_store`, `shopping_mall`: `{ name, distance_m }[]`
+  - `mart`, `hospital`, `clinic_daily`, `department_store`, `shopping_mall`: `{ name, distance_m }[]`
 
 ### 조회 SQL 예시
 ```sql

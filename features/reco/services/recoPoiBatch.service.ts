@@ -53,6 +53,10 @@ function toFiniteNumber(value: unknown): number | null {
   return null;
 }
 
+function byDistanceAsc(a: KakaoPlace, b: KakaoPlace) {
+  return Number(a.distance ?? 0) - Number(b.distance ?? 0);
+}
+
 async function withRetry<T>(fn: () => Promise<T>, maxRetry = MAX_RETRY) {
   let attempt = 0;
   while (true) {
@@ -96,6 +100,7 @@ function buildEmptyStats(): BatchStats {
     upsertedRows: 0,
     categoryCounts: {
       HOSPITAL: 0,
+      CLINIC_DAILY: 0,
       MART: 0,
       SUBWAY: 0,
       SCHOOL: 0,
@@ -193,27 +198,73 @@ async function processProperty(params: {
       new Map(rawPlaces.map((place) => [place.id, place])).values(),
     );
 
-    const places =
-      category === "HOSPITAL"
-        ? (() => {
-          const large: KakaoPlace[] = [];
-          const general: KakaoPlace[] = [];
-            for (const place of dedupedRawPlaces) {
-              const decision = filterHospitalTiered(place);
-              if (!decision.include) continue;
-              if (decision.kind === "HOSPITAL_LARGE") {
-                large.push(place);
-              } else {
-                general.push(place);
-              }
-            }
+    if (category === "HOSPITAL") {
+      const large: KakaoPlace[] = [];
+      const clinicDaily: KakaoPlace[] = [];
 
-            const byDistance = (a: KakaoPlace, b: KakaoPlace) =>
-              Number(a.distance ?? 0) - Number(b.distance ?? 0);
+      for (const place of dedupedRawPlaces) {
+        const decision = filterHospitalTiered(place);
+        if (!decision.include) continue;
+        if (decision.kind === "HOSPITAL_LARGE") {
+          large.push(place);
+          continue;
+        }
+        clinicDaily.push(place);
+      }
 
-            return [...large.sort(byDistance), ...general.sort(byDistance)].slice(0, topN);
-          })()
-        : dedupedRawPlaces;
+      const hospitalTargets: Array<{
+        category: "HOSPITAL" | "CLINIC_DAILY";
+        places: KakaoPlace[];
+      }> = [
+        { category: "HOSPITAL", places: large.sort(byDistanceAsc).slice(0, Math.min(2, topN)) },
+        { category: "CLINIC_DAILY", places: clinicDaily.sort(byDistanceAsc).slice(0, Math.min(3, topN)) },
+      ];
+
+      for (const target of hospitalTargets) {
+        const rows: PoiUpsertRow[] = [];
+        for (let i = 0; i < target.places.length; i += 1) {
+          const p = target.places[i];
+          const distance = toFiniteNumber(p.distance);
+          if (distance == null) continue;
+
+          rows.push({
+            property_id: propertyId,
+            category: target.category,
+            rank: i + 1,
+            kakao_place_id: p.id,
+            name: p.place_name,
+            distance_m: Math.max(0, Math.round(distance)),
+            lat: toFiniteNumber(p.y),
+            lng: toFiniteNumber(p.x),
+            address: p.address_name || null,
+            road_address: p.road_address_name || null,
+            phone: p.phone || null,
+            place_url: p.place_url || null,
+            category_name: p.category_name || null,
+            fetched_at: now,
+            raw_kakao: p as unknown as Record<string, unknown>,
+            subway_lines: null,
+            subway_station_code: null,
+            raw_public: null,
+            school_level: null,
+            updated_at: now,
+          });
+        }
+
+        const inserted = await upsertCategoryRows({
+          supabase,
+          propertyId,
+          category: target.category,
+          rows,
+        });
+        stats.upsertedRows += inserted;
+        stats.categoryCounts[target.category] += inserted;
+      }
+
+      continue;
+    }
+
+    const places = dedupedRawPlaces;
 
     const rows: PoiUpsertRow[] = [];
     for (let i = 0; i < places.length; i += 1) {
@@ -306,10 +357,7 @@ async function processProperty(params: {
 
   for (const category of martTargetCategories) {
     const rows: PoiUpsertRow[] = [];
-    const places = martBuckets[category]
-      .slice()
-      .sort((a, b) => Number(a.distance ?? 0) - Number(b.distance ?? 0))
-      .slice(0, topN);
+    const places = martBuckets[category].slice().sort(byDistanceAsc).slice(0, topN);
 
     for (let i = 0; i < places.length; i += 1) {
       const p = places[i];

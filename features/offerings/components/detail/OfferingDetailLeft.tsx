@@ -130,6 +130,7 @@ type PropertyGalleryImageRow = {
 type PropertyRecoPoiRow = {
   category:
     | "HOSPITAL"
+    | "CLINIC_DAILY"
     | "MART"
     | "SUBWAY"
     | "SCHOOL"
@@ -611,6 +612,9 @@ export default function OfferingDetailLeft({
   const hospitalPois = sortedRecoPois.filter(
     (poi) => poi.category === "HOSPITAL",
   );
+  const clinicDailyPois = sortedRecoPois.filter(
+    (poi) => poi.category === "CLINIC_DAILY",
+  );
   const departmentStorePois = sortedRecoPois.filter(
     (poi) => poi.category === "DEPARTMENT_STORE",
   );
@@ -623,6 +627,7 @@ export default function OfferingDetailLeft({
     schoolPois.length > 0 ? "SCHOOL" : null,
     martPois.length > 0 ? "MART" : null,
     hospitalPois.length > 0 ? "HOSPITAL" : null,
+    clinicDailyPois.length > 0 ? "CLINIC_DAILY" : null,
     departmentStorePois.length > 0 ? "DEPARTMENT_STORE" : null,
     shoppingMallPois.length > 0 ? "SHOPPING_MALL" : null,
   ].filter(Boolean).length;
@@ -992,6 +997,16 @@ export default function OfferingDetailLeft({
                       병원 {hospitalPois.length}
                     </div>
                     {renderPoiChips(hospitalPois)}
+                  </div>
+                ) : null}
+
+                {clinicDailyPois.length > 0 ? (
+                  <div className="p-4">
+                    <div className="flex items-center gap-2 ob-typo-subtitle text-(--oboon-text-title)">
+                      <Cross className="h-5 w-5" />
+                      생활의료 {clinicDailyPois.length}
+                    </div>
+                    {renderPoiChips(clinicDailyPois)}
                   </div>
                 ) : null}
 
