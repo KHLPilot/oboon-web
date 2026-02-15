@@ -168,6 +168,25 @@ function asArray<T>(v: T | T[] | null | undefined): T[] {
   return Array.isArray(v) ? v : [v];
 }
 
+const NON_RESIDENTIAL_PROPERTY_TYPE_KEYWORDS = [
+  "지식산업센터",
+  "상업시설",
+  "상가",
+  "오피스",
+  "업무시설",
+  "근린생활시설",
+  "공장",
+  "창고",
+] as const;
+
+function isLivingInfraAllowed(propertyType: string | null | undefined) {
+  const normalized = (propertyType ?? "").replace(/\s+/g, "").toLowerCase();
+  if (!normalized) return true;
+  return !NON_RESIDENTIAL_PROPERTY_TYPE_KEYWORDS.some((keyword) =>
+    normalized.includes(keyword.replace(/\s+/g, "").toLowerCase()),
+  );
+}
+
 function firstRow<T>(v: T | T[] | null | undefined): T | null {
   const arr = asArray(v);
   return arr[0] ?? null;
@@ -607,14 +626,17 @@ export default function OfferingDetailLeft({
     });
 
   const subwayPois = sortedRecoPois.filter((poi) => poi.category === "SUBWAY");
-  const schoolPois = sortedRecoPois.filter((poi) => poi.category === "SCHOOL");
+  const allowLivingInfra = isLivingInfraAllowed(property.property_type);
+  const schoolPois = allowLivingInfra
+    ? sortedRecoPois.filter((poi) => poi.category === "SCHOOL")
+    : [];
   const martPois = sortedRecoPois.filter((poi) => poi.category === "MART");
-  const hospitalPois = sortedRecoPois.filter(
-    (poi) => poi.category === "HOSPITAL",
-  );
-  const clinicDailyPois = sortedRecoPois.filter(
-    (poi) => poi.category === "CLINIC_DAILY",
-  );
+  const hospitalPois = allowLivingInfra
+    ? sortedRecoPois.filter((poi) => poi.category === "HOSPITAL")
+    : [];
+  const clinicDailyPois = allowLivingInfra
+    ? sortedRecoPois.filter((poi) => poi.category === "CLINIC_DAILY")
+    : [];
   const departmentStorePois = sortedRecoPois.filter(
     (poi) => poi.category === "DEPARTMENT_STORE",
   );

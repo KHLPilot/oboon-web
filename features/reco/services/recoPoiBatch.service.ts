@@ -40,6 +40,22 @@ type JobRow = {
   attempts: number;
 };
 
+type PropertyTypeRow = {
+  id: number;
+  property_type: string | null;
+};
+
+const NON_RESIDENTIAL_PROPERTY_TYPE_KEYWORDS = [
+  "지식산업센터",
+  "상업시설",
+  "상가",
+  "오피스",
+  "업무시설",
+  "근린생활시설",
+  "공장",
+  "창고",
+] as const;
+
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -55,6 +71,14 @@ function toFiniteNumber(value: unknown): number | null {
 
 function byDistanceAsc(a: KakaoPlace, b: KakaoPlace) {
   return Number(a.distance ?? 0) - Number(b.distance ?? 0);
+}
+
+function isLivingInfraAllowed(propertyType: string | null | undefined) {
+  const normalized = (propertyType ?? "").replace(/\s+/g, "").toLowerCase();
+  if (!normalized) return true;
+  return !NON_RESIDENTIAL_PROPERTY_TYPE_KEYWORDS.some((keyword) =>
+    normalized.includes(keyword.replace(/\s+/g, "").toLowerCase()),
+  );
 }
 
 async function withRetry<T>(fn: () => Promise<T>, maxRetry = MAX_RETRY) {
@@ -152,6 +176,7 @@ async function upsertCategoryRows(params: {
 async function processProperty(params: {
   supabase: SupabaseClient;
   propertyId: number;
+  propertyType?: string | null;
   lat: number;
   lng: number;
   kakaoApiKey: string;
@@ -159,11 +184,44 @@ async function processProperty(params: {
   radius: number;
   stats: BatchStats;
 }) {
-  const { supabase, propertyId, lat, lng, kakaoApiKey, topN, radius, stats } =
+  const {
+    supabase,
+    propertyId,
+    propertyType,
+    lat,
+    lng,
+    kakaoApiKey,
+    topN,
+    radius,
+    stats,
+  } =
     params;
 
   const now = new Date().toISOString();
+  const allowLivingInfra = isLivingInfraAllowed(propertyType);
   for (const category of FETCH_CATEGORIES) {
+    if (
+      !allowLivingInfra &&
+      (category === "SCHOOL" || category === "HOSPITAL")
+    ) {
+      const clearTargets: RecoPoiCategory[] =
+        category === "HOSPITAL"
+          ? ["HOSPITAL", "CLINIC_DAILY"]
+          : ["SCHOOL"];
+
+      for (const clearCategory of clearTargets) {
+        const inserted = await upsertCategoryRows({
+          supabase,
+          propertyId,
+          category: clearCategory,
+          rows: [],
+        });
+        stats.upsertedRows += inserted;
+        stats.categoryCounts[clearCategory] += inserted;
+      }
+      continue;
+    }
+
     const rawPlaces =
       category === "HOSPITAL"
         ? (
@@ -435,9 +493,16 @@ export async function runRecoPoiForProperty(input: {
     return { ok: false, reason: "invalid_property_location" as const };
   }
 
+  const { data: propertyTypeRow } = await supabase
+    .from("properties")
+    .select("property_type")
+    .eq("id", input.propertyId)
+    .maybeSingle();
+
   await processProperty({
     supabase,
     propertyId: input.propertyId,
+    propertyType: propertyTypeRow?.property_type ?? null,
     lat,
     lng,
     kakaoApiKey,
@@ -554,6 +619,17 @@ export async function runRecoPoiBatch(input?: {
   stats.scanned = properties.length;
 
   const propertyIds = properties.map((p) => p.propertyId);
+  const propertyTypeMap = new Map<number, string | null>();
+  if (propertyIds.length > 0) {
+    const { data: propertyTypeRows } = await supabase
+      .from("properties")
+      .select("id, property_type")
+      .in("id", propertyIds);
+    for (const row of (propertyTypeRows ?? []) as PropertyTypeRow[]) {
+      propertyTypeMap.set(row.id, row.property_type);
+    }
+  }
+
   const latestFetchedMap = new Map<number, string>();
   if (propertyIds.length > 0) {
     const { data: poiRows } = await supabase
@@ -587,18 +663,45 @@ export async function runRecoPoiBatch(input?: {
     .map((job) => {
       const loc = properties.find((p) => p.propertyId === job.property_id);
       if (!loc) return null;
-      return { job, ...loc };
+      return {
+        job,
+        ...loc,
+        propertyType: propertyTypeMap.get(loc.propertyId) ?? null,
+      };
     })
-    .filter((v): v is { job: JobRow; propertyId: number; lat: number; lng: number } => v !== null);
+    .filter(
+      (
+        v,
+      ): v is {
+        job: JobRow;
+        propertyId: number;
+        propertyType: string | null;
+        lat: number;
+        lng: number;
+      } => v !== null,
+    );
 
   const processTargets: Array<{
     propertyId: number;
+    propertyType: string | null;
     lat: number;
     lng: number;
     job: JobRow | null;
   }> = [
-    ...jobTargets.map((t) => ({ propertyId: t.propertyId, lat: t.lat, lng: t.lng, job: t.job })),
-    ...dueTargets.map((t) => ({ propertyId: t.propertyId, lat: t.lat, lng: t.lng, job: null })),
+    ...jobTargets.map((t) => ({
+      propertyId: t.propertyId,
+      propertyType: t.propertyType,
+      lat: t.lat,
+      lng: t.lng,
+      job: t.job,
+    })),
+    ...dueTargets.map((t) => ({
+      propertyId: t.propertyId,
+      propertyType: propertyTypeMap.get(t.propertyId) ?? null,
+      lat: t.lat,
+      lng: t.lng,
+      job: null,
+    })),
   ];
 
   await runWithConcurrency(processTargets, concurrency, async (target) => {
@@ -607,6 +710,7 @@ export async function runRecoPoiBatch(input?: {
       await processProperty({
         supabase,
         propertyId: target.propertyId,
+        propertyType: target.propertyType,
         lat: target.lat,
         lng: target.lng,
         kakaoApiKey,
