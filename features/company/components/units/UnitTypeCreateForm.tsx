@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useRef } from "react";
+import Image from "next/image";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -343,10 +344,11 @@ export default function UnitTypeCreateForm({
                 </div>
 
                 <div className="mt-3 overflow-hidden rounded-xl border border-(--oboon-border-default)">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                  <Image
                     src={value.floor_plan_url}
                     alt="floor plan preview"
+                    width={1200}
+                    height={900}
                     className="h-auto w-full object-cover"
                   />
                 </div>

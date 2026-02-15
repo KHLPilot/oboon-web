@@ -1,0 +1,592 @@
+import { createClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type {
+  BatchStats,
+  KakaoPlace,
+  PoiUpsertRow,
+  RecoPoiCategory,
+} from "@/features/reco/domain/recoPoi.types";
+import {
+  fetchKakaoTopPoisByCategory,
+  filterHospitalTiered,
+  filterMartTiered,
+} from "@/features/reco/services/kakaoLocal";
+import {
+  enrichSubwayLines,
+  mapSchoolLevelFromCategoryName,
+} from "@/features/reco/services/subwayPublicEnrichment";
+
+const FETCH_CATEGORIES: Array<"SUBWAY" | "SCHOOL" | "HOSPITAL"> = [
+  "SUBWAY",
+  "SCHOOL",
+  "HOSPITAL",
+];
+const DEFAULT_TOP_N = 3;
+const DEFAULT_RADIUS = 1000;
+const HOSPITAL_SEARCH_PAGES = 4;
+const DEFAULT_CHUNK = 50;
+const DEFAULT_CONCURRENCY = 3;
+const MAX_RETRY = 3;
+
+type LocationRow = {
+  properties_id: number;
+  lat: number | string | null;
+  lng: number | string | null;
+};
+
+type JobRow = {
+  id: number;
+  property_id: number;
+  attempts: number;
+};
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function toFiniteNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+async function withRetry<T>(fn: () => Promise<T>, maxRetry = MAX_RETRY) {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await fn();
+    } catch (error) {
+      attempt += 1;
+      if (attempt >= maxRetry) throw error;
+      const backoff = 300 * 2 ** (attempt - 1);
+      await sleep(backoff);
+    }
+  }
+}
+
+async function runWithConcurrency<T>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T) => Promise<void>,
+) {
+  let index = 0;
+  const workers = Array.from({ length: Math.max(1, concurrency) }).map(
+    async () => {
+      while (index < items.length) {
+        const current = items[index];
+        index += 1;
+        await worker(current);
+      }
+    },
+  );
+  await Promise.all(workers);
+}
+
+function buildEmptyStats(): BatchStats {
+  return {
+    scanned: 0,
+    dueCandidates: 0,
+    queuedPicked: 0,
+    processed: 0,
+    succeeded: 0,
+    failed: 0,
+    upsertedRows: 0,
+    categoryCounts: {
+      HOSPITAL: 0,
+      MART: 0,
+      SUBWAY: 0,
+      SCHOOL: 0,
+      DEPARTMENT_STORE: 0,
+      SHOPPING_MALL: 0,
+    },
+  };
+}
+
+function dedupeByProperty(rows: LocationRow[]): Array<{ propertyId: number; lat: number; lng: number }> {
+  const seen = new Set<number>();
+  const result: Array<{ propertyId: number; lat: number; lng: number }> = [];
+  for (const row of rows) {
+    const propertyId = row.properties_id;
+    if (seen.has(propertyId)) continue;
+    const lat = toFiniteNumber(row.lat);
+    const lng = toFiniteNumber(row.lng);
+    if (lat == null || lng == null) continue;
+    seen.add(propertyId);
+    result.push({ propertyId, lat, lng });
+  }
+  return result;
+}
+
+async function upsertCategoryRows(params: {
+  supabase: SupabaseClient;
+  propertyId: number;
+  category: RecoPoiCategory;
+  rows: PoiUpsertRow[];
+}) {
+  const { supabase, propertyId, category, rows } = params;
+
+  const { error: deleteError } = await supabase
+    .from("property_reco_pois")
+    .delete()
+    .eq("property_id", propertyId)
+    .eq("category", category);
+
+  if (deleteError) throw deleteError;
+  if (rows.length === 0) return 0;
+
+  const { error: insertError } = await supabase
+    .from("property_reco_pois")
+    .insert(rows);
+  if (insertError) throw insertError;
+  return rows.length;
+}
+
+async function processProperty(params: {
+  supabase: SupabaseClient;
+  propertyId: number;
+  lat: number;
+  lng: number;
+  kakaoApiKey: string;
+  topN: number;
+  radius: number;
+  stats: BatchStats;
+}) {
+  const { supabase, propertyId, lat, lng, kakaoApiKey, topN, radius, stats } =
+    params;
+
+  const now = new Date().toISOString();
+  for (const category of FETCH_CATEGORIES) {
+    const rawPlaces =
+      category === "HOSPITAL"
+        ? (
+            await Promise.all(
+              Array.from({ length: HOSPITAL_SEARCH_PAGES }, (_, i) =>
+                withRetry(() =>
+                  fetchKakaoTopPoisByCategory({
+                    kakaoApiKey,
+                    category,
+                    lat,
+                    lng,
+                    radius,
+                    topN: 15,
+                    page: i + 1,
+                  }),
+                ),
+              ),
+            )
+          ).flat()
+        : await withRetry(() =>
+            fetchKakaoTopPoisByCategory({
+              kakaoApiKey,
+              category,
+              lat,
+              lng,
+              radius,
+              topN,
+            }),
+          );
+
+    const dedupedRawPlaces = Array.from(
+      new Map(rawPlaces.map((place) => [place.id, place])).values(),
+    );
+
+    const places =
+      category === "HOSPITAL"
+        ? (() => {
+          const large: KakaoPlace[] = [];
+          const general: KakaoPlace[] = [];
+            for (const place of dedupedRawPlaces) {
+              const decision = filterHospitalTiered(place);
+              if (!decision.include) continue;
+              if (decision.kind === "HOSPITAL_LARGE") {
+                large.push(place);
+              } else {
+                general.push(place);
+              }
+            }
+
+            const byDistance = (a: KakaoPlace, b: KakaoPlace) =>
+              Number(a.distance ?? 0) - Number(b.distance ?? 0);
+
+            return [...large.sort(byDistance), ...general.sort(byDistance)].slice(0, topN);
+          })()
+        : dedupedRawPlaces;
+
+    const rows: PoiUpsertRow[] = [];
+    for (let i = 0; i < places.length; i += 1) {
+      const p = places[i];
+      const distance = toFiniteNumber(p.distance);
+      if (distance == null) continue;
+
+      const row: PoiUpsertRow = {
+        property_id: propertyId,
+        category,
+        rank: i + 1,
+        kakao_place_id: p.id,
+        name: p.place_name,
+        distance_m: Math.max(0, Math.round(distance)),
+        lat: toFiniteNumber(p.y),
+        lng: toFiniteNumber(p.x),
+        address: p.address_name || null,
+        road_address: p.road_address_name || null,
+        phone: p.phone || null,
+        place_url: p.place_url || null,
+        category_name: p.category_name || null,
+        fetched_at: now,
+        raw_kakao: p as unknown as Record<string, unknown>,
+        subway_lines: null,
+        subway_station_code: null,
+        raw_public: null,
+        school_level: null,
+        updated_at: now,
+      };
+
+      if (category === "SCHOOL") {
+        row.school_level = mapSchoolLevelFromCategoryName(p.category_name);
+      }
+
+      if (category === "SUBWAY") {
+        const enriched = await withRetry(() =>
+          enrichSubwayLines({ stationName: p.place_name }),
+        );
+        row.subway_lines = enriched.lines.length > 0 ? enriched.lines : null;
+        row.subway_station_code = enriched.stationCode;
+        row.raw_public = enriched.rawPublic;
+      }
+
+      rows.push(row);
+    }
+
+    const inserted = await upsertCategoryRows({
+      supabase,
+      propertyId,
+      category,
+      rows,
+    });
+    stats.upsertedRows += inserted;
+    stats.categoryCounts[category] += inserted;
+  }
+
+  const rawMartPlaces = await withRetry(() =>
+    fetchKakaoTopPoisByCategory({
+      kakaoApiKey,
+      category: "MART",
+      lat,
+      lng,
+      radius,
+      topN: Math.min(15, topN * 5),
+    }),
+  );
+
+  const martBuckets: Record<"MART" | "DEPARTMENT_STORE" | "SHOPPING_MALL", KakaoPlace[]> =
+    {
+      MART: [],
+      DEPARTMENT_STORE: [],
+      SHOPPING_MALL: [],
+    };
+
+  for (const place of rawMartPlaces) {
+    const decision = filterMartTiered(place);
+    if (!decision.include) continue;
+    if (decision.kind === "MART_LARGE") {
+      martBuckets.MART.push(place);
+    } else {
+      martBuckets[decision.kind].push(place);
+    }
+  }
+
+  const martTargetCategories: Array<"MART" | "DEPARTMENT_STORE" | "SHOPPING_MALL"> = [
+    "MART",
+    "DEPARTMENT_STORE",
+    "SHOPPING_MALL",
+  ];
+
+  for (const category of martTargetCategories) {
+    const rows: PoiUpsertRow[] = [];
+    const places = martBuckets[category]
+      .slice()
+      .sort((a, b) => Number(a.distance ?? 0) - Number(b.distance ?? 0))
+      .slice(0, topN);
+
+    for (let i = 0; i < places.length; i += 1) {
+      const p = places[i];
+      const distance = toFiniteNumber(p.distance);
+      if (distance == null) continue;
+
+      rows.push({
+        property_id: propertyId,
+        category,
+        rank: i + 1,
+        kakao_place_id: p.id,
+        name: p.place_name,
+        distance_m: Math.max(0, Math.round(distance)),
+        lat: toFiniteNumber(p.y),
+        lng: toFiniteNumber(p.x),
+        address: p.address_name || null,
+        road_address: p.road_address_name || null,
+        phone: p.phone || null,
+        place_url: p.place_url || null,
+        category_name: p.category_name || null,
+        fetched_at: now,
+        raw_kakao: p as unknown as Record<string, unknown>,
+        subway_lines: null,
+        subway_station_code: null,
+        raw_public: null,
+        school_level: null,
+        updated_at: now,
+      });
+    }
+
+    const inserted = await upsertCategoryRows({
+      supabase,
+      propertyId,
+      category,
+      rows,
+    });
+    stats.upsertedRows += inserted;
+    stats.categoryCounts[category] += inserted;
+  }
+}
+
+export async function runRecoPoiForProperty(input: {
+  propertyId: number;
+  topN?: number;
+  radius?: number;
+}) {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const kakaoApiKey = process.env.KAKAO_REST_API_KEY;
+
+  if (!url || !serviceKey || !kakaoApiKey) {
+    throw new Error("Missing env for reco poi batch");
+  }
+
+  const topN = Math.max(1, Math.min(10, input.topN ?? DEFAULT_TOP_N));
+  const radius = Math.max(100, Math.min(20000, input.radius ?? DEFAULT_RADIUS));
+  const supabase = createClient(url, serviceKey);
+  const stats = buildEmptyStats();
+
+  const { data: location, error: locationError } = await supabase
+    .from("property_locations")
+    .select("properties_id, lat, lng")
+    .eq("properties_id", input.propertyId)
+    .not("lat", "is", null)
+    .not("lng", "is", null)
+    .order("id", { ascending: true })
+    .maybeSingle();
+
+  if (locationError) throw locationError;
+  if (!location) return { ok: false, reason: "missing_property_location" as const };
+
+  const lat = toFiniteNumber(location.lat);
+  const lng = toFiniteNumber(location.lng);
+  if (lat == null || lng == null) {
+    return { ok: false, reason: "invalid_property_location" as const };
+  }
+
+  await processProperty({
+    supabase,
+    propertyId: input.propertyId,
+    lat,
+    lng,
+    kakaoApiKey,
+    topN,
+    radius,
+    stats,
+  });
+
+  return { ok: true, stats } as const;
+}
+
+async function markJobResult(params: {
+  supabase: SupabaseClient;
+  job: JobRow;
+  ok: boolean;
+  errorMessage?: string;
+}) {
+  const { supabase, job, ok, errorMessage } = params;
+  if (ok) {
+    await supabase
+      .from("property_reco_poi_jobs")
+      .update({
+        status: "done",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", job.id);
+    return;
+  }
+
+  const attempts = (job.attempts ?? 0) + 1;
+  if (attempts >= MAX_RETRY) {
+    await supabase
+      .from("property_reco_poi_jobs")
+      .update({
+        status: "failed",
+        attempts,
+        last_error: errorMessage ?? "unknown_error",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", job.id);
+    return;
+  }
+
+  const delayMin = 2 ** attempts;
+  const runAfter = new Date(Date.now() + delayMin * 60 * 1000).toISOString();
+  await supabase
+    .from("property_reco_poi_jobs")
+    .update({
+      status: "pending",
+      attempts,
+      run_after: runAfter,
+      last_error: errorMessage ?? "retry_scheduled",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", job.id);
+}
+
+export async function runRecoPoiBatch(input?: {
+  chunkSize?: number;
+  topN?: number;
+  radius?: number;
+  concurrency?: number;
+}) {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const kakaoApiKey = process.env.KAKAO_REST_API_KEY;
+
+  if (!url || !serviceKey || !kakaoApiKey) {
+    throw new Error("Missing env for reco poi batch");
+  }
+
+  const chunkSize = Math.max(1, input?.chunkSize ?? DEFAULT_CHUNK);
+  const topN = Math.max(1, Math.min(10, input?.topN ?? DEFAULT_TOP_N));
+  const radius = Math.max(100, Math.min(20000, input?.radius ?? DEFAULT_RADIUS));
+  const concurrency = Math.max(1, input?.concurrency ?? DEFAULT_CONCURRENCY);
+
+  const supabase = createClient(url, serviceKey);
+  const stats = buildEmptyStats();
+
+  const nowIso = new Date().toISOString();
+  const { data: queuedRows, error: queuedError } = await supabase
+    .from("property_reco_poi_jobs")
+    .select("id, property_id, attempts")
+    .eq("status", "pending")
+    .lte("run_after", nowIso)
+    .order("run_after", { ascending: true })
+    .limit(chunkSize);
+
+  if (queuedError) throw queuedError;
+  const queuedJobs = (queuedRows ?? []) as JobRow[];
+  stats.queuedPicked = queuedJobs.length;
+
+  if (queuedJobs.length > 0) {
+    const queueIds = queuedJobs.map((r) => r.id);
+    await supabase
+      .from("property_reco_poi_jobs")
+      .update({
+        status: "running",
+        locked_at: nowIso,
+        updated_at: nowIso,
+      })
+      .in("id", queueIds);
+  }
+
+  const { data: locationsRows, error: locationError } = await supabase
+    .from("property_locations")
+    .select("properties_id, lat, lng")
+    .not("lat", "is", null)
+    .not("lng", "is", null)
+    .order("id", { ascending: true });
+  if (locationError) throw locationError;
+
+  const properties = dedupeByProperty((locationsRows ?? []) as LocationRow[]);
+  stats.scanned = properties.length;
+
+  const propertyIds = properties.map((p) => p.propertyId);
+  const latestFetchedMap = new Map<number, string>();
+  if (propertyIds.length > 0) {
+    const { data: poiRows } = await supabase
+      .from("property_reco_pois")
+      .select("property_id, fetched_at")
+      .in("property_id", propertyIds)
+      .order("fetched_at", { ascending: false });
+    for (const row of poiRows ?? []) {
+      const pid = row.property_id as number;
+      if (!latestFetchedMap.has(pid)) {
+        latestFetchedMap.set(pid, String(row.fetched_at));
+      }
+    }
+  }
+
+  const now = Date.now();
+  const dueProperties = properties.filter((p) => {
+    const latest = latestFetchedMap.get(p.propertyId);
+    if (!latest) return true;
+    const ageMs = now - new Date(latest).getTime();
+    return ageMs >= 7 * 24 * 60 * 60 * 1000;
+  });
+  stats.dueCandidates = dueProperties.length;
+
+  const jobPropertyIds = new Set(queuedJobs.map((j) => j.property_id));
+  const dueTargets = dueProperties
+    .filter((p) => !jobPropertyIds.has(p.propertyId))
+    .slice(0, Math.max(0, chunkSize - queuedJobs.length));
+
+  const jobTargets = queuedJobs
+    .map((job) => {
+      const loc = properties.find((p) => p.propertyId === job.property_id);
+      if (!loc) return null;
+      return { job, ...loc };
+    })
+    .filter((v): v is { job: JobRow; propertyId: number; lat: number; lng: number } => v !== null);
+
+  const processTargets: Array<{
+    propertyId: number;
+    lat: number;
+    lng: number;
+    job: JobRow | null;
+  }> = [
+    ...jobTargets.map((t) => ({ propertyId: t.propertyId, lat: t.lat, lng: t.lng, job: t.job })),
+    ...dueTargets.map((t) => ({ propertyId: t.propertyId, lat: t.lat, lng: t.lng, job: null })),
+  ];
+
+  await runWithConcurrency(processTargets, concurrency, async (target) => {
+    stats.processed += 1;
+    try {
+      await processProperty({
+        supabase,
+        propertyId: target.propertyId,
+        lat: target.lat,
+        lng: target.lng,
+        kakaoApiKey,
+        topN,
+        radius,
+        stats,
+      });
+      stats.succeeded += 1;
+      if (target.job) {
+        await markJobResult({
+          supabase,
+          job: target.job,
+          ok: true,
+        });
+      }
+    } catch (error) {
+      stats.failed += 1;
+      if (target.job) {
+        await markJobResult({
+          supabase,
+          job: target.job,
+          ok: false,
+          errorMessage:
+            error instanceof Error ? error.message : "unknown_process_error",
+        });
+      }
+    }
+  });
+
+  return stats;
+}

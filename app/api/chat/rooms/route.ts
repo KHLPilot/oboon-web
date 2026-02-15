@@ -3,6 +3,17 @@ import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 
+export const dynamic = "force-dynamic";
+
+function isDynamicServerUsageError(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "digest" in error &&
+    (error as { digest?: string }).digest === "DYNAMIC_SERVER_USAGE"
+  );
+}
+
 type RoomRow = {
   id: string;
   consultation_id: string | null;
@@ -213,6 +224,9 @@ export async function GET() {
 
     return NextResponse.json({ rooms: payload });
   } catch (error: unknown) {
+    if (isDynamicServerUsageError(error)) {
+      throw error;
+    }
     console.error("[chat rooms] api error:", error);
     return NextResponse.json({ error: "서버 오류가 발생했습니다" }, { status: 500 });
   }

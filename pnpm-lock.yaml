@@ -9,7 +9,7 @@ importers:
   .:
     dependencies:
       '@aws-sdk/client-s3':
-        specifier: ^3.957.0
+        specifier: ^3.968.0
         version: 3.968.0
       '@floating-ui/dom':
         specifier: ^1.7.4

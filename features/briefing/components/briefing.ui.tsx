@@ -1,4 +1,6 @@
 // features/briefing/briefing.ui.tsx
+import Image from "next/image";
+
 export function cx(...v: (string | false | null | undefined)[]) {
   return v.filter(Boolean).join(" ");
 }
@@ -39,19 +41,18 @@ export function Cover({
     <div
       className={cx(
         mode === "ratio"
-          ? "aspect-4/5 w-full overflow-hidden"
-          : "h-full w-full overflow-hidden",
+          ? "relative aspect-4/5 w-full overflow-hidden"
+          : "relative h-full w-full overflow-hidden",
         className
       )}
     >
-      {" "}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
+      <Image
         src={imageUrl}
         alt=""
-        loading="lazy"
+        fill
+        sizes={mode === "ratio" ? "(max-width: 768px) 100vw, 400px" : "100vw"}
         className={cx(
-          "h-full w-full object-cover transition-transform duration-300",
+          "object-cover transition-transform duration-300",
           imgClassName
         )}
       />

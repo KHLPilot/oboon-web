@@ -2,6 +2,17 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 
+export const dynamic = 'force-dynamic';
+
+function isDynamicServerUsageError(error: unknown) {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'digest' in error &&
+    (error as { digest?: string }).digest === 'DYNAMIC_SERVER_USAGE'
+  );
+}
+
 /**
  * GET /api/term-consents/check
  * 로그인 유저의 필수 약관 동의 여부 확인
@@ -98,6 +109,9 @@ export async function GET() {
       missingTermTypes,
     });
   } catch (error) {
+    if (isDynamicServerUsageError(error)) {
+      throw error;
+    }
     console.error('term-consents check API 오류:', error);
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }

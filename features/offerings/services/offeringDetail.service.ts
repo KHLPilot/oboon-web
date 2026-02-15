@@ -15,7 +15,14 @@ const isNullableNumber = (value: unknown): value is number | null =>
 const isNullableNumberLike = (value: unknown) =>
   value === null ||
   (typeof value === "number" && Number.isFinite(value)) ||
-  (typeof value === "string" && value.trim().length > 0 && Number.isFinite(Number(value)));
+  (typeof value === "string" &&
+    value.trim().length > 0 &&
+    Number.isFinite(Number(value)));
+
+const isNullableStringArray = (value: unknown) =>
+  value === null ||
+  value === undefined ||
+  (Array.isArray(value) && value.every((item) => typeof item === "string"));
 
 const isLocationRow = (value: unknown) =>
   isRecord(value) &&
@@ -60,6 +67,31 @@ const isUnitTypeRow = (value: unknown) =>
   isNullableNumber(value.price_max) &&
   isNullableString(value.image_url);
 
+const isRecoPoiCategory = (value: unknown) =>
+  value === "HOSPITAL" ||
+  value === "MART" ||
+  value === "SUBWAY" ||
+  value === "SCHOOL";
+
+const isRecoSchoolLevel = (value: unknown) =>
+  value === null ||
+  value === undefined ||
+  value === "ELEMENTARY" ||
+  value === "MIDDLE" ||
+  value === "HIGH" ||
+  value === "UNIVERSITY" ||
+  value === "OTHER";
+
+const isRecoPoiRow = (value: unknown) =>
+  isRecord(value) &&
+  isRecoPoiCategory(value.category) &&
+  typeof value.rank === "number" &&
+  typeof value.kakao_place_id === "string" &&
+  typeof value.name === "string" &&
+  isNullableNumberLike(value.distance_m) &&
+  isNullableStringArray(value.subway_lines) &&
+  isRecoSchoolLevel(value.school_level);
+
 const isRowOrArray = (value: unknown, guard: (input: unknown) => boolean) =>
   value === null ||
   guard(value) ||
@@ -82,7 +114,7 @@ const isPropertyRow = (value: unknown): value is PropertyRow =>
   isRowOrArray(value.property_unit_types, isUnitTypeRow);
 
 export async function fetchOfferingDetail(
-  id: number
+  id: number,
 ): Promise<PropertyRow | null> {
   const supabase = await createSupabaseServer();
 
@@ -107,9 +139,23 @@ export async function fetchOfferingDetail(
     ? facilitiesRows.filter(isFacilityRow)
     : [];
 
+  const { data: poiRows } = await supabase
+    .from("property_reco_pois")
+    .select(
+      "category, rank, kakao_place_id, name, distance_m, subway_lines, school_level",
+    )
+    .eq("property_id", id)
+    .order("category", { ascending: true })
+    .order("rank", { ascending: true });
+
+  const propertyRecoPois = Array.isArray(poiRows)
+    ? poiRows.filter(isRecoPoiRow)
+    : [];
+
   return {
     ...base,
     property_facilities: propertyFacilities,
+    property_reco_pois: propertyRecoPois,
   } as PropertyRow;
 }
 

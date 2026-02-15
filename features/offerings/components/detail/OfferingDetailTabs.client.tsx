@@ -12,12 +12,14 @@ type Props = {
   hasMemo?: boolean;
   hasPrices?: boolean;
   hasTimeline?: boolean;
+  hasInfra?: boolean;
 };
 
 export default function OfferingDetailTabs({
   hasMemo = true,
   hasPrices = true,
   hasTimeline = true,
+  hasInfra = true,
 }: Props) {
   const tabs: Tab[] = useMemo(
     () =>
@@ -25,10 +27,11 @@ export default function OfferingDetailTabs({
         { id: "basic", label: "기본 정보" },
         hasMemo ? { id: "memo", label: "감정평가사 메모" } : null,
         hasPrices ? { id: "prices", label: "분양가 표" } : null,
+        hasInfra ? { id: "infra", label: "주변 인프라" } : null,
         hasTimeline ? { id: "timeline", label: "일정" } : null,
         { id: "location", label: "위치" },
       ].filter((tab): tab is Tab => tab !== null),
-    [hasMemo, hasPrices, hasTimeline],
+    [hasMemo, hasPrices, hasTimeline, hasInfra],
   );
 
   const [activeId, setActiveId] = useState<string>(tabs[0]?.id ?? "basic");
@@ -54,7 +57,7 @@ export default function OfferingDetailTabs({
           .filter((e) => e.isIntersecting)
           .sort(
             (a, b) =>
-              (a.boundingClientRect.top ?? 0) - (b.boundingClientRect.top ?? 0)
+              (a.boundingClientRect.top ?? 0) - (b.boundingClientRect.top ?? 0),
           );
 
         if (visible[0]?.target?.id) {
@@ -65,7 +68,7 @@ export default function OfferingDetailTabs({
         root: null,
         rootMargin: "-20% 0px -70% 0px",
         threshold: [0, 0.1, 0.25],
-      }
+      },
     );
 
     elements.forEach((el) => observer.observe(el));

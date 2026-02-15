@@ -1,11 +1,17 @@
 // features/offerings/detail/OfferingDetailLeft.tsx
 import type { ReactNode } from "react";
+import Image from "next/image";
 import {
   BadgeCheck,
   Building2,
   CalendarDays,
+  Cross,
+  GraduationCap,
   Info,
   MapPin,
+  ShoppingCart,
+  Store,
+  TrainFront,
 } from "lucide-react";
 
 import Card from "@/components/ui/Card";
@@ -17,6 +23,7 @@ import { UXCopy } from "@/shared/uxCopy";
 import OfferingBadge from "@/features/offerings/components/OfferingBadges";
 import { isOfferingStatusValue } from "@/features/offerings/domain/offering.constants";
 import { formatPriceRange } from "@/shared/price";
+import { getSubwayIconPath } from "@/features/reco/constants/subwayIconMap";
 
 /* ---------------- Types (최소 필요만) ---------------- */
 
@@ -38,6 +45,7 @@ export type PropertyRow = {
   property_timeline: PropertyTimelineRow[] | PropertyTimelineRow | null;
   property_unit_types: PropertyUnitTypeRow[] | PropertyUnitTypeRow | null;
   property_facilities?: PropertyFacilityRow[] | PropertyFacilityRow | null;
+  property_reco_pois?: PropertyRecoPoiRow[] | PropertyRecoPoiRow | null;
   property_gallery_images?:
     | PropertyGalleryImageRow[]
     | PropertyGalleryImageRow
@@ -119,6 +127,28 @@ type PropertyGalleryImageRow = {
   created_at: string;
 };
 
+type PropertyRecoPoiRow = {
+  category:
+    | "HOSPITAL"
+    | "MART"
+    | "SUBWAY"
+    | "SCHOOL"
+    | "DEPARTMENT_STORE"
+    | "SHOPPING_MALL";
+  rank: number;
+  kakao_place_id: string;
+  name: string;
+  distance_m: number | string | null;
+  subway_lines?: string[] | null;
+  school_level?:
+    | "ELEMENTARY"
+    | "MIDDLE"
+    | "HIGH"
+    | "UNIVERSITY"
+    | "OTHER"
+    | null;
+};
+
 /* ---------------- Utils ---------------- */
 
 function cn(...classes: Array<string | undefined | false | null>) {
@@ -155,14 +185,16 @@ function pickHeroImageUrl(p: PropertyRow) {
 
   const unitTypes = asArray<PropertyUnitTypeRow>(p.property_unit_types);
   const fallback = unitTypes.find((u) =>
-    isLikelyImageUrl(u.image_url)
+    isLikelyImageUrl(u.image_url),
   )?.image_url;
   return fallback ?? null;
 }
 
 function buildGalleryImageUrls(p: PropertyRow) {
   const hero = pickHeroImageUrl(p);
-  const galleryRows = asArray<PropertyGalleryImageRow>(p.property_gallery_images)
+  const galleryRows = asArray<PropertyGalleryImageRow>(
+    p.property_gallery_images,
+  )
     .slice()
     .sort((a, b) => {
       if ((a.sort_order ?? 0) !== (b.sort_order ?? 0)) {
@@ -273,12 +305,7 @@ function distanceSquared(
   return dLat * dLat + dLng * dLng;
 }
 
-function distanceKm(
-  aLat: number,
-  aLng: number,
-  bLat: number,
-  bLng: number,
-) {
+function distanceKm(aLat: number, aLng: number, bLat: number, bLng: number) {
   const toRad = (deg: number) => (deg * Math.PI) / 180;
   const dLat = toRad(bLat - aLat);
   const dLng = toRad(bLng - aLng);
@@ -314,7 +341,7 @@ function CardBox({
     <div
       className={cn(
         "rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)",
-        className
+        className,
       )}
     >
       {children}
@@ -370,6 +397,7 @@ export default function OfferingDetailLeft({
   const specs0 = firstRow<PropertySpecRow>(p.property_specs);
   const timeline0 = firstRow<PropertyTimelineRow>(p.property_timeline);
   const facilities = asArray<PropertyFacilityRow>(p.property_facilities);
+  const recoPois = asArray<PropertyRecoPoiRow>(p.property_reco_pois).slice();
 
   const unitTypes = asArray<PropertyUnitTypeRow>(p.property_unit_types)
     .filter((u) => u.is_public !== false)
@@ -377,8 +405,12 @@ export default function OfferingDetailLeft({
     .sort((a, b) => (a.type_name ?? "").localeCompare(b.type_name ?? ""));
   const hasPriceTable = unitTypes.length > 0;
 
-  const hasPrivatePriceUnits = unitTypes.some((u) => u.is_price_public === false);
-  const hasPublicPriceUnits = unitTypes.some((u) => u.is_price_public !== false);
+  const hasPrivatePriceUnits = unitTypes.some(
+    (u) => u.is_price_public === false,
+  );
+  const hasPublicPriceUnits = unitTypes.some(
+    (u) => u.is_price_public !== false,
+  );
   const isPricePrivate = hasPrivatePriceUnits && !hasPublicPriceUnits;
 
   const address = fmtAddr(loc0);
@@ -482,17 +514,18 @@ export default function OfferingDetailLeft({
 
   const selectedModelHouseCandidate =
     siteLat != null && siteLng != null
-      ? prioritizedCandidates
-          .slice()
-          .sort((a, b) => {
-            const aDistance = distanceSquared(a.lat!, a.lng!, siteLat, siteLng);
-            const bDistance = distanceSquared(b.lat!, b.lng!, siteLat, siteLng);
-            return aDistance - bDistance;
-          })[0] ?? null
-      : prioritizedCandidates[0] ?? null;
+      ? (prioritizedCandidates.slice().sort((a, b) => {
+          const aDistance = distanceSquared(a.lat!, a.lng!, siteLat, siteLng);
+          const bDistance = distanceSquared(b.lat!, b.lng!, siteLat, siteLng);
+          return aDistance - bDistance;
+        })[0] ?? null)
+      : (prioritizedCandidates[0] ?? null);
 
   const modelHouseCoords = selectedModelHouseCandidate
-    ? { lat: selectedModelHouseCandidate.lat, lng: selectedModelHouseCandidate.lng }
+    ? {
+        lat: selectedModelHouseCandidate.lat,
+        lng: selectedModelHouseCandidate.lng,
+      }
     : { lat: null, lng: null };
   const modelHouseLat = modelHouseCoords.lat;
   const modelHouseLng = modelHouseCoords.lng;
@@ -504,9 +537,13 @@ export default function OfferingDetailLeft({
     Math.abs(siteLat - modelHouseLat) < 0.000001 &&
     Math.abs(siteLng - modelHouseLng) < 0.000001;
   const adjustedModelHouseLat =
-    overlapsWithSite && modelHouseLat != null ? modelHouseLat + 0.00012 : modelHouseLat;
+    overlapsWithSite && modelHouseLat != null
+      ? modelHouseLat + 0.00012
+      : modelHouseLat;
   const adjustedModelHouseLng =
-    overlapsWithSite && modelHouseLng != null ? modelHouseLng + 0.00012 : modelHouseLng;
+    overlapsWithSite && modelHouseLng != null
+      ? modelHouseLng + 0.00012
+      : modelHouseLng;
 
   const locationMarkers: MapMarker[] = [
     ...(siteLat != null && siteLng != null
@@ -545,6 +582,117 @@ export default function OfferingDetailLeft({
           locationMarkers[1].lng,
         ) <= 20
       : locationMarkers.length === 1;
+
+  const fmtDistance = (value: number | null) => {
+    if (value == null || !Number.isFinite(value)) return "정보 없음";
+    const rounded = Math.max(0, Math.round(value));
+    if (rounded >= 1000) {
+      const km = rounded / 1000;
+      return `${km.toFixed(km >= 10 ? 0 : 1)}km`;
+    }
+    return `${rounded.toLocaleString("ko-KR")}m`;
+  };
+
+  const sortedRecoPois = recoPois
+    .filter((poi) => poi && typeof poi.name === "string")
+    .sort((a, b) => {
+      if (a.category !== b.category)
+        return a.category.localeCompare(b.category);
+      if ((a.rank ?? 0) !== (b.rank ?? 0)) return (a.rank ?? 0) - (b.rank ?? 0);
+      return (
+        (toNumberOrNull(a.distance_m) ?? 0) -
+        (toNumberOrNull(b.distance_m) ?? 0)
+      );
+    });
+
+  const subwayPois = sortedRecoPois.filter((poi) => poi.category === "SUBWAY");
+  const schoolPois = sortedRecoPois.filter((poi) => poi.category === "SCHOOL");
+  const martPois = sortedRecoPois.filter((poi) => poi.category === "MART");
+  const hospitalPois = sortedRecoPois.filter(
+    (poi) => poi.category === "HOSPITAL",
+  );
+  const departmentStorePois = sortedRecoPois.filter(
+    (poi) => poi.category === "DEPARTMENT_STORE",
+  );
+  const shoppingMallPois = sortedRecoPois.filter(
+    (poi) => poi.category === "SHOPPING_MALL",
+  );
+
+  const visibleInfraSections = [
+    subwayPois.length > 0 ? "SUBWAY" : null,
+    schoolPois.length > 0 ? "SCHOOL" : null,
+    martPois.length > 0 ? "MART" : null,
+    hospitalPois.length > 0 ? "HOSPITAL" : null,
+    departmentStorePois.length > 0 ? "DEPARTMENT_STORE" : null,
+    shoppingMallPois.length > 0 ? "SHOPPING_MALL" : null,
+  ].filter(Boolean).length;
+  const visibleChipCount = 4;
+
+  const extractSubwayPrimaryLine = (poi: PropertyRecoPoiRow) => {
+    const lines =
+      Array.isArray(poi.subway_lines) && poi.subway_lines.length > 0
+        ? poi.subway_lines
+        : [];
+    if (lines[0]) return lines[0];
+    const fromName = poi.name.match(/([0-9]+)호선/);
+    return fromName ? `${fromName[1]}호선` : null;
+  };
+
+  const stripLineSuffixFromName = (name: string) =>
+    name.replace(/\s*[0-9]+호선/g, "").trim();
+
+  const renderPoiChips = (
+    pois: PropertyRecoPoiRow[],
+    formatLabel?: (poi: PropertyRecoPoiRow) => string,
+    renderLeading?: (poi: PropertyRecoPoiRow) => ReactNode,
+  ) => {
+    const primary = pois.slice(0, visibleChipCount);
+    const extra = pois.slice(visibleChipCount);
+
+    return (
+      <>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {primary.map((poi) => (
+            <div
+              key={`${poi.category}-${poi.kakao_place_id}`}
+              className="inline-flex items-center rounded-full bg-(--oboon-bg-subtle) px-3 py-2 ob-typo-body text-(--oboon-text-title)"
+            >
+              {renderLeading ? (
+                <span className="mr-2 inline-flex">{renderLeading(poi)}</span>
+              ) : null}
+              {formatLabel
+                ? formatLabel(poi)
+                : `${poi.name} · ${fmtDistance(toNumberOrNull(poi.distance_m))}`}
+            </div>
+          ))}
+        </div>
+        {extra.length > 0 ? (
+          <details className="mt-3 group">
+            <summary className="mx-auto inline-flex cursor-pointer list-none items-center justify-center rounded-full border border-(--oboon-border-default) px-5 py-2 ob-typo-body text-(--oboon-text-muted) marker:content-['']">
+              더보기
+            </summary>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {extra.map((poi) => (
+                <div
+                  key={`${poi.category}-${poi.kakao_place_id}`}
+                  className="inline-flex items-center rounded-full bg-(--oboon-bg-subtle) px-3 py-2 ob-typo-body text-(--oboon-text-title)"
+                >
+                  {renderLeading ? (
+                    <span className="mr-2 inline-flex">
+                      {renderLeading(poi)}
+                    </span>
+                  ) : null}
+                  {formatLabel
+                    ? formatLabel(poi)
+                    : `${poi.name} · ${fmtDistance(toNumberOrNull(poi.distance_m))}`}
+                </div>
+              ))}
+            </div>
+          </details>
+        ) : null}
+      </>
+    );
+  };
 
   return (
     <div className="[--oboon-shadow-card:none]">
@@ -632,6 +780,7 @@ export default function OfferingDetailLeft({
           hasMemo={hasMemo}
           hasPrices={hasPriceTable}
           hasTimeline={hasTimeline}
+          hasInfra
         />
       </div>
 
@@ -735,7 +884,8 @@ export default function OfferingDetailLeft({
             <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-4 py-3">
               <div className="ob-typo-caption text-(--oboon-text-muted)">
                 감정평가사 메모는 참고용 정보이며 법적 효력을 갖지 않습니다.
-                최종 판단 및 계약은 관련 공문, 고시, 계약서 등 공식 자료를 반드시 확인해 주세요.
+                최종 판단 및 계약은 관련 공문, 고시, 계약서 등 공식 자료를
+                반드시 확인해 주세요.
               </div>
             </div>
           </div>
@@ -763,6 +913,109 @@ export default function OfferingDetailLeft({
         </div>
       ) : null}
 
+      <div id="infra" className="mt-10 scroll-mt-30 lg:scroll-mt-30">
+        <SectionTitle
+          icon={<Store className="h-5 w-5" />}
+          title="주변 인프라"
+          desc="현장 기준 주요 생활 인프라를 확인합니다. 인프라 거리는 직선거리 기준 참고값입니다."
+        />
+
+        <div className="mt-3">
+          <Card className="overflow-hidden p-0">
+            {visibleInfraSections > 0 ? (
+              <div className="divide-y divide-(--oboon-border-default)">
+                {subwayPois.length > 0 ? (
+                  <div className="p-4">
+                    <div className="flex items-center gap-2 ob-typo-subtitle text-(--oboon-text-title)">
+                      <TrainFront className="h-5 w-5" />
+                      지하철 {subwayPois.length}
+                    </div>
+                    {renderPoiChips(
+                      subwayPois,
+                      (poi) => {
+                        const distance = toNumberOrNull(poi.distance_m);
+                        const walkMin = Math.ceil((distance ?? 0) / 80);
+                        const stationName = stripLineSuffixFromName(poi.name);
+                        return `${stationName} · ${fmtDistance(distance)}/도보 ${walkMin}분`;
+                      },
+                      (poi) => {
+                        const primary = extractSubwayPrimaryLine(poi);
+                        if (!primary) return null;
+                        const iconPath = getSubwayIconPath(primary);
+                        if (!iconPath) return null;
+                        return (
+                          <Image
+                            src={iconPath}
+                            alt={primary}
+                            width={20}
+                            height={20}
+                            className="h-5 w-5 rounded-full"
+                          />
+                        );
+                      },
+                    )}
+                  </div>
+                ) : null}
+
+                {schoolPois.length > 0 ? (
+                  <div className="p-4">
+                    <div className="flex items-center gap-2 ob-typo-subtitle text-(--oboon-text-title)">
+                      <GraduationCap className="h-5 w-5" />
+                      학교 {schoolPois.length}
+                    </div>
+                    {renderPoiChips(schoolPois)}
+                  </div>
+                ) : null}
+
+                {martPois.length > 0 ? (
+                  <div className="p-4">
+                    <div className="flex items-center gap-2 ob-typo-subtitle text-(--oboon-text-title)">
+                      <ShoppingCart className="h-5 w-5" />
+                      마트 {martPois.length}
+                    </div>
+                    {renderPoiChips(martPois)}
+                  </div>
+                ) : null}
+
+                {hospitalPois.length > 0 ? (
+                  <div className="p-4">
+                    <div className="flex items-center gap-2 ob-typo-subtitle text-(--oboon-text-title)">
+                      <Cross className="h-5 w-5" />
+                      병원 {hospitalPois.length}
+                    </div>
+                    {renderPoiChips(hospitalPois)}
+                  </div>
+                ) : null}
+
+                {departmentStorePois.length > 0 ? (
+                  <div className="p-4">
+                    <div className="flex items-center gap-2 ob-typo-subtitle text-(--oboon-text-title)">
+                      <Store className="h-5 w-5" />
+                      백화점 {departmentStorePois.length}
+                    </div>
+                    {renderPoiChips(departmentStorePois)}
+                  </div>
+                ) : null}
+
+                {shoppingMallPois.length > 0 ? (
+                  <div className="p-4">
+                    <div className="flex items-center gap-2 ob-typo-subtitle text-(--oboon-text-title)">
+                      <Store className="h-5 w-5" />
+                      쇼핑몰 {shoppingMallPois.length}
+                    </div>
+                    {renderPoiChips(shoppingMallPois)}
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <div className="p-4 ob-typo-body text-(--oboon-text-muted)">
+                아직 주변 인프라 데이터가 없습니다. 잠시 후 다시 확인해 주세요.
+              </div>
+            )}
+          </Card>
+        </div>
+      </div>
+
       {/* Timeline */}
       {hasTimeline ? (
         <div id="timeline" className="mt-10 scroll-mt-30 lg:scroll-mt-30">
@@ -783,7 +1036,7 @@ export default function OfferingDetailLeft({
                   label="청약 접수"
                   value={fmtRange(
                     timeline0?.application_start,
-                    timeline0?.application_end
+                    timeline0?.application_end,
                   )}
                 />
                 <StatCard
@@ -794,7 +1047,7 @@ export default function OfferingDetailLeft({
                   label="계약"
                   value={fmtRange(
                     timeline0?.contract_start,
-                    timeline0?.contract_end
+                    timeline0?.contract_end,
                   )}
                 />
                 <StatCard
@@ -804,7 +1057,8 @@ export default function OfferingDetailLeft({
               </div>
 
               <div className="mt-2 px-2 py-1 ob-typo-caption text-(--oboon-text-muted)">
-                입주 예정일은 &quot;년도-월&quot; 또는 &quot;년도-월-일&quot; 형식이 혼재할 수 있어요.
+                입주 예정일은 &quot;년도-월&quot; 또는 &quot;년도-월-일&quot;
+                형식이 혼재할 수 있어요.
                 <br />월 단위 표기는 해당 월로 안내되는 정보를 의미합니다.
               </div>
             </Card>

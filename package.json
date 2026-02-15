@@ -12,7 +12,7 @@
     "ssot:check": "node scripts/ssot-check.js"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.957.0",
+    "@aws-sdk/client-s3": "^3.968.0",
     "@floating-ui/dom": "^1.7.4",
     "@radix-ui/react-slot": "^1.2.4",
     "@supabase/ssr": "^0.8.0",

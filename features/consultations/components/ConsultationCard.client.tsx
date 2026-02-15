@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Clock, MapPin, ChevronRight } from "lucide-react";
 
 import Card from "@/components/ui/Card";
@@ -59,10 +60,11 @@ export default function ConsultationCard({
         >
           <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-(--oboon-bg-subtle)">
             {property.image_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <Image
                 src={property.image_url}
                 alt={property.name}
+                width={80}
+                height={80}
                 className="h-full w-full object-cover"
               />
             ) : (

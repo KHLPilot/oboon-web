@@ -2,6 +2,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import { X } from "lucide-react";
 
@@ -706,11 +707,12 @@ export default function UnitTypesPage() {
                               className="relative w-28 shrink-0 snap-start overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) md:w-auto"
                             >
                               <div className="relative aspect-square w-full overflow-hidden bg-(--oboon-bg-subtle)">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
+                                <Image
                                   src={url}
                                   alt={`floor plan ${index + 1}`}
-                                  className="h-full w-full object-cover"
+                                  fill
+                                  sizes="112px"
+                                  className="object-cover"
                                 />
                                 <div className="pointer-events-none absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-(--oboon-overlay) ob-typo-caption font-medium text-(--oboon-on-primary)">
                                   {index + 1}

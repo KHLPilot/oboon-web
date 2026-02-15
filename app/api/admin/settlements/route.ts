@@ -3,6 +3,17 @@ import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 
+export const dynamic = "force-dynamic";
+
+function isDynamicServerUsageError(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "digest" in error &&
+    (error as { digest?: string }).digest === "DYNAMIC_SERVER_USAGE"
+  );
+}
+
 const adminSupabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -428,6 +439,9 @@ export async function GET() {
       rows: settlementRows,
     });
   } catch (error: unknown) {
+    if (isDynamicServerUsageError(error)) {
+      throw error;
+    }
     console.error("관리자 정산 데이터 조회 오류:", error);
     return NextResponse.json(
       { error: "정산 데이터를 불러오지 못했습니다" },

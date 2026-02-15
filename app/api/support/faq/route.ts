@@ -1,6 +1,17 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+export const dynamic = "force-dynamic";
+
+function isDynamicServerUsageError(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "digest" in error &&
+    (error as { digest?: string }).digest === "DYNAMIC_SERVER_USAGE"
+  );
+}
+
 // 공개 API용 Supabase 클라이언트 (쿠키 불필요)
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -63,6 +74,9 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ items });
   } catch (err) {
+    if (isDynamicServerUsageError(err)) {
+      throw err;
+    }
     console.error("FAQ API 오류:", err);
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
