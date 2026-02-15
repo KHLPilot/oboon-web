@@ -22,133 +22,19 @@ import NaverMap, { type MapMarker } from "@/features/map/components/NaverMap";
 import { UXCopy } from "@/shared/uxCopy";
 import OfferingBadge from "@/features/offerings/components/OfferingBadges";
 import { isOfferingStatusValue } from "@/features/offerings/domain/offering.constants";
+import type {
+  PropertyFacilityRow,
+  PropertyGalleryImageRow,
+  PropertyLocationRow,
+  PropertyRecoPoiRow,
+  PropertyRow,
+  PropertySpecRow,
+  PropertyTimelineRow,
+  PropertyUnitTypeRow,
+} from "@/features/offerings/domain/offeringDetail.types";
 import { formatPriceRange } from "@/shared/price";
 import { getSubwayIconPath } from "@/features/reco/constants/subwayIconMap";
-
-/* ---------------- Types (최소 필요만) ---------------- */
-
-export type PropertyRow = {
-  id: number;
-  created_at: string;
-  name: string;
-  property_type: string;
-  status: string | null;
-  description: string | null;
-  image_url: string | null;
-  floor_plan_url: string | null;
-
-  confirmed_comment: string | null;
-  estimated_comment: string | null;
-
-  property_locations: PropertyLocationRow[] | PropertyLocationRow | null;
-  property_specs: PropertySpecRow[] | PropertySpecRow | null;
-  property_timeline: PropertyTimelineRow[] | PropertyTimelineRow | null;
-  property_unit_types: PropertyUnitTypeRow[] | PropertyUnitTypeRow | null;
-  property_facilities?: PropertyFacilityRow[] | PropertyFacilityRow | null;
-  property_reco_pois?: PropertyRecoPoiRow[] | PropertyRecoPoiRow | null;
-  property_gallery_images?:
-    | PropertyGalleryImageRow[]
-    | PropertyGalleryImageRow
-    | null;
-};
-
-type PropertyLocationRow = {
-  road_address: string | null;
-  jibun_address: string | null;
-  lat: number | null;
-  lng: number | null;
-  region_1depth: string | null;
-  region_2depth: string | null;
-  region_3depth: string | null;
-};
-
-type PropertySpecRow = {
-  sale_type: string | null;
-  trust_company: string | null;
-  developer: string | null;
-  builder: string | null;
-  site_area: number | null;
-  building_area: number | null;
-  building_coverage_ratio: number | null;
-  floor_area_ratio: number | null;
-  floor_ground: number | null;
-  floor_underground: number | null;
-  building_count: number | null;
-  household_total: number | null;
-  parking_total: number | null;
-  parking_per_household: number | null;
-  heating_type: string | null;
-  amenities: string | string[] | null;
-};
-
-type PropertyTimelineRow = {
-  announcement_date: string | null;
-  application_start: string | null;
-  application_end: string | null;
-  winner_announce: string | null;
-  contract_start: string | null;
-  contract_end: string | null;
-  move_in_date: string | null;
-};
-
-type PropertyUnitTypeRow = {
-  id: number;
-  type_name: string | null;
-  price_min: number | null;
-  price_max: number | null;
-  is_price_public?: boolean | null;
-  is_public?: boolean | null;
-  floor_plan_url: string | null;
-  image_url: string | null;
-  exclusive_area: number | null;
-  supply_area: number | null;
-  rooms: number | null;
-  bathrooms: number | null;
-  building_layout: string | null;
-  orientation: string | null;
-  unit_count: number | null;
-  supply_count: number | null;
-};
-
-type PropertyFacilityRow = {
-  id: number;
-  type: string | null;
-  road_address: string | null;
-  lat: number | string | null;
-  lng: number | string | null;
-  is_active?: boolean | null;
-};
-
-type PropertyGalleryImageRow = {
-  id: string;
-  property_id: number;
-  image_url: string;
-  sort_order: number;
-  created_at: string;
-};
-
-type PropertyRecoPoiRow = {
-  category:
-    | "HOSPITAL"
-    | "CLINIC_DAILY"
-    | "MART"
-    | "SUBWAY"
-    | "SCHOOL"
-    | "DEPARTMENT_STORE"
-    | "SHOPPING_MALL";
-  rank: number;
-  kakao_place_id: string;
-  name: string;
-  distance_m: number | string | null;
-  subway_lines?: string[] | null;
-  school_level?:
-    | "ELEMENTARY"
-    | "MIDDLE"
-    | "HIGH"
-    | "UNIVERSITY"
-    | "OTHER"
-    | null;
-};
+import { normalizeRetailPoiName } from "@/features/reco/utils/poiDisplay";
 
 /* ---------------- Utils ---------------- */
 
@@ -179,12 +65,52 @@ const NON_RESIDENTIAL_PROPERTY_TYPE_KEYWORDS = [
   "창고",
 ] as const;
 
+const HIGH_SPEED_RAIL_ICON_PATH: Record<"KTX" | "SRT" | "ITX", string> = {
+  KTX: "/icons/subway/KTX-line.svg",
+  SRT: "/icons/subway/SRT-line.svg",
+  ITX: "/icons/subway/ITX-line.svg",
+};
+const HIGH_SPEED_RAIL_ICON_BG: Record<"KTX" | "SRT" | "ITX", string> = {
+  KTX: "#144999",
+  SRT: "#4C2F48",
+  ITX: "#30B141",
+};
+
+const HIGH_SPEED_RAIL_STATION_LINES: Record<
+  string,
+  Array<"KTX" | "SRT" | "ITX">
+> = {
+  서울역: ["KTX", "ITX"],
+  용산역: ["KTX", "ITX"],
+  청량리역: ["KTX", "ITX"],
+  영등포역: ["KTX", "ITX"],
+  수원역: ["KTX", "ITX"],
+};
+
 function isLivingInfraAllowed(propertyType: string | null | undefined) {
   const normalized = (propertyType ?? "").replace(/\s+/g, "").toLowerCase();
   if (!normalized) return true;
   return !NON_RESIDENTIAL_PROPERTY_TYPE_KEYWORDS.some((keyword) =>
     normalized.includes(keyword.replace(/\s+/g, "").toLowerCase()),
   );
+}
+
+function normalizeStationName(name: string) {
+  return name
+    .replace(/\([^)]*\)/g, "")
+    .replace(/\s*[0-9]+호선/g, "")
+    .replace(
+      /\s*(경의중앙선|수인분당선|신분당선|경춘선|경강선|서해선|공항철도|KTX|SRT|ITX)\s*/gi,
+      " ",
+    )
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isStationName(name: string) {
+  const normalized = normalizeStationName(name);
+  if (normalized.includes(" ")) return false;
+  return /역$/.test(normalized);
 }
 
 function firstRow<T>(v: T | T[] | null | undefined): T | null {
@@ -625,35 +551,114 @@ export default function OfferingDetailLeft({
       );
     });
 
-  const subwayPois = sortedRecoPois.filter((poi) => poi.category === "SUBWAY");
+  const isRailStationPoi = (poi: PropertyRecoPoiRow) => {
+    if (!isStationName(poi.name)) return false;
+    if (
+      /(점|라운지|주차|주차타워|은행|카페|픽업|고객센터|atm|편의점|출구|렌터카|투루카|쏘카|g\s*car|아마노)/i.test(
+        poi.name,
+      )
+    ) {
+      return false;
+    }
+
+    if (Array.isArray(poi.subway_lines) && poi.subway_lines.length > 0) {
+      return true;
+    }
+
+    const source = `${poi.name} ${poi.category_name ?? ""}`;
+    return /철도|기차|지하철역|기차역|도시철도역|전철역|ktx|srt|itx|gtx|공항철도|[0-9]+호선|경의중앙선|수인분당선|신분당선|김포골드라인|에버라인/i.test(
+      source,
+    );
+  };
+
+  const subwayCandidatePois = sortedRecoPois.filter(
+    (poi) => poi.category === "SUBWAY" && isRailStationPoi(poi),
+  );
+  const extractHighSpeedRailLines = (poi: PropertyRecoPoiRow) => {
+    const source = `${poi.name} ${poi.category_name ?? ""}`;
+    const lines = new Set<"KTX" | "SRT" | "ITX">();
+    if (/ktx/i.test(source)) lines.add("KTX");
+    if (/srt/i.test(source)) lines.add("SRT");
+    if (/itx/i.test(source)) lines.add("ITX");
+
+    const stationName = normalizeStationName(poi.name);
+    const defaultLines = HIGH_SPEED_RAIL_STATION_LINES[stationName] ?? [];
+    for (const line of defaultLines) lines.add(line);
+
+    return Array.from(lines);
+  };
+
+  const isHighSpeedRailPoi = (poi: PropertyRecoPoiRow) =>
+    extractHighSpeedRailLines(poi).length > 0;
+
+  const highSpeedRailPois = Array.from(
+    subwayCandidatePois.reduce(
+      (acc, poi) => {
+        const stationName = normalizeStationName(poi.name);
+        const stationLines = extractHighSpeedRailLines(poi);
+        if (!stationLines || stationLines.length === 0) return acc;
+        const distance = toNumberOrNull(poi.distance_m);
+        const existing = acc.get(stationName);
+        if (!existing || (distance ?? Number.MAX_SAFE_INTEGER) < (existing.distanceM ?? Number.MAX_SAFE_INTEGER)) {
+          acc.set(stationName, {
+            stationName,
+            distanceM: distance,
+            lines: stationLines,
+          });
+        }
+        return acc;
+      },
+      new Map<
+        string,
+        {
+          stationName: string;
+          distanceM: number | null;
+          lines: Array<"KTX" | "SRT" | "ITX">;
+        }
+      >(),
+    ).values(),
+  ).sort((a, b) => (a.distanceM ?? Number.MAX_SAFE_INTEGER) - (b.distanceM ?? Number.MAX_SAFE_INTEGER));
+  const subwayPois = subwayCandidatePois.filter((poi) => !isHighSpeedRailPoi(poi));
   const allowLivingInfra = isLivingInfraAllowed(property.property_type);
   const schoolPois = allowLivingInfra
     ? sortedRecoPois.filter((poi) => poi.category === "SCHOOL")
     : [];
-  const martPois = sortedRecoPois.filter((poi) => poi.category === "MART");
   const hospitalPois = allowLivingInfra
     ? sortedRecoPois.filter((poi) => poi.category === "HOSPITAL")
     : [];
   const clinicDailyPois = allowLivingInfra
     ? sortedRecoPois.filter((poi) => poi.category === "CLINIC_DAILY")
     : [];
-  const departmentStorePois = sortedRecoPois.filter(
-    (poi) => poi.category === "DEPARTMENT_STORE",
-  );
-  const shoppingMallPois = sortedRecoPois.filter(
-    (poi) => poi.category === "SHOPPING_MALL",
-  );
+  const combinedHospitalPois = [...hospitalPois, ...clinicDailyPois]
+    .slice()
+    .sort((a, b) => {
+      const aDistance = toNumberOrNull(a.distance_m) ?? Number.MAX_SAFE_INTEGER;
+      const bDistance = toNumberOrNull(b.distance_m) ?? Number.MAX_SAFE_INTEGER;
+      if (aDistance !== bDistance) return aDistance - bDistance;
+      return a.name.localeCompare(b.name);
+    });
+  const retailPois = sortedRecoPois
+    .filter(
+      (poi) =>
+        poi.category === "MART" ||
+        poi.category === "DEPARTMENT_STORE" ||
+        poi.category === "SHOPPING_MALL",
+    )
+    .slice()
+    .sort((a, b) => {
+      const aDistance = toNumberOrNull(a.distance_m) ?? Number.MAX_SAFE_INTEGER;
+      const bDistance = toNumberOrNull(b.distance_m) ?? Number.MAX_SAFE_INTEGER;
+      if (aDistance !== bDistance) return aDistance - bDistance;
+      return a.name.localeCompare(b.name);
+    });
 
   const visibleInfraSections = [
     subwayPois.length > 0 ? "SUBWAY" : null,
+    highSpeedRailPois.length > 0 ? "HIGH_SPEED_RAIL" : null,
     schoolPois.length > 0 ? "SCHOOL" : null,
-    martPois.length > 0 ? "MART" : null,
-    hospitalPois.length > 0 ? "HOSPITAL" : null,
-    clinicDailyPois.length > 0 ? "CLINIC_DAILY" : null,
-    departmentStorePois.length > 0 ? "DEPARTMENT_STORE" : null,
-    shoppingMallPois.length > 0 ? "SHOPPING_MALL" : null,
+    retailPois.length > 0 ? "RETAIL" : null,
+    combinedHospitalPois.length > 0 ? "HOSPITAL" : null,
   ].filter(Boolean).length;
-  const visibleChipCount = 4;
 
   const extractSubwayPrimaryLine = (poi: PropertyRecoPoiRow) => {
     const lines =
@@ -661,6 +666,14 @@ export default function OfferingDetailLeft({
         ? poi.subway_lines
         : [];
     if (lines[0]) return lines[0];
+
+    const gtx = poi.name.match(/gtx\s*-?\s*([a-d])/i);
+    if (gtx?.[1]) return `GTX-${gtx[1].toUpperCase()}`;
+
+    const namedPrimary = poi.name.match(
+      /(공항철도|인천공항철도|용인에버라인|에버라인|김포골드라인|김포도시철도|수인분당선|신분당선|경의중앙선|경춘선|경강선|서해선|신림선|신안산선|우이신설선|의정부경전철|동해선|동북선|위례선|대경선|동탄인덕원선|대장홍대선|대구산업선)/,
+    );
+    if (namedPrimary?.[1]) return namedPrimary[1];
 
     const namedLineCandidates =
       poi.name.match(/[가-힣A-Za-z0-9-]+(?:[0-9]+호선|선)/g) ?? [];
@@ -676,56 +689,46 @@ export default function OfferingDetailLeft({
   const stripLineSuffixFromName = (name: string) =>
     name.replace(/\s*[0-9]+호선/g, "").trim();
 
+  const stripLineFromStationName = (name: string, line: string | null) => {
+    if (!line) return stripLineSuffixFromName(name);
+    if (/^GTX-[A-D]$/i.test(line)) {
+      return stripLineSuffixFromName(
+        name.replace(/GTX\s*-?\s*[A-D]/gi, ""),
+      ).trim();
+    }
+    const escaped = line.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return stripLineSuffixFromName(
+      name.replace(new RegExp(`\\s*${escaped}`, "gi"), ""),
+    ).trim();
+  };
+
+  const getSubwayVisual = (poi: PropertyRecoPoiRow) => {
+    const primary = extractSubwayPrimaryLine(poi);
+    const iconPath = getSubwayIconPath(primary ?? poi.name);
+    return { primary, iconPath };
+  };
+
   const renderPoiChips = (
     pois: PropertyRecoPoiRow[],
     formatLabel?: (poi: PropertyRecoPoiRow) => string,
     renderLeading?: (poi: PropertyRecoPoiRow) => ReactNode,
   ) => {
-    const primary = pois.slice(0, visibleChipCount);
-    const extra = pois.slice(visibleChipCount);
-
     return (
-      <>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {primary.map((poi) => (
-            <div
-              key={`${poi.category}-${poi.kakao_place_id}`}
-              className="inline-flex items-center rounded-full bg-(--oboon-bg-subtle) px-3 py-2 ob-typo-body text-(--oboon-text-title)"
-            >
-              {renderLeading ? (
-                <span className="mr-2 inline-flex">{renderLeading(poi)}</span>
-              ) : null}
-              {formatLabel
-                ? formatLabel(poi)
-                : `${poi.name} · ${fmtDistance(toNumberOrNull(poi.distance_m))}`}
-            </div>
-          ))}
-        </div>
-        {extra.length > 0 ? (
-          <details className="mt-3 group">
-            <summary className="mx-auto inline-flex cursor-pointer list-none items-center justify-center rounded-full border border-(--oboon-border-default) px-5 py-2 ob-typo-body text-(--oboon-text-muted) marker:content-['']">
-              더보기
-            </summary>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {extra.map((poi) => (
-                <div
-                  key={`${poi.category}-${poi.kakao_place_id}`}
-                  className="inline-flex items-center rounded-full bg-(--oboon-bg-subtle) px-3 py-2 ob-typo-body text-(--oboon-text-title)"
-                >
-                  {renderLeading ? (
-                    <span className="mr-2 inline-flex">
-                      {renderLeading(poi)}
-                    </span>
-                  ) : null}
-                  {formatLabel
-                    ? formatLabel(poi)
-                    : `${poi.name} · ${fmtDistance(toNumberOrNull(poi.distance_m))}`}
-                </div>
-              ))}
-            </div>
-          </details>
-        ) : null}
-      </>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {pois.map((poi) => (
+          <div
+            key={`${poi.category}-${poi.kakao_place_id}`}
+            className="inline-flex items-center rounded-full bg-(--oboon-bg-subtle) px-3 py-2 ob-typo-body text-(--oboon-text-title)"
+          >
+            {renderLeading ? (
+              <span className="mr-2 inline-flex">{renderLeading(poi)}</span>
+            ) : null}
+            {formatLabel
+              ? formatLabel(poi)
+              : `${poi.name} · ${fmtDistance(toNumberOrNull(poi.distance_m))}`}
+          </div>
+        ))}
+      </div>
     );
   };
 
@@ -970,12 +973,15 @@ export default function OfferingDetailLeft({
                       (poi) => {
                         const distance = toNumberOrNull(poi.distance_m);
                         const walkMin = Math.ceil((distance ?? 0) / 80);
-                        const stationName = stripLineSuffixFromName(poi.name);
-                        return `${stationName} · ${fmtDistance(distance)}/도보 ${walkMin}분`;
+                        const { primary, iconPath } = getSubwayVisual(poi);
+                        const stationName = iconPath
+                          ? stripLineFromStationName(poi.name, primary)
+                          : poi.name.trim();
+                        const lineSuffix = !iconPath && primary ? ` ${primary}` : "";
+                        return `${stationName}${lineSuffix} · ${fmtDistance(distance)}/도보 ${walkMin}분`;
                       },
                       (poi) => {
-                        const primary = extractSubwayPrimaryLine(poi);
-                        const iconPath = getSubwayIconPath(primary ?? poi.name);
+                        const { primary, iconPath } = getSubwayVisual(poi);
                         if (!iconPath) return null;
                         return (
                           <Image
@@ -991,6 +997,42 @@ export default function OfferingDetailLeft({
                   </div>
                 ) : null}
 
+                {highSpeedRailPois.length > 0 ? (
+                  <div className="p-4">
+                    <div className="flex items-center gap-2 ob-typo-subtitle text-(--oboon-text-title)">
+                      <TrainFront className="h-5 w-5" />
+                      고속철도 {highSpeedRailPois.length}
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {highSpeedRailPois.map((railPoi) => (
+                        <div
+                          key={`high-speed-${railPoi.stationName}`}
+                          className="inline-flex items-center rounded-full bg-(--oboon-bg-subtle) px-3 py-2 ob-typo-body text-(--oboon-text-title)"
+                        >
+                          <span className="mr-2 inline-flex items-center gap-1">
+                            {railPoi.lines.map((line) => (
+                              <span
+                                key={`${railPoi.stationName}-${line}`}
+                                className="inline-flex h-6 w-6 items-center justify-center rounded-full"
+                                style={{ backgroundColor: HIGH_SPEED_RAIL_ICON_BG[line] }}
+                              >
+                                <Image
+                                  src={HIGH_SPEED_RAIL_ICON_PATH[line]}
+                                  alt={line}
+                                  width={16}
+                                  height={16}
+                                  className="h-4 w-4 object-contain"
+                                />
+                              </span>
+                            ))}
+                          </span>
+                          {`${railPoi.stationName} · ${fmtDistance(railPoi.distanceM)}`}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
                 {schoolPois.length > 0 ? (
                   <div className="p-4">
                     <div className="flex items-center gap-2 ob-typo-subtitle text-(--oboon-text-title)">
@@ -1001,55 +1043,33 @@ export default function OfferingDetailLeft({
                   </div>
                 ) : null}
 
-                {martPois.length > 0 ? (
+                {retailPois.length > 0 ? (
                   <div className="p-4">
                     <div className="flex items-center gap-2 ob-typo-subtitle text-(--oboon-text-title)">
                       <ShoppingCart className="h-5 w-5" />
-                      마트 {martPois.length}
+                      마트 {retailPois.length}
                     </div>
-                    {renderPoiChips(martPois)}
+                    {renderPoiChips(
+                      retailPois,
+                      (poi) =>
+                        `${normalizeRetailPoiName(poi.name)} · ${fmtDistance(
+                          toNumberOrNull(poi.distance_m),
+                        )}`,
+                    )}
                   </div>
                 ) : null}
 
-                {hospitalPois.length > 0 ? (
+                {combinedHospitalPois.length > 0 ? (
                   <div className="p-4">
                     <div className="flex items-center gap-2 ob-typo-subtitle text-(--oboon-text-title)">
                       <Cross className="h-5 w-5" />
-                      병원 {hospitalPois.length}
+                      병원 {combinedHospitalPois.length}
                     </div>
-                    {renderPoiChips(hospitalPois)}
+                    {renderPoiChips(combinedHospitalPois)}
                   </div>
                 ) : null}
 
-                {clinicDailyPois.length > 0 ? (
-                  <div className="p-4">
-                    <div className="flex items-center gap-2 ob-typo-subtitle text-(--oboon-text-title)">
-                      <Cross className="h-5 w-5" />
-                      생활의료 {clinicDailyPois.length}
-                    </div>
-                    {renderPoiChips(clinicDailyPois)}
-                  </div>
-                ) : null}
-
-                {departmentStorePois.length > 0 ? (
-                  <div className="p-4">
-                    <div className="flex items-center gap-2 ob-typo-subtitle text-(--oboon-text-title)">
-                      <Store className="h-5 w-5" />
-                      백화점 {departmentStorePois.length}
-                    </div>
-                    {renderPoiChips(departmentStorePois)}
-                  </div>
-                ) : null}
-
-                {shoppingMallPois.length > 0 ? (
-                  <div className="p-4">
-                    <div className="flex items-center gap-2 ob-typo-subtitle text-(--oboon-text-title)">
-                      <Store className="h-5 w-5" />
-                      쇼핑몰 {shoppingMallPois.length}
-                    </div>
-                    {renderPoiChips(shoppingMallPois)}
-                  </div>
-                ) : null}
+                
               </div>
             ) : (
               <div className="p-4 ob-typo-body text-(--oboon-text-muted)">

@@ -1,5 +1,5 @@
 import { createSupabaseServer } from "@/lib/supabaseServer";
-import type { PropertyRow } from "@/features/offerings/components/detail/OfferingDetailLeft";
+import type { PropertyRow } from "@/features/offerings/domain/offeringDetail.types";
 
 type RecordValue = Record<string, unknown>;
 
@@ -92,6 +92,7 @@ const isRecoPoiRow = (value: unknown) =>
   typeof value.kakao_place_id === "string" &&
   typeof value.name === "string" &&
   isNullableNumberLike(value.distance_m) &&
+  isNullableString(value.category_name) &&
   isNullableStringArray(value.subway_lines) &&
   isRecoSchoolLevel(value.school_level);
 
@@ -145,7 +146,7 @@ export async function fetchOfferingDetail(
   const { data: poiRows } = await supabase
     .from("property_reco_pois")
     .select(
-      "category, rank, kakao_place_id, name, distance_m, subway_lines, school_level",
+      "category, rank, kakao_place_id, name, distance_m, category_name, subway_lines, school_level",
     )
     .eq("property_id", id)
     .order("category", { ascending: true })

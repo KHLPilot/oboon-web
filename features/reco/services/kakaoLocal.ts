@@ -2,6 +2,8 @@ import type { KakaoPlace } from "@/features/reco/domain/recoPoi.types";
 
 const KAKAO_LOCAL_BASE_URL =
   "https://dapi.kakao.com/v2/local/search/category.json";
+const KAKAO_LOCAL_KEYWORD_URL =
+  "https://dapi.kakao.com/v2/local/search/keyword.json";
 
 type KakaoFetchCategory = "HOSPITAL" | "MART" | "SUBWAY" | "SCHOOL";
 
@@ -46,6 +48,14 @@ const SHOPPING_MALL_BRANDS = [
   "코엑스몰",
   "아이파크몰",
   "타임스퀘어",
+  "롯데아울렛",
+  "현대아울렛",
+  "신세계아울렛",
+] as const;
+const OUTLET_ANCHOR_BRANDS = [
+  "롯데아울렛",
+  "현대아울렛",
+  "신세계아울렛",
 ] as const;
 
 const MART_CATEGORY_KEYWORDS = [
@@ -55,7 +65,7 @@ const MART_CATEGORY_KEYWORDS = [
   "하이퍼마켓",
 ] as const;
 const DEPT_CATEGORY_KEYWORDS = ["백화점"] as const;
-const MALL_CATEGORY_KEYWORDS = ["복합쇼핑몰", "쇼핑몰"] as const;
+const MALL_CATEGORY_KEYWORDS = ["복합쇼핑몰", "쇼핑몰", "아울렛"] as const;
 const EXCLUDE_NAME_KEYWORDS = [
   "GS25",
   "CU",
@@ -172,8 +182,14 @@ const HOSPITAL_GENERAL_EXCLUDE_KEYWORDS = [
   "요양원",
   "클리닉",
   "검진의학",
+  "건강검진",
+  "체크업",
+  "헬스체크업",
   "임상검사",
   "검사센터",
+  "난임",
+  "난임센터",
+  "여성의학연구소",
   "피부관리",
   "에스테틱",
   "탈모",
@@ -293,10 +309,59 @@ export async function fetchKakaoTopPoisByCategory(params: {
   return places;
 }
 
+export async function fetchKakaoTopPoisByKeyword(params: {
+  kakaoApiKey: string;
+  query: string;
+  lat: number;
+  lng: number;
+  radius: number;
+  topN: number;
+  page?: number;
+}): Promise<KakaoPlace[]> {
+  const page = Math.min(Math.max(params.page ?? 1, 1), 45);
+
+  const query = new URLSearchParams({
+    query: params.query,
+    x: String(params.lng),
+    y: String(params.lat),
+    radius: String(params.radius),
+    sort: "distance",
+    page: String(page),
+    size: String(Math.min(Math.max(params.topN, 1), 15)),
+  });
+
+  const res = await fetch(`${KAKAO_LOCAL_KEYWORD_URL}?${query.toString()}`, {
+    headers: {
+      Authorization: `KakaoAK ${params.kakaoApiKey}`,
+    },
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    throw new Error(`Kakao Local keyword error: ${res.status}`);
+  }
+
+  const json = (await res.json()) as { documents?: unknown[] };
+  const rows = Array.isArray(json.documents) ? json.documents : [];
+  const places = rows
+    .map(sanitizePlace)
+    .filter((v): v is KakaoPlace => v !== null)
+    .filter((p) => toFiniteNumber(p.distance) !== null)
+    .sort((a, b) => Number(a.distance) - Number(b.distance))
+    .slice(0, params.topN);
+
+  return places;
+}
+
 export function filterMartTiered(place: KakaoPlace): MartFilterResult {
   const nameN = norm(place.place_name || "");
   const catN = safeNorm(place.category_name);
   const groupCode = place.category_group_code || "";
+  const isOutletMentioned =
+    nameN.includes(norm("아울렛")) || catN.includes(norm("아울렛"));
+  const isOutletAnchor = OUTLET_ANCHOR_BRANDS.some((brand) =>
+    nameN.startsWith(norm(brand)),
+  );
 
   if (groupCode && groupCode !== "MT1") {
     return { include: false, kind: "REJECT", reason: "exclude:category_group" };
@@ -304,6 +369,12 @@ export function filterMartTiered(place: KakaoPlace): MartFilterResult {
 
   if (includesAny(nameN, EXCLUDE_NAME_KEYWORDS)) {
     return { include: false, kind: "REJECT", reason: "exclude:name_keyword" };
+  }
+
+  // "자라 롯데아울렛 서울역점" 같은 입점 매장은 제외하고,
+  // "롯데아울렛 서울역점"처럼 시설(앵커)명만 허용
+  if (isOutletMentioned && !isOutletAnchor) {
+    return { include: false, kind: "REJECT", reason: "exclude:outlet_tenant" };
   }
 
   if (includesAny(nameN, TIER1_BRANDS)) {

@@ -8,6 +8,7 @@ import type {
 } from "@/features/reco/domain/recoPoi.types";
 import {
   fetchKakaoTopPoisByCategory,
+  fetchKakaoTopPoisByKeyword,
   filterHospitalTiered,
   filterMartTiered,
 } from "@/features/reco/services/kakaoLocal";
@@ -24,6 +25,9 @@ const FETCH_CATEGORIES: Array<"SUBWAY" | "SCHOOL" | "HOSPITAL"> = [
 const DEFAULT_TOP_N = 3;
 const DEFAULT_RADIUS = 1000;
 const HOSPITAL_SEARCH_PAGES = 4;
+const KAKAO_MAX_PAGES = 45;
+const OUTLET_KEYWORDS = ["아울렛", "롯데아울렛", "현대아울렛", "신세계아울렛"] as const;
+const RAIL_KEYWORDS = ["KTX역", "SRT역", "ITX역", "기차역"] as const;
 const DEFAULT_CHUNK = 50;
 const DEFAULT_CONCURRENCY = 3;
 const MAX_RETRY = 3;
@@ -71,6 +75,38 @@ function toFiniteNumber(value: unknown): number | null {
 
 function byDistanceAsc(a: KakaoPlace, b: KakaoPlace) {
   return Number(a.distance ?? 0) - Number(b.distance ?? 0);
+}
+
+function isStationName(name: string) {
+  const normalized = name
+    .replace(/\([^)]*\)/g, "")
+    .replace(
+      /\s*(경의중앙선|수인분당선|신분당선|경춘선|경강선|서해선|공항철도|KTX|SRT|ITX|GTX-[A-D]|[0-9]+호선)\s*/gi,
+      " ",
+    )
+    .replace(/\s+/g, " ")
+    .trim();
+  if (normalized.includes(" ")) return false;
+  return /역$/.test(normalized);
+}
+
+function isLikelyRailStationPlace(place: KakaoPlace) {
+  const name = place.place_name ?? "";
+  const categoryName = place.category_name ?? "";
+  if (!isStationName(name)) return false;
+  if (
+    /(점|라운지|주차|주차타워|은행|카페|픽업|고객센터|atm|편의점|출구|렌터카|투루카|쏘카|g\s*car|아마노)/i.test(
+      name,
+    )
+  ) {
+    return false;
+  }
+  return (
+    place.category_group_code === "SW8" ||
+    /철도|기차|지하철역|기차역|도시철도역|전철역/.test(categoryName) ||
+    /ktx|srt|itx|gtx|공항철도/i.test(name) ||
+    /ktx|srt|itx|gtx|공항철도/i.test(categoryName)
+  );
 }
 
 function isLivingInfraAllowed(propertyType: string | null | undefined) {
@@ -241,6 +277,52 @@ async function processProperty(params: {
               ),
             )
           ).flat()
+        : category === "SUBWAY"
+          ? (
+              await (async () => {
+                const [categoryRows, ...railKeywordRows] = await Promise.all([
+                  (async () => {
+                    const all: KakaoPlace[] = [];
+                    for (let page = 1; page <= KAKAO_MAX_PAGES; page += 1) {
+                      const pageRows = await withRetry(() =>
+                        fetchKakaoTopPoisByCategory({
+                          kakaoApiKey,
+                          category,
+                          lat,
+                          lng,
+                          radius,
+                          topN: 15,
+                          page,
+                        }),
+                      );
+                      if (pageRows.length === 0) break;
+                      all.push(...pageRows);
+                      // page size 최대치(15)보다 적으면 마지막 페이지
+                      if (pageRows.length < 15) break;
+                    }
+                    return all;
+                  })(),
+                  ...RAIL_KEYWORDS.map((query) =>
+                    withRetry(() =>
+                      fetchKakaoTopPoisByKeyword({
+                        kakaoApiKey,
+                        query,
+                        lat,
+                        lng,
+                        radius,
+                        topN: 15,
+                      }),
+                    ),
+                  ),
+                ]);
+
+                const keywordRailRows = railKeywordRows
+                  .flat()
+                  .filter(isLikelyRailStationPlace);
+
+                return [...categoryRows, ...keywordRailRows];
+              })()
+            )
         : await withRetry(() =>
             fetchKakaoTopPoisByCategory({
               kakaoApiKey,
@@ -379,15 +461,35 @@ async function processProperty(params: {
     stats.categoryCounts[category] += inserted;
   }
 
-  const rawMartPlaces = await withRetry(() =>
-    fetchKakaoTopPoisByCategory({
-      kakaoApiKey,
-      category: "MART",
-      lat,
-      lng,
-      radius,
-      topN: Math.min(15, topN * 5),
-    }),
+  const rawMartPlaces = (
+    await Promise.all([
+      withRetry(() =>
+        fetchKakaoTopPoisByCategory({
+          kakaoApiKey,
+          category: "MART",
+          lat,
+          lng,
+          radius,
+          topN: Math.min(15, topN * 5),
+        }),
+      ),
+      ...OUTLET_KEYWORDS.map((query) =>
+        withRetry(() =>
+          fetchKakaoTopPoisByKeyword({
+            kakaoApiKey,
+            query,
+            lat,
+            lng,
+            radius,
+            topN: 15,
+          }),
+        ),
+      ),
+    ])
+  ).flat();
+
+  const dedupedMartPlaces = Array.from(
+    new Map(rawMartPlaces.map((place) => [place.id, place])).values(),
   );
 
   const martBuckets: Record<"MART" | "DEPARTMENT_STORE" | "SHOPPING_MALL", KakaoPlace[]> =
@@ -397,7 +499,7 @@ async function processProperty(params: {
       SHOPPING_MALL: [],
     };
 
-  for (const place of rawMartPlaces) {
+  for (const place of dedupedMartPlaces) {
     const decision = filterMartTiered(place);
     if (!decision.include) continue;
     if (decision.kind === "MART_LARGE") {
