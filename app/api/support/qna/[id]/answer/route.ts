@@ -18,7 +18,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = createSupabaseServer();
+    const supabase = await createSupabaseServer();
     const { id } = await params;
     const body = await request.json();
     const { body: answerBody } = body;

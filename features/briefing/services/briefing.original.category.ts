@@ -1,7 +1,7 @@
 import { createSupabaseServer } from "@/lib/supabaseServer";
 
 export async function fetchOboonOriginalCategoryPageData(categoryKey: string) {
-  const supabase = createSupabaseServer();
+  const supabase = await createSupabaseServer();
 
   const { data: board, error: boardErr } = await supabase
     .from("briefing_boards")

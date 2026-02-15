@@ -9,7 +9,7 @@ import type { FAQCategoryRow, FAQItemViewModel } from "../domain/support";
  * 관리자 여부 확인
  */
 export async function ensureFAQAdmin(): Promise<{ userId: string } | null> {
-  const supabase = createSupabaseServer();
+  const supabase = await createSupabaseServer();
 
   const { data: authData, error: authErr } = await supabase.auth.getUser();
   if (authErr || !authData.user) return null;
@@ -30,7 +30,7 @@ export async function ensureFAQAdmin(): Promise<{ userId: string } | null> {
  * FAQ 카테고리 목록 조회 (서버)
  */
 export async function fetchFAQCategoriesServer(): Promise<FAQCategoryRow[]> {
-  const supabase = createSupabaseServer();
+  const supabase = await createSupabaseServer();
 
   const { data, error } = await supabase
     .from("faq_categories")
@@ -49,7 +49,7 @@ export async function fetchFAQCategoriesServer(): Promise<FAQCategoryRow[]> {
  * FAQ 아이템 목록 조회 (서버, 관리자용 - 비활성 포함)
  */
 export async function fetchFAQItemsServer(): Promise<FAQItemViewModel[]> {
-  const supabase = createSupabaseServer();
+  const supabase = await createSupabaseServer();
 
   const { data, error } = await supabase
     .from("faq_items")
@@ -104,7 +104,7 @@ export async function createFAQItem(input: {
     return { ok: false, message: "관리자 권한이 필요합니다." };
   }
 
-  const supabase = createSupabaseServer();
+  const supabase = await createSupabaseServer();
 
   const { data, error } = await supabase
     .from("faq_items")
@@ -142,7 +142,7 @@ export async function updateFAQItem(input: {
     return { ok: false, message: "관리자 권한이 필요합니다." };
   }
 
-  const supabase = createSupabaseServer();
+  const supabase = await createSupabaseServer();
 
   const updateData: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
@@ -178,7 +178,7 @@ export async function deleteFAQItem(
     return { ok: false, message: "관리자 권한이 필요합니다." };
   }
 
-  const supabase = createSupabaseServer();
+  const supabase = await createSupabaseServer();
 
   const { error } = await supabase
     .from("faq_items")

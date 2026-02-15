@@ -22,7 +22,7 @@ const adminSupabase = createClient(
  * 관리자 여부 확인
  */
 export async function ensureQnAAdmin(): Promise<{ userId: string } | null> {
-  const supabase = createSupabaseServer();
+  const supabase = await createSupabaseServer();
 
   const { data: authData, error: authErr } = await supabase.auth.getUser();
   if (authErr || !authData.user) return null;
@@ -46,7 +46,7 @@ export async function getCurrentUser(): Promise<{
   userId: string;
   isAdmin: boolean;
 } | null> {
-  const supabase = createSupabaseServer();
+  const supabase = await createSupabaseServer();
 
   const { data: authData, error: authErr } = await supabase.auth.getUser();
   if (authErr || !authData.user) return null;
@@ -76,7 +76,7 @@ export async function createQnAQuestionServer(input: {
   isAnonymous: boolean;
   anonymousNickname?: string;
 }): Promise<{ ok: true; id: string } | { ok: false; message: string }> {
-  const supabase = createSupabaseServer();
+  const supabase = await createSupabaseServer();
 
   const { data: authData, error: authErr } = await supabase.auth.getUser();
   if (authErr || !authData.user) {
@@ -117,7 +117,7 @@ export async function createQnAQuestionServer(input: {
 export async function fetchQnADetailServer(
   id: string
 ): Promise<QnADetailViewModel | null> {
-  const supabase = createSupabaseServer();
+  const supabase = await createSupabaseServer();
   const user = await getCurrentUser();
 
   // 질문 조회
@@ -215,7 +215,7 @@ export async function verifyQnAPassword(
   questionId: string,
   password: string
 ): Promise<boolean> {
-  const supabase = createSupabaseServer();
+  const supabase = await createSupabaseServer();
 
   const { data, error } = await supabase
     .from("qna_questions")
@@ -242,7 +242,7 @@ export async function createQnAAnswer(input: {
     return { ok: false, message: "관리자 권한이 필요합니다." };
   }
 
-  const supabase = createSupabaseServer();
+  const supabase = await createSupabaseServer();
 
   // 답변 생성
   const { data, error } = await supabase
@@ -279,7 +279,7 @@ export async function updateQnAQuestion(input: {
   title: string;
   body: string;
 }): Promise<{ ok: true } | { ok: false; message: string }> {
-  const supabase = createSupabaseServer();
+  const supabase = await createSupabaseServer();
   const user = await getCurrentUser();
 
   if (!user) {

@@ -434,6 +434,7 @@ export default function PropertyCreatePage() {
   };
 
   const getAffiliationButtonLabel = (propertyId: number) => {
+    if (userRole === "admin") return "현장 수정하기";
     const status = affiliationStatusMap[propertyId] ?? null;
     if (status === "approved") return "소속됨";
     if (status === "pending") return "처리 중";
@@ -441,10 +442,19 @@ export default function PropertyCreatePage() {
   };
 
   const isAffiliationButtonDisabled = (propertyId: number) => {
+    if (userRole === "admin") return false;
     if (userRole !== "agent") return true;
     const status = affiliationStatusMap[propertyId] ?? null;
     if (status === "approved" || status === "pending") return true;
     return applyingAffiliationPropertyId === propertyId;
+  };
+
+  const handleDuplicateCandidateAction = (propertyId: number) => {
+    if (userRole === "admin") {
+      router.push(`/company/properties/${propertyId}`);
+      return;
+    }
+    void handleApplyAffiliation(propertyId);
   };
 
   async function handleSubmit() {
@@ -627,9 +637,13 @@ export default function PropertyCreatePage() {
                         {hasExactDuplicate ? "혹시 이 현장인가요?" : "이런 현장이 있어요"}
                       </p>
                       <p className="ob-typo-caption text-(--oboon-text-muted)">
-                        {hasExactDuplicate
-                          ? "이미 등록된 현장이면 새 등록 대신 소속 신청을 진행해주세요."
-                          : "입력하신 이름과 비슷한 현장입니다. 해당 현장이 맞다면 소속 신청을 진행해주세요."}
+                        {userRole === "admin"
+                          ? hasExactDuplicate
+                            ? "이미 등록된 현장이면 새 등록 대신 해당 현장을 수정해주세요."
+                            : "입력하신 이름과 비슷한 현장입니다. 해당 현장이 맞다면 수정 화면에서 정보를 업데이트해주세요."
+                          : hasExactDuplicate
+                            ? "이미 등록된 현장이면 새 등록 대신 소속 신청을 진행해주세요."
+                            : "입력하신 이름과 비슷한 현장입니다. 해당 현장이 맞다면 소속 신청을 진행해주세요."}
                       </p>
                       <div className="space-y-2">
                         {duplicateCandidates.map((candidate) => (
@@ -661,8 +675,11 @@ export default function PropertyCreatePage() {
                               size="sm"
                               shape="pill"
                               disabled={isAffiliationButtonDisabled(candidate.id)}
-                              loading={applyingAffiliationPropertyId === candidate.id}
-                              onClick={() => handleApplyAffiliation(candidate.id)}
+                              loading={
+                                userRole === "agent" &&
+                                applyingAffiliationPropertyId === candidate.id
+                              }
+                              onClick={() => handleDuplicateCandidateAction(candidate.id)}
                             >
                               {getAffiliationButtonLabel(candidate.id)}
                             </Button>

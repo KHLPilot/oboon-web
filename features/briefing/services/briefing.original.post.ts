@@ -5,7 +5,7 @@ export async function fetchOboonOriginalPostPageData(args: {
   slug: string;
 }) {
   const { categoryKey, slug } = args;
-  const supabase = createSupabaseServer();
+  const supabase = await createSupabaseServer();
 
   const { data: auth } = await supabase.auth.getUser();
   const user = auth.user;
@@ -122,7 +122,7 @@ export async function fetchOboonOriginalPostPageData(args: {
 }
 
 export async function ensureBriefingAdmin() {
-  const supabase = createSupabaseServer();
+  const supabase = await createSupabaseServer();
   const { data: auth } = await supabase.auth.getUser();
   const user = auth.user;
   if (!user) return false;
@@ -137,7 +137,7 @@ export async function ensureBriefingAdmin() {
 }
 
 export async function deleteBriefingPost(postId: string) {
-  const supabase = createSupabaseServer();
+  const supabase = await createSupabaseServer();
   await supabase.from("briefing_post_tags").delete().eq("post_id", postId);
   return supabase.from("briefing_posts").delete().eq("id", postId);
 }

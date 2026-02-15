@@ -1,7 +1,7 @@
 import { createSupabaseServer } from "@/lib/supabaseServer";
 
 export async function fetchOboonOriginalPageData() {
-  const supabase = createSupabaseServer();
+  const supabase = await createSupabaseServer();
 
   const { data: auth } = await supabase.auth.getUser();
   const user = auth.user;

@@ -16,7 +16,7 @@ const adminSupabase = createClient(
  */
 export async function GET(request: Request) {
   try {
-    const supabase = createSupabaseServer();
+    const supabase = await createSupabaseServer();
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") ?? "1", 10);
     const limit = parseInt(searchParams.get("limit") ?? "20", 10);
@@ -116,7 +116,7 @@ export async function GET(request: Request) {
  */
 export async function POST(request: Request) {
   try {
-    const supabase = createSupabaseServer();
+    const supabase = await createSupabaseServer();
     const body = await request.json();
     const { title, body: questionBody, isSecret, secretPassword, isAnonymous, anonymousNickname } = body;
 

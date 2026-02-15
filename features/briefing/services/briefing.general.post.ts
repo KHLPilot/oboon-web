@@ -1,7 +1,7 @@
 import { createSupabaseServer } from "@/lib/supabaseServer";
 
 export async function fetchGeneralPostPageData(slug: string) {
-  const supabase = createSupabaseServer();
+  const supabase = await createSupabaseServer();
 
   const { data: auth } = await supabase.auth.getUser();
   const user = auth.user;
@@ -71,7 +71,7 @@ export async function fetchGeneralPostPageData(slug: string) {
 }
 
 export async function ensureGeneralBriefingAdmin() {
-  const supabase = createSupabaseServer();
+  const supabase = await createSupabaseServer();
   const { data: auth } = await supabase.auth.getUser();
   const user = auth.user;
   if (!user) return false;
@@ -86,7 +86,7 @@ export async function ensureGeneralBriefingAdmin() {
 }
 
 export async function deleteGeneralBriefingPost(postId: string) {
-  const supabase = createSupabaseServer();
+  const supabase = await createSupabaseServer();
   await supabase.from("briefing_post_tags").delete().eq("post_id", postId);
   return supabase.from("briefing_posts").delete().eq("id", postId);
 }

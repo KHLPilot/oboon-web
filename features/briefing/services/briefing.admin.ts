@@ -1,7 +1,7 @@
 import { createSupabaseServer } from "@/lib/supabaseServer";
 
 export async function ensureBriefingAdminUser() {
-  const supabase = createSupabaseServer();
+  const supabase = await createSupabaseServer();
   const { data: authData, error: authErr } = await supabase.auth.getUser();
   if (authErr) throw authErr;
 
@@ -22,7 +22,7 @@ export async function ensureBriefingAdminUser() {
 }
 
 export async function fetchBriefingAdminBootstrap() {
-  const supabase = createSupabaseServer();
+  const supabase = await createSupabaseServer();
   const admin = await ensureBriefingAdminUser();
   if (!admin) return null;
 
@@ -71,7 +71,7 @@ export async function createBriefingPostWithSeq(args: {
   tagId: string | null;
   userId: string;
 }) {
-  const supabase = createSupabaseServer();
+  const supabase = await createSupabaseServer();
   const {
     boardId,
     categoryId,
