@@ -1,4 +1,7 @@
 import { getSubwayIconPath } from "@/features/reco/constants/subwayIconMap";
+import {
+  getHighSpeedRailLinesForStation,
+} from "@/features/reco/constants/highSpeedRailMap";
 import type { PropertyRecoPoiRow } from "@/features/offerings/domain/offeringDetail.types";
 
 export const HIGH_SPEED_RAIL_ICON_PATH: Record<"KTX" | "SRT" | "ITX", string> =
@@ -24,15 +27,6 @@ const NON_RESIDENTIAL_PROPERTY_TYPE_KEYWORDS = [
   "공장",
   "창고",
 ] as const;
-
-const HIGH_SPEED_RAIL_STATION_LINES: Record<string, Array<"KTX" | "SRT" | "ITX">> =
-  {
-    서울역: ["KTX", "ITX"],
-    용산역: ["KTX", "ITX"],
-    청량리역: ["KTX", "ITX"],
-    영등포역: ["KTX", "ITX"],
-    수원역: ["KTX", "ITX"],
-  };
 
 function toNumberOrNull(value: number | string | null | undefined) {
   if (value == null) return null;
@@ -99,7 +93,7 @@ function extractHighSpeedRailLines(poi: PropertyRecoPoiRow) {
   if (/itx/i.test(source)) lines.add("ITX");
 
   const stationName = normalizeStationName(poi.name);
-  const defaultLines = HIGH_SPEED_RAIL_STATION_LINES[stationName] ?? [];
+  const defaultLines = getHighSpeedRailLinesForStation(stationName);
   for (const line of defaultLines) lines.add(line);
 
   return Array.from(lines);

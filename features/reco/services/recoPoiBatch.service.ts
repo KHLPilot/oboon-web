@@ -16,6 +16,10 @@ import {
   enrichSubwayLines,
   mapSchoolLevelFromCategoryName,
 } from "@/features/reco/services/subwayPublicEnrichment";
+import {
+  getHighSpeedRailLinesForStation,
+  isHighSpeedRailStation,
+} from "@/features/reco/constants/highSpeedRailMap";
 
 const FETCH_CATEGORIES: Array<"SUBWAY" | "SCHOOL" | "HOSPITAL"> = [
   "SUBWAY",
@@ -28,13 +32,6 @@ const HOSPITAL_SEARCH_PAGES = 4;
 const KAKAO_MAX_PAGES = 45;
 const OUTLET_KEYWORDS = ["아울렛", "롯데아울렛", "현대아울렛", "신세계아울렛"] as const;
 const RAIL_KEYWORDS = ["KTX역", "SRT역", "ITX역", "기차역"] as const;
-const HIGH_SPEED_RAIL_STATIONS = new Set([
-  "서울역",
-  "용산역",
-  "청량리역",
-  "영등포역",
-  "수원역",
-]);
 const DEFAULT_CHUNK = 50;
 const DEFAULT_CONCURRENCY = 3;
 const MAX_RETRY = 3;
@@ -132,19 +129,20 @@ function classifyTransitCategory(
 
   if (!isLikelyRailStationPlace(place)) return null;
 
+  const hasSubwayHint =
+    place.category_group_code === "SW8" ||
+    /지하철|전철|호선|골드라인|에버라인|경의중앙선|수인분당선|신분당선|공항철도/.test(
+      source,
+    );
+
   if (
-    (/ktx|srt|itx/i.test(source) || HIGH_SPEED_RAIL_STATIONS.has(stationToken)) &&
+    (/ktx|srt|itx/i.test(source) || (isHighSpeedRailStation(stationToken) && !hasSubwayHint)) &&
     !/공항철도/.test(source)
   ) {
     return "HIGH_SPEED_RAIL";
   }
 
-  if (
-    place.category_group_code === "SW8" ||
-    /지하철|전철|호선|골드라인|에버라인|경의중앙선|수인분당선|신분당선|공항철도/.test(
-      source,
-    )
-  ) {
+  if (hasSubwayHint) {
     return "SUBWAY";
   }
 
@@ -500,7 +498,14 @@ async function processProperty(params: {
           const enriched = await withRetry(() =>
             enrichSubwayLines({ stationName: p.place_name }),
           );
-          row.subway_lines = enriched.lines.length > 0 ? enriched.lines : null;
+          const highSpeedFallbackLines =
+            transitCategory === "HIGH_SPEED_RAIL"
+              ? getHighSpeedRailLinesForStation(toStationToken(p.place_name))
+              : [];
+          const mergedLines = Array.from(
+            new Set([...(enriched.lines ?? []), ...highSpeedFallbackLines]),
+          );
+          row.subway_lines = mergedLines.length > 0 ? mergedLines : null;
           row.subway_station_code = enriched.stationCode;
           row.raw_public = enriched.rawPublic;
 
