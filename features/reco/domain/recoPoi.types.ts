@@ -3,6 +3,7 @@ export type RecoPoiCategory =
   | "CLINIC_DAILY"
   | "MART"
   | "SUBWAY"
+  | "HIGH_SPEED_RAIL"
   | "SCHOOL"
   | "DEPARTMENT_STORE"
   | "SHOPPING_MALL";

@@ -11,6 +11,7 @@
   - `supabase/migrations/052_property_reco_pois_pipeline.sql`
   - `supabase/migrations/053_property_poi_category_extend.sql`
   - `supabase/migrations/054_property_poi_category_clinic_daily.sql`
+  - `supabase/migrations/055_property_poi_category_high_speed_rail.sql`
 - 주요 테이블:
   - `property_reco_pois`: 카테고리별 POI(이름/거리/좌표/메타/원본)
   - `property_reco_poi_jobs`: 증분 갱신 큐
@@ -75,6 +76,9 @@ select cron.schedule(
   - 카카오 역명 -> 정규화(역/공백/괄호 제거)
   - 공공데이터로 lines 집계 (`subway_lines`)
   - 실패 시 `raw_public`에 사유 기록
+- 고속철도:
+  - `HIGH_SPEED_RAIL` 카테고리로 지하철(`SUBWAY`)과 분리 저장
+  - KTX/SRT/ITX 및 주요 환승역(서울역/용산역 등) 기준 분류
 - 학교:
   - `category_name` 키워드 기반:
     - 초등학교/중학교/고등학교/대학교 -> `ELEMENTARY|MIDDLE|HIGH|UNIVERSITY`
@@ -90,6 +94,7 @@ select cron.schedule(
 - `GET /api/reco-pois/[propertyId]`
 - 응답:
   - `subway`: `{ station_name, lines[], distance_m, walk_min }[]`
+  - `high_speed_rail`: `{ station_name, lines[], distance_m, walk_min }[]`
   - `school_tabs`: `elementary/middle/high/university/other`
   - `mart`, `hospital`, `clinic_daily`, `department_store`, `shopping_mall`: `{ name, distance_m }[]`
 

@@ -87,9 +87,10 @@ const getOfferingDetailCached = cache(async (id: number) => fetchOfferingDetail(
 export async function generateMetadata({
   params,
 }: {
-  params: { id: string };
+  params: { id: string } | Promise<{ id: string }>;
 }): Promise<Metadata> {
-  const id = Number(params.id);
+  const { id: rawId } = await Promise.resolve(params);
+  const id = Number(rawId);
   if (!Number.isFinite(id)) {
     return {
       robots: { index: false, follow: false },
@@ -137,9 +138,10 @@ export async function generateMetadata({
 export default async function OfferingDetailRoute({
   params,
 }: {
-  params: { id: string };
+  params: { id: string } | Promise<{ id: string }>;
 }) {
-  const id = Number(params.id);
+  const { id: rawId } = await Promise.resolve(params);
+  const id = Number(rawId);
   if (!Number.isFinite(id)) notFound();
   const property = await getOfferingDetailCached(id);
   if (!property) notFound();

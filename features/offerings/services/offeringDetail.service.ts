@@ -72,6 +72,7 @@ const isRecoPoiCategory = (value: unknown) =>
   value === "CLINIC_DAILY" ||
   value === "MART" ||
   value === "SUBWAY" ||
+  value === "HIGH_SPEED_RAIL" ||
   value === "SCHOOL" ||
   value === "DEPARTMENT_STORE" ||
   value === "SHOPPING_MALL";

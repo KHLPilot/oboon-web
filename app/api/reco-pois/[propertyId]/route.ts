@@ -70,6 +70,18 @@ export async function GET(
       };
     });
 
+  const high_speed_rail = rows
+    .filter((r) => r.category === "HIGH_SPEED_RAIL")
+    .map((r) => {
+      const distance = toFiniteNumber(r.distance_m) ?? 0;
+      return {
+        station_name: r.name,
+        lines: Array.isArray(r.subway_lines) ? r.subway_lines : [],
+        distance_m: distance,
+        walk_min: toWalkMin(distance),
+      };
+    });
+
   const schoolTabs: Record<
     Lowercase<SchoolLevel>,
     Array<{ name: string; distance_m: number }>
@@ -138,6 +150,7 @@ export async function GET(
     property_id: propertyId,
     fetched_at: fetchedAt ?? null,
     subway,
+    high_speed_rail,
     school_tabs: schoolTabs,
     mart,
     hospital,

@@ -33,7 +33,13 @@ import type {
   PropertyUnitTypeRow,
 } from "@/features/offerings/domain/offeringDetail.types";
 import { formatPriceRange } from "@/shared/price";
-import { getSubwayIconPath } from "@/features/reco/constants/subwayIconMap";
+import {
+  buildInfraSections,
+  getDisplayStationName,
+  getSubwayVisual,
+  HIGH_SPEED_RAIL_ICON_BG,
+  HIGH_SPEED_RAIL_ICON_PATH,
+} from "@/features/offerings/utils/infraSections";
 import { normalizeRetailPoiName } from "@/features/reco/utils/poiDisplay";
 
 /* ---------------- Utils ---------------- */
@@ -52,65 +58,6 @@ function pickFirstNonEmpty(...values: Array<string | null | undefined>) {
 function asArray<T>(v: T | T[] | null | undefined): T[] {
   if (!v) return [];
   return Array.isArray(v) ? v : [v];
-}
-
-const NON_RESIDENTIAL_PROPERTY_TYPE_KEYWORDS = [
-  "지식산업센터",
-  "상업시설",
-  "상가",
-  "오피스",
-  "업무시설",
-  "근린생활시설",
-  "공장",
-  "창고",
-] as const;
-
-const HIGH_SPEED_RAIL_ICON_PATH: Record<"KTX" | "SRT" | "ITX", string> = {
-  KTX: "/icons/subway/KTX-line.svg",
-  SRT: "/icons/subway/SRT-line.svg",
-  ITX: "/icons/subway/ITX-line.svg",
-};
-const HIGH_SPEED_RAIL_ICON_BG: Record<"KTX" | "SRT" | "ITX", string> = {
-  KTX: "#144999",
-  SRT: "#4C2F48",
-  ITX: "#30B141",
-};
-
-const HIGH_SPEED_RAIL_STATION_LINES: Record<
-  string,
-  Array<"KTX" | "SRT" | "ITX">
-> = {
-  서울역: ["KTX", "ITX"],
-  용산역: ["KTX", "ITX"],
-  청량리역: ["KTX", "ITX"],
-  영등포역: ["KTX", "ITX"],
-  수원역: ["KTX", "ITX"],
-};
-
-function isLivingInfraAllowed(propertyType: string | null | undefined) {
-  const normalized = (propertyType ?? "").replace(/\s+/g, "").toLowerCase();
-  if (!normalized) return true;
-  return !NON_RESIDENTIAL_PROPERTY_TYPE_KEYWORDS.some((keyword) =>
-    normalized.includes(keyword.replace(/\s+/g, "").toLowerCase()),
-  );
-}
-
-function normalizeStationName(name: string) {
-  return name
-    .replace(/\([^)]*\)/g, "")
-    .replace(/\s*[0-9]+호선/g, "")
-    .replace(
-      /\s*(경의중앙선|수인분당선|신분당선|경춘선|경강선|서해선|공항철도|KTX|SRT|ITX)\s*/gi,
-      " ",
-    )
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function isStationName(name: string) {
-  const normalized = normalizeStationName(name);
-  if (normalized.includes(" ")) return false;
-  return /역$/.test(normalized);
 }
 
 function firstRow<T>(v: T | T[] | null | undefined): T | null {
@@ -539,174 +486,14 @@ export default function OfferingDetailLeft({
     return `${rounded.toLocaleString("ko-KR")}m`;
   };
 
-  const sortedRecoPois = recoPois
-    .filter((poi) => poi && typeof poi.name === "string")
-    .sort((a, b) => {
-      if (a.category !== b.category)
-        return a.category.localeCompare(b.category);
-      if ((a.rank ?? 0) !== (b.rank ?? 0)) return (a.rank ?? 0) - (b.rank ?? 0);
-      return (
-        (toNumberOrNull(a.distance_m) ?? 0) -
-        (toNumberOrNull(b.distance_m) ?? 0)
-      );
-    });
-
-  const isRailStationPoi = (poi: PropertyRecoPoiRow) => {
-    if (!isStationName(poi.name)) return false;
-    if (
-      /(점|라운지|주차|주차타워|은행|카페|픽업|고객센터|atm|편의점|출구|렌터카|투루카|쏘카|g\s*car|아마노)/i.test(
-        poi.name,
-      )
-    ) {
-      return false;
-    }
-
-    if (Array.isArray(poi.subway_lines) && poi.subway_lines.length > 0) {
-      return true;
-    }
-
-    const source = `${poi.name} ${poi.category_name ?? ""}`;
-    return /철도|기차|지하철역|기차역|도시철도역|전철역|ktx|srt|itx|gtx|공항철도|[0-9]+호선|경의중앙선|수인분당선|신분당선|김포골드라인|에버라인/i.test(
-      source,
-    );
-  };
-
-  const subwayCandidatePois = sortedRecoPois.filter(
-    (poi) => poi.category === "SUBWAY" && isRailStationPoi(poi),
-  );
-  const extractHighSpeedRailLines = (poi: PropertyRecoPoiRow) => {
-    const source = `${poi.name} ${poi.category_name ?? ""}`;
-    const lines = new Set<"KTX" | "SRT" | "ITX">();
-    if (/ktx/i.test(source)) lines.add("KTX");
-    if (/srt/i.test(source)) lines.add("SRT");
-    if (/itx/i.test(source)) lines.add("ITX");
-
-    const stationName = normalizeStationName(poi.name);
-    const defaultLines = HIGH_SPEED_RAIL_STATION_LINES[stationName] ?? [];
-    for (const line of defaultLines) lines.add(line);
-
-    return Array.from(lines);
-  };
-
-  const isHighSpeedRailPoi = (poi: PropertyRecoPoiRow) =>
-    extractHighSpeedRailLines(poi).length > 0;
-
-  const highSpeedRailPois = Array.from(
-    subwayCandidatePois.reduce(
-      (acc, poi) => {
-        const stationName = normalizeStationName(poi.name);
-        const stationLines = extractHighSpeedRailLines(poi);
-        if (!stationLines || stationLines.length === 0) return acc;
-        const distance = toNumberOrNull(poi.distance_m);
-        const existing = acc.get(stationName);
-        if (!existing || (distance ?? Number.MAX_SAFE_INTEGER) < (existing.distanceM ?? Number.MAX_SAFE_INTEGER)) {
-          acc.set(stationName, {
-            stationName,
-            distanceM: distance,
-            lines: stationLines,
-          });
-        }
-        return acc;
-      },
-      new Map<
-        string,
-        {
-          stationName: string;
-          distanceM: number | null;
-          lines: Array<"KTX" | "SRT" | "ITX">;
-        }
-      >(),
-    ).values(),
-  ).sort((a, b) => (a.distanceM ?? Number.MAX_SAFE_INTEGER) - (b.distanceM ?? Number.MAX_SAFE_INTEGER));
-  const subwayPois = subwayCandidatePois.filter((poi) => !isHighSpeedRailPoi(poi));
-  const allowLivingInfra = isLivingInfraAllowed(property.property_type);
-  const schoolPois = allowLivingInfra
-    ? sortedRecoPois.filter((poi) => poi.category === "SCHOOL")
-    : [];
-  const hospitalPois = allowLivingInfra
-    ? sortedRecoPois.filter((poi) => poi.category === "HOSPITAL")
-    : [];
-  const clinicDailyPois = allowLivingInfra
-    ? sortedRecoPois.filter((poi) => poi.category === "CLINIC_DAILY")
-    : [];
-  const combinedHospitalPois = [...hospitalPois, ...clinicDailyPois]
-    .slice()
-    .sort((a, b) => {
-      const aDistance = toNumberOrNull(a.distance_m) ?? Number.MAX_SAFE_INTEGER;
-      const bDistance = toNumberOrNull(b.distance_m) ?? Number.MAX_SAFE_INTEGER;
-      if (aDistance !== bDistance) return aDistance - bDistance;
-      return a.name.localeCompare(b.name);
-    });
-  const retailPois = sortedRecoPois
-    .filter(
-      (poi) =>
-        poi.category === "MART" ||
-        poi.category === "DEPARTMENT_STORE" ||
-        poi.category === "SHOPPING_MALL",
-    )
-    .slice()
-    .sort((a, b) => {
-      const aDistance = toNumberOrNull(a.distance_m) ?? Number.MAX_SAFE_INTEGER;
-      const bDistance = toNumberOrNull(b.distance_m) ?? Number.MAX_SAFE_INTEGER;
-      if (aDistance !== bDistance) return aDistance - bDistance;
-      return a.name.localeCompare(b.name);
-    });
-
-  const visibleInfraSections = [
-    subwayPois.length > 0 ? "SUBWAY" : null,
-    highSpeedRailPois.length > 0 ? "HIGH_SPEED_RAIL" : null,
-    schoolPois.length > 0 ? "SCHOOL" : null,
-    retailPois.length > 0 ? "RETAIL" : null,
-    combinedHospitalPois.length > 0 ? "HOSPITAL" : null,
-  ].filter(Boolean).length;
-
-  const extractSubwayPrimaryLine = (poi: PropertyRecoPoiRow) => {
-    const lines =
-      Array.isArray(poi.subway_lines) && poi.subway_lines.length > 0
-        ? poi.subway_lines
-        : [];
-    if (lines[0]) return lines[0];
-
-    const gtx = poi.name.match(/gtx\s*-?\s*([a-d])/i);
-    if (gtx?.[1]) return `GTX-${gtx[1].toUpperCase()}`;
-
-    const namedPrimary = poi.name.match(
-      /(공항철도|인천공항철도|용인에버라인|에버라인|김포골드라인|김포도시철도|수인분당선|신분당선|경의중앙선|경춘선|경강선|서해선|신림선|신안산선|우이신설선|의정부경전철|동해선|동북선|위례선|대경선|동탄인덕원선|대장홍대선|대구산업선)/,
-    );
-    if (namedPrimary?.[1]) return namedPrimary[1];
-
-    const namedLineCandidates =
-      poi.name.match(/[가-힣A-Za-z0-9-]+(?:[0-9]+호선|선)/g) ?? [];
-    const namedLine = namedLineCandidates.find((candidate) =>
-      Boolean(getSubwayIconPath(candidate)),
-    );
-    if (namedLine) return namedLine;
-
-    const fromName = poi.name.match(/([0-9]+)호선/);
-    return fromName ? `${fromName[1]}호선` : null;
-  };
-
-  const stripLineSuffixFromName = (name: string) =>
-    name.replace(/\s*[0-9]+호선/g, "").trim();
-
-  const stripLineFromStationName = (name: string, line: string | null) => {
-    if (!line) return stripLineSuffixFromName(name);
-    if (/^GTX-[A-D]$/i.test(line)) {
-      return stripLineSuffixFromName(
-        name.replace(/GTX\s*-?\s*[A-D]/gi, ""),
-      ).trim();
-    }
-    const escaped = line.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    return stripLineSuffixFromName(
-      name.replace(new RegExp(`\\s*${escaped}`, "gi"), ""),
-    ).trim();
-  };
-
-  const getSubwayVisual = (poi: PropertyRecoPoiRow) => {
-    const primary = extractSubwayPrimaryLine(poi);
-    const iconPath = getSubwayIconPath(primary ?? poi.name);
-    return { primary, iconPath };
-  };
+  const {
+    subwayPois,
+    highSpeedRailPois,
+    schoolPois,
+    retailPois,
+    combinedHospitalPois,
+    visibleInfraSections,
+  } = buildInfraSections(recoPois, property.property_type);
 
   const renderPoiChips = (
     pois: PropertyRecoPoiRow[],
@@ -974,9 +761,11 @@ export default function OfferingDetailLeft({
                         const distance = toNumberOrNull(poi.distance_m);
                         const walkMin = Math.ceil((distance ?? 0) / 80);
                         const { primary, iconPath } = getSubwayVisual(poi);
-                        const stationName = iconPath
-                          ? stripLineFromStationName(poi.name, primary)
-                          : poi.name.trim();
+                        const stationName = getDisplayStationName(
+                          poi,
+                          primary,
+                          iconPath,
+                        );
                         const lineSuffix = !iconPath && primary ? ` ${primary}` : "";
                         return `${stationName}${lineSuffix} · ${fmtDistance(distance)}/도보 ${walkMin}분`;
                       },

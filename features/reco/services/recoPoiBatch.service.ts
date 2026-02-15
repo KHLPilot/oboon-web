@@ -28,6 +28,13 @@ const HOSPITAL_SEARCH_PAGES = 4;
 const KAKAO_MAX_PAGES = 45;
 const OUTLET_KEYWORDS = ["아울렛", "롯데아울렛", "현대아울렛", "신세계아울렛"] as const;
 const RAIL_KEYWORDS = ["KTX역", "SRT역", "ITX역", "기차역"] as const;
+const HIGH_SPEED_RAIL_STATIONS = new Set([
+  "서울역",
+  "용산역",
+  "청량리역",
+  "영등포역",
+  "수원역",
+]);
 const DEFAULT_CHUNK = 50;
 const DEFAULT_CONCURRENCY = 3;
 const MAX_RETRY = 3;
@@ -77,17 +84,23 @@ function byDistanceAsc(a: KakaoPlace, b: KakaoPlace) {
   return Number(a.distance ?? 0) - Number(b.distance ?? 0);
 }
 
-function isStationName(name: string) {
+function toStationToken(name: string) {
   const normalized = name
     .replace(/\([^)]*\)/g, "")
     .replace(
-      /\s*(경의중앙선|수인분당선|신분당선|경춘선|경강선|서해선|공항철도|KTX|SRT|ITX|GTX-[A-D]|[0-9]+호선)\s*/gi,
+      /\s*(경의중앙선|수인분당선|신분당선|경춘선|경강선|서해선|공항철도|인천공항철도|용인에버라인|에버라인|김포골드라인|김포도시철도|KTX|SRT|ITX|GTX-[A-D]|[0-9]+호선)\s*/gi,
       " ",
     )
     .replace(/\s+/g, " ")
     .trim();
-  if (normalized.includes(" ")) return false;
-  return /역$/.test(normalized);
+  if (!normalized) return "";
+  const stationToken = normalized.split(" ").at(-1) ?? normalized;
+  return stationToken;
+}
+
+function isStationName(name: string) {
+  const stationToken = toStationToken(name);
+  return /역$/.test(stationToken);
 }
 
 function isLikelyRailStationPlace(place: KakaoPlace) {
@@ -107,6 +120,35 @@ function isLikelyRailStationPlace(place: KakaoPlace) {
     /ktx|srt|itx|gtx|공항철도/i.test(name) ||
     /ktx|srt|itx|gtx|공항철도/i.test(categoryName)
   );
+}
+
+function classifyTransitCategory(
+  place: KakaoPlace,
+): "SUBWAY" | "HIGH_SPEED_RAIL" | null {
+  const name = place.place_name ?? "";
+  const categoryName = place.category_name ?? "";
+  const source = `${name} ${categoryName}`;
+  const stationToken = toStationToken(name);
+
+  if (!isLikelyRailStationPlace(place)) return null;
+
+  if (
+    (/ktx|srt|itx/i.test(source) || HIGH_SPEED_RAIL_STATIONS.has(stationToken)) &&
+    !/공항철도/.test(source)
+  ) {
+    return "HIGH_SPEED_RAIL";
+  }
+
+  if (
+    place.category_group_code === "SW8" ||
+    /지하철|전철|호선|골드라인|에버라인|경의중앙선|수인분당선|신분당선|공항철도/.test(
+      source,
+    )
+  ) {
+    return "SUBWAY";
+  }
+
+  return null;
 }
 
 function isLivingInfraAllowed(propertyType: string | null | undefined) {
@@ -163,6 +205,7 @@ function buildEmptyStats(): BatchStats {
       CLINIC_DAILY: 0,
       MART: 0,
       SUBWAY: 0,
+      HIGH_SPEED_RAIL: 0,
       SCHOOL: 0,
       DEPARTMENT_STORE: 0,
       SHOPPING_MALL: 0,
@@ -404,6 +447,79 @@ async function processProperty(params: {
       continue;
     }
 
+    if (category === "SUBWAY") {
+      const transitBuckets: Record<"SUBWAY" | "HIGH_SPEED_RAIL", KakaoPlace[]> =
+        {
+          SUBWAY: [],
+          HIGH_SPEED_RAIL: [],
+        };
+
+      for (const place of dedupedRawPlaces) {
+        const transitCategory = classifyTransitCategory(place);
+        if (!transitCategory) continue;
+        transitBuckets[transitCategory].push(place);
+      }
+
+      const transitTargets: Array<"SUBWAY" | "HIGH_SPEED_RAIL"> = [
+        "SUBWAY",
+        "HIGH_SPEED_RAIL",
+      ];
+
+      for (const transitCategory of transitTargets) {
+        const places = transitBuckets[transitCategory].slice().sort(byDistanceAsc);
+        const rows: PoiUpsertRow[] = [];
+
+        for (let i = 0; i < places.length; i += 1) {
+          const p = places[i];
+          const distance = toFiniteNumber(p.distance);
+          if (distance == null) continue;
+
+          const row: PoiUpsertRow = {
+            property_id: propertyId,
+            category: transitCategory,
+            rank: i + 1,
+            kakao_place_id: p.id,
+            name: p.place_name,
+            distance_m: Math.max(0, Math.round(distance)),
+            lat: toFiniteNumber(p.y),
+            lng: toFiniteNumber(p.x),
+            address: p.address_name || null,
+            road_address: p.road_address_name || null,
+            phone: p.phone || null,
+            place_url: p.place_url || null,
+            category_name: p.category_name || null,
+            fetched_at: now,
+            raw_kakao: p as unknown as Record<string, unknown>,
+            subway_lines: null,
+            subway_station_code: null,
+            raw_public: null,
+            school_level: null,
+            updated_at: now,
+          };
+
+          const enriched = await withRetry(() =>
+            enrichSubwayLines({ stationName: p.place_name }),
+          );
+          row.subway_lines = enriched.lines.length > 0 ? enriched.lines : null;
+          row.subway_station_code = enriched.stationCode;
+          row.raw_public = enriched.rawPublic;
+
+          rows.push(row);
+        }
+
+        const inserted = await upsertCategoryRows({
+          supabase,
+          propertyId,
+          category: transitCategory,
+          rows,
+        });
+        stats.upsertedRows += inserted;
+        stats.categoryCounts[transitCategory] += inserted;
+      }
+
+      continue;
+    }
+
     const places = dedupedRawPlaces;
 
     const rows: PoiUpsertRow[] = [];
@@ -437,15 +553,6 @@ async function processProperty(params: {
 
       if (category === "SCHOOL") {
         row.school_level = mapSchoolLevelFromCategoryName(p.category_name);
-      }
-
-      if (category === "SUBWAY") {
-        const enriched = await withRetry(() =>
-          enrichSubwayLines({ stationName: p.place_name }),
-        );
-        row.subway_lines = enriched.lines.length > 0 ? enriched.lines : null;
-        row.subway_station_code = enriched.stationCode;
-        row.raw_public = enriched.rawPublic;
       }
 
       rows.push(row);
