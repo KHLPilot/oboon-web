@@ -1,10 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 import TermsConsentModal from "@/features/auth/components/TermsConsentModal";
 
+/** 약관 동의 모달을 표시하지 않을 경로 (온보딩/회원가입 페이지는 자체 약관 UI 보유) */
+const EXCLUDED_PATHS = ["/auth/signup", "/auth/onboarding"];
+
 export default function TermsConsentProvider() {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [missingTermTypes, setMissingTermTypes] = useState<string[]>([]);
 
@@ -30,6 +35,10 @@ export default function TermsConsentProvider() {
       }
     };
 
+    // 제외 경로에서는 약관 체크 스킵
+    const isExcluded = EXCLUDED_PATHS.some((p) => pathname.startsWith(p));
+    if (isExcluded) return;
+
     // 초기 세션 체크
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
@@ -53,7 +62,7 @@ export default function TermsConsentProvider() {
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [pathname]);
 
   const handleConsent = () => {
     setOpen(false);
