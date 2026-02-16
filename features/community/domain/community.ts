@@ -39,12 +39,14 @@ export type CommunityPostRow = {
   propertyName: string;
   title: string;
   body: string;
+  authorId?: string | null;
   authorName: string;
   authorAvatarUrl?: string | null;
   likes: number;
   comments: number;
   isLiked: boolean;
   isBookmarked: boolean;
+  isMine: boolean;
   createdAt: string;
 };
 
@@ -61,6 +63,7 @@ export type CommunityPostViewModel = {
   comments: number;
   isLiked: boolean;
   isBookmarked: boolean;
+  isMine: boolean;
   timeLabel: string;
 };
 

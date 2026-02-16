@@ -14,11 +14,13 @@ import { mapCommunityPost } from "../../mappers/community.mapper";
 import { getCommunityAuthStatus } from "../../services/community.meta";
 import {
   createCommunityComment,
+  deleteCommunityPost,
   getCommunityFeed as getCommunityFeedPosts,
   getCommunityComments,
   toggleCommunityCommentLike,
   toggleCommunityBookmark,
   toggleCommunityLike,
+  updateCommunityPost,
   type CommunityComment,
 } from "../../services/community.posts";
 import CommunityPostCard from "./CommunityPostCard";
@@ -327,6 +329,49 @@ export default function CommunityFeed() {
     } finally {
       setCommentLikeLoadingId(null);
     }
+  };
+
+  const handleEditPost = async (postId: string) => {
+    const target = posts.find((post) => post.id === postId);
+    if (!target) return;
+
+    const nextTitle = window.prompt("제목을 수정하세요.", target.title)?.trim();
+    if (!nextTitle) return;
+    const nextBody = window.prompt("내용을 수정하세요.", target.body)?.trim();
+    if (!nextBody) return;
+
+    const result = await updateCommunityPost(postId, {
+      title: nextTitle,
+      body: nextBody,
+    });
+    if (!result.ok) {
+      showAlert(result.message);
+      return;
+    }
+
+    setPosts((prev) =>
+      prev.map((post) =>
+        post.id === postId
+          ? {
+              ...post,
+              title: nextTitle,
+              body: nextBody,
+            }
+          : post,
+      ),
+    );
+  };
+
+  const handleDeletePost = async (postId: string) => {
+    if (!window.confirm("이 글을 삭제하시겠습니까?")) return;
+
+    const result = await deleteCommunityPost(postId);
+    if (!result.ok) {
+      showAlert(result.message);
+      return;
+    }
+
+    setPosts((prev) => prev.filter((post) => post.id !== postId));
   };
 
   const renderCommentsPanel = (postId: string) => {
@@ -667,6 +712,10 @@ export default function CommunityFeed() {
             <CommunityPostCard
               key={post.id}
               post={post}
+              canEdit={post.isMine}
+              canDelete={post.isMine || userRole === "admin"}
+              onEdit={() => void handleEditPost(post.id)}
+              onDelete={() => void handleDeletePost(post.id)}
               onToggleLike={() => void handleToggleLike(post.id)}
               onToggleBookmark={() => void handleToggleBookmark(post.id)}
               onToggleComments={() => void handleToggleComments(post.id)}

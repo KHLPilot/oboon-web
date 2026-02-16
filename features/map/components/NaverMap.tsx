@@ -5,7 +5,10 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 
 import { loadNaverMaps } from "@/features/map/services/naver.loader";
 import type { MarkerType } from "@/features/map/domain/marker/marker.type";
-import { iconFor, type MarkerState } from "@/features/map/domain/marker/marker.icon";
+import {
+  iconFor,
+  type MarkerState,
+} from "@/features/map/domain/marker/marker.icon";
 
 export interface MapMarker {
   id: number;
@@ -13,6 +16,8 @@ export interface MapMarker {
   lat: number;
   lng: number;
   type: MarkerType;
+  isCluster?: boolean;
+  clusterRegion?: string | null;
   topLabel?: string | null;
   mainLabel?: string | null;
 }
@@ -39,6 +44,50 @@ type MapClickEvent = {
   coord?: MapEventLatLngLike;
   latlng?: MapEventLatLngLike;
 };
+
+const REGION_CLUSTER_ZOOM_THRESHOLD = 10;
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function clusterLabelIconFor(args: { label: string; state: MarkerState }) {
+  const safeLabel = escapeHtml(args.label);
+  const scale =
+    args.state === "focus" ? 1.05 : args.state === "hover" ? 1.02 : 1;
+  const ring =
+    args.state === "focus"
+      ? "0 0 0 4px var(--oboon-focus-ring)"
+      : "0 0 0 0 transparent";
+
+  return `
+    <div style="
+      position:absolute;
+      left:0; top:0;
+      transform: translate(-50%, -50%) scale(${scale});
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 2px solid var(--oboon-primary);
+      background: color-mix(in srgb, var(--oboon-bg-default) 70%, transparent);
+      color: var(--oboon-text-title);
+      font-size: 13px;
+      font-weight: 800;
+      line-height: 1;
+      white-space: nowrap;
+      box-shadow:
+        ${ring},
+        0 4px 14px var(--oboon-map-shadow-strong);
+      pointer-events:auto;
+    ">
+      ${safeLabel}
+    </div>
+  `;
+}
 
 const NaverMap = forwardRef<
   NaverMapHandle,
@@ -83,6 +132,7 @@ const NaverMap = forwardRef<
 
     // 최신 markers 스냅샷 (id -> marker data)
     const markerDataByIdRef = useRef<Map<number, MapMarker>>(new Map());
+    const sourceMarkersRef = useRef<MapMarker[]>(markers);
     // 실제 네이버 마커 인스턴스 (id -> naver.maps.Marker)
     const markerByIdRef = useRef<Map<number, NaverMarkerInstance>>(new Map());
 
@@ -109,15 +159,16 @@ const NaverMap = forwardRef<
     showFocusedAsRichRef.current = showFocusedAsRich;
     const applyMarkerStyleByIdRef = useRef<
       (naverObj: NaverGlobal, id: number) => void
-    >(
-      () => {},
-    );
-    const applyFocusHoverDeltaStylesRef = useRef<(naverObj: NaverGlobal) => void>(
-      () => {},
-    );
+    >(() => {});
+    const applyFocusHoverDeltaStylesRef = useRef<
+      (naverObj: NaverGlobal) => void
+    >(() => {});
     const fitMapToMarkersRef = useRef<
       (naverObj: NaverGlobal, next: MapMarker[], force?: boolean) => void
     >(() => {});
+    const refreshDisplayMarkersRef = useRef<(naverObj: NaverGlobal) => void>(
+      () => {},
+    );
 
     // 콜백 Ref
     const callbacksRef = useRef({
@@ -148,6 +199,77 @@ const NaverMap = forwardRef<
       return richMarkerIdsRef.current.includes(m.id);
     }
 
+    function normalizeRegionLabel(raw: string | null | undefined) {
+      const value = (raw ?? "").trim();
+      if (!value) return "기타";
+      if (value.includes("서울")) return "서울";
+      if (value.includes("경기")) return "경기";
+      if (value.includes("인천")) return "인천";
+      if (value.includes("부산")) return "부산";
+      if (value.includes("대구")) return "대구";
+      if (value.includes("대전")) return "대전";
+      if (value.includes("광주")) return "광주";
+      if (value.includes("울산")) return "울산";
+      if (value.includes("세종")) return "세종";
+      if (value.includes("강원")) return "강원";
+      if (value.includes("충북")) return "충북";
+      if (value.includes("충남")) return "충남";
+      if (value.includes("전북")) return "전북";
+      if (value.includes("전남")) return "전남";
+      if (value.includes("경북")) return "경북";
+      if (value.includes("경남")) return "경남";
+      if (value.includes("제주")) return "제주";
+      return (
+        value
+          .replace(
+            /특별자치시|특별자치도|특별시|광역시|자치시|자치도|도|시/g,
+            "",
+          )
+          .trim() || value
+      );
+    }
+
+    function buildRegionClusterMarkers(input: MapMarker[]): MapMarker[] {
+      const groups = new Map<
+        string,
+        { region: string; count: number; latSum: number; lngSum: number }
+      >();
+
+      input.forEach((m) => {
+        const region = normalizeRegionLabel(m.clusterRegion ?? m.topLabel);
+        const acc = groups.get(region);
+        if (!acc) {
+          groups.set(region, {
+            region,
+            count: 1,
+            latSum: m.lat,
+            lngSum: m.lng,
+          });
+          return;
+        }
+        acc.count += 1;
+        acc.latSum += m.lat;
+        acc.lngSum += m.lng;
+      });
+
+      return Array.from(groups.values()).map((g, idx) => ({
+        id: -100000 - idx,
+        label: `${g.region} ${g.count}건`,
+        lat: g.latSum / g.count,
+        lng: g.lngSum / g.count,
+        type: "agent",
+        isCluster: true,
+        clusterRegion: g.region,
+        topLabel: g.region,
+        mainLabel: `${g.count}건`,
+      }));
+    }
+
+    function shouldUseRegionCluster(map: naver.maps.Map) {
+      if (mode === "select") return false;
+      return map.getZoom() <= REGION_CLUSTER_ZOOM_THRESHOLD;
+    }
+
     function applyMarkerStyleById(naverObj: NaverGlobal, id: number) {
       const map = mapRef.current;
       if (!map) return;
@@ -165,14 +287,19 @@ const NaverMap = forwardRef<
           : "default";
       const isRich = shouldBeRich(m);
 
-      const icon = iconFor({
-        type: m.type,
-        state,
-        viewType: isRich ? "rich" : "compact",
-        label: m.label,
-        topLabel: m.topLabel,
-        mainLabel: m.mainLabel,
-      });
+      const icon = m.isCluster
+        ? clusterLabelIconFor({
+            label: m.label || `${m.clusterRegion ?? "권역"} 집계`,
+            state,
+          })
+        : iconFor({
+            type: m.type,
+            state,
+            viewType: isRich ? "rich" : "compact",
+            label: m.label,
+            topLabel: m.topLabel,
+            mainLabel: m.mainLabel,
+          });
 
       mk.setIcon({
         content: icon,
@@ -216,8 +343,9 @@ const NaverMap = forwardRef<
       const bounds = map.getBounds();
       const visibleIds: number[] = [];
 
-      markerByIdRef.current.forEach((mk, id) => {
-        if (bounds.hasLatLng(mk.getPosition())) visibleIds.push(id);
+      sourceMarkersRef.current.forEach((m) => {
+        const latLng = new naver.maps.LatLng(m.lat, m.lng);
+        if (bounds.hasLatLng(latLng)) visibleIds.push(m.id);
       });
 
       visibleIds.sort((a, b) => a - b);
@@ -318,7 +446,11 @@ const NaverMap = forwardRef<
     }
     fitMapToMarkersRef.current = fitMapToMarkers;
 
-    function upsertMarkers(next: MapMarker[], map: naver.maps.Map, naverObj: NaverGlobal) {
+    function upsertMarkers(
+      next: MapMarker[],
+      map: naver.maps.Map,
+      naverObj: NaverGlobal,
+    ) {
       const nextIds = new Set<number>();
       for (const m of next) nextIds.add(m.id);
 
@@ -353,6 +485,11 @@ const NaverMap = forwardRef<
               event.domEvent.preventDefault();
               event.domEvent.stopPropagation();
             }
+            if (m.isCluster) {
+              map.setZoom(map.getZoom() + 2, true);
+              map.panTo(new naverObj.maps.LatLng(m.lat, m.lng));
+              return;
+            }
             callbacksRef.current.onMarkerSelect?.(m.id);
           });
           naverObj.maps.Event.addListener(mk, "mouseover", () =>
@@ -386,6 +523,18 @@ const NaverMap = forwardRef<
       scheduleVisibleSync();
     }
 
+    function refreshDisplayMarkers(naverObj: NaverGlobal) {
+      const map = mapRef.current;
+      if (!map) return;
+
+      const base = sourceMarkersRef.current;
+      const next = shouldUseRegionCluster(map)
+        ? buildRegionClusterMarkers(base)
+        : base;
+      upsertMarkers(next, map, naverObj);
+    }
+    refreshDisplayMarkersRef.current = refreshDisplayMarkers;
+
     useImperativeHandle(ref, () => ({
       zoomIn: () => {
         const m = mapRef.current;
@@ -404,10 +553,7 @@ const NaverMap = forwardRef<
       refreshMarkers: () => {
         const naverObj = window.naver;
         if (!naverObj?.maps) return;
-        // 강제 전체 리프레시가 필요할 때만 호출
-        markerByIdRef.current.forEach((_mk, id) =>
-          applyMarkerStyleById(naverObj, id),
-        );
+        refreshDisplayMarkersRef.current(naverObj);
       },
     }));
 
@@ -442,11 +588,7 @@ const NaverMap = forwardRef<
               // resize 직후 가시영역/스타일 동기화
               scheduleVisibleSync();
               applyFocusHoverDeltaStyles(naverObj);
-              fitMapToMarkers(
-                naverObj,
-                Array.from(markerDataByIdRef.current.values()),
-                true,
-              );
+              fitMapToMarkers(naverObj, sourceMarkersRef.current, true);
             });
           });
           // 일부 iOS에서 1회 더 필요할 때가 있어 보수적으로 1번만 추가
@@ -460,17 +602,16 @@ const NaverMap = forwardRef<
 
             scheduleVisibleSync();
             applyFocusHoverDeltaStyles(naverObj);
-            fitMapToMarkers(
-              naverObj,
-              Array.from(markerDataByIdRef.current.values()),
-              true,
-            );
+            fitMapToMarkers(naverObj, sourceMarkersRef.current, true);
           }, 250);
         };
         triggerInitialResize();
 
-      if (markers.length > 0) upsertMarkers(markers, map, naverObj);
-      if (markers.length > 0) fitMapToMarkers(naverObj, markers);
+        sourceMarkersRef.current = markers;
+        if (markers.length > 0) {
+          refreshDisplayMarkers(naverObj);
+          fitMapToMarkers(naverObj, markers);
+        }
 
         const clickListener = naverObj.maps.Event.addListener(
           map,
@@ -511,18 +652,24 @@ const NaverMap = forwardRef<
           },
         );
 
-        const idleListener = naverObj.maps.Event.addListener(map, "idle", () => {
-          isInteractingRef.current = false;
-          scheduleVisibleSync();
-          // idle에서 델타만 반영 (전체 loop 금지)
-          applyFocusHoverDeltaStyles(naverObj);
-        });
+        const idleListener = naverObj.maps.Event.addListener(
+          map,
+          "idle",
+          () => {
+            isInteractingRef.current = false;
+            refreshDisplayMarkersRef.current(naverObj);
+            scheduleVisibleSync();
+            // idle에서 델타만 반영 (전체 loop 금지)
+            applyFocusHoverDeltaStyles(naverObj);
+          },
+        );
 
         const zoomListener = naverObj.maps.Event.addListener(
           map,
           "zoom_changed",
           () => {
             isInteractingRef.current = true;
+            refreshDisplayMarkersRef.current(naverObj);
             // 현 정책상 focused만 갱신하면 충분
             const fid = focusedIdRef.current;
             if (fid) applyMarkerStyleById(naverObj, fid);
@@ -542,9 +689,7 @@ const NaverMap = forwardRef<
         const naverObj = window.naver;
         const listeners = [...mountedListeners];
         if (naverObj?.maps) {
-          listeners.forEach((l) =>
-            naverObj.maps.Event.removeListener(l),
-          );
+          listeners.forEach((l) => naverObj.maps.Event.removeListener(l));
         }
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -565,11 +710,7 @@ const NaverMap = forwardRef<
           applyMarkerStyleByIdRef.current(naverObj, id);
         });
 
-        fitMapToMarkersRef.current(
-          naverObj,
-          Array.from(markerDataByIdRef.current.values()),
-          true,
-        );
+        fitMapToMarkersRef.current(naverObj, sourceMarkersRef.current, true);
       };
 
       window.addEventListener("pageshow", forceRefresh);
@@ -585,13 +726,16 @@ const NaverMap = forwardRef<
     useEffect(() => {
       const naverObj = window.naver;
       const map = mapRef.current;
+      sourceMarkersRef.current = markers;
 
       if (naverObj?.maps && map) {
-        upsertMarkers(markers, map, naverObj);
+        refreshDisplayMarkersRef.current(naverObj);
         fitMapToMarkers(naverObj, markers);
       } else {
         // 지도 준비 전 스냅샷만 갱신
-        markerDataByIdRef.current = new Map(markers.map((m) => [m.id, m]));
+        markerDataByIdRef.current = new Map(
+          sourceMarkersRef.current.map((m) => [m.id, m]),
+        );
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [markers]);
@@ -609,7 +753,9 @@ const NaverMap = forwardRef<
       if (!map || !focusedId || lastFocusedIdRef.current === focusedId) return;
       if (fitToMarkers && markers.length > 1) return;
 
-      const target = markerDataByIdRef.current.get(focusedId);
+      const target =
+        sourceMarkersRef.current.find((m) => m.id === focusedId) ??
+        markerDataByIdRef.current.get(focusedId);
       if (!target) return;
 
       const naverObj = window.naver;
@@ -638,7 +784,9 @@ const NaverMap = forwardRef<
     return (
       <div className="relative w-full h-full">
         <div ref={mapContainerRef} className="w-full h-full" />
-        {!interactive ? <div className="absolute inset-0 z-10" aria-hidden="true" /> : null}
+        {!interactive ? (
+          <div className="absolute inset-0 z-10" aria-hidden="true" />
+        ) : null}
       </div>
     );
   },

@@ -37,6 +37,7 @@ export function mapCommunityPost(
     comments: row.comments,
     isLiked: row.isLiked,
     isBookmarked: row.isBookmarked,
+    isMine: row.isMine,
     timeLabel: formatTimeLabel(row.createdAt),
   };
 }

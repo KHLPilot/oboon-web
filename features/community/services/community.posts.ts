@@ -101,15 +101,17 @@ const mapPostRow = (row: CommunityPostWithAuthorDbRow): CommunityPostRow => {
   return {
     id: row.id,
     status: uiStatus,
-    propertyName: row.property_name || "현장",
+    propertyName: row.property_name?.trim() ?? "",
     title: row.title ?? "",
     body: row.body ?? "",
+    authorId: row.author_profile_id,
     authorName: isAnonymous ? anonymousName : authorDisplayName,
     authorAvatarUrl: isAnonymous ? null : (row.author_avatar_url ?? null),
     likes: row.like_count ?? 0,
     comments: row.comment_count ?? 0,
     isLiked: false,
     isBookmarked: false,
+    isMine: false,
     createdAt: row.created_at ?? new Date().toISOString(),
   };
 };
@@ -317,6 +319,7 @@ async function attachViewerReactions(
     ...row,
     isLiked: likedSet.has(row.id),
     isBookmarked: bookmarkedSet.has(row.id),
+    isMine: row.authorId === user.id,
   }));
 }
 
@@ -635,6 +638,9 @@ type ToggleBookmarkResult =
   | { ok: true; bookmarked: boolean }
   | { ok: false; message: string };
 
+type UpdateCommunityPostResult = { ok: true } | { ok: false; message: string };
+type DeleteCommunityPostResult = { ok: true } | { ok: false; message: string };
+
 export type CommunityComment = {
   id: string;
   body: string;
@@ -692,6 +698,45 @@ export async function toggleCommunityBookmark(
     ok: true,
     bookmarked: Boolean(data?.bookmarked),
   };
+}
+
+export async function updateCommunityPost(
+  postId: string,
+  input: { title: string; body: string },
+): Promise<UpdateCommunityPostResult> {
+  const response = await fetch(`/api/community/posts/${postId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const data = await response.json();
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      message: String(data?.error ?? "게시글 수정에 실패했습니다."),
+    };
+  }
+
+  return { ok: true };
+}
+
+export async function deleteCommunityPost(
+  postId: string,
+): Promise<DeleteCommunityPostResult> {
+  const response = await fetch(`/api/community/posts/${postId}`, {
+    method: "DELETE",
+  });
+  const data = await response.json();
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      message: String(data?.error ?? "게시글 삭제에 실패했습니다."),
+    };
+  }
+
+  return { ok: true };
 }
 
 type LoadCommentsResult =

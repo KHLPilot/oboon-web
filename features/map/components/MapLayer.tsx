@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Layers, ChevronDown, ChevronUp } from "lucide-react";
-import type { MarkerType } from "@/features/map/domain/marker/marker.type";
+import type { MarkerLayer } from "@/features/map/domain/marker/marker.type";
 import {
   MARKER_TYPES,
   MARKER_TYPE_LABEL,
@@ -10,8 +10,8 @@ import {
 import { markerVars } from "@/features/map/domain/marker/marker.theme";
 
 interface LayerControlProps {
-  filters: Record<MarkerType, boolean>;
-  onToggle: (key: MarkerType) => void;
+  filters: Record<MarkerLayer, boolean>;
+  onToggle: (key: MarkerLayer) => void;
 }
 
 export default function LayerControl({ filters, onToggle }: LayerControlProps) {
@@ -42,7 +42,7 @@ export default function LayerControl({ filters, onToggle }: LayerControlProps) {
       >
         <div className="flex items-center gap-2 text-xs font-semibold">
           <Layers className="w-4 h-4" />
-          지도 레이어
+          현장 유형 필터
         </div>
         {isOpen ? (
           <ChevronUp className="w-4 h-4" />
@@ -76,6 +76,9 @@ export default function LayerControl({ filters, onToggle }: LayerControlProps) {
               {MARKER_TYPE_LABEL[key]}
             </label>
           ))}
+          <p className="pt-1 ob-typo-caption text-(--oboon-text-muted)">
+            보조 안내: 둘 다 해당 시 초록 마커로 표시됩니다.
+          </p>
         </div>
       )}
     </div>

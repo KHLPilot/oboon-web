@@ -14,7 +14,9 @@ import NaverMap, {
   type NaverMapHandle,
   type MapMarker,
 } from "@/features/map/components/NaverMap";
-import type { MarkerType } from "@/features/map/domain/marker/marker.type";
+import type {
+  MarkerLayer,
+} from "@/features/map/domain/marker/marker.type";
 
 import LayerControl from "@/features/map/components/MapLayer";
 import MapOfferingCompactList, {
@@ -30,19 +32,19 @@ import {
 
 import { createSupabaseClient } from "@/lib/supabaseClient";
 
-const INITIAL_FILTERS: Record<MarkerType, boolean> = {
-  ready: true,
-  open: true,
-  closed: true,
+const INITIAL_FILTERS: Record<MarkerLayer, boolean> = {
+  agent: true,
+  valuation: true,
 };
 
 function toMarker(m: DbOffering): MapMarker {
   return {
     id: m.id,
-    type: m.type as MarkerType,
+    type: m.type,
     label: m.title,
     lat: m.lat,
     lng: m.lng,
+    clusterRegion: m.regionSido,
     topLabel: m.region,
     mainLabel: formatPriceRange(m.priceMinWon, m.priceMaxWon, {
       unknownLabel: m.isPricePrivate
@@ -68,7 +70,7 @@ function toCompactItem(m: DbOffering): MapOfferingCompactItem {
 
 export default function MapPageClient() {
   const [filters, setFilters] =
-    useState<Record<MarkerType, boolean>>(INITIAL_FILTERS);
+    useState<Record<MarkerLayer, boolean>>(INITIAL_FILTERS);
 
   const [all, setAll] = useState<DbOffering[]>([]);
   // null = 아직 지도 가시영역 계산 전(초기 상태)
@@ -104,8 +106,31 @@ export default function MapPageClient() {
       const visibleRows = snapshots
         .map((row) => row.snapshot)
         .filter(Boolean) as unknown as MapPropertyRow[];
+      const propertyIds = visibleRows
+        .map((row) => Number(row.id))
+        .filter((id): id is number => Number.isFinite(id));
 
-      const mapped = mapPropertyRowsToDbOfferings(visibleRows);
+      let approvedAgentPropertySet = new Set<number>();
+      if (propertyIds.length > 0) {
+        const { data: agentRows } = await supabase
+          .from("property_agents")
+          .select("property_id")
+          .eq("status", "approved")
+          .in("property_id", propertyIds);
+
+        approvedAgentPropertySet = new Set(
+          (agentRows ?? [])
+            .map((row) => Number(row.property_id))
+            .filter((id): id is number => Number.isFinite(id)),
+        );
+      }
+
+      const enrichedRows = visibleRows.map((row) => ({
+        ...row,
+        has_agent: approvedAgentPropertySet.has(Number(row.id)),
+      }));
+
+      const mapped = mapPropertyRowsToDbOfferings(enrichedRows);
       setAll(mapped);
     }
 
@@ -117,7 +142,7 @@ export default function MapPageClient() {
   }, []);
 
   const filtered = useMemo(() => {
-    return all.filter((item) => filters[item.type as MarkerType]);
+    return all.filter((item) => item.layers.some((layer) => filters[layer]));
   }, [all, filters]);
 
   const visible = useMemo(() => {
@@ -134,7 +159,7 @@ export default function MapPageClient() {
     return visible.map(toCompactItem);
   }, [visible]);
 
-  const handleToggleLayer = (key: MarkerType) => {
+  const handleToggleLayer = (key: MarkerLayer) => {
     setFilters((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 

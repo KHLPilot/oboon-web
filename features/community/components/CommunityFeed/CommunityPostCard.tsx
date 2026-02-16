@@ -1,10 +1,17 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { Bookmark, Clock, Heart, MessageCircle } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  Bookmark,
+  Clock,
+  Heart,
+  MessageCircle,
+  MoreVertical,
+} from "lucide-react";
 import Image from "next/image";
 
 import { Badge } from "@/components/ui/Badge";
+import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import { getAvatarUrlOrDefault } from "@/shared/imageUrl";
 
@@ -12,6 +19,10 @@ import type { CommunityPostViewModel } from "../../domain/community";
 
 export default function CommunityPostCard({
   post,
+  canEdit = false,
+  canDelete = false,
+  onEdit,
+  onDelete,
   onToggleLike,
   onToggleBookmark,
   onToggleComments,
@@ -21,6 +32,10 @@ export default function CommunityPostCard({
   commentsPanel,
 }: {
   post: CommunityPostViewModel;
+  canEdit?: boolean;
+  canDelete?: boolean;
+  onEdit?: () => void;
+  onDelete?: () => void;
   onToggleLike?: () => void;
   onToggleBookmark?: () => void;
   onToggleComments?: () => void;
@@ -29,18 +44,83 @@ export default function CommunityPostCard({
   commentsExpanded?: boolean;
   commentsPanel?: ReactNode;
 }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!menuRef.current) return;
+      if (!menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [menuOpen]);
+
   return (
     <Card className="p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="status">{post.propertyName}</Badge>
+            {post.propertyName?.trim() ? (
+              <Badge variant="status">{post.propertyName}</Badge>
+            ) : null}
             <Badge variant="status">{post.statusLabel}</Badge>
           </div>
           <div className="mt-3 ob-typo-h3 text-(--oboon-text-title) truncate">
             {post.title}
           </div>
         </div>
+        {canEdit || canDelete ? (
+          <div ref={menuRef} className="relative shrink-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              shape="pill"
+              aria-label="게시글 메뉴"
+              onClick={() => setMenuOpen((prev) => !prev)}
+              className="h-8 w-8 border border-(--oboon-border-default) p-0 text-(--oboon-text-muted) hover:text-(--oboon-text-title)"
+            >
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+            {menuOpen ? (
+              <div className="absolute right-0 top-9 z-10 w-24 overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) shadow-lg">
+                {canEdit ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-9 w-full justify-start rounded-none px-3 ob-typo-caption text-(--oboon-text-body)"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onEdit?.();
+                    }}
+                  >
+                    수정
+                  </Button>
+                ) : null}
+                {canDelete ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-9 w-full justify-start rounded-none px-3 ob-typo-caption !text-(--oboon-danger) hover:bg-(--oboon-danger-bg)"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onDelete?.();
+                    }}
+                  >
+                    삭제
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       <p className="mt-2 ob-typo-body text-(--oboon-text-muted) line-clamp-2">
@@ -77,7 +157,9 @@ export default function CommunityPostCard({
               <Heart
                 className={[
                   "h-4 w-4",
-                  post.isLiked ? "fill-(--oboon-primary) text-(--oboon-primary)" : "",
+                  post.isLiked
+                    ? "fill-(--oboon-primary) text-(--oboon-primary)"
+                    : "",
                 ].join(" ")}
               />
               {post.likes}
@@ -87,7 +169,9 @@ export default function CommunityPostCard({
               <Heart
                 className={[
                   "h-4 w-4",
-                  post.isLiked ? "fill-(--oboon-primary) text-(--oboon-primary)" : "",
+                  post.isLiked
+                    ? "fill-(--oboon-primary) text-(--oboon-primary)"
+                    : "",
                 ].join(" ")}
               />
               {post.likes}

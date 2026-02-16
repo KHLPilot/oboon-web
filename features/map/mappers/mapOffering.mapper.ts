@@ -1,8 +1,9 @@
 // features/map/mappers/mapOffering.mapper.ts
-import type { MarkerType } from "@/features/map/domain/marker/marker.type";
+import type {
+  MarkerLayer,
+} from "@/features/map/domain/marker/marker.type";
 import { UXCopy } from "@/shared/uxCopy";
 import {
-  OFFERING_STATUS_VALUES,
   normalizeOfferingStatusValue,
 } from "@/features/offerings/domain/offering.constants";
 import type { OfferingStatusValue } from "@/features/offerings/domain/offering.types";
@@ -28,21 +29,29 @@ export type MapPropertyRow = {
   name: string;
   status: string | null;
   image_url: string | null;
+  confirmed_comment?: string | null;
+  estimated_comment?: string | null;
+  pending_comment?: string | null;
+  has_agent?: boolean | null;
   property_locations: PropertyLocationRow[] | null;
   property_unit_types: PropertyUnitTypeRow[] | null;
 };
 
 export type DbOffering = {
   id: number;
-  type: MarkerType;
+  type: MarkerLayer | "both";
   title: string;
   region: string;
+  regionSido: string;
   address: string;
   addressFull: string;
   priceMinWon: number | null;
   priceMaxWon: number | null;
   isPricePrivate: boolean;
   statusEnum: OfferingStatusValue | null;
+  hasAgent: boolean;
+  hasValuation: boolean;
+  layers: MarkerLayer[];
   lat: number;
   lng: number;
   imageUrl: string | null;
@@ -62,13 +71,11 @@ function pickFirstNonEmpty(...values: Array<string | null | undefined>) {
   return null;
 }
 
-function toMarkerType(status: string | null): MarkerType {
-  const s = normalizeOfferingStatusValue(status);
-  const [readyStatus, openStatus] = OFFERING_STATUS_VALUES;
-
-  if (s === openStatus) return "ready";
-  if (s === readyStatus) return "open";
-  return "closed";
+function hasAppraiserComment(row: MapPropertyRow) {
+  const hasConfirmed = (row.confirmed_comment ?? "").trim().length > 0;
+  const hasEstimated = (row.estimated_comment ?? "").trim().length > 0;
+  const hasPending = (row.pending_comment ?? "").trim().length > 0;
+  return hasConfirmed || hasEstimated || hasPending;
 }
 
 function getRegionLabel(loc0: PropertyLocationRow | null) {
@@ -115,19 +122,33 @@ export function mapPropertyRowsToDbOfferings(rows: MapPropertyRow[]) {
       const priceMax = prices.length ? Math.max(...prices) : null;
 
       const statusEnum = normalizeOfferingStatusValue(r.status);
-      const type = toMarkerType(r.status);
+      const hasAgent = r.has_agent === true;
+      const hasValuation = hasAppraiserComment(r);
+      const layers: MarkerLayer[] = [];
+      if (hasAgent) layers.push("agent");
+      if (hasValuation) layers.push("valuation");
+      const type: MarkerLayer | "both" =
+        hasAgent && hasValuation
+          ? "both"
+          : hasAgent
+            ? "agent"
+            : "valuation";
 
       return {
         id: r.id,
         type,
         title: r.name,
         region: getRegionLabel(loc0),
+        regionSido: pickFirstNonEmpty(loc0?.region_1depth) ?? "",
         address: getAddressShort(loc0),
         addressFull: getAddressFull(loc0),
         priceMinWon: priceMin,
         priceMaxWon: priceMax,
         isPricePrivate: hasPrivate && !hasPublic,
         statusEnum,
+        hasAgent,
+        hasValuation,
+        layers,
         lat,
         lng,
         imageUrl: r.image_url ?? null,

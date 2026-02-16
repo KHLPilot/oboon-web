@@ -43,7 +43,7 @@ function dotIcon({
   label?: string;
 }) {
   const size = state === "focus" ? 42 : state === "hover" ? 40 : 38;
-  const pinColor = `var(--oboon-marker-${type})`;
+  const pinColor = markerVars(type).dot;
   const safeLabel = escapeHtml((label ?? "").trim());
 
   const shadow =
