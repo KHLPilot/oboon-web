@@ -44,9 +44,9 @@ import { FormField } from "@/components/shared/FormField";
 
 import PropertyStatusSelect from "@/app/company/properties/PropertyStatusSelect";
 import {
+  normalizePropertyStatus,
   PROPERTY_STATUS_LABEL,
   PROPERTY_STATUS_OPTIONS,
-  isPropertyStatus,
 } from "@/features/property/domain/propertyStatus";
 import { getPropertySectionStatus } from "@/features/property/components/propertyProgress";
 import { showAlert } from "@/shared/alert";
@@ -681,8 +681,11 @@ function PropertyDetailPageInner() {
       </div>
     );
 
-  const statusLabel = isPropertyStatus(data.status)
-    ? PROPERTY_STATUS_LABEL[data.status]
+  const normalizedStatus = normalizePropertyStatus(data.status);
+  const normalizedFormStatus =
+    normalizePropertyStatus(form.status) ?? PROPERTY_STATUS_OPTIONS[0].value;
+  const statusLabel = normalizedStatus
+    ? PROPERTY_STATUS_LABEL[normalizedStatus]
     : "상태 미정";
   const canDelete =
     currentUserRole === "admin" || data.created_by === currentUserId;
@@ -943,11 +946,7 @@ function PropertyDetailPageInner() {
                     </FormField>
                     <FormField label="분양 상태">
                       <PropertyStatusSelect
-                        value={
-                          isPropertyStatus(form.status)
-                            ? form.status
-                            : PROPERTY_STATUS_OPTIONS[0].value
-                        }
+                        value={normalizedFormStatus}
                         onChange={(v) => setForm({ ...form, status: v })}
                         disabled={saving}
                       />

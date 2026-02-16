@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+export const dynamic = "force-dynamic";
+
 // 공개 API용 Supabase 클라이언트 (쿠키 불필요)
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,

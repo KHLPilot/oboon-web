@@ -1,10 +1,10 @@
 // features/property/domain/propertyStatus.ts
 
-export type PropertyStatus = "READY" | "ONGOING" | "CLOSED";
+export type PropertyStatus = "READY" | "OPEN" | "CLOSED";
 
 export const PROPERTY_STATUS_LABEL: Record<PropertyStatus, string> = {
   READY: "분양 예정",
-  ONGOING: "분양 중",
+  OPEN: "분양 중",
   CLOSED: "분양 종료",
 };
 
@@ -17,5 +17,14 @@ export const PROPERTY_STATUS_OPTIONS: Array<{
 }));
 
 export function isPropertyStatus(v: string | null | undefined): v is PropertyStatus {
-  return v === "READY" || v === "ONGOING" || v === "CLOSED";
+  return v === "READY" || v === "OPEN" || v === "CLOSED";
+}
+
+export function normalizePropertyStatus(
+  v: string | null | undefined
+): PropertyStatus | null {
+  if (!v) return null;
+  const s = v.trim().toUpperCase();
+  if (s === "ONGOING") return "OPEN";
+  return isPropertyStatus(s) ? s : null;
 }

@@ -10,6 +10,7 @@ import Input from "@/components/ui/Input";
 import { FormField } from "@/components/shared/FormField";
 import type { PropertyExtractionData } from "@/lib/schema/property-schema";
 import NaverMap, { type MapMarker } from "@/features/map/components/NaverMap";
+import { createSupabaseClient } from "@/lib/supabaseClient";
 
 type ExtractResult = PropertyExtractionData & {
   location: PropertyExtractionData["location"] & {
@@ -39,10 +40,81 @@ type ExtractFacilityWithCoords = ExtractFacilityType & {
 };
 
 type StatusTone = "idle" | "safe" | "danger";
+type CompareSource = "existing" | "incoming";
+
+type SimilarPropertyCandidate = {
+  id: number;
+  name: string;
+  property_type: string | null;
+  status: string | null;
+  created_at: string | null;
+  score: number;
+};
+
+type ExistingPropertySnapshot = {
+  property: {
+    id: number;
+    name: string;
+    property_type: string | null;
+    status: string | null;
+    description: string | null;
+  };
+  location: {
+    id?: number;
+    road_address: string | null;
+    jibun_address: string | null;
+    region_1depth: string | null;
+    region_2depth: string | null;
+    region_3depth: string | null;
+    lat: number | null;
+    lng: number | null;
+  } | null;
+  specs: {
+    id?: number;
+    developer: string | null;
+    builder: string | null;
+    trust_company: string | null;
+    sale_type: string | null;
+    site_area: number | null;
+    building_area: number | null;
+    floor_ground: number | null;
+    floor_underground: number | null;
+    building_count: number | null;
+    household_total: number | null;
+    parking_total: number | null;
+    parking_per_household: number | null;
+    heating_type: string | null;
+    floor_area_ratio: number | null;
+    building_coverage_ratio: number | null;
+  } | null;
+  timeline: {
+    id?: number;
+    announcement_date: string | null;
+    application_start: string | null;
+    application_end: string | null;
+    winner_announce: string | null;
+    contract_start: string | null;
+    contract_end: string | null;
+    move_in_date: string | null;
+  } | null;
+};
+
+type CompareSection = "properties" | "location" | "specs" | "timeline";
+
+type CompareField = {
+  key: string;
+  section: CompareSection;
+  sectionLabel: string;
+  label: string;
+  column: string;
+  existingValue: unknown;
+  incomingValue: unknown;
+};
 
 const STATUS_LABEL: Record<string, string> = {
   READY: "분양 예정",
   OPEN: "분양 중",
+  ONGOING: "분양 중",
   CLOSED: "분양 종료",
 };
 
@@ -101,7 +173,7 @@ function toNumberOrNull(value: unknown) {
 
 function normalizeKoreaCoords(
   lat: number | null,
-  lng: number | null
+  lng: number | null,
 ): { lat: number | null; lng: number | null } {
   if (lat == null || lng == null) return { lat, lng };
 
@@ -118,6 +190,443 @@ function normalizeKoreaCoords(
   return { lat, lng };
 }
 
+function normalizeStatusForDb(
+  status: string | null | undefined,
+): string | null {
+  if (!status) return null;
+  const upper = status.trim().toUpperCase();
+  if (upper === "ONGOING") return "OPEN";
+  if (upper === "OPEN" || upper === "READY" || upper === "CLOSED") {
+    return upper;
+  }
+  return null;
+}
+
+function mapFacilityTypeToDb(value: string | null | undefined) {
+  const raw = String(value ?? "")
+    .trim()
+    .toUpperCase();
+  if (!raw) return "MODELHOUSE";
+  if (raw.includes("모델") || raw === "MODELHOUSE") return "MODELHOUSE";
+  if (raw.includes("홍보") || raw.includes("PROMOTION")) return "PROMOTION";
+  if (raw.includes("팝업") || raw.includes("POPUP")) return "POPUP";
+  return "MODELHOUSE";
+}
+
+function normalizeName(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .replace(/[^0-9a-zA-Z가-힣]/g, "");
+}
+
+function makeBigrams(value: string) {
+  if (value.length < 2) return [value];
+  const out: string[] = [];
+  for (let i = 0; i < value.length - 1; i += 1) {
+    out.push(value.slice(i, i + 2));
+  }
+  return out;
+}
+
+function similarityScore(a: string, b: string) {
+  const na = normalizeName(a);
+  const nb = normalizeName(b);
+  if (!na || !nb) return 0;
+  if (na === nb) return 1;
+  if (na.includes(nb) || nb.includes(na)) return 0.9;
+
+  const ga = makeBigrams(na);
+  const gb = makeBigrams(nb);
+  const map = new Map<string, number>();
+
+  for (const item of ga) {
+    map.set(item, (map.get(item) ?? 0) + 1);
+  }
+
+  let intersection = 0;
+  for (const item of gb) {
+    const count = map.get(item) ?? 0;
+    if (count > 0) {
+      intersection += 1;
+      map.set(item, count - 1);
+    }
+  }
+
+  return (2 * intersection) / (ga.length + gb.length);
+}
+
+function normalizeComparableValue(value: unknown): unknown {
+  if (value == null) return null;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed === "" ? null : trimmed;
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (Array.isArray(value)) {
+    const joined = value
+      .map((item) => String(item).trim())
+      .filter(Boolean)
+      .join(", ");
+    return joined || null;
+  }
+  return value;
+}
+
+function isSameValue(a: unknown, b: unknown) {
+  const na = normalizeComparableValue(a);
+  const nb = normalizeComparableValue(b);
+
+  if (typeof na === "number" || typeof nb === "number") {
+    const an = toNumberOrNull(na);
+    const bn = toNumberOrNull(nb);
+    if (an == null && bn == null) return true;
+    return an === bn;
+  }
+
+  return String(na ?? "") === String(nb ?? "");
+}
+
+function displayValue(value: unknown, key?: string) {
+  if (value == null || value === "") return "-";
+  if (key?.endsWith("status")) {
+    const status = String(value).toUpperCase();
+    return STATUS_LABEL[status] ?? status;
+  }
+  if (typeof value === "number") return value.toLocaleString();
+  if (Array.isArray(value)) return value.join(", ") || "-";
+  return String(value);
+}
+
+function normalizeDateYmd(value: unknown): string | null {
+  const raw = String(normalizeComparableValue(value) ?? "");
+  if (!raw) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  return null;
+}
+
+function normalizeMoveInDate(value: unknown): string | null {
+  const raw = String(normalizeComparableValue(value) ?? "");
+  if (!raw) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  if (/^\d{4}-\d{2}$/.test(raw)) return `${raw}-01`;
+  return null;
+}
+
+function buildCompareFields(
+  existing: ExistingPropertySnapshot,
+  incoming: ExtractResult,
+): CompareField[] {
+  const fields: CompareField[] = [
+    {
+      key: "properties.name",
+      section: "properties",
+      sectionLabel: "기본 정보",
+      label: "현장명",
+      column: "name",
+      existingValue: existing.property.name,
+      incomingValue: incoming.properties?.name,
+    },
+    {
+      key: "properties.property_type",
+      section: "properties",
+      sectionLabel: "기본 정보",
+      label: "분양 유형",
+      column: "property_type",
+      existingValue: existing.property.property_type,
+      incomingValue: incoming.properties?.property_type,
+    },
+    {
+      key: "properties.status",
+      section: "properties",
+      sectionLabel: "기본 정보",
+      label: "분양 상태",
+      column: "status",
+      existingValue: existing.property.status,
+      incomingValue: normalizeStatusForDb(incoming.properties?.status ?? null),
+    },
+    {
+      key: "properties.description",
+      section: "properties",
+      sectionLabel: "기본 정보",
+      label: "설명",
+      column: "description",
+      existingValue: existing.property.description,
+      incomingValue: incoming.properties?.description,
+    },
+
+    {
+      key: "location.road_address",
+      section: "location",
+      sectionLabel: "위치",
+      label: "도로명 주소",
+      column: "road_address",
+      existingValue: existing.location?.road_address,
+      incomingValue: incoming.location?.road_address,
+    },
+    {
+      key: "location.jibun_address",
+      section: "location",
+      sectionLabel: "위치",
+      label: "지번 주소",
+      column: "jibun_address",
+      existingValue: existing.location?.jibun_address,
+      incomingValue: incoming.location?.jibun_address,
+    },
+    {
+      key: "location.region_1depth",
+      section: "location",
+      sectionLabel: "위치",
+      label: "시/도",
+      column: "region_1depth",
+      existingValue: existing.location?.region_1depth,
+      incomingValue: incoming.location?.region_1depth,
+    },
+    {
+      key: "location.region_2depth",
+      section: "location",
+      sectionLabel: "위치",
+      label: "시/군/구",
+      column: "region_2depth",
+      existingValue: existing.location?.region_2depth,
+      incomingValue: incoming.location?.region_2depth,
+    },
+    {
+      key: "location.region_3depth",
+      section: "location",
+      sectionLabel: "위치",
+      label: "읍/면/동",
+      column: "region_3depth",
+      existingValue: existing.location?.region_3depth,
+      incomingValue: incoming.location?.region_3depth,
+    },
+    {
+      key: "location.lat",
+      section: "location",
+      sectionLabel: "위치",
+      label: "위도",
+      column: "lat",
+      existingValue: existing.location?.lat,
+      incomingValue: incoming.location?.lat,
+    },
+    {
+      key: "location.lng",
+      section: "location",
+      sectionLabel: "위치",
+      label: "경도",
+      column: "lng",
+      existingValue: existing.location?.lng,
+      incomingValue: incoming.location?.lng,
+    },
+
+    {
+      key: "specs.developer",
+      section: "specs",
+      sectionLabel: "사업 개요",
+      label: "시행사",
+      column: "developer",
+      existingValue: existing.specs?.developer,
+      incomingValue: incoming.specs?.developer,
+    },
+    {
+      key: "specs.builder",
+      section: "specs",
+      sectionLabel: "사업 개요",
+      label: "시공사",
+      column: "builder",
+      existingValue: existing.specs?.builder,
+      incomingValue: incoming.specs?.builder,
+    },
+    {
+      key: "specs.trust_company",
+      section: "specs",
+      sectionLabel: "사업 개요",
+      label: "신탁사",
+      column: "trust_company",
+      existingValue: existing.specs?.trust_company,
+      incomingValue: incoming.specs?.trust_company,
+    },
+    {
+      key: "specs.sale_type",
+      section: "specs",
+      sectionLabel: "사업 개요",
+      label: "분양 방식",
+      column: "sale_type",
+      existingValue: existing.specs?.sale_type,
+      incomingValue: incoming.specs?.sale_type,
+    },
+    {
+      key: "specs.site_area",
+      section: "specs",
+      sectionLabel: "사업 개요",
+      label: "대지면적",
+      column: "site_area",
+      existingValue: existing.specs?.site_area,
+      incomingValue: incoming.specs?.site_area,
+    },
+    {
+      key: "specs.building_area",
+      section: "specs",
+      sectionLabel: "사업 개요",
+      label: "건축면적",
+      column: "building_area",
+      existingValue: existing.specs?.building_area,
+      incomingValue: incoming.specs?.building_area,
+    },
+    {
+      key: "specs.floor_underground",
+      section: "specs",
+      sectionLabel: "사업 개요",
+      label: "지하층",
+      column: "floor_underground",
+      existingValue: existing.specs?.floor_underground,
+      incomingValue: incoming.specs?.floor_underground,
+    },
+    {
+      key: "specs.floor_ground",
+      section: "specs",
+      sectionLabel: "사업 개요",
+      label: "지상층",
+      column: "floor_ground",
+      existingValue: existing.specs?.floor_ground,
+      incomingValue: incoming.specs?.floor_ground,
+    },
+    {
+      key: "specs.building_count",
+      section: "specs",
+      sectionLabel: "사업 개요",
+      label: "동 수",
+      column: "building_count",
+      existingValue: existing.specs?.building_count,
+      incomingValue: incoming.specs?.building_count,
+    },
+    {
+      key: "specs.household_total",
+      section: "specs",
+      sectionLabel: "사업 개요",
+      label: "총 세대수",
+      column: "household_total",
+      existingValue: existing.specs?.household_total,
+      incomingValue: incoming.specs?.household_total,
+    },
+    {
+      key: "specs.parking_total",
+      section: "specs",
+      sectionLabel: "사업 개요",
+      label: "총 주차 대수",
+      column: "parking_total",
+      existingValue: existing.specs?.parking_total,
+      incomingValue: incoming.specs?.parking_total,
+    },
+    {
+      key: "specs.parking_per_household",
+      section: "specs",
+      sectionLabel: "사업 개요",
+      label: "세대당 주차",
+      column: "parking_per_household",
+      existingValue: existing.specs?.parking_per_household,
+      incomingValue: incoming.specs?.parking_per_household,
+    },
+    {
+      key: "specs.heating_type",
+      section: "specs",
+      sectionLabel: "사업 개요",
+      label: "난방",
+      column: "heating_type",
+      existingValue: existing.specs?.heating_type,
+      incomingValue: incoming.specs?.heating_type,
+    },
+    {
+      key: "specs.floor_area_ratio",
+      section: "specs",
+      sectionLabel: "사업 개요",
+      label: "용적률",
+      column: "floor_area_ratio",
+      existingValue: existing.specs?.floor_area_ratio,
+      incomingValue: incoming.specs?.floor_area_ratio,
+    },
+    {
+      key: "specs.building_coverage_ratio",
+      section: "specs",
+      sectionLabel: "사업 개요",
+      label: "건폐율",
+      column: "building_coverage_ratio",
+      existingValue: existing.specs?.building_coverage_ratio,
+      incomingValue: incoming.specs?.building_coverage_ratio,
+    },
+
+    {
+      key: "timeline.announcement_date",
+      section: "timeline",
+      sectionLabel: "일정",
+      label: "모집공고일",
+      column: "announcement_date",
+      existingValue: existing.timeline?.announcement_date,
+      incomingValue: incoming.timeline?.announcement_date,
+    },
+    {
+      key: "timeline.application_start",
+      section: "timeline",
+      sectionLabel: "일정",
+      label: "청약 시작",
+      column: "application_start",
+      existingValue: existing.timeline?.application_start,
+      incomingValue: incoming.timeline?.application_start,
+    },
+    {
+      key: "timeline.application_end",
+      section: "timeline",
+      sectionLabel: "일정",
+      label: "청약 종료",
+      column: "application_end",
+      existingValue: existing.timeline?.application_end,
+      incomingValue: incoming.timeline?.application_end,
+    },
+    {
+      key: "timeline.winner_announce",
+      section: "timeline",
+      sectionLabel: "일정",
+      label: "당첨자 발표",
+      column: "winner_announce",
+      existingValue: existing.timeline?.winner_announce,
+      incomingValue: incoming.timeline?.winner_announce,
+    },
+    {
+      key: "timeline.contract_start",
+      section: "timeline",
+      sectionLabel: "일정",
+      label: "계약 시작",
+      column: "contract_start",
+      existingValue: existing.timeline?.contract_start,
+      incomingValue: incoming.timeline?.contract_start,
+    },
+    {
+      key: "timeline.contract_end",
+      section: "timeline",
+      sectionLabel: "일정",
+      label: "계약 종료",
+      column: "contract_end",
+      existingValue: existing.timeline?.contract_end,
+      incomingValue: incoming.timeline?.contract_end,
+    },
+    {
+      key: "timeline.move_in_date",
+      section: "timeline",
+      sectionLabel: "일정",
+      label: "입주 예정",
+      column: "move_in_date",
+      existingValue: existing.timeline?.move_in_date,
+      incomingValue: incoming.timeline?.move_in_date,
+    },
+  ];
+
+  return fields.filter(
+    (field) => !isSameValue(field.existingValue, field.incomingValue),
+  );
+}
+
 export default function TestUploadPage() {
   const [files, setFiles] = useState<File[]>([]);
   const [status, setStatus] = useState("PDF를 선택해 테스트를 시작하세요.");
@@ -125,19 +634,43 @@ export default function TestUploadPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ExtractResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const unitFloorPlanInputRefs = useRef<Record<number, HTMLInputElement | null>>(
-    {}
-  );
+  const unitFloorPlanInputRefs = useRef<
+    Record<number, HTMLInputElement | null>
+  >({});
   const [unitFloorPlanUrls, setUnitFloorPlanUrls] = useState<
     Record<number, string>
+  >({});
+  const [unitFloorPlanFiles, setUnitFloorPlanFiles] = useState<
+    Record<number, File | null>
   >({});
   const unitFloorPlanUrlsRef = useRef<Record<number, string>>({});
   const mainImageInputRef = useRef<HTMLInputElement>(null);
   const galleryImageInputRef = useRef<HTMLInputElement>(null);
   const [mainImageUrl, setMainImageUrl] = useState("");
+  const [mainImageFile, setMainImageFile] = useState<File | null>(null);
   const [galleryImageUrls, setGalleryImageUrls] = useState<string[]>([]);
+  const [galleryImageFiles, setGalleryImageFiles] = useState<File[]>([]);
   const mainImageUrlRef = useRef<string>("");
   const galleryImageUrlsRef = useRef<string[]>([]);
+
+  const [checkingSimilar, setCheckingSimilar] = useState(false);
+  const [similarCandidates, setSimilarCandidates] = useState<
+    SimilarPropertyCandidate[]
+  >([]);
+  const [selectedCandidateId, setSelectedCandidateId] = useState<number | null>(
+    null,
+  );
+
+  const [loadingComparison, setLoadingComparison] = useState(false);
+  const [existingSnapshot, setExistingSnapshot] =
+    useState<ExistingPropertySnapshot | null>(null);
+  const [compareFields, setCompareFields] = useState<CompareField[]>([]);
+  const [selectionMap, setSelectionMap] = useState<
+    Record<string, CompareSource>
+  >({});
+  const [savingCompareMerge, setSavingCompareMerge] = useState(false);
+  const [creatingNewProperty, setCreatingNewProperty] = useState(false);
+  const [showNewPropertyAction, setShowNewPropertyAction] = useState(false);
 
   const fileNames = useMemo(() => files.map((f) => f.name), [files]);
 
@@ -156,6 +689,12 @@ export default function TestUploadPage() {
     setStatusTone("idle");
     setLoading(true);
     setResult(null);
+    setSimilarCandidates([]);
+    setSelectedCandidateId(null);
+    setExistingSnapshot(null);
+    setCompareFields([]);
+    setSelectionMap({});
+    setShowNewPropertyAction(false);
 
     const formData = new FormData();
     files.forEach((f) => formData.append("files", f));
@@ -174,15 +713,29 @@ export default function TestUploadPage() {
       const data = await response.json();
       setResult(data);
       Object.values(unitFloorPlanUrlsRef.current).forEach((url) =>
-        revokeBlobUrl(url)
+        revokeBlobUrl(url),
       );
       revokeBlobUrl(mainImageUrlRef.current);
       galleryImageUrlsRef.current.forEach((url) => revokeBlobUrl(url));
       setUnitFloorPlanUrls({});
+      setUnitFloorPlanFiles({});
       setMainImageUrl("");
+      setMainImageFile(null);
       setGalleryImageUrls([]);
-      setStatus("추출 완료!");
-      setStatusTone("safe");
+      setGalleryImageFiles([]);
+      setStatus("추출 완료! 유사 현장 자동 비교 중...");
+      const hasSimilar = await runNameComparison(data);
+      if (hasSimilar === true) {
+        setStatus(
+          "추출 완료! 유사한 현장을 자동으로 찾았습니다. 비교를 진행하세요.",
+        );
+        setStatusTone("safe");
+        setShowNewPropertyAction(false);
+      } else if (hasSimilar === false) {
+        setStatus("추출 완료!");
+        setStatusTone("safe");
+        setShowNewPropertyAction(true);
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "알 수 없는 오류";
       setStatus(`오류: ${toKoreanErrorMessage(message)}`);
@@ -192,10 +745,623 @@ export default function TestUploadPage() {
     }
   };
 
+  const runNameComparison = async (
+    sourceResult?: ExtractResult | null,
+  ): Promise<boolean | null> => {
+    const target = sourceResult ?? result;
+    if (!target?.properties?.name?.trim()) {
+      setSimilarCandidates([]);
+      setSelectedCandidateId(null);
+      return false;
+    }
+
+    setCheckingSimilar(true);
+    setSimilarCandidates([]);
+    setSelectedCandidateId(null);
+    setExistingSnapshot(null);
+    setCompareFields([]);
+    setSelectionMap({});
+    setShowNewPropertyAction(false);
+
+    try {
+      const supabase = createSupabaseClient();
+      const extractedName = target.properties.name.trim();
+
+      const { data, error } = await supabase
+        .from("properties")
+        .select("id, name, property_type, status, created_at")
+        .order("created_at", { ascending: false })
+        .limit(300);
+
+      if (error) throw error;
+
+      const candidates = (data ?? [])
+        .map((row) => {
+          const score = similarityScore(extractedName, row.name ?? "");
+          return {
+            id: row.id as number,
+            name: String(row.name ?? ""),
+            property_type: (row.property_type as string | null) ?? null,
+            status: (row.status as string | null) ?? null,
+            created_at: (row.created_at as string | null) ?? null,
+            score,
+          } satisfies SimilarPropertyCandidate;
+        })
+        .filter((row) => row.score >= 0.5)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 8);
+
+      setSimilarCandidates(candidates);
+      setSelectedCandidateId(candidates[0]?.id ?? null);
+      return candidates.length > 0;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "비교 중 오류";
+      setStatus(`현장명 비교 오류: ${toKoreanErrorMessage(message)}`);
+      setStatusTone("danger");
+      return null;
+    } finally {
+      setCheckingSimilar(false);
+    }
+  };
+
+  const loadComparison = async () => {
+    if (!result || !selectedCandidateId) return;
+
+    setLoadingComparison(true);
+    setExistingSnapshot(null);
+    setCompareFields([]);
+    setSelectionMap({});
+
+    try {
+      const supabase = createSupabaseClient();
+
+      const [propertyRes, locationRes, specsRes, timelineRes] =
+        await Promise.all([
+          supabase
+            .from("properties")
+            .select("id, name, property_type, status, description")
+            .eq("id", selectedCandidateId)
+            .single(),
+          supabase
+            .from("property_locations")
+            .select(
+              "id, road_address, jibun_address, region_1depth, region_2depth, region_3depth, lat, lng",
+            )
+            .eq("properties_id", selectedCandidateId)
+            .maybeSingle(),
+          supabase
+            .from("property_specs")
+            .select(
+              "id, developer, builder, trust_company, sale_type, site_area, building_area, floor_ground, floor_underground, building_count, household_total, parking_total, parking_per_household, heating_type, floor_area_ratio, building_coverage_ratio",
+            )
+            .eq("properties_id", selectedCandidateId)
+            .order("id", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+          supabase
+            .from("property_timeline")
+            .select(
+              "id, announcement_date, application_start, application_end, winner_announce, contract_start, contract_end, move_in_date",
+            )
+            .eq("properties_id", selectedCandidateId)
+            .maybeSingle(),
+        ]);
+
+      if (propertyRes.error) throw propertyRes.error;
+      if (locationRes.error) throw locationRes.error;
+      if (specsRes.error) throw specsRes.error;
+      if (timelineRes.error) throw timelineRes.error;
+
+      const snapshot: ExistingPropertySnapshot = {
+        property: {
+          id: Number(propertyRes.data.id),
+          name: String(propertyRes.data.name ?? ""),
+          property_type:
+            (propertyRes.data.property_type as string | null) ?? null,
+          status: (propertyRes.data.status as string | null) ?? null,
+          description: (propertyRes.data.description as string | null) ?? null,
+        },
+        location:
+          (locationRes.data as ExistingPropertySnapshot["location"]) ?? null,
+        specs: (specsRes.data as ExistingPropertySnapshot["specs"]) ?? null,
+        timeline:
+          (timelineRes.data as ExistingPropertySnapshot["timeline"]) ?? null,
+      };
+
+      const diffFields = buildCompareFields(snapshot, result);
+      const initialSelections = Object.fromEntries(
+        diffFields.map((field) => [field.key, "existing" as CompareSource]),
+      );
+
+      setExistingSnapshot(snapshot);
+      setCompareFields(diffFields);
+      setSelectionMap(initialSelections);
+
+      if (diffFields.length === 0) {
+        setStatus(
+          "두 데이터가 비교 필드 기준으로 모두 일치합니다. (추가 비교 없음)",
+        );
+      } else {
+        setStatus(`비교 완료: 다른 항목 ${diffFields.length}개`);
+      }
+      setStatusTone("safe");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "비교 로드 실패";
+      setStatus(`비교 데이터 로드 오류: ${toKoreanErrorMessage(message)}`);
+      setStatusTone("danger");
+    } finally {
+      setLoadingComparison(false);
+    }
+  };
+
+  const applySelectedMerge = async () => {
+    if (!existingSnapshot || !result) return;
+
+    setSavingCompareMerge(true);
+    try {
+      const supabase = createSupabaseClient();
+      const targetId = existingSnapshot.property.id;
+
+      const merged = {
+        properties: {
+          name: existingSnapshot.property.name,
+          property_type: existingSnapshot.property.property_type,
+          status: existingSnapshot.property.status,
+          description: existingSnapshot.property.description,
+        },
+        location: {
+          road_address: existingSnapshot.location?.road_address ?? null,
+          jibun_address: existingSnapshot.location?.jibun_address ?? null,
+          region_1depth: existingSnapshot.location?.region_1depth ?? null,
+          region_2depth: existingSnapshot.location?.region_2depth ?? null,
+          region_3depth: existingSnapshot.location?.region_3depth ?? null,
+          lat: existingSnapshot.location?.lat ?? null,
+          lng: existingSnapshot.location?.lng ?? null,
+        },
+        specs: {
+          developer: existingSnapshot.specs?.developer ?? null,
+          builder: existingSnapshot.specs?.builder ?? null,
+          trust_company: existingSnapshot.specs?.trust_company ?? null,
+          sale_type: existingSnapshot.specs?.sale_type ?? null,
+          site_area: existingSnapshot.specs?.site_area ?? null,
+          building_area: existingSnapshot.specs?.building_area ?? null,
+          floor_ground: existingSnapshot.specs?.floor_ground ?? null,
+          floor_underground: existingSnapshot.specs?.floor_underground ?? null,
+          building_count: existingSnapshot.specs?.building_count ?? null,
+          household_total: existingSnapshot.specs?.household_total ?? null,
+          parking_total: existingSnapshot.specs?.parking_total ?? null,
+          parking_per_household:
+            existingSnapshot.specs?.parking_per_household ?? null,
+          heating_type: existingSnapshot.specs?.heating_type ?? null,
+          floor_area_ratio: existingSnapshot.specs?.floor_area_ratio ?? null,
+          building_coverage_ratio:
+            existingSnapshot.specs?.building_coverage_ratio ?? null,
+        },
+        timeline: {
+          announcement_date:
+            existingSnapshot.timeline?.announcement_date ?? null,
+          application_start:
+            existingSnapshot.timeline?.application_start ?? null,
+          application_end: existingSnapshot.timeline?.application_end ?? null,
+          winner_announce: existingSnapshot.timeline?.winner_announce ?? null,
+          contract_start: existingSnapshot.timeline?.contract_start ?? null,
+          contract_end: existingSnapshot.timeline?.contract_end ?? null,
+          move_in_date: existingSnapshot.timeline?.move_in_date ?? null,
+        },
+      };
+
+      for (const field of compareFields) {
+        const selected = selectionMap[field.key] ?? "existing";
+        if (selected !== "incoming") continue;
+
+        const normalizedIncoming =
+          field.key === "properties.status"
+            ? normalizeStatusForDb(String(field.incomingValue ?? ""))
+            : normalizeComparableValue(field.incomingValue);
+
+        if (field.section === "properties") {
+          (merged.properties as Record<string, unknown>)[field.column] =
+            normalizedIncoming;
+        }
+        if (field.section === "location") {
+          (merged.location as Record<string, unknown>)[field.column] =
+            normalizedIncoming;
+        }
+        if (field.section === "specs") {
+          (merged.specs as Record<string, unknown>)[field.column] =
+            normalizedIncoming;
+        }
+        if (field.section === "timeline") {
+          (merged.timeline as Record<string, unknown>)[field.column] =
+            normalizedIncoming;
+        }
+      }
+
+      const { error: propertyError } = await supabase
+        .from("properties")
+        .update({
+          name:
+            String(
+              normalizeComparableValue(merged.properties.name) ?? "",
+            ).trim() || existingSnapshot.property.name,
+          property_type: normalizeComparableValue(
+            merged.properties.property_type,
+          ),
+          status: normalizeStatusForDb(String(merged.properties.status ?? "")),
+          description: normalizeComparableValue(merged.properties.description),
+        })
+        .eq("id", targetId);
+      if (propertyError) throw propertyError;
+
+      const locationPayload = {
+        road_address: normalizeComparableValue(merged.location.road_address),
+        jibun_address: normalizeComparableValue(merged.location.jibun_address),
+        region_1depth: normalizeComparableValue(merged.location.region_1depth),
+        region_2depth: normalizeComparableValue(merged.location.region_2depth),
+        region_3depth: normalizeComparableValue(merged.location.region_3depth),
+        lat: toNumberOrNull(merged.location.lat),
+        lng: toNumberOrNull(merged.location.lng),
+      };
+
+      const hasLocationValue = Object.values(locationPayload).some(
+        (v) => v !== null && v !== "",
+      );
+      if (existingSnapshot.location?.id) {
+        const { error: locationError } = await supabase
+          .from("property_locations")
+          .update(locationPayload)
+          .eq("id", existingSnapshot.location.id);
+        if (locationError) throw locationError;
+      } else if (hasLocationValue) {
+        const { error: locationInsertError } = await supabase
+          .from("property_locations")
+          .insert({ ...locationPayload, properties_id: targetId });
+        if (locationInsertError) throw locationInsertError;
+      }
+
+      const specsPayload = {
+        properties_id: targetId,
+        developer: normalizeComparableValue(merged.specs.developer),
+        builder: normalizeComparableValue(merged.specs.builder),
+        trust_company: normalizeComparableValue(merged.specs.trust_company),
+        sale_type: normalizeComparableValue(merged.specs.sale_type),
+        site_area: toNumberOrNull(merged.specs.site_area),
+        building_area: toNumberOrNull(merged.specs.building_area),
+        floor_ground: toNumberOrNull(merged.specs.floor_ground),
+        floor_underground: toNumberOrNull(merged.specs.floor_underground),
+        building_count: toNumberOrNull(merged.specs.building_count),
+        household_total: toNumberOrNull(merged.specs.household_total),
+        parking_total: toNumberOrNull(merged.specs.parking_total),
+        parking_per_household: toNumberOrNull(
+          merged.specs.parking_per_household,
+        ),
+        heating_type: normalizeComparableValue(merged.specs.heating_type),
+        floor_area_ratio: toNumberOrNull(merged.specs.floor_area_ratio),
+        building_coverage_ratio: toNumberOrNull(
+          merged.specs.building_coverage_ratio,
+        ),
+      };
+
+      const hasSpecsValue = Object.entries(specsPayload).some(
+        ([key, value]) =>
+          key !== "properties_id" && value !== null && value !== "",
+      );
+      if (hasSpecsValue) {
+        const { error: specsError } = await supabase
+          .from("property_specs")
+          .upsert(specsPayload, { onConflict: "properties_id" });
+        if (specsError) throw specsError;
+      }
+
+      const timelinePayload = {
+        announcement_date: normalizeDateYmd(merged.timeline.announcement_date),
+        application_start: normalizeDateYmd(merged.timeline.application_start),
+        application_end: normalizeDateYmd(merged.timeline.application_end),
+        winner_announce: normalizeDateYmd(merged.timeline.winner_announce),
+        contract_start: normalizeDateYmd(merged.timeline.contract_start),
+        contract_end: normalizeDateYmd(merged.timeline.contract_end),
+        move_in_date: normalizeMoveInDate(merged.timeline.move_in_date),
+      };
+
+      const hasTimelineValue = Object.values(timelinePayload).some(
+        (value) => value !== null && value !== "",
+      );
+      if (existingSnapshot.timeline?.id) {
+        const { error: timelineError } = await supabase
+          .from("property_timeline")
+          .update(timelinePayload)
+          .eq("id", existingSnapshot.timeline.id);
+        if (timelineError) throw timelineError;
+      } else if (hasTimelineValue) {
+        const { error: timelineInsertError } = await supabase
+          .from("property_timeline")
+          .insert({ ...timelinePayload, properties_id: targetId });
+        if (timelineInsertError) throw timelineInsertError;
+      }
+
+      const appliedCount = compareFields.filter(
+        (field) => selectionMap[field.key] === "incoming",
+      ).length;
+
+      setStatus(
+        appliedCount > 0
+          ? `선택 반영 완료: ${appliedCount}개 항목을 기존 현장(${existingSnapshot.property.name})에 업데이트했습니다.`
+          : "선택된 변경 항목이 없어 기존 값을 그대로 유지했습니다.",
+      );
+      setStatusTone("safe");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "반영 중 오류";
+      setStatus(`비교 반영 실패: ${toKoreanErrorMessage(message)}`);
+      setStatusTone("danger");
+    } finally {
+      setSavingCompareMerge(false);
+    }
+  };
+
+  const createNewPropertyFromExtract = async () => {
+    if (!result) return;
+
+    setCreatingNewProperty(true);
+    try {
+      const supabase = createSupabaseClient();
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      if (!user) throw new Error("로그인이 필요합니다.");
+
+      const propertyPayload = {
+        name: result.properties?.name?.trim() || "이름 미정 현장",
+        property_type: normalizeComparableValue(
+          result.properties?.property_type,
+        ),
+        status: normalizeStatusForDb(result.properties?.status ?? null),
+        description: normalizeComparableValue(result.properties?.description),
+        created_by: user.id,
+      };
+
+      const { data: propertyData, error: propertyError } = await supabase
+        .from("properties")
+        .insert(propertyPayload)
+        .select("id")
+        .single();
+      if (propertyError) throw propertyError;
+
+      const propertyId = Number(propertyData.id);
+      let mainImagePublicUrl: string | null = null;
+
+      if (mainImageFile) {
+        const fd = new FormData();
+        fd.append("file", mainImageFile);
+        fd.append("propertyId", String(propertyId));
+        fd.append("mode", "property_main");
+
+        const mainRes = await fetch("/api/r2/upload", {
+          method: "POST",
+          body: fd,
+        });
+        const mainPayload = await mainRes.json().catch(() => null);
+        if (!mainRes.ok || !mainPayload?.url) {
+          throw new Error(mainPayload?.error || "대표 이미지 업로드 실패");
+        }
+        mainImagePublicUrl = String(mainPayload.url);
+
+        const { error: mainUpdateError } = await supabase
+          .from("properties")
+          .update({ image_url: mainImagePublicUrl })
+          .eq("id", propertyId);
+        if (mainUpdateError) throw mainUpdateError;
+      }
+
+      const locationPayload = {
+        properties_id: propertyId,
+        road_address: normalizeComparableValue(result.location?.road_address),
+        jibun_address: normalizeComparableValue(result.location?.jibun_address),
+        region_1depth: normalizeComparableValue(result.location?.region_1depth),
+        region_2depth: normalizeComparableValue(result.location?.region_2depth),
+        region_3depth: normalizeComparableValue(result.location?.region_3depth),
+        lat: toNumberOrNull(result.location?.lat),
+        lng: toNumberOrNull(result.location?.lng),
+      };
+      const hasLocationValue = Object.entries(locationPayload).some(
+        ([key, value]) =>
+          key !== "properties_id" && value !== null && value !== "",
+      );
+      if (hasLocationValue) {
+        const { error: locationError } = await supabase
+          .from("property_locations")
+          .insert(locationPayload);
+        if (locationError) throw locationError;
+      }
+
+      const specsPayload = {
+        properties_id: propertyId,
+        developer: normalizeComparableValue(result.specs?.developer),
+        builder: normalizeComparableValue(result.specs?.builder),
+        trust_company: normalizeComparableValue(result.specs?.trust_company),
+        sale_type: normalizeComparableValue(result.specs?.sale_type),
+        site_area: toNumberOrNull(result.specs?.site_area),
+        building_area: toNumberOrNull(result.specs?.building_area),
+        floor_ground: toNumberOrNull(result.specs?.floor_ground),
+        floor_underground: toNumberOrNull(result.specs?.floor_underground),
+        building_count: toNumberOrNull(result.specs?.building_count),
+        household_total: toNumberOrNull(result.specs?.household_total),
+        parking_total: toNumberOrNull(result.specs?.parking_total),
+        parking_per_household: toNumberOrNull(
+          result.specs?.parking_per_household,
+        ),
+        heating_type: normalizeComparableValue(result.specs?.heating_type),
+        floor_area_ratio: toNumberOrNull(result.specs?.floor_area_ratio),
+        building_coverage_ratio: toNumberOrNull(
+          result.specs?.building_coverage_ratio,
+        ),
+      };
+      const hasSpecsValue = Object.entries(specsPayload).some(
+        ([key, value]) =>
+          key !== "properties_id" && value !== null && value !== "",
+      );
+      if (hasSpecsValue) {
+        const { error: specsError } = await supabase
+          .from("property_specs")
+          .upsert(specsPayload, { onConflict: "properties_id" });
+        if (specsError) throw specsError;
+      }
+
+      const timelinePayload = {
+        properties_id: propertyId,
+        announcement_date: normalizeDateYmd(result.timeline?.announcement_date),
+        application_start: normalizeDateYmd(result.timeline?.application_start),
+        application_end: normalizeDateYmd(result.timeline?.application_end),
+        winner_announce: normalizeDateYmd(result.timeline?.winner_announce),
+        contract_start: normalizeDateYmd(result.timeline?.contract_start),
+        contract_end: normalizeDateYmd(result.timeline?.contract_end),
+        move_in_date: normalizeMoveInDate(result.timeline?.move_in_date),
+      };
+      const hasTimelineValue = Object.entries(timelinePayload).some(
+        ([key, value]) =>
+          key !== "properties_id" && value !== null && value !== "",
+      );
+      if (hasTimelineValue) {
+        const { error: timelineError } = await supabase
+          .from("property_timeline")
+          .insert(timelinePayload);
+        if (timelineError) throw timelineError;
+      }
+
+      const uploadedFloorPlanUrls: Record<number, string> = {};
+      const floorPlanEntries = Object.entries(unitFloorPlanFiles);
+      for (const [indexText, file] of floorPlanEntries) {
+        if (!file) continue;
+        const rowIndex = Number(indexText);
+        if (!Number.isFinite(rowIndex)) continue;
+
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("propertyId", String(propertyId));
+        fd.append("mode", "property_floor_plan");
+        fd.append(
+          "unitType",
+          String(
+            result.unit_types?.[rowIndex]?.type_name ?? `type-${rowIndex}`,
+          ),
+        );
+
+        const fpRes = await fetch("/api/r2/upload", {
+          method: "POST",
+          body: fd,
+        });
+        const fpPayload = await fpRes.json().catch(() => null);
+        if (!fpRes.ok || !fpPayload?.url) {
+          throw new Error(fpPayload?.error || "평면도 업로드 실패");
+        }
+
+        uploadedFloorPlanUrls[rowIndex] = String(fpPayload.url);
+      }
+
+      const unitRows = (result.unit_types ?? [])
+        .map((unit, index) => {
+          const floorPlanUrl = resolveFloorPlanUrl(
+            unit as ExtractUnitTypeExtended,
+            index,
+          );
+          return {
+            properties_id: propertyId,
+            type_name:
+              String(normalizeComparableValue(unit.type_name) ?? "").trim() ||
+              null,
+            exclusive_area: toNumberOrNull(unit.exclusive_area),
+            supply_area: toNumberOrNull(unit.supply_area),
+            rooms: toNumberOrNull(unit.rooms),
+            bathrooms: toNumberOrNull(unit.bathrooms),
+            price_min: toNumberOrNull(unit.price_min),
+            price_max: toNumberOrNull(unit.price_max),
+            unit_count: toNumberOrNull(unit.unit_count),
+            supply_count: toNumberOrNull(
+              (unit as ExtractUnitTypeExtended).supply_count,
+            ),
+            building_layout: normalizeComparableValue(
+              (unit as ExtractUnitTypeExtended).building_layout,
+            ),
+            orientation: normalizeComparableValue(
+              (unit as ExtractUnitTypeExtended).orientation,
+            ),
+            floor_plan_url:
+              uploadedFloorPlanUrls[index] ??
+              (floorPlanUrl && !floorPlanUrl.startsWith("blob:")
+                ? floorPlanUrl
+                : normalizeComparableValue(
+                    (unit as ExtractUnitTypeExtended).floor_plan_url ??
+                      (unit as ExtractUnitTypeExtended).image_url,
+                  )),
+            is_price_public: true,
+            is_public: true,
+          };
+        })
+        .filter((row) => row.type_name);
+
+      if (unitRows.length > 0) {
+        const { error: unitsError } = await supabase
+          .from("property_unit_types")
+          .insert(unitRows);
+        if (unitsError) throw unitsError;
+      }
+
+      const facilityRows = (result.facilities ?? [])
+        .map((facility) => ({
+          properties_id: propertyId,
+          type: mapFacilityTypeToDb(facility.type),
+          name:
+            String(normalizeComparableValue(facility.name) ?? "").trim() ||
+            null,
+          road_address: normalizeComparableValue(facility.road_address),
+          open_start: normalizeComparableValue(facility.open_start),
+          open_end: normalizeComparableValue(facility.open_end),
+          is_active: true,
+        }))
+        .filter((row) => row.name);
+
+      if (facilityRows.length > 0) {
+        const { error: facilitiesError } = await supabase
+          .from("property_facilities")
+          .insert(facilityRows);
+        if (facilitiesError) throw facilitiesError;
+      }
+
+      if (galleryImageFiles.length > 0) {
+        const galleryFormData = new FormData();
+        galleryFormData.append("propertyId", String(propertyId));
+        galleryImageFiles.forEach((file) =>
+          galleryFormData.append("files", file),
+        );
+
+        const galleryRes = await fetch("/api/property/gallery", {
+          method: "POST",
+          body: galleryFormData,
+        });
+        const galleryPayload = await galleryRes.json().catch(() => null);
+        if (!galleryRes.ok) {
+          throw new Error(galleryPayload?.error || "추가 사진 업로드 실패");
+        }
+      }
+
+      setStatus(
+        `새 현장 등록 완료 (ID: ${propertyId}, 대표사진 ${mainImagePublicUrl ? 1 : 0}장, 추가사진 ${galleryImageFiles.length}장, 평면도 ${Object.keys(uploadedFloorPlanUrls).length}장, 타입 ${unitRows.length}개, 시설 ${facilityRows.length}개)`,
+      );
+      setStatusTone("safe");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "새 현장 등록 실패";
+      setStatus(`새 현장 등록 실패: ${toKoreanErrorMessage(message)}`);
+      setStatusTone("danger");
+    } finally {
+      setCreatingNewProperty(false);
+    }
+  };
+
   const val = (v: unknown) => (v != null && v !== "" ? String(v) : "-");
   const resolveFloorPlanUrl = (
     unit: ExtractUnitTypeExtended | null,
-    rowIndex: number
+    rowIndex: number,
   ) => {
     const edited = unitFloorPlanUrls[rowIndex];
     if (edited) return edited;
@@ -205,9 +1371,10 @@ export default function TestUploadPage() {
   const handleFloorPlanFileChange = (
     rowIndex: number,
     file: File | null,
-    fallbackUrl = ""
+    fallbackUrl = "",
   ) => {
     const nextUrl = file ? URL.createObjectURL(file) : fallbackUrl;
+    setUnitFloorPlanFiles((prev) => ({ ...prev, [rowIndex]: file }));
     setUnitFloorPlanUrls((prev) => {
       const current = prev[rowIndex];
       if (current && current.startsWith("blob:")) {
@@ -222,6 +1389,7 @@ export default function TestUploadPage() {
   }, [unitFloorPlanUrls]);
 
   const handleMainImageChange = (file: File | null) => {
+    setMainImageFile(file);
     setMainImageUrl((prev) => {
       revokeBlobUrl(prev);
       return file ? URL.createObjectURL(file) : "";
@@ -230,11 +1398,14 @@ export default function TestUploadPage() {
 
   const handleGalleryImagesChange = (filesList: FileList | null) => {
     if (!filesList || filesList.length === 0) return;
-    const nextUrls = Array.from(filesList).map((file) => URL.createObjectURL(file));
+    const nextFiles = Array.from(filesList);
+    const nextUrls = nextFiles.map((file) => URL.createObjectURL(file));
+    setGalleryImageFiles((prev) => [...prev, ...nextFiles]);
     setGalleryImageUrls((prev) => [...prev, ...nextUrls]);
   };
 
   const removeGalleryImage = (index: number) => {
+    setGalleryImageFiles((prev) => prev.filter((_, i) => i !== index));
     setGalleryImageUrls((prev) => {
       const target = prev[index];
       revokeBlobUrl(target);
@@ -263,7 +1434,7 @@ export default function TestUploadPage() {
   const rawLocationLng = toNumberOrNull(result?.location?.lng);
   const { lat: locationLat, lng: locationLng } = normalizeKoreaCoords(
     rawLocationLat,
-    rawLocationLng
+    rawLocationLng,
   );
   const locationMarkers: MapMarker[] =
     locationLat != null && locationLng != null
@@ -281,20 +1452,20 @@ export default function TestUploadPage() {
   const facilityMarkers: MapMarker[] = (result?.facilities ?? []).reduce<
     MapMarker[]
   >((acc, facility, index) => {
-      const f = facility as ExtractFacilityWithCoords;
-      const lat = toNumberOrNull(f.lat);
-      const lng = toNumberOrNull(f.lng);
-      if (lat == null || lng == null) return acc;
+    const f = facility as ExtractFacilityWithCoords;
+    const lat = toNumberOrNull(f.lat);
+    const lng = toNumberOrNull(f.lng);
+    if (lat == null || lng == null) return acc;
 
-      acc.push({
-        id: index + 1,
-        label: f.name ?? `홍보시설 ${index + 1}`,
-        lat,
-        lng,
-        type: "open",
-      });
-      return acc;
-    }, []);
+    acc.push({
+      id: index + 1,
+      label: f.name ?? `홍보시설 ${index + 1}`,
+      lat,
+      lng,
+      type: "open",
+    });
+    return acc;
+  }, []);
 
   return (
     <PageContainer className="max-w-240">
@@ -386,6 +1557,193 @@ export default function TestUploadPage() {
 
         {result ? (
           <div className="space-y-4">
+            {checkingSimilar || similarCandidates.length > 0 ? (
+              <Card className="p-5">
+                <div className="ob-typo-subtitle text-(--oboon-text-title)">
+                  현장명 자동 비교
+                </div>
+                <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+                  추출 완료 후 유사 현장을 자동 탐색합니다.
+                </div>
+
+                {checkingSimilar ? (
+                  <div className="mt-3 rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-3 ob-typo-body text-(--oboon-text-muted)">
+                    유사 현장 자동 비교 중...
+                  </div>
+                ) : null}
+
+                {similarCandidates.length > 0 ? (
+                  <div className="mt-4 space-y-3">
+                    <div className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-3 ob-typo-body text-(--oboon-text-title)">
+                      유사한 현장이 있어요. 비교할 기존 현장을 선택하세요.
+                    </div>
+
+                    <div className="space-y-2">
+                      {similarCandidates.map((candidate) => (
+                        <button
+                          key={candidate.id}
+                          type="button"
+                          onClick={() => setSelectedCandidateId(candidate.id)}
+                          className={[
+                            "w-full rounded-lg border p-3 text-left",
+                            selectedCandidateId === candidate.id
+                              ? "border-(--oboon-primary) bg-(--oboon-primary)/5"
+                              : "border-(--oboon-border-default) bg-(--oboon-bg-surface)",
+                          ].join(" ")}
+                        >
+                          <div className="ob-typo-body text-(--oboon-text-title)">
+                            {candidate.name}
+                          </div>
+                          <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+                            유사도 {(candidate.score * 100).toFixed(1)}% / 상태{" "}
+                            {displayValue(candidate.status, "status")}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        onClick={loadComparison}
+                        loading={loadingComparison}
+                        disabled={!selectedCandidateId}
+                      >
+                        비교하기
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+              </Card>
+            ) : null}
+
+            {showNewPropertyAction ? (
+              <Card className="p-5">
+                <div className="ob-typo-subtitle text-(--oboon-text-title)">
+                  유사 현장 없음
+                </div>
+                <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+                  기존 유사 현장이 없어 새 현장으로 등록할 수 있습니다.
+                </div>
+                <div className="mt-3">
+                  <Button
+                    size="sm"
+                    onClick={createNewPropertyFromExtract}
+                    loading={creatingNewProperty}
+                  >
+                    새 현장 등록하기
+                  </Button>
+                </div>
+              </Card>
+            ) : null}
+
+            {existingSnapshot ? (
+              <Card className="p-5">
+                <div className="ob-typo-subtitle text-(--oboon-text-title)">
+                  비교 결과 ({existingSnapshot.property.name})
+                </div>
+
+                {compareFields.length === 0 ? (
+                  <div className="mt-3 rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-3 ob-typo-body text-(--oboon-text-muted)">
+                    일치하는 값만 있어 추가 비교가 필요 없습니다.
+                  </div>
+                ) : (
+                  <>
+                    <div className="mt-3 overflow-x-auto rounded-lg border border-(--oboon-border-default)">
+                      <table className="w-full min-w-[820px] table-fixed border-collapse">
+                        <thead className="bg-(--oboon-bg-subtle)">
+                          <tr>
+                            <th className="w-28 border-b border-(--oboon-border-default) px-3 py-2 text-left ob-typo-caption text-(--oboon-text-muted)">
+                              구분
+                            </th>
+                            <th className="w-36 border-b border-(--oboon-border-default) px-3 py-2 text-left ob-typo-caption text-(--oboon-text-muted)">
+                              필드
+                            </th>
+                            <th className="w-1/2 border-b border-(--oboon-border-default) px-3 py-2 text-left ob-typo-caption text-(--oboon-text-muted)">
+                              기존 값 유지
+                            </th>
+                            <th className="w-1/2 border-b border-(--oboon-border-default) px-3 py-2 text-left ob-typo-caption text-(--oboon-text-muted)">
+                              AI 추출 값 반영
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {compareFields.map((field) => (
+                            <tr key={field.key} className="align-top">
+                              <td className="border-b border-(--oboon-border-default) px-3 py-3 ob-typo-caption text-(--oboon-text-muted)">
+                                {field.sectionLabel}
+                              </td>
+                              <td className="border-b border-(--oboon-border-default) px-3 py-3 ob-typo-body text-(--oboon-text-title)">
+                                {field.label}
+                              </td>
+                              <td className="border-b border-(--oboon-border-default) px-3 py-2">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setSelectionMap((prev) => ({
+                                      ...prev,
+                                      [field.key]: "existing",
+                                    }))
+                                  }
+                                  className={[
+                                    "w-full rounded-lg border p-2 text-left whitespace-normal",
+                                    selectionMap[field.key] === "existing"
+                                      ? "border-(--oboon-primary) bg-(--oboon-primary)/5"
+                                      : "border-(--oboon-border-default)",
+                                  ].join(" ")}
+                                >
+                                  <div className="break-words ob-typo-body text-(--oboon-text-body)">
+                                    {displayValue(
+                                      field.existingValue,
+                                      field.key,
+                                    )}
+                                  </div>
+                                </button>
+                              </td>
+                              <td className="border-b border-(--oboon-border-default) px-3 py-2">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setSelectionMap((prev) => ({
+                                      ...prev,
+                                      [field.key]: "incoming",
+                                    }))
+                                  }
+                                  className={[
+                                    "w-full rounded-lg border p-2 text-left whitespace-normal",
+                                    selectionMap[field.key] === "incoming"
+                                      ? "border-(--oboon-primary) bg-(--oboon-primary)/5"
+                                      : "border-(--oboon-border-default)",
+                                  ].join(" ")}
+                                >
+                                  <div className="break-words ob-typo-body text-(--oboon-text-body)">
+                                    {displayValue(
+                                      field.incomingValue,
+                                      field.key,
+                                    )}
+                                  </div>
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="mt-3 flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={applySelectedMerge}
+                        loading={savingCompareMerge}
+                      >
+                        선택한 값 반영하기
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </Card>
+            ) : null}
+
             {result._meta ? (
               <Card className="p-4">
                 <div className="ob-typo-caption text-(--oboon-text-muted)">
@@ -451,7 +1809,9 @@ export default function TestUploadPage() {
                       accept="image/*"
                       multiple
                       className="sr-only"
-                      onChange={(e) => handleGalleryImagesChange(e.target.files)}
+                      onChange={(e) =>
+                        handleGalleryImagesChange(e.target.files)
+                      }
                     />
                     <Button
                       size="sm"
@@ -499,13 +1859,16 @@ export default function TestUploadPage() {
 
             <Section title="기본 정보">
               <Row label="현장명" value={val(result.properties?.name)} />
-              <Row label="분양 유형" value={val(result.properties?.property_type)} />
+              <Row
+                label="분양 유형"
+                value={val(result.properties?.property_type)}
+              />
               <Row
                 label="분양 상태"
                 value={
                   result.properties?.status
-                    ? STATUS_LABEL[result.properties.status] ??
-                      result.properties.status
+                    ? (STATUS_LABEL[result.properties.status] ??
+                      result.properties.status)
                     : "-"
                 }
               />
@@ -544,7 +1907,10 @@ export default function TestUploadPage() {
                 }
               />
               <Row label="동 수" value={val(result.specs?.building_count)} />
-              <Row label="총 세대수" value={val(result.specs?.household_total)} />
+              <Row
+                label="총 세대수"
+                value={val(result.specs?.household_total)}
+              />
               <Row
                 label="주차"
                 value={
@@ -578,25 +1944,36 @@ export default function TestUploadPage() {
             </Section>
 
             <Section title="일정">
-              <Row label="모집공고일" value={val(result.timeline?.announcement_date)} />
+              <Row
+                label="모집공고일"
+                value={val(result.timeline?.announcement_date)}
+              />
               <Row
                 label="청약 접수"
                 value={
-                  result.timeline?.application_start || result.timeline?.application_end
+                  result.timeline?.application_start ||
+                  result.timeline?.application_end
                     ? `${val(result.timeline?.application_start)} ~ ${val(result.timeline?.application_end)}`
                     : "-"
                 }
               />
-              <Row label="당첨자 발표" value={val(result.timeline?.winner_announce)} />
+              <Row
+                label="당첨자 발표"
+                value={val(result.timeline?.winner_announce)}
+              />
               <Row
                 label="계약 기간"
                 value={
-                  result.timeline?.contract_start || result.timeline?.contract_end
+                  result.timeline?.contract_start ||
+                  result.timeline?.contract_end
                     ? `${val(result.timeline?.contract_start)} ~ ${val(result.timeline?.contract_end)}`
                     : "-"
                 }
               />
-              <Row label="입주 예정" value={val(result.timeline?.move_in_date)} />
+              <Row
+                label="입주 예정"
+                value={val(result.timeline?.move_in_date)}
+              />
             </Section>
 
             <Section title="주택형 (타입)">
@@ -637,7 +2014,7 @@ export default function TestUploadPage() {
                                   handleFloorPlanFileChange(
                                     i,
                                     e.target.files?.[0] ?? null,
-                                    u.floor_plan_url || u.image_url || ""
+                                    u.floor_plan_url || u.image_url || "",
                                   )
                                 }
                               />
@@ -693,7 +2070,10 @@ export default function TestUploadPage() {
                           <EditableText value={val(u?.bathrooms)} center />
                         </td>
                         <td className="border border-(--oboon-border-default) px-2 py-2">
-                          <EditableText value={val(u?.building_layout)} center />
+                          <EditableText
+                            value={val(u?.building_layout)}
+                            center
+                          />
                         </td>
                         <td className="border border-(--oboon-border-default) px-2 py-2">
                           <EditableText value={val(u?.orientation)} center />
@@ -722,8 +2102,14 @@ export default function TestUploadPage() {
             </Section>
 
             <Section title="위치">
-              <Row label="도로명 주소" value={val(result.location?.road_address)} />
-              <Row label="지번 주소" value={val(result.location?.jibun_address)} />
+              <Row
+                label="도로명 주소"
+                value={val(result.location?.road_address)}
+              />
+              <Row
+                label="지번 주소"
+                value={val(result.location?.jibun_address)}
+              />
               <Row
                 label="지역"
                 value={
@@ -736,8 +2122,16 @@ export default function TestUploadPage() {
                     .join(" ") || "-"
                 }
               />
-              <Row label="위도" value={val(result.location?.lat)} editable={false} />
-              <Row label="경도" value={val(result.location?.lng)} editable={false} />
+              <Row
+                label="위도"
+                value={val(result.location?.lat)}
+                editable={false}
+              />
+              <Row
+                label="경도"
+                value={val(result.location?.lng)}
+                editable={false}
+              />
 
               <div className="mt-3">
                 {locationMarkers.length > 0 ? (
@@ -781,29 +2175,30 @@ export default function TestUploadPage() {
                 )}
               </div>
               <div className="space-y-2">
-                {(result.facilities.length > 0 ? result.facilities : [null]).map(
-                  (f: ExtractFacilityType | null, i: number) => (
-                    <div
-                      key={`${f?.name ?? "facility"}-${i}`}
-                      className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-3"
-                    >
-                      <div className="ob-typo-body text-(--oboon-text-title)">
-                        <EditableText
-                          value={`[${f?.type ?? "-"}] ${f?.name ?? "-"}`}
-                        />
-                      </div>
-                      <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
-                        주소: <EditableText value={f?.road_address ?? "-"} />
-                      </div>
-                      <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
-                        운영시간:{" "}
-                        <EditableText
-                          value={`${f?.open_start ?? "?"} ~ ${f?.open_end ?? "?"}`}
-                        />
-                      </div>
+                {(result.facilities.length > 0
+                  ? result.facilities
+                  : [null]
+                ).map((f: ExtractFacilityType | null, i: number) => (
+                  <div
+                    key={`${f?.name ?? "facility"}-${i}`}
+                    className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-3"
+                  >
+                    <div className="ob-typo-body text-(--oboon-text-title)">
+                      <EditableText
+                        value={`[${f?.type ?? "-"}] ${f?.name ?? "-"}`}
+                      />
                     </div>
-                  )
-                )}
+                    <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+                      주소: <EditableText value={f?.road_address ?? "-"} />
+                    </div>
+                    <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+                      운영시간:{" "}
+                      <EditableText
+                        value={`${f?.open_start ?? "?"} ~ ${f?.open_end ?? "?"}`}
+                      />
+                    </div>
+                  </div>
+                ))}
               </div>
             </Section>
 
