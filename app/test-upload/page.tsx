@@ -22,6 +22,13 @@ type ExtractResult = PropertyExtractionData & {
     textLength: number;
     truncated: boolean;
     geocoded: boolean;
+    imageStats?: {
+      totalPages: number;
+      imagesFound: number;
+      imagesExtracted: number;
+      imagesFailed: number;
+      renderFallbackUsed: boolean;
+    };
   };
 };
 
@@ -632,6 +639,8 @@ export default function TestUploadPage() {
   const [status, setStatus] = useState("PDF를 선택해 테스트를 시작하세요.");
   const [statusTone, setStatusTone] = useState<StatusTone>("idle");
   const [loading, setLoading] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const elapsedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [result, setResult] = useState<ExtractResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const unitFloorPlanInputRefs = useRef<
@@ -650,6 +659,20 @@ export default function TestUploadPage() {
   const [mainImageFile, setMainImageFile] = useState<File | null>(null);
   const [galleryImageUrls, setGalleryImageUrls] = useState<string[]>([]);
   const [galleryImageFiles, setGalleryImageFiles] = useState<File[]>([]);
+
+  // PDF에서 추출된 이미지 (A안: 이미지 추출)
+  type ExtractedImageWithDestination = {
+    id: string;
+    base64: string;
+    source: string;
+    aiType?: "building" | "floor_plan" | "other";
+    destination: "none" | "main" | "gallery" | "floor_plan";
+    unitTypeIndex?: number;
+  };
+  const [extractedImages, setExtractedImages] = useState<
+    ExtractedImageWithDestination[]
+  >([]);
+
   const mainImageUrlRef = useRef<string>("");
   const galleryImageUrlsRef = useRef<string[]>([]);
 
@@ -685,9 +708,13 @@ export default function TestUploadPage() {
       return;
     }
 
-    setStatus(`PDF ${files.length}개 분석 중... (최대 60초 소요)`);
     setStatusTone("idle");
     setLoading(true);
+    setElapsedSeconds(0);
+    elapsedTimerRef.current = setInterval(() => {
+      setElapsedSeconds((prev) => prev + 1);
+    }, 1000);
+    setStatus(`PDF ${files.length}개 분석 중...`);
     setResult(null);
     setSimilarCandidates([]);
     setSelectedCandidateId(null);
@@ -723,6 +750,39 @@ export default function TestUploadPage() {
       setMainImageFile(null);
       setGalleryImageUrls([]);
       setGalleryImageFiles([]);
+
+      // 추출된 이미지 초기화 (AI 분류 결과로 자동 배정)
+      if (data.extractedImages && Array.isArray(data.extractedImages)) {
+        let mainAssigned = false;
+        setExtractedImages(
+          data.extractedImages.map(
+            (img: {
+              id: string;
+              base64: string;
+              source: string;
+              aiType?: "building" | "floor_plan";
+            }) => {
+              let destination: "none" | "main" | "gallery" | "floor_plan" =
+                "none";
+              if (img.aiType === "building" && !mainAssigned) {
+                destination = "main";
+                mainAssigned = true;
+              } else if (img.aiType === "building") {
+                destination = "gallery";
+              } else if (img.aiType === "floor_plan") {
+                destination = "floor_plan";
+              }
+              return {
+                ...img,
+                destination,
+                unitTypeIndex: undefined,
+              };
+            },
+          ),
+        );
+      } else {
+        setExtractedImages([]);
+      }
       setStatus("추출 완료! 유사 현장 자동 비교 중...");
       const hasSimilar = await runNameComparison(data);
       if (hasSimilar === true) {
@@ -741,6 +801,10 @@ export default function TestUploadPage() {
       setStatus(`오류: ${toKoreanErrorMessage(message)}`);
       setStatusTone("danger");
     } finally {
+      if (elapsedTimerRef.current) {
+        clearInterval(elapsedTimerRef.current);
+        elapsedTimerRef.current = null;
+      }
       setLoading(false);
     }
   };
@@ -1345,8 +1409,66 @@ export default function TestUploadPage() {
         }
       }
 
+      // 추출된 이미지 업로드 및 DB 저장
+      let extractedImageCount = 0;
+      for (const img of extractedImages) {
+        if (img.destination === "none") continue;
+
+        try {
+          if (img.destination === "main") {
+            // 대표 이미지
+            const url = await uploadSingleExtractedImage(
+              img,
+              "property_main",
+              propertyId,
+            );
+            await supabase
+              .from("properties")
+              .update({ image_url: url })
+              .eq("id", propertyId);
+            extractedImageCount++;
+          } else if (img.destination === "gallery") {
+            // 추가 현장사진
+            const url = await uploadSingleExtractedImage(
+              img,
+              "property_additional",
+              propertyId,
+            );
+            await supabase.from("property_gallery_images").insert({
+              property_id: propertyId,
+              image_url: url,
+              sort_order: 0,
+            });
+            extractedImageCount++;
+          } else if (
+            img.destination === "floor_plan" &&
+            img.unitTypeIndex !== undefined
+          ) {
+            // 평면도
+            const url = await uploadSingleExtractedImage(
+              img,
+              "property_floor_plan",
+              propertyId,
+            );
+            // unit_types의 floor_plan_url을 업데이트
+            const targetUnit = result?.unit_types?.[img.unitTypeIndex];
+            if (targetUnit) {
+              await supabase
+                .from("property_unit_types")
+                .update({ floor_plan_url: url })
+                .eq("properties_id", propertyId)
+                .eq("type_name", targetUnit.type_name || "");
+              extractedImageCount++;
+            }
+          }
+        } catch (err) {
+          console.warn("추출 이미지 업로드 실패:", img.id, err);
+          // 개별 이미지 업로드 실패해도 계속 진행
+        }
+      }
+
       setStatus(
-        `새 현장 등록 완료 (ID: ${propertyId}, 대표사진 ${mainImagePublicUrl ? 1 : 0}장, 추가사진 ${galleryImageFiles.length}장, 평면도 ${Object.keys(uploadedFloorPlanUrls).length}장, 타입 ${unitRows.length}개, 시설 ${facilityRows.length}개)`,
+        `새 현장 등록 완료 (ID: ${propertyId}, 대표사진 ${mainImagePublicUrl ? 1 : 0}장, 추가사진 ${galleryImageFiles.length}장, 평면도 ${Object.keys(uploadedFloorPlanUrls).length}장, PDF추출이미지 ${extractedImageCount}장, 타입 ${unitRows.length}개, 시설 ${facilityRows.length}개)`,
       );
       setStatusTone("safe");
     } catch (err) {
@@ -1411,6 +1533,61 @@ export default function TestUploadPage() {
       revokeBlobUrl(target);
       return prev.filter((_, i) => i !== index);
     });
+  };
+
+  // 추출된 이미지 배치 변경 함수
+  const updateImageDestination = (index: number, destination: string) => {
+    setExtractedImages((prev) =>
+      prev.map((img, i) =>
+        i === index
+          ? {
+              ...img,
+              destination: destination as ExtractedImageWithDestination["destination"],
+              unitTypeIndex: undefined,
+            }
+          : img,
+      ),
+    );
+  };
+
+  const updateImageUnitType = (index: number, unitTypeIndex: number) => {
+    setExtractedImages((prev) =>
+      prev.map((img, i) => (i === index ? { ...img, unitTypeIndex } : img)),
+    );
+  };
+
+  // base64를 Blob으로 변환
+  const base64ToBlob = (base64: string): Blob => {
+    const [header, data] = base64.split(",");
+    const mime = header.match(/:(.*?);/)?.[1] || "image/jpeg";
+    const binary = atob(data);
+    const array = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      array[i] = binary.charCodeAt(i);
+    }
+    return new Blob([array], { type: mime });
+  };
+
+  // 단일 이미지 업로드 (R2)
+  const uploadSingleExtractedImage = async (
+    img: ExtractedImageWithDestination,
+    mode: string,
+    propertyId: number,
+  ): Promise<string> => {
+    const blob = base64ToBlob(img.base64);
+    const formData = new FormData();
+    formData.append("file", blob, `extracted-${img.id}.jpg`);
+    formData.append("mode", mode);
+    formData.append("propertyId", propertyId.toString());
+
+    const res = await fetch("/api/r2/upload", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!res.ok) throw new Error("이미지 업로드 실패");
+    const { url } = await res.json();
+    return url;
   };
 
   useEffect(() => {
@@ -1551,6 +1728,11 @@ export default function TestUploadPage() {
               ].join(" ")}
             >
               {status}
+              {loading && (
+                <span className="ml-2 text-(--oboon-text-muted)">
+                  ({elapsedSeconds}초 경과)
+                </span>
+              )}
             </div>
           </div>
         </Card>
@@ -1751,6 +1933,9 @@ export default function TestUploadPage() {
                   {result._meta.textLength.toLocaleString()}자
                   {result._meta.truncated ? " (일부만 분석됨)" : ""}
                   {result._meta.geocoded ? " / 지오코딩 완료" : ""}
+                  {result._meta.imageStats && result._meta.imageStats.imagesExtracted > 0
+                    ? ` / 이미지 ${result._meta.imageStats.imagesExtracted}장 추출 성공`
+                    : ""}
                 </div>
               </Card>
             ) : null}
@@ -1856,6 +2041,99 @@ export default function TestUploadPage() {
                 </div>
               </div>
             </Section>
+
+            {/* PDF에서 추출된 이미지 */}
+            {extractedImages.length > 0 && (
+              <Section title={`추출된 이미지 (${extractedImages.length}개)`}>
+                <div className="space-y-3">
+                  <p className="ob-typo-caption text-(--oboon-text-muted)">
+                    PDF에서 추출한 이미지를 어디에 사용할지 선택하세요.
+                  </p>
+                  <div className="space-y-2">
+                    {extractedImages.map((img, idx) => (
+                      <div
+                        key={img.id}
+                        className="flex gap-3 rounded-lg border border-(--oboon-border-default) bg-white p-3"
+                      >
+                        {/* 이미지 미리보기 (왼쪽) */}
+                        <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded">
+                          <Image
+                            src={img.base64}
+                            alt={`추출 이미지 ${idx + 1}`}
+                            fill
+                            className="object-cover"
+                            unoptimized
+                          />
+                        </div>
+
+                        {/* 선택 옵션 (오른쪽) */}
+                        <div className="flex-1 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <label className="ob-typo-caption font-medium text-(--oboon-text-title) w-20">
+                              이미지 용도
+                            </label>
+                            <select
+                              value={img.destination}
+                              onChange={(e) =>
+                                updateImageDestination(idx, e.target.value)
+                              }
+                              className="flex-1 rounded border border-(--oboon-border-default) px-2 py-1.5 ob-typo-body"
+                            >
+                              <option value="none">사용 안 함</option>
+                              <option value="main">대표 이미지</option>
+                              <option value="gallery">추가 현장사진</option>
+                              <option value="floor_plan">평면도</option>
+                            </select>
+                          </div>
+
+                          {/* 평면도 선택 시: 타입 선택 */}
+                          {img.destination === "floor_plan" && (
+                            <div className="flex items-center gap-2">
+                              <label className="ob-typo-caption font-medium text-(--oboon-text-title) w-20">
+                                평면 타입
+                              </label>
+                              <select
+                                value={img.unitTypeIndex ?? ""}
+                                onChange={(e) =>
+                                  updateImageUnitType(
+                                    idx,
+                                    parseInt(e.target.value),
+                                  )
+                                }
+                                className="flex-1 rounded border border-(--oboon-border-default) px-2 py-1.5 ob-typo-body"
+                              >
+                                <option value="">타입 선택</option>
+                                {result?.unit_types?.map((type, i) => (
+                                  <option key={i} value={i}>
+                                    {type.type_name ||
+                                      `${type.exclusive_area}㎡`}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+
+                          {/* 상태 표시 */}
+                          <div className="ob-typo-caption text-(--oboon-text-muted)">
+                            {img.destination === "none" && "미사용"}
+                            {img.destination === "main" &&
+                              "✓ 대표 이미지로 설정됨"}
+                            {img.destination === "gallery" &&
+                              "✓ 현장사진에 추가됨"}
+                            {img.destination === "floor_plan" &&
+                              img.unitTypeIndex !== undefined &&
+                              `✓ ${
+                                result?.unit_types?.[img.unitTypeIndex]
+                                  ?.type_name || "평면도"
+                              }에 배치됨`}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Section>
+            )}
 
             <Section title="기본 정보">
               <Row label="현장명" value={val(result.properties?.name)} />

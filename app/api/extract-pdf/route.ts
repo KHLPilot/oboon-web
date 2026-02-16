@@ -1,9 +1,10 @@
 import { google } from '@ai-sdk/google';
 import { generateObject } from 'ai';
-import { propertyExtractionSchema } from '@/lib/schema/property-schema';
+import { propertyExtractionSchema, imageClassificationResultSchema } from '@/lib/schema/property-schema';
+import { extractImagesFromPDF, convertImageToBase64 } from '@/lib/pdf-utils';
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pdfParse = require('pdf-parse');
@@ -13,13 +14,19 @@ const MAX_TEXT_LENGTH = 30000;
 const systemPrompt = `너는 대한민국 아파트/오피스텔 분양 사업개요(모집공고문) PDF에서 정형 데이터를 추출하는 전문가다.
 
 ## 규칙
-1. PDF 텍스트에 명시된 값만 추출하라. 추측 금지.
-2. 찾을 수 없는 값은 반드시 null로 반환하라.
-3. 숫자는 반드시 숫자 타입으로 반환하라 (문자열 금지).
-4. 면적은 m2(제곱미터) 단위 숫자로 통일하라.
-5. 분양가는 만원 단위 숫자로 반환하라. (예: 5억 3천만원 → 53000)
-6. 날짜는 YYYY-MM-DD 형식으로 반환하라. (예: 2025.03.15 → 2025-03-15)
-7. 입주 예정일(move_in_date)은 정확한 날짜가 없으면 텍스트 그대로 반환하라. (예: "2027년 3월 예정")
+1. PDF 텍스트와 **이미지 모두**에서 정보를 추출하라.
+2. **이미지에서 해석 가능한 정보는 값으로 취급**한다.
+   - 평면도 이미지 → 방 개수(rooms), 화장실 개수(bathrooms) 추출
+   - 조감도 이미지 → 건물 외관, 층수 참고
+   - 위치도/배치도 이미지 → 주변 시설, 동 배치 참고
+3. 텍스트에 명시되지 않았더라도 이미지에서 명확히 확인 가능하면 추출하라.
+
+4. 추측은 금지. 이미지/텍스트 모두에 없으면 null.
+5. 숫자는 반드시 숫자 타입으로 반환하라 (문자열 금지).
+6. 면적은 m2(제곱미터) 단위 숫자로 통일하라.
+7. 분양가는 만원 단위 숫자로 반환하라. (예: 5억 3천만원 → 53000)
+8. 날짜는 YYYY-MM-DD 형식으로 반환하라. (예: 2025.03.15 → 2025-03-15)
+9. 입주 예정일(move_in_date)은 정확한 날짜가 없으면 텍스트 그대로 반환하라. (예: "2027년 3월 예정")
 
 ## 분양 상태(status) 판단 기준
 - 모집공고 전이거나 청약접수 전이면: "READY"
@@ -190,12 +197,47 @@ export async function POST(req: Request) {
     }
 
     const textParts: string[] = [];
+    const allImages: Array<{ base64: string; fileName: string; index: number }> = [];
+    const combinedStats = {
+      totalPages: 0,
+      imagesFound: 0,
+      imagesExtracted: 0,
+      imagesFailed: 0,
+      renderFallbackUsed: false,
+    };
+
     for (const file of files) {
       const arrayBuffer = await file.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
+
+      // 텍스트 추출
       const parsed = await pdfParse(buffer);
       if (parsed.text?.trim()) {
         textParts.push(`=== [${file.name}] ===\n${parsed.text}`);
+      }
+
+      // 이미지 추출 (A안)
+      try {
+        const { images, stats } = await extractImagesFromPDF(buffer);
+
+        // 통계 누적
+        combinedStats.totalPages += stats.totalPages;
+        combinedStats.imagesFound += stats.imagesFound;
+        combinedStats.imagesExtracted += stats.imagesExtracted;
+        combinedStats.imagesFailed += stats.imagesFailed;
+        combinedStats.renderFallbackUsed = combinedStats.renderFallbackUsed || stats.renderFallbackUsed;
+
+        for (let i = 0; i < images.length; i++) {
+          const base64 = convertImageToBase64(images[i].buffer, images[i].format);
+          allImages.push({
+            base64,
+            fileName: file.name,
+            index: i,
+          });
+        }
+      } catch (error) {
+        console.warn(`${file.name}에서 이미지 추출 실패:`, error);
+        // 이미지 추출 실패해도 계속 진행
       }
     }
 
@@ -212,42 +254,136 @@ export async function POST(req: Request) {
       ? rawText.slice(0, MAX_TEXT_LENGTH) + '\n\n[... 텍스트가 길어서 일부만 분석합니다]'
       : rawText;
 
-    const { object } = await generateObject({
+    // ── Phase 1: 텍스트 + 이미지 3장으로 속성 데이터 추출 (분류 없음) ──
+    const phase1Content: Array<
+      | { type: 'text'; text: string }
+      | { type: 'image'; image: string }
+    > = [
+      {
+        type: 'text',
+        text: `다음은 동일 분양 현장의 PDF ${files.length}개에서 추출한 정보다. 텍스트와 이미지를 모두 분석하여 하나의 정형 데이터로 변환하라.\n\n${extractedText}`,
+      },
+    ];
+
+    // 데이터 추출 참고용 이미지 3장만 첨부 (평면도에서 방/화장실 수 등)
+    const phase1ImageLimit = Math.min(allImages.length, 3);
+    for (let i = 0; i < phase1ImageLimit; i++) {
+      phase1Content.push({
+        type: 'image',
+        image: allImages[i].base64,
+      });
+    }
+
+    const { object: extractionResult } = await generateObject({
       model: google('gemini-2.5-flash-lite'),
       schema: propertyExtractionSchema,
       system: systemPrompt,
-      prompt: `다음은 동일 분양 현장의 PDF ${files.length}개에서 추출한 텍스트다. 모든 문서의 정보를 종합하여 하나의 정형 데이터로 변환하라.\n\n${extractedText}`,
+      messages: [{ role: 'user', content: phase1Content }],
     });
 
-    // 카카오 주소 보완:
-    // - 도로명만 있으면 지번 보완
-    // - 지번만 있으면 도로명 보완
+    // ── Phase 2: 이미지 분류 (이미지만, 간단한 스키마) ──
+    let classificationResult: { classifications: Array<{ imageIndex: number; type: 'building' | 'floor_plan' | 'other' }> } | null = null;
+
+    if (allImages.length > 0) {
+      const unitTypeCount = extractionResult.unit_types?.length || 0;
+      const neededImages = 5 + unitTypeCount; // 건물 5장 + 타입별 평면도
+      const phase2ImageLimit = Math.min(allImages.length, neededImages, 10);
+
+      const phase2Content: Array<
+        | { type: 'text'; text: string }
+        | { type: 'image'; image: string }
+      > = [
+        {
+          type: 'text',
+          text: `총 ${phase2ImageLimit}개의 이미지가 첨부되어 있다. imageIndex는 0부터 ${phase2ImageLimit - 1}까지만 분류하라. 그 외 인덱스는 절대 포함하지 마라.`,
+        },
+      ];
+
+      for (let i = 0; i < phase2ImageLimit; i++) {
+        phase2Content.push({
+          type: 'image',
+          image: allImages[i].base64,
+        });
+      }
+
+      const { object: classResult } = await generateObject({
+        model: google('gemini-2.5-flash-lite'),
+        schema: imageClassificationResultSchema,
+        system: '첨부된 이미지를 분류하라. building: 건물 외관 렌더링, 조감도, 실사 사진, 투시도, 야경. floor_plan: 평면도, 단위세대 도면, 층별 배치도. other: 로고, 지도, 위치도, 표, 다이어그램, 장식 이미지.',
+        messages: [{ role: 'user', content: phase2Content }],
+      });
+
+      classificationResult = classResult;
+    }
+
+    // ── 카카오 주소 보완 ──
     const geoResult = await resolveLocationAddresses({
-      road_address: object.location?.road_address,
-      jibun_address: object.location?.jibun_address,
+      road_address: extractionResult.location?.road_address,
+      jibun_address: extractionResult.location?.jibun_address,
     });
 
     const location = {
-      ...object.location,
-      road_address: object.location?.road_address || geoResult?.road_address || null,
-      jibun_address: object.location?.jibun_address || geoResult?.jibun_address || null,
+      ...extractionResult.location,
+      road_address: extractionResult.location?.road_address || geoResult?.road_address || null,
+      jibun_address: extractionResult.location?.jibun_address || geoResult?.jibun_address || null,
       lat: geoResult?.lat ?? null,
       lng: geoResult?.lng ?? null,
-      // 지오코딩 결과로 region 정보 보완 (AI가 못 찾은 경우)
-      region_1depth: object.location?.region_1depth || geoResult?.region_1depth || null,
-      region_2depth: object.location?.region_2depth || geoResult?.region_2depth || null,
-      region_3depth: object.location?.region_3depth || geoResult?.region_3depth || null,
+      region_1depth: extractionResult.location?.region_1depth || geoResult?.region_1depth || null,
+      region_2depth: extractionResult.location?.region_2depth || geoResult?.region_2depth || null,
+      region_3depth: extractionResult.location?.region_3depth || geoResult?.region_3depth || null,
     };
 
+    // 시설 주소 지오코딩
+    const facilitiesWithGeo = await Promise.all(
+      (extractionResult.facilities || []).map(async (facility) => {
+        if (!facility.road_address) return facility;
+        const facilityGeo = await geocodeAddress(facility.road_address);
+        return {
+          ...facility,
+          lat: facilityGeo?.lat ?? null,
+          lng: facilityGeo?.lng ?? null,
+        };
+      })
+    );
+
+    // ── 스마트 필터링: 건물 5장 + 타입별 평면도 1장 ──
+    const classifications = classificationResult?.classifications || [];
+    const unitTypeCount = extractionResult.unit_types?.length || 0;
+
+    const buildingImages = classifications
+      .filter(c => c.type === 'building')
+      .slice(0, 5);
+    const floorPlanImages = classifications
+      .filter(c => c.type === 'floor_plan')
+      .slice(0, Math.max(unitTypeCount, 1));
+
+    const selectedIndices = [
+      ...buildingImages.map(c => c.imageIndex),
+      ...floorPlanImages.map(c => c.imageIndex),
+    ];
+
+    const extractedImages = selectedIndices
+      .filter(idx => idx >= 0 && idx < allImages.length)
+      .map((idx, i) => ({
+        id: `img-${i}`,
+        base64: allImages[idx].base64,
+        source: allImages[idx].fileName,
+        aiType: classifications.find(c => c.imageIndex === idx)?.type as 'building' | 'floor_plan',
+      }));
+
     return Response.json({
-      ...object,
+      ...extractionResult,
       location,
+      facilities: facilitiesWithGeo,
       _meta: {
         fileCount: files.length,
         textLength: rawText.length,
+        imageCount: allImages.length,
+        imageStats: combinedStats,
         truncated,
         geocoded: geoResult !== null,
       },
+      extractedImages,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : '분석 중 오류 발생';

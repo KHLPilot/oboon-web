@@ -70,6 +70,7 @@ const propertyFacilitySchema = z.object({
   open_end: z.string().nullable().describe("운영 종료시간 (예: 18:00)"),
 });
 
+// Phase 1: 텍스트 + 이미지 기반 속성 추출 (이미지 분류 없음)
 export const propertyExtractionSchema = z.object({
   properties: propertiesSchema,
   location: propertyLocationSchema,
@@ -80,3 +81,17 @@ export const propertyExtractionSchema = z.object({
 });
 
 export type PropertyExtractionData = z.infer<typeof propertyExtractionSchema>;
+
+// Phase 2: 이미지 분류 전용 스키마 (별도 Gemini 호출)
+const imageClassificationItemSchema = z.object({
+  imageIndex: z.number().describe("이미지 순서 번호 (0부터 시작)"),
+  type: z.enum(["building", "floor_plan", "other"]).describe(
+    "이미지 유형: building(건물 외관/렌더/조감도/실사/투시도), floor_plan(평면도/단위세대 도면/층별 배치도), other(로고/지도/표/장식 등 불필요)"
+  ),
+});
+
+export const imageClassificationResultSchema = z.object({
+  classifications: z.array(imageClassificationItemSchema).max(15).describe(
+    "첨부된 각 이미지의 유형을 분류하라. 건물 외관/렌더/조감도는 building, 평면도/단위세대 도면은 floor_plan, 그 외(로고/지도/표/장식)는 other"
+  ),
+});

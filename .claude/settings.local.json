@@ -32,7 +32,14 @@
       "Bash(supabase link:*)",
       "Bash(supabase db push:*)",
       "Bash(supabase db execute:*)",
-      "Bash(npx supabase:*)"
+      "Bash(npx supabase:*)",
+      "Bash(pnpm dev)",
+      "Bash(node -e:*)",
+      "Bash(node --version:*)",
+      "Bash(pnpm --version:*)",
+      "Bash(npm --version:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(pnpm remove:*)"
     ]
   }
 }
