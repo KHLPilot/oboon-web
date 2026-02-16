@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { Suspense, useState, useEffect, useCallback } from "react";
+import { Suspense, useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowRight,
@@ -264,6 +264,10 @@ function AgentConsultationsPageContent() {
     fetchData();
   }, [router, fetchConsultations, fetchScheduleSummary]);
 
+  // fetchConsultations를 ref로 관리하여 Realtime 채널 재구독 방지
+  const fetchConsultationsRef = useRef(fetchConsultations);
+  fetchConsultationsRef.current = fetchConsultations;
+
   // Realtime 알림 구독
   useEffect(() => {
     if (!agentId) return;
@@ -288,7 +292,7 @@ function AgentConsultationsPageContent() {
 
     fetchUnreadNotifications();
 
-    // Realtime 구독
+    // Realtime 구독 (agentId 변경 시에만 재생성)
     const channel = supabase
       .channel(`agent_notifications_${agentId}`)
       .on(
@@ -304,7 +308,7 @@ function AgentConsultationsPageContent() {
           setNotifications((prev) => [newNotification, ...prev]);
           // 고객 도착 시 consultation 목록도 새로고침
           if (newNotification.type === "customer_arrival") {
-            fetchConsultations();
+            fetchConsultationsRef.current();
           }
         },
       )
@@ -313,7 +317,7 @@ function AgentConsultationsPageContent() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [agentId, fetchConsultations]);
+  }, [agentId]);
 
   async function handleDismissNotification(notificationId: string) {
     try {

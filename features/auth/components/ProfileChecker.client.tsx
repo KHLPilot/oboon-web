@@ -2,26 +2,29 @@
 
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 
 export default function ProfileChecker() {
     const router = useRouter();
     const pathname = usePathname();
-    const supabase = createSupabaseClient();
+    const supabase = useMemo(() => createSupabaseClient(), []);
+    const checkedRef = useRef(false);
 
     useEffect(() => {
-        // ✅ /auth 경로는 모두 건너뛰기 (온보딩 포함)
+        // /auth 경로는 모두 건너뛰기 (온보딩 포함)
         if (pathname.startsWith("/auth")) {
             return;
         }
+
+        // 이미 프로필 확인 완료 시 스킵
+        if (checkedRef.current) return;
 
         async function checkProfile() {
             const { data: { session } } = await supabase.auth.getSession();
 
             if (!session) {
-                // 로그인 안됨 - 체크 불필요
                 return;
             }
 
@@ -41,6 +44,8 @@ export default function ProfileChecker() {
 
             if (isMissing) {
                 router.replace("/auth/onboarding");
+            } else {
+                checkedRef.current = true;
             }
         }
 

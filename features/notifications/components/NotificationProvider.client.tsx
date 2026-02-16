@@ -85,7 +85,8 @@ export function NotificationProvider({
     );
 
     return () => listener.subscription.unsubscribe();
-  }, [fetchNotifications]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Realtime 구독
   useEffect(() => {

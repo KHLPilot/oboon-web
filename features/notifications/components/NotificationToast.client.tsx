@@ -98,7 +98,9 @@ export default function NotificationToastManager() {
   const [senderProfiles, setSenderProfiles] = useState<Record<string, SenderProfile>>(
     {},
   );
-  const [threads, setThreads] = useState<ThreadItem[]>([]);
+  const [latestByRoom, setLatestByRoom] = useState(
+    () => new Map<string, { content: string; created_at: string }>(),
+  );
   const [panelOpen, setPanelOpen] = useState(false);
   const [threadLoading, setThreadLoading] = useState(false);
 
@@ -137,10 +139,11 @@ export default function NotificationToastManager() {
       .filter((profile): profile is SenderProfile => Boolean(profile));
   }, [counterpartIds, senderProfiles]);
 
+  // 통합 fetch: rooms → (profiles + messages 병렬) → threads 빌드
   useEffect(() => {
     let mounted = true;
 
-    async function fetchChatContext() {
+    async function fetchAllChatData() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -151,12 +154,16 @@ export default function NotificationToastManager() {
           setHasChatRoom(false);
           setRoomRows([]);
           setCounterpartIds([]);
+          setSenderProfiles({});
+          setLatestByRoom(new Map());
         }
         return;
       }
 
       setCurrentUserId(user.id);
+      setThreadLoading(true);
 
+      // 1. 채팅방 조회
       const { data: rooms, error: roomError } = await supabase
         .from("chat_rooms")
         .select(
@@ -173,6 +180,7 @@ export default function NotificationToastManager() {
         setHasChatRoom(false);
         setRoomRows([]);
         setCounterpartIds([]);
+        setThreadLoading(false);
         return;
       }
 
@@ -180,137 +188,126 @@ export default function NotificationToastManager() {
       setRoomRows(rows);
       setHasChatRoom(rows.length > 0);
 
-      const ids = rows
-        .map((room) => (room.customer_id === user.id ? room.agent_id : room.customer_id))
-        .filter((id): id is string => Boolean(id));
-      setCounterpartIds([...new Set(ids)]);
+      if (rows.length === 0) {
+        setCounterpartIds([]);
+        setSenderProfiles({});
+        setLatestByRoom(new Map());
+        setThreadLoading(false);
+        return;
+      }
+
+      // 상대방 ID 추출
+      const ids = [
+        ...new Set(
+          rows
+            .map((room) =>
+              room.customer_id === user.id ? room.agent_id : room.customer_id,
+            )
+            .filter((id): id is string => Boolean(id)),
+        ),
+      ];
+      setCounterpartIds(ids);
+
+      // 2. 프로필 + 최신 메시지 병렬 조회
+      const roomIds = rows.map((r) => r.id);
+      const [profilesResult, messagesResult] = await Promise.all([
+        ids.length > 0
+          ? supabase
+              .from("profiles")
+              .select("id, name, avatar_url")
+              .in("id", ids)
+          : Promise.resolve({ data: [] as { id: string; name: string | null; avatar_url: string | null }[], error: null }),
+        supabase
+          .from("chat_messages")
+          .select("room_id, content, created_at")
+          .in("room_id", roomIds)
+          .order("created_at", { ascending: false })
+          .limit(roomIds.length),
+      ]);
+
+      if (!mounted) return;
+
+      // 프로필 맵 생성
+      if (profilesResult.error) {
+        console.error("[chat toast] sender profile load error:", profilesResult.error);
+      }
+      const profiles: Record<string, SenderProfile> = {};
+      (profilesResult.data ?? []).forEach((row) => {
+        const id = row.id as string;
+        profiles[id] = {
+          id,
+          name: (row.name as string | null) ?? null,
+          avatar_url: (row.avatar_url as string | null) ?? null,
+        };
+      });
+      setSenderProfiles(profiles);
+
+      // 최신 메시지 맵 생성
+      if (messagesResult.error) {
+        console.error("[chat toast] latest message load error:", messagesResult.error);
+      }
+      const latestMap = new Map<
+        string,
+        { content: string; created_at: string }
+      >();
+      (messagesResult.data ?? []).forEach((msg) => {
+        const roomId = msg.room_id as string;
+        if (!latestMap.has(roomId)) {
+          latestMap.set(roomId, {
+            content: String(msg.content ?? ""),
+            created_at: String(msg.created_at ?? ""),
+          });
+        }
+      });
+      setLatestByRoom(latestMap);
+      setThreadLoading(false);
     }
 
-    fetchChatContext();
+    fetchAllChatData();
 
     return () => {
       mounted = false;
     };
   }, [chatNotifications.length, supabase]);
 
-  useEffect(() => {
-    let mounted = true;
+  // 스레드 빌드: DB 호출 없이 캐시된 데이터 + unread 카운트로 계산
+  const threads = useMemo(() => {
+    if (!currentUserId || roomRows.length === 0) return [];
 
-    async function fetchSenderProfiles() {
-      if (counterpartIds.length === 0) {
-        setSenderProfiles({});
-        return;
-      }
+    return roomRows
+      .map((room) => {
+        const activeConsultationId =
+          room.last_consultation_id ?? room.consultation_id;
+        if (!activeConsultationId) return null;
 
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, name, avatar_url")
-        .in("id", counterpartIds);
+        const counterpartId =
+          room.customer_id === currentUserId ? room.agent_id : room.customer_id;
+        const profile = senderProfiles[counterpartId];
+        const latest = latestByRoom.get(room.id);
+        const lastMessageAt = latest?.created_at || room.updated_at;
+        const unreadCount =
+          unreadByConsultation.get(activeConsultationId) ?? 0;
+        const hasLatestMessage = Boolean(latest?.content?.trim());
 
-      if (error) {
-        console.error("[chat toast] sender profile load error:", error);
-        return;
-      }
-      if (!mounted) return;
-
-      const next: Record<string, SenderProfile> = {};
-      (data ?? []).forEach((row) => {
-        const id = row.id as string;
-        next[id] = {
-          id,
-          name: (row.name as string | null) ?? null,
-          avatar_url: (row.avatar_url as string | null) ?? null,
-        };
-      });
-      setSenderProfiles(next);
-    }
-
-    fetchSenderProfiles();
-
-    return () => {
-      mounted = false;
-    };
-  }, [counterpartIds, supabase]);
-
-  useEffect(() => {
-    let mounted = true;
-
-    async function fetchThreadItems() {
-      if (!currentUserId || roomRows.length === 0) {
-        setThreads([]);
-        return;
-      }
-      setThreadLoading(true);
-
-      const roomIds = roomRows.map((r) => r.id);
-      const { data: messages, error } = await supabase
-        .from("chat_messages")
-        .select("room_id, content, created_at")
-        .in("room_id", roomIds)
-        .order("created_at", { ascending: false })
-        .limit(500);
-
-      if (error) {
-        console.error("[chat toast] latest message load error:", error);
-      }
-      if (!mounted) return;
-
-      const latestByRoom = new Map<
-        string,
-        { content: string; created_at: string }
-      >();
-      (messages ?? []).forEach((msg) => {
-        const roomId = msg.room_id as string;
-        if (!latestByRoom.has(roomId)) {
-          latestByRoom.set(roomId, {
-            content: String(msg.content ?? ""),
-            created_at: String(msg.created_at ?? ""),
-          });
-        }
-      });
-
-      const items = roomRows
-        .map((room) => {
-          const activeConsultationId =
-            room.last_consultation_id ?? room.consultation_id;
-          if (!activeConsultationId) return null;
-
-          const counterpartId =
-            room.customer_id === currentUserId ? room.agent_id : room.customer_id;
-          const profile = senderProfiles[counterpartId];
-          const latest = latestByRoom.get(room.id);
-          const lastMessageAt = latest?.created_at || room.updated_at;
-          const unreadCount = unreadByConsultation.get(activeConsultationId) ?? 0;
-          const hasLatestMessage = Boolean(latest?.content?.trim());
-
-          return {
-            roomId: room.id,
-            consultationId: activeConsultationId,
-            counterpartId,
-            counterpartName: profile?.name ?? "알 수 없음",
-            counterpartAvatarUrl: profile?.avatar_url ?? null,
-            lastMessage: latest?.content?.trim() || "대화를 시작해보세요.",
-            lastMessageAt,
-            hasLatestMessage,
-            unreadCount,
-          } satisfies ThreadItem;
-        })
-        .filter((item): item is ThreadItem => Boolean(item))
-        .sort(
-          (a, b) =>
-            new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime(),
-        );
-
-      setThreads(items);
-      setThreadLoading(false);
-    }
-
-    fetchThreadItems();
-
-    return () => {
-      mounted = false;
-    };
-  }, [currentUserId, roomRows, senderProfiles, supabase, unreadByConsultation]);
+        return {
+          roomId: room.id,
+          consultationId: activeConsultationId,
+          counterpartId,
+          counterpartName: profile?.name ?? "알 수 없음",
+          counterpartAvatarUrl: profile?.avatar_url ?? null,
+          lastMessage: latest?.content?.trim() || "대화를 시작해보세요.",
+          lastMessageAt,
+          hasLatestMessage,
+          unreadCount,
+        } satisfies ThreadItem;
+      })
+      .filter((item): item is ThreadItem => Boolean(item))
+      .sort(
+        (a, b) =>
+          new Date(b.lastMessageAt).getTime() -
+          new Date(a.lastMessageAt).getTime(),
+      );
+  }, [currentUserId, roomRows, senderProfiles, latestByRoom, unreadByConsultation]);
 
   useEffect(() => {
     if (!panelOpen) return;

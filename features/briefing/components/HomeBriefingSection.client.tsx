@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import Card from "@/components/ui/Card";
 import { createSupabaseClient } from "@/lib/supabaseClient";
@@ -24,7 +24,7 @@ function pickFirst<T>(value: T | T[] | null | undefined): T | null {
 }
 
 export default function HomeBriefingSection() {
-  const supabase = createSupabaseClient();
+  const supabase = useMemo(() => createSupabaseClient(), []);
 
   const [briefingPosts, setBriefingPosts] = useState<BriefingPostCardModel[]>(
     [],

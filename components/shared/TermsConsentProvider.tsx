@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 import TermsConsentModal from "@/features/auth/components/TermsConsentModal";
@@ -10,6 +10,12 @@ const EXCLUDED_PATHS = ["/auth/signup", "/auth/onboarding"];
 
 export default function TermsConsentProvider() {
   const pathname = usePathname();
+  const pathnameRef = useRef(pathname);
+
+  useEffect(() => {
+    pathnameRef.current = pathname;
+  }, [pathname]);
+
   const [open, setOpen] = useState(false);
   const [missingTermTypes, setMissingTermTypes] = useState<string[]>([]);
 
@@ -21,6 +27,12 @@ export default function TermsConsentProvider() {
 
     // 약관 동의 체크 함수
     const checkConsent = async () => {
+      // 제외 경로에서는 약관 체크 스킵
+      const isExcluded = EXCLUDED_PATHS.some((p) =>
+        pathnameRef.current.startsWith(p)
+      );
+      if (isExcluded) return;
+
       try {
         const res = await fetch("/api/term-consents/check");
         if (!res.ok) return;
@@ -35,10 +47,6 @@ export default function TermsConsentProvider() {
       }
     };
 
-    // 제외 경로에서는 약관 체크 스킵
-    const isExcluded = EXCLUDED_PATHS.some((p) => pathname.startsWith(p));
-    if (isExcluded) return;
-
     // 초기 세션 체크
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
@@ -46,7 +54,7 @@ export default function TermsConsentProvider() {
       }
     });
 
-    // 인증 상태 변경 감지
+    // 인증 상태 변경 감지 (마운트 1회만 등록)
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
@@ -62,7 +70,7 @@ export default function TermsConsentProvider() {
     return () => {
       subscription.unsubscribe();
     };
-  }, [pathname]);
+  }, []);
 
   const handleConsent = () => {
     setOpen(false);
