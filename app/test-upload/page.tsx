@@ -834,7 +834,7 @@ export default function TestUploadPage() {
       const hasSimilar = await runNameComparison(data);
       if (hasSimilar === true) {
         setStatus(
-          "추출 완료! 유사한 현장을 자동으로 찾았습니다. 비교를 진행하세요.",
+          "추출 완료! 유사한 현장을 자동으로 찾았습니다. 비교 결과를 불러오는 중입니다.",
         );
         setStatusTone("safe");
         setShowNewPropertyAction(false);
@@ -1131,6 +1131,13 @@ export default function TestUploadPage() {
       setLoadingComparison(false);
     }
   };
+
+  useEffect(() => {
+    if (!result || !selectedCandidateId) return;
+    void loadComparison();
+    // selectedCandidateId가 바뀔 때 자동 비교
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCandidateId]);
 
   const applySelectedMerge = async () => {
     if (!existingSnapshot || !result) return;
@@ -1659,6 +1666,81 @@ export default function TestUploadPage() {
   };
 
   const val = (v: unknown) => (v != null && v !== "" ? String(v) : "-");
+  const removeSelectedPdfFile = (removeIndex: number) => {
+    setFiles((prev) => prev.filter((_, index) => index !== removeIndex));
+  };
+  const normalizeTextInput = (value: string) => {
+    const trimmed = value.trim();
+    return trimmed === "" ? null : trimmed;
+  };
+  const updateResultSectionField = (
+    section: "properties" | "location" | "specs" | "timeline",
+    field: string,
+    value: unknown,
+  ) => {
+    setResult((prev) => {
+      if (!prev) return prev;
+      const currentSection = (prev as Record<string, unknown>)[section] as
+        | Record<string, unknown>
+        | undefined;
+      return {
+        ...prev,
+        [section]: {
+          ...(currentSection ?? {}),
+          [field]: value,
+        },
+      };
+    });
+  };
+  const updateResultUnitField = (
+    index: number,
+    field: string,
+    value: unknown,
+  ) => {
+    setResult((prev) => {
+      if (!prev) return prev;
+      const nextUnits = [...(prev.unit_types ?? [])] as ExtractUnitTypeExtended[];
+      const current = nextUnits[index];
+      if (!current) return prev;
+      nextUnits[index] = {
+        ...current,
+        [field]: value,
+      };
+      return { ...prev, unit_types: nextUnits };
+    });
+  };
+  const updateResultFacilityField = (
+    index: number,
+    field: string,
+    value: unknown,
+  ) => {
+    setResult((prev) => {
+      if (!prev) return prev;
+      const nextFacilities = [...(prev.facilities ?? [])];
+      const current = nextFacilities[index];
+      if (!current) return prev;
+      nextFacilities[index] = {
+        ...current,
+        [field]: value,
+      };
+      return { ...prev, facilities: nextFacilities };
+    });
+  };
+  const toNullableNumberInput = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    return toNumberOrNull(trimmed);
+  };
+  const parsePriceRangeInput = (value: string) => {
+    const normalized = value.replaceAll("~", " ").replaceAll("-", " ");
+    const numbers = normalized
+      .split(" ")
+      .map((part) => toNumberOrNull(part))
+      .filter((part): part is number => part != null);
+    if (numbers.length === 0) return { min: null, max: null };
+    if (numbers.length === 1) return { min: numbers[0], max: numbers[0] };
+    return { min: numbers[0], max: numbers[1] };
+  };
   const resolveFloorPlanUrl = (
     unit: ExtractUnitTypeExtended | null,
     rowIndex: number,
@@ -1900,12 +1982,21 @@ export default function TestUploadPage() {
                   MB)
                 </div>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {files.map((f) => (
+                  {files.map((f, index) => (
                     <span
-                      key={f.name}
-                      className="rounded-full bg-(--oboon-bg-subtle) px-2 py-1 ob-typo-caption text-(--oboon-text-body)"
+                      key={`${f.name}-${index}`}
+                      className="inline-flex items-center gap-1 rounded-full bg-(--oboon-bg-subtle) px-2 py-1 ob-typo-caption text-(--oboon-text-body)"
                     >
                       {f.name} ({(f.size / 1024 / 1024).toFixed(1)}MB)
+                      <button
+                        type="button"
+                        onClick={() => removeSelectedPdfFile(index)}
+                        className="rounded-full px-1 text-(--oboon-text-muted) hover:bg-(--oboon-border-default)/40 hover:text-(--oboon-text-title)"
+                        aria-label={`${f.name} 제거`}
+                        title="파일 제거"
+                      >
+                        ×
+                      </button>
                     </span>
                   ))}
                 </div>
@@ -1994,7 +2085,7 @@ export default function TestUploadPage() {
                         loading={loadingComparison}
                         disabled={!selectedCandidateId}
                       >
-                        비교하기
+                        다시 비교하기
                       </Button>
                     </div>
                   </div>
@@ -2431,121 +2522,319 @@ export default function TestUploadPage() {
             </Section>
 
             <Section title="기본 정보">
-              <Row label="현장명" value={val(result.properties?.name)} />
+              <Row
+                label="현장명"
+                value={val(result.properties?.name)}
+                onCommit={(value) =>
+                  updateResultSectionField(
+                    "properties",
+                    "name",
+                    normalizeTextInput(value),
+                  )
+                }
+              />
               <Row
                 label="분양 유형"
                 value={val(result.properties?.property_type)}
+                onCommit={(value) =>
+                  updateResultSectionField(
+                    "properties",
+                    "property_type",
+                    normalizeTextInput(value),
+                  )
+                }
               />
               <Row
                 label="분양 상태"
-                value={
-                  result.properties?.status
-                    ? (STATUS_LABEL[result.properties.status] ??
-                      result.properties.status)
-                    : "-"
+                value={val(result.properties?.status)}
+                onCommit={(value) =>
+                  updateResultSectionField(
+                    "properties",
+                    "status",
+                    normalizeTextInput(value)?.toUpperCase() ?? null,
+                  )
                 }
               />
-              <Row label="설명" value={val(result.properties?.description)} />
+              <Row
+                label="설명"
+                value={val(result.properties?.description)}
+                onCommit={(value) =>
+                  updateResultSectionField(
+                    "properties",
+                    "description",
+                    normalizeTextInput(value),
+                  )
+                }
+              />
             </Section>
 
             <Section title="사업 개요">
-              <Row label="시행사" value={val(result.specs?.developer)} />
-              <Row label="시공사" value={val(result.specs?.builder)} />
-              <Row label="신탁사" value={val(result.specs?.trust_company)} />
-              <Row label="분양 방식" value={val(result.specs?.sale_type)} />
-              <Row label="용도지역" value={val(result.specs?.land_use_zone)} />
+              <Row
+                label="시행사"
+                value={val(result.specs?.developer)}
+                onCommit={(value) =>
+                  updateResultSectionField(
+                    "specs",
+                    "developer",
+                    normalizeTextInput(value),
+                  )
+                }
+              />
+              <Row
+                label="시공사"
+                value={val(result.specs?.builder)}
+                onCommit={(value) =>
+                  updateResultSectionField(
+                    "specs",
+                    "builder",
+                    normalizeTextInput(value),
+                  )
+                }
+              />
+              <Row
+                label="신탁사"
+                value={val(result.specs?.trust_company)}
+                onCommit={(value) =>
+                  updateResultSectionField(
+                    "specs",
+                    "trust_company",
+                    normalizeTextInput(value),
+                  )
+                }
+              />
+              <Row
+                label="분양 방식"
+                value={val(result.specs?.sale_type)}
+                onCommit={(value) =>
+                  updateResultSectionField(
+                    "specs",
+                    "sale_type",
+                    normalizeTextInput(value),
+                  )
+                }
+              />
+              <Row
+                label="용도지역"
+                value={val(result.specs?.land_use_zone)}
+                onCommit={(value) =>
+                  updateResultSectionField(
+                    "specs",
+                    "land_use_zone",
+                    normalizeTextInput(value),
+                  )
+                }
+              />
               <Row
                 label="대지면적"
-                value={
-                  result.specs?.site_area != null
-                    ? `${result.specs.site_area} m²`
-                    : "-"
+                value={val(result.specs?.site_area)}
+                onCommit={(value) =>
+                  updateResultSectionField(
+                    "specs",
+                    "site_area",
+                    toNullableNumberInput(value),
+                  )
                 }
               />
               <Row
                 label="건축면적"
-                value={
-                  result.specs?.building_area != null
-                    ? `${result.specs.building_area} m²`
-                    : "-"
+                value={val(result.specs?.building_area)}
+                onCommit={(value) =>
+                  updateResultSectionField(
+                    "specs",
+                    "building_area",
+                    toNullableNumberInput(value),
+                  )
                 }
               />
               <Row
-                label="규모"
-                value={
-                  result.specs?.floor_underground != null ||
-                  result.specs?.floor_ground != null
-                    ? `지하 ${result.specs?.floor_underground ?? "?"}층 / 지상 ${result.specs?.floor_ground ?? "?"}층`
-                    : "-"
+                label="지하층"
+                value={val(result.specs?.floor_underground)}
+                onCommit={(value) =>
+                  updateResultSectionField(
+                    "specs",
+                    "floor_underground",
+                    toNullableNumberInput(value),
+                  )
                 }
               />
-              <Row label="동 수" value={val(result.specs?.building_count)} />
+              <Row
+                label="지상층"
+                value={val(result.specs?.floor_ground)}
+                onCommit={(value) =>
+                  updateResultSectionField(
+                    "specs",
+                    "floor_ground",
+                    toNullableNumberInput(value),
+                  )
+                }
+              />
+              <Row
+                label="동 수"
+                value={val(result.specs?.building_count)}
+                onCommit={(value) =>
+                  updateResultSectionField(
+                    "specs",
+                    "building_count",
+                    toNullableNumberInput(value),
+                  )
+                }
+              />
               <Row
                 label="총 세대수"
                 value={val(result.specs?.household_total)}
-              />
-              <Row
-                label="주차"
-                value={
-                  result.specs?.parking_total != null
-                    ? `${result.specs.parking_total}대${
-                        result.specs.parking_per_household != null
-                          ? ` (세대당 ${result.specs.parking_per_household}대)`
-                          : ""
-                      }`
-                    : "-"
+                onCommit={(value) =>
+                  updateResultSectionField(
+                    "specs",
+                    "household_total",
+                    toNullableNumberInput(value),
+                  )
                 }
               />
-              <Row label="난방" value={val(result.specs?.heating_type)} />
+              <Row
+                label="총 주차대수"
+                value={val(result.specs?.parking_total)}
+                onCommit={(value) =>
+                  updateResultSectionField(
+                    "specs",
+                    "parking_total",
+                    toNullableNumberInput(value),
+                  )
+                }
+              />
+              <Row
+                label="세대당 주차"
+                value={val(result.specs?.parking_per_household)}
+                onCommit={(value) =>
+                  updateResultSectionField(
+                    "specs",
+                    "parking_per_household",
+                    toNullableNumberInput(value),
+                  )
+                }
+              />
+              <Row
+                label="난방"
+                value={val(result.specs?.heating_type)}
+                onCommit={(value) =>
+                  updateResultSectionField(
+                    "specs",
+                    "heating_type",
+                    normalizeTextInput(value),
+                  )
+                }
+              />
               <Row
                 label="용적률"
-                value={
-                  result.specs?.floor_area_ratio != null
-                    ? `${result.specs.floor_area_ratio}%`
-                    : "-"
+                value={val(result.specs?.floor_area_ratio)}
+                onCommit={(value) =>
+                  updateResultSectionField(
+                    "specs",
+                    "floor_area_ratio",
+                    toNullableNumberInput(value),
+                  )
                 }
               />
               <Row
                 label="건폐율"
-                value={
-                  result.specs?.building_coverage_ratio != null
-                    ? `${result.specs.building_coverage_ratio}%`
-                    : "-"
+                value={val(result.specs?.building_coverage_ratio)}
+                onCommit={(value) =>
+                  updateResultSectionField(
+                    "specs",
+                    "building_coverage_ratio",
+                    toNullableNumberInput(value),
+                  )
                 }
               />
-              <Row label="부대시설" value={val(result.specs?.amenities)} />
+              <Row
+                label="부대시설"
+                value={val(result.specs?.amenities)}
+                onCommit={(value) =>
+                  updateResultSectionField(
+                    "specs",
+                    "amenities",
+                    normalizeTextInput(value),
+                  )
+                }
+              />
             </Section>
 
             <Section title="일정">
               <Row
                 label="모집공고일"
                 value={val(result.timeline?.announcement_date)}
+                onCommit={(value) =>
+                  updateResultSectionField(
+                    "timeline",
+                    "announcement_date",
+                    normalizeTextInput(value),
+                  )
+                }
               />
               <Row
-                label="청약 접수"
-                value={
-                  result.timeline?.application_start ||
-                  result.timeline?.application_end
-                    ? `${val(result.timeline?.application_start)} ~ ${val(result.timeline?.application_end)}`
-                    : "-"
+                label="청약 시작"
+                value={val(result.timeline?.application_start)}
+                onCommit={(value) =>
+                  updateResultSectionField(
+                    "timeline",
+                    "application_start",
+                    normalizeTextInput(value),
+                  )
+                }
+              />
+              <Row
+                label="청약 종료"
+                value={val(result.timeline?.application_end)}
+                onCommit={(value) =>
+                  updateResultSectionField(
+                    "timeline",
+                    "application_end",
+                    normalizeTextInput(value),
+                  )
                 }
               />
               <Row
                 label="당첨자 발표"
                 value={val(result.timeline?.winner_announce)}
+                onCommit={(value) =>
+                  updateResultSectionField(
+                    "timeline",
+                    "winner_announce",
+                    normalizeTextInput(value),
+                  )
+                }
               />
               <Row
-                label="계약 기간"
-                value={
-                  result.timeline?.contract_start ||
-                  result.timeline?.contract_end
-                    ? `${val(result.timeline?.contract_start)} ~ ${val(result.timeline?.contract_end)}`
-                    : "-"
+                label="계약 시작"
+                value={val(result.timeline?.contract_start)}
+                onCommit={(value) =>
+                  updateResultSectionField(
+                    "timeline",
+                    "contract_start",
+                    normalizeTextInput(value),
+                  )
+                }
+              />
+              <Row
+                label="계약 종료"
+                value={val(result.timeline?.contract_end)}
+                onCommit={(value) =>
+                  updateResultSectionField(
+                    "timeline",
+                    "contract_end",
+                    normalizeTextInput(value),
+                  )
                 }
               />
               <Row
                 label="입주 예정"
                 value={val(result.timeline?.move_in_date)}
+                onCommit={(value) =>
+                  updateResultSectionField(
+                    "timeline",
+                    "move_in_date",
+                    normalizeTextInput(value),
+                  )
+                }
               />
             </Section>
 
@@ -2571,7 +2860,17 @@ export default function TestUploadPage() {
                     ).map((u: ExtractUnitTypeExtended | null, i: number) => (
                       <tr key={`${u?.type_name ?? "unit"}-${i}`}>
                         <td className="border border-(--oboon-border-default) px-2 py-2">
-                          <EditableText value={val(u?.type_name)} center />
+                          <EditableText
+                            value={val(u?.type_name)}
+                            center
+                            onCommit={(value) =>
+                              updateResultUnitField(
+                                i,
+                                "type_name",
+                                normalizeTextInput(value),
+                              )
+                            }
+                          />
                         </td>
                         <td className="border border-(--oboon-border-default) px-2 py-2">
                           {u ? (
@@ -2631,28 +2930,95 @@ export default function TestUploadPage() {
                           )}
                         </td>
                         <td className="border border-(--oboon-border-default) px-2 py-2">
-                          <EditableText value={val(u?.exclusive_area)} center />
+                          <EditableText
+                            value={val(u?.exclusive_area)}
+                            center
+                            onCommit={(value) =>
+                              updateResultUnitField(
+                                i,
+                                "exclusive_area",
+                                toNullableNumberInput(value),
+                              )
+                            }
+                          />
                         </td>
                         <td className="border border-(--oboon-border-default) px-2 py-2">
-                          <EditableText value={val(u?.supply_area)} center />
+                          <EditableText
+                            value={val(u?.supply_area)}
+                            center
+                            onCommit={(value) =>
+                              updateResultUnitField(
+                                i,
+                                "supply_area",
+                                toNullableNumberInput(value),
+                              )
+                            }
+                          />
                         </td>
                         <td className="border border-(--oboon-border-default) px-2 py-2">
-                          <EditableText value={val(u?.rooms)} center />
+                          <EditableText
+                            value={val(u?.rooms)}
+                            center
+                            onCommit={(value) =>
+                              updateResultUnitField(
+                                i,
+                                "rooms",
+                                toNullableNumberInput(value),
+                              )
+                            }
+                          />
                         </td>
                         <td className="border border-(--oboon-border-default) px-2 py-2">
-                          <EditableText value={val(u?.bathrooms)} center />
+                          <EditableText
+                            value={val(u?.bathrooms)}
+                            center
+                            onCommit={(value) =>
+                              updateResultUnitField(
+                                i,
+                                "bathrooms",
+                                toNullableNumberInput(value),
+                              )
+                            }
+                          />
                         </td>
                         <td className="border border-(--oboon-border-default) px-2 py-2">
                           <EditableText
                             value={val(u?.building_layout)}
                             center
+                            onCommit={(value) =>
+                              updateResultUnitField(
+                                i,
+                                "building_layout",
+                                normalizeTextInput(value),
+                              )
+                            }
                           />
                         </td>
                         <td className="border border-(--oboon-border-default) px-2 py-2">
-                          <EditableText value={val(u?.orientation)} center />
+                          <EditableText
+                            value={val(u?.orientation)}
+                            center
+                            onCommit={(value) =>
+                              updateResultUnitField(
+                                i,
+                                "orientation",
+                                normalizeTextInput(value),
+                              )
+                            }
+                          />
                         </td>
                         <td className="border border-(--oboon-border-default) px-2 py-2">
-                          <EditableText value={val(u?.supply_count)} center />
+                          <EditableText
+                            value={val(u?.supply_count)}
+                            center
+                            onCommit={(value) =>
+                              updateResultUnitField(
+                                i,
+                                "supply_count",
+                                toNullableNumberInput(value),
+                              )
+                            }
+                          />
                         </td>
                         <td className="border border-(--oboon-border-default) px-2 py-2">
                           <EditableText
@@ -2662,10 +3028,25 @@ export default function TestUploadPage() {
                                 : "-"
                             }
                             center
+                            onCommit={(value) => {
+                              const parsed = parsePriceRangeInput(value);
+                              updateResultUnitField(i, "price_min", parsed.min);
+                              updateResultUnitField(i, "price_max", parsed.max);
+                            }}
                           />
                         </td>
                         <td className="border border-(--oboon-border-default) px-2 py-2">
-                          <EditableText value={val(u?.unit_count)} center />
+                          <EditableText
+                            value={val(u?.unit_count)}
+                            center
+                            onCommit={(value) =>
+                              updateResultUnitField(
+                                i,
+                                "unit_count",
+                                toNullableNumberInput(value),
+                              )
+                            }
+                          />
                         </td>
                       </tr>
                     ))}
@@ -2678,32 +3059,79 @@ export default function TestUploadPage() {
               <Row
                 label="도로명 주소"
                 value={val(result.location?.road_address)}
+                onCommit={(value) =>
+                  updateResultSectionField(
+                    "location",
+                    "road_address",
+                    normalizeTextInput(value),
+                  )
+                }
               />
               <Row
                 label="지번 주소"
                 value={val(result.location?.jibun_address)}
+                onCommit={(value) =>
+                  updateResultSectionField(
+                    "location",
+                    "jibun_address",
+                    normalizeTextInput(value),
+                  )
+                }
               />
               <Row
-                label="지역"
-                value={
-                  [
-                    result.location?.region_1depth,
-                    result.location?.region_2depth,
-                    result.location?.region_3depth,
-                  ]
-                    .filter(Boolean)
-                    .join(" ") || "-"
+                label="시/도"
+                value={val(result.location?.region_1depth)}
+                onCommit={(value) =>
+                  updateResultSectionField(
+                    "location",
+                    "region_1depth",
+                    normalizeTextInput(value),
+                  )
+                }
+              />
+              <Row
+                label="시/군/구"
+                value={val(result.location?.region_2depth)}
+                onCommit={(value) =>
+                  updateResultSectionField(
+                    "location",
+                    "region_2depth",
+                    normalizeTextInput(value),
+                  )
+                }
+              />
+              <Row
+                label="읍/면/동"
+                value={val(result.location?.region_3depth)}
+                onCommit={(value) =>
+                  updateResultSectionField(
+                    "location",
+                    "region_3depth",
+                    normalizeTextInput(value),
+                  )
                 }
               />
               <Row
                 label="위도"
                 value={val(result.location?.lat)}
-                editable={false}
+                onCommit={(value) =>
+                  updateResultSectionField(
+                    "location",
+                    "lat",
+                    toNullableNumberInput(value),
+                  )
+                }
               />
               <Row
                 label="경도"
                 value={val(result.location?.lng)}
-                editable={false}
+                onCommit={(value) =>
+                  updateResultSectionField(
+                    "location",
+                    "lng",
+                    toNullableNumberInput(value),
+                  )
+                }
               />
 
               <div className="mt-3">
@@ -2757,17 +3185,68 @@ export default function TestUploadPage() {
                     className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-3"
                   >
                     <div className="ob-typo-body text-(--oboon-text-title)">
+                      유형:{" "}
                       <EditableText
-                        value={`[${f?.type ?? "-"}] ${f?.name ?? "-"}`}
+                        value={f?.type ?? "-"}
+                        onCommit={(value) =>
+                          updateResultFacilityField(
+                            i,
+                            "type",
+                            normalizeTextInput(value),
+                          )
+                        }
                       />
                     </div>
                     <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
-                      주소: <EditableText value={f?.road_address ?? "-"} />
+                      명칭:{" "}
+                      <EditableText
+                        value={f?.name ?? "-"}
+                        onCommit={(value) =>
+                          updateResultFacilityField(
+                            i,
+                            "name",
+                            normalizeTextInput(value),
+                          )
+                        }
+                      />
                     </div>
                     <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
-                      운영시간:{" "}
+                      주소:{" "}
                       <EditableText
-                        value={`${f?.open_start ?? "?"} ~ ${f?.open_end ?? "?"}`}
+                        value={f?.road_address ?? "-"}
+                        onCommit={(value) =>
+                          updateResultFacilityField(
+                            i,
+                            "road_address",
+                            normalizeTextInput(value),
+                          )
+                        }
+                      />
+                    </div>
+                    <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+                      운영 시작:{" "}
+                      <EditableText
+                        value={f?.open_start ?? "-"}
+                        onCommit={(value) =>
+                          updateResultFacilityField(
+                            i,
+                            "open_start",
+                            normalizeTextInput(value),
+                          )
+                        }
+                      />
+                    </div>
+                    <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+                      운영 종료:{" "}
+                      <EditableText
+                        value={f?.open_end ?? "-"}
+                        onCommit={(value) =>
+                          updateResultFacilityField(
+                            i,
+                            "open_end",
+                            normalizeTextInput(value),
+                          )
+                        }
                       />
                     </div>
                   </div>
@@ -2830,17 +3309,19 @@ function Row({
   label,
   value,
   editable = true,
+  onCommit,
 }: {
   label: string;
   value: string;
   editable?: boolean;
+  onCommit?: (nextValue: string) => void;
 }) {
   return (
     <div className="flex gap-3 border-b border-(--oboon-border-default) py-2 last:border-b-0">
       <span className="w-30 shrink-0 ob-typo-caption text-(--oboon-text-muted)">
         {label}
       </span>
-      <EditableText value={value} editable={editable} />
+      <EditableText value={value} editable={editable} onCommit={onCommit} />
     </div>
   );
 }
@@ -2849,14 +3330,26 @@ function EditableText({
   value,
   center = false,
   editable = true,
+  onCommit,
 }: {
   value: string;
   center?: boolean;
   editable?: boolean;
+  onCommit?: (nextValue: string) => void;
 }) {
   const normalizeValue = (v: string) => (v === "-" ? "" : v);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(normalizeValue(value));
+  const commit = () => {
+    setEditing(false);
+    onCommit?.(draft.trim());
+  };
+
+  useEffect(() => {
+    if (!editing) {
+      setDraft(normalizeValue(value));
+    }
+  }, [value, editing]);
 
   const displayValue = draft.trim() ? draft : "-";
 
@@ -2879,9 +3372,9 @@ function EditableText({
         autoFocus
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => setEditing(false)}
+        onBlur={commit}
         onKeyDown={(e) => {
-          if (e.key === "Enter") setEditing(false);
+          if (e.key === "Enter") commit();
           if (e.key === "Escape") {
             setDraft(normalizeValue(value));
             setEditing(false);
