@@ -672,6 +672,7 @@ export default function TestUploadPage() {
   const [extractedImages, setExtractedImages] = useState<
     ExtractedImageWithDestination[]
   >([]);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   const mainImageUrlRef = useRef<string>("");
   const galleryImageUrlsRef = useRef<string[]>([]);
@@ -694,11 +695,57 @@ export default function TestUploadPage() {
   const [savingCompareMerge, setSavingCompareMerge] = useState(false);
   const [creatingNewProperty, setCreatingNewProperty] = useState(false);
   const [showNewPropertyAction, setShowNewPropertyAction] = useState(false);
+  const additionalFileInputRef = useRef<HTMLInputElement>(null);
+  const [additionalFiles, setAdditionalFiles] = useState<File[]>([]);
+  const [additionalLoading, setAdditionalLoading] = useState(false);
+  const [textOnlyLoading, setTextOnlyLoading] = useState(false);
 
   const fileNames = useMemo(() => files.map((f) => f.name), [files]);
 
   const revokeBlobUrl = (url?: string | null) => {
     if (url && url.startsWith("blob:")) URL.revokeObjectURL(url);
+  };
+
+  const mergeExtractResults = (
+    existing: ExtractResult,
+    incoming: ExtractResult,
+  ): ExtractResult => {
+    const mergeSection = <T extends Record<string, unknown>>(
+      base: T | undefined | null,
+      next: T | undefined | null,
+    ): T => {
+      if (!next) return (base ?? {}) as T;
+      const filtered = Object.fromEntries(
+        Object.entries(next).filter(
+          ([, v]) => v != null && v !== "",
+        ),
+      );
+      return { ...(base ?? {}), ...filtered } as T;
+    };
+
+    return {
+      ...existing,
+      properties: mergeSection(existing.properties, incoming.properties),
+      location: mergeSection(existing.location, incoming.location),
+      specs: mergeSection(existing.specs, incoming.specs),
+      timeline: mergeSection(existing.timeline, incoming.timeline),
+      unit_types: [
+        ...(existing.unit_types ?? []),
+        ...(incoming.unit_types ?? []).filter(
+          (u) =>
+            !(existing.unit_types ?? []).some(
+              (e) => e.type_name === u.type_name,
+            ),
+        ),
+      ],
+      facilities: [
+        ...(existing.facilities ?? []),
+        ...(incoming.facilities ?? []).filter(
+          (f) =>
+            !(existing.facilities ?? []).some((e) => e.name === f.name),
+        ),
+      ],
+    };
   };
 
   const handleSubmit = async () => {
@@ -806,6 +853,133 @@ export default function TestUploadPage() {
         elapsedTimerRef.current = null;
       }
       setLoading(false);
+    }
+  };
+
+  const handleTextOnlyReExtract = async () => {
+    if (files.length === 0 || !result) return;
+
+    setTextOnlyLoading(true);
+    setStatusTone("idle");
+    setStatus("텍스트만 재추출 중...");
+
+    const formData = new FormData();
+    files.forEach((f) => formData.append("files", f));
+    formData.append("textOnly", "true");
+
+    try {
+      const response = await fetch("/api/extract-pdf", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error || `서버 에러: ${response.status}`);
+      }
+
+      const data = await response.json();
+      // 텍스트 필드만 업데이트, 이미지는 유지
+      setResult((prev) => {
+        if (!prev) return data;
+        return {
+          ...prev,
+          properties: data.properties ?? prev.properties,
+          location: data.location ?? prev.location,
+          specs: data.specs ?? prev.specs,
+          timeline: data.timeline ?? prev.timeline,
+          unit_types: data.unit_types ?? prev.unit_types,
+          facilities: data.facilities ?? prev.facilities,
+        };
+      });
+
+      setStatus("텍스트 재추출 완료! 기존 이미지는 유지됩니다.");
+      setStatusTone("safe");
+
+      // 유사 현장 비교 다시 실행
+      const hasSimilar = await runNameComparison(data);
+      if (hasSimilar === true) {
+        setStatus("텍스트 재추출 완료! 유사 현장을 찾았습니다.");
+        setShowNewPropertyAction(false);
+      } else if (hasSimilar === false) {
+        setStatus("텍스트 재추출 완료!");
+        setShowNewPropertyAction(true);
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "알 수 없는 오류";
+      setStatus(`오류: ${toKoreanErrorMessage(message)}`);
+      setStatusTone("danger");
+    } finally {
+      setTextOnlyLoading(false);
+    }
+  };
+
+  const handleAdditionalPdf = async () => {
+    if (additionalFiles.length === 0 || !result) return;
+
+    setAdditionalLoading(true);
+    setStatusTone("idle");
+    setElapsedSeconds(0);
+    elapsedTimerRef.current = setInterval(() => {
+      setElapsedSeconds((prev) => prev + 1);
+    }, 1000);
+    setStatus(`추가 PDF ${additionalFiles.length}개 분석 중...`);
+
+    const formData = new FormData();
+    additionalFiles.forEach((f) => formData.append("files", f));
+
+    try {
+      const response = await fetch("/api/extract-pdf", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error || `서버 에러: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const merged = mergeExtractResults(result, data);
+      setResult(merged);
+
+      // 추출된 이미지 합산
+      if (data.extractedImages && Array.isArray(data.extractedImages)) {
+        const newImages: ExtractedImageWithDestination[] =
+          data.extractedImages.map(
+            (img: {
+              id: string;
+              base64: string;
+              source: string;
+              aiType?: "building" | "floor_plan";
+            }) => {
+              let destination: ExtractedImageWithDestination["destination"] =
+                "none";
+              if (img.aiType === "building") {
+                destination = "gallery";
+              } else if (img.aiType === "floor_plan") {
+                destination = "floor_plan";
+              }
+              return { ...img, destination, unitTypeIndex: undefined };
+            },
+          );
+        setExtractedImages((prev) => [...prev, ...newImages]);
+      }
+      setAdditionalFiles([]);
+      setStatus(
+        `추가 PDF 병합 완료! 데이터가 업데이트되었습니다.`,
+      );
+      setStatusTone("safe");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "알 수 없는 오류";
+      setStatus(`추가 PDF 오류: ${toKoreanErrorMessage(message)}`);
+      setStatusTone("danger");
+    } finally {
+      if (elapsedTimerRef.current) {
+        clearInterval(elapsedTimerRef.current);
+        elapsedTimerRef.current = null;
+      }
+      setAdditionalLoading(false);
     }
   };
 
@@ -960,6 +1134,7 @@ export default function TestUploadPage() {
 
   const applySelectedMerge = async () => {
     if (!existingSnapshot || !result) return;
+    if (!confirm(`"${existingSnapshot.property.name}" 현장에 선택한 값을 반영하시겠습니까?`)) return;
 
     setSavingCompareMerge(true);
     try {
@@ -1149,10 +1324,11 @@ export default function TestUploadPage() {
 
       setStatus(
         appliedCount > 0
-          ? `선택 반영 완료: ${appliedCount}개 항목을 기존 현장(${existingSnapshot.property.name})에 업데이트했습니다.`
-          : "선택된 변경 항목이 없어 기존 값을 그대로 유지했습니다.",
+          ? `선택 반영 완료: ${appliedCount}개 항목을 기존 현장(${existingSnapshot.property.name})에 업데이트했습니다. — 2초 후 새로고침됩니다.`
+          : "선택된 변경 항목이 없어 기존 값을 그대로 유지했습니다. — 2초 후 새로고침됩니다.",
       );
       setStatusTone("safe");
+      setTimeout(() => window.location.reload(), 2000);
     } catch (err) {
       const message = err instanceof Error ? err.message : "반영 중 오류";
       setStatus(`비교 반영 실패: ${toKoreanErrorMessage(message)}`);
@@ -1164,6 +1340,7 @@ export default function TestUploadPage() {
 
   const createNewPropertyFromExtract = async () => {
     if (!result) return;
+    if (!confirm("새 현장을 등록하시겠습니까?")) return;
 
     setCreatingNewProperty(true);
     try {
@@ -1468,9 +1645,10 @@ export default function TestUploadPage() {
       }
 
       setStatus(
-        `새 현장 등록 완료 (ID: ${propertyId}, 대표사진 ${mainImagePublicUrl ? 1 : 0}장, 추가사진 ${galleryImageFiles.length}장, 평면도 ${Object.keys(uploadedFloorPlanUrls).length}장, PDF추출이미지 ${extractedImageCount}장, 타입 ${unitRows.length}개, 시설 ${facilityRows.length}개)`,
+        `새 현장 등록 완료 (ID: ${propertyId}, 대표사진 ${mainImagePublicUrl ? 1 : 0}장, 추가사진 ${galleryImageFiles.length}장, 평면도 ${Object.keys(uploadedFloorPlanUrls).length}장, PDF추출이미지 ${extractedImageCount}장, 타입 ${unitRows.length}개, 시설 ${facilityRows.length}개) — 2초 후 새로고침됩니다.`,
       );
       setStatusTone("safe");
+      setTimeout(() => window.location.reload(), 2000);
     } catch (err) {
       const message = err instanceof Error ? err.message : "새 현장 등록 실패";
       setStatus(`새 현장 등록 실패: ${toKoreanErrorMessage(message)}`);
@@ -1548,6 +1726,10 @@ export default function TestUploadPage() {
           : img,
       ),
     );
+  };
+
+  const removeExtractedImage = (index: number) => {
+    setExtractedImages((prev) => prev.filter((_, i) => i !== index));
   };
 
   const updateImageUnitType = (index: number, unitTypeIndex: number) => {
@@ -1659,7 +1841,7 @@ export default function TestUploadPage() {
         <Card className="p-5">
           <div className="rounded-xl border border-dashed border-(--oboon-border-strong) bg-(--oboon-bg-subtle) p-4">
             <FormField
-              label="PDF 파일 선택 (복수 가능)"
+              label="PDF 파일 선택 (최대 100MB)"
               labelClassName="ob-typo-caption text-(--oboon-text-muted)"
             >
               <Input
@@ -1667,9 +1849,24 @@ export default function TestUploadPage() {
                 type="file"
                 accept="application/pdf"
                 multiple
-                onChange={(e) =>
-                  setFiles(e.target.files ? Array.from(e.target.files) : [])
-                }
+                onChange={(e) => {
+                  const selected = e.target.files
+                    ? Array.from(e.target.files)
+                    : [];
+                  const totalSize = selected.reduce(
+                    (sum, f) => sum + f.size,
+                    0,
+                  );
+                  if (totalSize > 100 * 1024 * 1024) {
+                    setStatus(
+                      `PDF 합산 용량이 100MB를 초과합니다. (${(totalSize / 1024 / 1024).toFixed(1)}MB)`,
+                    );
+                    setStatusTone("danger");
+                    e.target.value = "";
+                    return;
+                  }
+                  setFiles(selected);
+                }}
                 className="sr-only"
               />
 
@@ -1683,8 +1880,8 @@ export default function TestUploadPage() {
                     파일 선택
                   </Button>
                   <span className="ob-typo-caption text-(--oboon-text-muted)">
-                    {fileNames.length > 0
-                      ? `${fileNames.length}개 파일 선택됨`
+                    {files.length > 0
+                      ? `${files.length}개 파일 선택됨 (${(files.reduce((s, f) => s + f.size, 0) / 1024 / 1024).toFixed(1)}MB)`
                       : "선택한 파일 없음"}
                   </span>
                 </div>
@@ -1694,15 +1891,21 @@ export default function TestUploadPage() {
             {fileNames.length > 0 ? (
               <div className="mt-3 rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-3">
                 <div className="ob-typo-caption text-(--oboon-text-muted)">
-                  선택된 파일 ({fileNames.length}개)
+                  선택된 파일 ({files.length}개, 합계{" "}
+                  {(
+                    files.reduce((s, f) => s + f.size, 0) /
+                    1024 /
+                    1024
+                  ).toFixed(1)}
+                  MB)
                 </div>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {fileNames.map((name) => (
+                  {files.map((f) => (
                     <span
-                      key={name}
+                      key={f.name}
                       className="rounded-full bg-(--oboon-bg-subtle) px-2 py-1 ob-typo-caption text-(--oboon-text-body)"
                     >
-                      {name}
+                      {f.name} ({(f.size / 1024 / 1024).toFixed(1)}MB)
                     </span>
                   ))}
                 </div>
@@ -1818,6 +2021,84 @@ export default function TestUploadPage() {
                 </div>
               </Card>
             ) : null}
+
+            <Card className="p-5">
+              <div className="ob-typo-subtitle text-(--oboon-text-title)">
+                PDF 더 올리기
+              </div>
+              <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+                추가 PDF를 업로드하면 현재 추출 데이터에 병합됩니다. (최대
+                100MB)
+              </div>
+              <input
+                ref={additionalFileInputRef}
+                type="file"
+                accept="application/pdf"
+                multiple
+                className="sr-only"
+                onChange={(e) => {
+                  const selected = e.target.files
+                    ? Array.from(e.target.files)
+                    : [];
+                  const totalSize = selected.reduce(
+                    (sum, f) => sum + f.size,
+                    0,
+                  );
+                  if (totalSize > 100 * 1024 * 1024) {
+                    setStatus(
+                      `PDF 합산 용량이 100MB를 초과합니다. (${(totalSize / 1024 / 1024).toFixed(1)}MB)`,
+                    );
+                    setStatusTone("danger");
+                    e.target.value = "";
+                    return;
+                  }
+                  setAdditionalFiles(selected);
+                }}
+              />
+              <div className="mt-3 flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => additionalFileInputRef.current?.click()}
+                >
+                  추가 PDF 선택
+                </Button>
+                {additionalFiles.length > 0 && (
+                  <>
+                    <span className="ob-typo-caption text-(--oboon-text-muted)">
+                      {additionalFiles.map((f) => f.name).join(", ")}
+                    </span>
+                    <Button
+                      size="sm"
+                      onClick={handleAdditionalPdf}
+                      loading={additionalLoading}
+                    >
+                      추출 &amp; 병합
+                    </Button>
+                  </>
+                )}
+                {additionalLoading && (
+                  <span className="ob-typo-caption text-(--oboon-text-muted)">
+                    ({elapsedSeconds}초 경과)
+                  </span>
+                )}
+              </div>
+              <div className="mt-3 border-t border-(--oboon-border-default) pt-3">
+                <div className="ob-typo-caption text-(--oboon-text-muted)">
+                  이미지는 유지하고 텍스트 데이터만 다시 추출합니다.
+                </div>
+                <div className="mt-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleTextOnlyReExtract}
+                    loading={textOnlyLoading}
+                  >
+                    텍스트만 재추출
+                  </Button>
+                </div>
+              </div>
+            </Card>
 
             {existingSnapshot ? (
               <Card className="p-5">
@@ -1940,6 +2221,113 @@ export default function TestUploadPage() {
               </Card>
             ) : null}
 
+            {/* PDF에서 추출된 이미지 (현장사진 위에 배치) */}
+            {extractedImages.length > 0 && (
+              <Section title={`추출된 이미지 (${extractedImages.length}개)`}>
+                <div className="space-y-3">
+                  <p className="ob-typo-caption text-(--oboon-text-muted)">
+                    PDF에서 추출한 이미지를 어디에 사용할지 선택하세요. 이미지를 클릭하면 크게 볼 수 있습니다.
+                  </p>
+                  <div className="space-y-2">
+                    {extractedImages.map((img, idx) => (
+                      <div
+                        key={img.id}
+                        className="flex gap-3 rounded-lg border border-(--oboon-border-default) bg-white p-3"
+                      >
+                        {/* 이미지 미리보기 (왼쪽) — 클릭 시 확대 */}
+                        <div
+                          className="relative h-28 w-36 shrink-0 cursor-pointer overflow-hidden rounded"
+                          onClick={() => setPreviewImage(img.base64)}
+                        >
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeExtractedImage(idx);
+                            }}
+                            className="absolute top-1 right-1 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-xs text-white hover:bg-red-500"
+                            title="이미지 제거"
+                          >
+                            ×
+                          </button>
+                          <Image
+                            src={img.base64}
+                            alt={`추출 이미지 ${idx + 1}`}
+                            fill
+                            className="object-cover"
+                            unoptimized
+                          />
+                        </div>
+
+                        {/* 선택 옵션 (오른쪽) */}
+                        <div className="flex-1 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <label className="ob-typo-caption font-medium text-(--oboon-text-title) w-20">
+                              이미지 용도
+                            </label>
+                            <select
+                              value={img.destination}
+                              onChange={(e) =>
+                                updateImageDestination(idx, e.target.value)
+                              }
+                              className="flex-1 rounded border border-(--oboon-border-default) px-2 py-1.5 ob-typo-body"
+                            >
+                              <option value="none">사용 안 함</option>
+                              <option value="main">대표 이미지</option>
+                              <option value="gallery">추가 현장사진</option>
+                              <option value="floor_plan">평면도</option>
+                            </select>
+                          </div>
+
+                          {/* 평면도 선택 시: 타입 선택 */}
+                          {img.destination === "floor_plan" && (
+                            <div className="flex items-center gap-2">
+                              <label className="ob-typo-caption font-medium text-(--oboon-text-title) w-20">
+                                평면 타입
+                              </label>
+                              <select
+                                value={img.unitTypeIndex ?? ""}
+                                onChange={(e) =>
+                                  updateImageUnitType(
+                                    idx,
+                                    parseInt(e.target.value),
+                                  )
+                                }
+                                className="flex-1 rounded border border-(--oboon-border-default) px-2 py-1.5 ob-typo-body"
+                              >
+                                <option value="">타입 선택</option>
+                                {result?.unit_types?.map((type, i) => (
+                                  <option key={i} value={i}>
+                                    {type.type_name ||
+                                      `${type.exclusive_area}㎡`}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+
+                          {/* 상태 표시 */}
+                          <div className="ob-typo-caption text-(--oboon-text-muted)">
+                            {img.destination === "none" && "미사용"}
+                            {img.destination === "main" &&
+                              "✓ 대표 이미지로 설정됨"}
+                            {img.destination === "gallery" &&
+                              "✓ 현장사진에 추가됨"}
+                            {img.destination === "floor_plan" &&
+                              img.unitTypeIndex !== undefined &&
+                              `✓ ${
+                                result?.unit_types?.[img.unitTypeIndex]
+                                  ?.type_name || "평면도"
+                              }에 배치됨`}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Section>
+            )}
+
             <Section title="현장 사진">
               <div className="space-y-4">
                 <div>
@@ -2041,99 +2429,6 @@ export default function TestUploadPage() {
                 </div>
               </div>
             </Section>
-
-            {/* PDF에서 추출된 이미지 */}
-            {extractedImages.length > 0 && (
-              <Section title={`추출된 이미지 (${extractedImages.length}개)`}>
-                <div className="space-y-3">
-                  <p className="ob-typo-caption text-(--oboon-text-muted)">
-                    PDF에서 추출한 이미지를 어디에 사용할지 선택하세요.
-                  </p>
-                  <div className="space-y-2">
-                    {extractedImages.map((img, idx) => (
-                      <div
-                        key={img.id}
-                        className="flex gap-3 rounded-lg border border-(--oboon-border-default) bg-white p-3"
-                      >
-                        {/* 이미지 미리보기 (왼쪽) */}
-                        <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded">
-                          <Image
-                            src={img.base64}
-                            alt={`추출 이미지 ${idx + 1}`}
-                            fill
-                            className="object-cover"
-                            unoptimized
-                          />
-                        </div>
-
-                        {/* 선택 옵션 (오른쪽) */}
-                        <div className="flex-1 space-y-2">
-                          <div className="flex items-center gap-2">
-                            <label className="ob-typo-caption font-medium text-(--oboon-text-title) w-20">
-                              이미지 용도
-                            </label>
-                            <select
-                              value={img.destination}
-                              onChange={(e) =>
-                                updateImageDestination(idx, e.target.value)
-                              }
-                              className="flex-1 rounded border border-(--oboon-border-default) px-2 py-1.5 ob-typo-body"
-                            >
-                              <option value="none">사용 안 함</option>
-                              <option value="main">대표 이미지</option>
-                              <option value="gallery">추가 현장사진</option>
-                              <option value="floor_plan">평면도</option>
-                            </select>
-                          </div>
-
-                          {/* 평면도 선택 시: 타입 선택 */}
-                          {img.destination === "floor_plan" && (
-                            <div className="flex items-center gap-2">
-                              <label className="ob-typo-caption font-medium text-(--oboon-text-title) w-20">
-                                평면 타입
-                              </label>
-                              <select
-                                value={img.unitTypeIndex ?? ""}
-                                onChange={(e) =>
-                                  updateImageUnitType(
-                                    idx,
-                                    parseInt(e.target.value),
-                                  )
-                                }
-                                className="flex-1 rounded border border-(--oboon-border-default) px-2 py-1.5 ob-typo-body"
-                              >
-                                <option value="">타입 선택</option>
-                                {result?.unit_types?.map((type, i) => (
-                                  <option key={i} value={i}>
-                                    {type.type_name ||
-                                      `${type.exclusive_area}㎡`}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                          )}
-
-                          {/* 상태 표시 */}
-                          <div className="ob-typo-caption text-(--oboon-text-muted)">
-                            {img.destination === "none" && "미사용"}
-                            {img.destination === "main" &&
-                              "✓ 대표 이미지로 설정됨"}
-                            {img.destination === "gallery" &&
-                              "✓ 현장사진에 추가됨"}
-                            {img.destination === "floor_plan" &&
-                              img.unitTypeIndex !== undefined &&
-                              `✓ ${
-                                result?.unit_types?.[img.unitTypeIndex]
-                                  ?.type_name || "평면도"
-                              }에 배치됨`}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </Section>
-            )}
 
             <Section title="기본 정보">
               <Row label="현장명" value={val(result.properties?.name)} />
@@ -2493,6 +2788,31 @@ export default function TestUploadPage() {
           </div>
         ) : null}
       </div>
+      {/* 이미지 확대 모달 */}
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div className="relative max-h-[90vh] max-w-[90vw]">
+            <Image
+              src={previewImage}
+              alt="확대 이미지"
+              width={1280}
+              height={800}
+              className="max-h-[90vh] w-auto rounded-lg object-contain"
+              unoptimized
+            />
+            <button
+              type="button"
+              onClick={() => setPreviewImage(null)}
+              className="absolute -top-3 -right-3 flex h-8 w-8 items-center justify-center rounded-full bg-white text-sm font-bold shadow-lg"
+            >
+              X
+            </button>
+          </div>
+        </div>
+      )}
     </PageContainer>
   );
 }

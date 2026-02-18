@@ -1,7 +1,7 @@
 import { google } from '@ai-sdk/google';
 import { generateObject } from 'ai';
 import { propertyExtractionSchema, imageClassificationResultSchema } from '@/lib/schema/property-schema';
-import { extractImagesFromPDF, convertImageToBase64 } from '@/lib/pdf-utils';
+import { extractImagesFromPDF, renderPagesAsImages, convertImageToBase64 } from '@/lib/pdf-utils';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -10,6 +10,7 @@ export const maxDuration = 120;
 const pdfParse = require('pdf-parse');
 
 const MAX_TEXT_LENGTH = 30000;
+const MAX_TOTAL_SIZE = 100 * 1024 * 1024; // 100MB
 
 const systemPrompt = `너는 대한민국 아파트/오피스텔 분양 사업개요(모집공고문) PDF에서 정형 데이터를 추출하는 전문가다.
 
@@ -186,6 +187,7 @@ export async function POST(req: Request) {
   try {
     const formData = await req.formData();
     const files = formData.getAll('files') as File[];
+    const textOnly = formData.get('textOnly') === 'true';
 
     if (files.length === 0) {
       return Response.json({ error: '파일이 없습니다.' }, { status: 400 });
@@ -196,8 +198,16 @@ export async function POST(req: Request) {
       return Response.json({ error: `PDF 파일만 업로드 가능합니다: ${nonPdf.name}` }, { status: 400 });
     }
 
+    const totalSize = files.reduce((sum, f) => sum + f.size, 0);
+    if (totalSize > MAX_TOTAL_SIZE) {
+      return Response.json(
+        { error: `PDF 합산 용량이 100MB를 초과합니다. (${(totalSize / 1024 / 1024).toFixed(1)}MB)` },
+        { status: 400 }
+      );
+    }
+
     const textParts: string[] = [];
-    const allImages: Array<{ base64: string; fileName: string; index: number }> = [];
+    const allImages: Array<{ base64: string; fileName: string; index: number; source: 'extract' | 'render' }> = [];
     const combinedStats = {
       totalPages: 0,
       imagesFound: 0,
@@ -216,28 +226,44 @@ export async function POST(req: Request) {
         textParts.push(`=== [${file.name}] ===\n${parsed.text}`);
       }
 
-      // 이미지 추출 (A안)
-      try {
-        const { images, stats } = await extractImagesFromPDF(buffer);
+      // 이미지 추출 (textOnly 모드일 때 스킵)
+      if (!textOnly) {
+        try {
+          const { images, stats } = await extractImagesFromPDF(buffer);
 
-        // 통계 누적
-        combinedStats.totalPages += stats.totalPages;
-        combinedStats.imagesFound += stats.imagesFound;
-        combinedStats.imagesExtracted += stats.imagesExtracted;
-        combinedStats.imagesFailed += stats.imagesFailed;
-        combinedStats.renderFallbackUsed = combinedStats.renderFallbackUsed || stats.renderFallbackUsed;
+          combinedStats.totalPages += stats.totalPages;
+          combinedStats.imagesFound += stats.imagesFound;
+          combinedStats.imagesExtracted += stats.imagesExtracted;
+          combinedStats.imagesFailed += stats.imagesFailed;
+          combinedStats.renderFallbackUsed = combinedStats.renderFallbackUsed || stats.renderFallbackUsed;
 
-        for (let i = 0; i < images.length; i++) {
-          const base64 = convertImageToBase64(images[i].buffer, images[i].format);
-          allImages.push({
-            base64,
-            fileName: file.name,
-            index: i,
-          });
+          for (let i = 0; i < images.length; i++) {
+            const base64 = convertImageToBase64(images[i].buffer, images[i].format);
+            allImages.push({
+              base64,
+              fileName: file.name,
+              index: i,
+              source: 'extract',
+            });
+          }
+        } catch (error) {
+          console.warn(`${file.name}에서 이미지 추출 실패:`, error);
         }
-      } catch (error) {
-        console.warn(`${file.name}에서 이미지 추출 실패:`, error);
-        // 이미지 추출 실패해도 계속 진행
+
+        // 페이지 렌더링 (벡터 평면도 캡처용)
+        try {
+          const renderedDataUrls = await renderPagesAsImages(buffer);
+          for (const dataUrl of renderedDataUrls) {
+            allImages.push({
+              base64: dataUrl,
+              fileName: file.name,
+              index: allImages.length,
+              source: 'render',
+            });
+          }
+        } catch (error) {
+          console.warn(`${file.name}에서 페이지 렌더링 실패:`, error);
+        }
       }
     }
 
@@ -285,9 +311,8 @@ export async function POST(req: Request) {
     let classificationResult: { classifications: Array<{ imageIndex: number; type: 'building' | 'floor_plan' | 'other' }> } | null = null;
 
     if (allImages.length > 0) {
-      const unitTypeCount = extractionResult.unit_types?.length || 0;
-      const neededImages = 5 + unitTypeCount; // 건물 5장 + 타입별 평면도
-      const phase2ImageLimit = Math.min(allImages.length, neededImages, 10);
+      // 더 많은 이미지를 분류해야 건물/평면도를 찾을 확률이 높음
+      const phase2ImageLimit = Math.min(allImages.length, 40);
 
       const phase2Content: Array<
         | { type: 'text'; text: string }
@@ -307,7 +332,7 @@ export async function POST(req: Request) {
       }
 
       const { object: classResult } = await generateObject({
-        model: google('gemini-2.5-flash-lite'),
+        model: google('gemini-2.5-flash'),
         schema: imageClassificationResultSchema,
         system: '첨부된 이미지를 분류하라. building: 건물 외관 렌더링, 조감도, 실사 사진, 투시도, 야경. floor_plan: 평면도, 단위세대 도면, 층별 배치도. other: 로고, 지도, 위치도, 표, 다이어그램, 장식 이미지.',
         messages: [{ role: 'user', content: phase2Content }],
@@ -346,29 +371,16 @@ export async function POST(req: Request) {
       })
     );
 
-    // ── 스마트 필터링: 건물 5장 + 타입별 평면도 1장 ──
     const classifications = classificationResult?.classifications || [];
-    const unitTypeCount = extractionResult.unit_types?.length || 0;
 
-    const buildingImages = classifications
-      .filter(c => c.type === 'building')
-      .slice(0, 5);
-    const floorPlanImages = classifications
-      .filter(c => c.type === 'floor_plan')
-      .slice(0, Math.max(unitTypeCount, 1));
-
-    const selectedIndices = [
-      ...buildingImages.map(c => c.imageIndex),
-      ...floorPlanImages.map(c => c.imageIndex),
-    ];
-
-    const extractedImages = selectedIndices
-      .filter(idx => idx >= 0 && idx < allImages.length)
-      .map((idx, i) => ({
+    // non-other 이미지 → 메인 표시용
+    const extractedImages = classifications
+      .filter(c => c.type !== 'other' && c.imageIndex >= 0 && c.imageIndex < allImages.length)
+      .map((c, i) => ({
         id: `img-${i}`,
-        base64: allImages[idx].base64,
-        source: allImages[idx].fileName,
-        aiType: classifications.find(c => c.imageIndex === idx)?.type as 'building' | 'floor_plan',
+        base64: allImages[c.imageIndex].base64,
+        source: allImages[c.imageIndex].fileName,
+        aiType: c.type as 'building' | 'floor_plan',
       }));
 
     return Response.json({

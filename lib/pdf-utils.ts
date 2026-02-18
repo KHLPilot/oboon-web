@@ -1,4 +1,4 @@
-import { getDocumentProxy, extractImages } from 'unpdf';
+import { getDocumentProxy, extractImages, renderPageAsImage } from 'unpdf';
 
 export interface ExtractedImage {
   buffer: Buffer;
@@ -17,6 +17,7 @@ export interface ImageExtractionStats {
 
 const MAX_IMAGES = 20;
 const MAX_DIMENSION = 1280;
+const MAX_RENDERED_PAGES = 10;
 
 /**
  * Raw pixel data를 리사이즈 후 JPEG Buffer로 변환합니다.
@@ -147,6 +148,33 @@ export async function extractImagesFromPDF(
   }
 
   return { images, stats };
+}
+
+/**
+ * PDF 페이지를 이미지로 렌더링합니다 (벡터 평면도 캡처용).
+ * 각 페이지를 1280px 너비의 PNG data URL로 반환합니다.
+ */
+export async function renderPagesAsImages(
+  pdfBuffer: Buffer
+): Promise<string[]> {
+  const pdf = await getDocumentProxy(new Uint8Array(pdfBuffer));
+  const dataUrls: string[] = [];
+  const pageCount = Math.min(pdf.numPages, MAX_RENDERED_PAGES);
+
+  for (let pageNum = 1; pageNum <= pageCount; pageNum++) {
+    try {
+      const dataUrl = await renderPageAsImage(pdf, pageNum, {
+        canvasImport: () => import('@napi-rs/canvas'),
+        width: 1280,
+        toDataURL: true,
+      });
+      dataUrls.push(dataUrl as string);
+    } catch (error) {
+      console.warn(`[PDF 렌더링] 페이지 ${pageNum}: 렌더링 실패`, error);
+    }
+  }
+
+  return dataUrls;
 }
 
 /**

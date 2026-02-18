@@ -91,7 +91,7 @@ const imageClassificationItemSchema = z.object({
 });
 
 export const imageClassificationResultSchema = z.object({
-  classifications: z.array(imageClassificationItemSchema).max(15).describe(
+  classifications: z.array(imageClassificationItemSchema).max(40).describe(
     "첨부된 각 이미지의 유형을 분류하라. 건물 외관/렌더/조감도는 building, 평면도/단위세대 도면은 floor_plan, 그 외(로고/지도/표/장식)는 other"
   ),
 });
