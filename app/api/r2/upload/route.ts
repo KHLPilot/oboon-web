@@ -106,6 +106,32 @@ export async function POST(req: Request) {
       return NextResponse.json({ url: publicUrl });
     }
 
+    if (resolvedMode === "property_additional") {
+      if (!propertyId) {
+        return NextResponse.json(
+          { error: "propertyId required" },
+          { status: 400 },
+        );
+      }
+
+      const key = `properties/${propertyId}/gallery/${randomKeySegment()}.${ext}`;
+
+      const arrayBuffer = await file.arrayBuffer();
+      const body = Buffer.from(arrayBuffer);
+
+      await r2.send(
+        new PutObjectCommand({
+          Bucket: process.env.CLOUDFLARE_R2_BUCKET_NAME!,
+          Key: key,
+          Body: body,
+          ContentType: file.type || "application/octet-stream",
+        }),
+      );
+
+      const publicUrl = `${process.env.CLOUDFLARE_R2_PUBLIC_URL}/${key}`;
+      return NextResponse.json({ url: publicUrl });
+    }
+
     if (resolvedMode === "briefing_cover") {
       if (!postId) {
         return NextResponse.json({ error: "postId required" }, { status: 400 });
@@ -177,7 +203,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         error:
-          "invalid mode (property_main | property_floor_plan | briefing_cover | briefing_content | agent_avatar)",
+          "invalid mode (property_main | property_floor_plan | property_additional | briefing_cover | briefing_content | agent_avatar)",
       },
       { status: 400 },
     );

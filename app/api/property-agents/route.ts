@@ -245,7 +245,6 @@ export async function GET(request: NextRequest) {
         properties:property_id (
           id,
           name,
-          image_url,
           property_type
         ),
         profiles:agent_id (
@@ -278,7 +277,50 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ propertyAgents });
+    const propertyIds = Array.from(
+      new Set(
+        ((propertyAgents ?? []) as Array<{ properties?: { id?: number } | null }>)
+          .map((row) => Number(row.properties?.id))
+          .filter((id) => Number.isFinite(id) && id > 0)
+      )
+    );
+
+    const mainImageMap = new Map<number, string>();
+    if (propertyIds.length > 0) {
+      const { data: mainAssets } = await supabase
+        .from("property_image_assets")
+        .select("property_id, image_url, updated_at, created_at")
+        .eq("kind", "main")
+        .eq("is_active", true)
+        .in("property_id", propertyIds)
+        .order("updated_at", { ascending: false })
+        .order("created_at", { ascending: false });
+
+      ((mainAssets ?? []) as Array<{ property_id: number; image_url: string }>).forEach(
+        (row) => {
+          if (!mainImageMap.has(row.property_id)) {
+            mainImageMap.set(row.property_id, row.image_url);
+          }
+        }
+      );
+    }
+
+    const normalizedPropertyAgents = ((propertyAgents ?? []) as Array<Record<string, unknown>>).map(
+      (row) => {
+        const property = row.properties as { id?: number } | null | undefined;
+        if (!property || !Number.isFinite(Number(property.id))) return row;
+        const propertyId = Number(property.id);
+        return {
+          ...row,
+          properties: {
+            ...(property as Record<string, unknown>),
+            image_url: mainImageMap.get(propertyId) ?? null,
+          },
+        };
+      }
+    );
+
+    return NextResponse.json({ propertyAgents: normalizedPropertyAgents });
   } catch (error) {
     console.error("GET /api/property-agents 오류:", error);
     return NextResponse.json(

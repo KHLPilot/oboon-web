@@ -9,68 +9,10 @@ const adminSupabase = createClient(
 );
 
 async function syncPublicSnapshot(propertyId: number) {
-  const { data: property, error: propertyError } = await adminSupabase
-    .from("properties")
-    .select(
-      `
-      id,
-      created_at,
-      name,
-      property_type,
-      status,
-      description,
-      image_url,
-      confirmed_comment,
-      estimated_comment,
-      property_gallery_images (
-        id,
-        property_id,
-        image_url,
-        sort_order,
-        created_at
-      ),
-      property_locations (*),
-      property_specs (*),
-      property_timeline (*),
-      property_unit_types (*)
-    `,
-    )
-    .eq("id", propertyId)
-    .single();
-
-  if (propertyError || !property) {
-    throw propertyError ?? new Error("현장 데이터를 찾을 수 없습니다.");
-  }
-
-  const maskedUnitTypes = Array.isArray(property.property_unit_types)
-    ? property.property_unit_types.map((unit) =>
-        unit?.is_price_public === false
-          ? { ...unit, price_min: null, price_max: null }
-          : unit,
-      )
-    : [];
-
-  const snapshot = {
-    ...property,
-    property_unit_types: maskedUnitTypes,
-  };
-
-  const now = new Date().toISOString();
-  const { error: snapshotError } = await adminSupabase
-    .from("property_public_snapshots")
-    .upsert(
-      {
-        property_id: propertyId,
-        snapshot,
-        published_at: now,
-        updated_at: now,
-      },
-      { onConflict: "property_id" },
-    );
-
-  if (snapshotError) {
-    throw snapshotError;
-  }
+  const { error } = await adminSupabase.rpc("refresh_property_public_snapshot", {
+    p_property_id: propertyId,
+  });
+  if (error) throw error;
 }
 
 export async function POST(req: Request) {

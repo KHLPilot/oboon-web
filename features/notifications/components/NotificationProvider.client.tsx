@@ -8,7 +8,7 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
-import { createSupabaseClient } from "@/lib/supabaseClient";
+import { createSupabaseClient, isAbortError } from "@/lib/supabaseClient";
 import { subscribeToNotifications } from "../services/notification.realtime";
 import type { Notification } from "../domain/notification.types";
 
@@ -59,13 +59,22 @@ export function NotificationProvider({
     const supabase = createSupabaseClient();
 
     const getUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      setUserId(user?.id || null);
-      if (user) {
-        await fetchNotifications();
-      } else {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        setUserId(user?.id || null);
+        if (user) {
+          await fetchNotifications();
+        } else {
+          setLoading(false);
+        }
+      } catch (error) {
+        if (!isAbortError(error)) {
+          console.error("notification provider auth error:", error);
+        }
+        setUserId(null);
+        setNotifications([]);
         setLoading(false);
       }
     };

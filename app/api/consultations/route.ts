@@ -399,7 +399,7 @@ export async function GET(req: Request) {
                 *,
                 customer:profiles!consultations_customer_id_fkey(id, name, email, phone_number, avatar_url),
                 agent:profiles!consultations_agent_id_fkey(id, name, email, phone_number, avatar_url),
-                property:properties(id, name, image_url)
+                property:properties(id, name)
             `,
       )
       .order("scheduled_at", { ascending: true });
@@ -454,6 +454,7 @@ export async function GET(req: Request) {
       agent_id: string | null;
       customer?: { avatar_url?: string | null } | null;
       agent?: { avatar_url?: string | null } | null;
+      property?: { id?: number; name?: string | null; image_url?: string | null } | null;
     };
     const consultationRows = (consultations || []) as ConsultationListRow[];
 
@@ -503,11 +504,52 @@ export async function GET(req: Request) {
       );
     }
 
+    const propertyIds = Array.from(
+      new Set(
+        filteredConsultations
+          .map((c) => Number(c.property?.id))
+          .filter((id) => Number.isFinite(id) && id > 0),
+      ),
+    );
+    const mainImageMap = new Map<number, string>();
+    if (propertyIds.length > 0) {
+      const { data: mainAssets, error: mainAssetError } = await adminSupabase
+        .from("property_image_assets")
+        .select("property_id, image_url, updated_at, created_at")
+        .eq("kind", "main")
+        .eq("is_active", true)
+        .in("property_id", propertyIds)
+        .order("updated_at", { ascending: false })
+        .order("created_at", { ascending: false });
+
+      if (!mainAssetError) {
+        ((mainAssets ?? []) as Array<{ property_id: number; image_url: string }>).forEach(
+          (row) => {
+            if (!mainImageMap.has(row.property_id)) {
+              mainImageMap.set(row.property_id, row.image_url);
+            }
+          },
+        );
+      }
+    }
+
     const enrichedConsultations = filteredConsultations.map((c) => {
       const customer = c.customer_id ? publicProfilesMap.get(c.customer_id) : undefined;
       const agent = c.agent_id ? publicProfilesMap.get(c.agent_id) : undefined;
+      const propertyId = Number(c.property?.id);
+      const property =
+        c.property == null
+          ? c.property
+          : {
+              ...c.property,
+              image_url:
+                Number.isFinite(propertyId) && propertyId > 0
+                  ? mainImageMap.get(propertyId) ?? null
+                  : null,
+            };
       return {
         ...c,
+        property,
         customer_avatar_url:
           customer?.avatar_url ?? c.customer?.avatar_url ?? null,
         agent_avatar_url: agent?.avatar_url ?? c.agent?.avatar_url ?? null,

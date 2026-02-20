@@ -10,7 +10,10 @@ export const maxDuration = 120;
 const pdfParse = require('pdf-parse');
 
 const MAX_TEXT_LENGTH = 30000;
-const MAX_TOTAL_SIZE = 100 * 1024 * 1024; // 100MB
+const MAX_TOTAL_SIZE = 150 * 1024 * 1024; // 150MB
+const MAX_MULTIPART_OVERHEAD = 5 * 1024 * 1024; // 5MB
+const MAX_PHASE2_CLASSIFICATION_IMAGES = 100;
+const MAX_CLASSIFICATION_FALLBACK_IMAGES = 20;
 
 const systemPrompt = `너는 대한민국 아파트/오피스텔 분양 사업개요(모집공고문) PDF에서 정형 데이터를 추출하는 전문가다.
 
@@ -86,13 +89,23 @@ function toHttpStatus(message: string) {
 }
 
 type GeoAddressResult = {
-  lat: number;
-  lng: number;
+  lat: number | null;
+  lng: number | null;
   road_address: string | null;
   jibun_address: string | null;
   region_1depth: string | null;
   region_2depth: string | null;
   region_3depth: string | null;
+};
+
+type FileProcessMeta = {
+  fileName: string;
+  sizeBytes: number;
+  pages: number | null;
+  textLength: number;
+  textExtracted: boolean;
+  extractedImageCount: number;
+  renderedImageCount: number;
 };
 
 async function geocodeAddress(address: string): Promise<GeoAddressResult | null> {
@@ -111,9 +124,11 @@ async function geocodeAddress(address: string): Promise<GeoAddressResult | null>
     if (!json.documents || json.documents.length === 0) return null;
 
     const doc = json.documents[0];
+    const lat = parseFloat(doc.y);
+    const lng = parseFloat(doc.x);
     return {
-      lat: parseFloat(doc.y),
-      lng: parseFloat(doc.x),
+      lat: Number.isFinite(lat) ? lat : null,
+      lng: Number.isFinite(lng) ? lng : null,
       road_address: doc.road_address?.address_name ?? null,
       jibun_address: doc.address?.address_name ?? null,
       region_1depth: doc.address?.region_1depth_name ?? null,
@@ -185,6 +200,17 @@ async function resolveLocationAddresses(input: {
 
 export async function POST(req: Request) {
   try {
+    const contentLength = req.headers.get('content-length');
+    if (contentLength) {
+      const bodyBytes = Number.parseInt(contentLength, 10);
+      if (Number.isFinite(bodyBytes) && bodyBytes > MAX_TOTAL_SIZE + MAX_MULTIPART_OVERHEAD) {
+        return Response.json(
+          { error: `PDF 합산 용량이 150MB를 초과합니다. (${(bodyBytes / 1024 / 1024).toFixed(1)}MB)` },
+          { status: 400 }
+        );
+      }
+    }
+
     const formData = await req.formData();
     const files = formData.getAll('files') as File[];
     const textOnly = formData.get('textOnly') === 'true';
@@ -201,13 +227,14 @@ export async function POST(req: Request) {
     const totalSize = files.reduce((sum, f) => sum + f.size, 0);
     if (totalSize > MAX_TOTAL_SIZE) {
       return Response.json(
-        { error: `PDF 합산 용량이 100MB를 초과합니다. (${(totalSize / 1024 / 1024).toFixed(1)}MB)` },
+        { error: `PDF 합산 용량이 150MB를 초과합니다. (${(totalSize / 1024 / 1024).toFixed(1)}MB)` },
         { status: 400 }
       );
     }
 
     const textParts: string[] = [];
     const allImages: Array<{ base64: string; fileName: string; index: number; source: 'extract' | 'render' }> = [];
+    const filesMeta: FileProcessMeta[] = [];
     const combinedStats = {
       totalPages: 0,
       imagesFound: 0,
@@ -219,11 +246,31 @@ export async function POST(req: Request) {
     for (const file of files) {
       const arrayBuffer = await file.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
+      const fileMeta: FileProcessMeta = {
+        fileName: file.name,
+        sizeBytes: file.size,
+        pages: null,
+        textLength: 0,
+        textExtracted: false,
+        extractedImageCount: 0,
+        renderedImageCount: 0,
+      };
+
+      if (buffer.length < 5 || buffer.subarray(0, 5).toString('ascii') !== '%PDF-') {
+        return Response.json(
+          { error: `유효한 PDF 파일이 아닙니다: ${file.name}` },
+          { status: 400 }
+        );
+      }
 
       // 텍스트 추출
       const parsed = await pdfParse(buffer);
-      if (parsed.text?.trim()) {
-        textParts.push(`=== [${file.name}] ===\n${parsed.text}`);
+      fileMeta.pages = Number.isFinite(parsed.numpages) ? parsed.numpages : null;
+      const parsedText = parsed.text?.trim() ?? '';
+      fileMeta.textLength = parsedText.length;
+      if (parsedText) {
+        fileMeta.textExtracted = true;
+        textParts.push(`=== [${file.name}] ===\n${parsedText}`);
       }
 
       // 이미지 추출 (textOnly 모드일 때 스킵)
@@ -245,6 +292,7 @@ export async function POST(req: Request) {
               index: i,
               source: 'extract',
             });
+            fileMeta.extractedImageCount += 1;
           }
         } catch (error) {
           console.warn(`${file.name}에서 이미지 추출 실패:`, error);
@@ -260,11 +308,14 @@ export async function POST(req: Request) {
               index: allImages.length,
               source: 'render',
             });
+            fileMeta.renderedImageCount += 1;
           }
         } catch (error) {
           console.warn(`${file.name}에서 페이지 렌더링 실패:`, error);
         }
       }
+
+      filesMeta.push(fileMeta);
     }
 
     if (textParts.length === 0) {
@@ -309,10 +360,12 @@ export async function POST(req: Request) {
 
     // ── Phase 2: 이미지 분류 (이미지만, 간단한 스키마) ──
     let classificationResult: { classifications: Array<{ imageIndex: number; type: 'building' | 'floor_plan' | 'other' }> } | null = null;
+    let phase2ImageLimit = 0;
+    let classificationFailed = false;
 
     if (allImages.length > 0) {
       // 더 많은 이미지를 분류해야 건물/평면도를 찾을 확률이 높음
-      const phase2ImageLimit = Math.min(allImages.length, 40);
+      phase2ImageLimit = Math.min(allImages.length, MAX_PHASE2_CLASSIFICATION_IMAGES);
 
       const phase2Content: Array<
         | { type: 'text'; text: string }
@@ -331,14 +384,18 @@ export async function POST(req: Request) {
         });
       }
 
-      const { object: classResult } = await generateObject({
-        model: google('gemini-2.5-flash'),
-        schema: imageClassificationResultSchema,
-        system: '첨부된 이미지를 분류하라. building: 건물 외관 렌더링, 조감도, 실사 사진, 투시도, 야경. floor_plan: 평면도, 단위세대 도면, 층별 배치도. other: 로고, 지도, 위치도, 표, 다이어그램, 장식 이미지.',
-        messages: [{ role: 'user', content: phase2Content }],
-      });
-
-      classificationResult = classResult;
+      try {
+        const { object: classResult } = await generateObject({
+          model: google('gemini-2.5-flash'),
+          schema: imageClassificationResultSchema,
+          system: '첨부된 이미지를 분류하라. building: 건물 외관 렌더링, 조감도, 실사 사진, 투시도, 야경. floor_plan: 평면도, 단위세대 도면, 층별 배치도. other: 로고, 지도, 위치도, 표, 다이어그램, 장식 이미지.',
+          messages: [{ role: 'user', content: phase2Content }],
+        });
+        classificationResult = classResult;
+      } catch (error) {
+        classificationFailed = true;
+        console.warn('이미지 분류(Phase2) 실패 - 텍스트 추출 결과만 반환합니다:', error);
+      }
     }
 
     // ── 카카오 주소 보완 ──
@@ -374,8 +431,8 @@ export async function POST(req: Request) {
     const classifications = classificationResult?.classifications || [];
 
     // non-other 이미지 → 메인 표시용
-    const extractedImages = classifications
-      .filter(c => c.type !== 'other' && c.imageIndex >= 0 && c.imageIndex < allImages.length)
+    const classifiedImages = classifications
+      .filter(c => c.type !== 'other' && c.imageIndex >= 0 && c.imageIndex < phase2ImageLimit)
       .map((c, i) => ({
         id: `img-${i}`,
         base64: allImages[c.imageIndex].base64,
@@ -383,7 +440,23 @@ export async function POST(req: Request) {
         aiType: c.type as 'building' | 'floor_plan',
       }));
 
+    // 분류 실패/누락 시 UI가 빈 상태가 되지 않도록 fallback 이미지 노출
+    const fallbackLimit = Math.min(
+      allImages.length,
+      phase2ImageLimit || allImages.length,
+      MAX_CLASSIFICATION_FALLBACK_IMAGES
+    );
+    const fallbackImages = Array.from({ length: fallbackLimit }, (_, i) => ({
+      id: `fallback-img-${i}`,
+      base64: allImages[i].base64,
+      source: allImages[i].fileName,
+      aiType: 'building' as const,
+    }));
+    const usedClassificationFallback = classifiedImages.length === 0 && fallbackImages.length > 0;
+    const extractedImages = usedClassificationFallback ? fallbackImages : classifiedImages;
+
     return Response.json({
+      responseVersion: 1,
       ...extractionResult,
       location,
       facilities: facilitiesWithGeo,
@@ -392,6 +465,9 @@ export async function POST(req: Request) {
         textLength: rawText.length,
         imageCount: allImages.length,
         imageStats: combinedStats,
+        filesMeta,
+        classificationFailed,
+        classificationFallbackUsed: usedClassificationFallback,
         truncated,
         geocoded: geoResult !== null,
       },

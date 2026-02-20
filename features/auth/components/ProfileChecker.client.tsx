@@ -4,7 +4,7 @@
 
 import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { createSupabaseClient } from "@/lib/supabaseClient";
+import { createSupabaseClient, isAbortError } from "@/lib/supabaseClient";
 
 export default function ProfileChecker() {
     const router = useRouter();
@@ -18,7 +18,16 @@ export default function ProfileChecker() {
         }
 
         async function checkProfile() {
-            const { data: { session } } = await supabase.auth.getSession();
+            let session = null;
+            try {
+                const result = await supabase.auth.getSession();
+                session = result.data.session;
+            } catch (error) {
+                if (!isAbortError(error)) {
+                    console.error("profile checker session error:", error);
+                }
+                return;
+            }
 
             if (!session) {
                 // 로그인 안됨 - 체크 불필요

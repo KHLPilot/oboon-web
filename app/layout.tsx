@@ -130,7 +130,7 @@ export default function RootLayout({
           </Script>
         ) : null}
       </head>
-      <body className="min-h-dvh flex flex-col">
+      <body className="min-h-dvh flex flex-col overflow-x-hidden">
         <Script
           src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"
           strategy="afterInteractive"

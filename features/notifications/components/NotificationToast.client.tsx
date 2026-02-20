@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Expand, MessageCircleMore, X } from "lucide-react";
 import Image from "next/image";
-import { createSupabaseClient } from "@/lib/supabaseClient";
+import { createSupabaseClient, isAbortError } from "@/lib/supabaseClient";
 import { useNotifications } from "./NotificationProvider.client";
 import { NOTIFICATION_TYPES, type Notification } from "../domain/notification.types";
 import { getAvatarUrlOrDefault } from "@/shared/imageUrl";
@@ -141,9 +141,24 @@ export default function NotificationToastManager() {
     let mounted = true;
 
     async function fetchChatContext() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      let user: { id: string } | null = null;
+      try {
+        const result = await supabase.auth.getUser();
+        user = result.data.user
+          ? { id: result.data.user.id }
+          : null;
+      } catch (error) {
+        if (!isAbortError(error)) {
+          console.error("[chat toast] auth user load error:", error);
+        }
+        if (mounted) {
+          setCurrentUserId(null);
+          setHasChatRoom(false);
+          setRoomRows([]);
+          setCounterpartIds([]);
+        }
+        return;
+      }
 
       if (!mounted || !user) {
         if (mounted) {

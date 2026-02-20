@@ -216,7 +216,7 @@ export function DropdownMenuContent({
   if (!open || !pos) return null;
 
   const base =
-    "fixed z-[9999] overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) shadow-lg";
+    "fixed z-[9999] max-h-[min(60vh,12.5rem)] overflow-x-hidden overflow-y-auto overscroll-contain rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) shadow-lg";
 
   // 실제 좌표: end는 right 정렬이므로 transform으로 당김
   const style: React.CSSProperties =
@@ -267,7 +267,7 @@ export function DropdownMenuItem({
       type="button"
       role="menuitem"
       className={[
-        "w-full px-3 py-2 text-left rounded-xl ob-typo-body",
+        "h-10 w-full px-3 text-left rounded-xl ob-typo-body",
         destructive
           ? "text-(--oboon-danger) hover:bg-(--oboon-danger-bg)"
           : "text-(--oboon-text-title) hover:bg-(--oboon-bg-subtle)/60",

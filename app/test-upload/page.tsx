@@ -1,18 +1,25 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import Image from "next/image";
 import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/DropdownMenu";
 import { FormField } from "@/components/shared/FormField";
 import type { PropertyExtractionData } from "@/lib/schema/property-schema";
 import NaverMap, { type MapMarker } from "@/features/map/components/NaverMap";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 
 type ExtractResult = PropertyExtractionData & {
+  responseVersion?: number;
   location: PropertyExtractionData["location"] & {
     lat?: number | null;
     lng?: number | null;
@@ -29,11 +36,22 @@ type ExtractResult = PropertyExtractionData & {
       imagesFailed: number;
       renderFallbackUsed: boolean;
     };
+    classificationFailed?: boolean;
+    filesMeta?: Array<{
+      fileName: string;
+      sizeBytes: number;
+      pages: number | null;
+      textLength: number;
+      textExtracted: boolean;
+      extractedImageCount: number;
+      renderedImageCount: number;
+    }>;
   };
 };
 
 type ExtractUnitType = PropertyExtractionData["unit_types"][number];
 type ExtractUnitTypeExtended = ExtractUnitType & {
+  unit_type_id?: number | null;
   building_layout?: string | null;
   orientation?: string | null;
   supply_count?: number | null;
@@ -65,6 +83,7 @@ type ExistingPropertySnapshot = {
     property_type: string | null;
     status: string | null;
     description: string | null;
+    image_url?: string | null;
   };
   location: {
     id?: number;
@@ -104,6 +123,37 @@ type ExistingPropertySnapshot = {
     contract_end: string | null;
     move_in_date: string | null;
   } | null;
+  images: {
+    main_image_url: string | null;
+    main_image_hash: string | null;
+    existing_hashes: string[];
+    existing_dct_phashes: string[];
+    existing_image_urls: string[];
+    asset_hash_by_url: Record<string, string>;
+    asset_dct_phash_by_url: Record<string, string>;
+    gallery: Array<{
+      id: string;
+      image_url: string;
+      sort_order: number | null;
+      caption: string | null;
+      image_hash: string | null;
+    }>;
+  };
+  unit_types: Array<{
+    id: number;
+    type_name: string | null;
+    exclusive_area: number | null;
+    supply_area: number | null;
+    rooms: number | null;
+    bathrooms: number | null;
+    building_layout: string | null;
+    orientation: string | null;
+    supply_count: number | null;
+    price_min: number | null;
+    price_max: number | null;
+    unit_count: number | null;
+    floor_plan_url: string | null;
+  }>;
 };
 
 type CompareSection = "properties" | "location" | "specs" | "timeline";
@@ -116,6 +166,30 @@ type CompareField = {
   column: string;
   existingValue: unknown;
   incomingValue: unknown;
+};
+
+type UnitMergePreviewCandidate = {
+  leftIndex: number;
+  rightIndex: number;
+  score: number;
+  nameNumberScore: number;
+  columnScore: number;
+};
+type UnitConflictSource = "left" | "right";
+type UnitConflictField = {
+  key: string;
+  label: string;
+  leftIndex: number;
+  rightIndex: number;
+  leftValue: unknown;
+  rightValue: unknown;
+};
+type ExistingSnapshotImageCard = {
+  key: string;
+  url: string;
+  label: string;
+  hash: string | null;
+  dctPHash: string | null;
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -137,6 +211,7 @@ const tableHeaders = [
   "공급 수",
   "분양가(만원)",
   "세대수",
+  "X",
 ];
 
 function toKoreanErrorMessage(message: string) {
@@ -167,6 +242,27 @@ function toKoreanErrorMessage(message: string) {
   return raw;
 }
 
+function extractImageHashFromCaption(caption: string | null | undefined) {
+  if (!caption) return null;
+  const normalized = caption.trim().toLowerCase();
+  const match = normalized.match(/extract-hash:\s*([a-f0-9]{64})/);
+  return match?.[1] ?? null;
+}
+
+function extractImageDctPHashFromCaption(caption: string | null | undefined) {
+  if (!caption) return null;
+  const normalized = caption.trim().toLowerCase();
+  const match = normalized.match(/extract-phash-dct:\s*([a-f0-9]{16})/);
+  return match?.[1] ?? null;
+}
+
+function extractImageHashFromUrl(imageUrl: string | null | undefined) {
+  if (!imageUrl) return null;
+  const normalized = imageUrl.trim().toLowerCase();
+  const match = normalized.match(/([a-f0-9]{64})/);
+  return match?.[1] ?? null;
+}
+
 function toNumberOrNull(value: unknown) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string") {
@@ -176,6 +272,39 @@ function toNumberOrNull(value: unknown) {
     return Number.isFinite(parsed) ? parsed : null;
   }
   return null;
+}
+
+function toManwonFromWon(value: unknown) {
+  if (value == null || value === "") return null;
+  const num = typeof value === "number" ? value : Number(String(value).replaceAll(",", ""));
+  if (!Number.isFinite(num)) return null;
+  return Math.round((num / 10000) * 100) / 100;
+}
+
+function normalizePriceRange<T extends number | null>(min: T, max: T) {
+  if (typeof min === "number" && typeof max === "number" && min > max) {
+    return { min: max as T, max: min as T };
+  }
+  return { min, max };
+}
+
+function hammingDistanceHex64(left: string, right: string) {
+  if (left.length !== 16 || right.length !== 16) return Number.POSITIVE_INFINITY;
+  let distance = 0;
+  for (let i = 0; i < 16; i += 1) {
+    const l = parseInt(left[i], 16);
+    const r = parseInt(right[i], 16);
+    if (Number.isNaN(l) || Number.isNaN(r)) return Number.POSITIVE_INFINITY;
+    const xor = l ^ r;
+    distance += xor.toString(2).split("1").length - 1;
+  }
+  return distance;
+}
+
+function toWonFromManwon(value: unknown) {
+  const manwon = toNumberOrNull(value);
+  if (manwon == null) return null;
+  return Math.round(manwon * 10000);
 }
 
 function normalizeKoreaCoords(
@@ -202,6 +331,12 @@ function normalizeStatusForDb(
 ): string | null {
   if (!status) return null;
   const upper = status.trim().toUpperCase();
+  const noSpace = status.replace(/\s+/g, "");
+  if (noSpace === "분양예정" || noSpace === "예정") return "READY";
+  if (noSpace === "분양중" || noSpace === "진행중" || noSpace === "중") {
+    return "OPEN";
+  }
+  if (noSpace === "분양종료" || noSpace === "종료") return "CLOSED";
   if (upper === "ONGOING") return "OPEN";
   if (upper === "OPEN" || upper === "READY" || upper === "CLOSED") {
     return upper;
@@ -305,6 +440,103 @@ function displayValue(value: unknown, key?: string) {
   if (typeof value === "number") return value.toLocaleString();
   if (Array.isArray(value)) return value.join(", ") || "-";
   return String(value);
+}
+
+function normalizeLooseText(value: unknown) {
+  return String(value ?? "")
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .replace(/[^0-9a-z가-힣]/gi, "");
+}
+
+function extractNumberTokens(value: unknown) {
+  const raw = String(value ?? "");
+  const matches = raw.match(/\d+(?:\.\d+)?/g) ?? [];
+  return Array.from(new Set(matches));
+}
+
+function jaccardScore(tokensA: string[], tokensB: string[]) {
+  if (tokensA.length === 0 || tokensB.length === 0) return 0;
+  const a = new Set(tokensA);
+  const b = new Set(tokensB);
+  let intersection = 0;
+  a.forEach((token) => {
+    if (b.has(token)) intersection += 1;
+  });
+  const union = new Set([...tokensA, ...tokensB]).size;
+  return union === 0 ? 0 : intersection / union;
+}
+
+function numericFieldScore(a: unknown, b: unknown, toleranceRatio = 0.03) {
+  const na = toNumberOrNull(a);
+  const nb = toNumberOrNull(b);
+  if (na == null || nb == null) return null;
+  if (na === nb) return 1;
+  const base = Math.max(Math.abs(na), Math.abs(nb), 1);
+  const diffRatio = Math.abs(na - nb) / base;
+  if (diffRatio <= toleranceRatio) return 0.85;
+  if (diffRatio <= toleranceRatio * 2) return 0.6;
+  return 0;
+}
+
+function textFieldScore(a: unknown, b: unknown) {
+  const ta = normalizeLooseText(a);
+  const tb = normalizeLooseText(b);
+  if (!ta || !tb) return null;
+  if (ta === tb) return 1;
+  if (ta.includes(tb) || tb.includes(ta)) return 0.65;
+  return 0;
+}
+
+function buildUnitMergePreviewCandidates(units: ExtractUnitTypeExtended[]) {
+  const out: UnitMergePreviewCandidate[] = [];
+  for (let i = 0; i < units.length; i += 1) {
+    for (let j = i + 1; j < units.length; j += 1) {
+      const left = units[i];
+      const right = units[j];
+
+      const nameNumberScore = jaccardScore(
+        extractNumberTokens(left.type_name),
+        extractNumberTokens(right.type_name),
+      );
+      if (nameNumberScore <= 0) continue;
+
+      const fieldScores: number[] = [];
+      const pushScore = (score: number | null) => {
+        if (score != null) fieldScores.push(score);
+      };
+
+      pushScore(numericFieldScore(left.exclusive_area, right.exclusive_area, 0.02));
+      pushScore(numericFieldScore(left.supply_area, right.supply_area, 0.02));
+      pushScore(numericFieldScore(left.rooms, right.rooms, 0));
+      pushScore(numericFieldScore(left.bathrooms, right.bathrooms, 0));
+      pushScore(numericFieldScore(left.price_min, right.price_min, 0.05));
+      pushScore(numericFieldScore(left.price_max, right.price_max, 0.05));
+      pushScore(numericFieldScore(left.unit_count, right.unit_count, 0.08));
+      pushScore(numericFieldScore(left.supply_count, right.supply_count, 0.08));
+      pushScore(textFieldScore(left.building_layout, right.building_layout));
+      pushScore(textFieldScore(left.orientation, right.orientation));
+
+      const columnScore =
+        fieldScores.length > 0
+          ? fieldScores.reduce((sum, score) => sum + score, 0) /
+            fieldScores.length
+          : 0;
+
+      const finalScore = nameNumberScore * 0.45 + columnScore * 0.55;
+      if (finalScore < 0.78) continue;
+
+      out.push({
+        leftIndex: i,
+        rightIndex: j,
+        score: finalScore,
+        nameNumberScore,
+        columnScore,
+      });
+    }
+  }
+
+  return out.sort((a, b) => b.score - a.score);
 }
 
 function normalizeDateYmd(value: unknown): string | null {
@@ -636,6 +868,7 @@ function buildCompareFields(
 
 export default function TestUploadPage() {
   const [files, setFiles] = useState<File[]>([]);
+  const [allUploadedFiles, setAllUploadedFiles] = useState<File[]>([]);
   const [status, setStatus] = useState("PDF를 선택해 테스트를 시작하세요.");
   const [statusTone, setStatusTone] = useState<StatusTone>("idle");
   const [loading, setLoading] = useState(false);
@@ -662,17 +895,22 @@ export default function TestUploadPage() {
 
   // PDF에서 추출된 이미지 (A안: 이미지 추출)
   type ExtractedImageWithDestination = {
+    localKey: string;
     id: string;
     base64: string;
     source: string;
     aiType?: "building" | "floor_plan" | "other";
     destination: "none" | "main" | "gallery" | "floor_plan";
     unitTypeIndex?: number;
+    unitTypeId?: number;
   };
   const [extractedImages, setExtractedImages] = useState<
     ExtractedImageWithDestination[]
   >([]);
+  const extractedShaCacheRef = useRef<Map<string, string>>(new Map());
+  const extractedDctPHashCacheRef = useRef<Map<string, string>>(new Map());
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const pendingFloorPlanClearUnitTypeIdsRef = useRef<Set<number>>(new Set());
 
   const mainImageUrlRef = useRef<string>("");
   const galleryImageUrlsRef = useRef<string[]>([]);
@@ -694,17 +932,243 @@ export default function TestUploadPage() {
   >({});
   const [savingCompareMerge, setSavingCompareMerge] = useState(false);
   const [creatingNewProperty, setCreatingNewProperty] = useState(false);
+  const [createdPropertyId, setCreatedPropertyId] = useState<number | null>(
+    null,
+  );
   const [showNewPropertyAction, setShowNewPropertyAction] = useState(false);
   const additionalFileInputRef = useRef<HTMLInputElement>(null);
   const [additionalFiles, setAdditionalFiles] = useState<File[]>([]);
   const [additionalLoading, setAdditionalLoading] = useState(false);
   const [textOnlyLoading, setTextOnlyLoading] = useState(false);
+  const [duplicateExtractedImageKeys, setDuplicateExtractedImageKeys] =
+    useState<string[]>([]);
+  const [nearDuplicateDistanceByImageKey, setNearDuplicateDistanceByImageKey] =
+    useState<Record<string, number>>({});
+  const [matchedExistingImageKeys, setMatchedExistingImageKeys] = useState<
+    string[]
+  >([]);
+  const [nearMatchedExistingImageKeys, setNearMatchedExistingImageKeys] =
+    useState<string[]>([]);
+  const [showNearDuplicateOnly, setShowNearDuplicateOnly] = useState(false);
+  const [dismissedMergeCandidateKeys, setDismissedMergeCandidateKeys] = useState<
+    string[]
+  >([]);
+  const [hideUnitMergeRecommendations, setHideUnitMergeRecommendations] =
+    useState(false);
+  const [selectedUnitMergeRows, setSelectedUnitMergeRows] = useState<number[]>(
+    [],
+  );
+  const [unitConflictFields, setUnitConflictFields] = useState<UnitConflictField[]>(
+    [],
+  );
+  const [unitConflictSelection, setUnitConflictSelection] = useState<
+    Record<string, UnitConflictSource>
+  >({});
+  const [draggedUnitRowIndex, setDraggedUnitRowIndex] = useState<number | null>(
+    null,
+  );
+  const [dragOverUnitRowIndex, setDragOverUnitRowIndex] = useState<number | null>(
+    null,
+  );
+  const destinationOptions: Array<{
+    value: ExtractedImageWithDestination["destination"];
+    label: string;
+  }> = [
+    { value: "none", label: "사용 안 함" },
+    { value: "main", label: "대표 이미지" },
+    { value: "gallery", label: "추가 현장사진" },
+    { value: "floor_plan", label: "평면도" },
+  ];
 
   const fileNames = useMemo(() => files.map((f) => f.name), [files]);
+  const sortedExtractedImages = useMemo(() => {
+    const rankByDestination: Record<
+      ExtractedImageWithDestination["destination"],
+      number
+    > = {
+      main: 0,
+      gallery: 1,
+      none: 1,
+      floor_plan: 2,
+    };
+
+    return extractedImages
+      .map((img, index) => ({
+        img,
+        index,
+        rank: rankByDestination[img.destination],
+      }))
+      .sort((a, b) => a.rank - b.rank || a.index - b.index)
+      .map((entry) => entry.img);
+  }, [extractedImages]);
+  const visibleExtractedImages = useMemo(
+    () => {
+      if (!showNearDuplicateOnly) return sortedExtractedImages;
+      return sortedExtractedImages.filter(
+        (img) =>
+          duplicateExtractedImageKeys.includes(img.localKey) ||
+          nearDuplicateDistanceByImageKey[img.localKey] != null,
+      );
+    },
+    [
+      sortedExtractedImages,
+      duplicateExtractedImageKeys,
+      showNearDuplicateOnly,
+      nearDuplicateDistanceByImageKey,
+    ],
+  );
+  const similarImageCount = useMemo(() => {
+    const keys = new Set<string>(duplicateExtractedImageKeys);
+    Object.keys(nearDuplicateDistanceByImageKey).forEach((key) => keys.add(key));
+    return keys.size;
+  }, [duplicateExtractedImageKeys, nearDuplicateDistanceByImageKey]);
+  const existingSnapshotImages = useMemo(() => {
+    if (!existingSnapshot) return [] as ExistingSnapshotImageCard[];
+
+    const cards: ExistingSnapshotImageCard[] = [];
+    const seen = new Set<string>();
+    const hashByUrl = existingSnapshot.images.asset_hash_by_url ?? {};
+    const dctByUrl = existingSnapshot.images.asset_dct_phash_by_url ?? {};
+    const pushUnique = (card: ExistingSnapshotImageCard) => {
+      if (!card.url) return;
+      const normalized = card.url.trim();
+      if (!normalized || seen.has(normalized)) return;
+      seen.add(normalized);
+      cards.push({ ...card, url: normalized });
+    };
+
+    if (existingSnapshot.images.main_image_url) {
+      const mainUrl = existingSnapshot.images.main_image_url;
+      pushUnique({
+        key: `main:${mainUrl}`,
+        url: mainUrl,
+        label: "대표 이미지",
+        hash:
+          hashByUrl[mainUrl] ??
+          existingSnapshot.images.main_image_hash ??
+          extractImageHashFromUrl(mainUrl),
+        dctPHash: dctByUrl[mainUrl] ?? null,
+      });
+    }
+
+    existingSnapshot.images.gallery.forEach((img, index) => {
+      const hashFromCaption = extractImageHashFromCaption(img.caption);
+      const hashFromUrl = extractImageHashFromUrl(img.image_url);
+      pushUnique({
+        key: `gallery:${img.id || index}:${img.image_url}`,
+        url: img.image_url,
+        label: "갤러리",
+        hash: img.image_hash ?? hashByUrl[img.image_url] ?? hashFromCaption ?? hashFromUrl,
+        dctPHash:
+          extractImageDctPHashFromCaption(img.caption) ??
+          dctByUrl[img.image_url] ??
+          null,
+      });
+    });
+
+    existingSnapshot.unit_types.forEach((unit, index) => {
+      const floorPlanUrl = String(unit.floor_plan_url ?? "").trim();
+      if (!floorPlanUrl) return;
+      pushUnique({
+        key: `floor:${unit.id || index}:${floorPlanUrl}`,
+        url: floorPlanUrl,
+        label: `평면도${unit.type_name ? ` · ${unit.type_name}` : ""}`,
+        hash: hashByUrl[floorPlanUrl] ?? extractImageHashFromUrl(floorPlanUrl),
+        dctPHash: dctByUrl[floorPlanUrl] ?? null,
+      });
+    });
+
+    return cards;
+  }, [existingSnapshot]);
+  const getUnitMergeCandidateSessionKey = useCallback((
+    leftIndex: number,
+    rightIndex: number,
+  ) => {
+    const units = result?.unit_types ?? [];
+    const leftName = String(normalizeComparableValue(units[leftIndex]?.type_name) ?? "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "");
+    const rightName = String(
+      normalizeComparableValue(units[rightIndex]?.type_name) ?? "",
+    )
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "");
+    if (leftName && rightName) {
+      const [a, b] = [leftName, rightName].sort();
+      return `name:${a}|${b}`;
+    }
+    return `idx:${Math.min(leftIndex, rightIndex)}-${Math.max(leftIndex, rightIndex)}`;
+  }, [result?.unit_types]);
+  const unitMergePreviewCandidates = useMemo(
+    () => buildUnitMergePreviewCandidates(result?.unit_types ?? []),
+    [result?.unit_types],
+  );
+  const visibleUnitMergeCandidates = useMemo(
+    () => {
+      if (hideUnitMergeRecommendations) return [];
+      return unitMergePreviewCandidates.filter(
+        (candidate) =>
+          !dismissedMergeCandidateKeys.includes(
+            getUnitMergeCandidateSessionKey(
+              candidate.leftIndex,
+              candidate.rightIndex,
+            ),
+          ),
+      );
+    },
+    [
+      unitMergePreviewCandidates,
+      dismissedMergeCandidateKeys,
+      hideUnitMergeRecommendations,
+      getUnitMergeCandidateSessionKey,
+    ],
+  );
+  const recommendedUnitRowIndexSet = useMemo(() => {
+    const set = new Set<number>();
+    visibleUnitMergeCandidates.forEach((candidate) => {
+      set.add(candidate.leftIndex);
+      set.add(candidate.rightIndex);
+    });
+    return set;
+  }, [visibleUnitMergeCandidates]);
+  const sortedUnitRows = useMemo(() => {
+    const units = (result?.unit_types ?? []) as ExtractUnitTypeExtended[];
+    if (units.length === 0) {
+      return [{ unit: null as ExtractUnitTypeExtended | null, rowIndex: 0 }];
+    }
+    return units.map((unit, rowIndex) => ({ unit, rowIndex }));
+  }, [result?.unit_types]);
+  const getDestinationLabel = (
+    destination: ExtractedImageWithDestination["destination"],
+  ) => destinationOptions.find((option) => option.value === destination)?.label ?? "미지정";
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    // 이전 버전에서 저장된 전체 숨김 상태는 더 이상 사용하지 않는다.
+    window.localStorage.removeItem("hide-unit-merge-recommendations");
+    setHideUnitMergeRecommendations(false);
+  }, []);
 
   const revokeBlobUrl = (url?: string | null) => {
     if (url && url.startsWith("blob:")) URL.revokeObjectURL(url);
   };
+  const makeExtractedImage = (
+    img: {
+      id: string;
+      base64: string;
+      source: string;
+      aiType?: "building" | "floor_plan" | "other";
+    },
+    destination: ExtractedImageWithDestination["destination"],
+  ): ExtractedImageWithDestination => ({
+    localKey: crypto.randomUUID(),
+    ...img,
+    destination,
+    unitTypeIndex: undefined,
+    unitTypeId: undefined,
+  });
 
   const mergeExtractResults = (
     existing: ExtractResult,
@@ -722,9 +1186,45 @@ export default function TestUploadPage() {
       );
       return { ...(base ?? {}), ...filtered } as T;
     };
+    const mergeFilesMeta = () => {
+      const all = [
+        ...(existing._meta?.filesMeta ?? []),
+        ...(incoming._meta?.filesMeta ?? []),
+      ];
+      const seen = new Set<string>();
+      return all.filter((meta) => {
+        const key = `${meta.fileName}|${meta.sizeBytes}|${meta.pages ?? "-"}|${meta.textLength}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    };
+    const mergedFilesMeta = mergeFilesMeta();
+    const mergedImageStats = {
+      totalPages:
+        (existing._meta?.imageStats?.totalPages ?? 0) +
+        (incoming._meta?.imageStats?.totalPages ?? 0),
+      imagesFound:
+        (existing._meta?.imageStats?.imagesFound ?? 0) +
+        (incoming._meta?.imageStats?.imagesFound ?? 0),
+      imagesExtracted:
+        (existing._meta?.imageStats?.imagesExtracted ?? 0) +
+        (incoming._meta?.imageStats?.imagesExtracted ?? 0),
+      imagesFailed:
+        (existing._meta?.imageStats?.imagesFailed ?? 0) +
+        (incoming._meta?.imageStats?.imagesFailed ?? 0),
+      renderFallbackUsed:
+        Boolean(existing._meta?.imageStats?.renderFallbackUsed) ||
+        Boolean(incoming._meta?.imageStats?.renderFallbackUsed),
+    };
+    const mergedTextLengthFromFiles = mergedFilesMeta.reduce(
+      (sum, meta) => sum + (meta.textLength ?? 0),
+      0,
+    );
 
     return {
       ...existing,
+      responseVersion: incoming.responseVersion ?? existing.responseVersion,
       properties: mergeSection(existing.properties, incoming.properties),
       location: mergeSection(existing.location, incoming.location),
       specs: mergeSection(existing.specs, incoming.specs),
@@ -745,7 +1245,1036 @@ export default function TestUploadPage() {
             !(existing.facilities ?? []).some((e) => e.name === f.name),
         ),
       ],
+      _meta: {
+        fileCount:
+          mergedFilesMeta.length ||
+          (existing._meta?.fileCount ?? 0) + (incoming._meta?.fileCount ?? 0),
+        textLength:
+          mergedTextLengthFromFiles ||
+          (existing._meta?.textLength ?? 0) + (incoming._meta?.textLength ?? 0),
+        truncated:
+          Boolean(existing._meta?.truncated) || Boolean(incoming._meta?.truncated),
+        geocoded:
+          incoming._meta?.geocoded ?? existing._meta?.geocoded ?? false,
+        imageStats: mergedImageStats,
+        classificationFailed:
+          Boolean(existing._meta?.classificationFailed) ||
+          Boolean(incoming._meta?.classificationFailed),
+        filesMeta: mergedFilesMeta,
+      },
     };
+  };
+
+  const normalizeTypeNameKey = (value: unknown) =>
+    String(normalizeComparableValue(value) ?? "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "");
+
+  const mergeExistingUnitsIntoResult = (
+    currentUnits: ExtractUnitTypeExtended[],
+    existingUnits: ExistingPropertySnapshot["unit_types"],
+  ) => {
+    const merged = [...currentUnits];
+    const isMissing = (value: unknown) =>
+      value == null || (typeof value === "string" && value.trim() === "");
+
+    existingUnits.forEach((unit) => {
+      const nameKey = normalizeTypeNameKey(unit.type_name);
+      const normalizedPrice = normalizePriceRange(unit.price_min, unit.price_max);
+      const matchedIndex = merged.findIndex((current) => {
+        if (typeof current.unit_type_id === "number") {
+          return current.unit_type_id === unit.id;
+        }
+        const currentNameKey = normalizeTypeNameKey(current.type_name);
+        return Boolean(nameKey) && currentNameKey === nameKey;
+      });
+
+      if (matchedIndex >= 0) {
+        const current = merged[matchedIndex];
+        merged[matchedIndex] = {
+          ...current,
+          unit_type_id:
+            typeof current.unit_type_id === "number"
+              ? current.unit_type_id
+              : unit.id,
+          type_name: isMissing(current.type_name)
+            ? unit.type_name ?? ""
+            : current.type_name,
+          exclusive_area: isMissing(current.exclusive_area)
+            ? unit.exclusive_area
+            : current.exclusive_area,
+          supply_area: isMissing(current.supply_area)
+            ? unit.supply_area
+            : current.supply_area,
+          rooms: isMissing(current.rooms) ? unit.rooms : current.rooms,
+          bathrooms: isMissing(current.bathrooms)
+            ? unit.bathrooms
+            : current.bathrooms,
+          building_layout: isMissing(current.building_layout)
+            ? unit.building_layout
+            : current.building_layout,
+          orientation: isMissing(current.orientation)
+            ? unit.orientation
+            : current.orientation,
+          supply_count: isMissing(current.supply_count)
+            ? unit.supply_count
+            : current.supply_count,
+          price_min: isMissing(current.price_min)
+            ? normalizedPrice.min
+            : current.price_min,
+          price_max: isMissing(current.price_max)
+            ? normalizedPrice.max
+            : current.price_max,
+          unit_count: isMissing(current.unit_count)
+            ? unit.unit_count
+            : current.unit_count,
+          floor_plan_url: isMissing(current.floor_plan_url)
+            ? unit.floor_plan_url
+            : current.floor_plan_url,
+          image_url: isMissing(current.image_url)
+            ? unit.floor_plan_url
+            : current.image_url,
+        };
+        return;
+      }
+
+      merged.push({
+        unit_type_id: unit.id,
+        type_name: unit.type_name ?? "",
+        exclusive_area: unit.exclusive_area,
+        supply_area: unit.supply_area,
+        rooms: unit.rooms,
+        bathrooms: unit.bathrooms,
+        building_layout: unit.building_layout,
+        orientation: unit.orientation,
+        supply_count: unit.supply_count,
+        price_min: normalizedPrice.min,
+        price_max: normalizedPrice.max,
+        unit_count: unit.unit_count,
+        floor_plan_url: unit.floor_plan_url,
+        image_url: unit.floor_plan_url,
+      });
+    });
+
+    return merged;
+  };
+
+  const uploadEditedFloorPlans = async (propertyId: number) => {
+    const uploadedFloorPlanUrls: Record<number, string> = {};
+    const floorPlanEntries = Object.entries(unitFloorPlanFiles);
+    for (const [indexText, file] of floorPlanEntries) {
+      if (!file) continue;
+      const rowIndex = Number(indexText);
+      if (!Number.isFinite(rowIndex)) continue;
+
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("propertyId", String(propertyId));
+      fd.append("mode", "property_floor_plan");
+      fd.append(
+        "unitType",
+        String(result?.unit_types?.[rowIndex]?.type_name ?? `type-${rowIndex}`),
+      );
+
+      const fpRes = await fetch("/api/r2/upload", {
+        method: "POST",
+        body: fd,
+      });
+      const fpPayload = await fpRes.json().catch(() => null);
+      if (!fpRes.ok || !fpPayload?.url) {
+        throw new Error(fpPayload?.error || "평면도 업로드 실패");
+      }
+
+      uploadedFloorPlanUrls[rowIndex] = String(fpPayload.url);
+    }
+
+    return uploadedFloorPlanUrls;
+  };
+
+  const syncUnitTypesForProperty = async (
+    supabase: ReturnType<typeof createSupabaseClient>,
+    propertyId: number,
+  ) => {
+    const uploadedFloorPlanUrls = await uploadEditedFloorPlans(propertyId);
+    const units = result?.unit_types ?? [];
+    const rowIndexToUnitId: Record<number, number> = {};
+
+    const { data: existingUnitRows, error: existingUnitsError } = await supabase
+      .from("property_unit_types")
+      .select("id, type_name")
+      .eq("properties_id", propertyId);
+    if (existingUnitsError) throw existingUnitsError;
+
+    const existingUnitIdSet = new Set<number>();
+    const existingByTypeKey = new Map<string, number>();
+    (existingUnitRows ?? []).forEach((row) => {
+      const rowId = Number(row.id);
+      if (Number.isFinite(rowId)) existingUnitIdSet.add(rowId);
+      const key = normalizeTypeNameKey(row.type_name);
+      if (!key) return;
+      if (!existingByTypeKey.has(key)) {
+        existingByTypeKey.set(key, rowId);
+      }
+    });
+
+    let updated = 0;
+    let inserted = 0;
+    const seenExistingIds = new Set<number>();
+    const seenTypeKeys = new Set<string>();
+
+    for (let index = 0; index < units.length; index += 1) {
+      const unit = units[index] as ExtractUnitTypeExtended;
+      const typeName = String(normalizeComparableValue(unit.type_name) ?? "").trim();
+      if (!typeName) continue;
+      const key = normalizeTypeNameKey(typeName);
+      const explicitUnitId =
+        typeof unit.unit_type_id === "number" ? unit.unit_type_id : null;
+      const existingId =
+        explicitUnitId && existingUnitIdSet.has(explicitUnitId)
+          ? explicitUnitId
+          : existingByTypeKey.get(key);
+
+      if (existingId) {
+        if (seenExistingIds.has(existingId)) continue;
+        seenExistingIds.add(existingId);
+      } else {
+        if (!key || seenTypeKeys.has(key)) continue;
+        seenTypeKeys.add(key);
+      }
+
+      const floorPlanUrl = resolveFloorPlanUrl(unit, index);
+      const floorPlanAssetUrl =
+        uploadedFloorPlanUrls[index] ??
+        (floorPlanUrl && !floorPlanUrl.startsWith("blob:")
+          ? floorPlanUrl
+          : normalizeComparableValue(unit.floor_plan_url ?? unit.image_url));
+      const payload = {
+        type_name: typeName,
+        exclusive_area: toNumberOrNull(unit.exclusive_area),
+        supply_area: toNumberOrNull(unit.supply_area),
+        rooms: toNumberOrNull(unit.rooms),
+        bathrooms: toNumberOrNull(unit.bathrooms),
+        price_min: toWonFromManwon(unit.price_min),
+        price_max: toWonFromManwon(unit.price_max),
+        unit_count: toNumberOrNull(unit.unit_count),
+        supply_count: toNumberOrNull(unit.supply_count),
+        building_layout: normalizeComparableValue(unit.building_layout),
+        orientation: normalizeComparableValue(unit.orientation),
+        is_price_public: true,
+        is_public: true,
+      };
+
+      if (existingId) {
+        let { error: updateError } = await supabase
+          .from("property_unit_types")
+          .update(payload)
+          .eq("id", existingId)
+          .eq("properties_id", propertyId);
+        if (updateError?.code === "42703") {
+          const fallbackPayload = { ...payload };
+          Reflect.deleteProperty(fallbackPayload, "floor_plan_url");
+          const fallbackUpdate = await supabase
+            .from("property_unit_types")
+            .update(fallbackPayload)
+            .eq("id", existingId)
+            .eq("properties_id", propertyId);
+          updateError = fallbackUpdate.error;
+        }
+        if (updateError) throw updateError;
+        rowIndexToUnitId[index] = existingId;
+        updated += 1;
+        if (floorPlanAssetUrl) {
+          await upsertPropertyImageAsset(supabase, {
+            property_id: propertyId,
+            unit_type_id: existingId,
+            kind: "floor_plan",
+            image_url: String(floorPlanAssetUrl),
+            image_hash: extractImageHashFromUrl(String(floorPlanAssetUrl)),
+            caption: null,
+            sort_order: 0,
+          });
+        }
+      } else {
+        const insertPayload = { ...payload, properties_id: propertyId };
+        let { data: insertedRow, error: insertError } = await supabase
+          .from("property_unit_types")
+          .insert(insertPayload)
+          .select("id")
+          .single();
+        if (insertError?.code === "42703") {
+          const fallbackPayload = { ...insertPayload };
+          Reflect.deleteProperty(fallbackPayload, "floor_plan_url");
+          const fallbackInsert = await supabase
+            .from("property_unit_types")
+            .insert(fallbackPayload)
+            .select("id")
+            .single();
+          insertedRow = fallbackInsert.data;
+          insertError = fallbackInsert.error;
+        }
+        if (insertError) throw insertError;
+        if (!insertedRow) {
+          throw new Error("주택형 insert 결과가 비어 있습니다.");
+        }
+        const insertedId = Number(insertedRow.id);
+        rowIndexToUnitId[index] = insertedId;
+        existingByTypeKey.set(key, insertedId);
+        existingUnitIdSet.add(insertedId);
+        seenExistingIds.add(insertedId);
+        inserted += 1;
+        if (floorPlanAssetUrl) {
+          await upsertPropertyImageAsset(supabase, {
+            property_id: propertyId,
+            unit_type_id: insertedId,
+            kind: "floor_plan",
+            image_url: String(floorPlanAssetUrl),
+            image_hash: extractImageHashFromUrl(String(floorPlanAssetUrl)),
+            caption: null,
+            sort_order: 0,
+          });
+        }
+      }
+    }
+
+    setResult((prev) => {
+      if (!prev) return prev;
+      const nextUnits = [...(prev.unit_types ?? [])] as ExtractUnitTypeExtended[];
+      nextUnits.forEach((unit, index) => {
+        if (rowIndexToUnitId[index]) {
+          nextUnits[index] = {
+            ...unit,
+            unit_type_id: rowIndexToUnitId[index],
+          };
+        }
+      });
+      return { ...prev, unit_types: nextUnits };
+    });
+
+    setExtractedImages((prev) =>
+      prev.map((img) => {
+        if (img.destination !== "floor_plan" || img.unitTypeIndex === undefined) {
+          return img;
+        }
+        const unitTypeId = rowIndexToUnitId[img.unitTypeIndex];
+        return {
+          ...img,
+          unitTypeId: unitTypeId ?? img.unitTypeId,
+        };
+      }),
+    );
+
+    return {
+      rowIndexToUnitId,
+      updated,
+      inserted,
+      uploadedFloorPlans: Object.keys(uploadedFloorPlanUrls).length,
+    };
+  };
+
+  const hashExtractedImage = useCallback(async (img: ExtractedImageWithDestination) => {
+    const cached = extractedShaCacheRef.current.get(img.localKey);
+    if (cached) return cached;
+    const blob = base64ToBlob(img.base64);
+    const arrayBuffer = await blob.arrayBuffer();
+    const digest = await crypto.subtle.digest("SHA-256", arrayBuffer);
+    const hex = Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    extractedShaCacheRef.current.set(img.localKey, hex);
+    return hex;
+  }, []);
+  const DCT_PHASH_DUPLICATE_DISTANCE_THRESHOLD = 18;
+  const DCT_PHASH_NEAR_DUPLICATE_DISTANCE_THRESHOLD = 22;
+  const pHashExtractedImage = useCallback(async (img: ExtractedImageWithDestination) => {
+    const cached = extractedDctPHashCacheRef.current.get(img.localKey);
+    if (cached) return cached;
+
+    const blob = base64ToBlob(img.base64);
+    const bitmap = await createImageBitmap(blob);
+    const size = 32;
+    const dctSize = 8;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      bitmap.close();
+      return null;
+    }
+    ctx.drawImage(bitmap, 0, 0, size, size);
+    bitmap.close();
+
+    const pixels = ctx.getImageData(0, 0, size, size).data;
+    const gray = new Array<number>(size * size);
+    for (let i = 0; i < size * size; i += 1) {
+      const p = i * 4;
+      gray[i] = pixels[p] * 0.299 + pixels[p + 1] * 0.587 + pixels[p + 2] * 0.114;
+    }
+
+    const dctVals: number[] = [];
+    for (let v = 0; v < dctSize; v += 1) {
+      for (let u = 0; u < dctSize; u += 1) {
+        let sum = 0;
+        for (let y = 0; y < size; y += 1) {
+          for (let x = 0; x < size; x += 1) {
+            const pixel = gray[y * size + x];
+            sum +=
+              pixel *
+              Math.cos(((2 * x + 1) * u * Math.PI) / (2 * size)) *
+              Math.cos(((2 * y + 1) * v * Math.PI) / (2 * size));
+          }
+        }
+        const cu = u === 0 ? 1 / Math.sqrt(2) : 1;
+        const cv = v === 0 ? 1 / Math.sqrt(2) : 1;
+        dctVals.push((2 / size) * cu * cv * sum);
+      }
+    }
+
+    const sorted = [...dctVals].sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)] ?? 0;
+    const bits = dctVals.map((value) => (value > median ? 1 : 0));
+    const bytes = new Uint8Array(8);
+    for (let i = 0; i < bits.length; i += 1) {
+      if (bits[i] === 1) {
+        bytes[Math.floor(i / 8)] |= 1 << (7 - (i % 8));
+      }
+    }
+    const hex = Array.from(bytes)
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    extractedDctPHashCacheRef.current.set(img.localKey, hex);
+    return hex;
+  }, []);
+  const hashFile = async (file: File) => {
+    const arrayBuffer = await file.arrayBuffer();
+    const digest = await crypto.subtle.digest("SHA-256", arrayBuffer);
+    return Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+  };
+
+  const upsertPropertyImageAsset = async (
+    supabase: ReturnType<typeof createSupabaseClient>,
+    payload: {
+      property_id: number;
+      unit_type_id?: number | null;
+      kind: "main" | "gallery" | "floor_plan";
+      image_url: string;
+      storage_path?: string | null;
+      image_hash?: string | null;
+      caption?: string | null;
+      sort_order?: number;
+    },
+  ) => {
+    const base = {
+      property_id: payload.property_id,
+      unit_type_id: payload.unit_type_id ?? null,
+      kind: payload.kind,
+      image_url: payload.image_url,
+      storage_path: payload.storage_path ?? null,
+      image_hash: payload.image_hash ?? null,
+      caption: payload.caption ?? null,
+      sort_order: payload.sort_order ?? 0,
+      is_active: true,
+    };
+
+    if (payload.kind === "main") {
+      const { error: deactivateError } = await supabase
+        .from("property_image_assets")
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq("property_id", payload.property_id)
+        .eq("kind", "main")
+        .eq("is_active", true);
+      if (deactivateError) {
+        if (deactivateError.code === "42P01") return false;
+        throw deactivateError;
+      }
+    }
+
+    const { error: insertError } = await supabase
+      .from("property_image_assets")
+      .insert(base);
+    if (insertError) {
+      if (insertError.code === "42P01") return false;
+      throw insertError;
+    }
+    return true;
+  };
+
+  const collectHashesFromSnapshot = (
+    snapshot: ExistingPropertySnapshot | null | undefined,
+  ) => {
+    const hashes = new Set<string>();
+    if (!snapshot) return hashes;
+
+    snapshot.images.existing_hashes.forEach((hash) => {
+      if (hash) hashes.add(hash);
+    });
+    if (snapshot.images.main_image_hash) {
+      hashes.add(snapshot.images.main_image_hash);
+    }
+    const mainHashFromUrl = extractImageHashFromUrl(
+      snapshot.images.main_image_url,
+    );
+    if (mainHashFromUrl) hashes.add(mainHashFromUrl);
+    snapshot.images.gallery.forEach((img) => {
+      if (img.image_hash) hashes.add(img.image_hash);
+      const captionHash = extractImageHashFromCaption(img.caption);
+      const urlHash = extractImageHashFromUrl(img.image_url);
+      if (captionHash) hashes.add(captionHash);
+      if (urlHash) hashes.add(urlHash);
+    });
+
+    return hashes;
+  };
+
+  const collectPHashesFromSnapshot = (
+    snapshot: ExistingPropertySnapshot | null | undefined,
+  ) => {
+    const dctPHashes = new Set<string>();
+    if (!snapshot) return dctPHashes;
+
+    snapshot.images.existing_dct_phashes.forEach((phash) => {
+      if (phash) dctPHashes.add(phash);
+    });
+    snapshot.images.gallery.forEach((img) => {
+      const dctCaptionPHash = extractImageDctPHashFromCaption(img.caption);
+      if (dctCaptionPHash) dctPHashes.add(dctCaptionPHash);
+    });
+
+    return dctPHashes;
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function filterDuplicateExtractedImages() {
+      if (!existingSnapshot || extractedImages.length === 0) {
+        if (!cancelled) {
+          setDuplicateExtractedImageKeys([]);
+          setNearDuplicateDistanceByImageKey({});
+          setMatchedExistingImageKeys([]);
+          setNearMatchedExistingImageKeys([]);
+        }
+        return;
+      }
+
+      const existingHashes = collectHashesFromSnapshot(existingSnapshot);
+      const existingDctPHashes = collectPHashesFromSnapshot(existingSnapshot);
+      const existingHashToImageKeys = new Map<string, Set<string>>();
+      const existingDctPHashRows: Array<{ imageKey: string; dctPHash: string }> =
+        [];
+      existingSnapshotImages.forEach((image) => {
+        if (image.hash) {
+          const keySet =
+            existingHashToImageKeys.get(image.hash) ?? new Set<string>();
+          keySet.add(image.key);
+          existingHashToImageKeys.set(image.hash, keySet);
+        }
+        if (image.dctPHash) {
+          existingDctPHashRows.push({
+            imageKey: image.key,
+            dctPHash: image.dctPHash,
+          });
+        }
+      });
+      if (
+        existingHashes.size === 0 &&
+        existingDctPHashes.size === 0
+      ) {
+        if (!cancelled) {
+          setDuplicateExtractedImageKeys([]);
+          setNearDuplicateDistanceByImageKey({});
+          setMatchedExistingImageKeys([]);
+          setNearMatchedExistingImageKeys([]);
+        }
+        return;
+      }
+
+      const duplicateKeys: string[] = [];
+      const matchedExistingKeys = new Set<string>();
+      const nearMatchedExistingKeys = new Set<string>();
+      const extractedHashRows: Array<{
+        localKey: string;
+        hash: string;
+        dctPHash: string | null;
+        matched: boolean;
+        minKnownDctPHashDistance: number | null;
+      }> = [];
+      for (const img of extractedImages) {
+        const hash = await hashExtractedImage(img);
+        let dctPHash: string | null = null;
+        try {
+          dctPHash = await pHashExtractedImage(img);
+        } catch {
+          dctPHash = null;
+        }
+        if (existingHashToImageKeys.has(hash)) {
+          existingHashToImageKeys.get(hash)?.forEach((key) => {
+            matchedExistingKeys.add(key);
+          });
+        }
+        const dctPHashMatched =
+          Boolean(dctPHash) &&
+          Array.from(existingDctPHashes).some(
+            (known) =>
+              hammingDistanceHex64(known, dctPHash as string) <=
+              DCT_PHASH_DUPLICATE_DISTANCE_THRESHOLD,
+          );
+        const minKnownDctPHashDistance = dctPHash
+          ? Array.from(existingDctPHashes).reduce<number | null>(
+              (min, known) => {
+                const distance = hammingDistanceHex64(known, dctPHash as string);
+                if (!Number.isFinite(distance)) return min;
+                if (min == null || distance < min) return distance;
+                return min;
+              },
+              null,
+            )
+          : null;
+        const nearestExistingByDct = dctPHash
+          ? existingDctPHashRows.reduce<{
+              imageKey: string;
+              distance: number;
+            } | null>((min, row) => {
+              const distance = hammingDistanceHex64(row.dctPHash, dctPHash as string);
+              if (!Number.isFinite(distance)) return min;
+              if (!min || distance < min.distance) {
+                return { imageKey: row.imageKey, distance };
+              }
+              return min;
+            }, null)
+          : null;
+        if (
+          nearestExistingByDct &&
+          nearestExistingByDct.distance <= DCT_PHASH_DUPLICATE_DISTANCE_THRESHOLD
+        ) {
+          matchedExistingKeys.add(nearestExistingByDct.imageKey);
+        } else if (
+          nearestExistingByDct &&
+          nearestExistingByDct.distance <= DCT_PHASH_NEAR_DUPLICATE_DISTANCE_THRESHOLD
+        ) {
+          nearMatchedExistingKeys.add(nearestExistingByDct.imageKey);
+        }
+        const matched = existingHashes.has(hash) || dctPHashMatched;
+        extractedHashRows.push({
+          localKey: img.localKey,
+          hash,
+          dctPHash,
+          matched,
+          minKnownDctPHashDistance,
+        });
+        if (matched) {
+          duplicateKeys.push(img.localKey);
+        }
+      }
+
+      if (!cancelled) {
+        const nearDuplicateDistances = extractedHashRows.reduce<
+          Record<string, number>
+        >((acc, row) => {
+          if (row.matched) return acc;
+          if (row.minKnownDctPHashDistance == null) return acc;
+          if (
+            row.minKnownDctPHashDistance >
+              DCT_PHASH_DUPLICATE_DISTANCE_THRESHOLD &&
+            row.minKnownDctPHashDistance <=
+              DCT_PHASH_NEAR_DUPLICATE_DISTANCE_THRESHOLD
+          ) {
+            acc[row.localKey] = row.minKnownDctPHashDistance;
+          }
+          return acc;
+        }, {});
+        setDuplicateExtractedImageKeys(duplicateKeys);
+        setNearDuplicateDistanceByImageKey(nearDuplicateDistances);
+        setMatchedExistingImageKeys(Array.from(matchedExistingKeys));
+        setNearMatchedExistingImageKeys(Array.from(nearMatchedExistingKeys));
+      }
+    }
+
+    void filterDuplicateExtractedImages();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    existingSnapshot,
+    extractedImages,
+    existingSnapshotImages,
+    hashExtractedImage,
+    pHashExtractedImage,
+  ]);
+
+  const buildExtractedImageAssignmentMap = async () => {
+    const unitNameById = new Map<number, string>();
+    (result?.unit_types ?? []).forEach((unit, index) => {
+      const unitId = (unit as ExtractUnitTypeExtended).unit_type_id;
+      const unitName = String(unit.type_name ?? "").trim();
+      if (typeof unitId === "number" && unitName) {
+        unitNameById.set(unitId, unitName);
+      } else if (unitName) {
+        unitNameById.set(-(index + 1), unitName);
+      }
+    });
+
+    const map = new Map<
+      string,
+      {
+        destination: ExtractedImageWithDestination["destination"];
+        unitTypeId?: number;
+        unitTypeName?: string;
+      }
+    >();
+
+    for (const img of extractedImages) {
+      const hash = await hashExtractedImage(img);
+      const unitTypeName =
+        typeof img.unitTypeId === "number"
+          ? unitNameById.get(img.unitTypeId)
+          : img.unitTypeIndex !== undefined
+            ? String(result?.unit_types?.[img.unitTypeIndex]?.type_name ?? "").trim() ||
+              undefined
+            : undefined;
+      map.set(hash, {
+        destination: img.destination,
+        unitTypeId: img.unitTypeId,
+        unitTypeName,
+      });
+    }
+
+    return map;
+  };
+
+  const applyExtractedImageAssignmentsByHash = async (
+    incomingImages: ExtractedImageWithDestination[],
+    assignmentMap: Map<
+      string,
+      {
+        destination: ExtractedImageWithDestination["destination"];
+        unitTypeId?: number;
+        unitTypeName?: string;
+      }
+    >,
+    targetUnits: ExtractUnitTypeExtended[],
+  ) => {
+    if (assignmentMap.size === 0) return incomingImages;
+
+    const unitIndexById = new Map<number, number>();
+    const unitIndexByName = new Map<string, number>();
+    targetUnits.forEach((unit, index) => {
+      if (typeof unit.unit_type_id === "number") {
+        unitIndexById.set(unit.unit_type_id, index);
+      }
+      const name = String(unit.type_name ?? "").trim();
+      if (name && !unitIndexByName.has(name)) {
+        unitIndexByName.set(name, index);
+      }
+    });
+
+    const patched: ExtractedImageWithDestination[] = [];
+    for (const img of incomingImages) {
+      const hash = await hashExtractedImage(img);
+      const prev = assignmentMap.get(hash);
+      if (!prev) {
+        patched.push(img);
+        continue;
+      }
+
+      const next: ExtractedImageWithDestination = {
+        ...img,
+        destination: prev.destination,
+      };
+
+      if (prev.destination === "floor_plan") {
+        if (typeof prev.unitTypeId === "number" && unitIndexById.has(prev.unitTypeId)) {
+          next.unitTypeId = prev.unitTypeId;
+          next.unitTypeIndex = unitIndexById.get(prev.unitTypeId);
+        } else if (prev.unitTypeName && unitIndexByName.has(prev.unitTypeName)) {
+          const matchedIndex = unitIndexByName.get(prev.unitTypeName);
+          if (matchedIndex !== undefined) {
+            next.unitTypeIndex = matchedIndex;
+            const matchedId = targetUnits[matchedIndex]?.unit_type_id;
+            if (typeof matchedId === "number") next.unitTypeId = matchedId;
+          }
+        }
+      }
+
+      patched.push(next);
+    }
+    return patched;
+  };
+
+  const syncExtractedImagesForProperty = async (
+    supabase: ReturnType<typeof createSupabaseClient>,
+    propertyId: number,
+    rowIndexToUnitId: Record<number, number>,
+  ) => {
+    const galleryHashByImageId = new Map<
+      string,
+      { hash: string; dctPHash: string | null }
+    >();
+    for (const img of extractedImages) {
+      if (img.destination !== "gallery") continue;
+      const hash = await hashExtractedImage(img);
+      let dctPHash: string | null = null;
+      try {
+        dctPHash = await pHashExtractedImage(img);
+      } catch {
+        dctPHash = null;
+      }
+      galleryHashByImageId.set(img.id, { hash, dctPHash });
+    }
+    const desiredGalleryHashes = new Set<string>(
+      Array.from(galleryHashByImageId.values()).map((v) => v.hash),
+    );
+
+    const desiredFloorPlanUnitTypeIds = new Set<number>();
+    extractedImages.forEach((img) => {
+      if (img.destination !== "floor_plan") return;
+      const unitTypeId =
+        img.unitTypeId ??
+        (img.unitTypeIndex !== undefined
+          ? rowIndexToUnitId[img.unitTypeIndex]
+          : undefined);
+      if (unitTypeId) desiredFloorPlanUnitTypeIds.add(unitTypeId);
+    });
+
+    const { data: imageAssetRows, error: imageAssetFetchError } = await supabase
+      .from("property_image_assets")
+      .select("id, kind, unit_type_id, image_hash, image_url, caption, sort_order, is_active")
+      .eq("property_id", propertyId)
+      .eq("is_active", true);
+    if (imageAssetFetchError && imageAssetFetchError.code !== "42P01") {
+      throw imageAssetFetchError;
+    }
+    const canUseImageAssets = !imageAssetFetchError;
+
+    const existingHashes = new Set<string>();
+    const existingDctPHashes = new Set<string>();
+    const galleryAssetRows = (imageAssetRows ?? []).filter(
+      (row) => row.kind === "gallery",
+    );
+    if (canUseImageAssets) {
+      galleryAssetRows.forEach((row) => {
+        if (row.image_hash) existingHashes.add(row.image_hash);
+        const hashFromUrl = extractImageHashFromUrl(row.image_url);
+        if (hashFromUrl) existingHashes.add(hashFromUrl);
+        const dctPHash = extractImageDctPHashFromCaption(row.caption);
+        if (dctPHash) existingDctPHashes.add(dctPHash);
+      });
+    }
+    let maxSortOrder = 0;
+    galleryAssetRows.forEach((row) => {
+      const hash = extractImageHashFromCaption(
+        row.caption,
+      );
+      if (hash) existingHashes.add(hash);
+      const dctPHash = extractImageDctPHashFromCaption(
+        row.caption,
+      );
+      if (dctPHash) existingDctPHashes.add(dctPHash);
+      const sort = Number(row.sort_order ?? 0);
+      if (Number.isFinite(sort) && sort > maxSortOrder) maxSortOrder = sort;
+    });
+
+    const galleryDeleteAssetIds = galleryAssetRows
+      .filter((row) => {
+        const hashFromUrl = extractImageHashFromUrl(row.image_url);
+        const knownHash = row.image_hash ?? hashFromUrl;
+        if (!knownHash) return false;
+        return !desiredGalleryHashes.has(knownHash);
+      })
+      .map((row) => row.id);
+
+    if (galleryDeleteAssetIds.length > 0 && canUseImageAssets) {
+      const { error: deactivateGalleryAssetsError } = await supabase
+        .from("property_image_assets")
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq("property_id", propertyId)
+        .eq("kind", "gallery")
+        .in("id", galleryDeleteAssetIds)
+        .eq("is_active", true);
+      if (deactivateGalleryAssetsError) throw deactivateGalleryAssetsError;
+
+      galleryDeleteAssetIds.forEach((id) => {
+        const deleted = galleryAssetRows.find((row) => row.id === id);
+        const hash = deleted?.image_hash ?? extractImageHashFromUrl(deleted?.image_url);
+        if (hash) existingHashes.delete(hash);
+      });
+    }
+
+    const floorPlanClearIds = Array.from(
+      pendingFloorPlanClearUnitTypeIdsRef.current,
+    ).filter((unitTypeId) => !desiredFloorPlanUnitTypeIds.has(unitTypeId));
+
+    if (floorPlanClearIds.length > 0) {
+      if (canUseImageAssets) {
+        const { error: deactivateFloorPlanAssetsError } = await supabase
+          .from("property_image_assets")
+          .update({ is_active: false, updated_at: new Date().toISOString() })
+          .eq("property_id", propertyId)
+          .eq("kind", "floor_plan")
+          .in("unit_type_id", floorPlanClearIds)
+          .eq("is_active", true);
+        if (deactivateFloorPlanAssetsError) throw deactivateFloorPlanAssetsError;
+      }
+    }
+    pendingFloorPlanClearUnitTypeIdsRef.current.clear();
+
+    let mainUpdated = 0;
+    let galleryUploaded = 0;
+    const galleryDeleted = galleryDeleteAssetIds.length;
+    let gallerySkippedByHash = 0;
+    let floorPlanUpdated = 0;
+    const floorPlanCleared = floorPlanClearIds.length;
+    let failed = 0;
+
+    for (const img of extractedImages) {
+      if (img.destination === "none") continue;
+      try {
+        if (img.destination === "main") {
+          const hash = await hashExtractedImage(img);
+          let dctPHash: string | null = null;
+          try {
+            dctPHash = await pHashExtractedImage(img);
+          } catch {
+            dctPHash = null;
+          }
+          const { url, storagePath } = await uploadSingleExtractedImage(
+            img,
+            "property_main",
+            propertyId,
+          );
+          if (canUseImageAssets) {
+            await upsertPropertyImageAsset(supabase, {
+              property_id: propertyId,
+              kind: "main",
+              image_url: url,
+              storage_path: storagePath,
+              image_hash: hash,
+              caption: `extract-hash:${hash}${dctPHash ? `;extract-phash-dct:${dctPHash}` : ""}`,
+              sort_order: 0,
+            });
+          }
+          mainUpdated += 1;
+          continue;
+        }
+
+        if (img.destination === "gallery") {
+          const hashEntry = galleryHashByImageId.get(img.id);
+          if (!hashEntry) continue;
+          const { hash, dctPHash } = hashEntry;
+          const hasDctPHashMatch =
+            Boolean(dctPHash) &&
+            Array.from(existingDctPHashes).some(
+              (known) =>
+                hammingDistanceHex64(known, dctPHash as string) <=
+                DCT_PHASH_DUPLICATE_DISTANCE_THRESHOLD,
+            );
+          if (existingHashes.has(hash) || hasDctPHashMatch) {
+            gallerySkippedByHash += 1;
+            continue;
+          }
+          const { url, storagePath } = await uploadSingleExtractedImage(
+            img,
+            "property_additional",
+            propertyId,
+          );
+          maxSortOrder += 1;
+          if (canUseImageAssets) {
+            await upsertPropertyImageAsset(supabase, {
+              property_id: propertyId,
+              kind: "gallery",
+              image_url: url,
+              storage_path: storagePath,
+              image_hash: hash,
+              caption: `extract-hash:${hash}${dctPHash ? `;extract-phash-dct:${dctPHash}` : ""}`,
+              sort_order: maxSortOrder,
+            });
+          }
+          existingHashes.add(hash);
+          if (dctPHash) existingDctPHashes.add(dctPHash);
+          galleryUploaded += 1;
+          continue;
+        }
+
+        if (img.destination === "floor_plan") {
+          const unitTypeId =
+            img.unitTypeId ??
+            (img.unitTypeIndex !== undefined
+              ? rowIndexToUnitId[img.unitTypeIndex]
+              : undefined);
+          if (!unitTypeId) continue;
+
+          const { url, storagePath } = await uploadSingleExtractedImage(
+            img,
+            "property_floor_plan",
+            propertyId,
+          );
+          if (canUseImageAssets) {
+            const hash = await hashExtractedImage(img);
+            let dctPHash: string | null = null;
+            try {
+              dctPHash = await pHashExtractedImage(img);
+            } catch {
+              dctPHash = null;
+            }
+            await upsertPropertyImageAsset(supabase, {
+              property_id: propertyId,
+              unit_type_id: unitTypeId,
+              kind: "floor_plan",
+              image_url: url,
+              storage_path: storagePath,
+              image_hash: hash,
+              caption: `extract-hash:${hash}${dctPHash ? `;extract-phash-dct:${dctPHash}` : ""}`,
+              sort_order: 0,
+            });
+          }
+          floorPlanUpdated += 1;
+        }
+      } catch (err) {
+        console.warn("추출 이미지 업로드/동기화 실패:", img.id, err);
+        failed += 1;
+      }
+    }
+
+    return {
+      mainUpdated,
+      galleryUploaded,
+      galleryDeleted,
+      gallerySkippedByHash,
+      floorPlanUpdated,
+      floorPlanCleared,
+      failed,
+    };
+  };
+
+  const syncManualGalleryFilesForProperty = async (propertyId: number) => {
+    if (galleryImageFiles.length === 0) return 0;
+
+    const galleryFormData = new FormData();
+    galleryFormData.append("propertyId", String(propertyId));
+    galleryImageFiles.forEach((file) => galleryFormData.append("files", file));
+
+    const galleryRes = await fetch("/api/property/gallery", {
+      method: "POST",
+      body: galleryFormData,
+    });
+    const galleryPayload = await galleryRes.json().catch(() => null);
+    if (!galleryRes.ok) {
+      throw new Error(galleryPayload?.error || "추가 사진 업로드 실패");
+    }
+
+    const uploadedCount = Array.isArray(galleryPayload?.images)
+      ? (galleryPayload.images as Array<unknown>).length
+      : 0;
+    setGalleryImageFiles([]);
+    setGalleryImageUrls((prev) => {
+      prev.forEach((url) => revokeBlobUrl(url));
+      return [];
+    });
+    return uploadedCount;
   };
 
   const handleSubmit = async () => {
@@ -768,12 +2297,14 @@ export default function TestUploadPage() {
     setExistingSnapshot(null);
     setCompareFields([]);
     setSelectionMap({});
+    setCreatedPropertyId(null);
     setShowNewPropertyAction(false);
 
     const formData = new FormData();
     files.forEach((f) => formData.append("files", f));
 
     try {
+      const previousAssignmentMap = await buildExtractedImageAssignmentMap();
       const response = await fetch("/api/extract-pdf", {
         method: "POST",
         body: formData,
@@ -785,7 +2316,9 @@ export default function TestUploadPage() {
       }
 
       const data = await response.json();
+      setAllUploadedFiles(files);
       setResult(data);
+      setDismissedMergeCandidateKeys([]);
       Object.values(unitFloorPlanUrlsRef.current).forEach((url) =>
         revokeBlobUrl(url),
       );
@@ -801,32 +2334,38 @@ export default function TestUploadPage() {
       // 추출된 이미지 초기화 (AI 분류 결과로 자동 배정)
       if (data.extractedImages && Array.isArray(data.extractedImages)) {
         let mainAssigned = false;
-        setExtractedImages(
-          data.extractedImages.map(
-            (img: {
-              id: string;
-              base64: string;
-              source: string;
-              aiType?: "building" | "floor_plan";
-            }) => {
-              let destination: "none" | "main" | "gallery" | "floor_plan" =
-                "none";
-              if (img.aiType === "building" && !mainAssigned) {
-                destination = "main";
-                mainAssigned = true;
-              } else if (img.aiType === "building") {
-                destination = "gallery";
-              } else if (img.aiType === "floor_plan") {
-                destination = "floor_plan";
-              }
-              return {
-                ...img,
-                destination,
-                unitTypeIndex: undefined,
-              };
-            },
-          ),
+        const drafted = data.extractedImages
+          .filter(
+            (img: { aiType?: "building" | "floor_plan" | "other" }) =>
+              img.aiType !== "other",
+          )
+          .map(
+          (img: {
+            id: string;
+            base64: string;
+            source: string;
+            aiType?: "building" | "floor_plan" | "other";
+          }) => {
+            let destination: "none" | "main" | "gallery" | "floor_plan" =
+              "none";
+            if (img.aiType === "building" && !mainAssigned) {
+              destination = "main";
+              mainAssigned = true;
+            } else if (img.aiType === "building") {
+              destination = "gallery";
+            } else if (img.aiType === "floor_plan") {
+              destination = "floor_plan";
+            }
+            return makeExtractedImage(img, destination);
+          },
         );
+        const assigned = await applyExtractedImageAssignmentsByHash(
+          drafted,
+          previousAssignmentMap,
+          (data.unit_types ?? []) as ExtractUnitTypeExtended[],
+        );
+        // 추출된 이미지는 우선 모두 표시한다.
+        setExtractedImages(assigned);
       } else {
         setExtractedImages([]);
       }
@@ -857,14 +2396,15 @@ export default function TestUploadPage() {
   };
 
   const handleTextOnlyReExtract = async () => {
-    if (files.length === 0 || !result) return;
+    const targetFiles = allUploadedFiles.length > 0 ? allUploadedFiles : files;
+    if (targetFiles.length === 0 || !result) return;
 
     setTextOnlyLoading(true);
     setStatusTone("idle");
     setStatus("텍스트만 재추출 중...");
 
     const formData = new FormData();
-    files.forEach((f) => formData.append("files", f));
+    targetFiles.forEach((f) => formData.append("files", f));
     formData.append("textOnly", "true");
 
     try {
@@ -884,14 +2424,17 @@ export default function TestUploadPage() {
         if (!prev) return data;
         return {
           ...prev,
+          responseVersion: data.responseVersion ?? prev.responseVersion,
           properties: data.properties ?? prev.properties,
           location: data.location ?? prev.location,
           specs: data.specs ?? prev.specs,
           timeline: data.timeline ?? prev.timeline,
           unit_types: data.unit_types ?? prev.unit_types,
           facilities: data.facilities ?? prev.facilities,
+          _meta: data._meta ?? prev._meta,
         };
       });
+      setDismissedMergeCandidateKeys([]);
 
       setStatus("텍스트 재추출 완료! 기존 이미지는 유지됩니다.");
       setStatusTone("safe");
@@ -929,6 +2472,7 @@ export default function TestUploadPage() {
     additionalFiles.forEach((f) => formData.append("files", f));
 
     try {
+      const previousAssignmentMap = await buildExtractedImageAssignmentMap();
       const response = await fetch("/api/extract-pdf", {
         method: "POST",
         body: formData,
@@ -942,27 +2486,39 @@ export default function TestUploadPage() {
       const data = await response.json();
       const merged = mergeExtractResults(result, data);
       setResult(merged);
+      setDismissedMergeCandidateKeys([]);
+      setAllUploadedFiles((prev) => [...prev, ...additionalFiles]);
+      setFiles((prev) => [...prev, ...additionalFiles]);
 
       // 추출된 이미지 합산
       if (data.extractedImages && Array.isArray(data.extractedImages)) {
-        const newImages: ExtractedImageWithDestination[] =
-          data.extractedImages.map(
-            (img: {
-              id: string;
-              base64: string;
-              source: string;
-              aiType?: "building" | "floor_plan";
-            }) => {
-              let destination: ExtractedImageWithDestination["destination"] =
-                "none";
-              if (img.aiType === "building") {
-                destination = "gallery";
-              } else if (img.aiType === "floor_plan") {
-                destination = "floor_plan";
-              }
-              return { ...img, destination, unitTypeIndex: undefined };
-            },
-          );
+        const drafted: ExtractedImageWithDestination[] = data.extractedImages
+          .filter(
+            (img: { aiType?: "building" | "floor_plan" | "other" }) =>
+              img.aiType !== "other",
+          )
+          .map(
+          (img: {
+            id: string;
+            base64: string;
+            source: string;
+            aiType?: "building" | "floor_plan" | "other";
+          }) => {
+            let destination: ExtractedImageWithDestination["destination"] =
+              "none";
+            if (img.aiType === "building") {
+              destination = "gallery";
+            } else if (img.aiType === "floor_plan") {
+              destination = "floor_plan";
+            }
+            return makeExtractedImage(img, destination);
+          },
+        );
+        const newImages = await applyExtractedImageAssignmentsByHash(
+          drafted,
+          previousAssignmentMap,
+          (merged.unit_types ?? []) as ExtractUnitTypeExtended[],
+        );
         setExtractedImages((prev) => [...prev, ...newImages]);
       }
       setAdditionalFiles([]);
@@ -999,6 +2555,7 @@ export default function TestUploadPage() {
     setExistingSnapshot(null);
     setCompareFields([]);
     setSelectionMap({});
+    setCreatedPropertyId(null);
     setShowNewPropertyAction(false);
 
     try {
@@ -1052,8 +2609,32 @@ export default function TestUploadPage() {
 
     try {
       const supabase = createSupabaseClient();
+      const fetchUnitTypesForComparison = async () => {
+        const unitTypes = await supabase
+          .from("property_unit_types")
+          .select(
+            "id, type_name, exclusive_area, supply_area, rooms, bathrooms, building_layout, orientation, supply_count, price_min, price_max, unit_count",
+          )
+          .eq("properties_id", selectedCandidateId)
+          .order("id", { ascending: true });
 
-      const [propertyRes, locationRes, specsRes, timelineRes] =
+        if (unitTypes.error) throw unitTypes.error;
+        return ((unitTypes.data ?? []) as Array<
+          Omit<ExistingPropertySnapshot["unit_types"][number], "floor_plan_url">
+        >).map((unit) => ({
+          ...unit,
+          floor_plan_url: null,
+        }));
+      };
+
+      const [
+        propertyRes,
+        locationRes,
+        specsRes,
+        timelineRes,
+        unitTypeRows,
+        imageAssetsRes,
+      ] =
         await Promise.all([
           supabase
             .from("properties")
@@ -1083,12 +2664,104 @@ export default function TestUploadPage() {
             )
             .eq("properties_id", selectedCandidateId)
             .maybeSingle(),
+          fetchUnitTypesForComparison(),
+          supabase
+            .from("property_image_assets")
+            .select(
+              "id, property_id, unit_type_id, kind, image_url, sort_order, caption, image_hash, is_active, created_at",
+            )
+            .eq("property_id", selectedCandidateId)
+            .eq("is_active", true)
+            .order("sort_order", { ascending: true })
+            .order("created_at", { ascending: true }),
         ]);
 
       if (propertyRes.error) throw propertyRes.error;
       if (locationRes.error) throw locationRes.error;
       if (specsRes.error) throw specsRes.error;
       if (timelineRes.error) throw timelineRes.error;
+      if (
+        imageAssetsRes.error &&
+        imageAssetsRes.error.code !== "42P01"
+      ) {
+        throw imageAssetsRes.error;
+      }
+
+      const assetRows = (imageAssetsRes.data ??
+        []) as Array<{
+        id: string;
+        property_id: number;
+        unit_type_id: number | null;
+        kind: "main" | "gallery" | "floor_plan";
+        image_url: string;
+        sort_order: number | null;
+        caption: string | null;
+        image_hash: string | null;
+        is_active: boolean;
+        created_at: string;
+      }>;
+      const activeMainAsset = assetRows.find((row) => row.kind === "main");
+      const activeGalleryAssets = assetRows.filter((row) => row.kind === "gallery");
+      const floorPlanAssetByUnitTypeId = new Map<number, string>();
+      const assetHashByUrl: Record<string, string> = {};
+      const assetDctPHashByUrl: Record<string, string> = {};
+      assetRows.forEach((row) => {
+        if (row.image_hash) {
+          assetHashByUrl[row.image_url] = row.image_hash;
+        }
+        const dctPHash = extractImageDctPHashFromCaption(row.caption);
+        if (dctPHash) {
+          assetDctPHashByUrl[row.image_url] = dctPHash;
+        }
+        if (row.kind !== "floor_plan") return;
+        if (typeof row.unit_type_id !== "number") return;
+        if (!floorPlanAssetByUnitTypeId.has(row.unit_type_id)) {
+          floorPlanAssetByUnitTypeId.set(row.unit_type_id, row.image_url);
+        }
+      });
+      const galleryRowsForSnapshot = activeGalleryAssets.map((row) => ({
+        id: row.id,
+        image_url: row.image_url,
+        sort_order: row.sort_order,
+        caption: row.caption,
+        image_hash: row.image_hash,
+      }));
+      const existingUnitTypes = unitTypeRows.map(
+        (unit) => {
+          const convertedMin = toManwonFromWon(unit.price_min);
+          const convertedMax = toManwonFromWon(unit.price_max);
+          const normalized = normalizePriceRange(convertedMin, convertedMax);
+          return {
+            ...unit,
+            floor_plan_url:
+              floorPlanAssetByUnitTypeId.get(unit.id) ?? unit.floor_plan_url,
+            price_min: normalized.min,
+            price_max: normalized.max,
+          };
+        },
+      );
+      const existingImageUrls = Array.from(
+        new Set(
+          [
+            activeMainAsset?.image_url,
+            ...assetRows.map((row) => row.image_url),
+            ...galleryRowsForSnapshot.map((row) => row.image_url),
+            ...existingUnitTypes.map((unit) => unit.floor_plan_url),
+          ].filter((url): url is string => Boolean(url)),
+        ),
+      );
+      const existingDctPHashes = Array.from(
+        new Set(
+          [
+            ...assetRows
+              .map((row) => extractImageDctPHashFromCaption(row.caption))
+              .filter((phash): phash is string => Boolean(phash)),
+            ...galleryRowsForSnapshot
+              .map((row) => extractImageDctPHashFromCaption(row.caption))
+              .filter((phash): phash is string => Boolean(phash)),
+          ],
+        ),
+      );
 
       const snapshot: ExistingPropertySnapshot = {
         property: {
@@ -1098,18 +2771,47 @@ export default function TestUploadPage() {
             (propertyRes.data.property_type as string | null) ?? null,
           status: (propertyRes.data.status as string | null) ?? null,
           description: (propertyRes.data.description as string | null) ?? null,
+          image_url: null,
         },
         location:
           (locationRes.data as ExistingPropertySnapshot["location"]) ?? null,
         specs: (specsRes.data as ExistingPropertySnapshot["specs"]) ?? null,
         timeline:
           (timelineRes.data as ExistingPropertySnapshot["timeline"]) ?? null,
+        images: {
+          main_image_url: activeMainAsset?.image_url ?? null,
+          main_image_hash: activeMainAsset?.image_hash ?? null,
+          existing_hashes: Array.from(
+            new Set(
+              assetRows
+                .map((row) => row.image_hash)
+                .filter((hash): hash is string => Boolean(hash)),
+            ),
+          ),
+          existing_dct_phashes: existingDctPHashes,
+          existing_image_urls: existingImageUrls,
+          asset_hash_by_url: assetHashByUrl,
+          asset_dct_phash_by_url: assetDctPHashByUrl,
+          gallery: galleryRowsForSnapshot,
+        },
+        unit_types: existingUnitTypes,
       };
 
       const diffFields = buildCompareFields(snapshot, result);
       const initialSelections = Object.fromEntries(
         diffFields.map((field) => [field.key, "existing" as CompareSource]),
       );
+
+      setResult((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          unit_types: mergeExistingUnitsIntoResult(
+            (prev.unit_types ?? []) as ExtractUnitTypeExtended[],
+            snapshot.unit_types,
+          ),
+        };
+      });
 
       setExistingSnapshot(snapshot);
       setCompareFields(diffFields);
@@ -1139,6 +2841,30 @@ export default function TestUploadPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCandidateId]);
 
+  useEffect(() => {
+    if (!existingSnapshot || !result) return;
+    const nextCompareFields = buildCompareFields(existingSnapshot, result);
+    setCompareFields(nextCompareFields);
+    setSelectionMap((prev) =>
+      Object.fromEntries(
+        nextCompareFields.map((field) => [
+          field.key,
+          prev[field.key] ?? ("existing" as CompareSource),
+        ]),
+      ) as Record<string, CompareSource>,
+    );
+  }, [existingSnapshot, result]);
+
+  const handleSaveByContext = async <T,>(
+    callback: (propertyId: number) => Promise<T>,
+  ): Promise<T> => {
+    const propertyId = existingSnapshot?.property.id ?? createdPropertyId;
+    if (!propertyId) {
+      throw new Error("저장 대상 현장을 먼저 선택하거나 생성해주세요.");
+    }
+    return callback(propertyId);
+  };
+
   const applySelectedMerge = async () => {
     if (!existingSnapshot || !result) return;
     if (!confirm(`"${existingSnapshot.property.name}" 현장에 선택한 값을 반영하시겠습니까?`)) return;
@@ -1146,8 +2872,7 @@ export default function TestUploadPage() {
     setSavingCompareMerge(true);
     try {
       const supabase = createSupabaseClient();
-      const targetId = existingSnapshot.property.id;
-
+      const activeCompareFields = buildCompareFields(existingSnapshot, result);
       const merged = {
         properties: {
           name: existingSnapshot.property.name,
@@ -1196,7 +2921,7 @@ export default function TestUploadPage() {
         },
       };
 
-      for (const field of compareFields) {
+      for (const field of activeCompareFields) {
         const selected = selectionMap[field.key] ?? "existing";
         if (selected !== "incoming") continue;
 
@@ -1223,116 +2948,129 @@ export default function TestUploadPage() {
         }
       }
 
-      const { error: propertyError } = await supabase
-        .from("properties")
-        .update({
-          name:
-            String(
-              normalizeComparableValue(merged.properties.name) ?? "",
-            ).trim() || existingSnapshot.property.name,
-          property_type: normalizeComparableValue(
-            merged.properties.property_type,
+      const syncSummary = await handleSaveByContext(async (targetId) => {
+        const { error: propertyError } = await supabase
+          .from("properties")
+          .update({
+            name:
+              String(
+                normalizeComparableValue(merged.properties.name) ?? "",
+              ).trim() || existingSnapshot.property.name,
+            property_type: normalizeComparableValue(
+              merged.properties.property_type,
+            ),
+            status: normalizeStatusForDb(String(merged.properties.status ?? "")),
+            description: normalizeComparableValue(merged.properties.description),
+          })
+          .eq("id", targetId);
+        if (propertyError) throw propertyError;
+
+        const locationPayload = {
+          road_address: normalizeComparableValue(merged.location.road_address),
+          jibun_address: normalizeComparableValue(merged.location.jibun_address),
+          region_1depth: normalizeComparableValue(merged.location.region_1depth),
+          region_2depth: normalizeComparableValue(merged.location.region_2depth),
+          region_3depth: normalizeComparableValue(merged.location.region_3depth),
+          lat: toNumberOrNull(merged.location.lat),
+          lng: toNumberOrNull(merged.location.lng),
+        };
+
+        const hasLocationValue = Object.values(locationPayload).some(
+          (v) => v !== null && v !== "",
+        );
+        if (existingSnapshot.location?.id) {
+          const { error: locationError } = await supabase
+            .from("property_locations")
+            .update(locationPayload)
+            .eq("id", existingSnapshot.location.id);
+          if (locationError) throw locationError;
+        } else if (hasLocationValue) {
+          const { error: locationInsertError } = await supabase
+            .from("property_locations")
+            .insert({ ...locationPayload, properties_id: targetId });
+          if (locationInsertError) throw locationInsertError;
+        }
+
+        const specsPayload = {
+          properties_id: targetId,
+          developer: normalizeComparableValue(merged.specs.developer),
+          builder: normalizeComparableValue(merged.specs.builder),
+          trust_company: normalizeComparableValue(merged.specs.trust_company),
+          sale_type: normalizeComparableValue(merged.specs.sale_type),
+          site_area: toNumberOrNull(merged.specs.site_area),
+          building_area: toNumberOrNull(merged.specs.building_area),
+          floor_ground: toNumberOrNull(merged.specs.floor_ground),
+          floor_underground: toNumberOrNull(merged.specs.floor_underground),
+          building_count: toNumberOrNull(merged.specs.building_count),
+          household_total: toNumberOrNull(merged.specs.household_total),
+          parking_total: toNumberOrNull(merged.specs.parking_total),
+          parking_per_household: toNumberOrNull(
+            merged.specs.parking_per_household,
           ),
-          status: normalizeStatusForDb(String(merged.properties.status ?? "")),
-          description: normalizeComparableValue(merged.properties.description),
-        })
-        .eq("id", targetId);
-      if (propertyError) throw propertyError;
+          heating_type: normalizeComparableValue(merged.specs.heating_type),
+          floor_area_ratio: toNumberOrNull(merged.specs.floor_area_ratio),
+          building_coverage_ratio: toNumberOrNull(
+            merged.specs.building_coverage_ratio,
+          ),
+        };
 
-      const locationPayload = {
-        road_address: normalizeComparableValue(merged.location.road_address),
-        jibun_address: normalizeComparableValue(merged.location.jibun_address),
-        region_1depth: normalizeComparableValue(merged.location.region_1depth),
-        region_2depth: normalizeComparableValue(merged.location.region_2depth),
-        region_3depth: normalizeComparableValue(merged.location.region_3depth),
-        lat: toNumberOrNull(merged.location.lat),
-        lng: toNumberOrNull(merged.location.lng),
-      };
+        const hasSpecsValue = Object.entries(specsPayload).some(
+          ([key, value]) =>
+            key !== "properties_id" && value !== null && value !== "",
+        );
+        if (hasSpecsValue) {
+          const { error: specsError } = await supabase
+            .from("property_specs")
+            .upsert(specsPayload, { onConflict: "properties_id" });
+          if (specsError) throw specsError;
+        }
 
-      const hasLocationValue = Object.values(locationPayload).some(
-        (v) => v !== null && v !== "",
-      );
-      if (existingSnapshot.location?.id) {
-        const { error: locationError } = await supabase
-          .from("property_locations")
-          .update(locationPayload)
-          .eq("id", existingSnapshot.location.id);
-        if (locationError) throw locationError;
-      } else if (hasLocationValue) {
-        const { error: locationInsertError } = await supabase
-          .from("property_locations")
-          .insert({ ...locationPayload, properties_id: targetId });
-        if (locationInsertError) throw locationInsertError;
-      }
+        const timelinePayload = {
+          announcement_date: normalizeDateYmd(merged.timeline.announcement_date),
+          application_start: normalizeDateYmd(merged.timeline.application_start),
+          application_end: normalizeDateYmd(merged.timeline.application_end),
+          winner_announce: normalizeDateYmd(merged.timeline.winner_announce),
+          contract_start: normalizeDateYmd(merged.timeline.contract_start),
+          contract_end: normalizeDateYmd(merged.timeline.contract_end),
+          move_in_date: normalizeMoveInDate(merged.timeline.move_in_date),
+        };
 
-      const specsPayload = {
-        properties_id: targetId,
-        developer: normalizeComparableValue(merged.specs.developer),
-        builder: normalizeComparableValue(merged.specs.builder),
-        trust_company: normalizeComparableValue(merged.specs.trust_company),
-        sale_type: normalizeComparableValue(merged.specs.sale_type),
-        site_area: toNumberOrNull(merged.specs.site_area),
-        building_area: toNumberOrNull(merged.specs.building_area),
-        floor_ground: toNumberOrNull(merged.specs.floor_ground),
-        floor_underground: toNumberOrNull(merged.specs.floor_underground),
-        building_count: toNumberOrNull(merged.specs.building_count),
-        household_total: toNumberOrNull(merged.specs.household_total),
-        parking_total: toNumberOrNull(merged.specs.parking_total),
-        parking_per_household: toNumberOrNull(
-          merged.specs.parking_per_household,
-        ),
-        heating_type: normalizeComparableValue(merged.specs.heating_type),
-        floor_area_ratio: toNumberOrNull(merged.specs.floor_area_ratio),
-        building_coverage_ratio: toNumberOrNull(
-          merged.specs.building_coverage_ratio,
-        ),
-      };
+        const hasTimelineValue = Object.values(timelinePayload).some(
+          (value) => value !== null && value !== "",
+        );
+        if (existingSnapshot.timeline?.id) {
+          const { error: timelineError } = await supabase
+            .from("property_timeline")
+            .update(timelinePayload)
+            .eq("id", existingSnapshot.timeline.id);
+          if (timelineError) throw timelineError;
+        } else if (hasTimelineValue) {
+          const { error: timelineInsertError } = await supabase
+            .from("property_timeline")
+            .insert({ ...timelinePayload, properties_id: targetId });
+          if (timelineInsertError) throw timelineInsertError;
+        }
 
-      const hasSpecsValue = Object.entries(specsPayload).some(
-        ([key, value]) =>
-          key !== "properties_id" && value !== null && value !== "",
-      );
-      if (hasSpecsValue) {
-        const { error: specsError } = await supabase
-          .from("property_specs")
-          .upsert(specsPayload, { onConflict: "properties_id" });
-        if (specsError) throw specsError;
-      }
+        const unitSync = await syncUnitTypesForProperty(supabase, targetId);
+        const manualGalleryUploaded = await syncManualGalleryFilesForProperty(
+          targetId,
+        );
+        const imageSync = await syncExtractedImagesForProperty(
+          supabase,
+          targetId,
+          unitSync.rowIndexToUnitId,
+        );
+        return { targetId, unitSync, imageSync, manualGalleryUploaded };
+      });
 
-      const timelinePayload = {
-        announcement_date: normalizeDateYmd(merged.timeline.announcement_date),
-        application_start: normalizeDateYmd(merged.timeline.application_start),
-        application_end: normalizeDateYmd(merged.timeline.application_end),
-        winner_announce: normalizeDateYmd(merged.timeline.winner_announce),
-        contract_start: normalizeDateYmd(merged.timeline.contract_start),
-        contract_end: normalizeDateYmd(merged.timeline.contract_end),
-        move_in_date: normalizeMoveInDate(merged.timeline.move_in_date),
-      };
-
-      const hasTimelineValue = Object.values(timelinePayload).some(
-        (value) => value !== null && value !== "",
-      );
-      if (existingSnapshot.timeline?.id) {
-        const { error: timelineError } = await supabase
-          .from("property_timeline")
-          .update(timelinePayload)
-          .eq("id", existingSnapshot.timeline.id);
-        if (timelineError) throw timelineError;
-      } else if (hasTimelineValue) {
-        const { error: timelineInsertError } = await supabase
-          .from("property_timeline")
-          .insert({ ...timelinePayload, properties_id: targetId });
-        if (timelineInsertError) throw timelineInsertError;
-      }
-
-      const appliedCount = compareFields.filter(
+      const appliedCount = activeCompareFields.filter(
         (field) => selectionMap[field.key] === "incoming",
       ).length;
 
       setStatus(
         appliedCount > 0
-          ? `선택 반영 완료: ${appliedCount}개 항목을 기존 현장(${existingSnapshot.property.name})에 업데이트했습니다. — 2초 후 새로고침됩니다.`
-          : "선택된 변경 항목이 없어 기존 값을 그대로 유지했습니다. — 2초 후 새로고침됩니다.",
+          ? `선택 반영 완료: ${appliedCount}개 항목, 타입 업데이트 ${syncSummary.unitSync.updated}개, 타입 추가 ${syncSummary.unitSync.inserted}개, 수동 추가사진 ${syncSummary.manualGalleryUploaded}개, 추출 갤러리 업로드 ${syncSummary.imageSync.galleryUploaded}개/삭제 ${syncSummary.imageSync.galleryDeleted}개(중복 스킵 ${syncSummary.imageSync.gallerySkippedByHash}개), 평면도 업데이트 ${syncSummary.imageSync.floorPlanUpdated}개/해제 ${syncSummary.imageSync.floorPlanCleared}개 — 2초 후 새로고침됩니다.`
+          : `선택된 변경 항목은 없지만 동기화 완료: 타입 업데이트 ${syncSummary.unitSync.updated}개, 타입 추가 ${syncSummary.unitSync.inserted}개, 수동 추가사진 ${syncSummary.manualGalleryUploaded}개, 추출 갤러리 업로드 ${syncSummary.imageSync.galleryUploaded}개/삭제 ${syncSummary.imageSync.galleryDeleted}개(중복 스킵 ${syncSummary.imageSync.gallerySkippedByHash}개), 평면도 업데이트 ${syncSummary.imageSync.floorPlanUpdated}개/해제 ${syncSummary.imageSync.floorPlanCleared}개 — 2초 후 새로고침됩니다.`,
       );
       setStatusTone("safe");
       setTimeout(() => window.location.reload(), 2000);
@@ -1380,6 +3118,7 @@ export default function TestUploadPage() {
       let mainImagePublicUrl: string | null = null;
 
       if (mainImageFile) {
+        const mainImageHash = await hashFile(mainImageFile);
         const fd = new FormData();
         fd.append("file", mainImageFile);
         fd.append("propertyId", String(propertyId));
@@ -1394,12 +3133,14 @@ export default function TestUploadPage() {
           throw new Error(mainPayload?.error || "대표 이미지 업로드 실패");
         }
         mainImagePublicUrl = String(mainPayload.url);
-
-        const { error: mainUpdateError } = await supabase
-          .from("properties")
-          .update({ image_url: mainImagePublicUrl })
-          .eq("id", propertyId);
-        if (mainUpdateError) throw mainUpdateError;
+        await upsertPropertyImageAsset(supabase, {
+          property_id: propertyId,
+          kind: "main",
+          image_url: mainImagePublicUrl,
+          image_hash: mainImageHash,
+          caption: null,
+          sort_order: 0,
+        });
       }
 
       const locationPayload = {
@@ -1476,84 +3217,7 @@ export default function TestUploadPage() {
           .insert(timelinePayload);
         if (timelineError) throw timelineError;
       }
-
-      const uploadedFloorPlanUrls: Record<number, string> = {};
-      const floorPlanEntries = Object.entries(unitFloorPlanFiles);
-      for (const [indexText, file] of floorPlanEntries) {
-        if (!file) continue;
-        const rowIndex = Number(indexText);
-        if (!Number.isFinite(rowIndex)) continue;
-
-        const fd = new FormData();
-        fd.append("file", file);
-        fd.append("propertyId", String(propertyId));
-        fd.append("mode", "property_floor_plan");
-        fd.append(
-          "unitType",
-          String(
-            result.unit_types?.[rowIndex]?.type_name ?? `type-${rowIndex}`,
-          ),
-        );
-
-        const fpRes = await fetch("/api/r2/upload", {
-          method: "POST",
-          body: fd,
-        });
-        const fpPayload = await fpRes.json().catch(() => null);
-        if (!fpRes.ok || !fpPayload?.url) {
-          throw new Error(fpPayload?.error || "평면도 업로드 실패");
-        }
-
-        uploadedFloorPlanUrls[rowIndex] = String(fpPayload.url);
-      }
-
-      const unitRows = (result.unit_types ?? [])
-        .map((unit, index) => {
-          const floorPlanUrl = resolveFloorPlanUrl(
-            unit as ExtractUnitTypeExtended,
-            index,
-          );
-          return {
-            properties_id: propertyId,
-            type_name:
-              String(normalizeComparableValue(unit.type_name) ?? "").trim() ||
-              null,
-            exclusive_area: toNumberOrNull(unit.exclusive_area),
-            supply_area: toNumberOrNull(unit.supply_area),
-            rooms: toNumberOrNull(unit.rooms),
-            bathrooms: toNumberOrNull(unit.bathrooms),
-            price_min: toNumberOrNull(unit.price_min),
-            price_max: toNumberOrNull(unit.price_max),
-            unit_count: toNumberOrNull(unit.unit_count),
-            supply_count: toNumberOrNull(
-              (unit as ExtractUnitTypeExtended).supply_count,
-            ),
-            building_layout: normalizeComparableValue(
-              (unit as ExtractUnitTypeExtended).building_layout,
-            ),
-            orientation: normalizeComparableValue(
-              (unit as ExtractUnitTypeExtended).orientation,
-            ),
-            floor_plan_url:
-              uploadedFloorPlanUrls[index] ??
-              (floorPlanUrl && !floorPlanUrl.startsWith("blob:")
-                ? floorPlanUrl
-                : normalizeComparableValue(
-                    (unit as ExtractUnitTypeExtended).floor_plan_url ??
-                      (unit as ExtractUnitTypeExtended).image_url,
-                  )),
-            is_price_public: true,
-            is_public: true,
-          };
-        })
-        .filter((row) => row.type_name);
-
-      if (unitRows.length > 0) {
-        const { error: unitsError } = await supabase
-          .from("property_unit_types")
-          .insert(unitRows);
-        if (unitsError) throw unitsError;
-      }
+      const unitSync = await syncUnitTypesForProperty(supabase, propertyId);
 
       const facilityRows = (result.facilities ?? [])
         .map((facility) => ({
@@ -1576,83 +3240,18 @@ export default function TestUploadPage() {
         if (facilitiesError) throw facilitiesError;
       }
 
-      if (galleryImageFiles.length > 0) {
-        const galleryFormData = new FormData();
-        galleryFormData.append("propertyId", String(propertyId));
-        galleryImageFiles.forEach((file) =>
-          galleryFormData.append("files", file),
-        );
+      const manualGalleryUploaded =
+        await syncManualGalleryFilesForProperty(propertyId);
 
-        const galleryRes = await fetch("/api/property/gallery", {
-          method: "POST",
-          body: galleryFormData,
-        });
-        const galleryPayload = await galleryRes.json().catch(() => null);
-        if (!galleryRes.ok) {
-          throw new Error(galleryPayload?.error || "추가 사진 업로드 실패");
-        }
-      }
-
-      // 추출된 이미지 업로드 및 DB 저장
-      let extractedImageCount = 0;
-      for (const img of extractedImages) {
-        if (img.destination === "none") continue;
-
-        try {
-          if (img.destination === "main") {
-            // 대표 이미지
-            const url = await uploadSingleExtractedImage(
-              img,
-              "property_main",
-              propertyId,
-            );
-            await supabase
-              .from("properties")
-              .update({ image_url: url })
-              .eq("id", propertyId);
-            extractedImageCount++;
-          } else if (img.destination === "gallery") {
-            // 추가 현장사진
-            const url = await uploadSingleExtractedImage(
-              img,
-              "property_additional",
-              propertyId,
-            );
-            await supabase.from("property_gallery_images").insert({
-              property_id: propertyId,
-              image_url: url,
-              sort_order: 0,
-            });
-            extractedImageCount++;
-          } else if (
-            img.destination === "floor_plan" &&
-            img.unitTypeIndex !== undefined
-          ) {
-            // 평면도
-            const url = await uploadSingleExtractedImage(
-              img,
-              "property_floor_plan",
-              propertyId,
-            );
-            // unit_types의 floor_plan_url을 업데이트
-            const targetUnit = result?.unit_types?.[img.unitTypeIndex];
-            if (targetUnit) {
-              await supabase
-                .from("property_unit_types")
-                .update({ floor_plan_url: url })
-                .eq("properties_id", propertyId)
-                .eq("type_name", targetUnit.type_name || "");
-              extractedImageCount++;
-            }
-          }
-        } catch (err) {
-          console.warn("추출 이미지 업로드 실패:", img.id, err);
-          // 개별 이미지 업로드 실패해도 계속 진행
-        }
-      }
+      const imageSync = await syncExtractedImagesForProperty(
+        supabase,
+        propertyId,
+        unitSync.rowIndexToUnitId,
+      );
+      setCreatedPropertyId(propertyId);
 
       setStatus(
-        `새 현장 등록 완료 (ID: ${propertyId}, 대표사진 ${mainImagePublicUrl ? 1 : 0}장, 추가사진 ${galleryImageFiles.length}장, 평면도 ${Object.keys(uploadedFloorPlanUrls).length}장, PDF추출이미지 ${extractedImageCount}장, 타입 ${unitRows.length}개, 시설 ${facilityRows.length}개) — 2초 후 새로고침됩니다.`,
+        `새 현장 등록 완료 (ID: ${propertyId}, 대표사진 ${mainImagePublicUrl ? 1 : 0}장, 추가사진 ${manualGalleryUploaded}장, 평면도 ${unitSync.uploadedFloorPlans + imageSync.floorPlanUpdated}장, PDF추출이미지 ${imageSync.galleryUploaded + imageSync.mainUpdated + imageSync.floorPlanUpdated}장, 타입 추가 ${unitSync.inserted}개, 시설 ${facilityRows.length}개, 갤러리 삭제 ${imageSync.galleryDeleted}개, 평면도 해제 ${imageSync.floorPlanCleared}개, 중복스킵 ${imageSync.gallerySkippedByHash}개) — 2초 후 새로고침됩니다.`,
       );
       setStatusTone("safe");
       setTimeout(() => window.location.reload(), 2000);
@@ -1668,6 +3267,9 @@ export default function TestUploadPage() {
   const val = (v: unknown) => (v != null && v !== "" ? String(v) : "-");
   const removeSelectedPdfFile = (removeIndex: number) => {
     setFiles((prev) => prev.filter((_, index) => index !== removeIndex));
+    setAllUploadedFiles((prev) =>
+      prev.filter((_, index) => index !== removeIndex),
+    );
   };
   const normalizeTextInput = (value: string) => {
     const trimmed = value.trim();
@@ -1709,6 +3311,365 @@ export default function TestUploadPage() {
       return { ...prev, unit_types: nextUnits };
     });
   };
+  const addUnitTypeRow = () => {
+    setResult((prev) => {
+      if (!prev) return prev;
+      const nextUnits = [...(prev.unit_types ?? [])] as ExtractUnitTypeExtended[];
+      nextUnits.push({
+        type_name: "",
+        exclusive_area: null,
+        supply_area: null,
+        rooms: null,
+        bathrooms: null,
+        price_min: null,
+        price_max: null,
+        unit_count: null,
+        supply_count: null,
+        building_layout: null,
+        orientation: null,
+        floor_plan_url: null,
+        image_url: null,
+      });
+      return { ...prev, unit_types: nextUnits };
+    });
+  };
+  const removeUnitTypeRow = (removeIndex: number) => {
+    const removedPreviewUrl = unitFloorPlanUrlsRef.current[removeIndex];
+    revokeBlobUrl(removedPreviewUrl);
+
+    setResult((prev) => {
+      if (!prev) return prev;
+      const nextUnits = [...(prev.unit_types ?? [])] as ExtractUnitTypeExtended[];
+      if (!nextUnits[removeIndex]) return prev;
+      nextUnits.splice(removeIndex, 1);
+      return { ...prev, unit_types: nextUnits };
+    });
+
+    setUnitFloorPlanFiles((prev) => {
+      const next: Record<number, File | null> = {};
+      Object.entries(prev).forEach(([key, file]) => {
+        const index = Number(key);
+        if (!Number.isFinite(index) || index === removeIndex) return;
+        const target = index > removeIndex ? index - 1 : index;
+        next[target] = file;
+      });
+      return next;
+    });
+
+    setUnitFloorPlanUrls((prev) => {
+      const next: Record<number, string> = {};
+      Object.entries(prev).forEach(([key, url]) => {
+        const index = Number(key);
+        if (!Number.isFinite(index) || index === removeIndex) return;
+        const target = index > removeIndex ? index - 1 : index;
+        next[target] = url;
+      });
+      return next;
+    });
+
+    setExtractedImages((prev) =>
+      prev.map((img) => {
+        if (img.destination !== "floor_plan") return img;
+        if (img.unitTypeIndex === undefined) return img;
+        if (img.unitTypeIndex === removeIndex) {
+          if (typeof img.unitTypeId === "number") {
+            pendingFloorPlanClearUnitTypeIdsRef.current.add(img.unitTypeId);
+          }
+          return {
+            ...img,
+            destination: "none",
+            unitTypeIndex: undefined,
+            unitTypeId: undefined,
+          };
+        }
+        if (img.unitTypeIndex > removeIndex) {
+          return {
+            ...img,
+            unitTypeIndex: img.unitTypeIndex - 1,
+            unitTypeId: undefined,
+          };
+        }
+        return img;
+      }),
+    );
+    setSelectedUnitMergeRows((prev) =>
+      prev
+        .filter((index) => index !== removeIndex)
+        .map((index) => (index > removeIndex ? index - 1 : index)),
+    );
+  };
+  const mergeUnitTypeRows = (leftIndex: number, rightIndex: number) => {
+    if (!result?.unit_types?.length) return;
+    applyUnitSyncPair(leftIndex, rightIndex);
+  };
+  const dismissMergeCandidate = (leftIndex: number, rightIndex: number) => {
+    const key = getUnitMergeCandidateSessionKey(leftIndex, rightIndex);
+    setDismissedMergeCandidateKeys((prev) =>
+      prev.includes(key) ? prev : [...prev, key],
+    );
+  };
+  const toggleUnitMergeRowSelection = (rowIndex: number, checked: boolean) => {
+    setSelectedUnitMergeRows((prev) => {
+      if (checked) return prev.includes(rowIndex) ? prev : [...prev, rowIndex];
+      return prev.filter((index) => index !== rowIndex);
+    });
+  };
+  const selectRecommendedUnitRows = () => {
+    setSelectedUnitMergeRows(Array.from(recommendedUnitRowIndexSet).sort((a, b) => a - b));
+  };
+  const clearSelectedUnitRows = () => {
+    setSelectedUnitMergeRows([]);
+  };
+  const unitSyncColumns = [
+    { key: "type_name", label: "타입명" },
+    { key: "exclusive_area", label: "전용" },
+    { key: "supply_area", label: "공급" },
+    { key: "rooms", label: "방" },
+    { key: "bathrooms", label: "욕실" },
+    { key: "building_layout", label: "구조" },
+    { key: "orientation", label: "향" },
+    { key: "supply_count", label: "공급수" },
+    { key: "price_min", label: "최저 분양가" },
+    { key: "price_max", label: "최고 분양가" },
+    { key: "unit_count", label: "세대수" },
+    { key: "floor_plan_url", label: "평면도 URL" },
+    { key: "image_url", label: "이미지 URL" },
+  ] as const;
+  const isEmptyUnitValue = (value: unknown) =>
+    value == null || (typeof value === "string" && value.trim() === "");
+  const buildUnitSyncDraft = (
+    leftIndex: number,
+    rightIndex: number,
+    selection?: Record<string, UnitConflictSource>,
+  ) => {
+    const units = (result?.unit_types ?? []) as ExtractUnitTypeExtended[];
+    const leftUnit = units[leftIndex];
+    const rightUnit = units[rightIndex];
+    if (!leftUnit || !rightUnit) return null;
+
+    const nextLeft: ExtractUnitTypeExtended = { ...leftUnit };
+    const nextRight: ExtractUnitTypeExtended = { ...rightUnit };
+    const conflicts: UnitConflictField[] = [];
+
+    unitSyncColumns.forEach(({ key, label }) => {
+      const leftValue = nextLeft[key];
+      const rightValue = nextRight[key];
+      const leftEmpty = isEmptyUnitValue(leftValue);
+      const rightEmpty = isEmptyUnitValue(rightValue);
+
+      if (leftEmpty && !rightEmpty) {
+        nextLeft[key] = rightValue as never;
+        return;
+      }
+      if (!leftEmpty && rightEmpty) {
+        nextRight[key] = leftValue as never;
+        return;
+      }
+      if (leftEmpty && rightEmpty) return;
+      if (isSameValue(leftValue, rightValue)) return;
+
+      const conflictKey = `${leftIndex}-${rightIndex}-${key}`;
+      const picked = selection?.[conflictKey];
+      if (!picked) {
+        conflicts.push({
+          key: conflictKey,
+          label,
+          leftIndex,
+          rightIndex,
+          leftValue,
+          rightValue,
+        });
+        return;
+      }
+      const resolvedValue = picked === "left" ? leftValue : rightValue;
+      nextLeft[key] = resolvedValue as never;
+      nextRight[key] = resolvedValue as never;
+    });
+
+    if (typeof nextLeft.unit_type_id !== "number" && typeof nextRight.unit_type_id === "number") {
+      nextLeft.unit_type_id = nextRight.unit_type_id;
+    }
+    if (typeof nextRight.unit_type_id !== "number" && typeof nextLeft.unit_type_id === "number") {
+      nextRight.unit_type_id = nextLeft.unit_type_id;
+    }
+
+    const leftPrice = normalizePriceRange(
+      toNumberOrNull(nextLeft.price_min),
+      toNumberOrNull(nextLeft.price_max),
+    );
+    nextLeft.price_min = leftPrice.min;
+    nextLeft.price_max = leftPrice.max;
+
+    const rightPrice = normalizePriceRange(
+      toNumberOrNull(nextRight.price_min),
+      toNumberOrNull(nextRight.price_max),
+    );
+    nextRight.price_min = rightPrice.min;
+    nextRight.price_max = rightPrice.max;
+
+    return { nextLeft, nextRight, conflicts };
+  };
+  const applyUnitSyncPair = (
+    leftIndex: number,
+    rightIndex: number,
+    selection?: Record<string, UnitConflictSource>,
+  ) => {
+    const normalizedLeft = Math.min(leftIndex, rightIndex);
+    const normalizedRight = Math.max(leftIndex, rightIndex);
+    const draft = buildUnitSyncDraft(normalizedLeft, normalizedRight, selection);
+    if (!draft) return false;
+    if (draft.conflicts.length > 0) {
+      setUnitConflictFields(draft.conflicts);
+      setUnitConflictSelection((prev) =>
+        Object.fromEntries(
+          draft.conflicts.map((field) => [field.key, prev[field.key] ?? "left"]),
+        ) as Record<string, UnitConflictSource>,
+      );
+      setStatus("값이 다른 항목이 있어 선택이 필요합니다.");
+      setStatusTone("danger");
+      return false;
+    }
+
+    const mergedUnitTypeId = draft.nextLeft.unit_type_id ?? null;
+
+    setResult((prev) => {
+      if (!prev) return prev;
+      const nextUnits = [...(prev.unit_types ?? [])] as ExtractUnitTypeExtended[];
+      if (!nextUnits[normalizedLeft] || !nextUnits[normalizedRight]) return prev;
+      nextUnits[normalizedLeft] = draft.nextLeft;
+      nextUnits.splice(normalizedRight, 1);
+      return { ...prev, unit_types: nextUnits };
+    });
+    setUnitFloorPlanFiles((prev) => {
+      const next: Record<number, File | null> = {};
+      const leftFile = prev[normalizedLeft];
+      const rightFile = prev[normalizedRight];
+      Object.entries(prev).forEach(([key, file]) => {
+        const index = Number(key);
+        if (!Number.isFinite(index) || index === normalizedRight) return;
+        const target = index > normalizedRight ? index - 1 : index;
+        next[target] = file;
+      });
+      if (!next[normalizedLeft] && rightFile) {
+        next[normalizedLeft] = rightFile;
+      } else if (!next[normalizedLeft] && leftFile) {
+        next[normalizedLeft] = leftFile;
+      }
+      return next;
+    });
+    setUnitFloorPlanUrls((prev) => {
+      const next: Record<number, string> = {};
+      const leftUrl = prev[normalizedLeft];
+      const rightUrl = prev[normalizedRight];
+      Object.entries(prev).forEach(([key, url]) => {
+        const index = Number(key);
+        if (!Number.isFinite(index) || index === normalizedRight) return;
+        const target = index > normalizedRight ? index - 1 : index;
+        next[target] = url;
+      });
+      if (!next[normalizedLeft] && rightUrl) {
+        next[normalizedLeft] = rightUrl;
+      } else if (!next[normalizedLeft] && leftUrl) {
+        next[normalizedLeft] = leftUrl;
+      }
+      return next;
+    });
+    setExtractedImages((prev) =>
+      prev.map((img) => {
+        if (img.destination !== "floor_plan") return img;
+        let nextIndex = img.unitTypeIndex;
+        if (typeof nextIndex === "number") {
+          if (nextIndex === normalizedRight) nextIndex = normalizedLeft;
+          else if (nextIndex > normalizedRight) nextIndex -= 1;
+        }
+        let nextUnitTypeId = img.unitTypeId;
+        if (typeof mergedUnitTypeId === "number" && nextIndex === normalizedLeft) {
+          nextUnitTypeId = mergedUnitTypeId;
+        }
+        return {
+          ...img,
+          unitTypeIndex: nextIndex,
+          unitTypeId: nextUnitTypeId,
+        };
+      }),
+    );
+    setUnitConflictFields([]);
+    setUnitConflictSelection({});
+    setSelectedUnitMergeRows([]);
+    setDismissedMergeCandidateKeys([]);
+    setStatus("타입 병합 완료: 빈 값은 채우고, 동일/선택값을 반영한 뒤 중복 행 1개를 제거했습니다.");
+    setStatusTone("safe");
+    return true;
+  };
+  const remapIndexByMove = (index: number, from: number, to: number) => {
+    if (index === from) return to;
+    if (from < to && index > from && index <= to) return index - 1;
+    if (from > to && index >= to && index < from) return index + 1;
+    return index;
+  };
+  const moveUnitTypeRow = (fromIndex: number, toIndex: number) => {
+    if (!result?.unit_types?.length) return;
+    if (fromIndex === toIndex) return;
+
+    setResult((prev) => {
+      if (!prev) return prev;
+      const nextUnits = [...(prev.unit_types ?? [])] as ExtractUnitTypeExtended[];
+      if (!nextUnits[fromIndex] || !nextUnits[toIndex]) return prev;
+      const [moved] = nextUnits.splice(fromIndex, 1);
+      nextUnits.splice(toIndex, 0, moved);
+      return { ...prev, unit_types: nextUnits };
+    });
+
+    setUnitFloorPlanFiles((prev) => {
+      const next: Record<number, File | null> = {};
+      Object.entries(prev).forEach(([key, file]) => {
+        const index = Number(key);
+        if (!Number.isFinite(index)) return;
+        next[remapIndexByMove(index, fromIndex, toIndex)] = file;
+      });
+      return next;
+    });
+
+    setUnitFloorPlanUrls((prev) => {
+      const next: Record<number, string> = {};
+      Object.entries(prev).forEach(([key, url]) => {
+        const index = Number(key);
+        if (!Number.isFinite(index)) return;
+        next[remapIndexByMove(index, fromIndex, toIndex)] = url;
+      });
+      return next;
+    });
+
+    setExtractedImages((prev) =>
+      prev.map((img) => {
+        if (img.destination !== "floor_plan") return img;
+        if (img.unitTypeIndex === undefined) return img;
+        return {
+          ...img,
+          unitTypeIndex: remapIndexByMove(img.unitTypeIndex, fromIndex, toIndex),
+        };
+      }),
+    );
+
+    setSelectedUnitMergeRows((prev) =>
+      Array.from(
+        new Set(prev.map((index) => remapIndexByMove(index, fromIndex, toIndex))),
+      ),
+    );
+    setDismissedMergeCandidateKeys([]);
+  };
+  const mergeSelectedUnitTypeRows = () => {
+    if (!result?.unit_types?.length) return;
+    const selected = Array.from(new Set(selectedUnitMergeRows)).sort((a, b) => a - b);
+    if (selected.length !== 2) {
+      setStatus("선택 병합은 타입 2개를 선택했을 때만 가능합니다.");
+      setStatusTone("danger");
+      return;
+    }
+    const [leftIndex, rightIndex] = selected;
+    const applied = applyUnitSyncPair(leftIndex, rightIndex);
+    if (applied) setSelectedUnitMergeRows([]);
+  };
   const updateResultFacilityField = (
     index: number,
     field: string,
@@ -1739,7 +3700,7 @@ export default function TestUploadPage() {
       .filter((part): part is number => part != null);
     if (numbers.length === 0) return { min: null, max: null };
     if (numbers.length === 1) return { min: numbers[0], max: numbers[0] };
-    return { min: numbers[0], max: numbers[1] };
+    return normalizePriceRange(numbers[0], numbers[1]);
   };
   const resolveFloorPlanUrl = (
     unit: ExtractUnitTypeExtended | null,
@@ -1796,32 +3757,60 @@ export default function TestUploadPage() {
   };
 
   // 추출된 이미지 배치 변경 함수
-  const updateImageDestination = (index: number, destination: string) => {
+  const updateImageDestination = (localKey: string, destination: string) => {
     setExtractedImages((prev) =>
-      prev.map((img, i) =>
-        i === index
+      prev.map((img) => {
+        if (img.localKey !== localKey) return img;
+        if (
+          img.destination === "floor_plan" &&
+          destination !== "floor_plan" &&
+          typeof img.unitTypeId === "number"
+        ) {
+          pendingFloorPlanClearUnitTypeIdsRef.current.add(img.unitTypeId);
+        }
+        return {
+          ...img,
+          destination: destination as ExtractedImageWithDestination["destination"],
+          unitTypeIndex: undefined,
+          unitTypeId: undefined,
+        };
+      }),
+    );
+  };
+
+  const removeExtractedImage = (localKey: string) => {
+    setExtractedImages((prev) => {
+      const target = prev.find((img) => img.localKey === localKey);
+      if (
+        target?.destination === "floor_plan" &&
+        typeof target.unitTypeId === "number"
+      ) {
+        pendingFloorPlanClearUnitTypeIdsRef.current.add(target.unitTypeId);
+      }
+      return prev.filter((img) => img.localKey !== localKey);
+    });
+  };
+
+  const updateImageUnitType = (localKey: string, unitTypeIndex: number) => {
+    const mappedUnitTypeId = (result?.unit_types?.[unitTypeIndex] as
+      | ExtractUnitTypeExtended
+      | undefined)?.unit_type_id;
+    setExtractedImages((prev) =>
+      prev.map((img) =>
+        img.localKey === localKey
           ? {
               ...img,
-              destination: destination as ExtractedImageWithDestination["destination"],
-              unitTypeIndex: undefined,
+              unitTypeIndex,
+              unitTypeId:
+                typeof mappedUnitTypeId === "number" ? mappedUnitTypeId : undefined,
             }
           : img,
       ),
     );
   };
 
-  const removeExtractedImage = (index: number) => {
-    setExtractedImages((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const updateImageUnitType = (index: number, unitTypeIndex: number) => {
-    setExtractedImages((prev) =>
-      prev.map((img, i) => (i === index ? { ...img, unitTypeIndex } : img)),
-    );
-  };
-
   // base64를 Blob으로 변환
-  const base64ToBlob = (base64: string): Blob => {
+  function base64ToBlob(base64: string): Blob {
     const [header, data] = base64.split(",");
     const mime = header.match(/:(.*?);/)?.[1] || "image/jpeg";
     const binary = atob(data);
@@ -1830,14 +3819,14 @@ export default function TestUploadPage() {
       array[i] = binary.charCodeAt(i);
     }
     return new Blob([array], { type: mime });
-  };
+  }
 
   // 단일 이미지 업로드 (R2)
   const uploadSingleExtractedImage = async (
     img: ExtractedImageWithDestination,
     mode: string,
     propertyId: number,
-  ): Promise<string> => {
+  ): Promise<{ url: string; storagePath: string | null }> => {
     const blob = base64ToBlob(img.base64);
     const formData = new FormData();
     formData.append("file", blob, `extracted-${img.id}.jpg`);
@@ -1851,7 +3840,14 @@ export default function TestUploadPage() {
 
     if (!res.ok) throw new Error("이미지 업로드 실패");
     const { url } = await res.json();
-    return url;
+    let storagePath: string | null = null;
+    try {
+      const parsed = new URL(String(url));
+      storagePath = parsed.pathname.replace(/^\/+/, "") || null;
+    } catch {
+      storagePath = null;
+    }
+    return { url: String(url), storagePath };
   };
 
   useEffect(() => {
@@ -1923,7 +3919,7 @@ export default function TestUploadPage() {
         <Card className="p-5">
           <div className="rounded-xl border border-dashed border-(--oboon-border-strong) bg-(--oboon-bg-subtle) p-4">
             <FormField
-              label="PDF 파일 선택 (최대 100MB)"
+              label="PDF 파일 선택 (최대 150MB)"
               labelClassName="ob-typo-caption text-(--oboon-text-muted)"
             >
               <Input
@@ -1939,9 +3935,9 @@ export default function TestUploadPage() {
                     (sum, f) => sum + f.size,
                     0,
                   );
-                  if (totalSize > 100 * 1024 * 1024) {
+                  if (totalSize > 150 * 1024 * 1024) {
                     setStatus(
-                      `PDF 합산 용량이 100MB를 초과합니다. (${(totalSize / 1024 / 1024).toFixed(1)}MB)`,
+                      `PDF 합산 용량이 150MB를 초과합니다. (${(totalSize / 1024 / 1024).toFixed(1)}MB)`,
                     );
                     setStatusTone("danger");
                     e.target.value = "";
@@ -2119,7 +4115,7 @@ export default function TestUploadPage() {
               </div>
               <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
                 추가 PDF를 업로드하면 현재 추출 데이터에 병합됩니다. (최대
-                100MB)
+                150MB)
               </div>
               <input
                 ref={additionalFileInputRef}
@@ -2135,9 +4131,9 @@ export default function TestUploadPage() {
                     (sum, f) => sum + f.size,
                     0,
                   );
-                  if (totalSize > 100 * 1024 * 1024) {
+                  if (totalSize > 150 * 1024 * 1024) {
                     setStatus(
-                      `PDF 합산 용량이 100MB를 초과합니다. (${(totalSize / 1024 / 1024).toFixed(1)}MB)`,
+                      `PDF 합산 용량이 150MB를 초과합니다. (${(totalSize / 1024 / 1024).toFixed(1)}MB)`,
                     );
                     setStatusTone("danger");
                     e.target.value = "";
@@ -2217,7 +4213,7 @@ export default function TestUploadPage() {
                               기존 값 유지
                             </th>
                             <th className="w-1/2 border-b border-(--oboon-border-default) px-3 py-2 text-left ob-typo-caption text-(--oboon-text-muted)">
-                              AI 추출 값 반영
+                              Ai 추출 값 반영
                             </th>
                           </tr>
                         </thead>
@@ -2309,115 +4305,281 @@ export default function TestUploadPage() {
                     ? ` / 이미지 ${result._meta.imageStats.imagesExtracted}장 추출 성공`
                     : ""}
                 </div>
+                {result._meta.classificationFailed ? (
+                  <div className="mt-2 rounded-md border border-(--oboon-warning-border) bg-(--oboon-warning-bg) px-3 py-2 ob-typo-caption text-(--oboon-warning)">
+                    이미지 분류 단계가 실패해 텍스트 기반 추출 결과만 반영되었습니다.
+                  </div>
+                ) : null}
+                {result._meta.filesMeta && result._meta.filesMeta.length > 0 ? (
+                  <div className="mt-3 overflow-x-auto rounded-lg border border-(--oboon-border-default)">
+                    <table className="w-full min-w-[620px] border-collapse ob-typo-caption text-(--oboon-text-body)">
+                      <thead>
+                        <tr className="bg-(--oboon-bg-subtle) text-(--oboon-text-muted)">
+                          <th className="border-b border-(--oboon-border-default) px-3 py-2 text-left">
+                            파일
+                          </th>
+                          <th className="border-b border-(--oboon-border-default) px-3 py-2 text-right">
+                            용량
+                          </th>
+                          <th className="border-b border-(--oboon-border-default) px-3 py-2 text-right">
+                            페이지
+                          </th>
+                          <th className="border-b border-(--oboon-border-default) px-3 py-2 text-right">
+                            텍스트 길이
+                          </th>
+                          <th className="border-b border-(--oboon-border-default) px-3 py-2 text-right">
+                            추출/렌더 이미지
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {result._meta.filesMeta.map((meta, idx) => (
+                          <tr key={`${meta.fileName}-${idx}`}>
+                            <td className="border-b border-(--oboon-border-default) px-3 py-2">
+                              {meta.fileName}
+                            </td>
+                            <td className="border-b border-(--oboon-border-default) px-3 py-2 text-right">
+                              {(meta.sizeBytes / 1024 / 1024).toFixed(1)}MB
+                            </td>
+                            <td className="border-b border-(--oboon-border-default) px-3 py-2 text-right">
+                              {meta.pages ?? "-"}
+                            </td>
+                            <td className="border-b border-(--oboon-border-default) px-3 py-2 text-right">
+                              {meta.textLength.toLocaleString()}자
+                            </td>
+                            <td className="border-b border-(--oboon-border-default) px-3 py-2 text-right">
+                              {meta.extractedImageCount}/{meta.renderedImageCount}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
               </Card>
             ) : null}
 
-            {/* PDF에서 추출된 이미지 (현장사진 위에 배치) */}
-            {extractedImages.length > 0 && (
-              <Section title={`추출된 이미지 (${extractedImages.length}개)`}>
+            {existingSnapshotImages.length > 0 && (
+              <Section title={`DB 저장 이미지 (${existingSnapshotImages.length}개)`}>
                 <div className="space-y-3">
                   <p className="ob-typo-caption text-(--oboon-text-muted)">
-                    PDF에서 추출한 이미지를 어디에 사용할지 선택하세요. 이미지를 클릭하면 크게 볼 수 있습니다.
+                    현재 DB에 저장된 이미지입니다. 이미지를 클릭하면 크게 볼 수 있습니다.
                   </p>
-                  <div className="space-y-2">
-                    {extractedImages.map((img, idx) => (
-                      <div
-                        key={img.id}
-                        className="flex gap-3 rounded-lg border border-(--oboon-border-default) bg-white p-3"
-                      >
-                        {/* 이미지 미리보기 (왼쪽) — 클릭 시 확대 */}
+                  <div className="grid gap-3 md:grid-cols-4">
+                    {existingSnapshotImages.map((img, idx) => {
+                      const isMatched = matchedExistingImageKeys.includes(img.key);
+                      const isNearMatched =
+                        !isMatched && nearMatchedExistingImageKeys.includes(img.key);
+                      return (
                         <div
-                          className="relative h-28 w-36 shrink-0 cursor-pointer overflow-hidden rounded"
-                          onClick={() => setPreviewImage(img.base64)}
+                          key={img.key}
+                          className={`flex h-full flex-col rounded-xl border p-3 ${
+                            isMatched || isNearMatched
+                              ? "border-amber-400/50 bg-amber-500/10"
+                              : "border-(--oboon-border-default) bg-(--oboon-bg-surface)"
+                          }`}
                         >
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              removeExtractedImage(idx);
-                            }}
-                            className="absolute top-1 right-1 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-xs text-white hover:bg-red-500"
-                            title="이미지 제거"
+                          <div
+                            className="relative aspect-video w-full cursor-pointer overflow-hidden rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-subtle)"
+                            onClick={() => setPreviewImage(img.url)}
                           >
-                            ×
-                          </button>
-                          <Image
-                            src={img.base64}
-                            alt={`추출 이미지 ${idx + 1}`}
-                            fill
-                            className="object-cover"
-                            unoptimized
-                          />
-                        </div>
-
-                        {/* 선택 옵션 (오른쪽) */}
-                        <div className="flex-1 space-y-2">
-                          <div className="flex items-center gap-2">
-                            <label className="ob-typo-caption font-medium text-(--oboon-text-title) w-20">
-                              이미지 용도
-                            </label>
-                            <select
-                              value={img.destination}
-                              onChange={(e) =>
-                                updateImageDestination(idx, e.target.value)
-                              }
-                              className="flex-1 rounded border border-(--oboon-border-default) px-2 py-1.5 ob-typo-body"
-                            >
-                              <option value="none">사용 안 함</option>
-                              <option value="main">대표 이미지</option>
-                              <option value="gallery">추가 현장사진</option>
-                              <option value="floor_plan">평면도</option>
-                            </select>
-                          </div>
-
-                          {/* 평면도 선택 시: 타입 선택 */}
-                          {img.destination === "floor_plan" && (
-                            <div className="flex items-center gap-2">
-                              <label className="ob-typo-caption font-medium text-(--oboon-text-title) w-20">
-                                평면 타입
-                              </label>
-                              <select
-                                value={img.unitTypeIndex ?? ""}
-                                onChange={(e) =>
-                                  updateImageUnitType(
-                                    idx,
-                                    parseInt(e.target.value),
-                                  )
-                                }
-                                className="flex-1 rounded border border-(--oboon-border-default) px-2 py-1.5 ob-typo-body"
-                              >
-                                <option value="">타입 선택</option>
-                                {result?.unit_types?.map((type, i) => (
-                                  <option key={i} value={i}>
-                                    {type.type_name ||
-                                      `${type.exclusive_area}㎡`}
-                                  </option>
-                                ))}
-                              </select>
+                            <div className="absolute left-2 top-2 z-10 flex items-center gap-1.5">
+                              <span className="rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-2 py-0.5 ob-typo-caption text-(--oboon-text-body)">
+                                {img.label}
+                              </span>
+                              {(isMatched || isNearMatched) && (
+                                <span className="rounded-full border border-(--oboon-warning-border) bg-(--oboon-warning-bg) px-2 py-0.5 ob-typo-caption text-(--oboon-warning)">
+                                  {isMatched ? "유사 이미지" : "유사 후보"}
+                                </span>
+                              )}
                             </div>
-                          )}
-
-                          {/* 상태 표시 */}
-                          <div className="ob-typo-caption text-(--oboon-text-muted)">
-                            {img.destination === "none" && "미사용"}
-                            {img.destination === "main" &&
-                              "✓ 대표 이미지로 설정됨"}
-                            {img.destination === "gallery" &&
-                              "✓ 현장사진에 추가됨"}
-                            {img.destination === "floor_plan" &&
-                              img.unitTypeIndex !== undefined &&
-                              `✓ ${
-                                result?.unit_types?.[img.unitTypeIndex]
-                                  ?.type_name || "평면도"
-                              }에 배치됨`}
+                            <Image
+                              src={img.url}
+                              alt={`DB 이미지 ${idx + 1}`}
+                              fill
+                              className="object-contain"
+                              unoptimized
+                            />
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </Section>
             )}
+
+            {/* PDF에서 추출된 이미지 (현장사진 위에 배치) */}
+            {visibleExtractedImages.length > 0 && (
+              <Section title={`추출된 이미지 (${visibleExtractedImages.length}개)`}>
+                <div className="space-y-3">
+                  <p className="ob-typo-caption text-(--oboon-text-muted)">
+                    PDF에서 추출한 이미지를 어디에 사용할지 선택하세요. 이미지를 클릭하면 크게 볼 수 있습니다.
+                  </p>
+                  {similarImageCount > 0 && (
+                    <div className="flex items-center justify-between rounded-lg border border-amber-400/40 bg-amber-500/10 px-3 py-2 ob-typo-caption">
+                      <span className="text-amber-200">
+                        기존 이미지와 유사한 항목 {similarImageCount}건이 감지됐어요.
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() =>
+                          setShowNearDuplicateOnly((prev) => !prev)
+                        }
+                      >
+                        {showNearDuplicateOnly ? "전체 보기" : "유사 항목만 보기"}
+                      </Button>
+                    </div>
+                  )}
+                  <div className="grid gap-3 md:grid-cols-4">
+                    {visibleExtractedImages.map((img, idx) => {
+                      const nearDistance =
+                        nearDuplicateDistanceByImageKey[img.localKey];
+                      const isSimilarMatched =
+                        duplicateExtractedImageKeys.includes(img.localKey);
+                      return (
+                      <div
+                        key={img.localKey}
+                        className={`flex h-full flex-col rounded-xl border p-3 ${
+                          nearDistance != null
+                            ? "border-amber-400/50 bg-amber-500/10"
+                            : "border-(--oboon-border-default) bg-(--oboon-bg-surface)"
+                        }`}
+                      >
+                        <div
+                          className="relative aspect-video w-full cursor-pointer overflow-hidden rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-subtle)"
+                          onClick={() => setPreviewImage(img.base64)}
+                        >
+                          <div className="absolute left-2 top-2 z-10 flex items-center gap-1.5">
+                            <span className="rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-2 py-0.5 ob-typo-caption text-(--oboon-text-body)">
+                              {getDestinationLabel(img.destination)}
+                            </span>
+                            {(isSimilarMatched || nearDistance != null) && (
+                              <span className="rounded-full border border-(--oboon-warning-border) bg-(--oboon-warning-bg) px-2 py-0.5 ob-typo-caption text-(--oboon-warning)">
+                                {isSimilarMatched ? "유사 이미지" : "유사 후보"}
+                              </span>
+                            )}
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            shape="pill"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeExtractedImage(img.localKey);
+                            }}
+                            className="absolute right-2 top-2 z-10 h-5 min-w-5 rounded-full bg-(--oboon-danger-bg) !text-(--oboon-danger) hover:bg-(--oboon-danger-bg)"
+                            title="이미지 제거"
+                          >
+                            ×
+                          </Button>
+                          <Image
+                            src={img.base64}
+                            alt={`추출 이미지 ${idx + 1}`}
+                            fill
+                            className="object-contain"
+                            unoptimized
+                          />
+                        </div>
+
+                        <div className="mt-3 flex-1 space-y-2">
+                            <div className="ob-typo-caption text-(--oboon-text-muted)">
+                              이미지 용도
+                            </div>
+                            <div className="mt-2">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    className="w-full justify-between"
+                                  >
+                                    <span>{getDestinationLabel(img.destination)}</span>
+                                    <span className="text-(--oboon-text-muted)">▼</span>
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent
+                                  align="start"
+                                  matchTriggerWidth
+                                >
+                                  {destinationOptions.map((option) => (
+                                    <DropdownMenuItem
+                                      key={option.value}
+                                      onClick={() =>
+                                        updateImageDestination(
+                                          img.localKey,
+                                          option.value,
+                                        )
+                                      }
+                                    >
+                                      {option.label}
+                                    </DropdownMenuItem>
+                                  ))}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                          </div>
+
+                          {img.destination === "floor_plan" && (
+                            <div>
+                              <div className="ob-typo-caption text-(--oboon-text-muted)">
+                                평면 타입
+                              </div>
+                              <div className="mt-2">
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      size="sm"
+                                      variant="secondary"
+                                      className="w-full justify-between"
+                                    >
+                                      <span>
+                                        {img.unitTypeIndex !== undefined
+                                          ? (result?.unit_types?.[img.unitTypeIndex]
+                                              ?.type_name ??
+                                            `${result?.unit_types?.[img.unitTypeIndex]
+                                              ?.exclusive_area ?? ""}㎡`)
+                                          : "타입 선택"}
+                                      </span>
+                                      <span className="text-(--oboon-text-muted)">▼</span>
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent
+                                    align="start"
+                                    matchTriggerWidth
+                                  >
+                                    {(result?.unit_types ?? []).map((type, i) => (
+                                      <DropdownMenuItem
+                                        key={`${type.type_name ?? "type"}-${i}`}
+                                        onClick={() =>
+                                          updateImageUnitType(img.localKey, i)
+                                        }
+                                      >
+                                        {type.type_name || `${type.exclusive_area}㎡`}
+                                      </DropdownMenuItem>
+                                    ))}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </Section>
+            )}
+            {extractedImages.length > 0 && visibleExtractedImages.length === 0 ? (
+              <Section title="추출된 이미지">
+                <div className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-3 ob-typo-caption text-(--oboon-text-muted)">
+                  {showNearDuplicateOnly
+                    ? "유사 항목 필터 결과, 현재 표시할 이미지가 없습니다."
+                    : "표시할 추출 이미지가 없습니다."}
+                </div>
+              </Section>
+            ) : null}
 
             <Section title="현장 사진">
               <div className="space-y-4">
@@ -2487,7 +4649,7 @@ export default function TestUploadPage() {
                   </div>
 
                   {galleryImageUrls.length > 0 ? (
-                    <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <div className="mt-2 grid grid-cols-2 gap-2 md:grid-cols-3">
                       {galleryImageUrls.map((url, i) => (
                         <div
                           key={`${url}-${i}`}
@@ -2546,12 +4708,12 @@ export default function TestUploadPage() {
               />
               <Row
                 label="분양 상태"
-                value={val(result.properties?.status)}
+                value={displayValue(result.properties?.status, "status")}
                 onCommit={(value) =>
                   updateResultSectionField(
                     "properties",
                     "status",
-                    normalizeTextInput(value)?.toUpperCase() ?? null,
+                    normalizeStatusForDb(normalizeTextInput(value)),
                   )
                 }
               />
@@ -2838,11 +5000,245 @@ export default function TestUploadPage() {
               />
             </Section>
 
-            <Section title="주택형 (타입)">
+            <Section
+              title="주택형 (타입)"
+              headerRight={
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="ghost" onClick={selectRecommendedUnitRows}>
+                    추천만 선택
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={clearSelectedUnitRows}>
+                    선택 해제
+                  </Button>
+                  <Button size="sm" variant="secondary" onClick={mergeSelectedUnitTypeRows}>
+                    선택 병합(2개)
+                  </Button>
+                  <Button size="sm" variant="secondary" onClick={addUnitTypeRow}>
+                    행 추가
+                  </Button>
+                </div>
+              }
+            >
+              {unitConflictFields.length > 0 ? (
+                <div className="mb-3 rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-3">
+                  <div className="ob-typo-caption text-(--oboon-text-muted)">
+                    병합 충돌 항목: 값이 달라 선택이 필요합니다.
+                  </div>
+                  <div className="mt-2 overflow-x-auto rounded-lg border border-(--oboon-border-default)">
+                    <table className="w-full min-w-[760px] table-fixed border-collapse">
+                      <thead className="bg-(--oboon-bg-surface)">
+                        <tr>
+                          <th className="w-36 border-b border-(--oboon-border-default) px-3 py-2 text-left ob-typo-caption text-(--oboon-text-muted)">
+                            항목
+                          </th>
+                          <th className="w-1/2 border-b border-(--oboon-border-default) px-3 py-2 text-left ob-typo-caption text-(--oboon-text-muted)">
+                            기존 값 유지
+                          </th>
+                          <th className="w-1/2 border-b border-(--oboon-border-default) px-3 py-2 text-left ob-typo-caption text-(--oboon-text-muted)">
+                            Ai 추출 값 반영
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {unitConflictFields.map((field) => (
+                          <tr key={field.key} className="align-top">
+                            <td className="border-b border-(--oboon-border-default) px-3 py-3 ob-typo-caption text-(--oboon-text-muted)">
+                              {field.label}
+                            </td>
+                            <td className="border-b border-(--oboon-border-default) px-3 py-2">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setUnitConflictSelection((prev) => ({
+                                    ...prev,
+                                    [field.key]: "right",
+                                  }))
+                                }
+                                className={[
+                                  "w-full rounded-lg border p-2 text-left whitespace-normal",
+                                  unitConflictSelection[field.key] === "right"
+                                    ? "border-(--oboon-primary) bg-(--oboon-primary)/5"
+                                    : "border-(--oboon-border-default)",
+                                ].join(" ")}
+                              >
+                                <div className="break-words ob-typo-body text-(--oboon-text-body)">
+                                  {displayValue(field.rightValue)}
+                                </div>
+                              </button>
+                            </td>
+                            <td className="border-b border-(--oboon-border-default) px-3 py-2">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setUnitConflictSelection((prev) => ({
+                                    ...prev,
+                                    [field.key]: "left",
+                                  }))
+                                }
+                                className={[
+                                  "w-full rounded-lg border p-2 text-left whitespace-normal",
+                                  unitConflictSelection[field.key] === "left"
+                                    ? "border-(--oboon-primary) bg-(--oboon-primary)/5"
+                                    : "border-(--oboon-border-default)",
+                                ].join(" ")}
+                              >
+                                <div className="break-words ob-typo-body text-(--oboon-text-body)">
+                                  {displayValue(field.leftValue)}
+                                </div>
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="mt-2 flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        const first = unitConflictFields[0];
+                        if (!first) return;
+                        applyUnitSyncPair(
+                          first.leftIndex,
+                          first.rightIndex,
+                          unitConflictSelection,
+                        );
+                      }}
+                    >
+                      선택한 값 반영
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setUnitConflictFields([]);
+                        setUnitConflictSelection({});
+                      }}
+                    >
+                      취소
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+              {visibleUnitMergeCandidates.length > 0 ? (
+                <div className="mb-3 rounded-lg border border-(--oboon-warning-border) bg-(--oboon-warning-bg) p-3">
+                  <div className="ob-typo-caption text-(--oboon-warning)">
+                    병합 전 미리보기: 타입명 숫자 + 칼럼 유사도가 높은 후보
+                    {` (${visibleUnitMergeCandidates.length}개)`}
+                  </div>
+                  <div className="mt-2 space-y-2">
+                    {visibleUnitMergeCandidates.slice(0, 8).map((candidate) => {
+                      const left = result.unit_types[candidate.leftIndex];
+                      const right = result.unit_types[candidate.rightIndex];
+                      return (
+                        <div
+                          key={`merge-preview-${candidate.leftIndex}-${candidate.rightIndex}`}
+                          className="rounded-md border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-2"
+                        >
+                          <div className="ob-typo-caption text-(--oboon-text-title)">
+                            {`${left?.type_name ?? "-"}  ↔  ${right?.type_name ?? "-"}`}
+                          </div>
+                          <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+                            {`총 유사도 ${(candidate.score * 100).toFixed(1)}% · 타입명 숫자 ${(candidate.nameNumberScore * 100).toFixed(1)}% · 칼럼 ${(candidate.columnScore * 100).toFixed(1)}%`}
+                          </div>
+                          <div className="mt-2 flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() =>
+                                mergeUnitTypeRows(
+                                  candidate.leftIndex,
+                                  candidate.rightIndex,
+                                )
+                              }
+                            >
+                              병합하기(빈 값 채움)
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() =>
+                                dismissMergeCandidate(
+                                  candidate.leftIndex,
+                                  candidate.rightIndex,
+                                )
+                              }
+                            >
+                              건너뛰기
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+              {hideUnitMergeRecommendations ? (
+                <div className="mb-3 flex items-center justify-between rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-2">
+                  <div className="ob-typo-caption text-(--oboon-text-muted)">
+                    병합 추천 표시가 꺼져 있습니다.
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setHideUnitMergeRecommendations(false);
+                      if (typeof window !== "undefined") {
+                        window.localStorage.removeItem(
+                          "hide-unit-merge-recommendations",
+                        );
+                      }
+                    }}
+                  >
+                    추천 다시 보기
+                  </Button>
+                </div>
+              ) : null}
+              {!hideUnitMergeRecommendations &&
+              visibleUnitMergeCandidates.length === 0 &&
+              unitMergePreviewCandidates.length > 0 ? (
+                <div className="mb-3 flex items-center justify-between rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-2">
+                  <div className="ob-typo-caption text-(--oboon-text-muted)">
+                    병합 추천 후보를 모두 건너뛰었습니다.
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setDismissedMergeCandidateKeys([])}
+                  >
+                    추천 초기화
+                  </Button>
+                </div>
+              ) : null}
+              <div className="mb-3 ob-typo-caption text-(--oboon-text-muted)">
+                체크박스로 병합할 타입을 선택한 뒤 일괄 병합할 수 있습니다.
+              </div>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[720px] border-collapse text-center ob-typo-caption text-(--oboon-text-body)">
+                <table className="w-full min-w-[980px] table-fixed border-collapse text-center ob-typo-caption text-(--oboon-text-body)">
+                  <colgroup>
+                    <col className="w-[46px]" />
+                    <col className="w-[46px]" />
+                    <col className="w-[150px]" />
+                    <col className="w-[145px]" />
+                    <col className="w-[92px]" />
+                    <col className="w-[92px]" />
+                    <col className="w-[52px]" />
+                    <col className="w-[52px]" />
+                    <col className="w-[52px]" />
+                    <col className="w-[52px]" />
+                    <col className="w-[68px]" />
+                    <col className="w-[170px]" />
+                    <col className="w-[58px]" />
+                    <col className="w-[52px]" />
+                  </colgroup>
                   <thead>
                     <tr className="bg-(--oboon-bg-subtle)">
+                      <th className="border border-(--oboon-border-default) px-2 py-2 text-(--oboon-text-title)">
+                        순서
+                      </th>
+                      <th className="border border-(--oboon-border-default) px-2 py-2 text-(--oboon-text-title)">
+                        병합
+                      </th>
                       {tableHeaders.map((h) => (
                         <th
                           key={h}
@@ -2854,11 +5250,63 @@ export default function TestUploadPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {(result.unit_types.length > 0
-                      ? result.unit_types
-                      : [null]
-                    ).map((u: ExtractUnitTypeExtended | null, i: number) => (
-                      <tr key={`${u?.type_name ?? "unit"}-${i}`}>
+                    {sortedUnitRows.map(({ unit: u, rowIndex: i }) => (
+                      <tr
+                        key={`${u?.type_name ?? "unit"}-${i}`}
+                        draggable={Boolean(u)}
+                        onDragStart={(event) => {
+                          if (!u) return;
+                          setDraggedUnitRowIndex(i);
+                          setDragOverUnitRowIndex(i);
+                          event.dataTransfer.effectAllowed = "move";
+                        }}
+                        onDragOver={(event) => {
+                          if (draggedUnitRowIndex == null || !u) return;
+                          event.preventDefault();
+                          if (dragOverUnitRowIndex !== i) setDragOverUnitRowIndex(i);
+                        }}
+                        onDrop={(event) => {
+                          event.preventDefault();
+                          if (draggedUnitRowIndex == null || !u) return;
+                          moveUnitTypeRow(draggedUnitRowIndex, i);
+                          setDraggedUnitRowIndex(null);
+                          setDragOverUnitRowIndex(null);
+                        }}
+                        onDragEnd={() => {
+                          setDraggedUnitRowIndex(null);
+                          setDragOverUnitRowIndex(null);
+                        }}
+                        className={[
+                          recommendedUnitRowIndexSet.has(i)
+                            ? "bg-(--oboon-warning-bg)/40"
+                            : "",
+                          dragOverUnitRowIndex === i && draggedUnitRowIndex !== i
+                            ? "outline outline-(--oboon-primary)"
+                            : "",
+                          draggedUnitRowIndex === i ? "opacity-60" : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" ")}
+                      >
+                        <td className="border border-(--oboon-border-default) px-2 py-2">
+                          <button
+                            type="button"
+                            className="h-7 w-7 rounded border border-(--oboon-border-default) text-(--oboon-text-muted) cursor-grab active:cursor-grabbing"
+                            title="드래그해서 행 순서 변경"
+                          >
+                            ≡
+                          </button>
+                        </td>
+                        <td className="border border-(--oboon-border-default) px-2 py-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedUnitMergeRows.includes(i)}
+                            onChange={(e) =>
+                              toggleUnitMergeRowSelection(i, e.target.checked)
+                            }
+                            className="h-4 w-4 accent-(--oboon-primary)"
+                          />
+                        </td>
                         <td className="border border-(--oboon-border-default) px-2 py-2">
                           <EditableText
                             value={val(u?.type_name)}
@@ -3047,6 +5495,17 @@ export default function TestUploadPage() {
                               )
                             }
                           />
+                        </td>
+                        <td className="border border-(--oboon-border-default) px-2 py-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => removeUnitTypeRow(i)}
+                            className="h-7 w-7 min-w-7 rounded-full p-0 text-(--oboon-text-muted) hover:text-(--oboon-danger)"
+                            title="행 삭제"
+                          >
+                            ×
+                          </Button>
                         </td>
                       </tr>
                     ))}
@@ -3273,22 +5732,31 @@ export default function TestUploadPage() {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
           onClick={() => setPreviewImage(null)}
         >
-          <div className="relative max-h-[90vh] max-w-[90vw]">
-            <Image
-              src={previewImage}
-              alt="확대 이미지"
-              width={1280}
-              height={800}
-              className="max-h-[90vh] w-auto rounded-lg object-contain"
-              unoptimized
-            />
-            <button
+          <div
+            className="relative max-h-[90vh] max-w-[90vw]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="relative h-[80vh] w-[90vw] max-w-[1200px] overflow-hidden rounded-lg">
+              <Image
+                src={previewImage}
+                alt="확대 이미지"
+                fill
+                className="object-contain"
+                unoptimized
+                sizes="90vw"
+              />
+            </div>
+            <Button
               type="button"
+              size="sm"
+              variant="ghost"
+              shape="pill"
               onClick={() => setPreviewImage(null)}
-              className="absolute -top-3 -right-3 flex h-8 w-8 items-center justify-center rounded-full bg-white text-sm font-bold shadow-lg"
+              className="absolute right-2 top-3 z-10 h-8 w-8 rounded-full bg-black/40 p-0 text-white hover:bg-black/60"
+              aria-label="닫기"
             >
-              X
-            </button>
+              &times;
+            </Button>
           </div>
         </div>
       )}
@@ -3296,10 +5764,21 @@ export default function TestUploadPage() {
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({
+  title,
+  children,
+  headerRight,
+}: {
+  title: string;
+  children: ReactNode;
+  headerRight?: ReactNode;
+}) {
   return (
     <Card className="p-4">
-      <div className="ob-typo-subtitle text-(--oboon-text-title)">{title}</div>
+      <div className="flex items-center justify-between gap-3">
+        <div className="ob-typo-subtitle text-(--oboon-text-title)">{title}</div>
+        {headerRight ? <div className="shrink-0">{headerRight}</div> : null}
+      </div>
       <div className="mt-3 space-y-1">{children}</div>
     </Card>
   );
@@ -3344,21 +5823,17 @@ function EditableText({
     setEditing(false);
     onCommit?.(draft.trim());
   };
-
-  useEffect(() => {
-    if (!editing) {
-      setDraft(normalizeValue(value));
-    }
-  }, [value, editing]);
-
-  const displayValue = draft.trim() ? draft : "-";
+  const currentValue = editing ? draft : normalizeValue(value);
+  const displayValue = currentValue.trim() ? currentValue : "-";
 
   if (!editable) {
     return (
       <span
         className={[
-          "min-h-8 px-2 py-1 ob-typo-body text-(--oboon-text-body)",
-          center ? "inline-block w-full text-center" : "",
+          "min-w-0 max-w-full overflow-hidden px-2 py-1 ob-typo-body text-(--oboon-text-body)",
+          center
+            ? "inline-flex h-8 w-full items-center justify-center text-center"
+            : "inline-block w-fit min-h-8",
         ].join(" ")}
       >
         {displayValue}
@@ -3376,11 +5851,14 @@ function EditableText({
         onKeyDown={(e) => {
           if (e.key === "Enter") commit();
           if (e.key === "Escape") {
-            setDraft(normalizeValue(value));
             setEditing(false);
           }
         }}
-        className={center ? "h-8 text-center" : "h-9 max-w-2xl"}
+        className={
+          center
+            ? "!h-8 !w-full !rounded-md !border-(--oboon-border-default) !px-2 min-w-0 max-w-full overflow-hidden text-center"
+            : "h-9 w-full min-w-0 max-w-full overflow-hidden"
+        }
       />
     );
   }
@@ -3388,10 +5866,15 @@ function EditableText({
   return (
     <button
       type="button"
-      onClick={() => setEditing(true)}
+      onClick={() => {
+        setDraft(normalizeValue(value));
+        setEditing(true);
+      }}
       className={[
-        "min-h-8 rounded-md px-2 py-1 ob-typo-body text-(--oboon-text-body) hover:bg-(--oboon-bg-subtle)",
-        center ? "w-full text-center" : "text-left",
+        "min-w-0 max-w-full overflow-hidden rounded-md px-2 py-1 ob-typo-body text-(--oboon-text-body) hover:bg-(--oboon-bg-subtle)",
+        center
+          ? "inline-flex h-8 w-full items-center justify-center border border-transparent text-center"
+          : "w-fit min-h-8 text-left",
       ].join(" ")}
       title="클릭해서 수정"
     >

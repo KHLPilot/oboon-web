@@ -18,6 +18,68 @@ export interface ImageExtractionStats {
 const MAX_IMAGES = 20;
 const MAX_DIMENSION = 1280;
 const MAX_RENDERED_PAGES = 10;
+let cachedCanvasModule: CanvasModule | null = null;
+let canvasModuleLoadAttempted = false;
+
+type CanvasModule = typeof import("@napi-rs/canvas");
+
+function isCanvasModule(value: unknown): value is CanvasModule {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as {
+    createCanvas?: unknown;
+    ImageData?: unknown;
+  };
+  return (
+    typeof candidate.createCanvas === "function" &&
+    typeof candidate.ImageData === "function"
+  );
+}
+
+function isCanvasUnavailableError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes("@napi-rs/canvas is not available in this environment");
+}
+
+async function loadCanvasModule(): Promise<CanvasModule | null> {
+  if (canvasModuleLoadAttempted) return cachedCanvasModule;
+  canvasModuleLoadAttempted = true;
+
+  try {
+    const maybeRequire = (
+      globalThis as typeof globalThis & { require?: (id: string) => unknown }
+    ).require;
+    if (typeof maybeRequire === "function") {
+      const required = maybeRequire("@napi-rs/canvas");
+      if (isCanvasModule(required)) {
+        cachedCanvasModule = required;
+        return cachedCanvasModule;
+      }
+    }
+  } catch {
+    // noop
+  }
+
+  try {
+    const imported = await import("@napi-rs/canvas");
+    if (isCanvasModule(imported)) {
+      cachedCanvasModule = imported;
+      return cachedCanvasModule;
+    }
+  } catch {
+    // noop
+  }
+
+  cachedCanvasModule = null;
+  return null;
+}
+
+async function loadCanvasModuleOrThrow(): Promise<CanvasModule> {
+  const canvasModule = await loadCanvasModule();
+  if (!canvasModule) {
+    throw new Error("@napi-rs/canvas is not available in this environment");
+  }
+  return canvasModule;
+}
 
 /**
  * Raw pixel data를 리사이즈 후 JPEG Buffer로 변환합니다.
@@ -28,7 +90,7 @@ async function pixelDataToJpegBuffer(
   height: number,
   channels: number
 ): Promise<{ buffer: Buffer; outWidth: number; outHeight: number }> {
-  const { createCanvas, ImageData } = await import('@napi-rs/canvas');
+  const { createCanvas, ImageData } = await loadCanvasModuleOrThrow();
 
   // RGBA 데이터로 변환
   let rgbaData: Uint8ClampedArray;
@@ -160,16 +222,33 @@ export async function renderPagesAsImages(
   const pdf = await getDocumentProxy(new Uint8Array(pdfBuffer));
   const dataUrls: string[] = [];
   const pageCount = Math.min(pdf.numPages, MAX_RENDERED_PAGES);
+  let canvasUnavailable = false;
+  const canvasModule = await loadCanvasModule();
+
+  if (!canvasModule) {
+    console.warn(
+      "[PDF 렌더링] @napi-rs/canvas를 사용할 수 없어 페이지 렌더링을 건너뜁니다."
+    );
+    return dataUrls;
+  }
 
   for (let pageNum = 1; pageNum <= pageCount; pageNum++) {
+    if (canvasUnavailable) break;
     try {
       const dataUrl = await renderPageAsImage(pdf, pageNum, {
-        canvasImport: () => import('@napi-rs/canvas'),
+        canvasImport: async () => canvasModule,
         width: 1280,
         toDataURL: true,
       });
       dataUrls.push(dataUrl as string);
     } catch (error) {
+      if (isCanvasUnavailableError(error)) {
+        canvasUnavailable = true;
+        console.warn(
+          "[PDF 렌더링] @napi-rs/canvas를 사용할 수 없어 페이지 렌더링을 건너뜁니다."
+        );
+        continue;
+      }
       console.warn(`[PDF 렌더링] 페이지 ${pageNum}: 렌더링 실패`, error);
     }
   }

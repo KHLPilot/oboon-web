@@ -23,7 +23,6 @@ export async function GET() {
         id,
         name,
         status,
-        image_url,
         property_locations (
           lat,
           lng,
@@ -46,7 +45,38 @@ export async function GET() {
       return NextResponse.json({ items: [] }, { status: 200 });
     }
 
-    return NextResponse.json({ items: data }, { status: 200 });
+    const propertyIds = data
+      .map((row) => Number(row.id))
+      .filter((id) => Number.isFinite(id) && id > 0);
+
+    const mainImageByPropertyId = new Map<number, string>();
+    if (propertyIds.length > 0) {
+      const { data: mainAssets, error: mainAssetError } = await supabase
+        .from("property_image_assets")
+        .select("property_id, image_url, updated_at, created_at")
+        .eq("kind", "main")
+        .eq("is_active", true)
+        .in("property_id", propertyIds)
+        .order("updated_at", { ascending: false })
+        .order("created_at", { ascending: false });
+
+      if (!mainAssetError) {
+        ((mainAssets ?? []) as Array<{ property_id: number; image_url: string }>).forEach(
+          (row) => {
+            if (!mainImageByPropertyId.has(row.property_id)) {
+              mainImageByPropertyId.set(row.property_id, row.image_url);
+            }
+          },
+        );
+      }
+    }
+
+    const items = data.map((row) => ({
+      ...row,
+      image_url: mainImageByPropertyId.get(Number(row.id)) ?? null,
+    }));
+
+    return NextResponse.json({ items }, { status: 200 });
   } catch {
     // 페이지 크래시 방지: 항상 빈 배열로 반환
     return NextResponse.json({ items: [] }, { status: 200 });

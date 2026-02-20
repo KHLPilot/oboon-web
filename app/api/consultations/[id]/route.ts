@@ -55,7 +55,7 @@ export async function GET(
                 *,
                 customer:profiles!consultations_customer_id_fkey(id, name, email, phone_number, avatar_url),
                 agent:profiles!consultations_agent_id_fkey(id, name, email, phone_number, avatar_url),
-                property:properties(id, name, image_url, property_type, property_facilities(id, lat, lng, road_address, type, is_active)),
+                property:properties(id, name, property_type, property_facilities(id, lat, lng, road_address, type, is_active)),
                 chat_rooms(id)
             `)
             .eq("id", id)
@@ -75,6 +75,25 @@ export async function GET(
                 { error: "접근 권한이 없습니다" },
                 { status: 403 }
             );
+        }
+
+        const propertyId = Number(consultation.property_id);
+        if (Number.isFinite(propertyId) && propertyId > 0 && consultation.property) {
+            const { data: mainAsset } = await adminSupabase
+                .from("property_image_assets")
+                .select("image_url")
+                .eq("property_id", propertyId)
+                .eq("kind", "main")
+                .eq("is_active", true)
+                .order("updated_at", { ascending: false })
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            consultation.property = {
+                ...consultation.property,
+                image_url: mainAsset?.image_url ?? null,
+            };
         }
 
         return NextResponse.json({ consultation });

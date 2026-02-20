@@ -58,6 +58,11 @@ type PropertyRow = {
   image_url: string | null;
 };
 
+type MainAssetRow = {
+  property_id: number;
+  image_url: string;
+};
+
 type PublicProfileRow = {
   id: string;
   nickname: string | null;
@@ -184,9 +189,9 @@ export async function GET() {
       propertyIds.length
         ? adminSupabase
             .from("properties")
-            .select("id, name, image_url")
+            .select("id, name")
             .in("id", propertyIds)
-        : Promise.resolve({ data: [] as PropertyRow[] }),
+        : Promise.resolve({ data: [] as Array<Omit<PropertyRow, "image_url">> }),
       profileIds.length
         ? adminSupabase
             .from("public_profiles")
@@ -201,8 +206,33 @@ export async function GET() {
         : Promise.resolve({ data: [] as ProfileRow[] }),
     ]);
 
+    const mainImageMap = new Map<number, string>();
+    if (propertyIds.length > 0) {
+      const { data: mainAssets } = await adminSupabase
+        .from("property_image_assets")
+        .select("property_id, image_url, updated_at, created_at")
+        .eq("kind", "main")
+        .eq("is_active", true)
+        .in("property_id", propertyIds)
+        .order("updated_at", { ascending: false })
+        .order("created_at", { ascending: false });
+
+      ((mainAssets ?? []) as MainAssetRow[]).forEach((row) => {
+        if (!mainImageMap.has(row.property_id)) {
+          mainImageMap.set(row.property_id, row.image_url);
+        }
+      });
+    }
+
+    const normalizedProperties = ((properties || []) as Array<Omit<PropertyRow, "image_url">>).map(
+      (p) => ({
+        ...p,
+        image_url: mainImageMap.get(p.id) ?? null,
+      }),
+    );
+
     const propertiesMap = new Map(
-      ((properties || []) as PropertyRow[]).map((p) => [p.id, p]),
+      normalizedProperties.map((p) => [p.id, p]),
     );
     const publicProfilesMap = new Map(
       ((publicProfiles || []) as PublicProfileRow[]).map((p) => [p.id, p]),

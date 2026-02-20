@@ -81,6 +81,16 @@ const isPropertyRow = (value: unknown): value is PropertyRow =>
   isRowOrArray(value.property_timeline, isTimelineRow) &&
   isRowOrArray(value.property_unit_types, isUnitTypeRow);
 
+type PropertyImageAssetRow = {
+  id: string;
+  unit_type_id: number | null;
+  kind: "main" | "gallery" | "floor_plan";
+  image_url: string;
+  sort_order: number | null;
+  created_at: string;
+  is_active: boolean;
+};
+
 export async function fetchOfferingDetail(
   id: number
 ): Promise<PropertyRow | null> {
@@ -107,8 +117,77 @@ export async function fetchOfferingDetail(
     ? facilitiesRows.filter(isFacilityRow)
     : [];
 
+  const { data: imageAssetRows, error: imageAssetsError } = await supabase
+    .from("property_image_assets")
+    .select(
+      "id, unit_type_id, kind, image_url, sort_order, created_at, is_active",
+    )
+    .eq("property_id", id)
+    .eq("is_active", true)
+    .order("kind", { ascending: true })
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  const assets: PropertyImageAssetRow[] =
+    !imageAssetsError &&
+    Array.isArray(imageAssetRows)
+      ? (imageAssetRows as PropertyImageAssetRow[]).filter(
+          (row) =>
+            row &&
+            typeof row.image_url === "string" &&
+            row.image_url.trim().length > 0 &&
+            (row.kind === "main" ||
+              row.kind === "gallery" ||
+              row.kind === "floor_plan"),
+        )
+      : [];
+
+  const mainAsset = assets.find((row) => row.kind === "main");
+  const galleryAssets = assets.filter((row) => row.kind === "gallery");
+  const floorPlanAssets = assets.filter(
+    (row) => row.kind === "floor_plan" && typeof row.unit_type_id === "number",
+  );
+
+  const unitTypes = Array.isArray(base.property_unit_types)
+    ? base.property_unit_types
+    : base.property_unit_types
+      ? [base.property_unit_types]
+      : [];
+  const floorPlanUrlsByUnitTypeId = new Map<number, string[]>();
+  floorPlanAssets.forEach((row) => {
+    if (typeof row.unit_type_id !== "number") return;
+    const current = floorPlanUrlsByUnitTypeId.get(row.unit_type_id) ?? [];
+    current.push(row.image_url);
+    floorPlanUrlsByUnitTypeId.set(row.unit_type_id, current);
+  });
+  const patchedUnitTypes = unitTypes.map((unit) => {
+    const floorPlans = floorPlanUrlsByUnitTypeId.get(unit.id) ?? [];
+    const floorPlan = floorPlans[0];
+    if (!floorPlan) return unit;
+    return {
+      ...unit,
+      floor_plan_url: floorPlan,
+      image_url: floorPlan,
+      floor_plan_urls: floorPlans,
+    };
+  });
+
+  const galleryFromAssets =
+    galleryAssets.length > 0
+      ? galleryAssets.map((row, index) => ({
+          id: row.id,
+          property_id: id,
+          image_url: row.image_url,
+          sort_order: row.sort_order ?? index,
+          created_at: row.created_at,
+        }))
+      : base.property_gallery_images ?? null;
+
   return {
     ...base,
+    image_url: mainAsset?.image_url ?? base.image_url,
+    property_unit_types: patchedUnitTypes,
+    property_gallery_images: galleryFromAssets,
     property_facilities: propertyFacilities,
   } as PropertyRow;
 }

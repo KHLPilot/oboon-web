@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "rm -rf .next && tsc --noEmit",
+    "typecheck": "tsc --noEmit",
     "ssot:check": "node scripts/ssot-check.js"
   },
   "dependencies": {

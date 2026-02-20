@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    serverComponentsExternalPackages: ['pdf-parse', '@napi-rs/canvas'],
+    serverComponentsExternalPackages: ['pdf-parse', '@napi-rs/canvas', 'unpdf'],
   },
   webpack: (config, { isServer }) => {
     if (isServer) {

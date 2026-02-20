@@ -18,6 +18,7 @@ type UnitTypeRow = {
   // 이미지 URL (둘 중 하나 또는 둘 다 올 수 있음)
   floor_plan_url: string | null;
   image_url: string | null;
+  floor_plan_urls?: string[] | null;
 
   // 8개 메타 정보
   exclusive_area: number | null; // 전용면적
@@ -69,6 +70,42 @@ function pickImageUrl(u: UnitTypeRow) {
   if (a) return a;
   if (b) return b;
   return null;
+}
+
+function parseFloorPlanUrls(u: UnitTypeRow) {
+  const urls: string[] = [];
+  if (Array.isArray(u.floor_plan_urls)) {
+    u.floor_plan_urls.forEach((item) => {
+      if (typeof item === "string" && item.trim()) {
+        urls.push(item.trim());
+      }
+    });
+  }
+  const primary =
+    typeof u.floor_plan_url === "string" ? u.floor_plan_url.trim() : "";
+  if (primary) urls.push(primary);
+
+  const rawImage = typeof u.image_url === "string" ? u.image_url.trim() : "";
+  if (rawImage) {
+    try {
+      const parsed = JSON.parse(rawImage) as unknown;
+      if (Array.isArray(parsed)) {
+        parsed.forEach((item) => {
+          if (typeof item === "string" && item.trim()) {
+            urls.push(item.trim());
+          }
+        });
+      } else if (typeof parsed === "string" && parsed.trim()) {
+        urls.push(parsed.trim());
+      } else {
+        urls.push(rawImage);
+      }
+    } catch {
+      urls.push(rawImage);
+    }
+  }
+
+  return Array.from(new Set(urls)).slice(0, 5);
 }
 
 function formatTypeTitle(typeName: string | null) {
@@ -392,6 +429,9 @@ export default function OfferingUnitTypesAccordion({
     title: string;
     src: string | null;
   }>({ open: false, title: "", src: null });
+  const [activeImageByUnitId, setActiveImageByUnitId] = useState<
+    Record<number, number>
+  >({});
 
   if (!rows.length) {
     return (
@@ -406,7 +446,13 @@ export default function OfferingUnitTypesAccordion({
           const isOpen = openId === u.id;
           const title = formatTypeTitle(u.type_name);
 
-          const img = pickImageUrl(u);
+          const images = parseFloorPlanUrls(u);
+          const canSlide = images.length > 1;
+          const activeIndex = Math.min(
+            activeImageByUnitId[u.id] ?? 0,
+            Math.max(images.length - 1, 0),
+          );
+          const img = images[activeIndex] ?? pickImageUrl(u);
 
           return (
             <div key={u.id}>
@@ -460,6 +506,38 @@ export default function OfferingUnitTypesAccordion({
                           img ? "" : "aspect-video",
                         )}
                       >
+                        {canSlide ? (
+                          <>
+                            <button
+                              type="button"
+                              aria-label="이전 평면도"
+                              className="absolute left-2 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-black/35 text-white transition hover:bg-black/55"
+                              onClick={() =>
+                                setActiveImageByUnitId((prev) => ({
+                                  ...prev,
+                                  [u.id]:
+                                    ((prev[u.id] ?? 0) - 1 + images.length) %
+                                    images.length,
+                                }))
+                              }
+                            >
+                              &lt;
+                            </button>
+                            <button
+                              type="button"
+                              aria-label="다음 평면도"
+                              className="absolute right-2 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-black/35 text-white transition hover:bg-black/55"
+                              onClick={() =>
+                                setActiveImageByUnitId((prev) => ({
+                                  ...prev,
+                                  [u.id]: ((prev[u.id] ?? 0) + 1) % images.length,
+                                }))
+                              }
+                            >
+                              &gt;
+                            </button>
+                          </>
+                        ) : null}
                         {img ? (
                           <Button
                             type="button"
@@ -480,7 +558,9 @@ export default function OfferingUnitTypesAccordion({
                             />
                             <div className="absolute right-2 top-2 inline-flex items-center gap-2 rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-surface)/90 px-3 py-1.5 ob-typo-caption text-(--oboon-text-muted)">
                               <Maximize2 className="h-4 w-4" />
-                              확대
+                              {canSlide
+                                ? `${activeIndex + 1}/${images.length} 확대`
+                                : "확대"}
                             </div>
                           </Button>
                         ) : (

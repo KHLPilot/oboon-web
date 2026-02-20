@@ -9,7 +9,7 @@ import NotificationBell from "@/features/notifications/components/NotificationBe
 import { useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 
-import { createSupabaseClient } from "@/lib/supabaseClient";
+import { createSupabaseClient, isAbortError } from "@/lib/supabaseClient";
 import { trackEvent } from "@/lib/analytics";
 import { getAvatarUrlOrDefault, normalizeImageUrl } from "@/shared/imageUrl";
 import ThemeToggle from "./ThemeToggle";
@@ -71,17 +71,24 @@ export default function Header() {
 
   useEffect(() => {
     const initAuth = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      loadUserData(session?.user ?? null);
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        loadUserData(session?.user ?? null);
+      } catch (error) {
+        if (!isAbortError(error)) {
+          console.error("header auth init error:", error);
+        }
+        loadUserData(null);
+      }
     };
 
     initAuth();
 
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
-        loadUserData(session?.user ?? null);
+        void loadUserData(session?.user ?? null);
       },
     );
 

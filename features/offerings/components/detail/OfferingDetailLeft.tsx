@@ -100,6 +100,7 @@ type PropertyUnitTypeRow = {
   orientation: string | null;
   unit_count: number | null;
   supply_count: number | null;
+  floor_plan_urls?: string[] | null;
 };
 
 type PropertyFacilityRow = {
