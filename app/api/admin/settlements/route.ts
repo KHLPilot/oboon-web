@@ -64,7 +64,6 @@ type PayoutRow = {
 type PropertyRow = {
   id: number;
   name: string;
-  image_url: string | null;
 };
 
 type PublicProfileRow = {
@@ -92,6 +91,10 @@ function toLocalDateTime(iso: string) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function normalizeUrl(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 }
 
 export async function GET() {
@@ -193,7 +196,7 @@ export async function GET() {
       propertyIds.length
         ? adminSupabase
             .from("properties")
-            .select("id, name, image_url")
+            .select("id, name")
             .in("id", propertyIds)
         : Promise.resolve({ data: [] as PropertyRow[] }),
       profileIds.length
@@ -213,6 +216,25 @@ export async function GET() {
     const propertiesMap = new Map(
       ((properties || []) as PropertyRow[]).map((p) => [p.id, p]),
     );
+
+    const { data: propertyMainAssets } = propertyIds.length
+      ? await adminSupabase
+          .from("property_image_assets")
+          .select("property_id, image_url, sort_order, created_at")
+          .in("property_id", propertyIds)
+          .eq("kind", "main")
+          .eq("is_active", true)
+          .order("sort_order", { ascending: true })
+          .order("created_at", { ascending: true })
+      : { data: [] };
+    const propertyMainImageMap = new Map<number, string>();
+    for (const row of propertyMainAssets ?? []) {
+      const url = normalizeUrl(row.image_url);
+      if (!url) continue;
+      if (!propertyMainImageMap.has(row.property_id)) {
+        propertyMainImageMap.set(row.property_id, url);
+      }
+    }
     const publicProfilesMap = new Map(
       ((publicProfiles || []) as PublicProfileRow[]).map((p) => [p.id, p]),
     );
@@ -404,7 +426,7 @@ export async function GET() {
           reward_tone: rewardTone,
           reason,
           property_name: property?.name ?? "-",
-          property_image_url: property?.image_url ?? null,
+          property_image_url: property ? (propertyMainImageMap.get(property.id) ?? null) : null,
           customer_name: customerName,
           customer_avatar_url: customerAvatar,
           customer_bank_name: customerBankName,

@@ -8,6 +8,15 @@ const adminSupabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
+function asArray<T>(value: T[] | T | null | undefined): T[] {
+  if (!value) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+function normalizeUrl(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
 async function syncPublicSnapshot(propertyId: number) {
   const { data: property, error: propertyError } = await adminSupabase
     .from("properties")
@@ -19,16 +28,8 @@ async function syncPublicSnapshot(propertyId: number) {
       property_type,
       status,
       description,
-      image_url,
       confirmed_comment,
       estimated_comment,
-      property_gallery_images (
-        id,
-        property_id,
-        image_url,
-        sort_order,
-        created_at
-      ),
       property_locations (*),
       property_specs (*),
       property_timeline (*),
@@ -42,16 +43,70 @@ async function syncPublicSnapshot(propertyId: number) {
     throw propertyError ?? new Error("현장 데이터를 찾을 수 없습니다.");
   }
 
-  const maskedUnitTypes = Array.isArray(property.property_unit_types)
-    ? property.property_unit_types.map((unit) =>
-        unit?.is_price_public === false
-          ? { ...unit, price_min: null, price_max: null }
-          : unit,
-      )
-    : [];
+  const { data: imageAssets, error: imageAssetsError } = await adminSupabase
+    .from("property_image_assets")
+    .select("id, property_id, unit_type_id, kind, image_url, sort_order, created_at")
+    .eq("property_id", propertyId)
+    .eq("is_active", true)
+    .in("kind", ["main", "gallery", "floor_plan"]);
+
+  if (imageAssetsError) {
+    throw imageAssetsError;
+  }
+
+  const sortedAssets = [...(imageAssets ?? [])].sort((a, b) => {
+    const sortDiff = (a.sort_order ?? 0) - (b.sort_order ?? 0);
+    if (sortDiff !== 0) return sortDiff;
+    const timeDiff = (a.created_at ?? "").localeCompare(b.created_at ?? "");
+    if (timeDiff !== 0) return timeDiff;
+    return String(a.id).localeCompare(String(b.id));
+  });
+
+  const mainImageUrl =
+    sortedAssets.find((asset) => asset.kind === "main")?.image_url ?? null;
+
+  const galleryImages = sortedAssets
+    .filter((asset) => asset.kind === "gallery" && normalizeUrl(asset.image_url))
+    .map((asset) => ({
+      id: asset.id,
+      property_id: asset.property_id,
+      image_url: asset.image_url,
+      sort_order: asset.sort_order ?? 0,
+      created_at: asset.created_at,
+    }));
+
+  const floorPlanByUnitTypeId = new Map<number, string>();
+  for (const asset of sortedAssets) {
+    if (asset.kind !== "floor_plan") continue;
+    if (asset.unit_type_id == null) continue;
+    const floorPlanUrl = normalizeUrl(asset.image_url);
+    if (!floorPlanUrl) continue;
+    if (!floorPlanByUnitTypeId.has(asset.unit_type_id)) {
+      floorPlanByUnitTypeId.set(asset.unit_type_id, floorPlanUrl);
+    }
+  }
+
+  const maskedUnitTypes = asArray(property.property_unit_types).map((unit) => {
+    const floorPlanUrl =
+      floorPlanByUnitTypeId.get(unit.id) ?? normalizeUrl(unit.floor_plan_url);
+    const unitImageUrl = floorPlanUrl ?? normalizeUrl(unit.image_url);
+
+    const nextUnit = {
+      ...unit,
+      floor_plan_url: floorPlanUrl,
+      image_url: unitImageUrl,
+    };
+
+    if (unit?.is_price_public === false) {
+      return { ...nextUnit, price_min: null, price_max: null };
+    }
+    return nextUnit;
+  });
 
   const snapshot = {
     ...property,
+    image_url: mainImageUrl,
+    property_gallery_images: galleryImages,
     property_unit_types: maskedUnitTypes,
   };
 

@@ -59,6 +59,10 @@ function cn(...classes: Array<string | undefined | false | null>) {
   return classes.filter(Boolean).join(" ");
 }
 
+function normalizeUrl(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
 const TEXTAREA_BASE = cn(
   "w-full rounded-xl border border-(--oboon-border-default)",
   "bg-(--oboon-bg-surface) px-4 py-3",
@@ -305,7 +309,7 @@ export default function PropertyCreatePage() {
 
       const { data: tokenData, error: tokenError } = await supabase
         .from("properties")
-        .select("id, name, property_type, image_url, status")
+        .select("id, name, property_type, status")
         .ilike("name", tokenPattern)
         .limit(30);
 
@@ -315,12 +319,24 @@ export default function PropertyCreatePage() {
       }
       if (isStale()) return false;
 
-      let candidates = tokenData ?? [];
+      type DuplicateCandidateBase = {
+        id: number;
+        name: string | null;
+        property_type: string | null;
+        status: string | null;
+      };
+
+      let candidates: DuplicateCandidateBase[] = (tokenData ?? []).map((item) => ({
+        id: item.id,
+        name: item.name,
+        property_type: item.property_type ?? null,
+        status: item.status ?? null,
+      }));
 
       if (charPattern !== tokenPattern) {
         const { data: charData, error: charError } = await supabase
           .from("properties")
-          .select("id, name, property_type, image_url, status")
+          .select("id, name, property_type, status")
           .ilike("name", charPattern)
           .limit(30);
 
@@ -331,9 +347,16 @@ export default function PropertyCreatePage() {
         if (isStale()) return false;
 
         if (charData?.length) {
-          const merged = new Map<number, DuplicatePropertyCandidate>();
+          const merged = new Map<number, DuplicateCandidateBase>();
           for (const item of candidates) merged.set(item.id, item);
-          for (const item of charData) merged.set(item.id, item);
+          for (const item of charData) {
+            merged.set(item.id, {
+              id: item.id,
+              name: item.name,
+              property_type: item.property_type ?? null,
+              status: item.status ?? null,
+            });
+          }
           candidates = Array.from(merged.values());
         }
       }
@@ -357,18 +380,45 @@ export default function PropertyCreatePage() {
           return a.normalizedName.length - b.normalizedName.length;
         });
 
-      const nextCandidates = suggestionMatches.slice(0, 3).map((item) => ({
+      const nextCandidates: DuplicatePropertyCandidate[] = suggestionMatches.slice(0, 3).map((item) => ({
         id: item.id,
         name: item.name,
         property_type: item.property_type ?? null,
-        image_url: item.image_url ?? null,
+        image_url: null,
         status: item.status ?? null,
       }));
 
+      const candidateIds = nextCandidates.map((item) => item.id);
+      let nextCandidatesWithImages: DuplicatePropertyCandidate[] = nextCandidates;
+      if (candidateIds.length > 0) {
+        const { data: imageAssets } = await supabase
+          .from("property_image_assets")
+          .select("property_id, image_url, sort_order, created_at")
+          .in("property_id", candidateIds)
+          .eq("kind", "main")
+          .eq("is_active", true)
+          .order("sort_order", { ascending: true })
+          .order("created_at", { ascending: true });
+
+        const imageMap = new Map<number, string>();
+        for (const asset of imageAssets ?? []) {
+          const url = normalizeUrl(asset.image_url);
+          if (!url) continue;
+          if (!imageMap.has(asset.property_id)) {
+            imageMap.set(asset.property_id, url);
+          }
+        }
+
+        nextCandidatesWithImages = nextCandidates.map((candidate) => ({
+          ...candidate,
+          image_url: imageMap.get(candidate.id) ?? null,
+        }));
+      }
+
       if (isStale()) return false;
       setHasExactDuplicate(isDuplicate);
-      setDuplicateCandidates(nextCandidates);
-      await loadAffiliationStatuses(nextCandidates.map((item) => item.id));
+      setDuplicateCandidates(nextCandidatesWithImages);
+      await loadAffiliationStatuses(nextCandidatesWithImages.map((item) => item.id));
       if (isStale()) return false;
     return isDuplicate;
   }, [loadAffiliationStatuses]);

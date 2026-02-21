@@ -27,6 +27,34 @@ export type AgentPropertyDashboard = {
   properties: AgentProperty[];
 };
 
+function normalizeUrl(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+async function fetchMainImageMap(propertyIds: number[]) {
+  if (propertyIds.length === 0) return new Map<number, string>();
+
+  const supabase = createSupabaseClient();
+  const { data } = await supabase
+    .from("property_image_assets")
+    .select("property_id, image_url, sort_order, created_at")
+    .in("property_id", propertyIds)
+    .eq("kind", "main")
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  const map = new Map<number, string>();
+  for (const row of data ?? []) {
+    const url = normalizeUrl(row.image_url);
+    if (!url) continue;
+    if (!map.has(row.property_id)) {
+      map.set(row.property_id, url);
+    }
+  }
+  return map;
+}
+
 export async function fetchAgentPropertyDashboard(): Promise<AgentPropertyDashboard> {
   const supabase = createSupabaseClient();
   const {
@@ -73,11 +101,18 @@ export async function fetchAgentPropertyDashboard(): Promise<AgentPropertyDashbo
     const propertyIds = [...new Set(requests.map((r) => r.property_id))];
     const { data: propertiesData } = await supabase
       .from("properties")
-      .select("id, name, property_type, image_url, status")
+      .select("id, name, property_type, status")
       .in("id", propertyIds);
 
+    const mainImageMap = await fetchMainImageMap(propertyIds);
     const propertiesMap = new Map(
-      (propertiesData || []).map((p) => [p.id, p]),
+      (propertiesData || []).map((p) => [
+        p.id,
+        {
+          ...p,
+          image_url: mainImageMap.get(p.id) ?? null,
+        },
+      ]),
     );
 
     enrichedRequests = requests.map((r) => ({
@@ -88,14 +123,21 @@ export async function fetchAgentPropertyDashboard(): Promise<AgentPropertyDashbo
 
   const { data: propertiesData } = await supabase
     .from("properties")
-    .select("id, name, property_type, image_url, status")
+    .select("id, name, property_type, status")
     .order("name");
+
+  const allPropertyIds = (propertiesData || []).map((p) => p.id);
+  const allMainImageMap = await fetchMainImageMap(allPropertyIds);
+  const propertiesWithMainImage = (propertiesData || []).map((p) => ({
+    ...p,
+    image_url: allMainImageMap.get(p.id) ?? null,
+  }));
 
   return {
     userId: user.id,
     role,
     profile: (profileData as Record<string, unknown>) ?? null,
     requests: enrichedRequests,
-    properties: (propertiesData || []) as AgentProperty[],
+    properties: propertiesWithMainImage as AgentProperty[],
   };
 }

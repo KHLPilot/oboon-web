@@ -11,6 +11,10 @@ const adminSupabase = createClient(
 const DEPOSIT_AMOUNT = 1000;
 const BLOCKING_BOOKING_STATUSES = ["requested", "pending", "confirmed"] as const;
 
+function normalizeUrl(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
 // 예약 생성
 export async function POST(req: Request) {
   try {
@@ -399,7 +403,7 @@ export async function GET(req: Request) {
                 *,
                 customer:profiles!consultations_customer_id_fkey(id, name, email, phone_number, avatar_url),
                 agent:profiles!consultations_agent_id_fkey(id, name, email, phone_number, avatar_url),
-                property:properties(id, name, image_url)
+                property:properties(id, name)
             `,
       )
       .order("scheduled_at", { ascending: true });
@@ -456,6 +460,33 @@ export async function GET(req: Request) {
       agent?: { avatar_url?: string | null } | null;
     };
     const consultationRows = (consultations || []) as ConsultationListRow[];
+    const propertyIds = Array.from(
+      new Set(
+        consultationRows
+          .map((c) => (c as { property?: { id?: number } | null }).property?.id)
+          .filter((id): id is number => typeof id === "number"),
+      ),
+    );
+
+    const { data: propertyMainAssets } = propertyIds.length
+      ? await adminSupabase
+          .from("property_image_assets")
+          .select("property_id, image_url, sort_order, created_at")
+          .in("property_id", propertyIds)
+          .eq("kind", "main")
+          .eq("is_active", true)
+          .order("sort_order", { ascending: true })
+          .order("created_at", { ascending: true })
+      : { data: [] };
+
+    const propertyMainImageMap = new Map<number, string>();
+    for (const row of propertyMainAssets ?? []) {
+      const url = normalizeUrl(row.image_url);
+      if (!url) continue;
+      if (!propertyMainImageMap.has(row.property_id)) {
+        propertyMainImageMap.set(row.property_id, url);
+      }
+    }
 
     const filteredConsultations = consultationRows
       .filter((c) => {
@@ -506,8 +537,18 @@ export async function GET(req: Request) {
     const enrichedConsultations = filteredConsultations.map((c) => {
       const customer = c.customer_id ? publicProfilesMap.get(c.customer_id) : undefined;
       const agent = c.agent_id ? publicProfilesMap.get(c.agent_id) : undefined;
+      const propertyId = (c as { property?: { id?: number } | null }).property?.id;
+      const propertyImageUrl =
+        typeof propertyId === "number" ? (propertyMainImageMap.get(propertyId) ?? null) : null;
       return {
         ...c,
+        property:
+          (c as { property?: Record<string, unknown> | null }).property
+            ? {
+                ...(c as { property?: Record<string, unknown> | null }).property,
+                image_url: propertyImageUrl,
+              }
+            : null,
         customer_avatar_url:
           customer?.avatar_url ?? c.customer?.avatar_url ?? null,
         agent_avatar_url: agent?.avatar_url ?? c.agent?.avatar_url ?? null,

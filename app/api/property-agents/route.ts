@@ -8,6 +8,10 @@ const adminSupabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
+function normalizeUrl(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
 // POST - 상담사가 현장 소속 신청
 export async function POST(request: NextRequest) {
   try {
@@ -245,7 +249,6 @@ export async function GET(request: NextRequest) {
         properties:property_id (
           id,
           name,
-          image_url,
           property_type
         ),
         profiles:agent_id (
@@ -277,8 +280,48 @@ export async function GET(request: NextRequest) {
         { status: 500 }
       );
     }
+    const rows = (propertyAgents ?? []) as Array<{
+      properties?: { id?: number } | null;
+      [key: string]: unknown;
+    }>;
+    const propertyIds = Array.from(
+      new Set(
+        rows
+          .map((row) => row.properties?.id)
+          .filter((id): id is number => typeof id === "number")
+      )
+    );
+    const { data: propertyMainAssets } = propertyIds.length
+      ? await adminSupabase
+          .from("property_image_assets")
+          .select("property_id, image_url, sort_order, created_at")
+          .in("property_id", propertyIds)
+          .eq("kind", "main")
+          .eq("is_active", true)
+          .order("sort_order", { ascending: true })
+          .order("created_at", { ascending: true })
+      : { data: [] };
+    const propertyMainImageMap = new Map<number, string>();
+    for (const row of propertyMainAssets ?? []) {
+      const url = normalizeUrl(row.image_url);
+      if (!url) continue;
+      if (!propertyMainImageMap.has(row.property_id)) {
+        propertyMainImageMap.set(row.property_id, url);
+      }
+    }
+    const enrichedRows = rows.map((row) => {
+      const propertyId = row.properties?.id;
+      if (typeof propertyId !== "number") return row;
+      return {
+        ...row,
+        properties: {
+          ...row.properties,
+          image_url: propertyMainImageMap.get(propertyId) ?? null,
+        },
+      };
+    });
 
-    return NextResponse.json({ propertyAgents });
+    return NextResponse.json({ propertyAgents: enrichedRows });
   } catch (error) {
     console.error("GET /api/property-agents 오류:", error);
     return NextResponse.json(

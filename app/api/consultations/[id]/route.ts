@@ -10,6 +10,10 @@ const adminSupabase = createClient(
 
 const VISIT_REWARD_AMOUNT = 10000;
 
+function normalizeUrl(value: unknown): string | null {
+    return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
 // 예약 상세 조회
 export async function GET(
     req: Request,
@@ -55,7 +59,7 @@ export async function GET(
                 *,
                 customer:profiles!consultations_customer_id_fkey(id, name, email, phone_number, avatar_url),
                 agent:profiles!consultations_agent_id_fkey(id, name, email, phone_number, avatar_url),
-                property:properties(id, name, image_url, property_type, property_facilities(id, lat, lng, road_address, type, is_active)),
+                property:properties(id, name, property_type, property_facilities(id, lat, lng, road_address, type, is_active)),
                 chat_rooms(id)
             `)
             .eq("id", id)
@@ -75,6 +79,20 @@ export async function GET(
                 { error: "접근 권한이 없습니다" },
                 { status: 403 }
             );
+        }
+
+        if (consultation.property?.id) {
+            const { data: mainAsset } = await adminSupabase
+                .from("property_image_assets")
+                .select("image_url")
+                .eq("property_id", consultation.property.id)
+                .eq("kind", "main")
+                .eq("is_active", true)
+                .order("sort_order", { ascending: true })
+                .order("created_at", { ascending: true })
+                .limit(1)
+                .maybeSingle();
+            consultation.property.image_url = normalizeUrl(mainAsset?.image_url);
         }
 
         return NextResponse.json({ consultation });

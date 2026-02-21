@@ -7,7 +7,8 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 
-const TABLE_NAME = "property_gallery_images";
+const TABLE_NAME = "property_image_assets";
+const GALLERY_KIND = "gallery";
 const MAX_IMAGES = 10;
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -144,6 +145,8 @@ export async function GET(req: Request) {
       .from(TABLE_NAME)
       .select("id, property_id, storage_path, image_url, sort_order, caption, created_at")
       .eq("property_id", propertyId)
+      .eq("kind", GALLERY_KIND)
+      .eq("is_active", true)
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: true });
 
@@ -210,7 +213,9 @@ export async function POST(req: Request) {
     const { data: existingRows, error: countError } = await supabase
       .from(TABLE_NAME)
       .select("id, sort_order")
-      .eq("property_id", propertyId);
+      .eq("property_id", propertyId)
+      .eq("kind", GALLERY_KIND)
+      .eq("is_active", true);
 
     if (countError) {
       return NextResponse.json(
@@ -236,10 +241,12 @@ export async function POST(req: Request) {
     const uploadedKeys: string[] = [];
     const insertRows: Array<{
       property_id: number;
+      kind: string;
       storage_path: string;
       image_url: string;
       sort_order: number;
       caption: string | null;
+      is_active: boolean;
     }> = [];
 
     for (let i = 0; i < files.length; i += 1) {
@@ -289,10 +296,12 @@ export async function POST(req: Request) {
       uploadedKeys.push(storagePath);
       insertRows.push({
         property_id: propertyId,
+        kind: GALLERY_KIND,
         storage_path: storagePath,
         image_url: buildR2PublicUrl(storagePath),
         sort_order: maxSortOrder + i + 1,
         caption: null,
+        is_active: true,
       });
     }
 
@@ -319,6 +328,8 @@ export async function POST(req: Request) {
       .from(TABLE_NAME)
       .select("id, property_id, storage_path, image_url, sort_order, caption, created_at")
       .eq("property_id", propertyId)
+      .eq("kind", GALLERY_KIND)
+      .eq("is_active", true)
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: true });
 
@@ -356,6 +367,8 @@ export async function PATCH(req: Request) {
       .from(TABLE_NAME)
       .select("id")
       .eq("property_id", propertyId)
+      .eq("kind", GALLERY_KIND)
+      .eq("is_active", true)
       .in("id", ids);
 
     if (existingError) {
@@ -380,7 +393,9 @@ export async function PATCH(req: Request) {
           caption: update.caption ?? null,
         })
         .eq("id", update.id)
-        .eq("property_id", propertyId);
+        .eq("property_id", propertyId)
+        .eq("kind", GALLERY_KIND)
+        .eq("is_active", true);
 
       if (updateError) {
         return NextResponse.json(
@@ -394,6 +409,8 @@ export async function PATCH(req: Request) {
       .from(TABLE_NAME)
       .select("id, property_id, storage_path, image_url, sort_order, caption, created_at")
       .eq("property_id", propertyId)
+      .eq("kind", GALLERY_KIND)
+      .eq("is_active", true)
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: true });
 
@@ -431,6 +448,8 @@ export async function DELETE(req: Request) {
       .select("id, storage_path")
       .eq("id", imageId)
       .eq("property_id", propertyId)
+      .eq("kind", GALLERY_KIND)
+      .eq("is_active", true)
       .maybeSingle();
 
     if (targetError) {
@@ -445,29 +464,35 @@ export async function DELETE(req: Request) {
 
     const { error: deleteError } = await supabase
       .from(TABLE_NAME)
-      .delete()
+      .update({ is_active: false })
       .eq("id", imageId)
-      .eq("property_id", propertyId);
+      .eq("property_id", propertyId)
+      .eq("kind", GALLERY_KIND)
+      .eq("is_active", true);
 
     if (deleteError) {
       return NextResponse.json({ error: "사진 삭제에 실패했습니다" }, { status: 500 });
     }
 
-    try {
-      await r2.send(
-        new DeleteObjectsCommand({
-          Bucket: R2_BUCKET_NAME,
-          Delete: { Objects: [{ Key: target.storage_path }] },
-        }),
-      );
-    } catch (r2Error) {
-      console.error("R2 파일 삭제 오류:", r2Error);
+    if (target.storage_path) {
+      try {
+        await r2.send(
+          new DeleteObjectsCommand({
+            Bucket: R2_BUCKET_NAME,
+            Delete: { Objects: [{ Key: target.storage_path }] },
+          }),
+        );
+      } catch (r2Error) {
+        console.error("R2 파일 삭제 오류:", r2Error);
+      }
     }
 
     const { data: refreshed } = await supabase
       .from(TABLE_NAME)
       .select("id, property_id, storage_path, image_url, sort_order, caption, created_at")
       .eq("property_id", propertyId)
+      .eq("kind", GALLERY_KIND)
+      .eq("is_active", true)
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: true });
 

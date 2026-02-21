@@ -22,11 +22,76 @@ export async function createProperty(payload: PropertyCreatePayload) {
 
 export async function updatePropertyImage(propertyId: number, url: string) {
   const supabase = createSupabaseClient();
-  const { data, error } = await supabase
-    .from("properties")
-    .update({ image_url: url })
-    .eq("id", propertyId)
-    .select("id")
-    .maybeSingle();
-  return { data, error };
+  const trimmedUrl = url.trim();
+
+  const deactivateResult = await supabase
+    .from("property_image_assets")
+    .update({ is_active: false })
+    .eq("property_id", propertyId)
+    .eq("kind", "main")
+    .eq("is_active", true)
+    .neq("image_url", trimmedUrl);
+
+  if (deactivateResult.error) {
+    return { data: null, error: deactivateResult.error };
+  }
+
+  const publicBaseUrl = process.env.CLOUDFLARE_R2_PUBLIC_URL?.replace(/\/+$/, "");
+  const storagePath =
+    publicBaseUrl && trimmedUrl.startsWith(`${publicBaseUrl}/`)
+      ? trimmedUrl.slice(publicBaseUrl.length + 1)
+      : null;
+
+  const candidatePayloads: Array<Record<string, unknown>> = [
+    {
+      property_id: propertyId,
+      kind: "main",
+      unit_type_id: null,
+      storage_path: storagePath,
+      image_url: trimmedUrl,
+      sort_order: 0,
+      caption: null,
+      image_hash: null,
+      is_active: true,
+    },
+    {
+      property_id: propertyId,
+      kind: "main",
+      unit_type_id: null,
+      storage_path: storagePath,
+      image_url: trimmedUrl,
+      sort_order: 0,
+      caption: null,
+      is_active: true,
+    },
+    {
+      property_id: propertyId,
+      kind: "main",
+      unit_type_id: null,
+      image_url: trimmedUrl,
+      is_active: true,
+    },
+  ];
+
+  let lastError: unknown = null;
+
+  for (const payload of candidatePayloads) {
+    const insertResult = await supabase
+      .from("property_image_assets")
+      .insert(payload)
+      .select("id")
+      .single();
+
+    if (!insertResult.error) {
+      return { data: insertResult.data, error: null };
+    }
+
+    if (insertResult.error.code !== "42703") {
+      return { data: null, error: insertResult.error };
+    }
+
+    lastError = insertResult.error;
+  }
+
+  return { data: null, error: lastError };
 }
