@@ -1,82 +1,18 @@
-// app/company/properties/[id]/comment/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
 import Button from "@/components/ui/Button";
-import Card from "@/components/ui/Card";
-import Textarea from "@/components/ui/Textarea";
 import PageContainer from "@/components/shared/PageContainer";
-import { fetchPropertyComments, updatePropertyComments } from "@/features/company/services/property.comment";
 import { useRequirePropertyEditAccess } from "@/features/company/hooks/useRequirePropertyEditAccess";
-import { toKoreanErrorMessage } from "@/shared/errorMessage";
+import CommentEditorCard from "@/features/company/components/property-editor/CommentEditorCard";
 
-type commentForm = {
-  confirmed_comment: string;
-  estimated_comment: string;
-};
-
-const EMPTY_FORM: commentForm = {
-  confirmed_comment: "",
-  estimated_comment: "",
-};
-
-function cn(...classes: Array<string | undefined | false | null>) {
-  return classes.filter(Boolean).join(" ");
-}
-
-const TEXTAREA_BASE = cn(
-  "w-full rounded-xl border border-(--oboon-border-default)",
-  "bg-(--oboon-bg-surface) px-4 py-3",
-  "ob-typo-body text-(--oboon-text-title) placeholder:text-(--oboon-text-muted)",
-  "focus:outline-none focus:ring-2 focus:ring-(--oboon-primary)/25",
-);
-
-export default function PropertycommentPage() {
+export default function PropertyCommentPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const propertyId = Number(params?.id);
   const { loading: accessLoading, allowed: canAccessProperty } =
     useRequirePropertyEditAccess(propertyId);
-
-  const [form, setForm] = useState<commentForm>(EMPTY_FORM);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-
-    async function load() {
-      if (accessLoading || !canAccessProperty) return;
-      if (!Number.isFinite(propertyId)) return;
-
-      setLoading(true);
-      setError(null);
-
-      const { data, error } = await fetchPropertyComments(propertyId);
-
-      if (!alive) return;
-
-      if (error) {
-        setError(toKoreanErrorMessage(error));
-        setForm(EMPTY_FORM);
-      } else {
-        setForm({
-          confirmed_comment: data?.confirmed_comment ?? "",
-          estimated_comment: data?.estimated_comment ?? "",
-        });
-      }
-
-      setLoading(false);
-    }
-
-    load();
-    return () => {
-      alive = false;
-    };
-  }, [accessLoading, canAccessProperty, propertyId]);
 
   if (accessLoading) {
     return (
@@ -85,44 +21,7 @@ export default function PropertycommentPage() {
       </div>
     );
   }
-
   if (!canAccessProperty) return null;
-
-  async function handleSave() {
-    if (!Number.isFinite(propertyId)) return;
-
-    setSaving(true);
-    setError(null);
-
-    const payload = {
-      confirmed_comment: form.confirmed_comment.trim() || null,
-      estimated_comment: form.estimated_comment.trim() || null,
-    };
-
-    const { data, error } = await updatePropertyComments(propertyId, payload);
-
-    setSaving(false);
-
-    if (error) {
-      setError(toKoreanErrorMessage(error));
-      return;
-    }
-
-    if (!data) {
-      setError("저장 권한이 없거나 수정할 현장을 찾을 수 없습니다.");
-      return;
-    }
-
-    router.push(`/company/properties/${propertyId}`);
-  }
-
-  if (loading) {
-    return (
-      <div className="px-4 py-8 ob-typo-body text-(--oboon-text-muted)">
-        불러오는 중...
-      </div>
-    );
-  }
 
   return (
     <main className="bg-(--oboon-bg-page)">
@@ -130,14 +29,11 @@ export default function PropertycommentPage() {
         <div className="flex w-full flex-col gap-6">
           <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="space-y-1">
-              <div className="ob-typo-h1 text-(--oboon-text-title)">
-                감정평가사 메모
-              </div>
+              <div className="ob-typo-h1 text-(--oboon-text-title)">감정평가사 메모</div>
               <p className="ob-typo-body text-(--oboon-text-muted)">
                 확정/추정 메모를 분리해 입력합니다.
               </p>
             </div>
-
             <div className="flex items-center gap-2">
               <Button
                 variant="secondary"
@@ -147,66 +43,13 @@ export default function PropertycommentPage() {
               >
                 취소
               </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                shape="pill"
-                onClick={handleSave}
-                loading={saving}
-              >
-                저장
-              </Button>
             </div>
           </header>
 
-          <Card className="space-y-5 p-5">
-            <section>
-              <div className="ob-typo-h3 mb-1">확정 내용</div>
-              <p className="ob-typo-body text-(--oboon-text-muted) mb-3">
-                검증된 정보(공식 문서/공고/확정 일정 등)를 기록합니다.
-              </p>
-              <Textarea
-                className={cn(TEXTAREA_BASE, "min-h-[120px]")}
-                placeholder="확정된 사실 기반으로 작성하세요."
-                value={form.confirmed_comment}
-                onChange={(e) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    confirmed_comment: e.target.value,
-                  }))
-                }
-              />
-            </section>
-
-            <section>
-              <div className="ob-typo-h3 mb-1">추정 내용</div>
-              <p className="ob-typo-body text-(--oboon-text-muted) mb-3">
-                추정은 근거를 같이 남기면 좋습니다.
-              </p>
-              <Textarea
-                className={cn(TEXTAREA_BASE, "min-h-[120px]")}
-                placeholder="합리적 추정/정황 기반 내용을 작성하세요."
-                value={form.estimated_comment}
-                onChange={(e) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    estimated_comment: e.target.value,
-                  }))
-                }
-              />
-            </section>
-
-            {error ? (
-              <div className="mt-2 rounded-xl border border-(--oboon-danger-border) bg-(--oboon-bg-surface) px-4 py-3">
-                <div className="ob-typo-body text-(--oboon-text-title)">
-                  저장 실패
-                </div>
-                <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
-                  {error}
-                </div>
-              </div>
-            ) : null}
-          </Card>
+          <CommentEditorCard
+            propertyId={propertyId}
+            onAfterSave={() => router.push(`/company/properties/${propertyId}`)}
+          />
         </div>
       </PageContainer>
     </main>

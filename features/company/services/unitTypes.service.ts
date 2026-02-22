@@ -6,7 +6,7 @@ const SELECT_COLUMNS = `
   type_name, exclusive_area, supply_area, rooms, bathrooms,
   building_layout, orientation,
   price_min, price_max, is_price_public, is_public, unit_count, supply_count,
-  image_url
+  sort_order
 `;
 
 function normalizeText(value?: string | null) {
@@ -14,23 +14,59 @@ function normalizeText(value?: string | null) {
   return trimmed ? trimmed : null;
 }
 
+function parseFloorPlanUrls(
+  floorPlanUrl: string | null | undefined,
+  imageUrl: string | null | undefined,
+) {
+  const urls: string[] = [];
+  const primary = normalizeText(floorPlanUrl);
+  if (primary) urls.push(primary);
+
+  const rawImage = normalizeText(imageUrl);
+  if (rawImage) {
+    if (rawImage.startsWith("[")) {
+      try {
+        const parsed = JSON.parse(rawImage);
+        if (Array.isArray(parsed)) {
+          for (const item of parsed) {
+            if (typeof item !== "string") continue;
+            const u = normalizeText(item);
+            if (u) urls.push(u);
+          }
+        } else {
+          urls.push(rawImage);
+        }
+      } catch {
+        urls.push(rawImage);
+      }
+    } else {
+      urls.push(rawImage);
+    }
+  }
+
+  return Array.from(new Set(urls));
+}
+
 function buildCreatePayload(
   propertyId: number,
   draft: UnitDraft,
-): Omit<UnitDraft, "floor_plan_url"> {
+): Omit<UnitDraft, "floor_plan_url" | "image_url"> {
   const rest = { ...draft };
   delete (rest as Partial<UnitDraft>).floor_plan_url;
+  delete (rest as Partial<UnitDraft>).image_url;
   return {
     ...rest,
     properties_id: propertyId,
     type_name: normalizeText(draft.type_name),
     building_layout: normalizeText(draft.building_layout),
     orientation: normalizeText(draft.orientation),
-    image_url: normalizeText(draft.image_url),
+    sort_order: draft.sort_order ?? 0,
   };
 }
 
-function buildUpdatePayload(draft: UnitDraft): Partial<Omit<UnitRow, "floor_plan_url">> {
+function buildUpdatePayload(
+  draft: UnitDraft,
+): Partial<Omit<UnitRow, "floor_plan_url" | "image_url">> {
   return {
     type_name: normalizeText(draft.type_name),
     exclusive_area: draft.exclusive_area,
@@ -45,59 +81,61 @@ function buildUpdatePayload(draft: UnitDraft): Partial<Omit<UnitRow, "floor_plan
     is_public: draft.is_public,
     unit_count: draft.unit_count,
     supply_count: draft.supply_count,
-    image_url: normalizeText(draft.image_url),
+    sort_order: draft.sort_order ?? 0,
   };
 }
 
-async function fetchFloorPlanUrlMap(propertyId: number) {
+async function fetchFloorPlanUrlsMap(propertyId: number) {
   const supabase = createSupabaseClient();
   const { data, error } = await supabase
     .from("property_image_assets")
-    .select("id, unit_type_id, image_url, sort_order, created_at")
+    .select("id, unit_type_id, image_url, sort_order, updated_at, created_at")
     .eq("property_id", propertyId)
     .eq("kind", "floor_plan")
     .eq("is_active", true)
     .not("unit_type_id", "is", null)
     .order("sort_order", { ascending: true })
+    .order("updated_at", { ascending: false })
     .order("created_at", { ascending: true });
 
   if (error) throw error;
 
-  const map = new Map<number, string>();
+  const map = new Map<number, string[]>();
   for (const row of data ?? []) {
     if (row.unit_type_id == null) continue;
     const url = normalizeText(row.image_url);
     if (!url) continue;
-    if (!map.has(row.unit_type_id)) {
-      map.set(row.unit_type_id, url);
-    }
+    const existing = map.get(row.unit_type_id) ?? [];
+    if (!existing.includes(url)) existing.push(url);
+    map.set(row.unit_type_id, existing);
   }
   return map;
 }
 
 function patchFloorPlanUrls(
   rows: UnitRow[],
-  floorPlanUrlMap: Map<number, string>,
+  floorPlanUrlsMap: Map<number, string[]>,
 ): UnitRow[] {
   return rows.map((row) => {
-    const floorPlanUrl = floorPlanUrlMap.get(row.id) ?? null;
+    const urls = floorPlanUrlsMap.get(row.id) ?? [];
+    const floorPlanUrl = urls[0] ?? null;
     return {
       ...row,
       floor_plan_url: floorPlanUrl,
-      image_url: floorPlanUrl ?? row.image_url,
+      image_url: urls.length > 0 ? JSON.stringify(urls) : null,
     };
   });
 }
 
-async function syncFloorPlanAsset(
+async function syncFloorPlanAssets(
   propertyId: number,
   unitTypeId: number,
-  floorPlanUrl: string | null,
+  draft: UnitDraft,
 ) {
   const supabase = createSupabaseClient();
-  const normalizedUrl = normalizeText(floorPlanUrl);
+  const targetUrls = parseFloorPlanUrls(draft.floor_plan_url, draft.image_url);
 
-  if (!normalizedUrl) {
+  if (targetUrls.length === 0) {
     const { error } = await supabase
       .from("property_image_assets")
       .update({ is_active: false })
@@ -109,44 +147,50 @@ async function syncFloorPlanAsset(
     return;
   }
 
-  const { data: sameUrlActive, error: sameUrlError } = await supabase
+  const { data: activeRows, error: activeRowsError } = await supabase
     .from("property_image_assets")
-    .select("id")
+    .select("id, image_url")
     .eq("property_id", propertyId)
     .eq("kind", "floor_plan")
     .eq("unit_type_id", unitTypeId)
-    .eq("is_active", true)
-    .eq("image_url", normalizedUrl)
-    .limit(1);
+    .eq("is_active", true);
 
-  if (sameUrlError) throw sameUrlError;
+  if (activeRowsError) throw activeRowsError;
 
-  const { error: deactivateError } = await supabase
-    .from("property_image_assets")
-    .update({ is_active: false })
-    .eq("property_id", propertyId)
-    .eq("kind", "floor_plan")
-    .eq("unit_type_id", unitTypeId)
-    .eq("is_active", true)
-    .neq("image_url", normalizedUrl);
+  const activeUrlSet = new Set(
+    (activeRows ?? [])
+      .map((row) => normalizeText(row.image_url))
+      .filter((url): url is string => Boolean(url)),
+  );
 
-  if (deactivateError) throw deactivateError;
-
-  if ((sameUrlActive?.length ?? 0) > 0) {
-    return;
+  const deactivateUrls = [...activeUrlSet].filter((url) => !targetUrls.includes(url));
+  if (deactivateUrls.length > 0) {
+    const { error: deactivateError } = await supabase
+      .from("property_image_assets")
+      .update({ is_active: false })
+      .eq("property_id", propertyId)
+      .eq("kind", "floor_plan")
+      .eq("unit_type_id", unitTypeId)
+      .eq("is_active", true)
+      .in("image_url", deactivateUrls);
+    if (deactivateError) throw deactivateError;
   }
 
-  const { error: insertError } = await supabase
-    .from("property_image_assets")
-    .insert({
-      property_id: propertyId,
-      unit_type_id: unitTypeId,
-      kind: "floor_plan",
-      image_url: normalizedUrl,
-      is_active: true,
-    });
-
-  if (insertError) throw insertError;
+  const insertUrls = targetUrls.filter((url) => !activeUrlSet.has(url));
+  if (insertUrls.length > 0) {
+    const { error: insertError } = await supabase
+      .from("property_image_assets")
+      .insert(
+        insertUrls.map((url) => ({
+          property_id: propertyId,
+          unit_type_id: unitTypeId,
+          kind: "floor_plan",
+          image_url: url,
+          is_active: true,
+        })),
+      );
+    if (insertError) throw insertError;
+  }
 }
 
 export async function fetchUnitTypes(propertyId: number): Promise<UnitRow[]> {
@@ -156,12 +200,17 @@ export async function fetchUnitTypes(propertyId: number): Promise<UnitRow[]> {
     .from("property_unit_types")
     .select(SELECT_COLUMNS)
     .eq("properties_id", propertyId)
+    .order("sort_order", { ascending: true })
     .order("created_at", { ascending: true });
 
   if (error) throw error;
-  const rows = (data ?? []) as UnitRow[];
-  const floorPlanUrlMap = await fetchFloorPlanUrlMap(propertyId);
-  return patchFloorPlanUrls(rows, floorPlanUrlMap);
+  const rows = ((data ?? []) as Array<Omit<UnitRow, "floor_plan_url" | "image_url">>).map((row) => ({
+    ...row,
+    floor_plan_url: null,
+    image_url: null,
+  }));
+  const floorPlanUrlsMap = await fetchFloorPlanUrlsMap(propertyId);
+  return patchFloorPlanUrls(rows, floorPlanUrlsMap);
 }
 
 export async function createUnitType(
@@ -179,10 +228,14 @@ export async function createUnitType(
 
   if (error) throw error;
 
-  const created = data as UnitRow;
-  await syncFloorPlanAsset(propertyId, created.id, draft.floor_plan_url);
-  const floorPlanUrlMap = await fetchFloorPlanUrlMap(propertyId);
-  return patchFloorPlanUrls([created], floorPlanUrlMap)[0];
+  const created = {
+    ...(data as Omit<UnitRow, "floor_plan_url" | "image_url">),
+    floor_plan_url: null,
+    image_url: null,
+  } as UnitRow;
+  await syncFloorPlanAssets(propertyId, created.id, draft);
+  const floorPlanUrlsMap = await fetchFloorPlanUrlsMap(propertyId);
+  return patchFloorPlanUrls([created], floorPlanUrlsMap)[0];
 }
 
 export async function updateUnitType(
@@ -201,10 +254,14 @@ export async function updateUnitType(
 
   if (error) throw error;
 
-  const updated = data as UnitRow;
-  await syncFloorPlanAsset(updated.properties_id, updated.id, draft.floor_plan_url);
-  const floorPlanUrlMap = await fetchFloorPlanUrlMap(updated.properties_id);
-  return patchFloorPlanUrls([updated], floorPlanUrlMap)[0];
+  const updated = {
+    ...(data as Omit<UnitRow, "floor_plan_url" | "image_url">),
+    floor_plan_url: null,
+    image_url: null,
+  } as UnitRow;
+  await syncFloorPlanAssets(updated.properties_id, updated.id, draft);
+  const floorPlanUrlsMap = await fetchFloorPlanUrlsMap(updated.properties_id);
+  return patchFloorPlanUrls([updated], floorPlanUrlsMap)[0];
 }
 
 export async function deleteUnitType(id: number): Promise<void> {

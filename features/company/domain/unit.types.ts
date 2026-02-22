@@ -26,6 +26,7 @@ export type UnitRow = {
 
   floor_plan_url: string | null;
   image_url: string | null;
+  sort_order: number | null;
 };
 
 export type UnitDraft = Omit<UnitRow, "id" | "created_at">;

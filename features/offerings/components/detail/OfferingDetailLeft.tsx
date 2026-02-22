@@ -295,7 +295,12 @@ export default function OfferingDetailLeft({
   const unitTypes = asArray<PropertyUnitTypeRow>(p.property_unit_types)
     .filter((u) => u.is_public !== false)
     .slice()
-    .sort((a, b) => (a.type_name ?? "").localeCompare(b.type_name ?? ""));
+    .sort((a, b) => {
+      if ((a.sort_order ?? 0) !== (b.sort_order ?? 0)) {
+        return (a.sort_order ?? 0) - (b.sort_order ?? 0);
+      }
+      return (a.type_name ?? "").localeCompare(b.type_name ?? "");
+    });
   const hasPriceTable = unitTypes.length > 0;
 
   const hasPrivatePriceUnits = unitTypes.some(

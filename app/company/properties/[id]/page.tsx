@@ -52,6 +52,12 @@ import { getPropertySectionStatus } from "@/features/property/components/propert
 import { showAlert } from "@/shared/alert";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { useRequirePropertyEditAccess } from "@/features/company/hooks/useRequirePropertyEditAccess";
+import LocationEditorCard from "@/features/company/components/property-editor/LocationEditorCard";
+import SpecsEditorCard from "@/features/company/components/property-editor/SpecsEditorCard";
+import TimelineEditorCard from "@/features/company/components/property-editor/TimelineEditorCard";
+import CommentEditorCard from "@/features/company/components/property-editor/CommentEditorCard";
+import UnitTypesEditorCard from "@/features/company/components/property-editor/UnitTypesEditorCard";
+import FacilitiesEditorCard from "@/features/company/components/property-editor/FacilitiesEditorCard";
 
 /* ==================================================
    타입 정의
@@ -181,6 +187,68 @@ function SectionCard({
       <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle)/50 px-3 py-2 ob-typo-body text-(--oboon-text-muted)">
         {status !== "none" && summary ? summary : "아직 입력된 정보가 없어요"}
       </div>
+    </div>
+  );
+}
+
+function IntegratedEditorCard({
+  title,
+  description,
+  summary,
+  status,
+  icon: Icon,
+  children,
+  defaultOpen = false,
+}: {
+  title: string;
+  description: string;
+  summary?: string | null;
+  status: SectionStatus;
+  icon: ComponentType<{ className?: string }>;
+  children: ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const statusLabel =
+    status === "full" ? "완료" : status === "partial" ? "입력중" : "미입력";
+
+  return (
+    <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-4">
+      <div className="mb-3 flex items-start justify-between gap-2">
+        <div className="flex items-start gap-2">
+          <div className="rounded-xl bg-(--oboon-bg-subtle) p-2 text-(--oboon-text-muted)">
+            <Icon className="h-4 w-4" />
+          </div>
+          <div className="flex flex-col">
+            <span className="ob-typo-body font-semibold text-(--oboon-text-title)">
+              {title}
+            </span>
+            <span className="ob-typo-body text-(--oboon-text-muted)">
+              {description}
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant="status" className="text-[11px]">
+            {statusLabel}
+          </Badge>
+          <Button
+            variant="secondary"
+            size="sm"
+            shape="pill"
+            className="px-2"
+            onClick={() => setOpen((prev) => !prev)}
+          >
+            {open ? "닫기" : "열기"}
+          </Button>
+        </div>
+      </div>
+      {!open ? (
+        <div className="mb-4 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle)/50 px-3 py-2 ob-typo-body text-(--oboon-text-muted)">
+          {status !== "none" && summary ? summary : "아직 입력된 정보가 없어요"}
+        </div>
+      ) : null}
+      {open ? children : null}
     </div>
   );
 }
@@ -1229,6 +1297,103 @@ function PropertyDetailPageInner() {
               />
             ) : null}
           </section>
+
+          {canEditProperty ? (
+            <section className="space-y-3">
+              <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-4 py-3">
+                <p className="ob-typo-body font-semibold text-(--oboon-text-title)">
+                  통합 편집
+                </p>
+                <p className="ob-typo-caption text-(--oboon-text-muted)">
+                  아래 섹션을 펼치면 페이지 이동 없이 한 화면에서 수정할 수 있어요.
+                </p>
+              </div>
+
+              <IntegratedEditorCard
+                title="현장 위치"
+                description="주소 및 위치 정보"
+                status={completion?.siteLocationStatus ?? "none"}
+                summary={
+                  completion?.siteLocationStatus !== "none"
+                    ? "주소가 등록되었습니다"
+                    : null
+                }
+                icon={MapPin}
+              >
+                <LocationEditorCard propertyId={id} />
+              </IntegratedEditorCard>
+              <IntegratedEditorCard
+                title="건물 스펙"
+                description="규모, 구조, 주차 등"
+                status={completion?.specsStatus ?? "none"}
+                summary={
+                  completion?.specsStatus !== "none"
+                    ? "스펙 정보가 등록되었습니다"
+                    : null
+                }
+                icon={Building2}
+              >
+                <SpecsEditorCard propertyId={id} />
+              </IntegratedEditorCard>
+              <IntegratedEditorCard
+                title="일정"
+                description="분양, 입주 등 주요 일정"
+                status={completion?.timelineStatus ?? "none"}
+                summary={
+                  completion?.timelineStatus !== "none"
+                    ? "일정 정보가 등록되었습니다"
+                    : null
+                }
+                icon={CalendarDays}
+              >
+                <TimelineEditorCard propertyId={id} />
+              </IntegratedEditorCard>
+              <IntegratedEditorCard
+                title="평면 타입"
+                description="타입별 면적 및 구조"
+                status={completion?.unitStatus ?? "none"}
+                summary={
+                  completion?.unitStatus !== "none"
+                    ? "유닛 정보가 등록되었습니다"
+                    : null
+                }
+                icon={LayoutTemplate}
+              >
+                <UnitTypesEditorCard propertyId={id} />
+              </IntegratedEditorCard>
+              <IntegratedEditorCard
+                title="홍보시설"
+                description="모델하우스 및 홍보관"
+                status={completion?.facilityStatus ?? "none"}
+                summary={
+                  completion?.facilityStatus !== "none"
+                    ? "시설 정보가 등록되었습니다"
+                    : null
+                }
+                icon={Landmark}
+              >
+                <FacilitiesEditorCard
+                  propertyId={id}
+                  embedded
+                />
+              </IntegratedEditorCard>
+              {canSeeCommentSection ? (
+                <IntegratedEditorCard
+                  title="감정평가사 메모"
+                  description="감정평가사가 직접 평가한 메모"
+                  status={completion?.commentStatus ?? "none"}
+                  summary={
+                    completion?.commentStatus !== "none"
+                      ? "메모가 등록되었습니다"
+                      : null
+                  }
+                  icon={Landmark}
+                >
+                  <CommentEditorCard propertyId={id} />
+                </IntegratedEditorCard>
+              ) : null}
+            </section>
+          ) : null}
         </div>
       </PageContainer>
     </main>

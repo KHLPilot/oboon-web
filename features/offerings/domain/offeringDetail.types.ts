@@ -54,6 +54,7 @@ export type PropertyUnitTypeRow = {
   orientation: string | null;
   unit_count: number | null;
   supply_count: number | null;
+  sort_order?: number | null;
 };
 
 export type PropertyFacilityRow = {
