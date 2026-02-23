@@ -89,12 +89,12 @@ async function syncPublicSnapshot(propertyId: number) {
   const maskedUnitTypes = asArray(property.property_unit_types).map((unit) => {
     const floorPlanUrl =
       floorPlanByUnitTypeId.get(unit.id) ?? normalizeUrl(unit.floor_plan_url);
-    const unitImageUrl = floorPlanUrl ?? normalizeUrl(unit.image_url);
+    const unitWithoutLegacyImage = { ...(unit as Record<string, unknown>) };
+    delete unitWithoutLegacyImage.image_url;
 
     const nextUnit = {
-      ...unit,
+      ...unitWithoutLegacyImage,
       floor_plan_url: floorPlanUrl,
-      image_url: unitImageUrl,
     };
 
     if (unit?.is_price_public === false) {

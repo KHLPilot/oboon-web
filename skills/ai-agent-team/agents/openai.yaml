@@ -1,0 +1,7 @@
+interface:
+  display_name: "AI Agent Team"
+  short_description: "Specialist agent reports with review gate"
+  default_prompt: "Use $ai-agent-team to run planner/test/review/security role reports after coding."
+
+policy:
+  allow_implicit_invocation: true

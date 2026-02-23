@@ -1,0 +1,7 @@
+interface:
+  display_name: "AI Auto Quality"
+  short_description: "Run automatic post-task quality gate checks"
+  default_prompt: "Use $ai-auto-quality to track touched files and run completion-time quality checks."
+
+policy:
+  allow_implicit_invocation: true

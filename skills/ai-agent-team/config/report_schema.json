@@ -1,0 +1,23 @@
+{
+  "required_report_fields": [
+    "agent_id",
+    "role",
+    "found",
+    "fixed",
+    "reason",
+    "risk",
+    "evidence",
+    "decision"
+  ],
+  "allowed_decisions": [
+    "pass",
+    "needs_fix",
+    "escalate"
+  ],
+  "allowed_risks": [
+    "low",
+    "medium",
+    "high",
+    "critical"
+  ]
+}

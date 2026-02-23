@@ -1,0 +1,19 @@
+{
+  "hooks": {
+    "session_start": {
+      "description": "Initialize file-touch tracking for a task.",
+      "command": "python3 scripts/change_tracker.py --task-id \"{task_id}\" --mode start",
+      "blocking": false
+    },
+    "on_edit": {
+      "description": "Record touched files while AI edits.",
+      "command": "python3 scripts/change_tracker.py --task-id \"{task_id}\" --mode record --changed-files \"{changed_files_json}\"",
+      "blocking": false
+    },
+    "post_task": {
+      "description": "Run quality gate after final answer.",
+      "command": "python3 scripts/post_quality_hook.py --task-id \"{task_id}\" --result \"{result}\" --changed-files \"{changed_files_json}\"",
+      "blocking": false
+    }
+  }
+}

@@ -15,9 +15,8 @@ type UnitTypeRow = {
   is_price_public?: boolean | null;
   is_public?: boolean | null;
 
-  // 이미지 URL (둘 중 하나 또는 둘 다 올 수 있음)
+  // 평면도 이미지 URL
   floor_plan_url: string | null;
-  image_url: string | null;
 
   // 8개 메타 정보
   exclusive_area: number | null; // 전용면적
@@ -65,9 +64,7 @@ function fmtText(s: string | null) {
 
 function pickImageUrl(u: UnitTypeRow) {
   const a = typeof u.floor_plan_url === "string" ? u.floor_plan_url.trim() : "";
-  const b = typeof u.image_url === "string" ? u.image_url.trim() : "";
   if (a) return a;
-  if (b) return b;
   return null;
 }
 

@@ -1,0 +1,7 @@
+interface:
+  display_name: "AI Work Memory"
+  short_description: "Prevent context loss with enforced memory docs"
+  default_prompt: "Use $ai-work-memory to enforce plan/context/checklist hooks for this task."
+
+policy:
+  allow_implicit_invocation: true

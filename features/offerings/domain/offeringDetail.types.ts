@@ -46,7 +46,6 @@ export type PropertyUnitTypeRow = {
   is_price_public?: boolean | null;
   is_public?: boolean | null;
   floor_plan_url: string | null;
-  image_url: string | null;
   exclusive_area: number | null;
   supply_area: number | null;
   rooms: number | null;

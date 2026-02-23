@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "pre_task": {
+      "description": "Unified pre-task chain: work-memory + auto-manual.",
+      "command": "python3 scripts/run_chain.py --mode pre --task-id \"{task_id}\" --request \"{request}\" --changed-files \"{changed_files_json}\"",
+      "blocking": true
+    },
+    "post_task": {
+      "description": "Unified post-task chain: auto-quality + auto-manual + work-memory.",
+      "command": "python3 scripts/run_chain.py --mode post --task-id \"{task_id}\" --result \"{result}\" --changed-files \"{changed_files_json}\" --completed-items \"{completed_items_json}\" --new-items \"{new_items_json}\"",
+      "blocking": false
+    }
+  }
+}

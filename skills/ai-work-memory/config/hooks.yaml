@@ -1,0 +1,19 @@
+{
+  "hooks": {
+    "pre_plan": {
+      "description": "Detect large task and enforce memory doc creation before execution.",
+      "command": "python3 scripts/pre_plan_hook.py --request \"{request}\" --changed-files \"{changed_files_json}\"",
+      "blocking": true
+    },
+    "pre_task": {
+      "description": "Load and validate work-memory docs before each implementation step.",
+      "command": "python3 scripts/pre_task_hook.py --request \"{request}\" --changed-files \"{changed_files_json}\"",
+      "blocking": true
+    },
+    "post_task": {
+      "description": "Update checklist and context notes after each step.",
+      "command": "python3 scripts/post_task_hook.py --result \"{result}\" --changed-files \"{changed_files_json}\" --completed-items \"{completed_items_json}\"",
+      "blocking": false
+    }
+  }
+}

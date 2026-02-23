@@ -1,0 +1,87 @@
+{
+  "agents": [
+    {
+      "id": "planning-analyst",
+      "role": "Planning Analyst",
+      "kind": "planner",
+      "enabled": true
+    },
+    {
+      "id": "test-analyst",
+      "role": "Test Analyst",
+      "kind": "tester",
+      "enabled": true
+    },
+    {
+      "id": "code-reviewer",
+      "role": "Code Reviewer",
+      "kind": "reviewer",
+      "enabled": true
+    },
+    {
+      "id": "security-reviewer",
+      "role": "Security Reviewer",
+      "kind": "security",
+      "enabled": true
+    }
+  ],
+  "checks": {
+    "tester": {
+      "result_must_mention_any": [
+        "test",
+        "validation",
+        "verify",
+        "lint",
+        "build",
+        "typecheck",
+        "pnpm"
+      ],
+      "test_file_globs": [
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.spec.ts",
+        "**/*.spec.tsx",
+        "tests/**"
+      ]
+    },
+    "reviewer": {
+      "fetch_trigger_regex": "\\bfetch\\s*\\(",
+      "error_handling_required_regex": [
+        "\\btry\\b[\\s\\S]{0,400}\\bcatch\\b",
+        "\\.catch\\s*\\("
+      ],
+      "consistency_keys": [
+        "quality_post.pass",
+        "manual_post.pass",
+        "memory_post.pass"
+      ]
+    },
+    "security": {
+      "file_globs": [
+        "**/*.ts",
+        "**/*.tsx",
+        "**/*.js",
+        "**/*.jsx",
+        "**/*.py"
+      ],
+      "critical_regex": [
+        "api[_-]?key\\s*[:=]\\s*[\"'][^\"']{12,}[\"']",
+        "secret\\s*[:=]\\s*[\"'][^\"']{10,}[\"']",
+        "password\\s*[:=]\\s*[\"'][^\"']{8,}[\"']"
+      ],
+      "high_regex": [
+        "\\beval\\s*\\(",
+        "\\bexec\\s*\\(",
+        "new\\s+Function\\s*\\("
+      ],
+      "medium_regex": [
+        "\\bconsole\\.log\\s*\\("
+      ]
+    }
+  },
+  "gate": {
+    "escalate_if_any_escalate": true,
+    "needs_fix_threshold_for_escalate": 3,
+    "default_action_when_needs_fix": "fix_now"
+  }
+}

@@ -66,7 +66,7 @@ const isUnitTypeRow = (value: unknown) =>
   isNullableString(value.type_name) &&
   isNullableNumber(value.price_min) &&
   isNullableNumber(value.price_max) &&
-  isNullableString(value.image_url);
+  (value.floor_plan_url === undefined || isNullableString(value.floor_plan_url));
 
 const isRecoPoiCategory = (value: unknown) =>
   value === "HOSPITAL" ||

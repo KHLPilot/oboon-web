@@ -120,6 +120,16 @@
     "rls_forced": false
   },
   {
+    "table_name": "profile_bank_accounts",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "profile_gallery_images",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
     "table_name": "profiles",
     "rls_enabled": true,
     "rls_forced": false
@@ -140,7 +150,7 @@
     "rls_forced": false
   },
   {
-    "table_name": "property_gallery_images",
+    "table_name": "property_image_assets",
     "rls_enabled": true,
     "rls_forced": false
   },
@@ -151,6 +161,16 @@
   },
   {
     "table_name": "property_public_snapshots",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "property_reco_poi_jobs",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "property_reco_pois",
     "rls_enabled": true,
     "rls_forced": false
   },

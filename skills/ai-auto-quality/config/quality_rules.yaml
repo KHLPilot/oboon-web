@@ -1,0 +1,94 @@
+{
+  "storage": {
+    "session_dir": ".ai-quality/sessions"
+  },
+  "routing": {
+    "critical_escalate_min": 1,
+    "high_escalate_min": 3,
+    "total_escalate_min": 7
+  },
+  "severity_rank": {
+    "critical": 4,
+    "high": 3,
+    "medium": 2,
+    "low": 1
+  },
+  "checks": [
+    {
+      "id": "hardcoded_secret",
+      "scope": "files",
+      "severity": "critical",
+      "matcher": "regex",
+      "condition": "must_not_match",
+      "patterns": [
+        "api[_-]?key\\s*[:=]\\s*[\"'][^\"']{12,}[\"']",
+        "secret\\s*[:=]\\s*[\"'][^\"']{10,}[\"']",
+        "password\\s*[:=]\\s*[\"'][^\"']{8,}[\"']"
+      ],
+      "file_globs": ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx", "**/*.py"],
+      "message": "민감정보 하드코딩 흔적이 있습니다."
+    },
+    {
+      "id": "dangerous_eval",
+      "scope": "files",
+      "severity": "high",
+      "matcher": "regex",
+      "condition": "must_not_match",
+      "patterns": [
+        "\\beval\\s*\\(",
+        "\\bexec\\s*\\(",
+        "new\\s+Function\\s*\\("
+      ],
+      "file_globs": ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx", "**/*.py"],
+      "message": "동적 코드 실행 패턴(eval/exec/new Function)이 감지되었습니다."
+    },
+    {
+      "id": "missing_error_handling_for_fetch",
+      "scope": "files",
+      "severity": "medium",
+      "matcher": "regex",
+      "condition": "must_match",
+      "patterns": [
+        "\\btry\\b[\\s\\S]{0,400}\\bcatch\\b",
+        "\\.catch\\s*\\("
+      ],
+      "requires_any_patterns": [
+        "\\bfetch\\s*\\("
+      ],
+      "file_globs": ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"],
+      "message": "fetch 사용 대비 에러 처리(try/catch 또는 .catch)가 부족합니다."
+    },
+    {
+      "id": "todo_left_in_code",
+      "scope": "files",
+      "severity": "low",
+      "matcher": "regex",
+      "condition": "must_not_match",
+      "patterns": [
+        "TODO",
+        "FIXME",
+        "HACK"
+      ],
+      "file_globs": ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx", "**/*.py"],
+      "message": "정리되지 않은 TODO/FIXME/HACK 메모가 남아 있습니다."
+    },
+    {
+      "id": "result_mentions_validation",
+      "scope": "result",
+      "severity": "low",
+      "matcher": "contains",
+      "condition": "must_match",
+      "patterns": ["test", "검증", "validation", "checked"],
+      "message": "결과 요약에 검증/테스트 언급이 없습니다."
+    }
+  ],
+  "reminder": {
+    "top_files_count": 2,
+    "questions": [
+      "방금 수정한 핵심 파일을 다시 열어 경계 조건을 확인했나요?",
+      "에러 처리 경로(실패/예외/타임아웃)를 추가했나요?",
+      "보안 위험(토큰/비밀값/권한 누락) 요소는 없는지 확인했나요?"
+    ],
+    "prefix": "셀프 체크 리마인더"
+  }
+}

@@ -14,6 +14,7 @@ type UnitType = {
   price_max: number | null;
   is_price_public?: boolean | null;
   is_public?: boolean | null;
+  floor_plan_url?: string | null;
 };
 
 type LocationRow = {
@@ -75,11 +76,18 @@ function getPriceRange(property: {
 
 function pickImage(property: {
   image_url: string | null;
-  property_unit_types: Array<{ image_url: string | null }> | { image_url: string | null } | null;
+  property_unit_types:
+    | Array<{ floor_plan_url?: string | null }>
+    | { floor_plan_url?: string | null }
+    | null;
 }) {
   if (property.image_url) return property.image_url;
-  const unitImage = asArray(property.property_unit_types).find((unit) => unit?.image_url)?.image_url;
-  return unitImage || null;
+  const unitFloorPlan = asArray(property.property_unit_types).find(
+    (unit) =>
+      typeof unit?.floor_plan_url === "string" &&
+      unit.floor_plan_url.trim().length > 0,
+  )?.floor_plan_url;
+  return unitFloorPlan || null;
 }
 
 const getOfferingDetailCached = cache(async (id: number) => fetchOfferingDetail(id));

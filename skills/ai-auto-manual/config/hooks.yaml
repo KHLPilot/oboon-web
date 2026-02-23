@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "pre_task": {
+      "description": "Run before coding starts. Enforce index-first manual loading.",
+      "command": "python3 scripts/pre_hook.py --request \"{request}\" --changed-files \"{changed_files_json}\"",
+      "blocking": true,
+      "require_index_first": true
+    },
+    "post_task": {
+      "description": "Run after coding completes. Check security, error handling, and omissions.",
+      "command": "python3 scripts/post_hook.py --result \"{result}\" --changed-files \"{changed_files_json}\" --selected-manuals \"{selected_manuals_json}\"",
+      "blocking": false
+    }
+  }
+}

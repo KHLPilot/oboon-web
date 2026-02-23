@@ -1,0 +1,7 @@
+interface:
+  display_name: "AI Hook Chain"
+  short_description: "One entrypoint for memory/manual/quality hooks"
+  default_prompt: "Use $ai-hook-chain to run pre/post integrated hooks for this task."
+
+policy:
+  allow_implicit_invocation: true

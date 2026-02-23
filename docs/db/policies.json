@@ -771,6 +771,56 @@
   },
   {
     "schemaname": "public",
+    "tablename": "profile_bank_accounts",
+    "policyname": "profile_bank_accounts_owner_all",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "(profile_id = auth.uid())",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "profile_gallery_images",
+    "policyname": "profile_gallery_images_delete_own",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "using_expression": "(auth.uid() = user_id)",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "profile_gallery_images",
+    "policyname": "profile_gallery_images_insert_own",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "(auth.uid() = user_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "profile_gallery_images",
+    "policyname": "profile_gallery_images_select_all",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "profile_gallery_images",
+    "policyname": "profile_gallery_images_update_own",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "UPDATE",
+    "using_expression": "(auth.uid() = user_id)",
+    "with_check_expression": "(auth.uid() = user_id)"
+  },
+  {
+    "schemaname": "public",
     "tablename": "profiles",
     "policyname": "admin_all_access",
     "permissive": "PERMISSIVE",
@@ -797,16 +847,6 @@
     "roles": "{public}",
     "cmd": "SELECT",
     "using_expression": "true",
-    "with_check_expression": null
-  },
-  {
-    "schemaname": "public",
-    "tablename": "profiles",
-    "policyname": "profiles_select_own",
-    "permissive": "PERMISSIVE",
-    "roles": "{public}",
-    "cmd": "SELECT",
-    "using_expression": "(auth.uid() = id)",
     "with_check_expression": null
   },
   {
@@ -876,8 +916,18 @@
     "permissive": "PERMISSIVE",
     "roles": "{public}",
     "cmd": "UPDATE",
-    "using_expression": "(EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = properties.id) AND (pa.agent_id = auth.uid()) AND ((pa.status)::text = 'approved'::text))))",
-    "with_check_expression": "(EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = properties.id) AND (pa.agent_id = auth.uid()) AND ((pa.status)::text = 'approved'::text))))"
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = properties.id) AND (pa.agent_id = auth.uid()) AND (pa.status = 'approved'::text))))",
+    "with_check_expression": "(EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = properties.id) AND (pa.agent_id = auth.uid()) AND (pa.status = 'approved'::text))))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "properties",
+    "policyname": "properties_insert_owner",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "((created_by = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = ANY (ARRAY['admin'::text, 'agent'::text, 'builder'::text, 'developer'::text]))))))"
   },
   {
     "schemaname": "public",
@@ -916,7 +966,7 @@
     "permissive": "PERMISSIVE",
     "roles": "{public}",
     "cmd": "SELECT",
-    "using_expression": "(((status)::text = 'approved'::text) OR (agent_id = auth.uid()) OR (EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))",
+    "using_expression": "((status = 'approved'::text) OR (agent_id = auth.uid()) OR (EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))",
     "with_check_expression": null
   },
   {
@@ -976,8 +1026,8 @@
     "permissive": "PERMISSIVE",
     "roles": "{public}",
     "cmd": "ALL",
-    "using_expression": "(EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = property_facilities.properties_id) AND (pa.agent_id = auth.uid()) AND ((pa.status)::text = 'approved'::text))))",
-    "with_check_expression": "(EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = property_facilities.properties_id) AND (pa.agent_id = auth.uid()) AND ((pa.status)::text = 'approved'::text))))"
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = property_facilities.properties_id) AND (pa.agent_id = auth.uid()) AND (pa.status = 'approved'::text))))",
+    "with_check_expression": "(EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = property_facilities.properties_id) AND (pa.agent_id = auth.uid()) AND (pa.status = 'approved'::text))))"
   },
   {
     "schemaname": "public",
@@ -991,43 +1041,43 @@
   },
   {
     "schemaname": "public",
-    "tablename": "property_gallery_images",
-    "policyname": "property_gallery_images_delete_manageable",
+    "tablename": "property_image_assets",
+    "policyname": "property_image_assets_delete_manageable",
     "permissive": "PERMISSIVE",
     "roles": "{public}",
     "cmd": "DELETE",
-    "using_expression": "((EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = 'admin'::text)))) OR (EXISTS ( SELECT 1\n   FROM properties pr\n  WHERE ((pr.id = property_gallery_images.property_id) AND (pr.created_by = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = property_gallery_images.property_id) AND (pa.agent_id = auth.uid()) AND ((pa.status)::text = 'approved'::text)))))",
+    "using_expression": "((EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = 'admin'::text)))) OR (EXISTS ( SELECT 1\n   FROM properties pr\n  WHERE ((pr.id = property_image_assets.property_id) AND (pr.created_by = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = property_image_assets.property_id) AND (pa.agent_id = auth.uid()) AND (pa.status = 'approved'::text)))))",
     "with_check_expression": null
   },
   {
     "schemaname": "public",
-    "tablename": "property_gallery_images",
-    "policyname": "property_gallery_images_insert_manageable",
+    "tablename": "property_image_assets",
+    "policyname": "property_image_assets_insert_manageable",
     "permissive": "PERMISSIVE",
     "roles": "{public}",
     "cmd": "INSERT",
     "using_expression": null,
-    "with_check_expression": "((EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = 'admin'::text)))) OR (EXISTS ( SELECT 1\n   FROM properties pr\n  WHERE ((pr.id = property_gallery_images.property_id) AND (pr.created_by = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = property_gallery_images.property_id) AND (pa.agent_id = auth.uid()) AND ((pa.status)::text = 'approved'::text)))))"
+    "with_check_expression": "((EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = 'admin'::text)))) OR (EXISTS ( SELECT 1\n   FROM properties pr\n  WHERE ((pr.id = property_image_assets.property_id) AND (pr.created_by = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = property_image_assets.property_id) AND (pa.agent_id = auth.uid()) AND (pa.status = 'approved'::text)))))"
   },
   {
     "schemaname": "public",
-    "tablename": "property_gallery_images",
-    "policyname": "property_gallery_images_select_manageable",
+    "tablename": "property_image_assets",
+    "policyname": "property_image_assets_select_manageable",
     "permissive": "PERMISSIVE",
     "roles": "{public}",
     "cmd": "SELECT",
-    "using_expression": "((EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = 'admin'::text)))) OR (EXISTS ( SELECT 1\n   FROM properties pr\n  WHERE ((pr.id = property_gallery_images.property_id) AND (pr.created_by = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = property_gallery_images.property_id) AND (pa.agent_id = auth.uid()) AND ((pa.status)::text = 'approved'::text)))))",
+    "using_expression": "((EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = 'admin'::text)))) OR (EXISTS ( SELECT 1\n   FROM properties pr\n  WHERE ((pr.id = property_image_assets.property_id) AND (pr.created_by = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = property_image_assets.property_id) AND (pa.agent_id = auth.uid()) AND (pa.status = 'approved'::text)))))",
     "with_check_expression": null
   },
   {
     "schemaname": "public",
-    "tablename": "property_gallery_images",
-    "policyname": "property_gallery_images_update_manageable",
+    "tablename": "property_image_assets",
+    "policyname": "property_image_assets_update_manageable",
     "permissive": "PERMISSIVE",
     "roles": "{public}",
     "cmd": "UPDATE",
-    "using_expression": "((EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = 'admin'::text)))) OR (EXISTS ( SELECT 1\n   FROM properties pr\n  WHERE ((pr.id = property_gallery_images.property_id) AND (pr.created_by = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = property_gallery_images.property_id) AND (pa.agent_id = auth.uid()) AND ((pa.status)::text = 'approved'::text)))))",
-    "with_check_expression": "((EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = 'admin'::text)))) OR (EXISTS ( SELECT 1\n   FROM properties pr\n  WHERE ((pr.id = property_gallery_images.property_id) AND (pr.created_by = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = property_gallery_images.property_id) AND (pa.agent_id = auth.uid()) AND ((pa.status)::text = 'approved'::text)))))"
+    "using_expression": "((EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = 'admin'::text)))) OR (EXISTS ( SELECT 1\n   FROM properties pr\n  WHERE ((pr.id = property_image_assets.property_id) AND (pr.created_by = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = property_image_assets.property_id) AND (pa.agent_id = auth.uid()) AND (pa.status = 'approved'::text)))))",
+    "with_check_expression": "((EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = 'admin'::text)))) OR (EXISTS ( SELECT 1\n   FROM properties pr\n  WHERE ((pr.id = property_image_assets.property_id) AND (pr.created_by = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = property_image_assets.property_id) AND (pa.agent_id = auth.uid()) AND (pa.status = 'approved'::text)))))"
   },
   {
     "schemaname": "public",
@@ -1076,8 +1126,8 @@
     "permissive": "PERMISSIVE",
     "roles": "{public}",
     "cmd": "ALL",
-    "using_expression": "(EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = property_locations.properties_id) AND (pa.agent_id = auth.uid()) AND ((pa.status)::text = 'approved'::text))))",
-    "with_check_expression": "(EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = property_locations.properties_id) AND (pa.agent_id = auth.uid()) AND ((pa.status)::text = 'approved'::text))))"
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = property_locations.properties_id) AND (pa.agent_id = auth.uid()) AND (pa.status = 'approved'::text))))",
+    "with_check_expression": "(EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = property_locations.properties_id) AND (pa.agent_id = auth.uid()) AND (pa.status = 'approved'::text))))"
   },
   {
     "schemaname": "public",
@@ -1093,6 +1143,36 @@
     "schemaname": "public",
     "tablename": "property_public_snapshots",
     "policyname": "property_public_snapshots_select_all",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_reco_poi_jobs",
+    "policyname": "property_reco_poi_jobs_admin_all",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = 'admin'::text))))",
+    "with_check_expression": "(EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = 'admin'::text))))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_reco_pois",
+    "policyname": "property_reco_pois_admin_all",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = 'admin'::text))))",
+    "with_check_expression": "(EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = 'admin'::text))))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_reco_pois",
+    "policyname": "property_reco_pois_select_all",
     "permissive": "PERMISSIVE",
     "roles": "{public}",
     "cmd": "SELECT",
@@ -1196,8 +1276,8 @@
     "permissive": "PERMISSIVE",
     "roles": "{public}",
     "cmd": "ALL",
-    "using_expression": "(EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = property_specs.properties_id) AND (pa.agent_id = auth.uid()) AND ((pa.status)::text = 'approved'::text))))",
-    "with_check_expression": "(EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = property_specs.properties_id) AND (pa.agent_id = auth.uid()) AND ((pa.status)::text = 'approved'::text))))"
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = property_specs.properties_id) AND (pa.agent_id = auth.uid()) AND (pa.status = 'approved'::text))))",
+    "with_check_expression": "(EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = property_specs.properties_id) AND (pa.agent_id = auth.uid()) AND (pa.status = 'approved'::text))))"
   },
   {
     "schemaname": "public",
@@ -1256,8 +1336,8 @@
     "permissive": "PERMISSIVE",
     "roles": "{public}",
     "cmd": "ALL",
-    "using_expression": "(EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = property_timeline.properties_id) AND (pa.agent_id = auth.uid()) AND ((pa.status)::text = 'approved'::text))))",
-    "with_check_expression": "(EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = property_timeline.properties_id) AND (pa.agent_id = auth.uid()) AND ((pa.status)::text = 'approved'::text))))"
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = property_timeline.properties_id) AND (pa.agent_id = auth.uid()) AND (pa.status = 'approved'::text))))",
+    "with_check_expression": "(EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = property_timeline.properties_id) AND (pa.agent_id = auth.uid()) AND (pa.status = 'approved'::text))))"
   },
   {
     "schemaname": "public",
@@ -1316,8 +1396,8 @@
     "permissive": "PERMISSIVE",
     "roles": "{public}",
     "cmd": "ALL",
-    "using_expression": "(EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = property_unit_types.properties_id) AND (pa.agent_id = auth.uid()) AND ((pa.status)::text = 'approved'::text))))",
-    "with_check_expression": "(EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = property_unit_types.properties_id) AND (pa.agent_id = auth.uid()) AND ((pa.status)::text = 'approved'::text))))"
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = property_unit_types.properties_id) AND (pa.agent_id = auth.uid()) AND (pa.status = 'approved'::text))))",
+    "with_check_expression": "(EXISTS ( SELECT 1\n   FROM property_agents pa\n  WHERE ((pa.property_id = property_unit_types.properties_id) AND (pa.agent_id = auth.uid()) AND (pa.status = 'approved'::text))))"
   },
   {
     "schemaname": "public",
@@ -1542,6 +1622,16 @@
   {
     "schemaname": "public",
     "tablename": "visit_confirm_requests",
+    "policyname": "Agents can manage own requests",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "(auth.uid() = agent_id)",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "visit_confirm_requests",
     "policyname": "visit_confirm_requests_insert",
     "permissive": "PERMISSIVE",
     "roles": "{public}",
@@ -1572,6 +1662,16 @@
   {
     "schemaname": "public",
     "tablename": "visit_logs",
+    "policyname": "Agents can read own logs",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "(auth.uid() = agent_id)",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "visit_logs",
     "policyname": "visit_logs_insert",
     "permissive": "PERMISSIVE",
     "roles": "{public}",
@@ -1587,6 +1687,16 @@
     "roles": "{public}",
     "cmd": "SELECT",
     "using_expression": "((agent_id = auth.uid()) OR (customer_id = auth.uid()) OR (EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "visit_tokens",
+    "policyname": "Agents can manage own tokens",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "(auth.uid() = agent_id)",
     "with_check_expression": null
   },
   {

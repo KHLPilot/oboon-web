@@ -1,0 +1,9 @@
+{
+  "hooks": {
+    "post_task": {
+      "description": "Run specialist agent pipeline after implementation.",
+      "command": "python3 scripts/run_agent_pipeline.py --task-id \"{task_id}\" --request \"{request}\" --result \"{result}\" --changed-files \"{changed_files_json}\" --context-json \"{context_json}\"",
+      "blocking": false
+    }
+  }
+}

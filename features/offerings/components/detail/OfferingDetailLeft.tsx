@@ -78,8 +78,8 @@ function pickHeroImageUrl(p: PropertyRow) {
 
   const unitTypes = asArray<PropertyUnitTypeRow>(p.property_unit_types);
   const fallback = unitTypes.find((u) =>
-    isLikelyImageUrl(u.image_url),
-  )?.image_url;
+    isLikelyImageUrl(u.floor_plan_url),
+  )?.floor_plan_url;
   return fallback ?? null;
 }
 

@@ -3,5 +3,38 @@
     "allow": [
       "Bash(pnpm add:*)"
     ]
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 /Users/songzo/KHL_Pilot/oboon-web/skills/ai-hook-chain/scripts/claude_pre_hook.py"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 /Users/songzo/KHL_Pilot/oboon-web/skills/ai-hook-chain/scripts/claude_record_hook.py"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 /Users/songzo/KHL_Pilot/oboon-web/skills/ai-hook-chain/scripts/claude_post_hook.py"
+          }
+        ]
+      }
+    ]
   }
 }

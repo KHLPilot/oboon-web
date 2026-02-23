@@ -1,0 +1,209 @@
+{
+  "manuals": {
+    "backend": {
+      "title": "Backend Manual",
+      "path": "manuals/backend.md"
+    },
+    "frontend": {
+      "title": "Frontend Manual",
+      "path": "manuals/frontend.md"
+    },
+    "security": {
+      "title": "Security Manual",
+      "path": "manuals/security.md"
+    },
+    "error-handling": {
+      "title": "Error Handling Manual",
+      "path": "manuals/error-handling.md"
+    }
+  },
+  "weights": {
+    "keyword": 3,
+    "intent": 4,
+    "path": 2,
+    "content": 5
+  },
+  "keyword_rules": [
+    {
+      "id": "backend_keywords",
+      "manuals": ["backend"],
+      "matcher": "contains",
+      "patterns": [
+        "\ubc31\uc5d4\ub4dc",
+        "backend",
+        "api",
+        "\uc11c\ubc84",
+        "server",
+        "db",
+        "database"
+      ]
+    },
+    {
+      "id": "frontend_keywords",
+      "manuals": ["frontend"],
+      "matcher": "contains",
+      "patterns": [
+        "\ud504\ub860\ud2b8\uc5d4\ub4dc",
+        "frontend",
+        "ui",
+        "component",
+        "\ucef4\ud3ec\ub10c\ud2b8"
+      ]
+    },
+    {
+      "id": "security_keywords",
+      "manuals": ["security"],
+      "matcher": "contains",
+      "patterns": [
+        "\ubcf4\uc548",
+        "security",
+        "auth",
+        "token",
+        "csrf"
+      ]
+    }
+  ],
+  "intent_rules": [
+    {
+      "id": "feature_creation_intent",
+      "manuals": ["backend", "frontend", "error-handling"],
+      "matcher": "contains",
+      "patterns": [
+        "\ucd94\uac00\ud574\uc918",
+        "\uc0c8 \uae30\ub2a5 \ub9cc\ub4e4\uc5b4\uc918",
+        "\uad6c\ud604\ud574\uc918",
+        "\ub9cc\ub4e4\uc5b4\uc918",
+        "add feature",
+        "implement",
+        "create feature"
+      ]
+    },
+    {
+      "id": "bug_fix_intent",
+      "manuals": ["error-handling"],
+      "matcher": "contains",
+      "patterns": [
+        "\uc5d0\ub7ec",
+        "\ubc84\uadf8",
+        "bug",
+        "fix",
+        "exception"
+      ]
+    }
+  ],
+  "path_rules": [
+    {
+      "id": "backend_paths",
+      "manuals": ["backend"],
+      "matcher": "glob",
+      "patterns": [
+        "app/api/**",
+        "actions/**",
+        "supabase/**",
+        "lib/server/**"
+      ]
+    },
+    {
+      "id": "frontend_paths",
+      "manuals": ["frontend"],
+      "matcher": "glob",
+      "patterns": [
+        "components/**",
+        "features/**",
+        "app/**/page.tsx",
+        "app/**/layout.tsx"
+      ]
+    }
+  ],
+  "content_rules": [
+    {
+      "id": "missing_try_catch_content",
+      "manuals": ["error-handling"],
+      "criterion": "content",
+      "condition": "absent",
+      "pattern": "\\btry\\b[\\s\\S]{0,400}\\bcatch\\b",
+      "file_globs": [
+        "**/*.ts",
+        "**/*.tsx",
+        "**/*.js",
+        "**/*.jsx",
+        "**/*.py"
+      ],
+      "description": "No try/catch block detected in changed source files."
+    },
+    {
+      "id": "fetch_usage_security",
+      "manuals": ["security"],
+      "criterion": "content",
+      "condition": "present",
+      "pattern": "\\bfetch\\s*\\(",
+      "file_globs": [
+        "**/*.ts",
+        "**/*.tsx",
+        "**/*.js",
+        "**/*.jsx"
+      ],
+      "description": "fetch usage detected and API security guidance is required."
+    }
+  ],
+  "post_checks": [
+    {
+      "id": "security_fetch_guard",
+      "category": "security",
+      "applies_to": ["security", "backend", "frontend"],
+      "scope": "files",
+      "condition": "must_match",
+      "patterns": [
+        "Authorization",
+        "auth",
+        "csrf",
+        "x-api-key",
+        "AbortController",
+        "timeout"
+      ],
+      "file_globs": [
+        "**/*.ts",
+        "**/*.tsx",
+        "**/*.js",
+        "**/*.jsx"
+      ],
+      "message": "API protection hint is missing (auth header, CSRF, API key, or timeout/abort guard)."
+    },
+    {
+      "id": "error_handling_presence",
+      "category": "error-handling",
+      "applies_to": ["error-handling", "backend"],
+      "scope": "files",
+      "condition": "must_match",
+      "patterns": [
+        "\\btry\\b[\\s\\S]{0,400}\\bcatch\\b",
+        "\\.catch\\s*\\("
+      ],
+      "file_globs": [
+        "**/*.ts",
+        "**/*.tsx",
+        "**/*.js",
+        "**/*.jsx",
+        "**/*.py"
+      ],
+      "message": "Error handling pattern is missing (try/catch or .catch)."
+    },
+    {
+      "id": "result_mentions_quality",
+      "category": "completeness",
+      "applies_to": [],
+      "scope": "result",
+      "condition": "must_match",
+      "patterns": [
+        "test",
+        "validation",
+        "security",
+        "error",
+        "\uac80\uc99d",
+        "\ubcf4\uc548",
+        "\uc5d0\ub7ec"
+      ],
+      "message": "Result summary does not mention validation, security, or error handling."
+    }
+  ]
+}

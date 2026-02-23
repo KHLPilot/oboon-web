@@ -1,0 +1,201 @@
+{
+  "document_paths": {
+    "plan": ".ai-memory/plan.md",
+    "context": ".ai-memory/context.md",
+    "checklist": ".ai-memory/checklist.md"
+  },
+  "limits": {
+    "max_in_progress": 2
+  },
+  "large_task_detection": {
+    "threshold": 7,
+    "request_length_threshold": 90,
+    "weights": {
+      "keyword": 2,
+      "intent": 3,
+      "path": 3,
+      "length": 1
+    },
+    "keyword_rules": [
+      {
+        "id": "backend_scope",
+        "matcher": "contains",
+        "patterns": ["백엔드", "backend", "api", "서버", "service", "repository"]
+      },
+      {
+        "id": "frontend_scope",
+        "matcher": "contains",
+        "patterns": ["프론트엔드", "frontend", "ui", "component", "화면", "page", "layout"]
+      },
+      {
+        "id": "security_scope",
+        "matcher": "contains",
+        "patterns": [
+          "보안",
+          "security",
+          "auth",
+          "인증",
+          "권한",
+          "token",
+          "csrf",
+          "비밀키",
+          "secret"
+        ]
+      },
+      {
+        "id": "db_rls_scope",
+        "matcher": "contains",
+        "patterns": [
+          "db",
+          "database",
+          "schema",
+          "migration",
+          "마이그레이션",
+          "supabase",
+          "rls",
+          "policy",
+          "정책"
+        ]
+      },
+      {
+        "id": "domain_scope",
+        "matcher": "contains",
+        "patterns": [
+          "consultation",
+          "상담",
+          "visit",
+          "방문",
+          "offering",
+          "분양",
+          "property",
+          "매물",
+          "briefing",
+          "notification",
+          "알림"
+        ]
+      },
+      {
+        "id": "refactor_scope",
+        "matcher": "contains",
+        "patterns": ["리팩토링", "refactor", "재구성", "구조 변경", "architecture", "레이어"]
+      }
+    ],
+    "intent_rules": [
+      {
+        "id": "feature_creation",
+        "matcher": "contains",
+        "patterns": [
+          "추가해줘",
+          "새 기능",
+          "구현해줘",
+          "만들어줘",
+          "implement",
+          "create"
+        ]
+      },
+      {
+        "id": "policy_or_schema_change",
+        "matcher": "contains",
+        "patterns": [
+          "RLS",
+          "정책 바꿔",
+          "policy 변경",
+          "schema 변경",
+          "마이그레이션",
+          "supabase db",
+          "권한 변경"
+        ]
+      },
+      {
+        "id": "multi_step_request",
+        "matcher": "contains",
+        "patterns": [
+          "처음부터 끝까지",
+          "전체",
+          "end-to-end",
+          "full flow",
+          "전부"
+        ]
+      }
+    ],
+    "path_rules": [
+      {
+        "id": "api_folder",
+        "matcher": "glob",
+        "patterns": ["app/api/**", "actions/**", "lib/server/**"]
+      },
+      {
+        "id": "ui_folder",
+        "matcher": "glob",
+        "patterns": ["components/**", "features/**", "app/**/page.tsx"]
+      },
+      {
+        "id": "db_security_folder",
+        "matcher": "glob",
+        "patterns": [
+          "supabase/**",
+          "supabase/migrations/**",
+          "docs/db/**",
+          "lib/supabase/**",
+          "app/api/auth/**"
+        ]
+      },
+      {
+        "id": "core_domain_folder",
+        "matcher": "glob",
+        "patterns": [
+          "features/consultations/**",
+          "features/map/**",
+          "features/offerings/**",
+          "features/property/**",
+          "features/notifications/**"
+        ]
+      }
+    ]
+  },
+  "plan_rules": {
+    "required_status": "APPROVED",
+    "status_key": "Status:"
+  },
+  "result_extractors": {
+    "completed_prefixes": ["Completed:", "완료:", "완료됨:", "Done:"],
+    "decision_prefixes": ["Decision:", "결정:", "근거:"],
+    "next_prefixes": ["Next:", "다음:", "후속:", "Todo:"]
+  },
+  "post_quality_checks": [
+    {
+      "id": "result_has_outcome",
+      "matcher": "contains",
+      "condition": "must_match",
+      "patterns": ["completed", "완료", "done", "구현", "수정", "반영"],
+      "message": "결과 요약에 완료된 작업이 명시되지 않았습니다."
+    },
+    {
+      "id": "result_has_decision",
+      "matcher": "contains",
+      "condition": "must_match",
+      "patterns": ["decision", "결정", "because", "이유", "근거", "tradeoff"],
+      "message": "결정 근거가 누락되었습니다."
+    },
+    {
+      "id": "result_has_next_step",
+      "matcher": "contains",
+      "condition": "must_match",
+      "patterns": ["next", "다음", "todo", "후속"],
+      "message": "다음 작업 항목이 누락되었습니다."
+    },
+    {
+      "id": "result_mentions_validation_command",
+      "matcher": "contains",
+      "condition": "must_match",
+      "patterns": ["test", "검증", "validation", "lint", "build", "typecheck", "pnpm"],
+      "message": "검증/체크 명령 또는 검증 결과 요약이 누락되었습니다."
+    }
+  ],
+  "messages": {
+    "plan_gate": "대형/고위험 작업입니다. plan.md를 먼저 검토하고 승인한 뒤 진행하세요. ARCHITECTURE.md와 ENGINEERING_RULES.md 기준을 계획에 반영하세요.",
+    "approval_gate": "계획서가 아직 승인되지 않았습니다. .ai-memory/plan.md의 Status를 APPROVED로 변경한 후 진행하세요.",
+    "in_progress_limit": "동시 진행 작업 한도를 초과했습니다. 한 번에 1~2개만 진행하고 기존 in-progress 항목을 먼저 완료하세요.",
+    "post_reminder_template": "작업 기억 업데이트 누락: {missing_items}"
+  }
+}

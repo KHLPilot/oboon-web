@@ -1,0 +1,7 @@
+interface:
+  display_name: "AI Auto Manual"
+  short_description: "Auto-enforce manuals before and after coding tasks"
+  default_prompt: "Use $ai-auto-manual to run pre/post hooks and enforce manual-based quality checks."
+
+policy:
+  allow_implicit_invocation: true
