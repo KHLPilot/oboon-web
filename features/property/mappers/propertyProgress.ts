@@ -31,6 +31,7 @@ export type TimelineRow = {
   contract_start?: string | null;
   contract_end?: string | null;
   move_in_date?: string | null;
+  move_in_text?: string | null;
 };
 
 export type SectionStatus = "none" | "partial" | "full";
@@ -116,6 +117,7 @@ export function getPropertySectionStatus(row: PropertyProgressRow) {
         timelineRow.contract_start,
         timelineRow.contract_end,
         timelineRow.move_in_date,
+        timelineRow.move_in_text,
       ])
     : "none";
 

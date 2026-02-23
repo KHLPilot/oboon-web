@@ -2,7 +2,7 @@ import { createSupabaseClient } from "@/lib/supabaseClient";
 
 export async function fetchPropertyDetail(id: number) {
   const supabase = createSupabaseClient();
-  return supabase
+  const propertyResult = await supabase
     .from("properties")
     .select(
       `
@@ -16,6 +16,35 @@ export async function fetchPropertyDetail(id: number) {
     )
     .eq("id", id)
     .single();
+
+  if (propertyResult.error || !propertyResult.data) {
+    return propertyResult;
+  }
+
+  const mainImageResult = await supabase
+    .from("property_image_assets")
+    .select("image_url")
+    .eq("property_id", id)
+    .eq("kind", "main")
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  const mainImageUrl =
+    typeof mainImageResult.data?.image_url === "string" &&
+    mainImageResult.data.image_url.trim().length > 0
+      ? mainImageResult.data.image_url.trim()
+      : null;
+
+  return {
+    data: {
+      ...propertyResult.data,
+      image_url: mainImageUrl,
+    },
+    error: propertyResult.error,
+  };
 }
 
 export async function updatePropertyBasicInfo(

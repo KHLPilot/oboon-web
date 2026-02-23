@@ -337,7 +337,7 @@ export default function OfferingDetailLeft({
       .filter((n): n is number => n !== null)
       .sort((a, b) => b - a)[0] ?? null;
 
-  const moveIn = fmtYMOrYMD(timeline0?.move_in_date);
+  const moveIn = pickFirstNonEmpty(timeline0?.move_in_text) ?? fmtYMOrYMD(timeline0?.move_in_date);
   const hasTimeline =
     timeline0?.announcement_date != null ||
     timeline0?.application_start != null ||
@@ -345,7 +345,8 @@ export default function OfferingDetailLeft({
     timeline0?.winner_announce != null ||
     timeline0?.contract_start != null ||
     timeline0?.contract_end != null ||
-    timeline0?.move_in_date != null;
+    timeline0?.move_in_date != null ||
+    timeline0?.move_in_text != null;
   const businessInfoItems = [
     { label: "건물 유형", value: fmtText(p.property_type) },
     { label: "주소", value: address },
@@ -910,14 +911,16 @@ export default function OfferingDetailLeft({
                 />
                 <StatCard
                   label="입주 예정"
-                  value={fmtYMOrYMD(timeline0?.move_in_date)}
+                  value={
+                    pickFirstNonEmpty(timeline0?.move_in_text) ??
+                    fmtYMOrYMD(timeline0?.move_in_date)
+                  }
                 />
               </div>
 
               <div className="mt-2 px-2 py-1 ob-typo-caption text-(--oboon-text-muted)">
-                입주 예정일은 &quot;년도-월&quot; 또는 &quot;년도-월-일&quot;
-                형식이 혼재할 수 있어요.
-                <br />월 단위 표기는 해당 월로 안내되는 정보를 의미합니다.
+                입주 예정 정보는 일정 특성에 맞춰 날짜 또는 안내 문구로
+                표시됩니다.
               </div>
             </Card>
           </div>

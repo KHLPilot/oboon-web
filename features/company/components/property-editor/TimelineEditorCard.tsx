@@ -5,8 +5,8 @@ import { CalendarDays } from "lucide-react";
 
 import Button, { type ButtonProps } from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
+import Input from "@/components/ui/Input";
 import OboonDatePicker from "@/components/ui/DatePicker";
-import PrecisionDateInput from "@/components/ui/PercisionDateInput";
 import { fetchPropertyTimeline, savePropertyTimeline } from "@/features/company/services/property.timeline";
 import { showAlert } from "@/shared/alert";
 import { toKoreanErrorMessage } from "@/shared/errorMessage";
@@ -18,7 +18,7 @@ type TimelineForm = {
   winner_announce: string | null;
   contract_start: string | null;
   contract_end: string | null;
-  move_in_date: string | null;
+  move_in_text: string | null;
 };
 
 const EMPTY_FORM: TimelineForm = {
@@ -28,7 +28,7 @@ const EMPTY_FORM: TimelineForm = {
   winner_announce: null,
   contract_start: null,
   contract_end: null,
-  move_in_date: null,
+  move_in_text: null,
 };
 
 const FIELDS: {
@@ -42,7 +42,6 @@ const FIELDS: {
   { key: "winner_announce", label: "당첨자 발표", placeholder: "예) 2025-07-21" },
   { key: "contract_start", label: "계약 시작", placeholder: "예) 2025-07-25" },
   { key: "contract_end", label: "계약 종료", placeholder: "예) 2025-07-28" },
-  { key: "move_in_date", label: "입주 예정일", placeholder: "예) 2026-03 또는 2026-03-01" },
 ];
 
 function parseYmdToLocalDate(ymd: string | null | undefined): Date | null {
@@ -90,7 +89,6 @@ export default function TimelineEditorCard({
   const [form, setForm] = useState<TimelineForm>(EMPTY_FORM);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [moveInPrecision, setMoveInPrecision] = useState<"day" | "month">("day");
   const [timelineId, setTimelineId] = useState<number | null>(null);
 
   const INPUT_LIKE = useMemo(
@@ -117,13 +115,6 @@ export default function TimelineEditorCard({
       if (!alive) return;
       if (!error && data) {
         setTimelineId(data.id);
-        let moveInDate = data.move_in_date;
-        let precision: "day" | "month" = "day";
-        if (moveInDate && typeof moveInDate === "string" && moveInDate.endsWith("-01")) {
-          precision = "month";
-          moveInDate = moveInDate.substring(0, 7);
-        }
-        setMoveInPrecision(precision);
         setForm({
           announcement_date: data.announcement_date,
           application_start: data.application_start,
@@ -131,7 +122,7 @@ export default function TimelineEditorCard({
           winner_announce: data.winner_announce,
           contract_start: data.contract_start,
           contract_end: data.contract_end,
-          move_in_date: moveInDate,
+          move_in_text: data.move_in_text ?? data.move_in_date,
         });
       } else {
         setTimelineId(null);
@@ -149,11 +140,8 @@ export default function TimelineEditorCard({
     setSaving(true);
     const payload = {
       ...form,
-      move_in_date: form.move_in_date
-        ? moveInPrecision === "month"
-          ? `${form.move_in_date}-01`
-          : form.move_in_date
-        : null,
+      move_in_text: form.move_in_text?.trim() || null,
+      move_in_date: null,
     };
 
     const { data, error } = await savePropertyTimeline(propertyId, payload, timelineId);
@@ -189,42 +177,35 @@ export default function TimelineEditorCard({
         <h2 className="ob-typo-h3 text-(--oboon-text-title)">일정 입력</h2>
         <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
           {FIELDS.map((field) => {
-            const isMoveIn = field.key === "move_in_date";
             return (
-              <div key={field.key} className="space-y-2">
-                <label className="ob-typo-body text-(--oboon-text-title)">{field.label}</label>
-                {isMoveIn ? (
-                  <>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Button variant={moveInPrecision === "month" ? "primary" : "secondary"} size="sm" shape="pill" onClick={() => setMoveInPrecision("month")}>월(YYYY-MM)</Button>
-                      <Button variant={moveInPrecision === "day" ? "primary" : "secondary"} size="sm" shape="pill" onClick={() => setMoveInPrecision("day")}>일(YYYY-MM-DD)</Button>
-                    </div>
-                    <PrecisionDateInput
-                      value={form.move_in_date}
-                      onChange={(next) => setForm((prev) => ({ ...prev, move_in_date: next }))}
-                      policy="both"
-                      defaultPrecision={moveInPrecision}
-                      inputClassName={INPUT_LIKE}
-                      placeholder={moveInPrecision === "month" ? "예) 2026-03" : "예) 2026-03-01"}
-                    />
-                  </>
-                ) : (
-                  <OboonDatePicker
-                    selected={parseYmdToLocalDate(form[field.key])}
-                    onChange={(date: Date | null) => {
-                      const dateStr = formatLocalDateToYmd(date);
-                      setForm((prev) => ({ ...prev, [field.key]: dateStr }));
-                    }}
-                    dateFormat="yyyy-MM-dd"
-                    textFormat="yyyy-MM-dd"
-                    inputClassName={INPUT_LIKE}
-                    placeholder={field.placeholder}
-                    customTrigger={(props) => <TimelineDateTrigger {...props} />}
-                  />
-                )}
+              <div key={field.key}>
+                <label className="mb-2 block ob-typo-subtitle text-(--oboon-text-title)">{field.label}</label>
+                <OboonDatePicker
+                  selected={parseYmdToLocalDate(form[field.key])}
+                  onChange={(date: Date | null) => {
+                    const dateStr = formatLocalDateToYmd(date);
+                    setForm((prev) => ({ ...prev, [field.key]: dateStr }));
+                  }}
+                  dateFormat="yyyy-MM-dd"
+                  textFormat="yyyy-MM-dd"
+                  inputClassName={INPUT_LIKE}
+                  placeholder={field.placeholder}
+                  customTrigger={(props) => <TimelineDateTrigger {...props} />}
+                />
               </div>
             );
           })}
+          <div className="md:col-span-2">
+            <label className="mb-2 block ob-typo-subtitle text-(--oboon-text-title)">입주 예정</label>
+            <Input
+              className={INPUT_LIKE}
+              value={form.move_in_text ?? ""}
+              onChange={(e) =>
+                setForm((prev) => ({ ...prev, move_in_text: e.target.value }))
+              }
+              placeholder="예) '2026년 3월 1일' 또는 '2026년 3월 입주 예정'"
+            />
+          </div>
         </div>
       </Card>
     </div>

@@ -47,7 +47,8 @@ const isTimelineRow = (value: unknown) =>
   isNullableString(value.winner_announce) &&
   isNullableString(value.contract_start) &&
   isNullableString(value.contract_end) &&
-  isNullableString(value.move_in_date);
+  isNullableString(value.move_in_date) &&
+  (value.move_in_text === undefined || isNullableString(value.move_in_text));
 
 const isFacilityRow = (value: unknown) =>
   isRecord(value) &&

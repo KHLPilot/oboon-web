@@ -23,6 +23,11 @@ type UnitTypesPageProps = {
   onAfterSave?: () => void | Promise<void>;
 };
 
+type NewUnitRow = {
+  key: string;
+  draft: UnitDraft;
+};
+
 function buildDraftFromRow(row: UnitRow): UnitDraft {
   return {
     properties_id: row.properties_id,
@@ -139,6 +144,8 @@ const INPUT_3_DIGIT_CLASS = "mx-auto w-[6ch] text-center px-2";
 const INPUT_1_DIGIT_CLASS = "mx-auto w-[4.5ch] text-center px-2";
 const INPUT_3_CHAR_CLASS = "mx-auto w-[6ch] text-center px-2";
 const INPUT_4_DIGIT_CLASS = "mx-auto w-[7ch] text-center px-2";
+const INPUT_6_CHAR_CLASS = "mx-auto w-[10ch] text-center px-2";
+const INPUT_8_CHAR_CLASS = "mx-auto w-[12ch] text-center px-2";
 
 function hasAnyInput(draft: UnitDraft) {
   return Boolean(
@@ -229,8 +236,10 @@ export default function UnitTypesPage({
     useUnitTypes(safePropertyId);
 
   const [rowDrafts, setRowDrafts] = useState<Record<number, UnitDraft>>({});
-  const [newRows, setNewRows] = useState<UnitDraft[]>([]);
-  const [unitOrder, setUnitOrder] = useState<number[]>([]);
+  const [newRows, setNewRows] = useState<NewUnitRow[]>([]);
+  const [rowSequence, setRowSequence] = useState<string[]>([]);
+  const [newRowKeySeq, setNewRowKeySeq] = useState(0);
+  const [editMode, setEditMode] = useState(false);
   const [savingAll, setSavingAll] = useState(false);
   const [floorPlanModalUnitId, setFloorPlanModalUnitId] = useState<number | null>(null);
   const [floorPlanModalUrls, setFloorPlanModalUrls] = useState<string[]>([]);
@@ -246,27 +255,26 @@ export default function UnitTypesPage({
     return map;
   }, [rowDrafts, units]);
 
-  useEffect(() => {
-    setUnitOrder((prev) => {
-      const ids = units.map((u) => u.id);
-      if (ids.length === 0) return [];
+  const existingByKey = useMemo(
+    () => new Map<string, UnitRow>(units.map((u) => [`e:${u.id}`, u])),
+    [units],
+  );
+  const newByKey = useMemo(
+    () => new Map(newRows.map((r) => [r.key, r] as const)),
+    [newRows],
+  );
 
-      const preserved = prev.filter((id) => ids.includes(id));
-      const appended = ids.filter((id) => !preserved.includes(id));
+  useEffect(() => {
+    setRowSequence((prev) => {
+      const existingKeys = units.map((u) => `e:${u.id}`);
+      const newKeys = newRows.map((r) => r.key);
+      const allKeys = [...existingKeys, ...newKeys];
+
+      const preserved = prev.filter((key) => allKeys.includes(key));
+      const appended = allKeys.filter((key) => !preserved.includes(key));
       return [...preserved, ...appended];
     });
-  }, [units]);
-
-  const orderedUnits = useMemo(() => {
-    if (unitOrder.length === 0) return units;
-
-    const byId = new Map(units.map((u) => [u.id, u]));
-    const ordered = unitOrder
-      .map((id) => byId.get(id))
-      .filter((unit): unit is UnitRow => Boolean(unit));
-    const missing = units.filter((u) => !unitOrder.includes(u.id));
-    return [...ordered, ...missing];
-  }, [unitOrder, units]);
+  }, [units, newRows]);
 
   const setRowField = <K extends keyof UnitDraft>(id: number, key: K, value: UnitDraft[K]) => {
     setRowDrafts((prev) => ({
@@ -278,20 +286,24 @@ export default function UnitTypesPage({
     }));
   };
 
-  const setNewRowField = <K extends keyof UnitDraft>(index: number, key: K, value: UnitDraft[K]) => {
+  const setNewRowFieldByKey = <K extends keyof UnitDraft>(rowKey: string, key: K, value: UnitDraft[K]) => {
     setNewRows((prev) =>
-      prev.map((row, i) => (i === index ? { ...row, [key]: value } : row)),
+      prev.map((row) =>
+        row.key === rowKey
+          ? { ...row, draft: { ...row.draft, [key]: value } }
+          : row,
+      ),
     );
   };
 
   const floorPlanTargetUnit =
     floorPlanModalUnitId == null
       ? null
-      : orderedUnits.find((unit) => unit.id === floorPlanModalUnitId) ?? null;
+      : units.find((unit) => unit.id === floorPlanModalUnitId) ?? null;
 
-  function moveUnitRow(id: number, dir: -1 | 1) {
-    setUnitOrder((prev) => {
-      const index = prev.indexOf(id);
+  function moveRowByKey(key: string, dir: -1 | 1) {
+    setRowSequence((prev) => {
+      const index = prev.indexOf(key);
       if (index === -1) return prev;
       const nextIndex = index + dir;
       if (nextIndex < 0 || nextIndex >= prev.length) return prev;
@@ -299,11 +311,6 @@ export default function UnitTypesPage({
       [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
       return next;
     });
-  }
-
-  function openFloorPlanModal(unit: UnitRow) {
-    setFloorPlanModalUnitId(unit.id);
-    setFloorPlanModalUrls(parseFloorPlanUrls(unit.floor_plan_url, unit.image_url));
   }
 
   function closeFloorPlanModal() {
@@ -378,14 +385,33 @@ export default function UnitTypesPage({
   async function handleSaveAll() {
     if (!safePropertyId) return;
 
-    const existingRows = orderedUnits.map((unit, index) => ({
-      id: unit.id,
-      draft: {
-        ...draftsById[unit.id],
-        sort_order: index + 1,
-      },
-    }));
-    const meaningfulNewRows = newRows.filter(hasAnyInput);
+    const existingRows: Array<{ id: number; draft: UnitDraft }> = [];
+    const meaningfulNewRows: UnitDraft[] = [];
+    let nextSort = 1;
+
+    for (const key of rowSequence) {
+      if (key.startsWith("e:")) {
+        const unit = existingByKey.get(key);
+        if (!unit) continue;
+        existingRows.push({
+          id: unit.id,
+          draft: {
+            ...draftsById[unit.id],
+            sort_order: nextSort,
+          },
+        });
+        nextSort += 1;
+        continue;
+      }
+
+      const newRow = newByKey.get(key);
+      if (!newRow || !hasAnyInput(newRow.draft)) continue;
+      meaningfulNewRows.push({
+        ...newRow.draft,
+        sort_order: nextSort,
+      });
+      nextSort += 1;
+    }
 
     for (let i = 0; i < existingRows.length; i += 1) {
       const { draft } = existingRows[i];
@@ -418,14 +444,13 @@ export default function UnitTypesPage({
       }
     }
 
-    const nextSortStart = existingRows.length;
     for (let i = 0; i < meaningfulNewRows.length; i += 1) {
       const draft = meaningfulNewRows[i];
       const res = await createUnit({
         ...draft,
         properties_id: safePropertyId,
         type_name: (draft.type_name ?? "").trim(),
-        sort_order: nextSortStart + i + 1,
+        sort_order: draft.sort_order ?? i + 1,
       });
       if (!res.ok) {
         setSavingAll(false);
@@ -436,7 +461,9 @@ export default function UnitTypesPage({
 
     setSavingAll(false);
     setNewRows([]);
+    setRowSequence((prev) => prev.filter((key) => key.startsWith("e:")));
     setRowDrafts({});
+    setEditMode(false);
     showAlert("저장되었습니다.");
     await onAfterSave?.();
   }
@@ -475,7 +502,7 @@ export default function UnitTypesPage({
             <table className="min-w-[1200px] w-full border-collapse bg-(--oboon-bg-surface)">
               <thead>
                 <tr>
-                  <HeaderCell className="min-w-[64px]">순서</HeaderCell>
+                  <HeaderCell className="min-w-[42px] !px-0">순서</HeaderCell>
                   <HeaderCell className="min-w-[120px]">타입명</HeaderCell>
                   <HeaderCell className="min-w-[72px]">전용(㎡)</HeaderCell>
                   <HeaderCell className="min-w-[72px]">공급(㎡)</HeaderCell>
@@ -492,241 +519,188 @@ export default function UnitTypesPage({
                   <HeaderCell className="min-w-[68px]">가격 공개</HeaderCell>
                 </tr>
               </thead>
-              <tbody>
-                {newRows.map((row, index) => (
-                  <tr
-                    key={`new-${index}`}
-                    className="border-t border-(--oboon-border-default) bg-(--oboon-bg-subtle)/40"
-                  >
-                    <Cell className="text-center align-middle">
-                      <div className="ob-typo-caption text-(--oboon-text-muted)">신규</div>
-                    </Cell>
-                    <Cell><Input value={row.type_name ?? ""} onChange={(e) => setNewRowField(index, "type_name", e.target.value)} /></Cell>
-                    <Cell>
-                      <NumberInput
-                        className={INPUT_3_DIGIT_CLASS}
-                        max={999}
-                        value={row.exclusive_area ?? ""}
-                        onChange={(e) => setNewRowField(index, "exclusive_area", toNumberOrNull(e.target.value))}
-                      />
-                    </Cell>
-                    <Cell>
-                      <NumberInput
-                        className={INPUT_3_DIGIT_CLASS}
-                        max={999}
-                        value={row.supply_area ?? ""}
-                        onChange={(e) => setNewRowField(index, "supply_area", toNumberOrNull(e.target.value))}
-                      />
-                    </Cell>
-                    <Cell>
-                      <NumberInput
-                        className={INPUT_1_DIGIT_CLASS}
-                        max={9}
-                        value={row.rooms ?? ""}
-                        onChange={(e) => setNewRowField(index, "rooms", toIntOrNull(e.target.value))}
-                      />
-                    </Cell>
-                    <Cell>
-                      <NumberInput
-                        className={INPUT_1_DIGIT_CLASS}
-                        max={9}
-                        value={row.bathrooms ?? ""}
-                        onChange={(e) => setNewRowField(index, "bathrooms", toIntOrNull(e.target.value))}
-                      />
-                    </Cell>
-                    <Cell><Input value={row.building_layout ?? ""} onChange={(e) => setNewRowField(index, "building_layout", e.target.value)} /></Cell>
-                    <Cell>
-                      <Input
-                        className={INPUT_3_CHAR_CLASS}
-                        maxLength={3}
-                        value={row.orientation ?? ""}
-                        onChange={(e) => setNewRowField(index, "orientation", e.target.value.slice(0, 3))}
-                      />
-                    </Cell>
-                    <Cell>
-                      <NumberInput
-                        value={wonToManwonInput(row.price_min)}
-                        onChange={(e) => setNewRowField(index, "price_min", manwonToWonInput(e.target.value))}
-                      />
-                    </Cell>
-                    <Cell>
-                      <NumberInput
-                        value={wonToManwonInput(row.price_max)}
-                        onChange={(e) => setNewRowField(index, "price_max", manwonToWonInput(e.target.value))}
-                      />
-                    </Cell>
-                    <Cell>
-                      <NumberInput
-                        className={INPUT_4_DIGIT_CLASS}
-                        max={9999}
-                        value={row.unit_count ?? ""}
-                        onChange={(e) => setNewRowField(index, "unit_count", toIntOrNull(e.target.value))}
-                      />
-                    </Cell>
-                    <Cell>
-                      <NumberInput
-                        className={INPUT_4_DIGIT_CLASS}
-                        max={9999}
-                        value={row.supply_count ?? ""}
-                        onChange={(e) => setNewRowField(index, "supply_count", toIntOrNull(e.target.value))}
-                      />
-                    </Cell>
-                      <Cell className="p-0 align-middle">
-                        <div className="flex h-11 items-center justify-center ob-typo-caption text-(--oboon-text-muted)">
-                          전체 저장 후 관리
-                        </div>
-                      </Cell>
-                    <Cell className="!p-1 text-center align-middle">
-                      <div className="flex min-h-8 items-center justify-center">
-                        <BooleanToggle
-                          checked={Boolean(row.is_public)}
-                          onChange={(next) => setNewRowField(index, "is_public", next)}
-                          label="게시"
-                        />
-                      </div>
-                    </Cell>
-                    <Cell className="!p-1 text-center align-middle">
-                      <div className="flex min-h-8 items-center justify-center">
-                        <BooleanToggle
-                          checked={Boolean(row.is_price_public)}
-                          onChange={(next) => setNewRowField(index, "is_price_public", next)}
-                          label="가격 공개"
-                        />
-                      </div>
-                    </Cell>
-                  </tr>
-                ))}
+              <tbody
+                onClick={() => {
+                  if (!editMode) setEditMode(true);
+                }}
+              >
+                {rowSequence.map((rowKey, seqIndex) => {
+                  const unit = existingByKey.get(rowKey);
+                  const newRow = unit ? null : newByKey.get(rowKey) ?? null;
+                  if (!unit && !newRow) return null;
 
-                {orderedUnits.map((unit, rowIndex) => {
-                  const draft = draftsById[unit.id];
+                  const isNew = Boolean(newRow);
+                  const draft = unit ? draftsById[unit.id] : (newRow?.draft as UnitDraft);
 
                   return (
-                    <tr key={unit.id} className="border-t border-(--oboon-border-default)">
-                      <Cell className="!p-1 text-center align-middle">
-                        <div className="flex flex-col items-center justify-center gap-1">
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            className="h-6 w-6 min-w-0 px-0"
-                            onClick={() => moveUnitRow(unit.id, -1)}
-                            disabled={rowIndex === 0 || savingAll}
-                          >
-                            <ChevronUp className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            className="h-6 w-6 min-w-0 px-0"
-                            onClick={() => moveUnitRow(unit.id, 1)}
-                            disabled={rowIndex === orderedUnits.length - 1 || savingAll}
-                          >
-                            <ChevronDown className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </Cell>
-                      <Cell><Input value={draft.type_name ?? ""} onChange={(e) => setRowField(unit.id, "type_name", e.target.value)} /></Cell>
-                      <Cell>
+                    <tr
+                      key={rowKey}
+                      className={[
+                        "border-t border-(--oboon-border-default)",
+                        isNew ? "bg-(--oboon-bg-subtle)/40" : "",
+                      ].join(" ")}
+                    >
+                    <Cell className="!p-0 text-center align-middle">
+                      <div className="flex h-11 flex-col items-center justify-center gap-1">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="h-5 w-5 min-w-0 px-0"
+                          onClick={() => moveRowByKey(rowKey, -1)}
+                          disabled={seqIndex === 0 || savingAll}
+                        >
+                          <ChevronUp className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="h-5 w-5 min-w-0 px-0"
+                          onClick={() => moveRowByKey(rowKey, 1)}
+                          disabled={seqIndex === rowSequence.length - 1 || savingAll}
+                        >
+                          <ChevronDown className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </Cell>
+                    <Cell>{editMode ? <Input className={INPUT_8_CHAR_CLASS} value={draft.type_name ?? ""} onChange={(e) => isNew ? setNewRowFieldByKey(rowKey, "type_name", e.target.value) : setRowField(unit!.id, "type_name", e.target.value)} /> : <div className="text-center">{draft.type_name ?? "-"}</div>}</Cell>
+                    <Cell>
+                      {editMode ? (
                         <NumberInput
                           className={INPUT_3_DIGIT_CLASS}
                           max={999}
                           value={draft.exclusive_area ?? ""}
-                          onChange={(e) => setRowField(unit.id, "exclusive_area", toNumberOrNull(e.target.value))}
+                          onChange={(e) => isNew ? setNewRowFieldByKey(rowKey, "exclusive_area", toNumberOrNull(e.target.value)) : setRowField(unit!.id, "exclusive_area", toNumberOrNull(e.target.value))}
                         />
-                      </Cell>
-                      <Cell>
+                      ) : (
+                        <div className="text-center">{draft.exclusive_area ?? "-"}</div>
+                      )}
+                    </Cell>
+                    <Cell>
+                      {editMode ? (
                         <NumberInput
                           className={INPUT_3_DIGIT_CLASS}
                           max={999}
                           value={draft.supply_area ?? ""}
-                          onChange={(e) => setRowField(unit.id, "supply_area", toNumberOrNull(e.target.value))}
+                          onChange={(e) => isNew ? setNewRowFieldByKey(rowKey, "supply_area", toNumberOrNull(e.target.value)) : setRowField(unit!.id, "supply_area", toNumberOrNull(e.target.value))}
                         />
-                      </Cell>
-                      <Cell>
+                      ) : (
+                        <div className="text-center">{draft.supply_area ?? "-"}</div>
+                      )}
+                    </Cell>
+                    <Cell>
+                      {editMode ? (
                         <NumberInput
                           className={INPUT_1_DIGIT_CLASS}
                           max={9}
                           value={draft.rooms ?? ""}
-                          onChange={(e) => setRowField(unit.id, "rooms", toIntOrNull(e.target.value))}
+                          onChange={(e) => isNew ? setNewRowFieldByKey(rowKey, "rooms", toIntOrNull(e.target.value)) : setRowField(unit!.id, "rooms", toIntOrNull(e.target.value))}
                         />
-                      </Cell>
-                      <Cell>
+                      ) : (
+                        <div className="text-center">{draft.rooms ?? "-"}</div>
+                      )}
+                    </Cell>
+                    <Cell>
+                      {editMode ? (
                         <NumberInput
                           className={INPUT_1_DIGIT_CLASS}
                           max={9}
                           value={draft.bathrooms ?? ""}
-                          onChange={(e) => setRowField(unit.id, "bathrooms", toIntOrNull(e.target.value))}
+                          onChange={(e) => isNew ? setNewRowFieldByKey(rowKey, "bathrooms", toIntOrNull(e.target.value)) : setRowField(unit!.id, "bathrooms", toIntOrNull(e.target.value))}
                         />
-                      </Cell>
-                      <Cell><Input value={draft.building_layout ?? ""} onChange={(e) => setRowField(unit.id, "building_layout", e.target.value)} /></Cell>
-                      <Cell>
+                      ) : (
+                        <div className="text-center">{draft.bathrooms ?? "-"}</div>
+                      )}
+                    </Cell>
+                    <Cell>{editMode ? <Input className={INPUT_6_CHAR_CLASS} value={draft.building_layout ?? ""} onChange={(e) => isNew ? setNewRowFieldByKey(rowKey, "building_layout", e.target.value) : setRowField(unit!.id, "building_layout", e.target.value)} /> : <div className="text-center">{draft.building_layout ?? "-"}</div>}</Cell>
+                    <Cell>
+                      {editMode ? (
                         <Input
                           className={INPUT_3_CHAR_CLASS}
                           maxLength={3}
                           value={draft.orientation ?? ""}
-                          onChange={(e) => setRowField(unit.id, "orientation", e.target.value.slice(0, 3))}
+                          onChange={(e) => isNew ? setNewRowFieldByKey(rowKey, "orientation", e.target.value.slice(0, 3)) : setRowField(unit!.id, "orientation", e.target.value.slice(0, 3))}
                         />
-                      </Cell>
-                      <Cell>
+                      ) : (
+                        <div className="text-center">{draft.orientation ?? "-"}</div>
+                      )}
+                    </Cell>
+                    <Cell>
+                      {editMode ? (
                         <NumberInput
+                          className={INPUT_6_CHAR_CLASS}
                           value={wonToManwonInput(draft.price_min)}
-                          onChange={(e) => setRowField(unit.id, "price_min", manwonToWonInput(e.target.value))}
+                          onChange={(e) => isNew ? setNewRowFieldByKey(rowKey, "price_min", manwonToWonInput(e.target.value)) : setRowField(unit!.id, "price_min", manwonToWonInput(e.target.value))}
                         />
-                      </Cell>
-                      <Cell>
+                      ) : (
+                        <div className="text-center">{wonToManwonInput(draft.price_min) || "-"}</div>
+                      )}
+                    </Cell>
+                    <Cell>
+                      {editMode ? (
                         <NumberInput
+                          className={INPUT_6_CHAR_CLASS}
                           value={wonToManwonInput(draft.price_max)}
-                          onChange={(e) => setRowField(unit.id, "price_max", manwonToWonInput(e.target.value))}
+                          onChange={(e) => isNew ? setNewRowFieldByKey(rowKey, "price_max", manwonToWonInput(e.target.value)) : setRowField(unit!.id, "price_max", manwonToWonInput(e.target.value))}
                         />
-                      </Cell>
-                      <Cell>
+                      ) : (
+                        <div className="text-center">{wonToManwonInput(draft.price_max) || "-"}</div>
+                      )}
+                    </Cell>
+                    <Cell>
+                      {editMode ? (
                         <NumberInput
                           className={INPUT_4_DIGIT_CLASS}
                           max={9999}
                           value={draft.unit_count ?? ""}
-                          onChange={(e) => setRowField(unit.id, "unit_count", toIntOrNull(e.target.value))}
+                          onChange={(e) => isNew ? setNewRowFieldByKey(rowKey, "unit_count", toIntOrNull(e.target.value)) : setRowField(unit!.id, "unit_count", toIntOrNull(e.target.value))}
                         />
-                      </Cell>
-                      <Cell>
+                      ) : (
+                        <div className="text-center">{draft.unit_count ?? "-"}</div>
+                      )}
+                    </Cell>
+                    <Cell>
+                      {editMode ? (
                         <NumberInput
                           className={INPUT_4_DIGIT_CLASS}
                           max={9999}
                           value={draft.supply_count ?? ""}
-                          onChange={(e) => setRowField(unit.id, "supply_count", toIntOrNull(e.target.value))}
+                          onChange={(e) => isNew ? setNewRowFieldByKey(rowKey, "supply_count", toIntOrNull(e.target.value)) : setRowField(unit!.id, "supply_count", toIntOrNull(e.target.value))}
                         />
-                      </Cell>
-                      <Cell className="!p-0 !align-middle text-center">
-                        <div className="flex min-h-11 items-center justify-center gap-2 px-2">
-                          <span className="ob-typo-caption text-(--oboon-text-muted)">
-                            {parseFloorPlanUrls(unit.floor_plan_url, unit.image_url).length}
-                          </span>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            shape="pill"
-                            onClick={() => openFloorPlanModal(unit)}
-                          >
-                            관리
-                          </Button>
+                      ) : (
+                        <div className="text-center">{draft.supply_count ?? "-"}</div>
+                      )}
+                    </Cell>
+                    <Cell className="p-0 align-middle">
+                        <div className="flex h-11 items-center justify-center ob-typo-caption text-(--oboon-text-muted)">
+                          {isNew ? "저장 후 관리" : parseFloorPlanUrls(unit!.floor_plan_url, unit!.image_url).length}
                         </div>
-                      </Cell>
-                      <Cell className="!p-1 text-center align-middle">
-                        <div className="flex min-h-8 items-center justify-center">
+                    </Cell>
+                    <Cell className="!p-1 text-center align-middle">
+                      <div className="flex min-h-8 items-center justify-center">
+                        {editMode ? (
                           <BooleanToggle
                             checked={Boolean(draft.is_public)}
-                            onChange={(next) => setRowField(unit.id, "is_public", next)}
+                            onChange={(next) => isNew ? setNewRowFieldByKey(rowKey, "is_public", next) : setRowField(unit!.id, "is_public", next)}
                             label="게시"
                           />
-                        </div>
-                      </Cell>
-                      <Cell className="!p-1 text-center align-middle">
-                        <div className="flex min-h-8 items-center justify-center">
+                        ) : (
+                          <span className="ob-typo-caption text-(--oboon-text-muted)">{draft.is_public ? "ON" : "OFF"}</span>
+                        )}
+                      </div>
+                    </Cell>
+                    <Cell className="!p-1 text-center align-middle">
+                      <div className="flex min-h-8 items-center justify-center">
+                        {editMode ? (
                           <BooleanToggle
                             checked={Boolean(draft.is_price_public)}
-                            onChange={(next) => setRowField(unit.id, "is_price_public", next)}
+                            onChange={(next) => isNew ? setNewRowFieldByKey(rowKey, "is_price_public", next) : setRowField(unit!.id, "is_price_public", next)}
                             label="가격 공개"
                           />
-                        </div>
-                      </Cell>
+                        ) : (
+                          <span className="ob-typo-caption text-(--oboon-text-muted)">{draft.is_price_public ? "ON" : "OFF"}</span>
+                        )}
+                      </div>
+                    </Cell>
                     </tr>
                   );
                 })}
@@ -741,7 +715,11 @@ export default function UnitTypesPage({
                 shape="pill"
                 onClick={() => {
                   if (!safePropertyId) return;
-                  setNewRows((prev) => [...prev, buildEmptyDraft(safePropertyId)]);
+                  setEditMode(true);
+                  const key = `n:${newRowKeySeq + 1}`;
+                  setNewRowKeySeq((prev) => prev + 1);
+                  setNewRows((prev) => [...prev, { key, draft: buildEmptyDraft(safePropertyId) }]);
+                  setRowSequence((prev) => [...prev, key]);
                 }}
                 disabled={savingAll}
               >
@@ -753,6 +731,7 @@ export default function UnitTypesPage({
               shape="pill"
               onClick={handleSaveAll}
               loading={savingAll}
+              disabled={!editMode}
             >
               전체 저장
             </Button>

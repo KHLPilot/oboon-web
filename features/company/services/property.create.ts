@@ -20,9 +20,22 @@ export async function createProperty(payload: PropertyCreatePayload) {
   return { data, error };
 }
 
-export async function updatePropertyImage(propertyId: number, url: string) {
+export async function updatePropertyImage(
+  propertyId: number,
+  url: string | null,
+) {
   const supabase = createSupabaseClient();
-  const trimmedUrl = url.trim();
+  const trimmedUrl = typeof url === "string" ? url.trim() : "";
+
+  if (!trimmedUrl) {
+    const deactivateResult = await supabase
+      .from("property_image_assets")
+      .update({ is_active: false })
+      .eq("property_id", propertyId)
+      .eq("kind", "main")
+      .eq("is_active", true);
+    return { data: deactivateResult.data ?? null, error: deactivateResult.error };
+  }
 
   const deactivateResult = await supabase
     .from("property_image_assets")

@@ -35,6 +35,7 @@ export type PropertyTimelineRow = {
   contract_start: string | null;
   contract_end: string | null;
   move_in_date: string | null;
+  move_in_text?: string | null;
 };
 
 export type PropertyUnitTypeRow = {
