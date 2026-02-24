@@ -4,6 +4,7 @@ import { useState } from "react";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import { RefreshCw, UserPlus } from "lucide-react";
+import { showAlert } from "@/shared/alert";
 
 type RestoreAccountModalProps = {
   open: boolean;
@@ -29,6 +30,10 @@ export default function RestoreAccountModal({
     setAction("restore");
     try {
       await onRestore();
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "계정 복구 중 오류가 발생했습니다.";
+      showAlert(message);
     } finally {
       setLoading(false);
       setAction(null);
@@ -40,6 +45,10 @@ export default function RestoreAccountModal({
     setAction("recreate");
     try {
       await onRecreate();
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "새로 가입 처리 중 오류가 발생했습니다.";
+      showAlert(message);
     } finally {
       setLoading(false);
       setAction(null);

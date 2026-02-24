@@ -140,14 +140,24 @@ export default function LoginPage() {
 
   const isAbortLikeError = (input: unknown) => {
     if (!input) return false;
+    const name =
+      typeof input === "object" && input !== null && "name" in input
+        ? String((input as { name?: unknown }).name ?? "")
+        : "";
     const message =
       input instanceof Error
         ? input.message
         : typeof input === "object" && input !== null && "message" in input
           ? String((input as { message?: unknown }).message ?? "")
           : String(input);
+    const lowerName = name.toLowerCase();
     const lower = message.toLowerCase();
-    return lower.includes("aborterror") || lower.includes("signal is aborted");
+    return (
+      lowerName === "aborterror" ||
+      lower.includes("aborterror") ||
+      lower.includes("signal is aborted") ||
+      lower.includes("operation was aborted")
+    );
   };
 
   async function handleLogin(e: FormEvent) {
@@ -209,12 +219,12 @@ export default function LoginPage() {
       const { data: profile, error: profileError } = profileResult;
 
       if (profileError) {
-        console.error("Profile Error Detail:", profileError);
         if (profileError.code === "PGRST116") {
           router.replace("/auth/onboarding");
         } else if (isAbortLikeError(profileError)) {
           setError("네트워크가 일시적으로 불안정합니다. 잠시 후 다시 시도해주세요.");
         } else {
+          console.error("Profile Error Detail:", profileError);
           setError(
             `권한 오류: ${profileError.message} (관리자에게 문의하세요)`,
           );
@@ -271,19 +281,29 @@ export default function LoginPage() {
   }
 
   async function handleOAuthLogin(provider: "google") {
-    setLoading(true);
-    setError(null);
-    clearFieldError();
-    trackEvent("login_click", { method: provider });
+    try {
+      setLoading(true);
+      setError(null);
+      clearFieldError();
+      trackEvent("login_click", { method: provider });
 
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: {
-        redirectTo: `${window.location.origin}/api/auth/google/callback`,
-      },
-    });
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: `${window.location.origin}/api/auth/google/callback`,
+        },
+      });
 
-    if (error) {
+      if (error) {
+        setError("소셜 로그인 중 오류가 발생했습니다.");
+        setLoading(false);
+      }
+    } catch (err) {
+      if (isAbortLikeError(err)) {
+        setError("네트워크가 일시적으로 불안정합니다. 잠시 후 다시 시도해주세요.");
+        setLoading(false);
+        return;
+      }
       setError("소셜 로그인 중 오류가 발생했습니다.");
       setLoading(false);
     }

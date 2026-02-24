@@ -39,14 +39,24 @@ export function NotificationProvider({
 
   const isAbortLikeError = (input: unknown) => {
     if (!input) return false;
+    const name =
+      typeof input === "object" && input !== null && "name" in input
+        ? String((input as { name?: unknown }).name ?? "")
+        : "";
     const message =
       input instanceof Error
         ? input.message
         : typeof input === "object" && input !== null && "message" in input
           ? String((input as { message?: unknown }).message ?? "")
           : String(input);
+    const lowerName = name.toLowerCase();
     const lower = message.toLowerCase();
-    return lower.includes("aborterror") || lower.includes("signal is aborted");
+    return (
+      lowerName === "aborterror" ||
+      lower.includes("aborterror") ||
+      lower.includes("signal is aborted") ||
+      lower.includes("operation was aborted")
+    );
   };
 
   const fetchNotifications = useCallback(async () => {
