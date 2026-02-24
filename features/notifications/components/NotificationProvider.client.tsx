@@ -37,6 +37,18 @@ export function NotificationProvider({
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
 
+  const isAbortLikeError = (input: unknown) => {
+    if (!input) return false;
+    const message =
+      input instanceof Error
+        ? input.message
+        : typeof input === "object" && input !== null && "message" in input
+          ? String((input as { message?: unknown }).message ?? "")
+          : String(input);
+    const lower = message.toLowerCase();
+    return lower.includes("aborterror") || lower.includes("signal is aborted");
+  };
+
   const fetchNotifications = useCallback(async () => {
     try {
       const response = await fetch("/api/notifications");
@@ -45,6 +57,7 @@ export function NotificationProvider({
         setNotifications(data.notifications || []);
       }
     } catch (err) {
+      if (isAbortLikeError(err)) return;
       const message = err instanceof Error ? err.message : String(err);
       if (!message.toLowerCase().includes("load failed")) {
         console.error("알림 조회 오류:", err);
@@ -59,24 +72,30 @@ export function NotificationProvider({
     const supabase = createSupabaseClient();
 
     const getUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      setUserId(user?.id || null);
-      if (user) {
-        await fetchNotifications();
-      } else {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        setUserId(user?.id || null);
+        if (user) {
+          await fetchNotifications();
+        } else {
+          setLoading(false);
+        }
+      } catch (err) {
+        if (isAbortLikeError(err)) return;
+        console.error("현재 사용자 조회 오류:", err);
         setLoading(false);
       }
     };
 
-    getUser();
+    void getUser();
 
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setUserId(session?.user?.id || null);
         if (session?.user) {
-          fetchNotifications();
+          void fetchNotifications();
         } else {
           setNotifications([]);
           setLoading(false);

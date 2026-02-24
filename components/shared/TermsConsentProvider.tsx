@@ -19,6 +19,18 @@ export default function TermsConsentProvider() {
   const [open, setOpen] = useState(false);
   const [missingTermTypes, setMissingTermTypes] = useState<string[]>([]);
 
+  const isAbortLikeError = (input: unknown) => {
+    if (!input) return false;
+    const message =
+      input instanceof Error
+        ? input.message
+        : typeof input === "object" && input !== null && "message" in input
+          ? String((input as { message?: unknown }).message ?? "")
+          : String(input);
+    const lower = message.toLowerCase();
+    return lower.includes("aborterror") || lower.includes("signal is aborted");
+  };
+
   useEffect(() => {
     const supabase = createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -43,23 +55,30 @@ export default function TermsConsentProvider() {
           setOpen(true);
         }
       } catch (err) {
+        if (isAbortLikeError(err)) return;
         console.error("약관 동의 체크 오류:", err);
       }
     };
 
     // 초기 세션 체크
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        checkConsent();
-      }
-    });
+    void supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        if (session) {
+          void checkConsent();
+        }
+      })
+      .catch((err) => {
+        if (isAbortLikeError(err)) return;
+        console.error("초기 세션 체크 오류:", err);
+      });
 
     // 인증 상태 변경 감지 (마운트 1회만 등록)
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_IN" && session) {
-        checkConsent();
+        void checkConsent();
       }
       if (event === "SIGNED_OUT") {
         setOpen(false);

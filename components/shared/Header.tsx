@@ -32,6 +32,18 @@ export default function Header() {
   const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
 
+  const isAbortLikeError = (input: unknown) => {
+    if (!input) return false;
+    const message =
+      input instanceof Error
+        ? input.message
+        : typeof input === "object" && input !== null && "message" in input
+          ? String((input as { message?: unknown }).message ?? "")
+          : String(input);
+    const lower = message.toLowerCase();
+    return lower.includes("aborterror") || lower.includes("signal is aborted");
+  };
+
   const NAV_ITEMS = useMemo(
     () => [
       { label: "분양 리스트", href: "/offerings" },
@@ -45,27 +57,33 @@ export default function Header() {
 
   // nickname 우선 표시
   const loadUserData = async (currentUser: User | null) => {
-    setUser(currentUser);
+    try {
+      setUser(currentUser);
 
-    if (!currentUser) {
-      setProfileName("");
-      setProfileAvatarUrl(null);
-      setUserRole(null);
-      return;
-    }
+      if (!currentUser) {
+        setProfileName("");
+        setProfileAvatarUrl(null);
+        setUserRole(null);
+        return;
+      }
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("name, nickname, role, avatar_url")
-      .eq("id", currentUser.id)
-      .single();
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("name, nickname, role, avatar_url")
+        .eq("id", currentUser.id)
+        .single();
 
-    if (profile) {
-      const displayName = profile.nickname || profile.name;
-      const realName = displayName && displayName !== "temp" ? displayName : "";
-      setProfileName(realName);
-      setProfileAvatarUrl(normalizeImageUrl(profile.avatar_url));
-      setUserRole(profile.role || "user");
+      if (profile) {
+        const displayName = profile.nickname || profile.name;
+        const realName =
+          displayName && displayName !== "temp" ? displayName : "";
+        setProfileName(realName);
+        setProfileAvatarUrl(normalizeImageUrl(profile.avatar_url));
+        setUserRole(profile.role || "user");
+      }
+    } catch (err) {
+      if (isAbortLikeError(err)) return;
+      console.error("헤더 사용자 정보 로드 오류:", err);
     }
   };
 
@@ -74,14 +92,17 @@ export default function Header() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      loadUserData(session?.user ?? null);
+      await loadUserData(session?.user ?? null);
     };
 
-    initAuth();
+    void initAuth().catch((err) => {
+      if (isAbortLikeError(err)) return;
+      console.error("헤더 인증 초기화 오류:", err);
+    });
 
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
-        loadUserData(session?.user ?? null);
+        void loadUserData(session?.user ?? null);
       },
     );
 
