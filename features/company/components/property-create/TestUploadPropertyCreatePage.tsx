@@ -2303,6 +2303,42 @@ export default function TestUploadPage() {
     return uploadedCount;
   };
 
+  const uploadPdfsToR2Temp = async (targetFiles: File[]) => {
+    const keys: string[] = [];
+
+    for (let i = 0; i < targetFiles.length; i += 1) {
+      const file = targetFiles[i];
+      setStatus(`PDF 업로드 중... (${i + 1}/${targetFiles.length})`);
+
+      const signRes = await fetch("/api/r2/upload/sign-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName: file.name,
+          fileSize: file.size,
+          contentType: file.type || "application/pdf",
+        }),
+      });
+      const signPayload = await signRes.json().catch(() => null);
+      if (!signRes.ok || !signPayload?.uploadUrl || !signPayload?.key) {
+        throw new Error(signPayload?.error || "PDF 업로드 서명 발급 실패");
+      }
+
+      const uploadRes = await fetch(String(signPayload.uploadUrl), {
+        method: "PUT",
+        headers: { "Content-Type": "application/pdf" },
+        body: file,
+      });
+      if (!uploadRes.ok) {
+        throw new Error(`PDF 업로드 실패: ${file.name}`);
+      }
+
+      keys.push(String(signPayload.key));
+    }
+
+    return keys;
+  };
+
   const handleSubmit = async () => {
     if (files.length === 0) {
       setStatus("파일을 선택해주세요.");
@@ -2312,7 +2348,7 @@ export default function TestUploadPage() {
 
     setStatusTone("idle");
     setLoading(true);
-    setStatus(`PDF ${files.length}개 분석 중...`);
+    setStatus(`PDF ${files.length}개 업로드 준비 중...`);
     setResult(null);
     setSimilarCandidates([]);
     setSelectedCandidateId(null);
@@ -2322,14 +2358,14 @@ export default function TestUploadPage() {
     setCreatedPropertyId(null);
     setShowNewPropertyAction(false);
 
-    const formData = new FormData();
-    files.forEach((f) => formData.append("files", f));
-
     try {
       const previousAssignmentMap = await buildExtractedImageAssignmentMap();
+      const fileKeys = await uploadPdfsToR2Temp(files);
+      setStatus(`PDF ${files.length}개 분석 중...`);
       const response = await fetch("/api/extract-pdf", {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileKeys, cleanupTempKeys: true }),
       });
 
       if (!response.ok) {
@@ -2421,14 +2457,17 @@ export default function TestUploadPage() {
     setStatusTone("idle");
     setStatus("텍스트만 재추출 중...");
 
-    const formData = new FormData();
-    targetFiles.forEach((f) => formData.append("files", f));
-    formData.append("textOnly", "true");
-
     try {
+      const fileKeys = await uploadPdfsToR2Temp(targetFiles);
+      setStatus("텍스트만 재추출 중...");
       const response = await fetch("/api/extract-pdf", {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileKeys,
+          textOnly: true,
+          cleanupTempKeys: true,
+        }),
       });
 
       if (!response.ok) {
@@ -2482,14 +2521,14 @@ export default function TestUploadPage() {
     setStatusTone("idle");
     setStatus(`추가 PDF ${filesToMerge.length}개 분석 중...`);
 
-    const formData = new FormData();
-    filesToMerge.forEach((f) => formData.append("files", f));
-
     try {
       const previousAssignmentMap = await buildExtractedImageAssignmentMap();
+      const fileKeys = await uploadPdfsToR2Temp(filesToMerge);
+      setStatus(`추가 PDF ${filesToMerge.length}개 분석 중...`);
       const response = await fetch("/api/extract-pdf", {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileKeys, cleanupTempKeys: true }),
       });
 
       if (!response.ok) {

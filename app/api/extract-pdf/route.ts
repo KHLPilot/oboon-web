@@ -2,6 +2,8 @@ import { google } from '@ai-sdk/google';
 import { generateObject } from 'ai';
 import { propertyExtractionSchema, imageClassificationResultSchema } from '@/lib/schema/property-schema';
 import { extractImagesFromPDF, renderPagesAsImages, convertImageToBase64 } from '@/lib/pdf-utils';
+import { createSupabaseServer } from '@/lib/supabaseServer';
+import { DeleteObjectCommand, GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -14,6 +16,16 @@ const MAX_TOTAL_SIZE = 150 * 1024 * 1024; // 150MB
 const MAX_MULTIPART_OVERHEAD = 5 * 1024 * 1024; // 5MB
 const MAX_PHASE2_CLASSIFICATION_IMAGES = 100;
 const MAX_CLASSIFICATION_FALLBACK_IMAGES = 20;
+const R2_BUCKET_NAME = process.env.CLOUDFLARE_R2_BUCKET_NAME!;
+
+const r2 = new S3Client({
+  region: 'auto',
+  endpoint: `https://${process.env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  credentials: {
+    accessKeyId: process.env.CLOUDFLARE_R2_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY!,
+  },
+});
 
 const systemPrompt = `너는 대한민국 아파트/오피스텔 분양 사업개요(모집공고문) PDF에서 정형 데이터를 추출하는 전문가다.
 
@@ -108,6 +120,60 @@ type FileProcessMeta = {
   renderedImageCount: number;
 };
 
+type ExtractInputFile = {
+  fileName: string;
+  sizeBytes: number;
+  buffer: Buffer;
+};
+
+type ExtractPdfJsonBody = {
+  fileKeys?: unknown;
+  textOnly?: unknown;
+  cleanupTempKeys?: unknown;
+};
+
+async function streamToBuffer(stream: unknown): Promise<Buffer> {
+  if (!stream) return Buffer.alloc(0);
+  if (stream instanceof Uint8Array) return Buffer.from(stream);
+  if (stream instanceof Blob) return Buffer.from(await stream.arrayBuffer());
+  if (typeof stream === 'string') return Buffer.from(stream);
+  if (typeof (stream as { transformToByteArray?: unknown }).transformToByteArray === 'function') {
+    const bytes = await (stream as { transformToByteArray: () => Promise<Uint8Array> }).transformToByteArray();
+    return Buffer.from(bytes);
+  }
+
+  const chunks: Uint8Array[] = [];
+  for await (const chunk of stream as AsyncIterable<Uint8Array | string | Buffer>) {
+    const bytes =
+      typeof chunk === 'string'
+        ? new TextEncoder().encode(chunk)
+        : Uint8Array.from(chunk);
+    chunks.push(bytes);
+  }
+  const totalLength = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+  const merged = new Uint8Array(totalLength);
+  let offset = 0;
+  chunks.forEach((chunk) => {
+    merged.set(chunk, offset);
+    offset += chunk.byteLength;
+  });
+  return Buffer.from(merged.buffer, merged.byteOffset, merged.byteLength);
+}
+
+function keyToFileName(key: string) {
+  const raw = key.split('/').pop() || key;
+  const withoutPrefix = raw.replace(/^\d+-[0-9a-f-]+-/, '');
+  return decodeURIComponent(withoutPrefix);
+}
+
+function parseFileKeys(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((v): v is string => typeof v === 'string')
+    .map((v) => v.trim())
+    .filter((v) => v.length > 0);
+}
+
 async function geocodeAddress(address: string): Promise<GeoAddressResult | null> {
   const apiKey = process.env.KAKAO_REST_API_KEY;
   if (!apiKey || !address) return null;
@@ -199,37 +265,105 @@ async function resolveLocationAddresses(input: {
 }
 
 export async function POST(req: Request) {
+  let tempKeysToCleanup: string[] = [];
+  let cleanupTempKeys = false;
   try {
-    const contentLength = req.headers.get('content-length');
-    if (contentLength) {
-      const bodyBytes = Number.parseInt(contentLength, 10);
-      if (Number.isFinite(bodyBytes) && bodyBytes > MAX_TOTAL_SIZE + MAX_MULTIPART_OVERHEAD) {
+    const contentType = req.headers.get('content-type') || '';
+    const inputFiles: ExtractInputFile[] = [];
+    let textOnly = false;
+
+    if (contentType.includes('multipart/form-data')) {
+      const contentLength = req.headers.get('content-length');
+      if (contentLength) {
+        const bodyBytes = Number.parseInt(contentLength, 10);
+        if (Number.isFinite(bodyBytes) && bodyBytes > MAX_TOTAL_SIZE + MAX_MULTIPART_OVERHEAD) {
+          return Response.json(
+            { error: `PDF 합산 용량이 150MB를 초과합니다. (${(bodyBytes / 1024 / 1024).toFixed(1)}MB)` },
+            { status: 400 }
+          );
+        }
+      }
+
+      const formData = await req.formData();
+      const files = formData
+        .getAll('files')
+        .filter((entry): entry is File => entry instanceof File);
+      textOnly = formData.get('textOnly') === 'true';
+
+      if (files.length === 0) {
+        return Response.json({ error: '파일이 없습니다.' }, { status: 400 });
+      }
+
+      const nonPdf = files.find(
+        (f) => f.type !== 'application/pdf' && !f.name.toLowerCase().endsWith('.pdf'),
+      );
+      if (nonPdf) {
+        return Response.json({ error: `PDF 파일만 업로드 가능합니다: ${nonPdf.name}` }, { status: 400 });
+      }
+
+      const totalSize = files.reduce((sum, f) => sum + f.size, 0);
+      if (totalSize > MAX_TOTAL_SIZE) {
         return Response.json(
-          { error: `PDF 합산 용량이 150MB를 초과합니다. (${(bodyBytes / 1024 / 1024).toFixed(1)}MB)` },
+          { error: `PDF 합산 용량이 150MB를 초과합니다. (${(totalSize / 1024 / 1024).toFixed(1)}MB)` },
           { status: 400 }
         );
       }
-    }
 
-    const formData = await req.formData();
-    const files = formData.getAll('files') as File[];
-    const textOnly = formData.get('textOnly') === 'true';
+      for (const file of files) {
+        inputFiles.push({
+          fileName: file.name,
+          sizeBytes: file.size,
+          buffer: Buffer.from(await file.arrayBuffer()),
+        });
+      }
+    } else {
+      const body = (await req.json()) as ExtractPdfJsonBody;
+      const fileKeys = parseFileKeys(body.fileKeys);
+      textOnly = body.textOnly === true;
+      cleanupTempKeys = body.cleanupTempKeys !== false;
 
-    if (files.length === 0) {
-      return Response.json({ error: '파일이 없습니다.' }, { status: 400 });
-    }
+      if (fileKeys.length === 0) {
+        return Response.json({ error: 'fileKeys가 비어 있습니다.' }, { status: 400 });
+      }
 
-    const nonPdf = files.find((f) => f.type !== 'application/pdf');
-    if (nonPdf) {
-      return Response.json({ error: `PDF 파일만 업로드 가능합니다: ${nonPdf.name}` }, { status: 400 });
-    }
+      const supabase = await createSupabaseServer();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        return Response.json({ error: '로그인이 필요합니다.' }, { status: 401 });
+      }
 
-    const totalSize = files.reduce((sum, f) => sum + f.size, 0);
-    if (totalSize > MAX_TOTAL_SIZE) {
-      return Response.json(
-        { error: `PDF 합산 용량이 150MB를 초과합니다. (${(totalSize / 1024 / 1024).toFixed(1)}MB)` },
-        { status: 400 }
-      );
+      const uniqueKeys = Array.from(new Set(fileKeys));
+      tempKeysToCleanup = cleanupTempKeys ? uniqueKeys : [];
+      let totalSize = 0;
+
+      for (const key of uniqueKeys) {
+        if (!key.startsWith(`pdf-temp/${user.id}/`)) {
+          return Response.json({ error: '허용되지 않은 파일 키입니다.' }, { status: 403 });
+        }
+
+        const object = await r2.send(
+          new GetObjectCommand({
+            Bucket: R2_BUCKET_NAME,
+            Key: key,
+          }),
+        );
+        const buffer = await streamToBuffer(object.Body);
+        totalSize += buffer.length;
+        if (totalSize > MAX_TOTAL_SIZE) {
+          return Response.json(
+            { error: `PDF 합산 용량이 150MB를 초과합니다. (${(totalSize / 1024 / 1024).toFixed(1)}MB)` },
+            { status: 400 }
+          );
+        }
+
+        inputFiles.push({
+          fileName: keyToFileName(key),
+          sizeBytes: buffer.length,
+          buffer,
+        });
+      }
     }
 
     const textParts: string[] = [];
@@ -243,12 +377,11 @@ export async function POST(req: Request) {
       renderFallbackUsed: false,
     };
 
-    for (const file of files) {
-      const arrayBuffer = await file.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
+    for (const file of inputFiles) {
+      const buffer = file.buffer;
       const fileMeta: FileProcessMeta = {
-        fileName: file.name,
-        sizeBytes: file.size,
+        fileName: file.fileName,
+        sizeBytes: file.sizeBytes,
         pages: null,
         textLength: 0,
         textExtracted: false,
@@ -258,7 +391,7 @@ export async function POST(req: Request) {
 
       if (buffer.length < 5 || buffer.subarray(0, 5).toString('ascii') !== '%PDF-') {
         return Response.json(
-          { error: `유효한 PDF 파일이 아닙니다: ${file.name}` },
+          { error: `유효한 PDF 파일이 아닙니다: ${file.fileName}` },
           { status: 400 }
         );
       }
@@ -270,7 +403,7 @@ export async function POST(req: Request) {
       fileMeta.textLength = parsedText.length;
       if (parsedText) {
         fileMeta.textExtracted = true;
-        textParts.push(`=== [${file.name}] ===\n${parsedText}`);
+        textParts.push(`=== [${file.fileName}] ===\n${parsedText}`);
       }
 
       // 이미지 추출 (textOnly 모드일 때 스킵)
@@ -288,14 +421,14 @@ export async function POST(req: Request) {
             const base64 = convertImageToBase64(images[i].buffer, images[i].format);
             allImages.push({
               base64,
-              fileName: file.name,
+              fileName: file.fileName,
               index: i,
               source: 'extract',
             });
             fileMeta.extractedImageCount += 1;
           }
         } catch (error) {
-          console.warn(`${file.name}에서 이미지 추출 실패:`, error);
+          console.warn(`${file.fileName}에서 이미지 추출 실패:`, error);
         }
 
         // 페이지 렌더링 (벡터 평면도 캡처용)
@@ -304,14 +437,14 @@ export async function POST(req: Request) {
           for (const dataUrl of renderedDataUrls) {
             allImages.push({
               base64: dataUrl,
-              fileName: file.name,
+              fileName: file.fileName,
               index: allImages.length,
               source: 'render',
             });
             fileMeta.renderedImageCount += 1;
           }
         } catch (error) {
-          console.warn(`${file.name}에서 페이지 렌더링 실패:`, error);
+          console.warn(`${file.fileName}에서 페이지 렌더링 실패:`, error);
         }
       }
 
@@ -338,7 +471,7 @@ export async function POST(req: Request) {
     > = [
       {
         type: 'text',
-        text: `다음은 동일 분양 현장의 PDF ${files.length}개에서 추출한 정보다. 텍스트와 이미지를 모두 분석하여 하나의 정형 데이터로 변환하라.\n\n${extractedText}`,
+        text: `다음은 동일 분양 현장의 PDF ${inputFiles.length}개에서 추출한 정보다. 텍스트와 이미지를 모두 분석하여 하나의 정형 데이터로 변환하라.\n\n${extractedText}`,
       },
     ];
 
@@ -461,7 +594,7 @@ export async function POST(req: Request) {
       location,
       facilities: facilitiesWithGeo,
       _meta: {
-        fileCount: files.length,
+        fileCount: inputFiles.length,
         textLength: rawText.length,
         imageCount: allImages.length,
         imageStats: combinedStats,
@@ -479,6 +612,23 @@ export async function POST(req: Request) {
     const status = toHttpStatus(message);
     console.error('AI Extraction Error:', error);
     return Response.json({ error: koreanMessage }, { status });
+  } finally {
+    if (cleanupTempKeys && tempKeysToCleanup.length > 0) {
+      await Promise.allSettled(
+        tempKeysToCleanup.map(async (key) => {
+          try {
+            await r2.send(
+              new DeleteObjectCommand({
+                Bucket: R2_BUCKET_NAME,
+                Key: key,
+              }),
+            );
+          } catch (error) {
+            console.warn(`임시 PDF 삭제 실패: ${key}`, error);
+          }
+        }),
+      );
+    }
   }
 }
 
