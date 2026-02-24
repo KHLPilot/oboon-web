@@ -13,7 +13,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/DropdownMenu";
-import { FormField } from "@/components/shared/FormField";
 import type { PropertyExtractionData } from "@/lib/schema/property-schema";
 import NaverMap, { type MapMarker } from "@/features/map/components/NaverMap";
 import { createSupabaseClient } from "@/lib/supabaseClient";
@@ -869,11 +868,10 @@ function buildCompareFields(
 export default function TestUploadPage() {
   const [files, setFiles] = useState<File[]>([]);
   const [allUploadedFiles, setAllUploadedFiles] = useState<File[]>([]);
-  const [status, setStatus] = useState("PDF를 선택해 테스트를 시작하세요.");
+  const [status, setStatus] = useState("PDF를 선택하거나 파일을 드래그앤드롭 하세요.");
   const [statusTone, setStatusTone] = useState<StatusTone>("idle");
+  const [isPrimaryDropActive, setIsPrimaryDropActive] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const elapsedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [result, setResult] = useState<ExtractResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const unitFloorPlanInputRefs = useRef<
@@ -937,7 +935,6 @@ export default function TestUploadPage() {
   );
   const [showNewPropertyAction, setShowNewPropertyAction] = useState(false);
   const additionalFileInputRef = useRef<HTMLInputElement>(null);
-  const [additionalFiles, setAdditionalFiles] = useState<File[]>([]);
   const [additionalLoading, setAdditionalLoading] = useState(false);
   const [textOnlyLoading, setTextOnlyLoading] = useState(false);
   const [duplicateExtractedImageKeys, setDuplicateExtractedImageKeys] =
@@ -979,6 +976,35 @@ export default function TestUploadPage() {
     { value: "gallery", label: "추가 현장사진" },
     { value: "floor_plan", label: "평면도" },
   ];
+
+  const applyPrimaryPdfFiles = useCallback(
+    (selected: File[]) => {
+      if (selected.length === 0) return;
+
+      const pdfFiles = selected.filter(
+        (f) => f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf"),
+      );
+
+      if (pdfFiles.length !== selected.length) {
+        setStatus("PDF 파일만 업로드할 수 있습니다.");
+        setStatusTone("danger");
+        return;
+      }
+
+      const totalSize = pdfFiles.reduce((sum, f) => sum + f.size, 0);
+      if (totalSize > 150 * 1024 * 1024) {
+        setStatus(
+          `PDF 합산 용량이 150MB를 초과합니다. (${(totalSize / 1024 / 1024).toFixed(1)}MB)`,
+        );
+        setStatusTone("danger");
+        return;
+      }
+
+      setFiles(pdfFiles);
+      setStatusTone("idle");
+    },
+    [],
+  );
 
   const fileNames = useMemo(() => files.map((f) => f.name), [files]);
   const sortedExtractedImages = useMemo(() => {
@@ -2286,10 +2312,6 @@ export default function TestUploadPage() {
 
     setStatusTone("idle");
     setLoading(true);
-    setElapsedSeconds(0);
-    elapsedTimerRef.current = setInterval(() => {
-      setElapsedSeconds((prev) => prev + 1);
-    }, 1000);
     setStatus(`PDF ${files.length}개 분석 중...`);
     setResult(null);
     setSimilarCandidates([]);
@@ -2387,10 +2409,6 @@ export default function TestUploadPage() {
       setStatus(`오류: ${toKoreanErrorMessage(message)}`);
       setStatusTone("danger");
     } finally {
-      if (elapsedTimerRef.current) {
-        clearInterval(elapsedTimerRef.current);
-        elapsedTimerRef.current = null;
-      }
       setLoading(false);
     }
   };
@@ -2457,19 +2475,15 @@ export default function TestUploadPage() {
     }
   };
 
-  const handleAdditionalPdf = async () => {
-    if (additionalFiles.length === 0 || !result) return;
+  const handleAdditionalPdf = async (filesToMerge: File[]) => {
+    if (filesToMerge.length === 0 || !result) return;
 
     setAdditionalLoading(true);
     setStatusTone("idle");
-    setElapsedSeconds(0);
-    elapsedTimerRef.current = setInterval(() => {
-      setElapsedSeconds((prev) => prev + 1);
-    }, 1000);
-    setStatus(`추가 PDF ${additionalFiles.length}개 분석 중...`);
+    setStatus(`추가 PDF ${filesToMerge.length}개 분석 중...`);
 
     const formData = new FormData();
-    additionalFiles.forEach((f) => formData.append("files", f));
+    filesToMerge.forEach((f) => formData.append("files", f));
 
     try {
       const previousAssignmentMap = await buildExtractedImageAssignmentMap();
@@ -2487,8 +2501,8 @@ export default function TestUploadPage() {
       const merged = mergeExtractResults(result, data);
       setResult(merged);
       setDismissedMergeCandidateKeys([]);
-      setAllUploadedFiles((prev) => [...prev, ...additionalFiles]);
-      setFiles((prev) => [...prev, ...additionalFiles]);
+      setAllUploadedFiles((prev) => [...prev, ...filesToMerge]);
+      setFiles((prev) => [...prev, ...filesToMerge]);
 
       // 추출된 이미지 합산
       if (data.extractedImages && Array.isArray(data.extractedImages)) {
@@ -2521,7 +2535,6 @@ export default function TestUploadPage() {
         );
         setExtractedImages((prev) => [...prev, ...newImages]);
       }
-      setAdditionalFiles([]);
       setStatus(
         `추가 PDF 병합 완료! 데이터가 업데이트되었습니다.`,
       );
@@ -2531,10 +2544,6 @@ export default function TestUploadPage() {
       setStatus(`추가 PDF 오류: ${toKoreanErrorMessage(message)}`);
       setStatusTone("danger");
     } finally {
-      if (elapsedTimerRef.current) {
-        clearInterval(elapsedTimerRef.current);
-        elapsedTimerRef.current = null;
-      }
       setAdditionalLoading(false);
     }
   };
@@ -3904,127 +3913,200 @@ export default function TestUploadPage() {
     return acc;
   }, []);
 
+  const hasExtractionResult = Boolean(result);
+  const isExtractSuccess = hasExtractionResult && !loading && statusTone === "safe";
+  const isComparingStatus =
+    status.includes("유사 현장 자동 비교 중") ||
+    status.includes("유사한 현장을 자동으로 찾았습니다");
+  const shouldShowStatusMessage =
+    !loading && (statusTone === "danger" || isComparingStatus);
+  const displayStatusMessage =
+    statusTone === "danger" ? status.replace(/^오류:\s*/, "") : status;
+
   return (
     <PageContainer className="max-w-240">
       <div className="space-y-4">
-        <Card className="p-5">
-          <div className="ob-typo-h3 text-(--oboon-text-title)">
-            OBOON AI 데이터 추출 테스트
+        <div className="flex items-center gap-3 mb-1">
+          <div className="ob-typo-h1 text-(--oboon-text-title)">
+            새 현장 등록
           </div>
-          <div className="mt-1 ob-typo-body text-(--oboon-text-muted)">
-            PDF를 업로드하면 추출 API 결과를 토큰 기반 UI로 검증할 수 있습니다.
+        </div>
+        <p className="ob-typo-body text-(--oboon-text-muted) mb-4">
+          PDF를 업로드하면 추출 API 결과를 토큰 기반 UI로 검증할 수 있습니다.
+        </p>
+
+        <Card
+          className={[
+            "p-4 border-dashed bg-(--oboon-bg-subtle) transition-colors",
+            isPrimaryDropActive
+              ? "border-(--oboon-primary) ring-2 ring-(--oboon-primary)/20"
+              : "border-(--oboon-border-strong)",
+          ].join(" ")}
+          onDragEnter={(e) => {
+            e.preventDefault();
+            setIsPrimaryDropActive(true);
+          }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsPrimaryDropActive(true);
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            setIsPrimaryDropActive(false);
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            setIsPrimaryDropActive(false);
+            const dropped = e.dataTransfer?.files
+              ? Array.from(e.dataTransfer.files)
+              : [];
+            applyPrimaryPdfFiles(dropped);
+          }}
+        >
+          <div className="ob-typo-body text-(--oboon-text-muted)">
+            PDF를 선택하거나 파일을 드래그 앤 드롭 하세요. (최대 150MB)
           </div>
-        </Card>
+          <Input
+            ref={fileInputRef}
+            type="file"
+            accept="application/pdf"
+            multiple
+            onChange={(e) => {
+              const selected = e.target.files
+                ? Array.from(e.target.files)
+                : [];
+              applyPrimaryPdfFiles(selected);
+              e.currentTarget.value = "";
+            }}
+            className="sr-only"
+          />
 
-        <Card className="p-5">
-          <div className="rounded-xl border border-dashed border-(--oboon-border-strong) bg-(--oboon-bg-subtle) p-4">
-            <FormField
-              label="PDF 파일 선택 (최대 150MB)"
-              labelClassName="ob-typo-caption text-(--oboon-text-muted)"
-            >
-              <Input
-                ref={fileInputRef}
-                type="file"
-                accept="application/pdf"
-                multiple
-                onChange={(e) => {
-                  const selected = e.target.files
-                    ? Array.from(e.target.files)
-                    : [];
-                  const totalSize = selected.reduce(
-                    (sum, f) => sum + f.size,
-                    0,
-                  );
-                  if (totalSize > 150 * 1024 * 1024) {
-                    setStatus(
-                      `PDF 합산 용량이 150MB를 초과합니다. (${(totalSize / 1024 / 1024).toFixed(1)}MB)`,
-                    );
-                    setStatusTone("danger");
-                    e.target.value = "";
-                    return;
-                  }
-                  setFiles(selected);
-                }}
-                className="sr-only"
-              />
-
-              <div className="mt-2 rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    파일 선택
-                  </Button>
-                  <span className="ob-typo-caption text-(--oboon-text-muted)">
-                    {files.length > 0
-                      ? `${files.length}개 파일 선택됨 (${(files.reduce((s, f) => s + f.size, 0) / 1024 / 1024).toFixed(1)}MB)`
-                      : "선택한 파일 없음"}
-                  </span>
-                </div>
-              </div>
-            </FormField>
-
-            {fileNames.length > 0 ? (
-              <div className="mt-3 rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-3">
-                <div className="ob-typo-caption text-(--oboon-text-muted)">
-                  선택된 파일 ({files.length}개, 합계{" "}
-                  {(
-                    files.reduce((s, f) => s + f.size, 0) /
-                    1024 /
-                    1024
-                  ).toFixed(1)}
-                  MB)
-                </div>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {files.map((f, index) => (
-                    <span
-                      key={`${f.name}-${index}`}
-                      className="inline-flex items-center gap-1 rounded-full bg-(--oboon-bg-subtle) px-2 py-1 ob-typo-caption text-(--oboon-text-body)"
-                    >
-                      {f.name} ({(f.size / 1024 / 1024).toFixed(1)}MB)
-                      <button
-                        type="button"
-                        onClick={() => removeSelectedPdfFile(index)}
-                        className="rounded-full px-1 text-(--oboon-text-muted) hover:bg-(--oboon-border-default)/40 hover:text-(--oboon-text-title)"
-                        aria-label={`${f.name} 제거`}
-                        title="파일 제거"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
-            <div className="mt-4 flex items-center gap-2">
-              <Button
-                onClick={handleSubmit}
-                disabled={files.length === 0}
-                loading={loading}
-              >
-                데이터 추출 시작 ({files.length}개 PDF)
-              </Button>
+          <div className="mt-3 min-h-12 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-3">
+            <div className="ob-typo-caption text-(--oboon-text-muted)">
+              선택된 파일 ({files.length}개, 합계{" "}
+              {(
+                files.reduce((s, f) => s + f.size, 0) /
+                1024 /
+                1024
+              ).toFixed(1)}
+              MB)
             </div>
-
-            <div
-              className={[
-                "mt-3 ob-typo-body",
-                statusTone === "safe" ? "text-(--oboon-safe)" : "",
-                statusTone === "danger" ? "text-(--oboon-danger)" : "",
-                statusTone === "idle" ? "text-(--oboon-text-muted)" : "",
-              ].join(" ")}
-            >
-              {status}
-              {loading && (
-                <span className="ml-2 text-(--oboon-text-muted)">
-                  ({elapsedSeconds}초 경과)
+            <div className="mt-2 flex min-h-7 flex-wrap content-start gap-2">
+              {fileNames.length > 0 ? (
+                files.map((f, index) => (
+                  <span
+                    key={`${f.name}-${index}`}
+                    className="inline-flex items-center gap-1 rounded-full bg-(--oboon-bg-subtle) px-2 py-1 ob-typo-caption text-(--oboon-text-body)"
+                  >
+                    {f.name} ({(f.size / 1024 / 1024).toFixed(1)}MB)
+                    <button
+                      type="button"
+                      onClick={() => removeSelectedPdfFile(index)}
+                      className="rounded-full px-1 text-(--oboon-text-muted) hover:bg-(--oboon-border-default)/40 hover:text-(--oboon-text-title)"
+                      aria-label={`${f.name} 제거`}
+                      title="파일 제거"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))
+              ) : (
+                <span className="ob-typo-caption text-(--oboon-text-muted)">
+                  &nbsp;
                 </span>
               )}
             </div>
           </div>
+
+          <div className="mt-4 flex items-center gap-2">
+            {isExtractSuccess ? (
+              <span className="inline-flex h-8 items-center rounded-xl border border-emerald-300 bg-emerald-100 px-3 ob-typo-button text-emerald-600">
+                데이터 추출 완료
+              </span>
+            ) : (
+              <Button
+                onClick={handleSubmit}
+                disabled={files.length === 0}
+                loading={loading}
+                size="sm"
+              >
+                {loading
+                  ? status
+                  : hasExtractionResult
+                    ? `다시 추출하기 (PDF ${files.length}개)`
+                    : `데이터 추출 시작 (${files.length}개 PDF)`}
+              </Button>
+            )}
+            {!hasExtractionResult ? (
+              <Button
+                variant="secondary"
+                onClick={() => fileInputRef.current?.click()}
+                size="sm"
+              >
+                파일 선택
+              </Button>
+            ) : null}
+            {hasExtractionResult ? (
+              <>
+                <input
+                  ref={additionalFileInputRef}
+                  type="file"
+                  accept="application/pdf"
+                  multiple
+                  className="sr-only"
+                  onChange={(e) => {
+                    const selected = e.target.files
+                      ? Array.from(e.target.files)
+                      : [];
+                    const totalSize = selected.reduce(
+                      (sum, f) => sum + f.size,
+                      0,
+                    );
+                    if (totalSize > 150 * 1024 * 1024) {
+                      setStatus(
+                        `PDF 합산 용량이 150MB를 초과합니다. (${(totalSize / 1024 / 1024).toFixed(1)}MB)`,
+                      );
+                      setStatusTone("danger");
+                      e.currentTarget.value = "";
+                      return;
+                    }
+                    void handleAdditionalPdf(selected);
+                    e.currentTarget.value = "";
+                  }}
+                />
+                <Button
+                  variant="secondary"
+                  onClick={() => additionalFileInputRef.current?.click()}
+                  loading={additionalLoading}
+                  disabled={loading || textOnlyLoading}
+                  size="sm"
+                >
+                  추가 PDF 선택
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={handleTextOnlyReExtract}
+                  loading={textOnlyLoading}
+                  disabled={loading || additionalLoading}
+                  size="sm"
+                >
+                  텍스트만 재추출
+                </Button>
+              </>
+            ) : null}
+          </div>
+          {shouldShowStatusMessage ? (
+            <div
+              className={[
+                "mt-2 ob-typo-caption",
+                statusTone === "safe" ? "text-(--oboon-safe)" : "",
+                statusTone === "danger" ? "text-(--oboon-danger)" : "",
+                isComparingStatus ? "text-(--oboon-primary)" : "",
+              ].join(" ")}
+            >
+              {displayStatusMessage}
+            </div>
+          ) : null}
         </Card>
 
         {result ? (
@@ -4109,309 +4191,12 @@ export default function TestUploadPage() {
               </Card>
             ) : null}
 
-            <Card className="p-5">
-              <div className="ob-typo-subtitle text-(--oboon-text-title)">
-                PDF 더 올리기
-              </div>
-              <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
-                추가 PDF를 업로드하면 현재 추출 데이터에 병합됩니다. (최대
-                150MB)
-              </div>
-              <input
-                ref={additionalFileInputRef}
-                type="file"
-                accept="application/pdf"
-                multiple
-                className="sr-only"
-                onChange={(e) => {
-                  const selected = e.target.files
-                    ? Array.from(e.target.files)
-                    : [];
-                  const totalSize = selected.reduce(
-                    (sum, f) => sum + f.size,
-                    0,
-                  );
-                  if (totalSize > 150 * 1024 * 1024) {
-                    setStatus(
-                      `PDF 합산 용량이 150MB를 초과합니다. (${(totalSize / 1024 / 1024).toFixed(1)}MB)`,
-                    );
-                    setStatusTone("danger");
-                    e.target.value = "";
-                    return;
-                  }
-                  setAdditionalFiles(selected);
-                }}
-              />
-              <div className="mt-3 flex items-center gap-2">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => additionalFileInputRef.current?.click()}
-                >
-                  추가 PDF 선택
-                </Button>
-                {additionalFiles.length > 0 && (
-                  <>
-                    <span className="ob-typo-caption text-(--oboon-text-muted)">
-                      {additionalFiles.map((f) => f.name).join(", ")}
-                    </span>
-                    <Button
-                      size="sm"
-                      onClick={handleAdditionalPdf}
-                      loading={additionalLoading}
-                    >
-                      추출 &amp; 병합
-                    </Button>
-                  </>
-                )}
-                {additionalLoading && (
-                  <span className="ob-typo-caption text-(--oboon-text-muted)">
-                    ({elapsedSeconds}초 경과)
-                  </span>
-                )}
-              </div>
-              <div className="mt-3 border-t border-(--oboon-border-default) pt-3">
-                <div className="ob-typo-caption text-(--oboon-text-muted)">
-                  이미지는 유지하고 텍스트 데이터만 다시 추출합니다.
-                </div>
-                <div className="mt-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={handleTextOnlyReExtract}
-                    loading={textOnlyLoading}
-                  >
-                    텍스트만 재추출
-                  </Button>
-                </div>
-              </div>
-            </Card>
-
-            {existingSnapshot ? (
-              <Card className="p-5">
-                <div className="ob-typo-subtitle text-(--oboon-text-title)">
-                  비교 결과 ({existingSnapshot.property.name})
-                </div>
-
-                {compareFields.length === 0 ? (
-                  <div className="mt-3 rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-3 ob-typo-body text-(--oboon-text-muted)">
-                    일치하는 값만 있어 추가 비교가 필요 없습니다.
-                  </div>
-                ) : (
-                  <>
-                    <div className="mt-3 overflow-x-auto rounded-lg border border-(--oboon-border-default)">
-                      <table className="w-full min-w-[820px] table-fixed border-collapse">
-                        <thead className="bg-(--oboon-bg-subtle)">
-                          <tr>
-                            <th className="w-28 border-b border-(--oboon-border-default) px-3 py-2 text-left ob-typo-caption text-(--oboon-text-muted)">
-                              구분
-                            </th>
-                            <th className="w-36 border-b border-(--oboon-border-default) px-3 py-2 text-left ob-typo-caption text-(--oboon-text-muted)">
-                              필드
-                            </th>
-                            <th className="w-1/2 border-b border-(--oboon-border-default) px-3 py-2 text-left ob-typo-caption text-(--oboon-text-muted)">
-                              기존 값 유지
-                            </th>
-                            <th className="w-1/2 border-b border-(--oboon-border-default) px-3 py-2 text-left ob-typo-caption text-(--oboon-text-muted)">
-                              Ai 추출 값 반영
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {compareFields.map((field) => (
-                            <tr key={field.key} className="align-top">
-                              <td className="border-b border-(--oboon-border-default) px-3 py-3 ob-typo-caption text-(--oboon-text-muted)">
-                                {field.sectionLabel}
-                              </td>
-                              <td className="border-b border-(--oboon-border-default) px-3 py-3 ob-typo-body text-(--oboon-text-title)">
-                                {field.label}
-                              </td>
-                              <td className="border-b border-(--oboon-border-default) px-3 py-2">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setSelectionMap((prev) => ({
-                                      ...prev,
-                                      [field.key]: "existing",
-                                    }))
-                                  }
-                                  className={[
-                                    "w-full rounded-lg border p-2 text-left whitespace-normal",
-                                    selectionMap[field.key] === "existing"
-                                      ? "border-(--oboon-primary) bg-(--oboon-primary)/5"
-                                      : "border-(--oboon-border-default)",
-                                  ].join(" ")}
-                                >
-                                  <div className="break-words ob-typo-body text-(--oboon-text-body)">
-                                    {displayValue(
-                                      field.existingValue,
-                                      field.key,
-                                    )}
-                                  </div>
-                                </button>
-                              </td>
-                              <td className="border-b border-(--oboon-border-default) px-3 py-2">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setSelectionMap((prev) => ({
-                                      ...prev,
-                                      [field.key]: "incoming",
-                                    }))
-                                  }
-                                  className={[
-                                    "w-full rounded-lg border p-2 text-left whitespace-normal",
-                                    selectionMap[field.key] === "incoming"
-                                      ? "border-(--oboon-primary) bg-(--oboon-primary)/5"
-                                      : "border-(--oboon-border-default)",
-                                  ].join(" ")}
-                                >
-                                  <div className="break-words ob-typo-body text-(--oboon-text-body)">
-                                    {displayValue(
-                                      field.incomingValue,
-                                      field.key,
-                                    )}
-                                  </div>
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    <div className="mt-3 flex gap-2">
-                      <Button
-                        size="sm"
-                        onClick={applySelectedMerge}
-                        loading={savingCompareMerge}
-                      >
-                        선택한 값 반영하기
-                      </Button>
-                    </div>
-                  </>
-                )}
-              </Card>
-            ) : null}
-
-            {result._meta ? (
-              <Card className="p-4">
-                <div className="ob-typo-caption text-(--oboon-text-muted)">
-                  PDF {result._meta.fileCount}개 / 텍스트{" "}
-                  {result._meta.textLength.toLocaleString()}자
-                  {result._meta.truncated ? " (일부만 분석됨)" : ""}
-                  {result._meta.geocoded ? " / 지오코딩 완료" : ""}
-                  {result._meta.imageStats && result._meta.imageStats.imagesExtracted > 0
-                    ? ` / 이미지 ${result._meta.imageStats.imagesExtracted}장 추출 성공`
-                    : ""}
-                </div>
-                {result._meta.classificationFailed ? (
-                  <div className="mt-2 rounded-md border border-(--oboon-warning-border) bg-(--oboon-warning-bg) px-3 py-2 ob-typo-caption text-(--oboon-warning)">
-                    이미지 분류 단계가 실패해 텍스트 기반 추출 결과만 반영되었습니다.
-                  </div>
-                ) : null}
-                {result._meta.filesMeta && result._meta.filesMeta.length > 0 ? (
-                  <div className="mt-3 overflow-x-auto rounded-lg border border-(--oboon-border-default)">
-                    <table className="w-full min-w-[620px] border-collapse ob-typo-caption text-(--oboon-text-body)">
-                      <thead>
-                        <tr className="bg-(--oboon-bg-subtle) text-(--oboon-text-muted)">
-                          <th className="border-b border-(--oboon-border-default) px-3 py-2 text-left">
-                            파일
-                          </th>
-                          <th className="border-b border-(--oboon-border-default) px-3 py-2 text-right">
-                            용량
-                          </th>
-                          <th className="border-b border-(--oboon-border-default) px-3 py-2 text-right">
-                            페이지
-                          </th>
-                          <th className="border-b border-(--oboon-border-default) px-3 py-2 text-right">
-                            텍스트 길이
-                          </th>
-                          <th className="border-b border-(--oboon-border-default) px-3 py-2 text-right">
-                            추출/렌더 이미지
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {result._meta.filesMeta.map((meta, idx) => (
-                          <tr key={`${meta.fileName}-${idx}`}>
-                            <td className="border-b border-(--oboon-border-default) px-3 py-2">
-                              {meta.fileName}
-                            </td>
-                            <td className="border-b border-(--oboon-border-default) px-3 py-2 text-right">
-                              {(meta.sizeBytes / 1024 / 1024).toFixed(1)}MB
-                            </td>
-                            <td className="border-b border-(--oboon-border-default) px-3 py-2 text-right">
-                              {meta.pages ?? "-"}
-                            </td>
-                            <td className="border-b border-(--oboon-border-default) px-3 py-2 text-right">
-                              {meta.textLength.toLocaleString()}자
-                            </td>
-                            <td className="border-b border-(--oboon-border-default) px-3 py-2 text-right">
-                              {meta.extractedImageCount}/{meta.renderedImageCount}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : null}
-              </Card>
-            ) : null}
-
-            {existingSnapshotImages.length > 0 && (
-              <Section title={`DB 저장 이미지 (${existingSnapshotImages.length}개)`}>
-                <div className="space-y-3">
-                  <p className="ob-typo-caption text-(--oboon-text-muted)">
-                    현재 DB에 저장된 이미지입니다. 이미지를 클릭하면 크게 볼 수 있습니다.
-                  </p>
-                  <div className="grid gap-3 md:grid-cols-4">
-                    {existingSnapshotImages.map((img, idx) => {
-                      const isMatched = matchedExistingImageKeys.includes(img.key);
-                      const isNearMatched =
-                        !isMatched && nearMatchedExistingImageKeys.includes(img.key);
-                      return (
-                        <div
-                          key={img.key}
-                          className={`flex h-full flex-col rounded-xl border p-3 ${
-                            isMatched || isNearMatched
-                              ? "border-amber-400/50 bg-amber-500/10"
-                              : "border-(--oboon-border-default) bg-(--oboon-bg-surface)"
-                          }`}
-                        >
-                          <div
-                            className="relative aspect-video w-full cursor-pointer overflow-hidden rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-subtle)"
-                            onClick={() => setPreviewImage(img.url)}
-                          >
-                            <div className="absolute left-2 top-2 z-10 flex items-center gap-1.5">
-                              <span className="rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-2 py-0.5 ob-typo-caption text-(--oboon-text-body)">
-                                {img.label}
-                              </span>
-                              {(isMatched || isNearMatched) && (
-                                <span className="rounded-full border border-(--oboon-warning-border) bg-(--oboon-warning-bg) px-2 py-0.5 ob-typo-caption text-(--oboon-warning)">
-                                  {isMatched ? "유사 이미지" : "유사 후보"}
-                                </span>
-                              )}
-                            </div>
-                            <Image
-                              src={img.url}
-                              alt={`DB 이미지 ${idx + 1}`}
-                              fill
-                              className="object-contain"
-                              unoptimized
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </Section>
-            )}
-
-            {/* PDF에서 추출된 이미지 (현장사진 위에 배치) */}
+            {/* PDF에서 추출된 이미지 (상단 배치) */}
             {visibleExtractedImages.length > 0 && (
-              <Section title={`추출된 이미지 (${visibleExtractedImages.length}개)`}>
+              <Section
+                title={`추출된 이미지 (${visibleExtractedImages.length}개)`}
+                className="mb-10"
+              >
                 <div className="space-y-3">
                   <p className="ob-typo-caption text-(--oboon-text-muted)">
                     PDF에서 추출한 이미지를 어디에 사용할지 선택하세요. 이미지를 클릭하면 크게 볼 수 있습니다.
@@ -4572,7 +4357,7 @@ export default function TestUploadPage() {
               </Section>
             )}
             {extractedImages.length > 0 && visibleExtractedImages.length === 0 ? (
-              <Section title="추출된 이미지">
+              <Section title="추출된 이미지" className="mb-10">
                 <div className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-3 ob-typo-caption text-(--oboon-text-muted)">
                   {showNearDuplicateOnly
                     ? "유사 항목 필터 결과, 현재 표시할 이미지가 없습니다."
@@ -4581,12 +4366,167 @@ export default function TestUploadPage() {
               </Section>
             ) : null}
 
-            <Section title="현장 사진">
-              <div className="space-y-4">
-                <div>
-                  <div className="mb-2 ob-typo-caption text-(--oboon-text-muted)">
-                    대표사진
+            {existingSnapshot ? (
+              <Card className="p-5">
+                <div className="ob-typo-subtitle text-(--oboon-text-title)">
+                  비교 결과 ({existingSnapshot.property.name})
+                </div>
+
+                {compareFields.length === 0 ? (
+                  <div className="mt-3 rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-3 ob-typo-body text-(--oboon-text-muted)">
+                    일치하는 값만 있어 추가 비교가 필요 없습니다.
                   </div>
+                ) : (
+                  <>
+                    <div className="mt-3 overflow-x-auto rounded-lg border border-(--oboon-border-default)">
+                      <table className="w-full min-w-[820px] table-fixed border-collapse">
+                        <thead className="bg-(--oboon-bg-subtle)">
+                          <tr>
+                            <th className="w-28 border-b border-(--oboon-border-default) px-3 py-2 text-left ob-typo-caption text-(--oboon-text-muted)">
+                              구분
+                            </th>
+                            <th className="w-36 border-b border-(--oboon-border-default) px-3 py-2 text-left ob-typo-caption text-(--oboon-text-muted)">
+                              필드
+                            </th>
+                            <th className="w-1/2 border-b border-(--oboon-border-default) px-3 py-2 text-left ob-typo-caption text-(--oboon-text-muted)">
+                              기존 값 유지
+                            </th>
+                            <th className="w-1/2 border-b border-(--oboon-border-default) px-3 py-2 text-left ob-typo-caption text-(--oboon-text-muted)">
+                              Ai 추출 값 반영
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {compareFields.map((field) => (
+                            <tr key={field.key} className="align-top">
+                              <td className="border-b border-(--oboon-border-default) px-3 py-3 ob-typo-caption text-(--oboon-text-muted)">
+                                {field.sectionLabel}
+                              </td>
+                              <td className="border-b border-(--oboon-border-default) px-3 py-3 ob-typo-body text-(--oboon-text-title)">
+                                {field.label}
+                              </td>
+                              <td className="border-b border-(--oboon-border-default) px-3 py-2">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setSelectionMap((prev) => ({
+                                      ...prev,
+                                      [field.key]: "existing",
+                                    }))
+                                  }
+                                  className={[
+                                    "w-full rounded-lg border p-2 text-left whitespace-normal",
+                                    selectionMap[field.key] === "existing"
+                                      ? "border-(--oboon-primary) bg-(--oboon-primary)/5"
+                                      : "border-(--oboon-border-default)",
+                                  ].join(" ")}
+                                >
+                                  <div className="break-words ob-typo-body text-(--oboon-text-body)">
+                                    {displayValue(
+                                      field.existingValue,
+                                      field.key,
+                                    )}
+                                  </div>
+                                </button>
+                              </td>
+                              <td className="border-b border-(--oboon-border-default) px-3 py-2">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setSelectionMap((prev) => ({
+                                      ...prev,
+                                      [field.key]: "incoming",
+                                    }))
+                                  }
+                                  className={[
+                                    "w-full rounded-lg border p-2 text-left whitespace-normal",
+                                    selectionMap[field.key] === "incoming"
+                                      ? "border-(--oboon-primary) bg-(--oboon-primary)/5"
+                                      : "border-(--oboon-border-default)",
+                                  ].join(" ")}
+                                >
+                                  <div className="break-words ob-typo-body text-(--oboon-text-body)">
+                                    {displayValue(
+                                      field.incomingValue,
+                                      field.key,
+                                    )}
+                                  </div>
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="mt-3 flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={applySelectedMerge}
+                        loading={savingCompareMerge}
+                      >
+                        선택한 값 반영하기
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </Card>
+            ) : null}
+
+            {existingSnapshotImages.length > 0 && (
+              <Section title={`DB 저장 이미지 (${existingSnapshotImages.length}개)`}>
+                <div className="space-y-3">
+                  <p className="ob-typo-caption text-(--oboon-text-muted)">
+                    현재 DB에 저장된 이미지입니다. 이미지를 클릭하면 크게 볼 수 있습니다.
+                  </p>
+                  <div className="grid gap-3 md:grid-cols-4">
+                    {existingSnapshotImages.map((img, idx) => {
+                      const isMatched = matchedExistingImageKeys.includes(img.key);
+                      const isNearMatched =
+                        !isMatched && nearMatchedExistingImageKeys.includes(img.key);
+                      return (
+                        <div
+                          key={img.key}
+                          className={`flex h-full flex-col rounded-xl border p-3 ${
+                            isMatched || isNearMatched
+                              ? "border-amber-400/50 bg-amber-500/10"
+                              : "border-(--oboon-border-default) bg-(--oboon-bg-surface)"
+                          }`}
+                        >
+                          <div
+                            className="relative aspect-video w-full cursor-pointer overflow-hidden rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-subtle)"
+                            onClick={() => setPreviewImage(img.url)}
+                          >
+                            <div className="absolute left-2 top-2 z-10 flex items-center gap-1.5">
+                              <span className="rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-2 py-0.5 ob-typo-caption text-(--oboon-text-body)">
+                                {img.label}
+                              </span>
+                              {(isMatched || isNearMatched) && (
+                                <span className="rounded-full border border-(--oboon-warning-border) bg-(--oboon-warning-bg) px-2 py-0.5 ob-typo-caption text-(--oboon-warning)">
+                                  {isMatched ? "유사 이미지" : "유사 후보"}
+                                </span>
+                              )}
+                            </div>
+                            <Image
+                              src={img.url}
+                              alt={`DB 이미지 ${idx + 1}`}
+                              fill
+                              className="object-contain"
+                              unoptimized
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </Section>
+            )}
+
+            <Section title="현장 사진">
+              <div className="grid gap-y-4 gap-x-5 md:grid-cols-2">
+                <div className="space-y-2">
+                  <div className="ob-typo-body text-(--oboon-text-title)">대표 사진</div>
                   <div className="flex items-center gap-2">
                     <input
                       ref={mainImageInputRef}
@@ -4602,12 +4542,12 @@ export default function TestUploadPage() {
                       variant="secondary"
                       onClick={() => mainImageInputRef.current?.click()}
                     >
-                      대표사진 업로드
+                      대표 사진 업로드
                     </Button>
                   </div>
-                  <div className="mt-2">
+                  <div className="rounded-lg border border-dashed border-(--oboon-border-default) p-3 ob-typo-caption text-(--oboon-text-muted)">
                     {mainImageUrl ? (
-                      <div className="relative h-36 w-56 overflow-hidden rounded-lg border border-(--oboon-border-default)">
+                      <div className="relative h-24 w-40 overflow-hidden rounded-md border border-(--oboon-border-default)">
                         <Image
                           src={mainImageUrl}
                           alt="대표사진"
@@ -4617,17 +4557,13 @@ export default function TestUploadPage() {
                         />
                       </div>
                     ) : (
-                      <div className="rounded-lg border border-dashed border-(--oboon-border-default) p-3 ob-typo-caption text-(--oboon-text-muted)">
-                        대표사진이 없습니다.
-                      </div>
+                      "대표 사진이 없습니다."
                     )}
                   </div>
                 </div>
 
-                <div>
-                  <div className="mb-2 ob-typo-caption text-(--oboon-text-muted)">
-                    추가사진
-                  </div>
+                <div className="space-y-2">
+                  <div className="ob-typo-body text-(--oboon-text-title)">추가 사진</div>
                   <div className="flex items-center gap-2">
                     <input
                       ref={galleryImageInputRef}
@@ -4644,360 +4580,125 @@ export default function TestUploadPage() {
                       variant="secondary"
                       onClick={() => galleryImageInputRef.current?.click()}
                     >
-                      추가사진 업로드
+                      추가 사진 업로드
                     </Button>
                   </div>
-
-                  {galleryImageUrls.length > 0 ? (
-                    <div className="mt-2 grid grid-cols-2 gap-2 md:grid-cols-3">
-                      {galleryImageUrls.map((url, i) => (
-                        <div
-                          key={`${url}-${i}`}
-                          className="relative overflow-hidden rounded-lg border border-(--oboon-border-default)"
-                        >
-                          <div className="relative h-24 w-full">
-                            <Image
-                              src={url}
-                              alt={`추가사진 ${i + 1}`}
-                              fill
-                              className="object-cover"
-                              unoptimized
-                            />
-                          </div>
+                  <div className="rounded-lg border border-dashed border-(--oboon-border-default) p-3 ob-typo-caption text-(--oboon-text-muted)">
+                    {galleryImageUrls.length > 0 ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span>{galleryImageUrls.length}장 선택됨</span>
+                        {galleryImageUrls.slice(0, 3).map((url, i) => (
                           <button
+                            key={`${url}-${i}`}
                             type="button"
                             onClick={() => removeGalleryImage(i)}
-                            className="w-full border-t border-(--oboon-border-default) bg-(--oboon-bg-subtle) py-1 ob-typo-caption text-(--oboon-text-muted) hover:bg-(--oboon-bg-subtle)/80"
+                            className="rounded-full border border-(--oboon-border-default) px-2 py-0.5 text-(--oboon-text-muted) hover:bg-(--oboon-bg-subtle)"
                           >
-                            제거
+                            {i + 1}번 제거
                           </button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="mt-2 rounded-lg border border-dashed border-(--oboon-border-default) p-3 ob-typo-caption text-(--oboon-text-muted)">
-                      추가사진이 없습니다.
-                    </div>
-                  )}
+                        ))}
+                      </div>
+                    ) : (
+                      "추가 사진이 없습니다."
+                    )}
+                  </div>
                 </div>
               </div>
             </Section>
 
             <Section title="기본 정보">
-              <Row
-                label="현장명"
-                value={val(result.properties?.name)}
-                onCommit={(value) =>
-                  updateResultSectionField(
-                    "properties",
-                    "name",
-                    normalizeTextInput(value),
-                  )
-                }
-              />
-              <Row
-                label="분양 유형"
-                value={val(result.properties?.property_type)}
-                onCommit={(value) =>
-                  updateResultSectionField(
-                    "properties",
-                    "property_type",
-                    normalizeTextInput(value),
-                  )
-                }
-              />
-              <Row
-                label="분양 상태"
-                value={displayValue(result.properties?.status, "status")}
-                onCommit={(value) =>
-                  updateResultSectionField(
-                    "properties",
-                    "status",
-                    normalizeStatusForDb(normalizeTextInput(value)),
-                  )
-                }
-              />
-              <Row
-                label="설명"
-                value={val(result.properties?.description)}
-                onCommit={(value) =>
-                  updateResultSectionField(
-                    "properties",
-                    "description",
-                    normalizeTextInput(value),
-                  )
-                }
-              />
+              <div className="grid gap-y-4 gap-x-5 md:grid-cols-2">
+                <div className="space-y-1">
+                  <CompactInfoRow
+                    label="현장명"
+                    value={val(result.properties?.name)}
+                    onCommit={(value) =>
+                      updateResultSectionField(
+                        "properties",
+                        "name",
+                        normalizeTextInput(value),
+                      )
+                    }
+                  />
+                  <CompactInfoRow
+                    label="분양 상태"
+                    value={displayValue(result.properties?.status, "status")}
+                    onCommit={(value) =>
+                      updateResultSectionField(
+                        "properties",
+                        "status",
+                        normalizeStatusForDb(normalizeTextInput(value)),
+                      )
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <CompactInfoRow
+                    label="분양 유형"
+                    value={val(result.properties?.property_type)}
+                    onCommit={(value) =>
+                      updateResultSectionField(
+                        "properties",
+                        "property_type",
+                        normalizeTextInput(value),
+                      )
+                    }
+                  />
+                  <CompactInfoRow
+                    label="설명"
+                    value={val(result.properties?.description)}
+                    onCommit={(value) =>
+                      updateResultSectionField(
+                        "properties",
+                        "description",
+                        normalizeTextInput(value),
+                      )
+                    }
+                  />
+                </div>
+              </div>
             </Section>
 
             <Section title="사업 개요">
-              <Row
-                label="시행사"
-                value={val(result.specs?.developer)}
-                onCommit={(value) =>
-                  updateResultSectionField(
-                    "specs",
-                    "developer",
-                    normalizeTextInput(value),
-                  )
-                }
-              />
-              <Row
-                label="시공사"
-                value={val(result.specs?.builder)}
-                onCommit={(value) =>
-                  updateResultSectionField(
-                    "specs",
-                    "builder",
-                    normalizeTextInput(value),
-                  )
-                }
-              />
-              <Row
-                label="신탁사"
-                value={val(result.specs?.trust_company)}
-                onCommit={(value) =>
-                  updateResultSectionField(
-                    "specs",
-                    "trust_company",
-                    normalizeTextInput(value),
-                  )
-                }
-              />
-              <Row
-                label="분양 방식"
-                value={val(result.specs?.sale_type)}
-                onCommit={(value) =>
-                  updateResultSectionField(
-                    "specs",
-                    "sale_type",
-                    normalizeTextInput(value),
-                  )
-                }
-              />
-              <Row
-                label="용도지역"
-                value={val(result.specs?.land_use_zone)}
-                onCommit={(value) =>
-                  updateResultSectionField(
-                    "specs",
-                    "land_use_zone",
-                    normalizeTextInput(value),
-                  )
-                }
-              />
-              <Row
-                label="대지면적"
-                value={val(result.specs?.site_area)}
-                onCommit={(value) =>
-                  updateResultSectionField(
-                    "specs",
-                    "site_area",
-                    toNullableNumberInput(value),
-                  )
-                }
-              />
-              <Row
-                label="건축면적"
-                value={val(result.specs?.building_area)}
-                onCommit={(value) =>
-                  updateResultSectionField(
-                    "specs",
-                    "building_area",
-                    toNullableNumberInput(value),
-                  )
-                }
-              />
-              <Row
-                label="지하층"
-                value={val(result.specs?.floor_underground)}
-                onCommit={(value) =>
-                  updateResultSectionField(
-                    "specs",
-                    "floor_underground",
-                    toNullableNumberInput(value),
-                  )
-                }
-              />
-              <Row
-                label="지상층"
-                value={val(result.specs?.floor_ground)}
-                onCommit={(value) =>
-                  updateResultSectionField(
-                    "specs",
-                    "floor_ground",
-                    toNullableNumberInput(value),
-                  )
-                }
-              />
-              <Row
-                label="동 수"
-                value={val(result.specs?.building_count)}
-                onCommit={(value) =>
-                  updateResultSectionField(
-                    "specs",
-                    "building_count",
-                    toNullableNumberInput(value),
-                  )
-                }
-              />
-              <Row
-                label="총 세대수"
-                value={val(result.specs?.household_total)}
-                onCommit={(value) =>
-                  updateResultSectionField(
-                    "specs",
-                    "household_total",
-                    toNullableNumberInput(value),
-                  )
-                }
-              />
-              <Row
-                label="총 주차대수"
-                value={val(result.specs?.parking_total)}
-                onCommit={(value) =>
-                  updateResultSectionField(
-                    "specs",
-                    "parking_total",
-                    toNullableNumberInput(value),
-                  )
-                }
-              />
-              <Row
-                label="세대당 주차"
-                value={val(result.specs?.parking_per_household)}
-                onCommit={(value) =>
-                  updateResultSectionField(
-                    "specs",
-                    "parking_per_household",
-                    toNullableNumberInput(value),
-                  )
-                }
-              />
-              <Row
-                label="난방"
-                value={val(result.specs?.heating_type)}
-                onCommit={(value) =>
-                  updateResultSectionField(
-                    "specs",
-                    "heating_type",
-                    normalizeTextInput(value),
-                  )
-                }
-              />
-              <Row
-                label="용적률"
-                value={val(result.specs?.floor_area_ratio)}
-                onCommit={(value) =>
-                  updateResultSectionField(
-                    "specs",
-                    "floor_area_ratio",
-                    toNullableNumberInput(value),
-                  )
-                }
-              />
-              <Row
-                label="건폐율"
-                value={val(result.specs?.building_coverage_ratio)}
-                onCommit={(value) =>
-                  updateResultSectionField(
-                    "specs",
-                    "building_coverage_ratio",
-                    toNullableNumberInput(value),
-                  )
-                }
-              />
-              <Row
-                label="부대시설"
-                value={val(result.specs?.amenities)}
-                onCommit={(value) =>
-                  updateResultSectionField(
-                    "specs",
-                    "amenities",
-                    normalizeTextInput(value),
-                  )
-                }
-              />
+              <div className="grid gap-y-4 gap-x-5 md:grid-cols-2">
+                <div className="space-y-1">
+                  <CompactInfoRow label="시행사" value={val(result.specs?.developer)} onCommit={(value) => updateResultSectionField("specs", "developer", normalizeTextInput(value))} />
+                  <CompactInfoRow label="신탁사" value={val(result.specs?.trust_company)} onCommit={(value) => updateResultSectionField("specs", "trust_company", normalizeTextInput(value))} />
+                  <CompactInfoRow label="용도지역" value={val(result.specs?.land_use_zone)} onCommit={(value) => updateResultSectionField("specs", "land_use_zone", normalizeTextInput(value))} />
+                  <CompactInfoRow label="건축면적" value={val(result.specs?.building_area)} onCommit={(value) => updateResultSectionField("specs", "building_area", toNullableNumberInput(value))} />
+                  <CompactInfoRow label="지상층" value={val(result.specs?.floor_ground)} onCommit={(value) => updateResultSectionField("specs", "floor_ground", toNullableNumberInput(value))} />
+                  <CompactInfoRow label="총 세대수" value={val(result.specs?.household_total)} onCommit={(value) => updateResultSectionField("specs", "household_total", toNullableNumberInput(value))} />
+                  <CompactInfoRow label="세대당 주차" value={val(result.specs?.parking_per_household)} onCommit={(value) => updateResultSectionField("specs", "parking_per_household", toNullableNumberInput(value))} />
+                  <CompactInfoRow label="용적률" value={val(result.specs?.floor_area_ratio)} onCommit={(value) => updateResultSectionField("specs", "floor_area_ratio", toNullableNumberInput(value))} />
+                  <CompactInfoRow label="부대시설" value={val(result.specs?.amenities)} onCommit={(value) => updateResultSectionField("specs", "amenities", normalizeTextInput(value))} />
+                </div>
+                <div className="space-y-1">
+                  <CompactInfoRow label="시공사" value={val(result.specs?.builder)} onCommit={(value) => updateResultSectionField("specs", "builder", normalizeTextInput(value))} />
+                  <CompactInfoRow label="분양 방식" value={val(result.specs?.sale_type)} onCommit={(value) => updateResultSectionField("specs", "sale_type", normalizeTextInput(value))} />
+                  <CompactInfoRow label="대지면적" value={val(result.specs?.site_area)} onCommit={(value) => updateResultSectionField("specs", "site_area", toNullableNumberInput(value))} />
+                  <CompactInfoRow label="지하층" value={val(result.specs?.floor_underground)} onCommit={(value) => updateResultSectionField("specs", "floor_underground", toNullableNumberInput(value))} />
+                  <CompactInfoRow label="동 수" value={val(result.specs?.building_count)} onCommit={(value) => updateResultSectionField("specs", "building_count", toNullableNumberInput(value))} />
+                  <CompactInfoRow label="총 주차대수" value={val(result.specs?.parking_total)} onCommit={(value) => updateResultSectionField("specs", "parking_total", toNullableNumberInput(value))} />
+                  <CompactInfoRow label="난방" value={val(result.specs?.heating_type)} onCommit={(value) => updateResultSectionField("specs", "heating_type", normalizeTextInput(value))} />
+                  <CompactInfoRow label="건폐율" value={val(result.specs?.building_coverage_ratio)} onCommit={(value) => updateResultSectionField("specs", "building_coverage_ratio", toNullableNumberInput(value))} />
+                </div>
+              </div>
             </Section>
 
             <Section title="일정">
-              <Row
-                label="모집공고일"
-                value={val(result.timeline?.announcement_date)}
-                onCommit={(value) =>
-                  updateResultSectionField(
-                    "timeline",
-                    "announcement_date",
-                    normalizeTextInput(value),
-                  )
-                }
-              />
-              <Row
-                label="청약 시작"
-                value={val(result.timeline?.application_start)}
-                onCommit={(value) =>
-                  updateResultSectionField(
-                    "timeline",
-                    "application_start",
-                    normalizeTextInput(value),
-                  )
-                }
-              />
-              <Row
-                label="청약 종료"
-                value={val(result.timeline?.application_end)}
-                onCommit={(value) =>
-                  updateResultSectionField(
-                    "timeline",
-                    "application_end",
-                    normalizeTextInput(value),
-                  )
-                }
-              />
-              <Row
-                label="당첨자 발표"
-                value={val(result.timeline?.winner_announce)}
-                onCommit={(value) =>
-                  updateResultSectionField(
-                    "timeline",
-                    "winner_announce",
-                    normalizeTextInput(value),
-                  )
-                }
-              />
-              <Row
-                label="계약 시작"
-                value={val(result.timeline?.contract_start)}
-                onCommit={(value) =>
-                  updateResultSectionField(
-                    "timeline",
-                    "contract_start",
-                    normalizeTextInput(value),
-                  )
-                }
-              />
-              <Row
-                label="계약 종료"
-                value={val(result.timeline?.contract_end)}
-                onCommit={(value) =>
-                  updateResultSectionField(
-                    "timeline",
-                    "contract_end",
-                    normalizeTextInput(value),
-                  )
-                }
-              />
-              <Row
-                label="입주 예정"
-                value={val(result.timeline?.move_in_date)}
-                onCommit={(value) =>
-                  updateResultSectionField(
-                    "timeline",
-                    "move_in_date",
-                    normalizeTextInput(value),
-                  )
-                }
-              />
+              <div className="grid gap-y-4 gap-x-5 md:grid-cols-2">
+                <div className="space-y-1">
+                  <CompactInfoRow label="모집공고일" value={val(result.timeline?.announcement_date)} onCommit={(value) => updateResultSectionField("timeline", "announcement_date", normalizeTextInput(value))} />
+                  <CompactInfoRow label="청약 종료" value={val(result.timeline?.application_end)} onCommit={(value) => updateResultSectionField("timeline", "application_end", normalizeTextInput(value))} />
+                  <CompactInfoRow label="계약 시작" value={val(result.timeline?.contract_start)} onCommit={(value) => updateResultSectionField("timeline", "contract_start", normalizeTextInput(value))} />
+                  <CompactInfoRow label="입주 예정" value={val(result.timeline?.move_in_date)} onCommit={(value) => updateResultSectionField("timeline", "move_in_date", normalizeTextInput(value))} />
+                </div>
+                <div className="space-y-1">
+                  <CompactInfoRow label="청약 시작" value={val(result.timeline?.application_start)} onCommit={(value) => updateResultSectionField("timeline", "application_start", normalizeTextInput(value))} />
+                  <CompactInfoRow label="당첨자 발표" value={val(result.timeline?.winner_announce)} onCommit={(value) => updateResultSectionField("timeline", "winner_announce", normalizeTextInput(value))} />
+                  <CompactInfoRow label="계약 종료" value={val(result.timeline?.contract_end)} onCommit={(value) => updateResultSectionField("timeline", "contract_end", normalizeTextInput(value))} />
+                </div>
+              </div>
             </Section>
 
             <Section
@@ -5213,8 +4914,8 @@ export default function TestUploadPage() {
               <div className="mb-3 ob-typo-caption text-(--oboon-text-muted)">
                 체크박스로 병합할 타입을 선택한 뒤 일괄 병합할 수 있습니다.
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[980px] table-fixed border-collapse text-center ob-typo-caption text-(--oboon-text-body)">
+              <div className="overflow-x-auto rounded-xl border border-(--oboon-border-default)">
+                <table className="min-w-[1200px] w-full border-collapse bg-(--oboon-bg-surface) text-center ob-typo-body text-(--oboon-text-body)">
                   <colgroup>
                     <col className="w-[46px]" />
                     <col className="w-[46px]" />
@@ -5232,17 +4933,17 @@ export default function TestUploadPage() {
                     <col className="w-[52px]" />
                   </colgroup>
                   <thead>
-                    <tr className="bg-(--oboon-bg-subtle)">
-                      <th className="border border-(--oboon-border-default) px-2 py-2 text-(--oboon-text-title)">
+                    <tr>
+                      <th className="sticky top-0 z-10 bg-(--oboon-bg-subtle) px-1 py-2 text-center ob-typo-body text-(--oboon-text-muted) font-medium">
                         순서
                       </th>
-                      <th className="border border-(--oboon-border-default) px-2 py-2 text-(--oboon-text-title)">
+                      <th className="sticky top-0 z-10 bg-(--oboon-bg-subtle) px-1 py-2 text-center ob-typo-body text-(--oboon-text-muted) font-medium">
                         병합
                       </th>
                       {tableHeaders.map((h) => (
                         <th
                           key={h}
-                          className="border border-(--oboon-border-default) px-2 py-2 text-(--oboon-text-title)"
+                          className="sticky top-0 z-10 bg-(--oboon-bg-subtle) px-1 py-2 text-center ob-typo-body text-(--oboon-text-muted) font-medium"
                         >
                           {h}
                         </th>
@@ -5288,16 +4989,16 @@ export default function TestUploadPage() {
                           .filter(Boolean)
                           .join(" ")}
                       >
-                        <td className="border border-(--oboon-border-default) px-2 py-2">
+                        <td className="px-1 py-2 align-middle border-t border-(--oboon-border-default)">
                           <button
                             type="button"
-                            className="h-7 w-7 rounded border border-(--oboon-border-default) text-(--oboon-text-muted) cursor-grab active:cursor-grabbing"
+                            className="h-7 w-7 rounded border border-(--oboon-border-default) text-(--oboon-text-muted) cursor-grab active:cursor-grabbing mx-auto"
                             title="드래그해서 행 순서 변경"
                           >
                             ≡
                           </button>
                         </td>
-                        <td className="border border-(--oboon-border-default) px-2 py-2">
+                        <td className="px-1 py-2 align-middle border-t border-(--oboon-border-default)">
                           <input
                             type="checkbox"
                             checked={selectedUnitMergeRows.includes(i)}
@@ -5307,7 +5008,7 @@ export default function TestUploadPage() {
                             className="h-4 w-4 accent-(--oboon-primary)"
                           />
                         </td>
-                        <td className="border border-(--oboon-border-default) px-2 py-2">
+                        <td className="px-1 py-2 align-middle border-t border-(--oboon-border-default)">
                           <EditableText
                             value={val(u?.type_name)}
                             center
@@ -5320,7 +5021,7 @@ export default function TestUploadPage() {
                             }
                           />
                         </td>
-                        <td className="border border-(--oboon-border-default) px-2 py-2">
+                        <td className="px-1 py-2 align-middle border-t border-(--oboon-border-default)">
                           {u ? (
                             <div className="flex items-center justify-center gap-2">
                               <input
@@ -5377,7 +5078,7 @@ export default function TestUploadPage() {
                             </span>
                           )}
                         </td>
-                        <td className="border border-(--oboon-border-default) px-2 py-2">
+                        <td className="px-1 py-2 align-middle border-t border-(--oboon-border-default)">
                           <EditableText
                             value={val(u?.exclusive_area)}
                             center
@@ -5390,7 +5091,7 @@ export default function TestUploadPage() {
                             }
                           />
                         </td>
-                        <td className="border border-(--oboon-border-default) px-2 py-2">
+                        <td className="px-1 py-2 align-middle border-t border-(--oboon-border-default)">
                           <EditableText
                             value={val(u?.supply_area)}
                             center
@@ -5403,7 +5104,7 @@ export default function TestUploadPage() {
                             }
                           />
                         </td>
-                        <td className="border border-(--oboon-border-default) px-2 py-2">
+                        <td className="px-1 py-2 align-middle border-t border-(--oboon-border-default)">
                           <EditableText
                             value={val(u?.rooms)}
                             center
@@ -5416,7 +5117,7 @@ export default function TestUploadPage() {
                             }
                           />
                         </td>
-                        <td className="border border-(--oboon-border-default) px-2 py-2">
+                        <td className="px-1 py-2 align-middle border-t border-(--oboon-border-default)">
                           <EditableText
                             value={val(u?.bathrooms)}
                             center
@@ -5429,7 +5130,7 @@ export default function TestUploadPage() {
                             }
                           />
                         </td>
-                        <td className="border border-(--oboon-border-default) px-2 py-2">
+                        <td className="px-1 py-2 align-middle border-t border-(--oboon-border-default)">
                           <EditableText
                             value={val(u?.building_layout)}
                             center
@@ -5442,7 +5143,7 @@ export default function TestUploadPage() {
                             }
                           />
                         </td>
-                        <td className="border border-(--oboon-border-default) px-2 py-2">
+                        <td className="px-1 py-2 align-middle border-t border-(--oboon-border-default)">
                           <EditableText
                             value={val(u?.orientation)}
                             center
@@ -5455,7 +5156,7 @@ export default function TestUploadPage() {
                             }
                           />
                         </td>
-                        <td className="border border-(--oboon-border-default) px-2 py-2">
+                        <td className="px-1 py-2 align-middle border-t border-(--oboon-border-default)">
                           <EditableText
                             value={val(u?.supply_count)}
                             center
@@ -5468,7 +5169,7 @@ export default function TestUploadPage() {
                             }
                           />
                         </td>
-                        <td className="border border-(--oboon-border-default) px-2 py-2">
+                        <td className="px-1 py-2 align-middle border-t border-(--oboon-border-default)">
                           <EditableText
                             value={
                               u && (u.price_min != null || u.price_max != null)
@@ -5483,7 +5184,7 @@ export default function TestUploadPage() {
                             }}
                           />
                         </td>
-                        <td className="border border-(--oboon-border-default) px-2 py-2">
+                        <td className="px-1 py-2 align-middle border-t border-(--oboon-border-default)">
                           <EditableText
                             value={val(u?.unit_count)}
                             center
@@ -5496,7 +5197,7 @@ export default function TestUploadPage() {
                             }
                           />
                         </td>
-                        <td className="border border-(--oboon-border-default) px-2 py-2">
+                        <td className="px-1 py-2 align-middle border-t border-(--oboon-border-default)">
                           <Button
                             size="sm"
                             variant="ghost"
@@ -5514,202 +5215,126 @@ export default function TestUploadPage() {
               </div>
             </Section>
 
-            <Section title="위치">
-              <Row
-                label="도로명 주소"
-                value={val(result.location?.road_address)}
-                onCommit={(value) =>
-                  updateResultSectionField(
-                    "location",
-                    "road_address",
-                    normalizeTextInput(value),
-                  )
-                }
-              />
-              <Row
-                label="지번 주소"
-                value={val(result.location?.jibun_address)}
-                onCommit={(value) =>
-                  updateResultSectionField(
-                    "location",
-                    "jibun_address",
-                    normalizeTextInput(value),
-                  )
-                }
-              />
-              <Row
-                label="시/도"
-                value={val(result.location?.region_1depth)}
-                onCommit={(value) =>
-                  updateResultSectionField(
-                    "location",
-                    "region_1depth",
-                    normalizeTextInput(value),
-                  )
-                }
-              />
-              <Row
-                label="시/군/구"
-                value={val(result.location?.region_2depth)}
-                onCommit={(value) =>
-                  updateResultSectionField(
-                    "location",
-                    "region_2depth",
-                    normalizeTextInput(value),
-                  )
-                }
-              />
-              <Row
-                label="읍/면/동"
-                value={val(result.location?.region_3depth)}
-                onCommit={(value) =>
-                  updateResultSectionField(
-                    "location",
-                    "region_3depth",
-                    normalizeTextInput(value),
-                  )
-                }
-              />
-              <Row
-                label="위도"
-                value={val(result.location?.lat)}
-                onCommit={(value) =>
-                  updateResultSectionField(
-                    "location",
-                    "lat",
-                    toNullableNumberInput(value),
-                  )
-                }
-              />
-              <Row
-                label="경도"
-                value={val(result.location?.lng)}
-                onCommit={(value) =>
-                  updateResultSectionField(
-                    "location",
-                    "lng",
-                    toNullableNumberInput(value),
-                  )
-                }
-              />
-
-              <div className="mt-3">
-                {locationMarkers.length > 0 ? (
-                  <div className="pointer-events-none h-72 overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)">
-                    <NaverMap
-                      key={`location-map-${locationLat}-${locationLng}`}
-                      markers={locationMarkers}
-                      focusedId={null}
-                      showFocusedAsRich={false}
-                      fitToMarkers
-                      initialZoom={15}
-                      mode="base"
-                    />
-                  </div>
-                ) : (
-                  <div className="rounded-xl border border-dashed border-(--oboon-border-default) p-4 text-center ob-typo-body text-(--oboon-text-muted)">
-                    좌표가 없어 지도를 표시할 수 없습니다.
-                  </div>
-                )}
+            <Section title="현장 위치">
+              <div className="grid gap-y-4 gap-x-5 md:grid-cols-2">
+                <div className="space-y-1">
+                  <CompactInfoRow label="도로명 주소" value={val(result.location?.road_address)} onCommit={(value) => updateResultSectionField("location", "road_address", normalizeTextInput(value))} />
+                  <CompactInfoRow label="지번 주소" value={val(result.location?.jibun_address)} onCommit={(value) => updateResultSectionField("location", "jibun_address", normalizeTextInput(value))} />
+                  <CompactInfoRow label="시/도" value={val(result.location?.region_1depth)} onCommit={(value) => updateResultSectionField("location", "region_1depth", normalizeTextInput(value))} />
+                  <CompactInfoRow label="시/군/구" value={val(result.location?.region_2depth)} onCommit={(value) => updateResultSectionField("location", "region_2depth", normalizeTextInput(value))} />
+                  <CompactInfoRow label="읍/면/동" value={val(result.location?.region_3depth)} onCommit={(value) => updateResultSectionField("location", "region_3depth", normalizeTextInput(value))} />
+                  <CompactInfoRow label="위도" value={val(result.location?.lat)} onCommit={(value) => updateResultSectionField("location", "lat", toNullableNumberInput(value))} />
+                  <CompactInfoRow label="경도" value={val(result.location?.lng)} onCommit={(value) => updateResultSectionField("location", "lng", toNullableNumberInput(value))} />
+                </div>
+                <div>
+                  {locationMarkers.length > 0 ? (
+                    <div className="pointer-events-none h-72 overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)">
+                      <NaverMap
+                        key={`location-map-${locationLat}-${locationLng}`}
+                        markers={locationMarkers}
+                        focusedId={null}
+                        showFocusedAsRich={false}
+                        fitToMarkers
+                        initialZoom={15}
+                        mode="base"
+                      />
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-(--oboon-border-default) p-4 text-center ob-typo-body text-(--oboon-text-muted)">
+                      좌표가 없어 지도를 표시할 수 없습니다.
+                    </div>
+                  )}
+                </div>
               </div>
             </Section>
 
-            <Section title="홍보시설">
-              <div className="mb-3">
-                {facilityMarkers.length > 0 ? (
-                  <div className="pointer-events-none h-72 overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)">
-                    <NaverMap
-                      key={`facility-map-${facilityMarkers.map((m) => `${m.lat},${m.lng}`).join("|")}`}
-                      markers={facilityMarkers}
-                      focusedId={facilityMarkers[0]?.id ?? null}
-                      showFocusedAsRich={false}
-                      fitToMarkers
-                      initialZoom={15}
-                      mode="base"
-                    />
-                  </div>
-                ) : (
-                  <div className="rounded-xl border border-dashed border-(--oboon-border-default) p-4 text-center ob-typo-body text-(--oboon-text-muted)">
-                    홍보시설 좌표가 없어 지도를 표시할 수 없습니다.
-                  </div>
-                )}
-              </div>
-              <div className="space-y-2">
-                {(result.facilities.length > 0
-                  ? result.facilities
-                  : [null]
-                ).map((f: ExtractFacilityType | null, i: number) => (
-                  <div
-                    key={`${f?.name ?? "facility"}-${i}`}
-                    className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-3"
-                  >
-                    <div className="ob-typo-body text-(--oboon-text-title)">
-                      유형:{" "}
-                      <EditableText
-                        value={f?.type ?? "-"}
-                        onCommit={(value) =>
-                          updateResultFacilityField(
-                            i,
-                            "type",
-                            normalizeTextInput(value),
-                          )
-                        }
+            <Section title="모델하우스 위치">
+              <div className="grid gap-y-4 gap-x-5 md:grid-cols-2">
+                <div className="space-y-2">
+                  {(result.facilities.length > 0 ? result.facilities : [null]).map(
+                    (f: ExtractFacilityType | null, i: number) => (
+                      <div
+                        key={`${f?.name ?? "facility"}-${i}`}
+                        className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-3"
+                      >
+                        <CompactInfoRow
+                          label="유형"
+                          value={f?.type ?? "-"}
+                          onCommit={(value) =>
+                            updateResultFacilityField(
+                              i,
+                              "type",
+                              normalizeTextInput(value),
+                            )
+                          }
+                        />
+                        <CompactInfoRow
+                          label="명칭"
+                          value={f?.name ?? "-"}
+                          onCommit={(value) =>
+                            updateResultFacilityField(
+                              i,
+                              "name",
+                              normalizeTextInput(value),
+                            )
+                          }
+                        />
+                        <CompactInfoRow
+                          label="주소"
+                          value={f?.road_address ?? "-"}
+                          onCommit={(value) =>
+                            updateResultFacilityField(
+                              i,
+                              "road_address",
+                              normalizeTextInput(value),
+                            )
+                          }
+                        />
+                        <CompactInfoRow
+                          label="운영 시작"
+                          value={f?.open_start ?? "-"}
+                          onCommit={(value) =>
+                            updateResultFacilityField(
+                              i,
+                              "open_start",
+                              normalizeTextInput(value),
+                            )
+                          }
+                        />
+                        <CompactInfoRow
+                          label="운영 종료"
+                          value={f?.open_end ?? "-"}
+                          onCommit={(value) =>
+                            updateResultFacilityField(
+                              i,
+                              "open_end",
+                              normalizeTextInput(value),
+                            )
+                          }
+                        />
+                      </div>
+                    ),
+                  )}
+                </div>
+                <div>
+                  {facilityMarkers.length > 0 ? (
+                    <div className="pointer-events-none h-72 overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)">
+                      <NaverMap
+                        key={`facility-map-${facilityMarkers.map((m) => `${m.lat},${m.lng}`).join("|")}`}
+                        markers={facilityMarkers}
+                        focusedId={facilityMarkers[0]?.id ?? null}
+                        showFocusedAsRich={false}
+                        fitToMarkers
+                        initialZoom={15}
+                        mode="base"
                       />
                     </div>
-                    <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
-                      명칭:{" "}
-                      <EditableText
-                        value={f?.name ?? "-"}
-                        onCommit={(value) =>
-                          updateResultFacilityField(
-                            i,
-                            "name",
-                            normalizeTextInput(value),
-                          )
-                        }
-                      />
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-(--oboon-border-default) p-4 text-center ob-typo-body text-(--oboon-text-muted)">
+                      모델하우스 좌표가 없어 지도를 표시할 수 없습니다.
                     </div>
-                    <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
-                      주소:{" "}
-                      <EditableText
-                        value={f?.road_address ?? "-"}
-                        onCommit={(value) =>
-                          updateResultFacilityField(
-                            i,
-                            "road_address",
-                            normalizeTextInput(value),
-                          )
-                        }
-                      />
-                    </div>
-                    <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
-                      운영 시작:{" "}
-                      <EditableText
-                        value={f?.open_start ?? "-"}
-                        onCommit={(value) =>
-                          updateResultFacilityField(
-                            i,
-                            "open_start",
-                            normalizeTextInput(value),
-                          )
-                        }
-                      />
-                    </div>
-                    <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
-                      운영 종료:{" "}
-                      <EditableText
-                        value={f?.open_end ?? "-"}
-                        onCommit={(value) =>
-                          updateResultFacilityField(
-                            i,
-                            "open_end",
-                            normalizeTextInput(value),
-                          )
-                        }
-                      />
-                    </div>
-                  </div>
-                ))}
+                  )}
+                </div>
               </div>
             </Section>
 
@@ -5768,23 +5393,27 @@ function Section({
   title,
   children,
   headerRight,
+  className,
 }: {
   title: string;
   children: ReactNode;
   headerRight?: ReactNode;
+  className?: string;
 }) {
   return (
-    <Card className="p-4">
+    <div className={["pt-5 space-y-2", className].filter(Boolean).join(" ")}>
       <div className="flex items-center justify-between gap-3">
-        <div className="ob-typo-subtitle text-(--oboon-text-title)">{title}</div>
+        <h2 className="ob-typo-h2 text-(--oboon-text-title)">{title}</h2>
         {headerRight ? <div className="shrink-0">{headerRight}</div> : null}
       </div>
-      <div className="mt-3 space-y-1">{children}</div>
-    </Card>
+      <Card className="p-5">
+        <div className="space-y-1">{children}</div>
+      </Card>
+    </div>
   );
 }
 
-function Row({
+function CompactInfoRow({
   label,
   value,
   editable = true,
@@ -5796,11 +5425,13 @@ function Row({
   onCommit?: (nextValue: string) => void;
 }) {
   return (
-    <div className="flex gap-3 border-b border-(--oboon-border-default) py-2 last:border-b-0">
-      <span className="w-30 shrink-0 ob-typo-caption text-(--oboon-text-muted)">
+    <div className="flex items-center gap-3 border-b border-(--oboon-border-default) py-2 last:border-b-0">
+      <span className="w-20 shrink-0 ob-typo-body text-(--oboon-text-muted)">
         {label}
       </span>
-      <EditableText value={value} editable={editable} onCommit={onCommit} />
+      <div className="min-w-0 flex-1">
+        <EditableText value={value} editable={editable} onCommit={onCommit} />
+      </div>
     </div>
   );
 }
