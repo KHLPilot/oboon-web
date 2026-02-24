@@ -1767,16 +1767,26 @@ function AdminPageInner() {
                       {pendingPropertyAgentCount}건
                     </Badge>
                   </div>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    shape="pill"
-                    className="h-9 w-9 p-0 rounded-full"
-                    onClick={refreshCurrentTab}
-                    aria-label="새로고침"
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      shape="pill"
+                      onClick={() => router.push("/company/properties/new")}
+                    >
+                      새 현장 등록
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      shape="pill"
+                      className="h-9 w-9 p-0 rounded-full"
+                      onClick={refreshCurrentTab}
+                      aria-label="새로고침"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   {[
