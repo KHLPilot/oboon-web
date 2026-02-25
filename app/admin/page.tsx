@@ -108,6 +108,34 @@ type Term = {
   created_at: string;
 };
 
+type FAQCategory = {
+  id: string;
+  key: string;
+  name: string;
+  sort_order: number;
+  is_active: boolean;
+};
+
+type FAQItem = {
+  id: string;
+  categoryId: string;
+  categoryKey: string;
+  categoryName: string;
+  question: string;
+  answer: string;
+  sortOrder: number;
+  isActive: boolean;
+};
+
+type FAQEditor = {
+  id?: string;
+  categoryId: string;
+  question: string;
+  answer: string;
+  sortOrder: number;
+  isActive: boolean;
+};
+
 function MissingPill({ label }: { label: string }) {
   return (
     <Badge variant="warning" className="ob-typo-caption px-2.5 py-1">
@@ -195,6 +223,7 @@ const ADMIN_TABS = [
   { id: "reservations", label: "예약 관리" },
   { id: "settlements", label: "정산 관리" },
   { id: "terms", label: "약관 관리" },
+  { id: "faq", label: "FAQ 관리" },
 ] as const;
 
 export default function AdminPage() {
@@ -264,6 +293,12 @@ function AdminPageInner() {
   const [termsLoading, setTermsLoading] = useState(false);
   const [editingTerm, setEditingTerm] = useState<Term | null>(null);
   const [termSaving, setTermSaving] = useState(false);
+  const [faqCategories, setFaqCategories] = useState<FAQCategory[]>([]);
+  const [faqItems, setFaqItems] = useState<FAQItem[]>([]);
+  const [faqLoading, setFaqLoading] = useState(false);
+  const [faqSaving, setFaqSaving] = useState(false);
+  const [faqDeletingId, setFaqDeletingId] = useState<string | null>(null);
+  const [faqEditor, setFaqEditor] = useState<FAQEditor | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -340,6 +375,127 @@ function AdminPageInner() {
       toast.error("저장 중 오류가 발생했습니다", "오류");
     } finally {
       setTermSaving(false);
+    }
+  };
+
+  const loadFaqAdmin = useCallback(async () => {
+    setFaqLoading(true);
+    try {
+      const response = await fetch("/api/support/faq/admin");
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "FAQ 조회 실패");
+      }
+
+      const categories = (data.categories || []) as FAQCategory[];
+      const categoryMap = new Map(categories.map((category) => [category.key, category]));
+      const items = ((data.items || []) as Array<Record<string, unknown>>).map((item) => {
+        const categoryKey = String(item.categoryKey ?? "");
+        const category = categoryMap.get(categoryKey);
+        return {
+          id: String(item.id ?? ""),
+          categoryId: category?.id ?? "",
+          categoryKey,
+          categoryName: String(item.categoryName ?? ""),
+          question: String(item.question ?? ""),
+          answer: String(item.answer ?? ""),
+          sortOrder: Number(item.sortOrder ?? 0) || 0,
+          isActive: item.isActive !== false,
+        } satisfies FAQItem;
+      });
+
+      setFaqCategories(categories);
+      setFaqItems(items);
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "FAQ 조회 실패"), "오류");
+    } finally {
+      setFaqLoading(false);
+    }
+  }, [toast]);
+
+  const openCreateFaqEditor = () => {
+    const firstCategory = faqCategories.find((category) => category.is_active) ?? faqCategories[0];
+    if (!firstCategory) {
+      toast.error("FAQ 카테고리가 없습니다.", "오류");
+      return;
+    }
+    setFaqEditor({
+      categoryId: firstCategory.id,
+      question: "",
+      answer: "",
+      sortOrder: 0,
+      isActive: true,
+    });
+  };
+
+  const openEditFaqEditor = (item: FAQItem) => {
+    setFaqEditor({
+      id: item.id,
+      categoryId: item.categoryId,
+      question: item.question,
+      answer: item.answer,
+      sortOrder: item.sortOrder,
+      isActive: item.isActive,
+    });
+  };
+
+  const saveFaqEditor = async () => {
+    if (!faqEditor) return;
+    if (!faqEditor.categoryId || !faqEditor.question.trim() || !faqEditor.answer.trim()) {
+      toast.error("카테고리, 질문, 답변을 입력해주세요.", "오류");
+      return;
+    }
+
+    setFaqSaving(true);
+    try {
+      const payload = {
+        id: faqEditor.id,
+        categoryId: faqEditor.categoryId,
+        question: faqEditor.question.trim(),
+        answer: faqEditor.answer.trim(),
+        sortOrder: faqEditor.sortOrder,
+        isActive: faqEditor.isActive,
+      };
+
+      const response = await fetch("/api/support/faq/admin", {
+        method: faqEditor.id ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.error || "FAQ 저장 실패");
+      }
+
+      toast.success(faqEditor.id ? "FAQ가 수정되었습니다" : "FAQ가 등록되었습니다", "완료");
+      setFaqEditor(null);
+      await loadFaqAdmin();
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "FAQ 저장 실패"), "오류");
+    } finally {
+      setFaqSaving(false);
+    }
+  };
+
+  const deleteFaq = async (faqId: string) => {
+    const ok = window.confirm("이 FAQ를 삭제할까요?");
+    if (!ok) return;
+
+    setFaqDeletingId(faqId);
+    try {
+      const response = await fetch(`/api/support/faq/admin?id=${encodeURIComponent(faqId)}`, {
+        method: "DELETE",
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.error || "FAQ 삭제 실패");
+      }
+      toast.success("FAQ가 삭제되었습니다", "완료");
+      await loadFaqAdmin();
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "FAQ 삭제 실패"), "오류");
+    } finally {
+      setFaqDeletingId(null);
     }
   };
 
@@ -836,6 +992,12 @@ function AdminPageInner() {
     }
   }, [activeTab, loadTerms]);
 
+  useEffect(() => {
+    if (activeTab === "faq") {
+      void loadFaqAdmin();
+    }
+  }, [activeTab, loadFaqAdmin]);
+
   if (loading) {
     return (
       <div className="py-16 text-center ob-typo-body text-(--oboon-text-muted)">
@@ -956,6 +1118,171 @@ function AdminPageInner() {
             </div>
           </>
         )}
+      </Modal>
+      <Modal
+        open={Boolean(faqEditor)}
+        onClose={() => {
+          if (!faqSaving) setFaqEditor(null);
+        }}
+        showCloseIcon={!faqSaving}
+      >
+        {faqEditor ? (
+          <div className="space-y-4">
+            <div className="ob-typo-subtitle text-(--oboon-text-title)">
+              {faqEditor.id ? "FAQ 수정" : "FAQ 등록"}
+            </div>
+            <div className="space-y-3">
+              <label className="block">
+                <span className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
+                  카테고리
+                </span>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="secondary"
+                      className="w-full justify-between rounded-xl"
+                      disabled={faqSaving}
+                    >
+                      <span>
+                        {faqCategories.find((category) => category.id === faqEditor.categoryId)
+                          ?.name ?? "카테고리 선택"}
+                      </span>
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-full min-w-[260px]">
+                    {faqCategories.map((category) => (
+                      <DropdownMenuItem
+                        key={category.id}
+                        onClick={() =>
+                          setFaqEditor((prev) =>
+                            prev ? { ...prev, categoryId: category.id } : prev,
+                          )
+                        }
+                      >
+                        {category.name}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </label>
+              <label className="block">
+                <span className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
+                  질문
+                </span>
+                <Input
+                  value={faqEditor.question}
+                  onChange={(e) =>
+                    setFaqEditor((prev) =>
+                      prev
+                        ? { ...prev, question: e.target.value }
+                        : prev,
+                    )
+                  }
+                  placeholder="질문을 입력하세요"
+                  disabled={faqSaving}
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
+                  답변
+                </span>
+                <Textarea
+                  value={faqEditor.answer}
+                  onChange={(e) =>
+                    setFaqEditor((prev) =>
+                      prev
+                        ? { ...prev, answer: e.target.value }
+                        : prev,
+                    )
+                  }
+                  rows={8}
+                  placeholder="답변을 입력하세요"
+                  disabled={faqSaving}
+                />
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
+                    정렬 순서
+                  </span>
+                  <Input
+                    type="number"
+                    value={String(faqEditor.sortOrder)}
+                    onChange={(e) =>
+                      setFaqEditor((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              sortOrder: Number(e.target.value) || 0,
+                            }
+                          : prev,
+                      )
+                    }
+                    disabled={faqSaving}
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
+                    노출 상태
+                  </span>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="secondary"
+                        className="w-full justify-between rounded-xl"
+                        disabled={faqSaving}
+                      >
+                        <span>{faqEditor.isActive ? "활성" : "비활성"}</span>
+                        <ChevronDown className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-full min-w-[140px]">
+                      <DropdownMenuItem
+                        onClick={() =>
+                          setFaqEditor((prev) =>
+                            prev ? { ...prev, isActive: true } : prev,
+                          )
+                        }
+                      >
+                        활성
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() =>
+                          setFaqEditor((prev) =>
+                            prev ? { ...prev, isActive: false } : prev,
+                          )
+                        }
+                      >
+                        비활성
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </label>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                shape="pill"
+                onClick={() => setFaqEditor(null)}
+                disabled={faqSaving}
+              >
+                취소
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                shape="pill"
+                onClick={saveFaqEditor}
+                loading={faqSaving}
+              >
+                저장
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </Modal>
       <SettlementDetailModal
         open={Boolean(selectedSettlement)}
@@ -2055,6 +2382,108 @@ function AdminPageInner() {
                   </div>
                 </Card>
               </div>
+            )}
+
+            {activeTab === "faq" && (
+              <>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="ob-typo-h2 text-(--oboon-text-title)">
+                      FAQ 관리
+                    </div>
+                    <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+                      자주 묻는 질문의 질문/답변/노출 상태를 관리합니다.
+                    </p>
+                  </div>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    shape="pill"
+                    onClick={openCreateFaqEditor}
+                    disabled={faqCategories.length === 0}
+                  >
+                    + FAQ 등록
+                  </Button>
+                </div>
+
+                {faqLoading ? (
+                  <div className="flex justify-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-(--oboon-primary)" />
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {faqCategories.map((category) => {
+                      const items = faqItems
+                        .filter((item) => item.categoryId === category.id)
+                        .sort((a, b) => a.sortOrder - b.sortOrder);
+                      return (
+                        <div key={category.id}>
+                          <div className="ob-typo-subtitle text-(--oboon-text-title) mb-3">
+                            {category.name}
+                          </div>
+                          <div className="space-y-3">
+                            {items.map((item) => (
+                              <Card key={item.id} className="p-4">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <FileText className="h-4 w-4 text-(--oboon-primary)" />
+                                      <span className="ob-typo-body text-(--oboon-text-title)">
+                                        {item.question}
+                                      </span>
+                                      <Badge variant="status">정렬 {item.sortOrder}</Badge>
+                                      <Badge variant="status">
+                                        {item.isActive ? "활성" : "비활성"}
+                                      </Badge>
+                                    </div>
+                                    <div className="mt-1 ob-typo-caption text-(--oboon-text-muted) line-clamp-3 whitespace-pre-wrap">
+                                      {item.answer}
+                                    </div>
+                                  </div>
+                                  <div className="flex shrink-0 items-center gap-2">
+                                    <Button
+                                      variant="secondary"
+                                      size="sm"
+                                      shape="pill"
+                                      onClick={() => openEditFaqEditor(item)}
+                                    >
+                                      <Edit3 className="h-4 w-4" />
+                                      수정
+                                    </Button>
+                                    <Button
+                                      variant="danger"
+                                      size="sm"
+                                      shape="pill"
+                                      onClick={() => void deleteFaq(item.id)}
+                                      loading={faqDeletingId === item.id}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                      삭제
+                                    </Button>
+                                  </div>
+                                </div>
+                              </Card>
+                            ))}
+                            {items.length === 0 && (
+                              <p className="ob-typo-caption text-(--oboon-text-muted)">
+                                등록된 FAQ가 없습니다.
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {faqCategories.length === 0 && (
+                      <Card className="p-5 text-center">
+                        <p className="ob-typo-body text-(--oboon-text-muted)">
+                          FAQ 카테고리가 없습니다. DB 마이그레이션 상태를 확인해주세요.
+                        </p>
+                      </Card>
+                    )}
+                  </div>
+                )}
+              </>
             )}
 
             {activeTab === "terms" && (

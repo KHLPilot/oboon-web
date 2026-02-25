@@ -35,6 +35,7 @@ type SearchParams = {
   budgetMin?: string; // 억 단위
   budgetMax?: string; // 억 단위
   agent?: string;
+  appraisal?: string;
 };
 
 function isRegionTab(v: string): v is OfferingRegionTab {
@@ -98,6 +99,8 @@ function filterOfferings(
 
   const rawAgent = (sp.agent ?? "").trim();
   const agentFilter = rawAgent === "has" ? "has" : "전체";
+  const rawAppraisal = (sp.appraisal ?? "").trim();
+  const appraisalFilter = rawAppraisal === "done" ? "done" : "전체";
 
   return all.filter((o) => {
     // region
@@ -116,6 +119,11 @@ function filterOfferings(
 
     // agent
     if (agentFilter === "has" && !approvedAgentPropertyIds.has(String(o.id))) {
+      return false;
+    }
+
+    // appraisal
+    if (appraisalFilter === "done" && !o.hasAppraiserComment) {
       return false;
     }
 
@@ -162,6 +170,7 @@ export default function OfferingsClientBody() {
       budgetMin: sp.get("budgetMin") ?? undefined,
       budgetMax: sp.get("budgetMax") ?? undefined,
       agent: sp.get("agent") ?? undefined,
+      appraisal: sp.get("appraisal") ?? undefined,
     };
   }, [sp]);
 

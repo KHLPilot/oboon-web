@@ -20,11 +20,26 @@ export interface MapMarker {
   clusterRegion?: string | null;
   topLabel?: string | null;
   mainLabel?: string | null;
+  imageUrl?: string | null;
+  address?: string | null;
+  ctaLabel?: string | null;
+  canConsult?: boolean;
 }
+
+export type MapFocusBounds = {
+  south: number;
+  west: number;
+  north: number;
+  east: number;
+};
+
+export type MapFocusPolygonPath = Array<{ lat: number; lng: number }>;
 
 export type NaverMapHandle = {
   zoomIn: () => void;
   zoomOut: () => void;
+  setView: (lat: number, lng: number, zoom?: number) => void;
+  fitToBounds: (bounds: MapFocusBounds) => void;
   resize: () => void;
   refreshMarkers: () => void;
 };
@@ -46,6 +61,7 @@ type MapClickEvent = {
 };
 
 const REGION_CLUSTER_ZOOM_THRESHOLD = 10;
+const MERCATOR_TILE_SIZE = 256;
 
 function escapeHtml(value: string) {
   return value
@@ -54,6 +70,33 @@ function escapeHtml(value: string) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function latRad(lat: number) {
+  const sin = Math.sin((lat * Math.PI) / 180);
+  const radX2 = Math.log((1 + sin) / (1 - sin)) / 2;
+  return Math.max(Math.min(radX2, Math.PI), -Math.PI) / 2;
+}
+
+function zoomToFitBounds(args: {
+  south: number;
+  west: number;
+  north: number;
+  east: number;
+  width: number;
+  height: number;
+}) {
+  const { south, west, north, east, width, height } = args;
+  const latFraction = Math.max((latRad(north) - latRad(south)) / Math.PI, 1e-9);
+  const lngDiff = east - west;
+  const lngFraction = Math.max(
+    ((lngDiff < 0 ? lngDiff + 360 : lngDiff) / 360),
+    1e-9,
+  );
+
+  const latZoom = Math.log2(height / MERCATOR_TILE_SIZE / latFraction);
+  const lngZoom = Math.log2(width / MERCATOR_TILE_SIZE / lngFraction);
+  return Math.floor(Math.min(latZoom, lngZoom));
 }
 
 function clusterLabelIconFor(args: { label: string; state: MarkerState }) {
@@ -100,9 +143,16 @@ const NaverMap = forwardRef<
     fitToMarkers?: boolean;
     initialZoom?: number;
     onMarkerSelect?: (id: number) => void;
+    onMarkerAction?: (
+      markerId: number,
+      action: "copy-address" | "consult",
+    ) => void;
     onHoverChange?: (id: number | null) => void;
     onVisibleIdsChange?: (ids: number[]) => void;
     onClearFocus?: () => void;
+    focusBounds?: MapFocusBounds | null;
+    focusPolygons?: MapFocusPolygonPath[];
+    onMapReady?: () => void;
     mode?: MapMode;
     onSelectPosition?: (lat: number, lng: number) => void | Promise<void>;
     interactive?: boolean;
@@ -118,9 +168,13 @@ const NaverMap = forwardRef<
       fitToMarkers = false,
       initialZoom = 12,
       onMarkerSelect,
+      onMarkerAction,
       onHoverChange = () => {},
       onVisibleIdsChange,
       onClearFocus,
+      focusBounds = null,
+      focusPolygons = [],
+      onMapReady,
       mode = "base",
       onSelectPosition,
       interactive = true,
@@ -153,10 +207,20 @@ const NaverMap = forwardRef<
     const showFocusedAsRichRef = useRef(showFocusedAsRich);
     const markerClickTsRef = useRef<number>(0);
     const lastFittedMarkersKeyRef = useRef<string>("");
+    const focusBoundsRef = useRef<MapFocusBounds | null>(focusBounds);
+    const focusPolygonsRef = useRef<MapFocusPolygonPath[]>(focusPolygons);
+    const maskPolygonsRef = useRef<Array<{ setMap: (map: unknown) => void }>>(
+      [],
+    );
+    const outlinePolygonsRef = useRef<Array<{ setMap: (map: unknown) => void }>>(
+      [],
+    );
     focusedIdRef.current = focusedId;
     hoveredIdRef.current = hoveredId;
     richMarkerIdsRef.current = richMarkerIds;
     showFocusedAsRichRef.current = showFocusedAsRich;
+    focusBoundsRef.current = focusBounds;
+    focusPolygonsRef.current = focusPolygons;
     const applyMarkerStyleByIdRef = useRef<
       (naverObj: NaverGlobal, id: number) => void
     >(() => {});
@@ -169,13 +233,189 @@ const NaverMap = forwardRef<
     const refreshDisplayMarkersRef = useRef<(naverObj: NaverGlobal) => void>(
       () => {},
     );
+    const applyRegionFocusOverlayRef = useRef<(naverObj: NaverGlobal) => void>(
+      () => {},
+    );
+
+    function clearRegionFocusOverlay() {
+      maskPolygonsRef.current.forEach((polygon) => polygon.setMap(null));
+      maskPolygonsRef.current = [];
+      outlinePolygonsRef.current.forEach((polygon) => polygon.setMap(null));
+      outlinePolygonsRef.current = [];
+    }
+
+    function makeRectPath(
+      naverObj: NaverGlobal,
+      south: number,
+      west: number,
+      north: number,
+      east: number,
+    ) {
+      return [
+        new naverObj.maps.LatLng(south, west),
+        new naverObj.maps.LatLng(north, west),
+        new naverObj.maps.LatLng(north, east),
+        new naverObj.maps.LatLng(south, east),
+      ];
+    }
+
+    function toLatLngPath(
+      naverObj: NaverGlobal,
+      path: MapFocusPolygonPath,
+      reverse = false,
+    ) {
+      const points = path.map(
+        (point) => new naverObj.maps.LatLng(point.lat, point.lng),
+      );
+      return reverse ? [...points].reverse() : points;
+    }
+
+    function applyRegionFocusOverlay(naverObj: NaverGlobal) {
+      const map = mapRef.current;
+      if (!map) return;
+
+      clearRegionFocusOverlay();
+      const b = focusBoundsRef.current;
+      if (!b) return;
+
+      const KOREA_BOUNDS = {
+        south: 33.0,
+        west: 124.5,
+        north: 38.9,
+        east: 131.9,
+      } as const;
+
+      const south = Math.max(b.south, KOREA_BOUNDS.south);
+      const west = Math.max(b.west, KOREA_BOUNDS.west);
+      const north = Math.min(b.north, KOREA_BOUNDS.north);
+      const east = Math.min(b.east, KOREA_BOUNDS.east);
+      if (!(south < north && west < east)) return;
+
+      // 마스크 바깥 링은 "현재 화면"을 덮어야 잘림이 없다.
+      const viewBounds = map.getBounds() as unknown as {
+        getSW: () => { lat: () => number; lng: () => number };
+        getNE: () => { lat: () => number; lng: () => number };
+      };
+      const viewSouth = viewBounds.getSW().lat();
+      const viewWest = viewBounds.getSW().lng();
+      const viewNorth = viewBounds.getNE().lat();
+      const viewEast = viewBounds.getNE().lng();
+      const outerSouth = Math.min(KOREA_BOUNDS.south, viewSouth) - 0.05;
+      const outerWest = Math.min(KOREA_BOUNDS.west, viewWest) - 0.05;
+      const outerNorth = Math.max(KOREA_BOUNDS.north, viewNorth) + 0.05;
+      const outerEast = Math.max(KOREA_BOUNDS.east, viewEast) + 0.05;
+
+      const rects: Array<{
+        south: number;
+        west: number;
+        north: number;
+        east: number;
+      }> = [
+        // North
+        {
+          south: north,
+          west: KOREA_BOUNDS.west,
+          north: KOREA_BOUNDS.north,
+          east: KOREA_BOUNDS.east,
+        },
+        // South
+        {
+          south: KOREA_BOUNDS.south,
+          west: KOREA_BOUNDS.west,
+          north: south,
+          east: KOREA_BOUNDS.east,
+        },
+        // West
+        { south, west: KOREA_BOUNDS.west, north, east: west },
+        // East
+        { south, west: east, north, east: KOREA_BOUNDS.east },
+      ].filter((r) => r.south < r.north && r.west < r.east);
+
+      const mapsAny = naverObj.maps as unknown as {
+        Polygon: new (options: Record<string, unknown>) => {
+          setMap: (map: unknown) => void;
+        };
+      };
+
+      const hasFocusPolygon = focusPolygonsRef.current.length > 0;
+      if (hasFocusPolygon) {
+        const outerPath = makeRectPath(
+          naverObj,
+          outerSouth,
+          outerWest,
+          outerNorth,
+          outerEast,
+        );
+        const holePaths = focusPolygonsRef.current
+          .filter((path) => path.length >= 3)
+          .map((path) => toLatLngPath(naverObj, path, true));
+
+        if (holePaths.length > 0) {
+          maskPolygonsRef.current = [
+            new mapsAny.Polygon({
+              map,
+              paths: [outerPath, ...holePaths],
+              fillColor: "#0B1220",
+              fillOpacity: 0.25,
+              strokeOpacity: 0,
+              clickable: false,
+              zIndex: 10,
+            }),
+          ];
+        }
+
+        outlinePolygonsRef.current = focusPolygonsRef.current
+          .filter((path) => path.length >= 3)
+          .map((path) => {
+            return new mapsAny.Polygon({
+              map,
+              paths: toLatLngPath(naverObj, path),
+              fillOpacity: 0,
+              strokeColor: "#2B6AF3",
+              strokeOpacity: 0.95,
+              strokeWeight: 2,
+              clickable: false,
+              zIndex: 11,
+            });
+          });
+        return;
+      }
+
+      maskPolygonsRef.current = rects.map((r) => {
+        return new mapsAny.Polygon({
+          map,
+          paths: makeRectPath(naverObj, r.south, r.west, r.north, r.east),
+          fillColor: "#0B1220",
+          fillOpacity: 0.25,
+          strokeOpacity: 0,
+          clickable: false,
+          zIndex: 10,
+        });
+      });
+
+      outlinePolygonsRef.current = [
+        new mapsAny.Polygon({
+          map,
+          paths: makeRectPath(naverObj, south, west, north, east),
+          fillOpacity: 0,
+          strokeColor: "#2B6AF3",
+          strokeOpacity: 0.9,
+          strokeWeight: 2,
+          clickable: false,
+          zIndex: 11,
+        }),
+      ];
+    }
+    applyRegionFocusOverlayRef.current = applyRegionFocusOverlay;
 
     // 콜백 Ref
     const callbacksRef = useRef({
       onMarkerSelect,
+      onMarkerAction,
       onHoverChange,
       onVisibleIdsChange,
       onClearFocus,
+      onMapReady,
       onSelectPosition,
       mode,
     });
@@ -183,9 +423,11 @@ const NaverMap = forwardRef<
     useEffect(() => {
       callbacksRef.current = {
         onMarkerSelect,
+        onMarkerAction,
         onHoverChange,
         onVisibleIdsChange,
         onClearFocus,
+        onMapReady,
         onSelectPosition,
         mode,
       };
@@ -299,6 +541,10 @@ const NaverMap = forwardRef<
             label: m.label,
             topLabel: m.topLabel,
             mainLabel: m.mainLabel,
+            imageUrl: m.imageUrl,
+            address: m.address,
+            ctaLabel: m.ctaLabel,
+            canConsult: m.canConsult,
           });
 
       mk.setIcon({
@@ -544,6 +790,46 @@ const NaverMap = forwardRef<
         const m = mapRef.current;
         if (m) m.setZoom(m.getZoom() - 1, true);
       },
+      setView: (lat: number, lng: number, zoom?: number) => {
+        const m = mapRef.current;
+        const naverObj = window.naver;
+        if (!m || !naverObj?.maps) return;
+        m.panTo(new naverObj.maps.LatLng(lat, lng));
+        if (typeof zoom === "number") {
+          m.setZoom(zoom, true);
+        }
+      },
+      fitToBounds: (bounds: MapFocusBounds) => {
+        const m = mapRef.current;
+        const naverObj = window.naver;
+        if (!m || !naverObj?.maps) return;
+
+        const mapSize = m.getSize();
+        const paddingX = 44;
+        const paddingY = 40;
+        const fitWidth = Math.max((mapSize?.width ?? 0) - paddingX * 2, 120);
+        const fitHeight = Math.max((mapSize?.height ?? 0) - paddingY * 2, 120);
+
+        const centerLat = (bounds.south + bounds.north) / 2;
+        const centerLng = (bounds.west + bounds.east) / 2;
+        const targetZoom = Math.max(
+          6,
+          Math.min(
+            16,
+            zoomToFitBounds({
+              south: bounds.south,
+              west: bounds.west,
+              north: bounds.north,
+              east: bounds.east,
+              width: fitWidth,
+              height: fitHeight,
+            }),
+          ),
+        );
+
+        m.panTo(new naverObj.maps.LatLng(centerLat, centerLng));
+        m.setZoom(targetZoom, true);
+      },
       resize: () => {
         const naverObj = window.naver;
         if (mapRef.current && naverObj?.maps) {
@@ -573,6 +859,7 @@ const NaverMap = forwardRef<
           zoomControl: false,
         });
         mapRef.current = map;
+        callbacksRef.current.onMapReady?.();
 
         /**
          * iOS Safari / WKWebView(Whale 등)에서 초기 레이아웃 타이밍 때문에
@@ -612,6 +899,7 @@ const NaverMap = forwardRef<
           refreshDisplayMarkers(naverObj);
           fitMapToMarkers(naverObj, markers);
         }
+        applyRegionFocusOverlay(naverObj);
 
         const clickListener = naverObj.maps.Event.addListener(
           map,
@@ -658,6 +946,7 @@ const NaverMap = forwardRef<
           () => {
             isInteractingRef.current = false;
             refreshDisplayMarkersRef.current(naverObj);
+            applyRegionFocusOverlayRef.current(naverObj);
             scheduleVisibleSync();
             // idle에서 델타만 반영 (전체 loop 금지)
             applyFocusHoverDeltaStyles(naverObj);
@@ -670,6 +959,7 @@ const NaverMap = forwardRef<
           () => {
             isInteractingRef.current = true;
             refreshDisplayMarkersRef.current(naverObj);
+            applyRegionFocusOverlayRef.current(naverObj);
             // 현 정책상 focused만 갱신하면 충분
             const fid = focusedIdRef.current;
             if (fid) applyMarkerStyleById(naverObj, fid);
@@ -686,6 +976,7 @@ const NaverMap = forwardRef<
 
       return () => {
         isMounted = false;
+        clearRegionFocusOverlay();
         const naverObj = window.naver;
         const listeners = [...mountedListeners];
         if (naverObj?.maps) {
@@ -693,6 +984,62 @@ const NaverMap = forwardRef<
         }
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    useEffect(() => {
+      const actionDedupRef = {
+        lastKey: "",
+        lastAt: 0,
+      };
+
+      const resolveActionElement = (event: Event) => {
+        const path = typeof event.composedPath === "function" ? event.composedPath() : [];
+        for (const node of path) {
+          if (!(node instanceof HTMLElement)) continue;
+          if (node.dataset.mapAction) return node;
+        }
+        const target = event.target as HTMLElement | null;
+        return target?.closest("[data-map-action]") as HTMLElement | null;
+      };
+
+      const onActionCapture = (event: Event) => {
+        const actionEl = resolveActionElement(event);
+        if (!actionEl) return;
+
+        const action = actionEl.dataset.mapAction;
+        if (action !== "copy-address" && action !== "consult") return;
+        if (action === "consult" && actionEl.dataset.mapDisabled === "1") {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+
+        const markerId = focusedIdRef.current;
+        if (!markerId) return;
+
+        const key = `${markerId}:${action}`;
+        const now = Date.now();
+        if (actionDedupRef.lastKey === key && now - actionDedupRef.lastAt < 450) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+        actionDedupRef.lastKey = key;
+        actionDedupRef.lastAt = now;
+
+        event.preventDefault();
+        event.stopPropagation();
+        markerClickTsRef.current = Date.now();
+        callbacksRef.current.onMarkerAction?.(markerId, action);
+      };
+
+      // SDK 내부에서 bubble phase를 차단하는 경우가 있어 capture에서 먼저 처리
+      document.addEventListener("pointerdown", onActionCapture, true);
+      document.addEventListener("click", onActionCapture, true);
+      return () => {
+        document.removeEventListener("pointerdown", onActionCapture, true);
+        document.removeEventListener("click", onActionCapture, true);
+      };
     }, []);
 
     // [1-1] iOS Safari BFCache / 탭 복귀 대응
@@ -739,6 +1086,12 @@ const NaverMap = forwardRef<
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [markers]);
+
+    useEffect(() => {
+      const naverObj = window.naver;
+      if (!naverObj?.maps || !mapRef.current) return;
+      applyRegionFocusOverlayRef.current(naverObj);
+    }, [focusBounds, focusPolygons]);
 
     // [3] Hover/Focus: 전체 loop 금지 → delta만
     useEffect(() => {

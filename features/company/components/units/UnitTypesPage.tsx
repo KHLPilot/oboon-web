@@ -232,7 +232,7 @@ export default function UnitTypesPage({
     useRequirePropertyEditAccess(propertyId);
   const cancelHref = `/company/properties/${propertyId}`;
 
-  const { units, loading, errorMsg, createUnit, updateUnit, clearError } =
+  const { units, loading, errorMsg, createUnit, updateUnit, deleteUnit, clearError } =
     useUnitTypes(safePropertyId);
 
   const [rowDrafts, setRowDrafts] = useState<Record<number, UnitDraft>>({});
@@ -241,6 +241,7 @@ export default function UnitTypesPage({
   const [newRowKeySeq, setNewRowKeySeq] = useState(0);
   const [editMode, setEditMode] = useState(false);
   const [savingAll, setSavingAll] = useState(false);
+  const [deletingRowKey, setDeletingRowKey] = useState<string | null>(null);
   const [floorPlanModalUnitId, setFloorPlanModalUnitId] = useState<number | null>(null);
   const [floorPlanModalUrls, setFloorPlanModalUrls] = useState<string[]>([]);
   const [floorPlanUploading, setFloorPlanUploading] = useState(false);
@@ -468,6 +469,34 @@ export default function UnitTypesPage({
     await onAfterSave?.();
   }
 
+  async function handleDeleteRow(rowKey: string, unitId?: number) {
+    if (deletingRowKey || savingAll) return;
+
+    if (!window.confirm("이 평면 타입 행을 삭제하시겠습니까?")) return;
+
+    if (!unitId) {
+      setNewRows((prev) => prev.filter((row) => row.key !== rowKey));
+      setRowSequence((prev) => prev.filter((key) => key !== rowKey));
+      return;
+    }
+
+    setDeletingRowKey(rowKey);
+    const res = await deleteUnit(unitId);
+    setDeletingRowKey(null);
+    if (!res.ok) {
+      showAlert(res.error || "삭제에 실패했습니다.");
+      return;
+    }
+
+    setRowDrafts((prev) => {
+      const next = { ...prev };
+      delete next[unitId];
+      return next;
+    });
+    setRowSequence((prev) => prev.filter((key) => key !== rowKey));
+    showAlert("삭제되었습니다.");
+  }
+
   if (accessLoading) {
     return <div className="px-4 py-8 ob-typo-body text-(--oboon-text-muted)">권한 확인 중...</div>;
   }
@@ -517,6 +546,7 @@ export default function UnitTypesPage({
                   <HeaderCell className="min-w-[92px]">평면도</HeaderCell>
                   <HeaderCell className="min-w-[60px]">게시</HeaderCell>
                   <HeaderCell className="min-w-[68px]">가격 공개</HeaderCell>
+                  <HeaderCell className="min-w-[56px]">삭제</HeaderCell>
                 </tr>
               </thead>
               <tbody
@@ -699,6 +729,25 @@ export default function UnitTypesPage({
                         ) : (
                           <span className="ob-typo-caption text-(--oboon-text-muted)">{draft.is_price_public ? "ON" : "OFF"}</span>
                         )}
+                      </div>
+                    </Cell>
+                    <Cell className="!p-1 text-center align-middle">
+                      <div className="flex min-h-8 items-center justify-center">
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          shape="pill"
+                          className="!h-7 !w-7 aspect-square min-w-0 !p-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handleDeleteRow(rowKey, isNew ? undefined : unit!.id);
+                          }}
+                          loading={deletingRowKey === rowKey}
+                          disabled={savingAll || deletingRowKey !== null}
+                          aria-label="행 삭제"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
                       </div>
                     </Cell>
                     </tr>

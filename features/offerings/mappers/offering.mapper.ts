@@ -30,6 +30,9 @@ export type PropertyRow = {
   image_url: string | null;
   confirmed_comment: string | null;
   estimated_comment: string | null;
+  view_count?: number | null;
+  click_count?: number | null;
+  total_click_count?: number | null;
   property_locations: PropertyLocationRow[] | null;
   property_unit_types: PropertyUnitTypeRow[] | null;
 };
@@ -101,6 +104,7 @@ export function mapPropertyRowToOffering(
     regionLabel,
     status,
     statusValue,
+    hasAppraiserComment: hasAppraiserComment(row),
     imageUrl: row.image_url,
     priceMin억: min,
     priceMax억: max,

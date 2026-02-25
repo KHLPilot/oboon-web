@@ -1,9 +1,41 @@
 import { NextResponse } from "next/server";
 import {
   createFAQItem,
+  ensureFAQAdmin,
+  fetchFAQCategoriesServer,
+  fetchFAQItemsServer,
   updateFAQItem,
   deleteFAQItem,
 } from "@/features/support/services/faq.server";
+
+/**
+ * GET /api/support/faq/admin
+ * FAQ 카테고리/아이템 목록 조회 (관리자 전용)
+ */
+export async function GET() {
+  try {
+    const admin = await ensureFAQAdmin();
+    if (!admin) {
+      return NextResponse.json(
+        { error: "관리자 권한이 필요합니다." },
+        { status: 403 },
+      );
+    }
+
+    const [categories, items] = await Promise.all([
+      fetchFAQCategoriesServer(),
+      fetchFAQItemsServer(),
+    ]);
+
+    return NextResponse.json({ categories, items });
+  } catch (err) {
+    console.error("FAQ 관리자 조회 API 오류:", err);
+    return NextResponse.json(
+      { error: "서버 오류가 발생했습니다." },
+      { status: 500 },
+    );
+  }
+}
 
 /**
  * POST /api/support/faq/admin

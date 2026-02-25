@@ -103,8 +103,23 @@ async function syncPublicSnapshot(propertyId: number) {
     return nextUnit;
   });
 
+  const { data: existingSnapshotRow } = await adminSupabase
+    .from("property_public_snapshots")
+    .select("snapshot")
+    .eq("property_id", propertyId)
+    .maybeSingle();
+
+  const existingViewCountRaw =
+    existingSnapshotRow?.snapshot &&
+    typeof existingSnapshotRow.snapshot === "object" &&
+    "view_count" in existingSnapshotRow.snapshot
+      ? (existingSnapshotRow.snapshot as { view_count?: unknown }).view_count
+      : 0;
+  const existingViewCount = Number(existingViewCountRaw);
+
   const snapshot = {
     ...property,
+    view_count: Number.isFinite(existingViewCount) ? existingViewCount : 0,
     image_url: mainImageUrl,
     property_gallery_images: galleryImages,
     property_unit_types: maskedUnitTypes,

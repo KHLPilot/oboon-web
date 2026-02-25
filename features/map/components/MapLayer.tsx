@@ -10,11 +10,18 @@ import {
 import { markerVars } from "@/features/map/domain/marker/marker.theme";
 
 interface LayerControlProps {
+  showAll: boolean;
+  onToggleAll: () => void;
   filters: Record<MarkerLayer, boolean>;
   onToggle: (key: MarkerLayer) => void;
 }
 
-export default function LayerControl({ filters, onToggle }: LayerControlProps) {
+export default function LayerControl({
+  showAll,
+  onToggleAll,
+  filters,
+  onToggle,
+}: LayerControlProps) {
   const [isOpen, setIsOpen] = useState(true);
 
   return (
@@ -55,6 +62,19 @@ export default function LayerControl({ filters, onToggle }: LayerControlProps) {
 
       {isOpen && (
         <div className="px-4 py-3 space-y-3">
+          <label className="flex items-center gap-2 ob-typo-caption text-(--oboon-text-body) cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={showAll}
+              onChange={onToggleAll}
+              className="accent-(--oboon-primary)"
+            />
+            <span className="w-2 h-2 rounded-full bg-(--oboon-primary)" />
+            전체 현장
+          </label>
+
+          <div className="h-px w-full bg-(--oboon-border-default)" />
+
           {MARKER_TYPES.map((key) => (
             <label
               key={key}

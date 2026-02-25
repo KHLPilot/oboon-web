@@ -11,6 +11,10 @@ export function iconFor(args: {
   label?: string | null;
   topLabel?: string | null;
   mainLabel?: string | null;
+  imageUrl?: string | null;
+  address?: string | null;
+  ctaLabel?: string | null;
+  canConsult?: boolean;
 }) {
   const { type, state, viewType } = args;
 
@@ -111,11 +115,110 @@ function richOverlay({
   type,
   topLabel,
   mainLabel,
+  imageUrl,
+  address,
+  ctaLabel,
+  canConsult,
 }: {
   type: MarkerType;
   topLabel?: string | null;
   mainLabel?: string | null;
+  imageUrl?: string | null;
+  address?: string | null;
+  ctaLabel?: string | null;
+  canConsult?: boolean;
 }) {
+  if (type === "modelhouse") {
+    const safeTop = escapeHtml(topLabel ?? "모델하우스");
+    const safeMain = escapeHtml(mainLabel ?? address ?? "주소 정보 없음");
+    const safeCta = escapeHtml(ctaLabel ?? "상담하기");
+    const consultEnabled = canConsult !== false;
+    const safeImageUrl = escapeHtml(imageUrl ?? "");
+    const hasImage = safeImageUrl.length > 0;
+    const imageBlock = hasImage
+      ? `<div style="position:relative; width:100%; aspect-ratio:16/9; overflow:hidden;">
+            <img src="${safeImageUrl}" alt="${safeTop}" style="width:100%;height:100%;object-fit:cover;" />
+         </div>`
+      : "";
+
+    return `
+      <div style="
+        position:absolute;
+        left:0; top:0;
+        transform:translate(-50%, calc(-100% - 18px));
+        z-index:20;
+        pointer-events:none;
+        filter: drop-shadow(0 8px 18px var(--oboon-map-shadow-strong));
+      ">
+        <div style="
+          width:240px;
+          background:var(--oboon-bg-surface);
+          border:1px solid var(--oboon-border-default);
+          border-radius:14px;
+          overflow:hidden;
+          pointer-events:auto;
+          position:relative;
+        ">
+          ${imageBlock}
+          <div style="padding:10px 12px;">
+            <div style="font-size:11px; font-weight:700; color:var(--oboon-text-muted);">${safeTop}</div>
+            <div style="margin-top:2px; font-size:14px; font-weight:800; color:var(--oboon-text-title);">${safeMain}</div>
+            <div style="margin-top:10px; display:flex; gap:8px;">
+              <button
+                type="button"
+                data-map-action="copy-address"
+                style="
+                  flex:1;
+                  height:30px;
+                  border-radius:999px;
+                  border:1px solid var(--oboon-border-default);
+                  background:var(--oboon-bg-subtle);
+                  color:var(--oboon-text-title);
+                  font-size:12px;
+                  font-weight:700;
+                  cursor:pointer;
+                "
+              >
+                주소 복사
+              </button>
+              <button
+                type="button"
+                data-map-action="consult"
+                data-map-disabled="${consultEnabled ? "0" : "1"}"
+                ${consultEnabled ? "" : "disabled"}
+                style="
+                  flex:1;
+                  height:30px;
+                  border-radius:999px;
+                  border:1px solid var(--oboon-primary);
+                  background:var(--oboon-primary);
+                  color:var(--oboon-on-primary);
+                  font-size:12px;
+                  font-weight:700;
+                  cursor:${consultEnabled ? "pointer" : "not-allowed"};
+                  opacity:${consultEnabled ? "1" : "0.45"};
+                "
+              >
+                ${safeCta}
+              </button>
+            </div>
+          </div>
+          <div style="
+            position:absolute;
+            left:50%;
+            bottom:-7px;
+            width:14px;
+            height:14px;
+            background:var(--oboon-bg-surface);
+            border-left:1px solid var(--oboon-border-default);
+            border-bottom:1px solid var(--oboon-border-default);
+            transform:translateX(-50%) rotate(-45deg);
+          "></div>
+        </div>
+      </div>
+    `;
+  }
+
   const v = markerVars(type);
   const top = escapeHtml(topLabel ?? "");
   const main = escapeHtml(mainLabel ?? "");

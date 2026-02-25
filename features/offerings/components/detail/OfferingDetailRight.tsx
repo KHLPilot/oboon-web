@@ -116,6 +116,38 @@ export default function OfferingDetailRight({
     };
   }, [propertyId, supabase]);
 
+  useEffect(() => {
+    if (!propertyId) return;
+
+    const handleOpenConsultation = (event: Event) => {
+      const customEvent = event as CustomEvent<{ propertyId?: number }>;
+      const targetPropertyId = customEvent.detail?.propertyId;
+      if (targetPropertyId !== propertyId) return;
+
+      if (!isLoggedIn) {
+        router.push("/auth/login");
+        return;
+      }
+      if (isBookingBlockedRole || !hasBookableAgent) return;
+      handleConsultationClick();
+    };
+
+    window.addEventListener("oboon:open-consultation", handleOpenConsultation);
+    return () => {
+      window.removeEventListener(
+        "oboon:open-consultation",
+        handleOpenConsultation,
+      );
+    };
+  }, [
+    handleConsultationClick,
+    hasBookableAgent,
+    isBookingBlockedRole,
+    isLoggedIn,
+    propertyId,
+    router,
+  ]);
+
   return (
     <>
       {/* =========================

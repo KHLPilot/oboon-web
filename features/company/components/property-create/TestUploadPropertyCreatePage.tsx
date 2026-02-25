@@ -886,10 +886,20 @@ export default function TestUploadPage() {
   const unitFloorPlanUrlsRef = useRef<Record<number, string>>({});
   const mainImageInputRef = useRef<HTMLInputElement>(null);
   const galleryImageInputRef = useRef<HTMLInputElement>(null);
+  const modelhouseMainImageInputRef = useRef<HTMLInputElement>(null);
+  const modelhouseGalleryImageInputRef = useRef<HTMLInputElement>(null);
   const [mainImageUrl, setMainImageUrl] = useState("");
   const [mainImageFile, setMainImageFile] = useState<File | null>(null);
   const [galleryImageUrls, setGalleryImageUrls] = useState<string[]>([]);
   const [galleryImageFiles, setGalleryImageFiles] = useState<File[]>([]);
+  const [modelhouseMainImageUrl, setModelhouseMainImageUrl] = useState("");
+  const [modelhouseMainImageFile, setModelhouseMainImageFile] =
+    useState<File | null>(null);
+  const [modelhouseGalleryImageUrls, setModelhouseGalleryImageUrls] = useState<
+    string[]
+  >([]);
+  const [modelhouseGalleryImageFiles, setModelhouseGalleryImageFiles] =
+    useState<File[]>([]);
 
   // PDF에서 추출된 이미지 (A안: 이미지 추출)
   type ExtractedImageWithDestination = {
@@ -898,7 +908,13 @@ export default function TestUploadPage() {
     base64: string;
     source: string;
     aiType?: "building" | "floor_plan" | "other";
-    destination: "none" | "main" | "gallery" | "floor_plan";
+    destination:
+      | "none"
+      | "main"
+      | "gallery"
+      | "modelhouse_main"
+      | "modelhouse_gallery"
+      | "floor_plan";
     unitTypeIndex?: number;
     unitTypeId?: number;
   };
@@ -912,6 +928,8 @@ export default function TestUploadPage() {
 
   const mainImageUrlRef = useRef<string>("");
   const galleryImageUrlsRef = useRef<string[]>([]);
+  const modelhouseMainImageUrlRef = useRef<string>("");
+  const modelhouseGalleryImageUrlsRef = useRef<string[]>([]);
 
   const [checkingSimilar, setCheckingSimilar] = useState(false);
   const [similarCandidates, setSimilarCandidates] = useState<
@@ -974,6 +992,8 @@ export default function TestUploadPage() {
     { value: "none", label: "사용 안 함" },
     { value: "main", label: "대표 이미지" },
     { value: "gallery", label: "추가 현장사진" },
+    { value: "modelhouse_main", label: "모델하우스 대표" },
+    { value: "modelhouse_gallery", label: "모델하우스 추가" },
     { value: "floor_plan", label: "평면도" },
   ];
 
@@ -1014,7 +1034,9 @@ export default function TestUploadPage() {
     > = {
       main: 0,
       gallery: 1,
-      none: 1,
+      modelhouse_main: 2,
+      modelhouse_gallery: 3,
+      none: 4,
       floor_plan: 2,
     };
 
@@ -1685,7 +1707,12 @@ export default function TestUploadPage() {
     payload: {
       property_id: number;
       unit_type_id?: number | null;
-      kind: "main" | "gallery" | "floor_plan";
+      kind:
+        | "main"
+        | "gallery"
+        | "modelhouse_main"
+        | "modelhouse_gallery"
+        | "floor_plan";
       image_url: string;
       storage_path?: string | null;
       image_hash?: string | null;
@@ -1705,12 +1732,12 @@ export default function TestUploadPage() {
       is_active: true,
     };
 
-    if (payload.kind === "main") {
+    if (payload.kind === "main" || payload.kind === "modelhouse_main") {
       const { error: deactivateError } = await supabase
         .from("property_image_assets")
         .update({ is_active: false, updated_at: new Date().toISOString() })
         .eq("property_id", payload.property_id)
-        .eq("kind", "main")
+        .eq("kind", payload.kind)
         .eq("is_active", true);
       if (deactivateError) {
         if (deactivateError.code === "42P01") return false;
@@ -2041,7 +2068,12 @@ export default function TestUploadPage() {
       { hash: string; dctPHash: string | null }
     >();
     for (const img of extractedImages) {
-      if (img.destination !== "gallery") continue;
+      if (
+        img.destination !== "gallery" &&
+        img.destination !== "modelhouse_gallery"
+      ) {
+        continue;
+      }
       const hash = await hashExtractedImage(img);
       let dctPHash: string | null = null;
       try {
@@ -2079,7 +2111,7 @@ export default function TestUploadPage() {
     const existingHashes = new Set<string>();
     const existingDctPHashes = new Set<string>();
     const galleryAssetRows = (imageAssetRows ?? []).filter(
-      (row) => row.kind === "gallery",
+      (row) => row.kind === "gallery" || row.kind === "modelhouse_gallery",
     );
     if (canUseImageAssets) {
       galleryAssetRows.forEach((row) => {
@@ -2104,27 +2136,27 @@ export default function TestUploadPage() {
       if (Number.isFinite(sort) && sort > maxSortOrder) maxSortOrder = sort;
     });
 
-    const galleryDeleteAssetIds = galleryAssetRows
+    const galleryDeleteAssets = galleryAssetRows
       .filter((row) => {
         const hashFromUrl = extractImageHashFromUrl(row.image_url);
         const knownHash = row.image_hash ?? hashFromUrl;
         if (!knownHash) return false;
         return !desiredGalleryHashes.has(knownHash);
-      })
-      .map((row) => row.id);
+      });
+
+    const galleryDeleteAssetIds = galleryDeleteAssets.map((row) => row.id);
 
     if (galleryDeleteAssetIds.length > 0 && canUseImageAssets) {
       const { error: deactivateGalleryAssetsError } = await supabase
         .from("property_image_assets")
         .update({ is_active: false, updated_at: new Date().toISOString() })
         .eq("property_id", propertyId)
-        .eq("kind", "gallery")
         .in("id", galleryDeleteAssetIds)
         .eq("is_active", true);
       if (deactivateGalleryAssetsError) throw deactivateGalleryAssetsError;
 
       galleryDeleteAssetIds.forEach((id) => {
-        const deleted = galleryAssetRows.find((row) => row.id === id);
+        const deleted = galleryDeleteAssets.find((row) => row.id === id);
         const hash = deleted?.image_hash ?? extractImageHashFromUrl(deleted?.image_url);
         if (hash) existingHashes.delete(hash);
       });
@@ -2159,7 +2191,7 @@ export default function TestUploadPage() {
     for (const img of extractedImages) {
       if (img.destination === "none") continue;
       try {
-        if (img.destination === "main") {
+        if (img.destination === "main" || img.destination === "modelhouse_main") {
           const hash = await hashExtractedImage(img);
           let dctPHash: string | null = null;
           try {
@@ -2175,7 +2207,7 @@ export default function TestUploadPage() {
           if (canUseImageAssets) {
             await upsertPropertyImageAsset(supabase, {
               property_id: propertyId,
-              kind: "main",
+              kind: img.destination === "main" ? "main" : "modelhouse_main",
               image_url: url,
               storage_path: storagePath,
               image_hash: hash,
@@ -2187,7 +2219,10 @@ export default function TestUploadPage() {
           continue;
         }
 
-        if (img.destination === "gallery") {
+        if (
+          img.destination === "gallery" ||
+          img.destination === "modelhouse_gallery"
+        ) {
           const hashEntry = galleryHashByImageId.get(img.id);
           if (!hashEntry) continue;
           const { hash, dctPHash } = hashEntry;
@@ -2211,7 +2246,10 @@ export default function TestUploadPage() {
           if (canUseImageAssets) {
             await upsertPropertyImageAsset(supabase, {
               property_id: propertyId,
-              kind: "gallery",
+              kind:
+                img.destination === "gallery"
+                  ? "gallery"
+                  : "modelhouse_gallery",
               image_url: url,
               storage_path: storagePath,
               image_hash: hash,
@@ -2303,6 +2341,93 @@ export default function TestUploadPage() {
     return uploadedCount;
   };
 
+  const uploadSingleFileToR2 = async (
+    file: File,
+    mode: "property_main" | "property_additional",
+    propertyId: number,
+  ): Promise<{ url: string; storagePath: string | null }> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("mode", mode);
+    formData.append("propertyId", propertyId.toString());
+
+    const res = await fetch("/api/r2/upload", {
+      method: "POST",
+      body: formData,
+    });
+    const payload = await res.json().catch(() => null);
+    if (!res.ok || !payload?.url) {
+      throw new Error(payload?.error || "이미지 업로드 실패");
+    }
+    let storagePath: string | null = null;
+    try {
+      const parsed = new URL(String(payload.url));
+      storagePath = parsed.pathname.replace(/^\/+/, "") || null;
+    } catch {
+      storagePath = null;
+    }
+    return { url: String(payload.url), storagePath };
+  };
+
+  const syncManualModelhouseFilesForProperty = async (
+    supabase: ReturnType<typeof createSupabaseClient>,
+    propertyId: number,
+  ) => {
+    let uploadedCount = 0;
+
+    if (modelhouseMainImageFile) {
+      const hash = await hashFile(modelhouseMainImageFile);
+      const { url, storagePath } = await uploadSingleFileToR2(
+        modelhouseMainImageFile,
+        "property_additional",
+        propertyId,
+      );
+      await upsertPropertyImageAsset(supabase, {
+        property_id: propertyId,
+        kind: "modelhouse_main",
+        image_url: url,
+        storage_path: storagePath,
+        image_hash: hash,
+        caption: null,
+        sort_order: 0,
+      });
+      uploadedCount += 1;
+    }
+
+    for (let i = 0; i < modelhouseGalleryImageFiles.length; i += 1) {
+      const file = modelhouseGalleryImageFiles[i];
+      const hash = await hashFile(file);
+      const { url, storagePath } = await uploadSingleFileToR2(
+        file,
+        "property_additional",
+        propertyId,
+      );
+      await upsertPropertyImageAsset(supabase, {
+        property_id: propertyId,
+        kind: "modelhouse_gallery",
+        image_url: url,
+        storage_path: storagePath,
+        image_hash: hash,
+        caption: null,
+        sort_order: i + 1,
+      });
+      uploadedCount += 1;
+    }
+
+    setModelhouseMainImageFile(null);
+    setModelhouseMainImageUrl((prev) => {
+      revokeBlobUrl(prev);
+      return "";
+    });
+    setModelhouseGalleryImageFiles([]);
+    setModelhouseGalleryImageUrls((prev) => {
+      prev.forEach((url) => revokeBlobUrl(url));
+      return [];
+    });
+
+    return uploadedCount;
+  };
+
   const uploadPdfsToR2Temp = async (targetFiles: File[]) => {
     const keys: string[] = [];
 
@@ -2387,6 +2512,10 @@ export default function TestUploadPage() {
       setMainImageFile(null);
       setGalleryImageUrls([]);
       setGalleryImageFiles([]);
+      setModelhouseMainImageUrl("");
+      setModelhouseMainImageFile(null);
+      setModelhouseGalleryImageUrls([]);
+      setModelhouseGalleryImageFiles([]);
 
       // 추출된 이미지 초기화 (AI 분류 결과로 자동 배정)
       if (data.extractedImages && Array.isArray(data.extractedImages)) {
@@ -2403,8 +2532,7 @@ export default function TestUploadPage() {
             source: string;
             aiType?: "building" | "floor_plan" | "other";
           }) => {
-            let destination: "none" | "main" | "gallery" | "floor_plan" =
-              "none";
+            let destination: ExtractedImageWithDestination["destination"] = "none";
             if (img.aiType === "building" && !mainAssigned) {
               destination = "main";
               mainAssigned = true;
@@ -2739,7 +2867,12 @@ export default function TestUploadPage() {
         id: string;
         property_id: number;
         unit_type_id: number | null;
-        kind: "main" | "gallery" | "floor_plan";
+        kind:
+          | "main"
+          | "gallery"
+          | "modelhouse_main"
+          | "modelhouse_gallery"
+          | "floor_plan";
         image_url: string;
         sort_order: number | null;
         caption: string | null;
@@ -2749,6 +2882,12 @@ export default function TestUploadPage() {
       }>;
       const activeMainAsset = assetRows.find((row) => row.kind === "main");
       const activeGalleryAssets = assetRows.filter((row) => row.kind === "gallery");
+      const activeModelhouseMainAsset = assetRows.find(
+        (row) => row.kind === "modelhouse_main",
+      );
+      const activeModelhouseGalleryAssets = assetRows.filter(
+        (row) => row.kind === "modelhouse_gallery",
+      );
       const floorPlanAssetByUnitTypeId = new Map<number, string>();
       const assetHashByUrl: Record<string, string> = {};
       const assetDctPHashByUrl: Record<string, string> = {};
@@ -2767,6 +2906,16 @@ export default function TestUploadPage() {
         }
       });
       const galleryRowsForSnapshot = activeGalleryAssets.map((row) => ({
+        id: row.id,
+        image_url: row.image_url,
+        sort_order: row.sort_order,
+        caption: row.caption,
+        image_hash: row.image_hash,
+      }));
+      const modelhouseRowsForSnapshot = [
+        ...(activeModelhouseMainAsset ? [activeModelhouseMainAsset] : []),
+        ...activeModelhouseGalleryAssets,
+      ].map((row) => ({
         id: row.id,
         image_url: row.image_url,
         sort_order: row.sort_order,
@@ -2793,6 +2942,7 @@ export default function TestUploadPage() {
             activeMainAsset?.image_url,
             ...assetRows.map((row) => row.image_url),
             ...galleryRowsForSnapshot.map((row) => row.image_url),
+            ...modelhouseRowsForSnapshot.map((row) => row.image_url),
             ...existingUnitTypes.map((unit) => unit.floor_plan_url),
           ].filter((url): url is string => Boolean(url)),
         ),
@@ -2804,6 +2954,9 @@ export default function TestUploadPage() {
               .map((row) => extractImageDctPHashFromCaption(row.caption))
               .filter((phash): phash is string => Boolean(phash)),
             ...galleryRowsForSnapshot
+              .map((row) => extractImageDctPHashFromCaption(row.caption))
+              .filter((phash): phash is string => Boolean(phash)),
+            ...modelhouseRowsForSnapshot
               .map((row) => extractImageDctPHashFromCaption(row.caption))
               .filter((phash): phash is string => Boolean(phash)),
           ],
@@ -3102,12 +3255,20 @@ export default function TestUploadPage() {
         const manualGalleryUploaded = await syncManualGalleryFilesForProperty(
           targetId,
         );
+        const manualModelhouseUploaded =
+          await syncManualModelhouseFilesForProperty(supabase, targetId);
         const imageSync = await syncExtractedImagesForProperty(
           supabase,
           targetId,
           unitSync.rowIndexToUnitId,
         );
-        return { targetId, unitSync, imageSync, manualGalleryUploaded };
+        return {
+          targetId,
+          unitSync,
+          imageSync,
+          manualGalleryUploaded,
+          manualModelhouseUploaded,
+        };
       });
 
       const appliedCount = activeCompareFields.filter(
@@ -3116,8 +3277,8 @@ export default function TestUploadPage() {
 
       setStatus(
         appliedCount > 0
-          ? `선택 반영 완료: ${appliedCount}개 항목, 타입 업데이트 ${syncSummary.unitSync.updated}개, 타입 추가 ${syncSummary.unitSync.inserted}개, 수동 추가사진 ${syncSummary.manualGalleryUploaded}개, 추출 갤러리 업로드 ${syncSummary.imageSync.galleryUploaded}개/삭제 ${syncSummary.imageSync.galleryDeleted}개(중복 스킵 ${syncSummary.imageSync.gallerySkippedByHash}개), 평면도 업데이트 ${syncSummary.imageSync.floorPlanUpdated}개/해제 ${syncSummary.imageSync.floorPlanCleared}개 — 2초 후 새로고침됩니다.`
-          : `선택된 변경 항목은 없지만 동기화 완료: 타입 업데이트 ${syncSummary.unitSync.updated}개, 타입 추가 ${syncSummary.unitSync.inserted}개, 수동 추가사진 ${syncSummary.manualGalleryUploaded}개, 추출 갤러리 업로드 ${syncSummary.imageSync.galleryUploaded}개/삭제 ${syncSummary.imageSync.galleryDeleted}개(중복 스킵 ${syncSummary.imageSync.gallerySkippedByHash}개), 평면도 업데이트 ${syncSummary.imageSync.floorPlanUpdated}개/해제 ${syncSummary.imageSync.floorPlanCleared}개 — 2초 후 새로고침됩니다.`,
+          ? `선택 반영 완료: ${appliedCount}개 항목, 타입 업데이트 ${syncSummary.unitSync.updated}개, 타입 추가 ${syncSummary.unitSync.inserted}개, 수동 추가사진 ${syncSummary.manualGalleryUploaded}개, 수동 모델하우스사진 ${syncSummary.manualModelhouseUploaded}개, 추출 갤러리 업로드 ${syncSummary.imageSync.galleryUploaded}개/삭제 ${syncSummary.imageSync.galleryDeleted}개(중복 스킵 ${syncSummary.imageSync.gallerySkippedByHash}개), 평면도 업데이트 ${syncSummary.imageSync.floorPlanUpdated}개/해제 ${syncSummary.imageSync.floorPlanCleared}개 — 2초 후 새로고침됩니다.`
+          : `선택된 변경 항목은 없지만 동기화 완료: 타입 업데이트 ${syncSummary.unitSync.updated}개, 타입 추가 ${syncSummary.unitSync.inserted}개, 수동 추가사진 ${syncSummary.manualGalleryUploaded}개, 수동 모델하우스사진 ${syncSummary.manualModelhouseUploaded}개, 추출 갤러리 업로드 ${syncSummary.imageSync.galleryUploaded}개/삭제 ${syncSummary.imageSync.galleryDeleted}개(중복 스킵 ${syncSummary.imageSync.gallerySkippedByHash}개), 평면도 업데이트 ${syncSummary.imageSync.floorPlanUpdated}개/해제 ${syncSummary.imageSync.floorPlanCleared}개 — 2초 후 새로고침됩니다.`,
       );
       setStatusTone("safe");
       setTimeout(() => window.location.reload(), 2000);
@@ -3289,6 +3450,8 @@ export default function TestUploadPage() {
 
       const manualGalleryUploaded =
         await syncManualGalleryFilesForProperty(propertyId);
+      const manualModelhouseUploaded =
+        await syncManualModelhouseFilesForProperty(supabase, propertyId);
 
       const imageSync = await syncExtractedImagesForProperty(
         supabase,
@@ -3298,7 +3461,7 @@ export default function TestUploadPage() {
       setCreatedPropertyId(propertyId);
 
       setStatus(
-        `새 현장 등록 완료 (ID: ${propertyId}, 대표사진 ${mainImagePublicUrl ? 1 : 0}장, 추가사진 ${manualGalleryUploaded}장, 평면도 ${unitSync.uploadedFloorPlans + imageSync.floorPlanUpdated}장, PDF추출이미지 ${imageSync.galleryUploaded + imageSync.mainUpdated + imageSync.floorPlanUpdated}장, 타입 추가 ${unitSync.inserted}개, 시설 ${facilityRows.length}개, 갤러리 삭제 ${imageSync.galleryDeleted}개, 평면도 해제 ${imageSync.floorPlanCleared}개, 중복스킵 ${imageSync.gallerySkippedByHash}개) — 2초 후 새로고침됩니다.`,
+        `새 현장 등록 완료 (ID: ${propertyId}, 대표사진 ${mainImagePublicUrl ? 1 : 0}장, 추가사진 ${manualGalleryUploaded}장, 모델하우스사진 ${manualModelhouseUploaded}장, 평면도 ${unitSync.uploadedFloorPlans + imageSync.floorPlanUpdated}장, PDF추출이미지 ${imageSync.galleryUploaded + imageSync.mainUpdated + imageSync.floorPlanUpdated}장, 타입 추가 ${unitSync.inserted}개, 시설 ${facilityRows.length}개, 갤러리 삭제 ${imageSync.galleryDeleted}개, 평면도 해제 ${imageSync.floorPlanCleared}개, 중복스킵 ${imageSync.gallerySkippedByHash}개) — 2초 후 새로고침됩니다.`,
       );
       setStatusTone("safe");
       setTimeout(() => window.location.reload(), 2000);
@@ -3794,9 +3957,35 @@ export default function TestUploadPage() {
     setGalleryImageUrls((prev) => [...prev, ...nextUrls]);
   };
 
+  const handleModelhouseMainImageChange = (file: File | null) => {
+    if (!file) return;
+    setModelhouseMainImageFile(file);
+    setModelhouseMainImageUrl((prev) => {
+      revokeBlobUrl(prev);
+      return URL.createObjectURL(file);
+    });
+  };
+
+  const handleModelhouseGalleryImagesChange = (filesList: FileList | null) => {
+    if (!filesList || filesList.length === 0) return;
+    const nextFiles = Array.from(filesList);
+    const nextUrls = nextFiles.map((file) => URL.createObjectURL(file));
+    setModelhouseGalleryImageFiles((prev) => [...prev, ...nextFiles]);
+    setModelhouseGalleryImageUrls((prev) => [...prev, ...nextUrls]);
+  };
+
   const removeGalleryImage = (index: number) => {
     setGalleryImageFiles((prev) => prev.filter((_, i) => i !== index));
     setGalleryImageUrls((prev) => {
+      const target = prev[index];
+      revokeBlobUrl(target);
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  const removeModelhouseGalleryImage = (index: number) => {
+    setModelhouseGalleryImageFiles((prev) => prev.filter((_, i) => i !== index));
+    setModelhouseGalleryImageUrls((prev) => {
       const target = prev[index];
       revokeBlobUrl(target);
       return prev.filter((_, i) => i !== index);
@@ -3906,12 +4095,22 @@ export default function TestUploadPage() {
   }, [galleryImageUrls]);
 
   useEffect(() => {
+    modelhouseMainImageUrlRef.current = modelhouseMainImageUrl;
+  }, [modelhouseMainImageUrl]);
+
+  useEffect(() => {
+    modelhouseGalleryImageUrlsRef.current = modelhouseGalleryImageUrls;
+  }, [modelhouseGalleryImageUrls]);
+
+  useEffect(() => {
     return () => {
       Object.values(unitFloorPlanUrlsRef.current).forEach((url) => {
         revokeBlobUrl(url);
       });
       revokeBlobUrl(mainImageUrlRef.current);
       galleryImageUrlsRef.current.forEach((url) => revokeBlobUrl(url));
+      revokeBlobUrl(modelhouseMainImageUrlRef.current);
+      modelhouseGalleryImageUrlsRef.current.forEach((url) => revokeBlobUrl(url));
     };
   }, []);
   const rawLocationLat = toNumberOrNull(result?.location?.lat);
@@ -4638,6 +4837,95 @@ export default function TestUploadPage() {
                       </div>
                     ) : (
                       "추가 사진이 없습니다."
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-y-4 gap-x-5 md:grid-cols-2">
+                <div className="space-y-2">
+                  <div className="ob-typo-body text-(--oboon-text-title)">
+                    모델하우스 대표 사진
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      ref={modelhouseMainImageInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="sr-only"
+                      onChange={(e) =>
+                        handleModelhouseMainImageChange(
+                          e.target.files?.[0] ?? null,
+                        )
+                      }
+                    />
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => modelhouseMainImageInputRef.current?.click()}
+                    >
+                      모델하우스 대표 업로드
+                    </Button>
+                  </div>
+                  <div className="rounded-lg border border-dashed border-(--oboon-border-default) p-3 ob-typo-caption text-(--oboon-text-muted)">
+                    {modelhouseMainImageUrl ? (
+                      <div className="relative h-24 w-40 overflow-hidden rounded-md border border-(--oboon-border-default)">
+                        <Image
+                          src={modelhouseMainImageUrl}
+                          alt="모델하우스 대표사진"
+                          fill
+                          className="object-cover"
+                          unoptimized
+                        />
+                      </div>
+                    ) : (
+                      "모델하우스 대표 사진이 없습니다."
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="ob-typo-body text-(--oboon-text-title)">
+                    모델하우스 추가 사진
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      ref={modelhouseGalleryImageInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="sr-only"
+                      onChange={(e) =>
+                        handleModelhouseGalleryImagesChange(e.target.files)
+                      }
+                    />
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() =>
+                        modelhouseGalleryImageInputRef.current?.click()
+                      }
+                    >
+                      모델하우스 추가 업로드
+                    </Button>
+                  </div>
+                  <div className="rounded-lg border border-dashed border-(--oboon-border-default) p-3 ob-typo-caption text-(--oboon-text-muted)">
+                    {modelhouseGalleryImageUrls.length > 0 ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span>{modelhouseGalleryImageUrls.length}장 선택됨</span>
+                        {modelhouseGalleryImageUrls.slice(0, 3).map((url, i) => (
+                          <button
+                            key={`${url}-${i}`}
+                            type="button"
+                            onClick={() => removeModelhouseGalleryImage(i)}
+                            className="rounded-full border border-(--oboon-border-default) px-2 py-0.5 text-(--oboon-text-muted) hover:bg-(--oboon-bg-subtle)"
+                          >
+                            {i + 1}번 제거
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      "모델하우스 추가 사진이 없습니다."
                     )}
                   </div>
                 </div>

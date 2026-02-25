@@ -16,7 +16,7 @@ export default function Footer() {
     <footer className="lg:mt-10 border-t border-(--oboon-border-default) bg-(--oboon-bg-surface)">
       <div className="mx-auto max-w-240 lg:max-w-300 px-4 sm:px-5 lg:px-8 py-8 sm:py-8">
         {/* Top grid */}
-        <div className="grid gap-6 md:grid-cols-4">
+        <div className="grid gap-6 md:grid-cols-3">
           {/* Brand */}
           <div className="space-y-3">
             <div className="ob-typo-h2 tracking-tight text-(--oboon-text-default)">
@@ -65,7 +65,7 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Company */}
+          {/* Company
           <div className="space-y-3">
             <div className="ob-typo-h4 font-semibold text-(--oboon-text-title)">
               회사
@@ -88,6 +88,7 @@ export default function Footer() {
               </li>
             </ul>
           </div>
+          */}
 
           {/* Support */}
           <div className="space-y-3">

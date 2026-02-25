@@ -43,6 +43,12 @@ const AGENT_FILTERS = [
 ] as const;
 type AgentFilterValue = (typeof AGENT_FILTERS)[number]["value"];
 
+const APPRAISAL_FILTERS = [
+  { label: "전체", value: "전체" },
+  { label: "감정평가 완료", value: "done" },
+] as const;
+type AppraisalFilterValue = (typeof APPRAISAL_FILTERS)[number]["value"];
+
 function MobileChipRow({
   children,
   className,
@@ -171,6 +177,9 @@ function FilterBarBody({
     rawStatus && isOfferingStatusValue(rawStatus) ? rawStatus : "전체";
   const rawAgent = sp.get("agent");
   const agentFilter: AgentFilterValue = rawAgent === "has" ? "has" : "전체";
+  const rawAppraisal = sp.get("appraisal");
+  const appraisalFilter: AppraisalFilterValue =
+    rawAppraisal === "done" ? "done" : "전체";
 
   const [q, setQ] = useState(urlQ);
   const [budgetMin, setBudgetMin] = useState(urlBudgetMin);
@@ -207,6 +216,7 @@ function FilterBarBody({
     (region !== "전체" ? 1 : 0) +
     (status !== "전체" ? 1 : 0) +
     (agentFilter !== "전체" ? 1 : 0) +
+    (appraisalFilter !== "전체" ? 1 : 0) +
     (urlBudgetMin || urlBudgetMax ? 1 : 0);
 
   const minVal = parseEok(budgetMin);
@@ -695,6 +705,56 @@ function FilterBarBody({
                   className="h-9 px-4 ob-typo-button shrink-0"
                   onClick={() =>
                     pushParams({ agent: item.value === "전체" ? null : item.value })
+                  }
+                >
+                  {item.label}
+                </Button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 감정평가 */}
+        <div className="mt-5 space-y-2">
+          <div className="ob-typo-subtitle text-(--oboon-text-title)">감정평가</div>
+          <MobileChipRow>
+            {APPRAISAL_FILTERS.map((item) => {
+              const active = appraisalFilter === item.value;
+              return (
+                <Button
+                  key={item.value}
+                  type="button"
+                  size="sm"
+                  shape="pill"
+                  variant={active ? "primary" : "secondary"}
+                  className="h-9 px-4 ob-typo-button shrink-0"
+                  onClick={() =>
+                    pushParams({
+                      appraisal: item.value === "전체" ? null : item.value,
+                    })
+                  }
+                >
+                  {item.label}
+                </Button>
+              );
+            })}
+          </MobileChipRow>
+
+          <div className="hidden sm:flex flex-wrap gap-2">
+            {APPRAISAL_FILTERS.map((item) => {
+              const active = appraisalFilter === item.value;
+              return (
+                <Button
+                  key={item.value}
+                  type="button"
+                  size="sm"
+                  shape="pill"
+                  variant={active ? "primary" : "secondary"}
+                  className="h-9 px-4 ob-typo-button shrink-0"
+                  onClick={() =>
+                    pushParams({
+                      appraisal: item.value === "전체" ? null : item.value,
+                    })
                   }
                 >
                   {item.label}

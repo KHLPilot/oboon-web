@@ -19,6 +19,7 @@ export interface Offering {
   regionLabel?: string;
   status: OfferingStatusLabel;
   statusValue?: OfferingStatusValue | null;
+  hasAppraiserComment?: boolean;
 
   // 가격 (억 단위 숫자, 필터/집계용)
   priceMin억: number | null;

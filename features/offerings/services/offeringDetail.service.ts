@@ -158,10 +158,58 @@ export async function fetchOfferingDetail(
     ? poiRows.filter(isRecoPoiRow)
     : [];
 
+  const { data: modelhouseImageRows } = await supabase
+    .from("property_image_assets")
+    .select("id, property_id, kind, image_url, sort_order, created_at")
+    .eq("property_id", id)
+    .eq("is_active", true)
+    .in("kind", ["modelhouse_main", "modelhouse_gallery"])
+    .order("created_at", { ascending: true });
+
+  const propertyModelhouseImages = Array.isArray(modelhouseImageRows)
+    ? modelhouseImageRows
+        .filter((row): row is {
+          id: string;
+          property_id: number;
+          kind: "modelhouse_main" | "modelhouse_gallery";
+          image_url: string;
+          sort_order: number | null;
+          created_at: string;
+        } => {
+          if (!isRecord(row)) return false;
+          if (typeof row.id !== "string") return false;
+          if (typeof row.property_id !== "number") return false;
+          if (
+            row.kind !== "modelhouse_main" &&
+            row.kind !== "modelhouse_gallery"
+          ) {
+            return false;
+          }
+          if (typeof row.image_url !== "string") return false;
+          const validSortOrder =
+            row.sort_order === null ||
+            (typeof row.sort_order === "number" &&
+              Number.isFinite(row.sort_order));
+          if (!validSortOrder) return false;
+          if (typeof row.created_at !== "string") return false;
+          return true;
+        })
+        .sort((a, b) => {
+          const rank = (kind: "modelhouse_main" | "modelhouse_gallery") =>
+            kind === "modelhouse_main" ? 0 : 1;
+          if (rank(a.kind) !== rank(b.kind)) return rank(a.kind) - rank(b.kind);
+          if ((a.sort_order ?? 0) !== (b.sort_order ?? 0)) {
+            return (a.sort_order ?? 0) - (b.sort_order ?? 0);
+          }
+          return a.created_at.localeCompare(b.created_at);
+        })
+    : [];
+
   return {
     ...base,
     property_facilities: propertyFacilities,
     property_reco_pois: propertyRecoPois,
+    property_modelhouse_images: propertyModelhouseImages,
   } as PropertyRow;
 }
 

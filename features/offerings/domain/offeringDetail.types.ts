@@ -74,6 +74,15 @@ export type PropertyGalleryImageRow = {
   created_at: string;
 };
 
+export type PropertyModelhouseImageRow = {
+  id: string;
+  property_id: number;
+  kind: "modelhouse_main" | "modelhouse_gallery";
+  image_url: string;
+  sort_order: number;
+  created_at: string;
+};
+
 export type PropertyRecoPoiRow = {
   category:
     | "HOSPITAL"
@@ -119,5 +128,9 @@ export type PropertyRow = {
   property_gallery_images?:
     | PropertyGalleryImageRow[]
     | PropertyGalleryImageRow
+    | null;
+  property_modelhouse_images?:
+    | PropertyModelhouseImageRow[]
+    | PropertyModelhouseImageRow
     | null;
 };

@@ -9,6 +9,7 @@ import type { Offering } from "@/types/index";
 import { ROUTES } from "@/types/index";
 
 import Card from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
 import { UXCopy } from "@/shared/uxCopy";
 import { formatPriceRange } from "@/shared/price";
 import { trackEvent } from "@/lib/analytics";
@@ -79,6 +80,14 @@ export default function OfferingCard({ offering }: { offering: Offering }) {
               type="status"
               value={offering.statusValue ?? undefined}
             />
+            {offering.hasAppraiserComment ? (
+              <Badge
+                variant="status"
+                className="border-(--oboon-primary) bg-(--oboon-primary) text-(--oboon-on-primary)"
+              >
+                감정 평가
+              </Badge>
+            ) : null}
 
             {/* type / tag 확장 */}
             {/*

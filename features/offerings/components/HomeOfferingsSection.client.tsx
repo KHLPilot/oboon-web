@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -11,7 +11,6 @@ import OfferingCard from "@/features/offerings/components/OfferingCard";
 import { fetchPropertiesForOfferings } from "@/features/offerings/services/offering.query";
 import {
   mapPropertyRowToOffering,
-  hasAppraiserComment,
   type PropertyRow,
 } from "@/features/offerings/mappers/offering.mapper";
 import { OFFERING_REGION_TABS } from "@/features/offerings/domain/offering.constants";
@@ -37,7 +36,7 @@ export default function HomeOfferingsSection() {
 
     (async () => {
       const { data, error } = await fetchPropertiesForOfferings(supabase, {
-        limit: 24,
+        limit: 120,
       });
 
       if (!mounted) return;
@@ -101,25 +100,86 @@ export default function HomeOfferingsSection() {
     [rows, fallback],
   );
 
-  const reviewOfferings: Offering[] = useMemo(() => {
-    return rows
-      .filter(hasAppraiserComment)
-      .map((row) => mapPropertyRowToOffering(row, fallback));
-  }, [rows, fallback]);
+  const rowById = useMemo(() => {
+    const map = new Map<number, PropertyRow>();
+    for (const row of rows) {
+      const id = Number(row.id);
+      if (Number.isFinite(id)) map.set(id, row);
+    }
+    return map;
+  }, [rows]);
 
   const consultableOfferings: Offering[] = useMemo(() => {
     const idSet = new Set(consultablePropertyIds);
     return offerings.filter((offering) => idSet.has(Number(offering.id)));
   }, [consultablePropertyIds, offerings]);
 
+  const regionCounts = useMemo(() => {
+    const counts: Record<OfferingRegionTab, number> = {
+      전체: offerings.length,
+      서울: 0,
+      경기: 0,
+      인천: 0,
+      충청: 0,
+      강원: 0,
+      경상: 0,
+      전라: 0,
+      제주: 0,
+    };
+
+    for (const offering of offerings) {
+      if (offering.region !== "전체") {
+        counts[offering.region] += 1;
+      }
+    }
+
+    return counts;
+  }, [offerings]);
+
+  const enabledRegions = useMemo(
+    () => OFFERING_REGION_TABS.filter((region) => regionCounts[region] > 0),
+    [regionCounts],
+  );
+
+  const effectiveSelectedRegion = useMemo(
+    () =>
+      enabledRegions.includes(selectedRegion)
+        ? selectedRegion
+        : (enabledRegions[0] ?? "전체"),
+    [enabledRegions, selectedRegion],
+  );
+
+  const getClickScore = useCallback(
+    (offering: Offering) => {
+      const id = Number(offering.id);
+      const row = rowById.get(id);
+      if (!row) return 0;
+
+      const raw =
+        row.click_count ?? row.total_click_count ?? row.view_count ?? 0;
+      const value = Number(raw);
+      return Number.isFinite(value) ? value : 0;
+    },
+    [rowById],
+  );
+
   const popularOfferings: Offering[] = useMemo(() => {
     const base =
-      selectedRegion === "전체"
+      effectiveSelectedRegion === "전체"
         ? offerings
-        : offerings.filter((o) => o.region === selectedRegion);
+        : offerings.filter((o) => o.region === effectiveSelectedRegion);
 
-    return base;
-  }, [offerings, selectedRegion]);
+    return [...base]
+      .sort((a, b) => {
+        const scoreDiff = getClickScore(b) - getClickScore(a);
+        if (scoreDiff !== 0) return scoreDiff;
+
+        const aCreated = new Date(rowById.get(Number(a.id))?.created_at ?? 0).getTime();
+        const bCreated = new Date(rowById.get(Number(b.id))?.created_at ?? 0).getTime();
+        return bCreated - aCreated;
+      })
+      .slice(0, 8);
+  }, [effectiveSelectedRegion, getClickScore, offerings, rowById]);
 
   return (
     <>
@@ -140,39 +200,22 @@ export default function HomeOfferingsSection() {
         )}
       </section>
 
-      {/* 감정평가사 한줄평 */}
-      <section className="mt-8 sm:mt-10 flex flex-col gap-2">
-        <SectionHeader
-          title="감정평가사 한줄평"
-          caption="전문가들이 직접 남긴 솔직한 평가를 확인해보세요."
-          rightLink={{ href: "/offerings", label: "전체보기" }}
-        />
-
-        {loadError && (
-          <div className="ob-typo-caption text-(--oboon-danger)">
-            데이터를 불러오지 못했어요. ({loadError})
-          </div>
-        )}
-
-        {reviewOfferings.length === 0 ? (
-          <Card className="p-6 ob-typo-body text-(--oboon-text-muted)">
-            아직 등록된 감정평가사 한줄평이 없어요.
-          </Card>
-        ) : (
-          <ResponsiveOfferingRow items={reviewOfferings} />
-        )}
-      </section>
-
       {/* 지역별 인기 분양 */}
       <section className="mt-8 sm:mt-10 flex flex-col gap-2">
         <SectionHeader
           title="지역별 인기 분양"
           caption="지역별로 인기있는 분양 현장을 확인해보세요."
         />
+        {loadError && (
+          <div className="ob-typo-caption text-(--oboon-danger)">
+            데이터를 불러오지 못했어요. ({loadError})
+          </div>
+        )}
         <div>
           <RegionFilterRow
-            value={selectedRegion}
+            value={effectiveSelectedRegion}
             onChange={setSelectedRegion}
+            enabledRegions={enabledRegions}
           />
         </div>
 
@@ -270,16 +313,18 @@ function ResponsiveOfferingRow({ items }: { items: Offering[] }) {
 function RegionFilterRow({
   value,
   onChange,
+  enabledRegions,
 }: {
   value: OfferingRegionTab;
   onChange: (v: OfferingRegionTab) => void;
+  enabledRegions: OfferingRegionTab[];
 }) {
   return (
     <>
       {/* Mobile: horizontal scroll chips */}
       <div className="sm:hidden -mx-4 pl-4">
         <div className="flex gap-2 overflow-x-auto pb-2 pr-4 [-webkit-overflow-scrolling:touch] scrollbar-none">
-          {OFFERING_REGION_TABS.map((region) => {
+          {enabledRegions.map((region) => {
             const isActive = value === region;
             return (
               <Button
@@ -301,7 +346,7 @@ function RegionFilterRow({
 
       {/* Tablet/Desktop: 기존 버튼 UI 유지 */}
       <div className="hidden sm:flex flex-wrap gap-2">
-        {OFFERING_REGION_TABS.map((region) => {
+        {enabledRegions.map((region) => {
           const isActive = value === region;
           return (
             <Button

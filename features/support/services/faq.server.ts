@@ -5,6 +5,12 @@
 import { createSupabaseServer } from "@/lib/supabaseServer";
 import type { FAQCategoryRow, FAQItemViewModel } from "../domain/support";
 
+type FAQAdminItemViewModel = FAQItemViewModel & {
+  categoryId: string;
+  sortOrder: number;
+  isActive: boolean;
+};
+
 /**
  * 관리자 여부 확인
  */
@@ -48,7 +54,7 @@ export async function fetchFAQCategoriesServer(): Promise<FAQCategoryRow[]> {
 /**
  * FAQ 아이템 목록 조회 (서버, 관리자용 - 비활성 포함)
  */
-export async function fetchFAQItemsServer(): Promise<FAQItemViewModel[]> {
+export async function fetchFAQItemsServer(): Promise<FAQAdminItemViewModel[]> {
   const supabase = await createSupabaseServer();
 
   const { data, error } = await supabase
@@ -82,10 +88,13 @@ export async function fetchFAQItemsServer(): Promise<FAQItemViewModel[]> {
     };
     return {
       id: item.id,
+      categoryId: item.category_id,
       categoryKey: category.key,
       categoryName: category.name,
       question: item.question,
       answer: item.answer,
+      sortOrder: item.sort_order,
+      isActive: item.is_active,
     };
   });
 }

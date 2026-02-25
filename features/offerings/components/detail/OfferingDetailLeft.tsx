@@ -1,5 +1,7 @@
 // features/offerings/detail/OfferingDetailLeft.tsx
-import type { ReactNode } from "react";
+"use client";
+
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Image from "next/image";
 import {
   BadgeCheck,
@@ -18,14 +20,20 @@ import Card from "@/components/ui/Card";
 import OfferingDetailTabs from "@/features/offerings/components/detail/OfferingDetailTabs.client";
 import OfferingUnitTypesAccordion from "./offeringTypesAccordion.client";
 import PropertyImageGallery from "./PropertyImageGallery.client";
-import NaverMap, { type MapMarker } from "@/features/map/components/NaverMap";
+import NaverMap, {
+  type MapMarker,
+  type NaverMapHandle,
+} from "@/features/map/components/NaverMap";
 import { UXCopy } from "@/shared/uxCopy";
 import OfferingBadge from "@/features/offerings/components/OfferingBadges";
+import { useToast } from "@/components/ui/Toast";
 import { isOfferingStatusValue } from "@/features/offerings/domain/offering.constants";
+import { createSupabaseClient } from "@/lib/supabaseClient";
 import type {
   PropertyFacilityRow,
   PropertyGalleryImageRow,
   PropertyLocationRow,
+  PropertyModelhouseImageRow,
   PropertyRecoPoiRow,
   PropertyRow,
   PropertySpecRow,
@@ -281,10 +289,17 @@ function StatCard({ label, value }: { label: string; value: ReactNode }) {
 
 export default function OfferingDetailLeft({
   property,
+  hasApprovedAgent = false,
 }: {
   property: PropertyRow;
+  hasApprovedAgent?: boolean;
 }) {
+  const toast = useToast();
+  const supabase = useMemo(() => createSupabaseClient(), []);
   const p = property as PropertyRow;
+  const locationMapRef = useRef<NaverMapHandle | null>(null);
+  const [isModelhouseConsultEnabled, setIsModelhouseConsultEnabled] =
+    useState(false);
 
   const loc0 = firstRow<PropertyLocationRow>(p.property_locations);
   const specs0 = firstRow<PropertySpecRow>(p.property_specs);
@@ -318,10 +333,73 @@ export default function OfferingDetailLeft({
       : null;
 
   const galleryImageUrls = buildGalleryImageUrls(p);
+  const modelhouseImageRows = asArray<PropertyModelhouseImageRow>(
+    p.property_modelhouse_images,
+  )
+    .slice()
+    .sort((a, b) => {
+      const rank = (kind: "modelhouse_main" | "modelhouse_gallery") =>
+        kind === "modelhouse_main" ? 0 : 1;
+      if (rank(a.kind) !== rank(b.kind)) return rank(a.kind) - rank(b.kind);
+      if ((a.sort_order ?? 0) !== (b.sort_order ?? 0)) {
+        return (a.sort_order ?? 0) - (b.sort_order ?? 0);
+      }
+      return (a.created_at ?? "").localeCompare(b.created_at ?? "");
+    });
+  const modelhouseImageUrl =
+    modelhouseImageRows.find((row) => isLikelyImageUrl(row.image_url))
+      ?.image_url ?? null;
   const confirmedMemo = pickFirstNonEmpty(p.confirmed_comment);
   const estimatedMemo = pickFirstNonEmpty(p.estimated_comment);
   const hasMemo = confirmedMemo !== null || estimatedMemo !== null;
   const propertyDescription = pickFirstNonEmpty(p.description);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function evaluateConsultEligibility() {
+      if (!hasApprovedAgent || !p.id) {
+        if (mounted) setIsModelhouseConsultEnabled(false);
+        return;
+      }
+
+      try {
+        const {
+          data: { user: currentUser },
+        } = await supabase.auth.getUser();
+        if (!mounted) return;
+
+        let isBookingBlockedRole = false;
+        if (currentUser?.id) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("role")
+            .eq("id", currentUser.id)
+            .maybeSingle();
+          if (!mounted) return;
+          const role = (profile?.role as string | null) ?? null;
+          isBookingBlockedRole = role === "agent" || role === "admin";
+        }
+
+        const { count } = await supabase
+          .from("property_agents")
+          .select("property_id", { count: "exact", head: true })
+          .eq("property_id", p.id)
+          .eq("status", "approved");
+        if (!mounted) return;
+
+        const hasBookableAgent = hasApprovedAgent && (count ?? 0) > 0;
+        setIsModelhouseConsultEnabled(hasBookableAgent && !isBookingBlockedRole);
+      } catch {
+        if (mounted) setIsModelhouseConsultEnabled(false);
+      }
+    }
+
+    void evaluateConsultEligibility();
+    return () => {
+      mounted = false;
+    };
+  }, [hasApprovedAgent, p.id, supabase]);
 
   const priceMin =
     unitTypes
@@ -460,18 +538,73 @@ export default function OfferingDetailLeft({
       : []),
     ...(adjustedModelHouseLat != null && adjustedModelHouseLng != null
       ? [
-          {
-            id: 2,
-            label: "모델하우스",
-            lat: adjustedModelHouseLat,
-            lng: adjustedModelHouseLng,
-            type: "open" as const,
-            topLabel: null,
-            mainLabel: "모델하우스",
-          },
+          (() => {
+            const modelhouseAddress =
+              selectedModelHouseCandidate?.facility.road_address?.trim() ||
+              "주소 정보 없음";
+            return {
+              id: 2,
+              label: "모델하우스",
+              lat: adjustedModelHouseLat,
+              lng: adjustedModelHouseLng,
+              type: "modelhouse" as const,
+              topLabel: "모델하우스",
+              mainLabel: modelhouseAddress,
+              imageUrl: modelhouseImageUrl ?? null,
+              address: modelhouseAddress,
+              ctaLabel: "상담하기",
+              canConsult: isModelhouseConsultEnabled,
+            };
+          })(),
         ]
       : []),
   ];
+  const [focusedLocationMarkerId, setFocusedLocationMarkerId] = useState<number | null>(null);
+  const effectiveFocusedLocationMarkerId =
+    focusedLocationMarkerId != null &&
+    locationMarkers.some((marker) => marker.id === focusedLocationMarkerId)
+      ? focusedLocationMarkerId
+      : null;
+  const focusedLocationMarker =
+    effectiveFocusedLocationMarkerId == null
+      ? null
+      : (locationMarkers.find((marker) => marker.id === effectiveFocusedLocationMarkerId) ??
+        null);
+  const richLocationMarkerIds =
+    focusedLocationMarker?.type === "modelhouse" &&
+    effectiveFocusedLocationMarkerId != null
+      ? [effectiveFocusedLocationMarkerId]
+      : [];
+
+  const handleMarkerAction = async (
+    markerId: number,
+    action: "copy-address" | "consult",
+  ) => {
+    const marker = locationMarkers.find((item) => item.id === markerId);
+    if (!marker || marker.type !== "modelhouse") return;
+    if (action === "consult" && !marker.canConsult) return;
+
+    if (action === "copy-address") {
+      const address = marker.address?.trim() ?? "";
+      if (!address) {
+        toast.warning("복사할 주소 정보가 없습니다.");
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(address);
+        toast.success("주소가 복사되었습니다.");
+      } catch {
+        toast.error("주소 복사에 실패했습니다.");
+      }
+      return;
+    }
+
+    window.dispatchEvent(
+      new CustomEvent("oboon:open-consultation", {
+        detail: { propertyId: p.id },
+      }),
+    );
+  };
   const shouldFitLocationMarkers =
     locationMarkers.length >= 2
       ? distanceKm(
@@ -615,74 +748,9 @@ export default function OfferingDetailLeft({
         />
       </div>
 
-      {/* Basic */}
-      <div id="basic" className="mt-4 scroll-mt-30 lg:scroll-mt-30">
-        <SectionTitle
-          icon={<Building2 className="h-5 w-5" />}
-          title="기본 정보"
-          desc="판단에 필요한 현장 정보를 한 화면에서 확인합니다."
-        />
-
-        <div className="mt-3 space-y-3">
-          <Card className="px-5 py-3">
-            <div className="ob-typo-subtitle text-(--oboon-text-title)">
-              분양·사업 정보
-            </div>
-            <div className="mt-3 grid grid-cols-1 gap-y-4 md:grid-cols-2 md:gap-x-10">
-              {businessInfoItems.map((item) => (
-                <div key={item.label}>
-                  <div className="ob-typo-caption text-(--oboon-text-muted)">
-                    {item.label}
-                  </div>
-                  <div className="mt-1 ob-typo-h4 text-(--oboon-text-title)">
-                    {item.value}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          <Card className="px-5 py-3">
-            <div className="ob-typo-subtitle text-(--oboon-text-title)">
-              면적·비율
-            </div>
-            <div className="mt-3 grid grid-cols-1 gap-y-4 md:grid-cols-2 md:gap-x-10">
-              {areaRatioItems.map((item) => (
-                <div key={item.label}>
-                  <div className="ob-typo-caption text-(--oboon-text-muted)">
-                    {item.label}
-                  </div>
-                  <div className="mt-1 ob-typo-h4 text-(--oboon-text-title)">
-                    {item.value}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          <Card className="px-5 py-3">
-            <div className="ob-typo-subtitle text-(--oboon-text-title)">
-              규모·주차·난방·기타
-            </div>
-            <div className="mt-3 grid grid-cols-1 gap-y-4 md:grid-cols-2 md:gap-x-10">
-              {scaleEtcItems.map((item) => (
-                <div key={item.label}>
-                  <div className="ob-typo-caption text-(--oboon-text-muted)">
-                    {item.label}
-                  </div>
-                  <div className="mt-1 ob-typo-h4 text-(--oboon-text-title)">
-                    {item.value}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </div>
-      </div>
-
       {/* Memo */}
       {hasMemo ? (
-        <div id="memo" className="mt-10 scroll-mt-30 lg:scroll-mt-30">
+        <div id="memo" className="mt-4 scroll-mt-30 lg:scroll-mt-30">
           <SectionTitle
             icon={<Info className="h-5 w-5" />}
             title="감정평가사 메모"
@@ -939,11 +1007,22 @@ export default function OfferingDetailLeft({
             {locationMarkers.length > 0 ? (
               <div className="h-[25rem] overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)">
                 <NaverMap
+                  ref={locationMapRef}
                   markers={locationMarkers}
-                  focusedId={locationMarkers[0]?.id ?? null}
+                  focusedId={effectiveFocusedLocationMarkerId}
                   showFocusedAsRich={false}
+                  richMarkerIds={richLocationMarkerIds}
                   fitToMarkers={shouldFitLocationMarkers}
                   mode="base"
+                  onMarkerSelect={(id) => {
+                    setFocusedLocationMarkerId(id);
+                    const marker = locationMarkers.find((item) => item.id === id);
+                    if (marker?.type === "modelhouse") {
+                      locationMapRef.current?.setView(marker.lat, marker.lng);
+                    }
+                  }}
+                  onMarkerAction={handleMarkerAction}
+                  onClearFocus={() => setFocusedLocationMarkerId(null)}
                 />
               </div>
             ) : (
@@ -951,6 +1030,71 @@ export default function OfferingDetailLeft({
                 등록된 위치 좌표가 없어 지도를 표시할 수 없습니다.
               </div>
             )}
+          </Card>
+        </div>
+      </div>
+
+      {/* Basic */}
+      <div id="basic" className="mt-10 scroll-mt-30 lg:scroll-mt-30">
+        <SectionTitle
+          icon={<Building2 className="h-5 w-5" />}
+          title="기본 정보"
+          desc="판단에 필요한 현장 정보를 한 화면에서 확인합니다."
+        />
+
+        <div className="mt-3 space-y-3">
+          <Card className="px-5 py-3">
+            <div className="ob-typo-subtitle text-(--oboon-text-title)">
+              분양·사업 정보
+            </div>
+            <div className="mt-3 grid grid-cols-1 gap-y-4 md:grid-cols-2 md:gap-x-10">
+              {businessInfoItems.map((item) => (
+                <div key={item.label}>
+                  <div className="ob-typo-caption text-(--oboon-text-muted)">
+                    {item.label}
+                  </div>
+                  <div className="mt-1 ob-typo-h4 text-(--oboon-text-title)">
+                    {item.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <Card className="px-5 py-3">
+            <div className="ob-typo-subtitle text-(--oboon-text-title)">
+              면적·비율
+            </div>
+            <div className="mt-3 grid grid-cols-1 gap-y-4 md:grid-cols-2 md:gap-x-10">
+              {areaRatioItems.map((item) => (
+                <div key={item.label}>
+                  <div className="ob-typo-caption text-(--oboon-text-muted)">
+                    {item.label}
+                  </div>
+                  <div className="mt-1 ob-typo-h4 text-(--oboon-text-title)">
+                    {item.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <Card className="px-5 py-3">
+            <div className="ob-typo-subtitle text-(--oboon-text-title)">
+              규모·주차·난방·기타
+            </div>
+            <div className="mt-3 grid grid-cols-1 gap-y-4 md:grid-cols-2 md:gap-x-10">
+              {scaleEtcItems.map((item) => (
+                <div key={item.label}>
+                  <div className="ob-typo-caption text-(--oboon-text-muted)">
+                    {item.label}
+                  </div>
+                  <div className="mt-1 ob-typo-h4 text-(--oboon-text-title)">
+                    {item.value}
+                  </div>
+                </div>
+              ))}
+            </div>
           </Card>
         </div>
       </div>

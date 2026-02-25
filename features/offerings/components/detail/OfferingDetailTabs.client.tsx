@@ -24,12 +24,12 @@ export default function OfferingDetailTabs({
   const tabs: Tab[] = useMemo(
     () =>
       [
-        { id: "basic", label: "기본 정보" },
         hasMemo ? { id: "memo", label: "감정평가사 메모" } : null,
         hasPrices ? { id: "prices", label: "분양가 표" } : null,
         hasInfra ? { id: "infra", label: "주변 인프라" } : null,
         hasTimeline ? { id: "timeline", label: "일정" } : null,
         { id: "location", label: "위치" },
+        { id: "basic", label: "기본 정보" },
       ].filter((tab): tab is Tab => tab !== null),
     [hasMemo, hasPrices, hasTimeline, hasInfra],
   );

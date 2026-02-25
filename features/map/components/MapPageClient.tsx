@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 
 import NaverMap, {
   type NaverMapHandle,
+  type MapFocusBounds,
   type MapMarker,
 } from "@/features/map/components/NaverMap";
 import type {
@@ -35,6 +36,81 @@ import { createSupabaseClient } from "@/lib/supabaseClient";
 const INITIAL_FILTERS: Record<MarkerLayer, boolean> = {
   agent: true,
   valuation: true,
+};
+
+const REGION_TABS = [
+  { key: "all", label: "전국", lat: 36.5, lng: 127.9, zoom: 7 },
+  { key: "seoul", label: "서울", lat: 37.5665, lng: 126.978, zoom: 11 },
+  { key: "incheon", label: "인천", lat: 37.4563, lng: 126.7052, zoom: 11 },
+  { key: "gyeonggi", label: "경기", lat: 37.4138, lng: 127.5183, zoom: 10 },
+  { key: "busan", label: "부산", lat: 35.1796, lng: 129.0756, zoom: 11 },
+  { key: "daegu", label: "대구", lat: 35.8714, lng: 128.6014, zoom: 11 },
+  { key: "gwangju", label: "광주", lat: 35.1595, lng: 126.8526, zoom: 11 },
+  { key: "daejeon", label: "대전", lat: 36.3504, lng: 127.3845, zoom: 11 },
+  { key: "ulsan", label: "울산", lat: 35.5384, lng: 129.3114, zoom: 11 },
+  { key: "sejong", label: "세종", lat: 36.4801, lng: 127.289, zoom: 11 },
+  { key: "gangwon", label: "강원", lat: 37.8228, lng: 128.1555, zoom: 9 },
+  { key: "chungbuk", label: "충북", lat: 36.6357, lng: 127.4917, zoom: 10 },
+  { key: "chungnam", label: "충남", lat: 36.5184, lng: 126.8, zoom: 10 },
+  { key: "jeonbuk", label: "전북", lat: 35.8202, lng: 127.1089, zoom: 10 },
+  { key: "jeonnam", label: "전남", lat: 34.8679, lng: 126.991, zoom: 9 },
+  { key: "gyeongbuk", label: "경북", lat: 36.4919, lng: 128.8889, zoom: 9 },
+  { key: "gyeongnam", label: "경남", lat: 35.4606, lng: 128.2132, zoom: 10 },
+  { key: "jeju", label: "제주", lat: 33.4996, lng: 126.5312, zoom: 10 },
+] as const;
+
+const REGION_FOCUS_BOUNDS: Record<string, MapFocusBounds | null> = {
+  all: null,
+  seoul: { south: 37.41, west: 126.76, north: 37.72, east: 127.19 },
+  incheon: { south: 37.2, west: 126.35, north: 37.72, east: 126.95 },
+  gyeonggi: { south: 36.88, west: 126.3, north: 38.35, east: 127.86 },
+  busan: { south: 34.98, west: 128.78, north: 35.4, east: 129.35 },
+  daegu: { south: 35.6, west: 128.35, north: 36.02, east: 128.82 },
+  gwangju: { south: 35.02, west: 126.67, north: 35.31, east: 127.0 },
+  daejeon: { south: 36.2, west: 127.24, north: 36.49, east: 127.54 },
+  ulsan: { south: 35.35, west: 129.03, north: 35.75, east: 129.48 },
+  sejong: { south: 36.43, west: 127.18, north: 36.62, east: 127.38 },
+  gangwon: { south: 37.02, west: 127.25, north: 38.62, east: 129.35 },
+  chungbuk: { south: 36.0, west: 127.27, north: 37.25, east: 128.7 },
+  chungnam: { south: 35.98, west: 125.95, north: 37.05, east: 127.75 },
+  jeonbuk: { south: 35.27, west: 126.38, north: 36.2, east: 127.95 },
+  jeonnam: { south: 33.85, west: 125.98, north: 35.5, east: 127.95 },
+  gyeongbuk: { south: 35.53, west: 128.15, north: 37.3, east: 129.65 },
+  gyeongnam: { south: 34.45, west: 127.53, north: 35.92, east: 129.25 },
+  jeju: { south: 33.1, west: 126.1, north: 33.62, east: 126.99 },
+};
+
+const ALL_KOREA_VIEW_BOUNDS: MapFocusBounds = {
+  south: 33.0,
+  west: 125.8,
+  north: 38.75,
+  east: 130.95,
+};
+
+const REGION_NAME_MATCHERS: Record<string, string[]> = {
+  seoul: ["서울특별시", "서울"],
+  incheon: ["인천광역시", "인천"],
+  gyeonggi: ["경기도", "경기"],
+  busan: ["부산광역시", "부산"],
+  daegu: ["대구광역시", "대구"],
+  gwangju: ["광주광역시", "광주"],
+  daejeon: ["대전광역시", "대전"],
+  ulsan: ["울산광역시", "울산"],
+  sejong: ["세종특별자치시", "세종"],
+  gangwon: ["강원특별자치도", "강원도", "강원"],
+  chungbuk: ["충청북도", "충북"],
+  chungnam: ["충청남도", "충남"],
+  jeonbuk: ["전북특별자치도", "전라북도", "전북"],
+  jeonnam: ["전라남도", "전남"],
+  gyeongbuk: ["경상북도", "경북"],
+  gyeongnam: ["경상남도", "경남"],
+  jeju: ["제주특별자치도", "제주"],
+};
+
+type RegionBoundaryPayload = {
+  region: string;
+  bounds: MapFocusBounds;
+  polygons: Array<Array<{ lat: number; lng: number }>>;
 };
 
 function toMarker(m: DbOffering): MapMarker {
@@ -71,6 +147,7 @@ function toCompactItem(m: DbOffering): MapOfferingCompactItem {
 export default function MapPageClient() {
   const [filters, setFilters] =
     useState<Record<MarkerLayer, boolean>>(INITIAL_FILTERS);
+  const [showAllOfferings, setShowAllOfferings] = useState(true);
 
   const [all, setAll] = useState<DbOffering[]>([]);
   // null = 아직 지도 가시영역 계산 전(초기 상태)
@@ -80,6 +157,11 @@ export default function MapPageClient() {
   const [focusedId, setFocusedId] = useState<number | null>(null);
 
   const [overlayOpen, setOverlayOpen] = useState(false);
+  const [activeRegionTab, setActiveRegionTab] = useState<string>("all");
+  const [mapReady, setMapReady] = useState(false);
+  const [regionBoundaryByKey, setRegionBoundaryByKey] = useState<
+    Record<string, RegionBoundaryPayload>
+  >({});
 
   const mapApiRef = useRef<NaverMapHandle | null>(null);
   const router = useRouter();
@@ -142,8 +224,25 @@ export default function MapPageClient() {
   }, []);
 
   const filtered = useMemo(() => {
-    return all.filter((item) => item.layers.some((layer) => filters[layer]));
-  }, [all, filters]);
+    if (!showAllOfferings) return [];
+    const regionMatchers = REGION_NAME_MATCHERS[activeRegionTab] ?? [];
+    const selectedLayers = (Object.entries(filters) as Array<[MarkerLayer, boolean]>)
+      .filter(([, enabled]) => enabled)
+      .map(([layer]) => layer);
+
+    return all.filter((item) => {
+      if (selectedLayers.length > 0) {
+        const matchesLayer = selectedLayers.some((layer) =>
+          item.layers.includes(layer),
+        );
+        if (!matchesLayer) return false;
+      }
+      if (activeRegionTab === "all") return true;
+      const region = (item.regionSido ?? "").trim();
+      if (!region) return false;
+      return regionMatchers.some((matcher) => region.includes(matcher));
+    });
+  }, [activeRegionTab, all, filters, showAllOfferings]);
 
   const visible = useMemo(() => {
     if (!visibleIds) return filtered;
@@ -158,10 +257,79 @@ export default function MapPageClient() {
   const compactItems = useMemo(() => {
     return visible.map(toCompactItem);
   }, [visible]);
+  const activeRegionFocusBounds = useMemo(
+    () =>
+      regionBoundaryByKey[activeRegionTab]?.bounds ??
+      REGION_FOCUS_BOUNDS[activeRegionTab] ??
+      null,
+    [activeRegionTab, regionBoundaryByKey],
+  );
+  const activeRegionFocusPolygons = useMemo(
+    () => regionBoundaryByKey[activeRegionTab]?.polygons ?? [],
+    [activeRegionTab, regionBoundaryByKey],
+  );
 
   const handleToggleLayer = (key: MarkerLayer) => {
     setFilters((prev) => ({ ...prev, [key]: !prev[key] }));
   };
+
+  const handleMoveRegion = (regionKey: string) => {
+    const target = REGION_TABS.find((tab) => tab.key === regionKey);
+    if (!target) return;
+    setActiveRegionTab(target.key);
+    if (!mapReady) {
+      setFocusedId(null);
+      return;
+    }
+    const boundaryBounds =
+      target.key === "all"
+        ? ALL_KOREA_VIEW_BOUNDS
+        :
+      regionBoundaryByKey[target.key]?.bounds ??
+      REGION_FOCUS_BOUNDS[target.key] ??
+      null;
+    if (boundaryBounds) {
+      mapApiRef.current?.fitToBounds(boundaryBounds);
+    } else {
+      mapApiRef.current?.setView(target.lat, target.lng, target.zoom);
+    }
+    setFocusedId(null);
+  };
+
+  useEffect(() => {
+    if (activeRegionTab === "all") return;
+    if (regionBoundaryByKey[activeRegionTab]) return;
+
+    const controller = new AbortController();
+
+    async function loadBoundary() {
+      try {
+        const response = await fetch(
+          `/api/map/region-boundary?region=${encodeURIComponent(activeRegionTab)}`,
+          { signal: controller.signal },
+        );
+        if (!response.ok) return;
+        const payload = (await response.json()) as RegionBoundaryPayload;
+        if (!payload?.bounds || !Array.isArray(payload?.polygons)) return;
+        setRegionBoundaryByKey((prev) => ({ ...prev, [activeRegionTab]: payload }));
+      } catch {
+        // ignore boundary fetch failures and keep static bounds fallback
+      }
+    }
+
+    void loadBoundary();
+    return () => controller.abort();
+  }, [activeRegionTab, regionBoundaryByKey]);
+
+  useEffect(() => {
+    if (!mapReady) return;
+    const bounds =
+      activeRegionTab === "all"
+        ? ALL_KOREA_VIEW_BOUNDS
+        : (regionBoundaryByKey[activeRegionTab]?.bounds ?? null);
+    if (!bounds) return;
+    mapApiRef.current?.fitToBounds(bounds);
+  }, [activeRegionTab, mapReady, regionBoundaryByKey]);
 
   return (
     <main className="bg-(--oboon-bg-page)">
@@ -176,12 +344,30 @@ export default function MapPageClient() {
             </div>
           </div>
 
+          <div className="flex flex-wrap gap-2">
+            {REGION_TABS.map((tab) => (
+              <Button
+                key={tab.key}
+                type="button"
+                size="sm"
+                shape="pill"
+                variant={activeRegionTab === tab.key ? "primary" : "secondary"}
+                onClick={() => handleMoveRegion(tab.key)}
+              >
+                {tab.label}
+              </Button>
+            ))}
+          </div>
+
           <div className="relative h-[360px] overflow-hidden rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) sm:h-[420px] md:h-[480px]">
             <div className="absolute inset-0">
               <NaverMap
                 ref={mapApiRef}
                 markers={markers}
                 initialZoom={13}
+                focusBounds={activeRegionFocusBounds}
+                focusPolygons={activeRegionFocusPolygons}
+                onMapReady={() => setMapReady(true)}
                 hoveredId={hoveredId}
                 focusedId={focusedId}
                 onVisibleIdsChange={setVisibleIds}
@@ -197,7 +383,12 @@ export default function MapPageClient() {
               />
             </div>
 
-            <LayerControl filters={filters} onToggle={handleToggleLayer} />
+            <LayerControl
+              showAll={showAllOfferings}
+              onToggleAll={() => setShowAllOfferings((prev) => !prev)}
+              filters={filters}
+              onToggle={handleToggleLayer}
+            />
 
             <div className="pointer-events-none absolute right-4 top-4 flex flex-col gap-2">
               <Button
