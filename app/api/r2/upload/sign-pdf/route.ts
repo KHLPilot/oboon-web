@@ -10,7 +10,8 @@ const MAX_PDF_SIZE = 150 * 1024 * 1024;
 const SIGN_EXPIRES_IN_SECONDS = 60 * 10;
 const R2_BUCKET_NAME = process.env.CLOUDFLARE_R2_BUCKET_NAME!;
 const R2_PUBLIC_BASE_URL = process.env.CLOUDFLARE_R2_PUBLIC_URL!;
-const R2_ENDPOINT_HOST = `${process.env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+const R2_ACCOUNT_HOST = `${process.env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+const R2_BUCKET_HOST = `${R2_BUCKET_NAME}.${R2_ACCOUNT_HOST}`;
 
 type SignPdfBody = {
   fileName?: unknown;
@@ -98,18 +99,18 @@ export async function POST(req: Request) {
     const signed = await signer.presign(
       new HttpRequest({
         protocol: "https:",
-        hostname: R2_ENDPOINT_HOST,
+        hostname: R2_BUCKET_HOST,
         method: "PUT",
-        path: `/${R2_BUCKET_NAME}/${key}`,
+        path: `/${key}`,
         headers: {
-          host: R2_ENDPOINT_HOST,
+          host: R2_BUCKET_HOST,
         },
       }),
       { expiresIn: SIGN_EXPIRES_IN_SECONDS },
     );
 
     const uploadUrl = toPresignedUrl(
-      R2_ENDPOINT_HOST,
+      R2_BUCKET_HOST,
       signed.path,
       signed.query as Record<string, string | string[] | undefined>,
     );
