@@ -110,3 +110,15 @@ Cloudflare R2 버킷 CORS Rules에 아래 항목이 포함되어야 합니다.
 4. 권한 오류(401/403)
    - 로그인 세션 유효성 및 `pdf-temp/{userId}/...` key prefix 확인
 
+## Temp PDF 정리 정책 (현재 적용)
+
+- 즉시 정리: `/api/extract-pdf` 성공/실패 후 `cleanupTempKeys=true`이면 업로드된 key 즉시 삭제 시도
+- 배치 정리: `/api/cron/cleanup-temp-pdfs` 매시간 실행 (`vercel.json` 등록)
+- 기본 TTL: 24시간 (`TEMP_PDF_TTL_HOURS`로 변경 가능)
+
+수동 점검 예시:
+
+- Dry run:
+  - `GET /api/cron/cleanup-temp-pdfs?dryRun=true`
+- 즉시 정리 실행:
+  - `POST /api/cron/cleanup-temp-pdfs`
