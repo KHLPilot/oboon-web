@@ -94,6 +94,7 @@ export async function POST(req: Request) {
       region: "auto",
       service: "s3",
       sha256: Hash.bind(null, "sha256"),
+      uriEscapePath: false,
     });
 
     const signed = await signer.presign(
