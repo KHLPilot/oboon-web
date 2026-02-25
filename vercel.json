@@ -3,10 +3,6 @@
     {
       "path": "/api/cron/cleanup-cancelled",
       "schedule": "0 3 * * *"
-    },
-    {
-      "path": "/api/cron/cleanup-temp-pdfs",
-      "schedule": "0 * * * *"
     }
   ]
 }
