@@ -103,7 +103,6 @@ export async function POST(req: Request) {
         path: `/${R2_BUCKET_NAME}/${key}`,
         headers: {
           host: R2_ENDPOINT_HOST,
-          "content-type": "application/pdf",
         },
       }),
       { expiresIn: SIGN_EXPIRES_IN_SECONDS },

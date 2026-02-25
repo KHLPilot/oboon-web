@@ -2326,7 +2326,6 @@ export default function TestUploadPage() {
 
       const uploadRes = await fetch(String(signPayload.uploadUrl), {
         method: "PUT",
-        headers: { "Content-Type": "application/pdf" },
         body: file,
       });
       if (!uploadRes.ok) {
