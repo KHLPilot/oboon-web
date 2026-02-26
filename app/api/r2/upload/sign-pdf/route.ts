@@ -105,6 +105,7 @@ export async function POST(req: Request) {
         path: `/${key}`,
         headers: {
           host: R2_BUCKET_HOST,
+          "x-amz-content-sha256": "UNSIGNED-PAYLOAD",
         },
       }),
       { expiresIn: SIGN_EXPIRES_IN_SECONDS },
