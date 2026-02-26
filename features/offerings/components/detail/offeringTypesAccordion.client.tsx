@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import { ChevronDown, Maximize2, X } from "lucide-react";
+import { ArrowRightLeft, Maximize2, X } from "lucide-react";
 import Button from "@/components/ui/Button";
 import { UXCopy } from "@/shared/uxCopy";
 import { formatPriceRange } from "@/shared/price";
@@ -28,6 +28,7 @@ type UnitTypeRow = {
   unit_count: number | null; // 세대수
   supply_count: number | null; // 공급
 };
+type AreaUnit = "sqm" | "pyeong";
 
 function cn(...classes: Array<string | undefined | false | null>) {
   return classes.filter(Boolean).join(" ");
@@ -41,10 +42,15 @@ function fallbackText() {
   );
 }
 
-function fmtArea(n: number | null) {
+function fmtArea(n: number | null, unit: AreaUnit) {
   if (n === null) return fallbackText();
-  const v = Math.round(n * 10) / 10;
-  return `${v}㎡`;
+  if (unit === "sqm") {
+    const v = Math.round(n * 10) / 10;
+    return `${v}㎡`;
+  }
+  const pyeong = n / 3.305785;
+  const v = Math.round(pyeong * 10) / 10;
+  return `${v}평`;
 }
 
 function fmtCount(n: number | null, unitLabel = "개") {
@@ -60,6 +66,10 @@ function fmtGenCount(n: number | null, unitLabel = "세대") {
 function fmtText(s: string | null) {
   const t = (s ?? "").trim();
   return t ? t : fallbackText();
+}
+
+function hasTextValue(s: string | null | undefined) {
+  return typeof s === "string" && s.trim().length > 0;
 }
 
 function pickImageUrl(u: UnitTypeRow) {
@@ -363,26 +373,71 @@ function ImageModal({
 /* -----------------------------
   MetaCard (8개 카드 공통)
 -------------------------------- */
-function MetaCard({ label, value }: { label: string; value: string }) {
+function MetaCard({
+  label,
+  value,
+  rightAction,
+}: {
+  label: string;
+  value: string;
+  rightAction?: React.ReactNode;
+}) {
   return (
     <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-2">
       <div className="ob-typo-caption font-medium text-(--oboon-text-muted)">
         {label}
       </div>
-      <div className="mt-1 ob-typo-h4 text-(--oboon-text-title)">{value}</div>
+      <div className="mt-1 flex items-center justify-between gap-2">
+        <div className="ob-typo-h4 text-(--oboon-text-title)">{value}</div>
+        {rightAction ? <div className="shrink-0">{rightAction}</div> : null}
+      </div>
     </div>
   );
 }
 
-function MetaGrid({ u }: { u: UnitTypeRow }) {
+function MetaGrid({
+  u,
+  areaUnit,
+  onToggleAreaUnit,
+}: {
+  u: UnitTypeRow;
+  areaUnit: AreaUnit;
+  onToggleAreaUnit: () => void;
+}) {
+  const areaToggleButton = (
+    <Button
+      onClick={onToggleAreaUnit}
+      variant="secondary"
+      size="sm"
+      shape="pill"
+      className="h-6 px-2 text-xs"
+      aria-label={areaUnit === "sqm" ? "평 단위로 보기" : "제곱미터 단위로 보기"}
+    >
+      <ArrowRightLeft className="h-3.5 w-3.5" />
+      {areaUnit === "sqm" ? "평" : "㎡"}
+    </Button>
+  );
+
   return (
     <div className="mt-3 grid grid-cols-2 gap-2">
-      <MetaCard label="전용면적" value={fmtArea(u.exclusive_area)} />
-      <MetaCard label="공급면적" value={fmtArea(u.supply_area)} />
+      <MetaCard
+        label="전용면적"
+        value={fmtArea(u.exclusive_area, areaUnit)}
+        rightAction={areaToggleButton}
+      />
+      <MetaCard
+        label="공급면적"
+        value={fmtArea(u.supply_area, areaUnit)}
+        rightAction={areaToggleButton}
+      />
       <MetaCard label="방" value={fmtCount(u.rooms)} />
       <MetaCard label="욕실" value={fmtCount(u.bathrooms)} />
-      <MetaCard label="구조" value={fmtText(u.building_layout)} />
-      <MetaCard label="향" value={fmtText(u.orientation)} />
+      {hasTextValue(u.building_layout) ? (
+        <MetaCard label="구조" value={fmtText(u.building_layout)} />
+      ) : null}
+      {hasTextValue(u.orientation) ? (
+        <MetaCard label="향" value={fmtText(u.orientation)} />
+      ) : null}
       <MetaCard label="세대수" value={fmtGenCount(u.unit_count)} />
       <MetaCard label="공급 규모" value={fmtGenCount(u.supply_count)} />
     </div>
@@ -405,12 +460,13 @@ export default function OfferingUnitTypesAccordion({
       .sort((a, b) => (a.type_name ?? "").localeCompare(b.type_name ?? ""));
   }, [unitTypes]);
 
-  const [openId, setOpenId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [zoom, setZoom] = useState<{
     open: boolean;
     title: string;
     src: string | null;
   }>({ open: false, title: "", src: null });
+  const [areaUnit, setAreaUnit] = useState<AreaUnit>("sqm");
 
   if (!rows.length) {
     return (
@@ -418,107 +474,88 @@ export default function OfferingUnitTypesAccordion({
     );
   }
 
+  const selectedUnit =
+    rows.find((row) => row.id === selectedId) ?? rows[0];
+  const title = formatTypeTitle(selectedUnit.type_name);
+  const img = pickImageUrl(selectedUnit);
+
   return (
     <>
-      <div className="divide-y divide-(--oboon-border-default)">
+      <div className="flex gap-1 overflow-x-auto border-b border-(--oboon-border-default) pb-0.5">
         {rows.map((u) => {
-          const isOpen = openId === u.id;
-          const title = formatTypeTitle(u.type_name);
-
-          const img = pickImageUrl(u);
-
+          const isActive = u.id === selectedUnit.id;
           return (
-            <div key={u.id}>
-              {/* Header row */}
-              <button
-                type="button"
-                className={cn(
-                  "w-full rounded-xl px-2 py-2 text-left",
-                  "hover:bg-(--oboon-bg-subtle) transition-colors"
-                )}
-                onClick={() => setOpenId(isOpen ? null : u.id)}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="min-w-0 flex-1 pl-1">
-                    <div className="ob-typo-h4 text-(--oboon-text-title) truncate">
-                      {title}
-                    </div>
-                  </div>
-                  <div className="ob-typo-h4 text-(--oboon-text-muted) whitespace-nowrap">
-                    {formatPriceRange(u.price_min, u.price_max, {
-                      unknownLabel:
-                        u.is_price_public === false
-                          ? UXCopy.pricePrivate
-                          : UXCopy.priceRange,
-                    })}
-                  </div>
-
-                  <ChevronDown
-                    className={cn(
-                      "h-5 w-5 shrink-0 text-(--oboon-text-muted) transition-transform",
-                      isOpen ? "rotate-180" : "rotate-0"
-                    )}
-                  />
-                </div>
-              </button>
-
-              {/* Accordion body */}
-              <div
-                className={cn(
-                  "grid transition-[grid-template-rows] duration-200 ease-out",
-                  isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
-                )}
-              >
-                <div className="min-h-0 overflow-hidden">
-                  <div className="mt-3 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-3">
-                    {/* Image (click -> modal) */}
-                    <div className="relative mx-auto h-full w-full max-w-4xl pointer-events-auto touch-auto">
-                      <div
-                        className={cn(
-                          "relative w-full overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-default)",
-                          img ? "" : "aspect-video",
-                        )}
-                      >
-                        {img ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            className="relative h-auto w-full p-0"
-                            onClick={() =>
-                              setZoom({ open: true, title, src: img })
-                            }
-                            aria-label={`${title} 평면도 확대`}
-                          >
-                            <Image
-                              src={img}
-                              alt={`${title} 평면도`}
-                              width={1600}
-                              height={1200}
-                              className="h-auto w-full object-contain"
-                              sizes="(max-width: 768px) 100vw, 700px"
-                            />
-                            <div className="absolute right-2 top-2 inline-flex items-center gap-2 rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-surface)/90 px-3 py-1.5 ob-typo-caption text-(--oboon-text-muted)">
-                              <Maximize2 className="h-4 w-4" />
-                              확대
-                            </div>
-                          </Button>
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center text-sm text-(--oboon-text-muted)">
-                            {imagePlaceholderText}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* 8 Meta cards */}
-                    <MetaGrid u={u} />
-                  </div>
-                </div>
-              </div>
-            </div>
+            <button
+              key={u.id}
+              type="button"
+              onClick={() => setSelectedId(u.id)}
+              className={cn(
+                "shrink-0 border-b-2 px-3 py-2 ob-typo-h4 transition-colors",
+                isActive
+                  ? "border-(--oboon-primary) text-(--oboon-text-title)"
+                  : "border-transparent text-(--oboon-text-muted) hover:text-(--oboon-text-title)",
+              )}
+            >
+              {formatTypeTitle(u.type_name)}
+            </button>
           );
         })}
       </div>
+
+      <div className="mt-5 ob-typo-h2 text-(--oboon-text-title)">
+        {formatPriceRange(selectedUnit.price_min, selectedUnit.price_max, {
+          unknownLabel:
+            selectedUnit.is_price_public === false
+              ? UXCopy.pricePrivate
+              : UXCopy.priceRange,
+        })}
+      </div>
+
+      {/* Image (click -> modal) */}
+      <div className="relative mx-auto mt-3 h-full w-full max-w-4xl pointer-events-auto touch-auto">
+        <div
+          className={cn(
+            "relative w-full overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-default)",
+            img ? "" : "aspect-video",
+          )}
+        >
+          {img ? (
+            <Button
+              type="button"
+              variant="ghost"
+              className="relative h-auto w-full p-0"
+              onClick={() => setZoom({ open: true, title, src: img })}
+              aria-label={`${title} 평면도 확대`}
+            >
+              <Image
+                src={img}
+                alt={`${title} 평면도`}
+                width={1600}
+                height={1200}
+                className="h-auto w-full object-contain"
+                sizes="(max-width: 768px) 100vw, 700px"
+              />
+              <div className="absolute right-2 top-2 inline-flex items-center gap-2 rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-surface)/90 px-3 py-1.5 ob-typo-caption text-(--oboon-text-muted)">
+                <Maximize2 className="h-4 w-4" />
+                확대
+              </div>
+            </Button>
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-sm text-(--oboon-text-muted)">
+              {imagePlaceholderText}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 8 Meta cards */}
+      <MetaGrid
+        u={selectedUnit}
+        areaUnit={areaUnit}
+        onToggleAreaUnit={() =>
+          setAreaUnit((prev) => (prev === "sqm" ? "pyeong" : "sqm"))
+        }
+      />
 
       {/* Modal */}
       <ImageModal

@@ -10,6 +10,7 @@ const publicPaths = [
   "/briefing/oboon-original",
   "/map",
   "/community",
+  "/notice",
   "/support",
   "/support/faq",
   "/support/qna",
@@ -188,6 +189,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: latestSiteModified,
     },
     "/community": {
+      changeFrequency: "weekly",
+      priority: 0.7,
+      lastModified: latestSiteModified,
+    },
+    "/notice": {
       changeFrequency: "weekly",
       priority: 0.7,
       lastModified: latestSiteModified,

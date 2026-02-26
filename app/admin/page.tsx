@@ -136,6 +136,34 @@ type FAQEditor = {
   isActive: boolean;
 };
 
+type NoticeCategory = "update" | "service" | "event" | "maintenance";
+type NoticeAdminItem = {
+  id: number;
+  slug: string;
+  title: string;
+  summary: string;
+  content: string;
+  category: NoticeCategory;
+  is_pinned: boolean;
+  is_maintenance: boolean;
+  is_published: boolean;
+  published_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type NoticeEditor = {
+  id?: number;
+  title: string;
+  summary: string;
+  content: string;
+  category: NoticeCategory;
+  isPinned: boolean;
+  isMaintenance: boolean;
+  isPublished: boolean;
+  publishedAt: string;
+};
+
 function MissingPill({ label }: { label: string }) {
   return (
     <Badge variant="warning" className="ob-typo-caption px-2.5 py-1">
@@ -199,6 +227,17 @@ function termTypeLabel(type: string) {
   }
 }
 
+const NOTICE_CATEGORY_OPTIONS: Array<{ value: NoticeCategory; label: string }> = [
+  { value: "update", label: "업데이트" },
+  { value: "service", label: "서비스" },
+  { value: "event", label: "이벤트" },
+  { value: "maintenance", label: "작업 안내" },
+];
+
+function noticeCategoryLabel(category: NoticeCategory) {
+  return NOTICE_CATEGORY_OPTIONS.find((item) => item.value === category)?.label ?? category;
+}
+
 function getErrorMessage(error: unknown, fallback: string) {
   return toKoreanErrorMessage(error, fallback);
 }
@@ -222,6 +261,7 @@ const ADMIN_TABS = [
   { id: "properties", label: "현장 관리" },
   { id: "reservations", label: "예약 관리" },
   { id: "settlements", label: "정산 관리" },
+  { id: "notices", label: "공지 관리" },
   { id: "terms", label: "약관 관리" },
   { id: "faq", label: "FAQ 관리" },
 ] as const;
@@ -299,6 +339,11 @@ function AdminPageInner() {
   const [faqSaving, setFaqSaving] = useState(false);
   const [faqDeletingId, setFaqDeletingId] = useState<string | null>(null);
   const [faqEditor, setFaqEditor] = useState<FAQEditor | null>(null);
+  const [noticeItems, setNoticeItems] = useState<NoticeAdminItem[]>([]);
+  const [noticeLoading, setNoticeLoading] = useState(false);
+  const [noticeSaving, setNoticeSaving] = useState(false);
+  const [noticeDeletingId, setNoticeDeletingId] = useState<number | null>(null);
+  const [noticeEditor, setNoticeEditor] = useState<NoticeEditor | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -496,6 +541,119 @@ function AdminPageInner() {
       toast.error(getErrorMessage(error, "FAQ 삭제 실패"), "오류");
     } finally {
       setFaqDeletingId(null);
+    }
+  };
+
+  const loadNotices = useCallback(async () => {
+    setNoticeLoading(true);
+    try {
+      const response = await fetch("/api/admin/notices");
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || "공지 조회 실패");
+      }
+      setNoticeItems((data.items || []) as NoticeAdminItem[]);
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "공지 조회 실패"), "오류");
+    } finally {
+      setNoticeLoading(false);
+    }
+  }, [toast]);
+
+  const openCreateNoticeEditor = () => {
+    const today = new Date().toISOString().slice(0, 10);
+    setNoticeEditor({
+      title: "",
+      summary: "",
+      content: "",
+      category: "service",
+      isPinned: false,
+      isMaintenance: false,
+      isPublished: true,
+      publishedAt: today,
+    });
+  };
+
+  const openEditNoticeEditor = (item: NoticeAdminItem) => {
+    const publishedDate = item.published_at
+      ? new Date(item.published_at).toISOString().slice(0, 10)
+      : "";
+    setNoticeEditor({
+      id: item.id,
+      title: item.title,
+      summary: item.summary,
+      content: item.content,
+      category: item.category,
+      isPinned: item.is_pinned,
+      isMaintenance: item.is_maintenance,
+      isPublished: item.is_published,
+      publishedAt: publishedDate,
+    });
+  };
+
+  const saveNoticeEditor = async () => {
+    if (!noticeEditor) return;
+    const title = noticeEditor.title.trim();
+    const content = noticeEditor.content.trim();
+    if (!title || !content) {
+      toast.error("제목과 내용을 입력해주세요.", "오류");
+      return;
+    }
+
+    setNoticeSaving(true);
+    try {
+      const payload = {
+        id: noticeEditor.id,
+        title,
+        summary: noticeEditor.summary.trim(),
+        content,
+        category: noticeEditor.category,
+        isPinned: noticeEditor.isPinned,
+        isMaintenance: noticeEditor.isMaintenance,
+        isPublished: noticeEditor.isPublished,
+        publishedAt: noticeEditor.publishedAt,
+      };
+
+      const response = await fetch("/api/admin/notices", {
+        method: noticeEditor.id ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.error || "공지 저장 실패");
+      }
+
+      toast.success(noticeEditor.id ? "공지 수정 완료" : "공지 등록 완료", "완료");
+      setNoticeEditor(null);
+      await loadNotices();
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "공지 저장 실패"), "오류");
+    } finally {
+      setNoticeSaving(false);
+    }
+  };
+
+  const deleteNotice = async (noticeId: number) => {
+    const ok = window.confirm("이 공지를 삭제할까요?");
+    if (!ok) return;
+
+    setNoticeDeletingId(noticeId);
+    try {
+      const response = await fetch(`/api/admin/notices?id=${noticeId}`, {
+        method: "DELETE",
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.error || "공지 삭제 실패");
+      }
+      toast.success("공지 삭제 완료", "완료");
+      await loadNotices();
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "공지 삭제 실패"), "오류");
+    } finally {
+      setNoticeDeletingId(null);
     }
   };
 
@@ -998,6 +1156,12 @@ function AdminPageInner() {
     }
   }, [activeTab, loadFaqAdmin]);
 
+  useEffect(() => {
+    if (activeTab === "notices") {
+      void loadNotices();
+    }
+  }, [activeTab, loadNotices]);
+
   if (loading) {
     return (
       <div className="py-16 text-center ob-typo-body text-(--oboon-text-muted)">
@@ -1277,6 +1441,198 @@ function AdminPageInner() {
                 shape="pill"
                 onClick={saveFaqEditor}
                 loading={faqSaving}
+              >
+                저장
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
+      <Modal
+        open={Boolean(noticeEditor)}
+        onClose={() => {
+          if (!noticeSaving) setNoticeEditor(null);
+        }}
+        showCloseIcon={!noticeSaving}
+      >
+        {noticeEditor ? (
+          <div className="space-y-4">
+            <div className="ob-typo-subtitle text-(--oboon-text-title)">
+              {noticeEditor.id ? "공지 수정" : "공지 등록"}
+            </div>
+
+            <label className="block">
+              <span className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
+                카테고리
+              </span>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="secondary"
+                    className="w-full justify-between rounded-xl"
+                    disabled={noticeSaving}
+                  >
+                    <span>{noticeCategoryLabel(noticeEditor.category)}</span>
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="start"
+                  matchTriggerWidth
+                  className="min-w-[260px]"
+                >
+                  {NOTICE_CATEGORY_OPTIONS.map((item) => (
+                    <DropdownMenuItem
+                      key={item.value}
+                      onClick={() =>
+                        setNoticeEditor((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                category: item.value,
+                                isMaintenance:
+                                  item.value === "maintenance" || prev.isMaintenance,
+                              }
+                            : prev,
+                        )
+                      }
+                    >
+                      {item.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </label>
+
+            <label className="block">
+              <span className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
+                제목
+              </span>
+              <Input
+                value={noticeEditor.title}
+                onChange={(e) =>
+                  setNoticeEditor((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          title: e.target.value,
+                        }
+                      : prev,
+                  )
+                }
+                placeholder="공지 제목을 입력하세요"
+                disabled={noticeSaving}
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
+                요약
+              </span>
+              <Input
+                value={noticeEditor.summary}
+                onChange={(e) =>
+                  setNoticeEditor((prev) =>
+                    prev ? { ...prev, summary: e.target.value } : prev,
+                  )
+                }
+                placeholder="목록에서 보일 한 줄 설명"
+                disabled={noticeSaving}
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
+                게시일
+              </span>
+              <Input
+                type="date"
+                value={noticeEditor.publishedAt}
+                onChange={(e) =>
+                  setNoticeEditor((prev) =>
+                    prev ? { ...prev, publishedAt: e.target.value } : prev,
+                  )
+                }
+                disabled={noticeSaving}
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
+                내용
+              </span>
+              <Textarea
+                value={noticeEditor.content}
+                onChange={(e) =>
+                  setNoticeEditor((prev) =>
+                    prev ? { ...prev, content: e.target.value } : prev,
+                  )
+                }
+                rows={10}
+                disabled={noticeSaving}
+              />
+            </label>
+
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <label className="flex items-center gap-2 rounded-xl border border-(--oboon-border-default) px-3 py-2">
+                <input
+                  type="checkbox"
+                  checked={noticeEditor.isPinned}
+                  onChange={(e) =>
+                    setNoticeEditor((prev) =>
+                      prev ? { ...prev, isPinned: e.target.checked } : prev,
+                    )
+                  }
+                  disabled={noticeSaving}
+                />
+                <span className="ob-typo-caption text-(--oboon-text-title)">중요 공지</span>
+              </label>
+              <label className="flex items-center gap-2 rounded-xl border border-(--oboon-border-default) px-3 py-2">
+                <input
+                  type="checkbox"
+                  checked={noticeEditor.isMaintenance}
+                  onChange={(e) =>
+                    setNoticeEditor((prev) =>
+                      prev ? { ...prev, isMaintenance: e.target.checked } : prev,
+                    )
+                  }
+                  disabled={noticeSaving}
+                />
+                <span className="ob-typo-caption text-(--oboon-text-title)">
+                  점검 공지로 표시
+                </span>
+              </label>
+              <label className="flex items-center gap-2 rounded-xl border border-(--oboon-border-default) px-3 py-2">
+                <input
+                  type="checkbox"
+                  checked={noticeEditor.isPublished}
+                  onChange={(e) =>
+                    setNoticeEditor((prev) =>
+                      prev ? { ...prev, isPublished: e.target.checked } : prev,
+                    )
+                  }
+                  disabled={noticeSaving}
+                />
+                <span className="ob-typo-caption text-(--oboon-text-title)">게시 상태</span>
+              </label>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                shape="pill"
+                onClick={() => setNoticeEditor(null)}
+                disabled={noticeSaving}
+              >
+                취소
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                shape="pill"
+                onClick={() => void saveNoticeEditor()}
+                loading={noticeSaving}
               >
                 저장
               </Button>
@@ -2382,6 +2738,104 @@ function AdminPageInner() {
                   </div>
                 </Card>
               </div>
+            )}
+
+            {activeTab === "notices" && (
+              <>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="ob-typo-h2 text-(--oboon-text-title)">
+                      공지 관리
+                    </div>
+                    <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+                      공지사항 페이지에 노출될 공지를 등록/수정/삭제합니다.
+                    </p>
+                  </div>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    shape="pill"
+                    onClick={openCreateNoticeEditor}
+                  >
+                    + 공지 등록
+                  </Button>
+                </div>
+
+                {noticeLoading ? (
+                  <div className="flex justify-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-(--oboon-primary)" />
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {noticeItems.map((item) => (
+                      <Card key={item.id} className="p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <FileText className="h-4 w-4 text-(--oboon-primary)" />
+                              <span className="ob-typo-body text-(--oboon-text-title)">
+                                {item.title}
+                              </span>
+                              <Badge variant="status">
+                                {noticeCategoryLabel(item.category)}
+                              </Badge>
+                              <Badge variant="status">
+                                {item.is_published ? "게시" : "비공개"}
+                              </Badge>
+                              {item.is_pinned ? <Badge variant="success">중요</Badge> : null}
+                            </div>
+                            <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+                              /notice/{item.slug} ·{" "}
+                              {item.published_at
+                                ? new Date(item.published_at).toLocaleDateString("ko-KR")
+                                : "게시일 없음"}
+                            </div>
+                            {item.summary ? (
+                              <div className="mt-1 ob-typo-caption text-(--oboon-text-muted) line-clamp-2">
+                                {item.summary}
+                              </div>
+                            ) : null}
+                          </div>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <Button asChild variant="secondary" size="sm" shape="pill">
+                              <a href={`/notice/${item.slug}`} target="_blank" rel="noreferrer">
+                                미리보기
+                              </a>
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              shape="pill"
+                              onClick={() => openEditNoticeEditor(item)}
+                            >
+                              <Edit3 className="h-4 w-4" />
+                              수정
+                            </Button>
+                            <Button
+                              variant="danger"
+                              size="sm"
+                              shape="pill"
+                              onClick={() => void deleteNotice(item.id)}
+                              loading={noticeDeletingId === item.id}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              삭제
+                            </Button>
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+
+                    {noticeItems.length === 0 && (
+                      <Card className="p-5 text-center">
+                        <p className="ob-typo-body text-(--oboon-text-muted)">
+                          등록된 공지가 없습니다.
+                        </p>
+                      </Card>
+                    )}
+                  </div>
+                )}
+              </>
             )}
 
             {activeTab === "faq" && (

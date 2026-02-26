@@ -97,9 +97,9 @@ export default function Footer() {
             </div>
             <ul className="space-y-2 ob-typo-caption text-(--oboon-text-muted)">
               <li>
-                <span className="cursor-not-allowed opacity-60">
+                <Link href="/notice" className="hover:text-(--oboon-text-default)">
                   공지사항
-                </span>
+                </Link>
               </li>
               <li>
                 <Link href="/support" className="hover:text-(--oboon-text-default)">
