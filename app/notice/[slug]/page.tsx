@@ -17,7 +17,7 @@ export async function generateMetadata({
   const notice = await fetchPublicNoticeBySlug(params.slug);
   if (!notice) {
     return {
-      title: "공지사항 | OBOON",
+      title: "공지사항",
     };
   }
   return {

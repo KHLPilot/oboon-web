@@ -13,7 +13,7 @@ import {
 import { fetchPublicNotices } from "@/features/notice/services/notices.server";
 
 export const metadata: Metadata = {
-  title: "공지사항 | OBOON",
+  title: "공지사항",
   description: "OBOON 서비스 공지사항과 점검 안내를 확인할 수 있습니다.",
 };
 
