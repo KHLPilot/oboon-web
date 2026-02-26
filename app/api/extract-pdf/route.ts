@@ -100,6 +100,54 @@ function toHttpStatus(message: string) {
   return 500;
 }
 
+function extractErrorCode(error: unknown) {
+  const candidate = error as {
+    name?: unknown;
+    code?: unknown;
+    Code?: unknown;
+  };
+  const raw = candidate?.Code ?? candidate?.code ?? candidate?.name;
+  return typeof raw === "string" ? raw : "";
+}
+
+function toApiError(error: unknown) {
+  const message = error instanceof Error ? error.message : "분석 중 오류 발생";
+  const lower = message.toLowerCase();
+  const code = extractErrorCode(error).toLowerCase();
+
+  if (code === "nosuchkey" || lower.includes("nosuchkey")) {
+    return {
+      status: 400,
+      error: "업로드한 PDF 임시 파일을 찾을 수 없습니다. 다시 업로드 후 재시도해주세요.",
+    };
+  }
+
+  if (code === "accessdenied" || lower.includes("access denied")) {
+    return {
+      status: 500,
+      error:
+        "R2 파일 접근 권한 오류가 발생했습니다. CLOUDFLARE_R2_ACCESS_KEY_ID/SECRET의 Object Read 권한을 확인해주세요.",
+    };
+  }
+
+  if (
+    lower.includes("google_generative_ai_api_key") ||
+    lower.includes("missing api key") ||
+    lower.includes("api key not valid")
+  ) {
+    return {
+      status: 500,
+      error:
+        "AI API 키 설정 오류가 발생했습니다. GOOGLE_GENERATIVE_AI_API_KEY 환경변수를 확인해주세요.",
+    };
+  }
+
+  return {
+    status: toHttpStatus(message),
+    error: toKoreanErrorMessage(message),
+  };
+}
+
 type GeoAddressResult = {
   lat: number | null;
   lng: number | null;
@@ -458,6 +506,13 @@ export async function POST(req: Request) {
       );
     }
 
+    if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+      return Response.json(
+        { error: 'GOOGLE_GENERATIVE_AI_API_KEY 환경변수가 설정되지 않았습니다.' },
+        { status: 500 }
+      );
+    }
+
     const rawText = textParts.join('\n\n');
     const truncated = rawText.length > MAX_TEXT_LENGTH;
     const extractedText = truncated
@@ -485,7 +540,7 @@ export async function POST(req: Request) {
     }
 
     const { object: extractionResult } = await generateObject({
-      model: google('gemini-2.5-flash-lite'),
+      model: google('gemini-2.5-flash'),
       schema: propertyExtractionSchema,
       system: systemPrompt,
       messages: [{ role: 'user', content: phase1Content }],
@@ -607,11 +662,14 @@ export async function POST(req: Request) {
       extractedImages,
     });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : '분석 중 오류 발생';
-    const koreanMessage = toKoreanErrorMessage(message);
-    const status = toHttpStatus(message);
-    console.error('AI Extraction Error:', error);
-    return Response.json({ error: koreanMessage }, { status });
+    const resolved = toApiError(error);
+    const code = extractErrorCode(error);
+    console.error('AI Extraction Error:', {
+      code: code || null,
+      message: error instanceof Error ? error.message : String(error),
+      error,
+    });
+    return Response.json({ error: resolved.error }, { status: resolved.status });
   } finally {
     if (cleanupTempKeys && tempKeysToCleanup.length > 0) {
       await Promise.allSettled(
