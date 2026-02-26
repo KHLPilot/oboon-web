@@ -230,6 +230,14 @@ function toKoreanErrorMessage(message: string) {
     return "요청 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.";
   }
 
+  if (
+    lower.includes("access-control-allow-origin") ||
+    lower.includes("cors") ||
+    lower.includes("origin https://oboon.co.kr is not allowed")
+  ) {
+    return "R2 CORS 설정으로 인해 PDF 업로드가 차단되었습니다. 버킷 CORS에 https://oboon.co.kr, https://www.oboon.co.kr 를 추가하고 PUT/GET/HEAD 메서드를 허용해주세요.";
+  }
+
   if (lower.includes("network") || lower.includes("failed to fetch")) {
     return "네트워크 오류가 발생했습니다. 인터넷 연결을 확인해주세요.";
   }
