@@ -316,6 +316,12 @@ export async function POST(req: Request) {
   let tempKeysToCleanup: string[] = [];
   let cleanupTempKeys = false;
   try {
+    console.info("extract-pdf env check", {
+      vercelEnv: process.env.VERCEL_ENV ?? null,
+      nodeEnv: process.env.NODE_ENV ?? null,
+      hasGoogleKey: Boolean(process.env.GOOGLE_GENERATIVE_AI_API_KEY),
+    });
+
     const contentType = req.headers.get('content-type') || '';
     const inputFiles: ExtractInputFile[] = [];
     let textOnly = false;
