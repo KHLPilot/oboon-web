@@ -55,6 +55,7 @@ type Profile = {
   role: string;
   created_at: string;
   deleted_at: string | null;
+  last_sign_in_at?: string | null;
 };
 
 type ReservationRow = {
@@ -240,6 +241,30 @@ function noticeCategoryLabel(category: NoticeCategory) {
 
 function getErrorMessage(error: unknown, fallback: string) {
   return toKoreanErrorMessage(error, fallback);
+}
+
+function formatLastSeen(lastSignInAt?: string | null) {
+  if (!lastSignInAt) return "미접속";
+
+  const last = new Date(lastSignInAt);
+  if (Number.isNaN(last.getTime())) return "미접속";
+
+  const diffMs = Date.now() - last.getTime();
+  const safeMs = Math.max(diffMs, 0);
+  const diffMinutes = Math.floor(safeMs / (1000 * 60));
+  const diffHours = Math.floor(safeMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(safeMs / (1000 * 60 * 60 * 24));
+
+  if (diffMinutes < 60) {
+    return `${Math.max(1, diffMinutes)}분 전`;
+  }
+  if (diffHours < 24) {
+    return `${diffHours}시간 전`;
+  }
+  if (diffDays <= 7) {
+    return `${diffDays}일 전`;
+  }
+  return "7일 이상 전";
 }
 
 
@@ -2102,6 +2127,7 @@ function AdminPageInner() {
                               </button>
                             </Th>
                             <Th>가입일</Th>
+                            <Th>최근 접속</Th>
                           </tr>
                         </thead>
                         <tbody>
@@ -2118,6 +2144,11 @@ function AdminPageInner() {
                               </Td>
                               <Td className="ob-typo-body text-(--oboon-text-muted)">
                                 {new Date(u.created_at).toLocaleDateString()}
+                              </Td>
+                              <Td className="ob-typo-body text-(--oboon-text-muted)">
+                                {u.role === "agent" || u.role === "agent_pending"
+                                  ? formatLastSeen(u.last_sign_in_at)
+                                  : "-"}
                               </Td>
                             </tr>
                           ))}

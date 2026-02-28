@@ -96,7 +96,7 @@ function zoomToFitBounds(args: {
 
   const latZoom = Math.log2(height / MERCATOR_TILE_SIZE / latFraction);
   const lngZoom = Math.log2(width / MERCATOR_TILE_SIZE / lngFraction);
-  return Math.floor(Math.min(latZoom, lngZoom));
+  return Math.min(latZoom, lngZoom);
 }
 
 function clusterLabelIconFor(args: { label: string; state: MarkerState }) {
@@ -154,6 +154,7 @@ const NaverMap = forwardRef<
     focusPolygons?: MapFocusPolygonPath[];
     onMapReady?: () => void;
     mode?: MapMode;
+    regionClusterEnabled?: boolean;
     onSelectPosition?: (lat: number, lng: number) => void | Promise<void>;
     interactive?: boolean;
   }
@@ -176,6 +177,7 @@ const NaverMap = forwardRef<
       focusPolygons = [],
       onMapReady,
       mode = "base",
+      regionClusterEnabled = true,
       onSelectPosition,
       interactive = true,
     },
@@ -509,6 +511,7 @@ const NaverMap = forwardRef<
 
     function shouldUseRegionCluster(map: naver.maps.Map) {
       if (mode === "select") return false;
+      if (!regionClusterEnabled) return false;
       return map.getZoom() <= REGION_CLUSTER_ZOOM_THRESHOLD;
     }
 
@@ -794,7 +797,11 @@ const NaverMap = forwardRef<
         const m = mapRef.current;
         const naverObj = window.naver;
         if (!m || !naverObj?.maps) return;
-        m.panTo(new naverObj.maps.LatLng(lat, lng));
+        (
+          m as unknown as {
+            setCenter: (latLng: naver.maps.LatLng) => void;
+          }
+        ).setCenter(new naverObj.maps.LatLng(lat, lng));
         if (typeof zoom === "number") {
           m.setZoom(zoom, true);
         }
@@ -805,8 +812,8 @@ const NaverMap = forwardRef<
         if (!m || !naverObj?.maps) return;
 
         const mapSize = m.getSize();
-        const paddingX = 44;
-        const paddingY = 40;
+        const paddingX = 20;
+        const paddingY = 12;
         const fitWidth = Math.max((mapSize?.width ?? 0) - paddingX * 2, 120);
         const fitHeight = Math.max((mapSize?.height ?? 0) - paddingY * 2, 120);
 
@@ -816,18 +823,24 @@ const NaverMap = forwardRef<
           6,
           Math.min(
             16,
-            zoomToFitBounds({
-              south: bounds.south,
-              west: bounds.west,
-              north: bounds.north,
-              east: bounds.east,
-              width: fitWidth,
-              height: fitHeight,
-            }),
+            Math.floor(
+              zoomToFitBounds({
+                south: bounds.south,
+                west: bounds.west,
+                north: bounds.north,
+                east: bounds.east,
+                width: fitWidth,
+                height: fitHeight,
+              }) + 0.45,
+            ),
           ),
         );
 
-        m.panTo(new naverObj.maps.LatLng(centerLat, centerLng));
+        (
+          m as unknown as {
+            setCenter: (latLng: naver.maps.LatLng) => void;
+          }
+        ).setCenter(new naverObj.maps.LatLng(centerLat, centerLng));
         m.setZoom(targetZoom, true);
       },
       resize: () => {
@@ -1092,6 +1105,12 @@ const NaverMap = forwardRef<
       if (!naverObj?.maps || !mapRef.current) return;
       applyRegionFocusOverlayRef.current(naverObj);
     }, [focusBounds, focusPolygons]);
+
+    useEffect(() => {
+      const naverObj = window.naver;
+      if (!naverObj?.maps || !mapRef.current) return;
+      refreshDisplayMarkersRef.current(naverObj);
+    }, [regionClusterEnabled]);
 
     // [3] Hover/Focus: 전체 loop 금지 → delta만
     useEffect(() => {

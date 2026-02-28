@@ -86,6 +86,8 @@ export default function ChatPage() {
     null,
   );
   const [chatRoomId, setChatRoomId] = useState<string | null>(null);
+  const [agentResponseRate, setAgentResponseRate] = useState<number | null>(null);
+  const [agentAvgResponseMinutes, setAgentAvgResponseMinutes] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -120,6 +122,36 @@ export default function ChatPage() {
         }
         const { consultation: consultationData } = await consultationRes.json();
         setConsultation(consultationData);
+
+        const consultationAgent = first(
+          (consultationData as ConsultationInfo).agent,
+        );
+        const agentId = consultationAgent?.id;
+        if (agentId) {
+          const responseRateRes = await fetch("/api/agents/response-rates", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ agentIds: [agentId] }),
+          });
+          if (responseRateRes.ok) {
+            const payload = (await responseRateRes.json()) as {
+              responseRates?: Record<string, number | null>;
+              avgResponseMinutes?: Record<string, number | null>;
+            };
+            const rate = payload.responseRates?.[agentId];
+            const avgMinutes = payload.avgResponseMinutes?.[agentId];
+            setAgentResponseRate(typeof rate === "number" ? rate : null);
+            setAgentAvgResponseMinutes(
+              typeof avgMinutes === "number" ? avgMinutes : null,
+            );
+          } else {
+            setAgentResponseRate(null);
+            setAgentAvgResponseMinutes(null);
+          }
+        } else {
+          setAgentResponseRate(null);
+          setAgentAvgResponseMinutes(null);
+        }
 
         // 메시지 조회
         const messagesRes = await fetch(`/api/chat/${consultationId}`);
@@ -274,6 +306,16 @@ export default function ChatPage() {
     });
   };
 
+  const formatResponseTimeLabel = (value: number | null | undefined) => {
+    if (typeof value !== "number" || !Number.isFinite(value)) return "응답 시간 정보 없음";
+    if (value <= 10) return "보통 10분 이내 응답";
+    if (value <= 30) return "보통 30분 이내 응답";
+    if (value <= 60) return "보통 1시간 이내 응답";
+    if (value <= 120) return "보통 2시간 이내 응답";
+    if (value <= 24 * 60) return "보통 하루 이내 응답";
+    return "보통 하루 이상 소요";
+  };
+
   // 날짜 구분선 표시 여부
   const shouldShowDateDivider = (
     currentMsg: Message,
@@ -291,6 +333,7 @@ export default function ChatPage() {
   const property = first(consultation?.property);
   const otherParty = currentUserId === customer?.id ? agent : customer;
   const otherPartyAvatarUrl = getAvatarUrlOrDefault(otherParty?.avatar_url);
+  const isCustomerView = currentUserId === customer?.id;
 
   if (loading) {
     return (
@@ -359,6 +402,15 @@ export default function ChatPage() {
                 <p className="ob-typo-body text-(--oboon-text-muted) truncate">
                   {property?.name ?? "현장 정보 없음"}
                 </p>
+                {isCustomerView ? (
+                  <p className="ob-typo-caption text-(--oboon-text-muted) truncate">
+                    평균 응답률{" "}
+                    {typeof agentResponseRate === "number"
+                      ? `${agentResponseRate}%`
+                      : "-"}
+                    {" · "}{formatResponseTimeLabel(agentAvgResponseMinutes)}
+                  </p>
+                ) : null}
               </div>
             </div>
             {/* 메뉴 버튼 */}

@@ -34,6 +34,8 @@ interface Agent {
   phone_number?: string | null;
   agent_summary?: string | null;
   agent_bio?: string | null;
+  avg_response_rate?: number | null;
+  avg_response_minutes?: number | null;
 }
 
 interface AgentGalleryImage {
@@ -133,6 +135,16 @@ export default function BookingModal({
   function pickFirst<T>(value: T | T[] | null | undefined): T | null {
     if (!value) return null;
     return Array.isArray(value) ? (value[0] ?? null) : value;
+  }
+
+  function formatResponseTimeLabel(value: number | null | undefined) {
+    if (typeof value !== "number" || !Number.isFinite(value)) return "응답 시간 정보 없음";
+    if (value <= 10) return "보통 10분 이내 응답";
+    if (value <= 30) return "보통 30분 이내 응답";
+    if (value <= 60) return "보통 1시간 이내 응답";
+    if (value <= 120) return "보통 2시간 이내 응답";
+    if (value <= 24 * 60) return "보통 하루 이내 응답";
+    return "보통 하루 이상 소요";
   }
 
   // 사용자 정보 및 상담사 목록 조회
@@ -275,6 +287,31 @@ export default function BookingModal({
                 ? (avatarMap.get(agent.id) ?? null)
                 : (agent.avatar_url ?? null),
             }));
+
+            const responseRateRes = await fetch("/api/agents/response-rates", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ agentIds }),
+            });
+            if (responseRateRes.ok) {
+              const payload = (await responseRateRes.json()) as {
+                responseRates?: Record<string, number | null>;
+                avgResponseMinutes?: Record<string, number | null>;
+              };
+              const responseRateMap = payload.responseRates ?? {};
+              const responseMinutesMap = payload.avgResponseMinutes ?? {};
+              agentList = agentList.map((agent) => ({
+                ...agent,
+                avg_response_rate:
+                  typeof responseRateMap[agent.id] === "number"
+                    ? responseRateMap[agent.id]
+                    : null,
+                avg_response_minutes:
+                  typeof responseMinutesMap[agent.id] === "number"
+                    ? responseMinutesMap[agent.id]
+                    : null,
+              }));
+            }
           }
 
           setAgents(agentList);
@@ -681,6 +718,13 @@ export default function BookingModal({
                               {agent.agent_summary.trim()}
                             </div>
                           ) : null}
+                          <div className="ob-typo-caption text-(--oboon-text-muted)">
+                            평균 응답률{" "}
+                            {typeof agent.avg_response_rate === "number"
+                              ? `${agent.avg_response_rate}%`
+                              : "-"}
+                            {" · "}{formatResponseTimeLabel(agent.avg_response_minutes)}
+                          </div>
                         </div>
                         <Button
                           variant="secondary"

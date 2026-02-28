@@ -59,27 +59,6 @@ const REGION_TABS = [
   { key: "jeju", label: "제주", lat: 33.4996, lng: 126.5312, zoom: 10 },
 ] as const;
 
-const REGION_FOCUS_BOUNDS: Record<string, MapFocusBounds | null> = {
-  all: null,
-  seoul: { south: 37.41, west: 126.76, north: 37.72, east: 127.19 },
-  incheon: { south: 37.2, west: 126.35, north: 37.72, east: 126.95 },
-  gyeonggi: { south: 36.88, west: 126.3, north: 38.35, east: 127.86 },
-  busan: { south: 34.98, west: 128.78, north: 35.4, east: 129.35 },
-  daegu: { south: 35.6, west: 128.35, north: 36.02, east: 128.82 },
-  gwangju: { south: 35.02, west: 126.67, north: 35.31, east: 127.0 },
-  daejeon: { south: 36.2, west: 127.24, north: 36.49, east: 127.54 },
-  ulsan: { south: 35.35, west: 129.03, north: 35.75, east: 129.48 },
-  sejong: { south: 36.43, west: 127.18, north: 36.62, east: 127.38 },
-  gangwon: { south: 37.02, west: 127.25, north: 38.62, east: 129.35 },
-  chungbuk: { south: 36.0, west: 127.27, north: 37.25, east: 128.7 },
-  chungnam: { south: 35.98, west: 125.95, north: 37.05, east: 127.75 },
-  jeonbuk: { south: 35.27, west: 126.38, north: 36.2, east: 127.95 },
-  jeonnam: { south: 33.85, west: 125.98, north: 35.5, east: 127.95 },
-  gyeongbuk: { south: 35.53, west: 128.15, north: 37.3, east: 129.65 },
-  gyeongnam: { south: 34.45, west: 127.53, north: 35.92, east: 129.25 },
-  jeju: { south: 33.1, west: 126.1, north: 33.62, east: 126.99 },
-};
-
 const ALL_KOREA_VIEW_BOUNDS: MapFocusBounds = {
   south: 33.0,
   west: 125.8,
@@ -107,11 +86,133 @@ const REGION_NAME_MATCHERS: Record<string, string[]> = {
   jeju: ["제주특별자치도", "제주"],
 };
 
+const SEOUL_GU_TABS = [
+  { key: "all", label: "서울 전체" },
+  { key: "gangnam", label: "강남구", matcher: "강남구", boundaryKey: "seoul_gangnam" },
+  { key: "gangdong", label: "강동구", matcher: "강동구", boundaryKey: "seoul_gangdong" },
+  { key: "gangbuk", label: "강북구", matcher: "강북구", boundaryKey: "seoul_gangbuk" },
+  { key: "gangseo", label: "강서구", matcher: "강서구", boundaryKey: "seoul_gangseo" },
+  { key: "gwanak", label: "관악구", matcher: "관악구", boundaryKey: "seoul_gwanak" },
+  { key: "gwangjin", label: "광진구", matcher: "광진구", boundaryKey: "seoul_gwangjin" },
+  { key: "guro", label: "구로구", matcher: "구로구", boundaryKey: "seoul_guro" },
+  { key: "geumcheon", label: "금천구", matcher: "금천구", boundaryKey: "seoul_geumcheon" },
+  { key: "nowon", label: "노원구", matcher: "노원구", boundaryKey: "seoul_nowon" },
+  { key: "dobong", label: "도봉구", matcher: "도봉구", boundaryKey: "seoul_dobong" },
+  { key: "dongdaemun", label: "동대문구", matcher: "동대문구", boundaryKey: "seoul_dongdaemun" },
+  { key: "dongjak", label: "동작구", matcher: "동작구", boundaryKey: "seoul_dongjak" },
+  { key: "mapo", label: "마포구", matcher: "마포구", boundaryKey: "seoul_mapo" },
+  { key: "seodaemun", label: "서대문구", matcher: "서대문구", boundaryKey: "seoul_seodaemun" },
+  { key: "seocho", label: "서초구", matcher: "서초구", boundaryKey: "seoul_seocho" },
+  { key: "seongdong", label: "성동구", matcher: "성동구", boundaryKey: "seoul_seongdong" },
+  { key: "seongbuk", label: "성북구", matcher: "성북구", boundaryKey: "seoul_seongbuk" },
+  { key: "songpa", label: "송파구", matcher: "송파구", boundaryKey: "seoul_songpa" },
+  { key: "yangcheon", label: "양천구", matcher: "양천구", boundaryKey: "seoul_yangcheon" },
+  { key: "yeongdeungpo", label: "영등포구", matcher: "영등포구", boundaryKey: "seoul_yeongdeungpo" },
+  { key: "yongsan", label: "용산구", matcher: "용산구", boundaryKey: "seoul_yongsan" },
+  { key: "eunpyeong", label: "은평구", matcher: "은평구", boundaryKey: "seoul_eunpyeong" },
+  { key: "jongno", label: "종로구", matcher: "종로구", boundaryKey: "seoul_jongno" },
+  { key: "jung", label: "중구", matcher: "중구", boundaryKey: "seoul_jung" },
+  { key: "jungnang", label: "중랑구", matcher: "중랑구", boundaryKey: "seoul_jungnang" },
+] as const;
+
+const GYEONGGI_SUB_TABS = [
+  { key: "all", label: "경기 전체" },
+  { key: "north", label: "경기 북부" },
+  { key: "south", label: "경기 남부" },
+] as const;
+
+const GYEONGGI_NORTH_REGION2_MATCHERS = [
+  "고양시",
+  "김포시",
+  "동두천시",
+  "양주시",
+  "의정부시",
+  "파주시",
+  "포천시",
+  "연천군",
+  "가평군",
+  "구리시",
+  "남양주시",
+] as const;
+
+function isGyeonggiNorth(addressFull: string) {
+  return GYEONGGI_NORTH_REGION2_MATCHERS.some((matcher) =>
+    addressFull.includes(matcher),
+  );
+}
+
 type RegionBoundaryPayload = {
   region: string;
   bounds: MapFocusBounds;
   polygons: Array<Array<{ lat: number; lng: number }>>;
 };
+
+const FOCUS_TOP_POLYGON_COUNT = 3;
+const FOCUS_MIN_AREA_RATIO_FROM_LARGEST = 0.08;
+
+function polygonArea(path: Array<{ lat: number; lng: number }>) {
+  if (path.length < 3) return 0;
+  let sum = 0;
+  for (let i = 0; i < path.length; i += 1) {
+    const p1 = path[i];
+    const p2 = path[(i + 1) % path.length];
+    sum += p1.lng * p2.lat - p2.lng * p1.lat;
+  }
+  return Math.abs(sum) / 2;
+}
+
+function pickTopAreaPolygons(
+  polygons: Array<Array<{ lat: number; lng: number }>>,
+  topN: number,
+) {
+  const ranked = polygons
+    .map((path) => ({ path, area: polygonArea(path) }))
+    .filter((item) => item.area > 0)
+    .sort((a, b) => b.area - a.area);
+  if (ranked.length === 0) return [];
+
+  const largestArea = ranked[0].area;
+  const filtered = ranked
+    .filter((item) => item.area >= largestArea * FOCUS_MIN_AREA_RATIO_FROM_LARGEST)
+    .slice(0, Math.max(1, topN))
+    .map((item) => item.path);
+
+  return filtered.length > 0 ? filtered : [ranked[0].path];
+}
+
+function computeBoundsFromPolygons(
+  polygons: Array<Array<{ lat: number; lng: number }>>,
+): MapFocusBounds | null {
+  const focusPolygons = pickTopAreaPolygons(polygons, FOCUS_TOP_POLYGON_COUNT);
+  const points = focusPolygons.flat();
+  if (points.length === 0) return null;
+  const lats = points.map((p) => p.lat);
+  const lngs = points.map((p) => p.lng);
+  return {
+    south: Math.min(...lats),
+    west: Math.min(...lngs),
+    north: Math.max(...lats),
+    east: Math.max(...lngs),
+  };
+}
+
+function computeBoundsFromMarkers(markers: MapMarker[]): MapFocusBounds | null {
+  if (markers.length === 0) return null;
+  const lats = markers.map((m) => m.lat);
+  const lngs = markers.map((m) => m.lng);
+  const south = Math.min(...lats);
+  const north = Math.max(...lats);
+  const west = Math.min(...lngs);
+  const east = Math.max(...lngs);
+  const latPad = Math.max((north - south) * 0.12, 0.01);
+  const lngPad = Math.max((east - west) * 0.12, 0.01);
+  return {
+    south: south - latPad,
+    west: west - lngPad,
+    north: north + latPad,
+    east: east + lngPad,
+  };
+}
 
 function toMarker(m: DbOffering): MapMarker {
   return {
@@ -158,6 +259,7 @@ export default function MapPageClient() {
 
   const [overlayOpen, setOverlayOpen] = useState(false);
   const [activeRegionTab, setActiveRegionTab] = useState<string>("all");
+  const [activeSubRegionTab, setActiveSubRegionTab] = useState<string>("all");
   const [mapReady, setMapReady] = useState(false);
   const [regionBoundaryByKey, setRegionBoundaryByKey] = useState<
     Record<string, RegionBoundaryPayload>
@@ -229,6 +331,15 @@ export default function MapPageClient() {
     const selectedLayers = (Object.entries(filters) as Array<[MarkerLayer, boolean]>)
       .filter(([, enabled]) => enabled)
       .map(([layer]) => layer);
+    const selectedSeoulGuTab = SEOUL_GU_TABS.find(
+      (tab) => tab.key === activeSubRegionTab,
+    );
+    const selectedSeoulGu =
+      activeRegionTab === "seoul" && activeSubRegionTab !== "all"
+        ? (selectedSeoulGuTab && "matcher" in selectedSeoulGuTab
+            ? selectedSeoulGuTab.matcher
+            : null)
+        : null;
 
     return all.filter((item) => {
       if (selectedLayers.length > 0) {
@@ -238,11 +349,24 @@ export default function MapPageClient() {
         if (!matchesLayer) return false;
       }
       if (activeRegionTab === "all") return true;
+      if (activeRegionTab === "gyeonggi" && activeSubRegionTab === "north") {
+        if (!item.regionSido.includes("경기")) return false;
+        return isGyeonggiNorth(item.addressFull);
+      }
+      if (activeRegionTab === "gyeonggi" && activeSubRegionTab === "south") {
+        if (!item.regionSido.includes("경기")) return false;
+        return !isGyeonggiNorth(item.addressFull);
+      }
       const region = (item.regionSido ?? "").trim();
       if (!region) return false;
-      return regionMatchers.some((matcher) => region.includes(matcher));
+      const matchesRegion = regionMatchers.some((matcher) => region.includes(matcher));
+      if (!matchesRegion) return false;
+      if (selectedSeoulGu) {
+        return item.addressFull.includes(selectedSeoulGu);
+      }
+      return true;
     });
-  }, [activeRegionTab, all, filters, showAllOfferings]);
+  }, [activeRegionTab, activeSubRegionTab, all, filters, showAllOfferings]);
 
   const visible = useMemo(() => {
     if (!visibleIds) return filtered;
@@ -257,16 +381,36 @@ export default function MapPageClient() {
   const compactItems = useMemo(() => {
     return visible.map(toCompactItem);
   }, [visible]);
+  const activeBoundaryRegionKey = useMemo(() => {
+    if (activeRegionTab === "seoul" && activeSubRegionTab !== "all") {
+      const seoulTab = SEOUL_GU_TABS.find((tab) => tab.key === activeSubRegionTab);
+      if (seoulTab && "boundaryKey" in seoulTab) {
+        return seoulTab.boundaryKey;
+      }
+    }
+    if (activeRegionTab === "gyeonggi" && activeSubRegionTab === "north") {
+      return "gyeonggi_north";
+    }
+    if (activeRegionTab === "gyeonggi" && activeSubRegionTab === "south") {
+      return "gyeonggi_south";
+    }
+    return activeRegionTab;
+  }, [activeRegionTab, activeSubRegionTab]);
+  const activeRegionFocusPolygons = useMemo(
+    () =>
+      activeRegionTab === "all"
+        ? []
+        : (regionBoundaryByKey[activeBoundaryRegionKey]?.polygons ?? []),
+    [activeBoundaryRegionKey, activeRegionTab, regionBoundaryByKey],
+  );
   const activeRegionFocusBounds = useMemo(
     () =>
-      regionBoundaryByKey[activeRegionTab]?.bounds ??
-      REGION_FOCUS_BOUNDS[activeRegionTab] ??
-      null,
-    [activeRegionTab, regionBoundaryByKey],
-  );
-  const activeRegionFocusPolygons = useMemo(
-    () => regionBoundaryByKey[activeRegionTab]?.polygons ?? [],
-    [activeRegionTab, regionBoundaryByKey],
+      activeRegionTab === "all"
+        ? null
+        :
+      computeBoundsFromPolygons(activeRegionFocusPolygons) ??
+      computeBoundsFromMarkers(markers),
+    [activeRegionFocusPolygons, activeRegionTab, markers],
   );
 
   const handleToggleLayer = (key: MarkerLayer) => {
@@ -277,6 +421,7 @@ export default function MapPageClient() {
     const target = REGION_TABS.find((tab) => tab.key === regionKey);
     if (!target) return;
     setActiveRegionTab(target.key);
+    setActiveSubRegionTab("all");
     if (!mapReady) {
       setFocusedId(null);
       return;
@@ -284,10 +429,9 @@ export default function MapPageClient() {
     const boundaryBounds =
       target.key === "all"
         ? ALL_KOREA_VIEW_BOUNDS
-        :
-      regionBoundaryByKey[target.key]?.bounds ??
-      REGION_FOCUS_BOUNDS[target.key] ??
-      null;
+        : (computeBoundsFromPolygons(regionBoundaryByKey[target.key]?.polygons ?? []) ??
+          regionBoundaryByKey[target.key]?.bounds ??
+          null);
     if (boundaryBounds) {
       mapApiRef.current?.fitToBounds(boundaryBounds);
     } else {
@@ -296,22 +440,33 @@ export default function MapPageClient() {
     setFocusedId(null);
   };
 
+  const handleMoveSubRegion = (subKey: string) => {
+    setActiveSubRegionTab(subKey);
+    setFocusedId(null);
+  };
+
   useEffect(() => {
-    if (activeRegionTab === "all") return;
-    if (regionBoundaryByKey[activeRegionTab]) return;
+    if (activeBoundaryRegionKey === "all") return;
+    if (regionBoundaryByKey[activeBoundaryRegionKey]) return;
 
     const controller = new AbortController();
 
     async function loadBoundary() {
       try {
         const response = await fetch(
-          `/api/map/region-boundary?region=${encodeURIComponent(activeRegionTab)}`,
-          { signal: controller.signal },
+          `/api/map/region-boundary?region=${encodeURIComponent(activeBoundaryRegionKey)}`,
+          {
+            signal: controller.signal,
+            cache: process.env.NODE_ENV === "development" ? "no-store" : "default",
+          },
         );
         if (!response.ok) return;
         const payload = (await response.json()) as RegionBoundaryPayload;
         if (!payload?.bounds || !Array.isArray(payload?.polygons)) return;
-        setRegionBoundaryByKey((prev) => ({ ...prev, [activeRegionTab]: payload }));
+        setRegionBoundaryByKey((prev) => ({
+          ...prev,
+          [activeBoundaryRegionKey]: payload,
+        }));
       } catch {
         // ignore boundary fetch failures and keep static bounds fallback
       }
@@ -319,17 +474,14 @@ export default function MapPageClient() {
 
     void loadBoundary();
     return () => controller.abort();
-  }, [activeRegionTab, regionBoundaryByKey]);
+  }, [activeBoundaryRegionKey, regionBoundaryByKey]);
 
   useEffect(() => {
     if (!mapReady) return;
-    const bounds =
-      activeRegionTab === "all"
-        ? ALL_KOREA_VIEW_BOUNDS
-        : (regionBoundaryByKey[activeRegionTab]?.bounds ?? null);
+    const bounds = activeRegionTab === "all" ? ALL_KOREA_VIEW_BOUNDS : activeRegionFocusBounds;
     if (!bounds) return;
     mapApiRef.current?.fitToBounds(bounds);
-  }, [activeRegionTab, mapReady, regionBoundaryByKey]);
+  }, [activeRegionFocusBounds, activeRegionTab, activeSubRegionTab, mapReady]);
 
   return (
     <main className="bg-(--oboon-bg-page)">
@@ -358,6 +510,38 @@ export default function MapPageClient() {
               </Button>
             ))}
           </div>
+          {activeRegionTab === "seoul" ? (
+            <div className="flex flex-wrap gap-2">
+              {SEOUL_GU_TABS.map((tab) => (
+                <Button
+                  key={tab.key}
+                  type="button"
+                  size="sm"
+                  shape="pill"
+                  variant={activeSubRegionTab === tab.key ? "primary" : "secondary"}
+                  onClick={() => handleMoveSubRegion(tab.key)}
+                >
+                  {tab.label}
+                </Button>
+              ))}
+            </div>
+          ) : null}
+          {activeRegionTab === "gyeonggi" ? (
+            <div className="flex flex-wrap gap-2">
+              {GYEONGGI_SUB_TABS.map((tab) => (
+                <Button
+                  key={tab.key}
+                  type="button"
+                  size="sm"
+                  shape="pill"
+                  variant={activeSubRegionTab === tab.key ? "primary" : "secondary"}
+                  onClick={() => handleMoveSubRegion(tab.key)}
+                >
+                  {tab.label}
+                </Button>
+              ))}
+            </div>
+          ) : null}
 
           <div className="relative h-[360px] overflow-hidden rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) sm:h-[420px] md:h-[480px]">
             <div className="absolute inset-0">
@@ -367,6 +551,7 @@ export default function MapPageClient() {
                 initialZoom={13}
                 focusBounds={activeRegionFocusBounds}
                 focusPolygons={activeRegionFocusPolygons}
+                regionClusterEnabled={activeRegionTab === "all"}
                 onMapReady={() => setMapReady(true)}
                 hoveredId={hoveredId}
                 focusedId={focusedId}

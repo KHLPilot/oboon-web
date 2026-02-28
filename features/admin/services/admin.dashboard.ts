@@ -12,6 +12,7 @@ export type AdminProfileRow = {
   role: string;
   created_at: string;
   deleted_at: string | null;
+  last_sign_in_at?: string | null;
 };
 
 export type PendingPropertyAgent = {
@@ -322,8 +323,40 @@ export async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
     .select("*")
     .order("created_at", { ascending: false });
 
-  const deletedUsers = (users || []).filter((u) => u.deleted_at !== null);
-  const activeUsers = (users || []).filter((u) => u.deleted_at === null);
+  const allUsers = (users || []) as AdminProfileRow[];
+  const agentUserIds = allUsers
+    .filter((u) => u.role === "agent" || u.role === "agent_pending")
+    .map((u) => u.id);
+
+  let lastSignInAtByUserId: Record<string, string | null> = {};
+  if (agentUserIds.length > 0) {
+    try {
+      const response = await fetch("/api/admin/agent-last-seen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userIds: agentUserIds }),
+      });
+      if (response.ok) {
+        const data = (await response.json()) as {
+          lastSignInAtByUserId?: Record<string, string | null>;
+        };
+        lastSignInAtByUserId = data.lastSignInAtByUserId ?? {};
+      }
+    } catch {
+      // 최근 접속 조회 실패 시에도 대시보드는 계속 렌더링한다.
+    }
+  }
+
+  const usersWithLastSeen = allUsers.map((u) => ({
+    ...u,
+    last_sign_in_at:
+      u.role === "agent" || u.role === "agent_pending"
+        ? (lastSignInAtByUserId[u.id] ?? null)
+        : null,
+  }));
+
+  const deletedUsers = usersWithLastSeen.filter((u) => u.deleted_at !== null);
+  const activeUsers = usersWithLastSeen.filter((u) => u.deleted_at === null);
 
   return {
     user: { id: user.id },
