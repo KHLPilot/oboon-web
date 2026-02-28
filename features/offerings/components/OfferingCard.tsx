@@ -81,10 +81,7 @@ export default function OfferingCard({ offering }: { offering: Offering }) {
               value={offering.statusValue ?? undefined}
             />
             {offering.hasAppraiserComment ? (
-              <Badge
-                variant="status"
-                className="border-(--oboon-primary) bg-(--oboon-primary) text-(--oboon-on-primary)"
-              >
+              <Badge variant="primary" className="border-(--oboon-primary)">
                 감정 평가
               </Badge>
             ) : null}

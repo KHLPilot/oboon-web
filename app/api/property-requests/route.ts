@@ -17,6 +17,10 @@ function normalizeUrl(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 }
 
+function isAgentAvatarUrl(url: string) {
+  return /\/profiles\/[^/]+\/avatar-[^/]+$/i.test(url.trim());
+}
+
 async function syncPublicSnapshot(propertyId: number) {
   const { data: property, error: propertyError } = await adminSupabase
     .from("properties")
@@ -62,8 +66,18 @@ async function syncPublicSnapshot(propertyId: number) {
     return String(a.id).localeCompare(String(b.id));
   });
 
+  const mainAssetUrl = normalizeUrl(
+    sortedAssets.find((asset) => asset.kind === "main")?.image_url ?? null,
+  );
+  const galleryFallbackUrl =
+    sortedAssets
+      .filter((asset) => asset.kind === "gallery")
+      .map((asset) => normalizeUrl(asset.image_url))
+      .find((url): url is string => Boolean(url && !isAgentAvatarUrl(url))) ?? null;
   const mainImageUrl =
-    sortedAssets.find((asset) => asset.kind === "main")?.image_url ?? null;
+    mainAssetUrl && !isAgentAvatarUrl(mainAssetUrl)
+      ? mainAssetUrl
+      : galleryFallbackUrl;
 
   const galleryImages = sortedAssets
     .filter((asset) => asset.kind === "gallery" && normalizeUrl(asset.image_url))

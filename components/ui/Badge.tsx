@@ -30,12 +30,12 @@ export const Badge = ({
 
     case "success":
       variantStyles =
-        "bg-(--oboon-primary) text-white border border-transparent";
+        "bg-(--oboon-primary) text-(--oboon-on-primary) border border-transparent";
       break;
 
     case "primary":
       variantStyles =
-        "bg-(--oboon-primary) text-white border border-transparent";
+        "bg-(--oboon-primary) text-(--oboon-on-primary) border border-transparent";
       break;
 
     case "warning":

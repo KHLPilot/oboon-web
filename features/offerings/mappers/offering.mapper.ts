@@ -21,6 +21,10 @@ type PropertyUnitTypeRow = {
   is_public?: boolean | null;
 };
 
+type PropertyGalleryImageRow = {
+  image_url: string | null;
+};
+
 export type PropertyRow = {
   id: number;
   created_at: string;
@@ -33,6 +37,7 @@ export type PropertyRow = {
   view_count?: number | null;
   click_count?: number | null;
   total_click_count?: number | null;
+  property_gallery_images?: PropertyGalleryImageRow[] | null;
   property_locations: PropertyLocationRow[] | null;
   property_unit_types: PropertyUnitTypeRow[] | null;
 };
@@ -46,6 +51,22 @@ function toNumber(v: number | string | null | undefined): number | null {
 
 function pickFirstNonEmpty(...values: Array<string | null | undefined>) {
   for (const v of values) if (typeof v === "string" && v.trim()) return v.trim();
+  return null;
+}
+
+function isAgentAvatarUrl(url: string) {
+  return /\/profiles\/[^/]+\/avatar-[^/]+$/i.test(url.trim());
+}
+
+function pickPropertyImageUrl(row: PropertyRow) {
+  const main = pickFirstNonEmpty(row.image_url);
+  if (main && !isAgentAvatarUrl(main)) return main;
+
+  for (const image of row.property_gallery_images ?? []) {
+    const url = pickFirstNonEmpty(image?.image_url);
+    if (url && !isAgentAvatarUrl(url)) return url;
+  }
+
   return null;
 }
 
@@ -105,7 +126,7 @@ export function mapPropertyRowToOffering(
     status,
     statusValue,
     hasAppraiserComment: hasAppraiserComment(row),
-    imageUrl: row.image_url,
+    imageUrl: pickPropertyImageUrl(row),
     priceMin억: min,
     priceMax억: max,
     isPricePrivate: isPrivate,

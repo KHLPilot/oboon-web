@@ -770,19 +770,23 @@ function FilterBarBody({
 
 export default function FilterBar() {
   const sp = useSearchParams();
-  // 기본값: 모바일 닫힘 / 데스크탑 열림
-  const [open, setOpen] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.matchMedia("(min-width: 640px)").matches;
-  });
+  // 하이드레이션 일치: 최초 렌더는 항상 닫힘으로 시작하고,
+  // 마운트 이후에만 뷰포트 기준 상태를 반영한다.
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     // SSR 안전: client에서만 실행
     const mq = window.matchMedia("(min-width: 640px)"); // sm
+    const rafId = window.requestAnimationFrame(() => {
+      setOpen(mq.matches);
+    });
     // 뷰포트 변경 시에도 자연스럽게 동작(선택 사항이지만 UX 안정적)
     const onChange = (e: MediaQueryListEvent) => setOpen(e.matches);
     mq.addEventListener?.("change", onChange);
-    return () => mq.removeEventListener?.("change", onChange);
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      mq.removeEventListener?.("change", onChange);
+    };
   }, []);
   const urlQ = sp.get("q") ?? "";
   const urlBudgetMin = sp.get("budgetMin") ?? "";
