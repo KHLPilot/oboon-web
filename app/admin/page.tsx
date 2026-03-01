@@ -27,6 +27,7 @@ import Modal from "@/components/ui/Modal";
 import { ToastProvider, useToast } from "@/components/ui/Toast";
 import SettlementDetailModal from "@/features/admin/components/SettlementDetailModal";
 import ReservationDetailModal from "@/features/admin/components/ReservationDetailModal";
+import NaverMap, { type MapMarker } from "@/features/map/components/NaverMap";
 import { toKoreanErrorMessage } from "@/shared/errorMessage";
 import {
   AlertTriangle,
@@ -165,6 +166,37 @@ type NoticeEditor = {
   publishedAt: string;
 };
 
+type AppraisalKind = "apartment" | "officetel";
+
+type AppraisalResultRow = {
+  id: string;
+  kind: AppraisalKind;
+  name: string;
+  road_address: string | null;
+  jibun_address: string | null;
+  lat: number;
+  lng: number;
+  distance_m: number | null;
+  place_url: string | null;
+  category_name: string | null;
+  detail: {
+    complex_name: string | null;
+    location: string | null;
+    use_approval_date: string | null;
+    use_approval_date_is_estimated: boolean;
+    age_years: number | null;
+    exclusive_area_min_m2: number | null;
+    exclusive_area_max_m2: number | null;
+    source: {
+      kakao: boolean;
+      internal_db: boolean;
+      public_data: boolean;
+    };
+    matched_property_id: number | null;
+    match_score: number | null;
+  };
+};
+
 function MissingPill({ label }: { label: string }) {
   return (
     <Badge variant="warning" className="ob-typo-caption px-2.5 py-1">
@@ -239,6 +271,10 @@ function noticeCategoryLabel(category: NoticeCategory) {
   return NOTICE_CATEGORY_OPTIONS.find((item) => item.value === category)?.label ?? category;
 }
 
+function appraisalKindLabel(kind: AppraisalKind) {
+  return kind === "apartment" ? "아파트" : "오피스텔";
+}
+
 function getErrorMessage(error: unknown, fallback: string) {
   return toKoreanErrorMessage(error, fallback);
 }
@@ -284,6 +320,7 @@ const ADMIN_TABS = [
   { id: "summary", label: "요약" },
   { id: "users", label: "사용자 관리" },
   { id: "properties", label: "현장 관리" },
+  { id: "appraisals", label: "감정평가" },
   { id: "reservations", label: "예약 관리" },
   { id: "settlements", label: "정산 관리" },
   { id: "notices", label: "공지 관리" },
@@ -369,6 +406,27 @@ function AdminPageInner() {
   const [noticeSaving, setNoticeSaving] = useState(false);
   const [noticeDeletingId, setNoticeDeletingId] = useState<number | null>(null);
   const [noticeEditor, setNoticeEditor] = useState<NoticeEditor | null>(null);
+  const [appraisalAddressQuery, setAppraisalAddressQuery] = useState("");
+  const [appraisalResolvedRoadAddress, setAppraisalResolvedRoadAddress] = useState<string | null>(
+    null,
+  );
+  const [appraisalResolvedJibunAddress, setAppraisalResolvedJibunAddress] = useState<
+    string | null
+  >(null);
+  const [appraisalResolvedLat, setAppraisalResolvedLat] = useState<number | null>(null);
+  const [appraisalResolvedLng, setAppraisalResolvedLng] = useState<number | null>(null);
+  const [appraisalRadiusM, setAppraisalRadiusM] = useState("1000");
+  const [appraisalLimit, setAppraisalLimit] = useState("30");
+  const [appraisalTypes, setAppraisalTypes] = useState<Record<AppraisalKind, boolean>>({
+    apartment: true,
+    officetel: true,
+  });
+  const [appraisalLoading, setAppraisalLoading] = useState(false);
+  const [appraisalLoadedOnce, setAppraisalLoadedOnce] = useState(false);
+  const [appraisalRows, setAppraisalRows] = useState<AppraisalResultRow[]>([]);
+  const [appraisalWarnings, setAppraisalWarnings] = useState<string[]>([]);
+  const [appraisalFetchedAt, setAppraisalFetchedAt] = useState<string | null>(null);
+  const [selectedAppraisalRowId, setSelectedAppraisalRowId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -881,6 +939,82 @@ function AdminPageInner() {
     }
   }, [toast]);
 
+  const loadAppraisalNearby = useCallback(async () => {
+    const selectedKinds = (Object.entries(appraisalTypes) as Array<[AppraisalKind, boolean]>)
+      .filter(([, enabled]) => enabled)
+      .map(([kind]) => kind);
+
+    if (selectedKinds.length === 0) {
+      toast.error("시설 유형을 1개 이상 선택해주세요.", "오류");
+      return;
+    }
+
+    const addressQuery = appraisalAddressQuery.trim();
+    if (!addressQuery) {
+      toast.error("도로명 주소 또는 지번 주소를 입력해주세요.", "오류");
+      return;
+    }
+
+    const radiusM = Number(appraisalRadiusM);
+    const limit = Number(appraisalLimit);
+
+    setAppraisalLoading(true);
+    try {
+      const geocodeResponse = await fetch(
+        `/api/geo/address?query=${encodeURIComponent(addressQuery)}`,
+      );
+      const geocodeData = await geocodeResponse.json().catch(() => ({}));
+      if (!geocodeResponse.ok) {
+        throw new Error(geocodeData?.error || "입력한 주소를 찾을 수 없습니다.");
+      }
+
+      const lat = Number(geocodeData.lat);
+      const lng = Number(geocodeData.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        throw new Error("주소 좌표 변환 결과가 올바르지 않습니다.");
+      }
+
+      setAppraisalResolvedRoadAddress(
+        typeof geocodeData.road_address === "string" ? geocodeData.road_address : null,
+      );
+      setAppraisalResolvedJibunAddress(
+        typeof geocodeData.jibun_address === "string" ? geocodeData.jibun_address : null,
+      );
+      setAppraisalResolvedLat(lat);
+      setAppraisalResolvedLng(lng);
+
+      const query = new URLSearchParams({
+        lat: String(lat),
+        lng: String(lng),
+        radius: String(Number.isFinite(radiusM) ? Math.floor(radiusM) : 1000),
+        limit: String(Number.isFinite(limit) ? Math.floor(limit) : 30),
+        types: selectedKinds.join(","),
+      });
+
+      const response = await fetch(`/api/admin/appraisals/nearby?${query.toString()}`);
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || "감정평가 근방 검색 실패");
+      }
+
+      setAppraisalRows((data.items || []) as AppraisalResultRow[]);
+      setAppraisalWarnings((data.warnings || []) as string[]);
+      setAppraisalFetchedAt(typeof data.fetched_at === "string" ? data.fetched_at : null);
+      setSelectedAppraisalRowId((data.items?.[0]?.id as string | undefined) ?? null);
+      setAppraisalLoadedOnce(true);
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "감정평가 근방 검색 실패"), "오류");
+    } finally {
+      setAppraisalLoading(false);
+    }
+  }, [
+    appraisalAddressQuery,
+    appraisalLimit,
+    appraisalRadiusM,
+    appraisalTypes,
+    toast,
+  ]);
+
   const handleReservationApprove = async (reservationId: string) => {
     setReservationAction({ id: reservationId, action: "approve", loading: true });
     try {
@@ -1041,6 +1175,34 @@ function AdminPageInner() {
     return allPropertyCards.filter((card) => card.missingLabels.length > 0);
   }, [allPropertyCards, propertyStatusFilter]);
   const visiblePropertyCount = propertyCards.length;
+  const hasNaverMapClientId = Boolean(process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID);
+  const appraisalRowToMarkerId = useMemo(
+    () => new Map(appraisalRows.map((row, index) => [row.id, index + 1] as const)),
+    [appraisalRows],
+  );
+  const appraisalMarkerToRowId = useMemo(
+    () => new Map(appraisalRows.map((row, index) => [index + 1, row.id] as const)),
+    [appraisalRows],
+  );
+  const appraisalMapMarkers = useMemo<MapMarker[]>(
+    () =>
+      appraisalRows.map((row, index) => ({
+        id: index + 1,
+        label: row.name,
+        lat: row.lat,
+        lng: row.lng,
+        type: row.kind === "apartment" ? "valuation" : "agent",
+        topLabel: `${appraisalKindLabel(row.kind)}${
+          row.distance_m !== null ? ` · ${row.distance_m}m` : ""
+        }`,
+        mainLabel: row.name,
+        address: row.road_address ?? row.jibun_address ?? row.detail.location ?? null,
+      })),
+    [appraisalRows],
+  );
+  const focusedAppraisalMarkerId = selectedAppraisalRowId
+    ? appraisalRowToMarkerId.get(selectedAppraisalRowId) ?? null
+    : null;
 
   const propertyProgress = (status: AdminPropertyCard["status"]) => {
     switch (status) {
@@ -1110,10 +1272,20 @@ function AdminPageInner() {
     if (activeTab === "reservations") {
       void loadReservations();
     }
+    if (activeTab === "appraisals" && appraisalLoadedOnce) {
+      void loadAppraisalNearby();
+    }
     if (activeTab === "settlements" || activeTab === "summary") {
       void loadSettlements();
     }
-  }, [activeTab, loadData, loadReservations, loadSettlements]);
+  }, [
+    activeTab,
+    appraisalLoadedOnce,
+    loadAppraisalNearby,
+    loadData,
+    loadReservations,
+    loadSettlements,
+  ]);
 
   useEffect(() => {
     if (activeTab === "reservations") {
@@ -1122,7 +1294,11 @@ function AdminPageInner() {
     if (activeTab === "settlements" || activeTab === "summary") {
       void loadSettlements();
     }
-  }, [activeTab, loadReservations, loadSettlements]);
+  }, [
+    activeTab,
+    loadReservations,
+    loadSettlements,
+  ]);
 
   const settlementSummaryCards = useMemo(
     () => [
@@ -1186,6 +1362,13 @@ function AdminPageInner() {
       void loadNotices();
     }
   }, [activeTab, loadNotices]);
+
+  useEffect(() => {
+    if (!selectedAppraisalRowId) return;
+    if (!appraisalRowToMarkerId.has(selectedAppraisalRowId)) {
+      setSelectedAppraisalRowId(null);
+    }
+  }, [appraisalRowToMarkerId, selectedAppraisalRowId]);
 
   if (loading) {
     return (
@@ -2633,6 +2816,274 @@ function AdminPageInner() {
                     })}
                   </div>
                 )}
+              </div>
+            )}
+
+            {activeTab === "appraisals" && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="ob-typo-h2 text-(--oboon-text-title)">감정평가</div>
+                    <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+                      카카오 지도 기반으로 근방 아파트/오피스텔을 찾고 상세 정보를 매칭합니다.
+                    </p>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    shape="pill"
+                    className="h-9 w-9 p-0 rounded-full"
+                    onClick={refreshCurrentTab}
+                    aria-label="새로고침"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                <Card className="p-4 shadow-none">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
+                    <div className="md:col-span-2 lg:col-span-2">
+                      <label className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
+                        기준 주소 (도로명 / 지번)
+                      </label>
+                      <Input
+                        value={appraisalAddressQuery}
+                        onChange={(e) => setAppraisalAddressQuery(e.target.value)}
+                        placeholder="예: 서울특별시 강남구 테헤란로 212 또는 강남구 역삼동 719"
+                        onKeyDown={(e) => {
+                          if (e.key !== "Enter") return;
+                          e.preventDefault();
+                          void loadAppraisalNearby();
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
+                        반경 (m)
+                      </label>
+                      <Input
+                        value={appraisalRadiusM}
+                        onChange={(e) => setAppraisalRadiusM(e.target.value)}
+                        placeholder="1000"
+                        inputMode="numeric"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
+                        최대 건수
+                      </label>
+                      <Input
+                        value={appraisalLimit}
+                        onChange={(e) => setAppraisalLimit(e.target.value)}
+                        placeholder="30"
+                        inputMode="numeric"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      {(["apartment", "officetel"] as AppraisalKind[]).map((kind) => (
+                        <Button
+                          key={kind}
+                          type="button"
+                          size="sm"
+                          shape="pill"
+                          variant={appraisalTypes[kind] ? "primary" : "secondary"}
+                          onClick={() =>
+                            setAppraisalTypes((prev) => ({ ...prev, [kind]: !prev[kind] }))
+                          }
+                        >
+                          {appraisalKindLabel(kind)}
+                        </Button>
+                      ))}
+                    </div>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      shape="pill"
+                      onClick={() => void loadAppraisalNearby()}
+                      loading={appraisalLoading}
+                    >
+                      <Search className="h-4 w-4" />
+                      근방 검색
+                    </Button>
+                  </div>
+
+                  {appraisalResolvedLat !== null && appraisalResolvedLng !== null ? (
+                    <div className="mt-3 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-2">
+                      <p className="ob-typo-caption text-(--oboon-text-muted)">
+                        해석 주소:{" "}
+                        {appraisalResolvedRoadAddress ??
+                          appraisalResolvedJibunAddress ??
+                          appraisalAddressQuery}
+                      </p>
+                      <p className="ob-typo-caption text-(--oboon-text-muted)">
+                        좌표: {appraisalResolvedLat.toFixed(6)},{" "}
+                        {appraisalResolvedLng.toFixed(6)}
+                      </p>
+                    </div>
+                  ) : null}
+
+                  <p className="mt-3 ob-typo-caption text-(--oboon-text-muted)">
+                    현재는 카카오 검색 결과와 내부 데이터 매칭 기준으로 제공합니다.
+                  </p>
+                </Card>
+
+                <Card className="p-4 shadow-none">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="ob-typo-subtitle text-(--oboon-text-title)">지도</div>
+                      <Badge variant="status">{appraisalMapMarkers.length}개 마커</Badge>
+                    </div>
+                    <div className="ob-typo-caption text-(--oboon-text-muted)">기본 마커 표시 중</div>
+                  </div>
+
+                  {!hasNaverMapClientId ? (
+                    <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-6 text-center">
+                      <p className="ob-typo-body text-(--oboon-text-muted)">
+                        <code>NEXT_PUBLIC_NAVER_MAP_CLIENT_ID</code>가 설정되지 않아 지도를
+                        표시할 수 없습니다.
+                      </p>
+                    </div>
+                  ) : appraisalMapMarkers.length === 0 ? (
+                    <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-6 text-center">
+                      <p className="ob-typo-body text-(--oboon-text-muted)">
+                        먼저 근방 검색을 실행하면 지도에 기본 마커가 표시됩니다.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="h-[420px] w-full overflow-hidden rounded-2xl border border-(--oboon-border-default)">
+                      <NaverMap
+                        markers={appraisalMapMarkers}
+                        focusedId={focusedAppraisalMarkerId}
+                        showFocusedAsRich={false}
+                        fitToMarkers
+                        regionClusterEnabled={false}
+                        onMarkerSelect={(markerId) => {
+                          const rowId = appraisalMarkerToRowId.get(markerId);
+                          if (!rowId) return;
+                          setSelectedAppraisalRowId(rowId);
+                        }}
+                      />
+                    </div>
+                  )}
+                </Card>
+
+                <Card className="p-4 shadow-none">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="ob-typo-subtitle text-(--oboon-text-title)">
+                        검색 결과
+                      </div>
+                      <Badge variant="status">{appraisalRows.length}건</Badge>
+                    </div>
+                    <div className="ob-typo-caption text-(--oboon-text-muted)">
+                      {appraisalFetchedAt
+                        ? `최근 조회: ${new Date(appraisalFetchedAt).toLocaleString("ko-KR")}`
+                        : "최근 조회: -"}
+                    </div>
+                  </div>
+
+                  {appraisalWarnings.length > 0 ? (
+                    <div className="mb-3 space-y-1">
+                      {appraisalWarnings.map((warning, index) => (
+                        <div
+                          key={`${warning}-${index}`}
+                          className="flex items-center gap-1.5 ob-typo-caption text-(--oboon-warning-text)"
+                        >
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                          <span>{warning}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {appraisalLoading ? (
+                    <div className="flex items-center justify-center py-10">
+                      <Loader2 className="h-6 w-6 animate-spin text-(--oboon-primary)" />
+                    </div>
+                  ) : appraisalRows.length === 0 ? (
+                    <div className="py-8 text-center ob-typo-body text-(--oboon-text-muted)">
+                      조건에 맞는 결과가 없습니다.
+                    </div>
+                  ) : (
+                    <TableShell>
+                      <thead>
+                        <tr>
+                          <Th>유형 / 시설명</Th>
+                          <Th>위치</Th>
+                          <Th>단지</Th>
+                          <Th>출처</Th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {appraisalRows.map((row) => (
+                          <tr
+                            key={row.id}
+                            className={[
+                              "cursor-pointer transition-colors",
+                              selectedAppraisalRowId === row.id
+                                ? "bg-(--oboon-bg-subtle)"
+                                : "hover:bg-(--oboon-bg-subtle)/70",
+                            ].join(" ")}
+                            onClick={() => setSelectedAppraisalRowId(row.id)}
+                          >
+                            <Td>
+                              <div className="space-y-1">
+                                <Badge variant="status">{appraisalKindLabel(row.kind)}</Badge>
+                                <div className="ob-typo-body text-(--oboon-text-title)">
+                                  {row.name}
+                                </div>
+                                {row.place_url ? (
+                                  <a
+                                    href={row.place_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="ob-typo-caption text-(--oboon-primary) hover:underline"
+                                  >
+                                    카카오 장소 보기
+                                  </a>
+                                ) : null}
+                              </div>
+                            </Td>
+                            <Td>
+                              <div className="space-y-1">
+                                <div>{row.road_address ?? row.jibun_address ?? "-"}</div>
+                                <div className="ob-typo-caption text-(--oboon-text-muted)">
+                                  {row.distance_m !== null ? `${row.distance_m}m` : "거리 정보 없음"}
+                                </div>
+                              </div>
+                            </Td>
+                            <Td>
+                              <div className="space-y-1">
+                                <div>{row.detail.complex_name ?? "-"}</div>
+                                {row.detail.matched_property_id ? (
+                                  <div className="ob-typo-caption text-(--oboon-text-muted)">
+                                    내부 ID #{row.detail.matched_property_id}
+                                  </div>
+                                ) : null}
+                              </div>
+                            </Td>
+                            <Td>
+                              <div className="flex flex-wrap gap-1">
+                                {row.detail.source.kakao ? (
+                                  <Badge variant="status">Kakao</Badge>
+                                ) : null}
+                                {row.detail.source.internal_db ? (
+                                  <Badge variant="success">내부DB</Badge>
+                                ) : null}
+                                {row.detail.source.public_data ? (
+                                  <Badge variant="success">공공데이터</Badge>
+                                ) : null}
+                              </div>
+                            </Td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </TableShell>
+                  )}
+                </Card>
               </div>
             )}
 
