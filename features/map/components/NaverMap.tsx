@@ -446,6 +446,15 @@ const NaverMap = forwardRef<
       return { fillColor: fill, strokeColor: stroke };
     }
 
+    function resolveOutsideMaskDimColor(): { fillColor: string } {
+      const fallback = { fillColor: "rgba(0, 0, 0, 0.55)" };
+      if (typeof window === "undefined") return fallback;
+      const styles = window.getComputedStyle(window.document.documentElement);
+      const overlay = styles.getPropertyValue("--oboon-overlay").trim();
+      if (!overlay) return fallback;
+      return { fillColor: overlay };
+    }
+
     function applyRegionFocusOverlay(naverObj: NaverGlobal) {
       const map = mapRef.current;
       if (!map) return;
@@ -598,6 +607,7 @@ const NaverMap = forwardRef<
           outerNorth,
           outerEast,
         );
+        const outsideMaskColor = resolveOutsideMaskDimColor();
         const holePaths = effectiveFocusPolygons.map((path) =>
           toLatLngPath(naverObj, path, true),
         );
@@ -607,7 +617,7 @@ const NaverMap = forwardRef<
             new mapsAny.Polygon({
               map,
               paths: [outerPath, ...holePaths],
-              fillColor,
+              fillColor: outsideMaskColor.fillColor,
               fillOpacity: 1,
               strokeOpacity: 0,
               clickable: false,
@@ -658,11 +668,12 @@ const NaverMap = forwardRef<
         return;
       }
 
+      const outsideMaskColor = resolveOutsideMaskDimColor();
       maskPolygonsRef.current = rects.map((r) => {
         return new mapsAny.Polygon({
           map,
           paths: makeRectPath(naverObj, r.south, r.west, r.north, r.east),
-          fillColor,
+          fillColor: outsideMaskColor.fillColor,
           fillOpacity: 1,
           strokeOpacity: 0,
           clickable: false,
