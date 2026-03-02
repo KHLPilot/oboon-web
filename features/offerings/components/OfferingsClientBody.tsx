@@ -36,6 +36,9 @@ type SearchParams = {
   budgetMax?: string; // 억 단위
   agent?: string;
   appraisal?: string;
+  exclude?: string;
+  recommended?: string;
+  recommendedIds?: string;
 };
 
 function isRegionTab(v: string): v is OfferingRegionTab {
@@ -101,8 +104,27 @@ function filterOfferings(
   const agentFilter = rawAgent === "has" ? "has" : "전체";
   const rawAppraisal = (sp.appraisal ?? "").trim();
   const appraisalFilter = rawAppraisal === "done" ? "done" : "전체";
+  const excludeIds = new Set(
+    String(sp.exclude ?? "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean),
+  );
+  const recommendedMode = String(sp.recommended ?? "") === "1";
+  const recommendedIds = new Set(
+    String(sp.recommendedIds ?? "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean),
+  );
 
   return all.filter((o) => {
+    if (excludeIds.has(String(o.id))) return false;
+    if (recommendedMode) {
+      if (recommendedIds.size === 0) return false;
+      if (!recommendedIds.has(String(o.id))) return false;
+    }
+
     // region
     if (region !== "전체") {
       const r = pickOfferingRegion(o);
@@ -171,6 +193,9 @@ export default function OfferingsClientBody() {
       budgetMax: sp.get("budgetMax") ?? undefined,
       agent: sp.get("agent") ?? undefined,
       appraisal: sp.get("appraisal") ?? undefined,
+      exclude: sp.get("exclude") ?? undefined,
+      recommended: sp.get("recommended") ?? undefined,
+      recommendedIds: sp.get("recommendedIds") ?? undefined,
     };
   }, [sp]);
 
@@ -246,6 +271,7 @@ export default function OfferingsClientBody() {
     () => filterOfferings(offerings, searchParams, approvedAgentPropertyIds),
     [offerings, searchParams, approvedAgentPropertyIds],
   );
+  const isRecommendedMode = searchParams.recommended === "1";
 
   return (
     <main className="bg-(--oboon-bg-page)">
@@ -270,7 +296,9 @@ export default function OfferingsClientBody() {
           {filtered.length === 0 ? (
             <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-6">
               <p className="ob-typo-body text-(--oboon-text-muted)">
-                아직 등록된 분양이 없어요.
+                {isRecommendedMode
+                  ? "입력한 조건에 맞는 추천 현장을 찾지 못했어요."
+                  : "아직 등록된 분양이 없어요."}
               </p>
             </div>
           ) : (

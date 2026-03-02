@@ -25,15 +25,11 @@ import OboonDatePicker from "@/components/ui/DatePicker";
 import NaverMap from "@/features/map/components/NaverMap";
 import { useRequirePropertyEditAccess } from "@/features/company/hooks/useRequirePropertyEditAccess";
 import { toKoreanErrorMessage } from "@/shared/errorMessage";
-
-type DaumPostcodeResult = {
-  roadAddress: string;
-  jibunAddress: string;
-};
-
-type DaumPostcodeConstructor = new (opts: {
-  oncomplete: (data: DaumPostcodeResult) => void;
-}) => { open: () => void };
+import {
+  ensureDaumPostcodeLoaded,
+  type DaumPostcodeConstructor,
+  type DaumPostcodeResult,
+} from "@/lib/daum-postcode";
 
 type GeoResult = {
   lat: number | null;
@@ -284,11 +280,20 @@ export function PropertyFacilitiesEditor({
     fetchFacilities(propertyId);
   }, [accessLoading, canAccessProperty, propertyId, fetchFacilities]);
 
-  function openPostcode(index: number) {
+  async function openPostcode(index: number) {
+    const isLoaded = await ensureDaumPostcodeLoaded();
+    if (!isLoaded) {
+      showAlert("주소 검색 도구를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+
     const Postcode = window.daum?.Postcode as
       | DaumPostcodeConstructor
       | undefined;
-    if (!Postcode) return;
+    if (!Postcode) {
+      showAlert("주소 검색 도구를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
 
     new Postcode({
       oncomplete: async (data: DaumPostcodeResult) => {
@@ -331,11 +336,20 @@ export function PropertyFacilitiesEditor({
     setCreateDraft((prev) => ({ ...prev, [key]: value }));
   }
 
-  function openCreatePostcode() {
+  async function openCreatePostcode() {
+    const isLoaded = await ensureDaumPostcodeLoaded();
+    if (!isLoaded) {
+      showAlert("주소 검색 도구를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+
     const Postcode = window.daum?.Postcode as
       | DaumPostcodeConstructor
       | undefined;
-    if (!Postcode) return;
+    if (!Postcode) {
+      showAlert("주소 검색 도구를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
 
     new Postcode({
       oncomplete: async (data: DaumPostcodeResult) => {
@@ -614,7 +628,9 @@ export function PropertyFacilitiesEditor({
                       size="md"
                       shape="pill"
                       className="w-full justify-center"
-                      onClick={openCreatePostcode}
+                      onClick={() => {
+                        void openCreatePostcode();
+                      }}
                     >
                       주소 검색
                     </Button>
@@ -948,7 +964,9 @@ export function PropertyFacilitiesEditor({
                           size="md"
                           shape="pill"
                           className="w-full justify-center"
-                          onClick={() => openPostcode(idx)}
+                          onClick={() => {
+                            void openPostcode(idx);
+                          }}
                         >
                           주소 검색
                         </Button>

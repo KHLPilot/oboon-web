@@ -34,6 +34,11 @@ export type MapFocusBounds = {
 };
 
 export type MapFocusPolygonPath = Array<{ lat: number; lng: number }>;
+export type MapFocusOverlayTone = "default" | "danger" | "warning" | "mixed";
+export type MapFocusPolygonGroup = {
+  paths: MapFocusPolygonPath[];
+  tone?: MapFocusOverlayTone;
+};
 
 export type NaverMapHandle = {
   zoomIn: () => void;
@@ -47,6 +52,7 @@ export type NaverMapHandle = {
 type NaverMapInstance = naver.maps.Map;
 type NaverMarkerInstance = naver.maps.Marker;
 type MapMode = "base" | "expanded" | "select";
+type FocusMaskMode = "outside" | "inside";
 type MapEventLatLngLike = {
   lat?: (() => number) | number;
   lng?: (() => number) | number;
@@ -63,6 +69,8 @@ type MapClickEvent = {
 const REGION_CLUSTER_ZOOM_THRESHOLD = 10;
 const MERCATOR_TILE_SIZE = 256;
 
+type RgbaColor = { r: number; g: number; b: number; a: number };
+
 function escapeHtml(value: string) {
   return value
     .replaceAll("&", "&amp;")
@@ -70,6 +78,75 @@ function escapeHtml(value: string) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function clamp01(value: number) {
+  return Math.max(0, Math.min(1, value));
+}
+
+function parseCssColorToRgba(value: string): RgbaColor | null {
+  const text = value.trim();
+  if (!text) return null;
+
+  if (text.startsWith("#")) {
+    const hex = text.slice(1);
+    if (hex.length === 3) {
+      const r = Number.parseInt(hex[0] + hex[0], 16);
+      const g = Number.parseInt(hex[1] + hex[1], 16);
+      const b = Number.parseInt(hex[2] + hex[2], 16);
+      return { r, g, b, a: 1 };
+    }
+    if (hex.length === 6 || hex.length === 8) {
+      const r = Number.parseInt(hex.slice(0, 2), 16);
+      const g = Number.parseInt(hex.slice(2, 4), 16);
+      const b = Number.parseInt(hex.slice(4, 6), 16);
+      const a =
+        hex.length === 8
+          ? Number.parseInt(hex.slice(6, 8), 16) / 255
+          : 1;
+      return { r, g, b, a };
+    }
+    return null;
+  }
+
+  const match = text.match(/^rgba?\((.+)\)$/i);
+  if (!match) return null;
+  const parts = match[1].split(",").map((part) => part.trim());
+  if (parts.length < 3) return null;
+
+  const toChannel = (raw: string) => {
+    if (raw.endsWith("%")) {
+      const pct = Number.parseFloat(raw.slice(0, -1));
+      if (!Number.isFinite(pct)) return 0;
+      return Math.round((Math.max(0, Math.min(100, pct)) / 100) * 255);
+    }
+    const num = Number.parseFloat(raw);
+    if (!Number.isFinite(num)) return 0;
+    return Math.round(Math.max(0, Math.min(255, num)));
+  };
+
+  const r = toChannel(parts[0]);
+  const g = toChannel(parts[1]);
+  const b = toChannel(parts[2]);
+  const a =
+    parts.length >= 4
+      ? clamp01(Number.parseFloat(parts[3]))
+      : 1;
+  return { r, g, b, a };
+}
+
+function mixRgbaColors(a: RgbaColor, b: RgbaColor, ratio = 0.5): RgbaColor {
+  const t = clamp01(ratio);
+  return {
+    r: Math.round(a.r * (1 - t) + b.r * t),
+    g: Math.round(a.g * (1 - t) + b.g * t),
+    b: Math.round(a.b * (1 - t) + b.b * t),
+    a: a.a * (1 - t) + b.a * t,
+  };
+}
+
+function rgbaToCss(value: RgbaColor): string {
+  return `rgba(${value.r}, ${value.g}, ${value.b}, ${value.a.toFixed(3)})`;
 }
 
 function latRad(lat: number) {
@@ -152,6 +229,8 @@ const NaverMap = forwardRef<
     onClearFocus?: () => void;
     focusBounds?: MapFocusBounds | null;
     focusPolygons?: MapFocusPolygonPath[];
+    focusPolygonGroups?: MapFocusPolygonGroup[];
+    focusMaskMode?: FocusMaskMode;
     onMapReady?: () => void;
     mode?: MapMode;
     regionClusterEnabled?: boolean;
@@ -175,6 +254,8 @@ const NaverMap = forwardRef<
       onClearFocus,
       focusBounds = null,
       focusPolygons = [],
+      focusPolygonGroups = [],
+      focusMaskMode = "outside",
       onMapReady,
       mode = "base",
       regionClusterEnabled = true,
@@ -211,6 +292,10 @@ const NaverMap = forwardRef<
     const lastFittedMarkersKeyRef = useRef<string>("");
     const focusBoundsRef = useRef<MapFocusBounds | null>(focusBounds);
     const focusPolygonsRef = useRef<MapFocusPolygonPath[]>(focusPolygons);
+    const focusPolygonGroupsRef = useRef<MapFocusPolygonGroup[]>(
+      focusPolygonGroups,
+    );
+    const focusMaskModeRef = useRef<FocusMaskMode>(focusMaskMode);
     const maskPolygonsRef = useRef<Array<{ setMap: (map: unknown) => void }>>(
       [],
     );
@@ -223,6 +308,8 @@ const NaverMap = forwardRef<
     showFocusedAsRichRef.current = showFocusedAsRich;
     focusBoundsRef.current = focusBounds;
     focusPolygonsRef.current = focusPolygons;
+    focusPolygonGroupsRef.current = focusPolygonGroups;
+    focusMaskModeRef.current = focusMaskMode;
     const applyMarkerStyleByIdRef = useRef<
       (naverObj: NaverGlobal, id: number) => void
     >(() => {});
@@ -272,6 +359,93 @@ const NaverMap = forwardRef<
       return reverse ? [...points].reverse() : points;
     }
 
+    function resolveRegionFocusOverlayColor(tone: MapFocusOverlayTone = "danger") {
+      const fallbackByTone: Record<
+        MapFocusOverlayTone,
+        { fillColor: string; strokeColor: string }
+      > = {
+        danger: {
+          fillColor: "rgba(239, 68, 68, 0.18)",
+          strokeColor: "rgba(239, 68, 68, 0.35)",
+        },
+        warning: {
+          fillColor: "rgba(245, 158, 11, 0.18)",
+          strokeColor: "rgba(245, 158, 11, 0.35)",
+        },
+        mixed: {
+          fillColor: "rgba(242, 113, 28, 0.18)",
+          strokeColor: "rgba(242, 113, 28, 0.35)",
+        },
+        default: {
+          fillColor: "rgba(255, 255, 255, 0.06)",
+          strokeColor: "rgba(255, 255, 255, 0.2)",
+        },
+      };
+      const fallback = fallbackByTone[tone];
+      if (typeof window === "undefined") return fallback;
+      const styles = window.getComputedStyle(window.document.documentElement);
+      const tokenByTone: Record<
+        MapFocusOverlayTone,
+        { fill: string; fillAlt?: string; stroke: string }
+      > = {
+        danger: {
+          fill: "--oboon-danger-bg-subtle",
+          fillAlt: "--oboon-danger-bg",
+          stroke: "--oboon-danger-border",
+        },
+        warning: {
+          fill: "--oboon-warning-bg-subtle",
+          fillAlt: "--oboon-warning-bg",
+          stroke: "--oboon-warning-border",
+        },
+        mixed: {
+          fill: "--oboon-danger-bg-subtle",
+          fillAlt: "--oboon-danger-bg",
+          stroke: "--oboon-danger-border",
+        },
+        default: {
+          fill: "--oboon-bg-subtle",
+          stroke: "--oboon-border-default",
+        },
+      };
+
+      if (tone === "mixed") {
+        const dangerFillRaw =
+          styles.getPropertyValue("--oboon-danger-bg-subtle").trim() ||
+          styles.getPropertyValue("--oboon-danger-bg").trim();
+        const warningFillRaw =
+          styles.getPropertyValue("--oboon-warning-bg-subtle").trim() ||
+          styles.getPropertyValue("--oboon-warning-bg").trim();
+        const dangerStrokeRaw =
+          styles.getPropertyValue("--oboon-danger-border").trim();
+        const warningStrokeRaw =
+          styles.getPropertyValue("--oboon-warning-border").trim();
+
+        const dangerFill = parseCssColorToRgba(dangerFillRaw);
+        const warningFill = parseCssColorToRgba(warningFillRaw);
+        const dangerStroke = parseCssColorToRgba(dangerStrokeRaw);
+        const warningStroke = parseCssColorToRgba(warningStrokeRaw);
+
+        if (dangerFill && warningFill && dangerStroke && warningStroke) {
+          return {
+            fillColor: rgbaToCss(mixRgbaColors(dangerFill, warningFill, 0.5)),
+            strokeColor: rgbaToCss(
+              mixRgbaColors(dangerStroke, warningStroke, 0.5),
+            ),
+          };
+        }
+      }
+
+      const tokens = tokenByTone[tone];
+      const fill =
+        styles.getPropertyValue(tokens.fill).trim() ||
+        (tokens.fillAlt ? styles.getPropertyValue(tokens.fillAlt).trim() : "") ||
+        fallback.fillColor;
+      const stroke =
+        styles.getPropertyValue(tokens.stroke).trim() || fallback.strokeColor;
+      return { fillColor: fill, strokeColor: stroke };
+    }
+
     function applyRegionFocusOverlay(naverObj: NaverGlobal) {
       const map = mapRef.current;
       if (!map) return;
@@ -292,6 +466,7 @@ const NaverMap = forwardRef<
       const north = Math.min(b.north, KOREA_BOUNDS.north);
       const east = Math.min(b.east, KOREA_BOUNDS.east);
       if (!(south < north && west < east)) return;
+      const { fillColor, strokeColor } = resolveRegionFocusOverlayColor();
 
       // 마스크 바깥 링은 "현재 화면"을 덮어야 잘림이 없다.
       const viewBounds = map.getBounds() as unknown as {
@@ -339,8 +514,83 @@ const NaverMap = forwardRef<
         };
       };
 
-      const hasFocusPolygon = focusPolygonsRef.current.length > 0;
+      const groupedPaths = focusPolygonGroupsRef.current.flatMap((group) =>
+        group.paths.filter((path) => path.length >= 3),
+      );
+      const effectiveFocusPolygons =
+        groupedPaths.length > 0 ? groupedPaths : focusPolygonsRef.current;
+      const hasFocusPolygon = effectiveFocusPolygons.length > 0;
       if (hasFocusPolygon) {
+        if (focusMaskModeRef.current === "inside") {
+          if (focusPolygonGroupsRef.current.length > 0) {
+            const masks: Array<{ setMap: (map: unknown) => void }> = [];
+            const outlines: Array<{ setMap: (map: unknown) => void }> = [];
+            for (const group of focusPolygonGroupsRef.current) {
+              const paths = group.paths.filter((path) => path.length >= 3);
+              if (paths.length === 0) continue;
+              const toneColors = resolveRegionFocusOverlayColor(
+                group.tone ?? "danger",
+              );
+              for (const path of paths) {
+                masks.push(
+                  new mapsAny.Polygon({
+                    map,
+                    paths: toLatLngPath(naverObj, path),
+                    fillColor: toneColors.fillColor,
+                    fillOpacity: 1,
+                    strokeOpacity: 0,
+                    clickable: false,
+                    zIndex: 10,
+                  }),
+                );
+                outlines.push(
+                  new mapsAny.Polygon({
+                    map,
+                    paths: toLatLngPath(naverObj, path),
+                    fillOpacity: 0,
+                    strokeColor: toneColors.strokeColor,
+                    strokeOpacity: 0.95,
+                    strokeWeight: 2,
+                    clickable: false,
+                    zIndex: 11,
+                  }),
+                );
+              }
+            }
+            maskPolygonsRef.current = masks;
+            outlinePolygonsRef.current = outlines;
+            return;
+          }
+
+          maskPolygonsRef.current = effectiveFocusPolygons
+            .map((path) => {
+              return new mapsAny.Polygon({
+                map,
+                paths: toLatLngPath(naverObj, path),
+                fillColor,
+                fillOpacity: 1,
+                strokeOpacity: 0,
+                clickable: false,
+                zIndex: 10,
+              });
+            });
+
+          outlinePolygonsRef.current = effectiveFocusPolygons
+            .map((path) => {
+              return new mapsAny.Polygon({
+                map,
+                paths: toLatLngPath(naverObj, path),
+                fillOpacity: 0,
+                strokeColor,
+                strokeOpacity: 0.95,
+                strokeWeight: 2,
+                clickable: false,
+                zIndex: 11,
+              });
+            });
+          return;
+        }
+
         const outerPath = makeRectPath(
           naverObj,
           outerSouth,
@@ -348,17 +598,17 @@ const NaverMap = forwardRef<
           outerNorth,
           outerEast,
         );
-        const holePaths = focusPolygonsRef.current
-          .filter((path) => path.length >= 3)
-          .map((path) => toLatLngPath(naverObj, path, true));
+        const holePaths = effectiveFocusPolygons.map((path) =>
+          toLatLngPath(naverObj, path, true),
+        );
 
         if (holePaths.length > 0) {
           maskPolygonsRef.current = [
             new mapsAny.Polygon({
               map,
               paths: [outerPath, ...holePaths],
-              fillColor: "#0B1220",
-              fillOpacity: 0.25,
+              fillColor,
+              fillOpacity: 1,
               strokeOpacity: 0,
               clickable: false,
               zIndex: 10,
@@ -366,14 +616,12 @@ const NaverMap = forwardRef<
           ];
         }
 
-        outlinePolygonsRef.current = focusPolygonsRef.current
-          .filter((path) => path.length >= 3)
-          .map((path) => {
+        outlinePolygonsRef.current = effectiveFocusPolygons.map((path) => {
             return new mapsAny.Polygon({
               map,
               paths: toLatLngPath(naverObj, path),
               fillOpacity: 0,
-              strokeColor: "#2B6AF3",
+              strokeColor,
               strokeOpacity: 0.95,
               strokeWeight: 2,
               clickable: false,
@@ -383,12 +631,39 @@ const NaverMap = forwardRef<
         return;
       }
 
+      if (focusMaskModeRef.current === "inside") {
+        maskPolygonsRef.current = [
+          new mapsAny.Polygon({
+            map,
+            paths: makeRectPath(naverObj, south, west, north, east),
+            fillColor,
+            fillOpacity: 1,
+            strokeOpacity: 0,
+            clickable: false,
+            zIndex: 10,
+          }),
+        ];
+        outlinePolygonsRef.current = [
+          new mapsAny.Polygon({
+            map,
+            paths: makeRectPath(naverObj, south, west, north, east),
+            fillOpacity: 0,
+            strokeColor,
+            strokeOpacity: 0.9,
+            strokeWeight: 2,
+            clickable: false,
+            zIndex: 11,
+          }),
+        ];
+        return;
+      }
+
       maskPolygonsRef.current = rects.map((r) => {
         return new mapsAny.Polygon({
           map,
           paths: makeRectPath(naverObj, r.south, r.west, r.north, r.east),
-          fillColor: "#0B1220",
-          fillOpacity: 0.25,
+          fillColor,
+          fillOpacity: 1,
           strokeOpacity: 0,
           clickable: false,
           zIndex: 10,
@@ -400,7 +675,7 @@ const NaverMap = forwardRef<
           map,
           paths: makeRectPath(naverObj, south, west, north, east),
           fillOpacity: 0,
-          strokeColor: "#2B6AF3",
+          strokeColor,
           strokeOpacity: 0.9,
           strokeWeight: 2,
           clickable: false,
@@ -1104,7 +1379,7 @@ const NaverMap = forwardRef<
       const naverObj = window.naver;
       if (!naverObj?.maps || !mapRef.current) return;
       applyRegionFocusOverlayRef.current(naverObj);
-    }, [focusBounds, focusPolygons]);
+    }, [focusBounds, focusPolygons, focusPolygonGroups]);
 
     useEffect(() => {
       const naverObj = window.naver;

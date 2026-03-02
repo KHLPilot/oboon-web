@@ -218,22 +218,30 @@ export function DropdownMenuContent({
   const base =
     "fixed z-[9999] overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) shadow-lg";
 
+  const sizeStyle: React.CSSProperties = matchTriggerWidth
+    ? {
+        width: pos.width,
+        minWidth: pos.width,
+        maxWidth: pos.width,
+      }
+    : {};
+
   // 실제 좌표: end는 right 정렬이므로 transform으로 당김
   const style: React.CSSProperties =
     align === "start"
-      ? { top: pos.top, left: pos.left, width: matchTriggerWidth ? pos.width : undefined }
+      ? { top: pos.top, left: pos.left, ...sizeStyle }
       : align === "center"
       ? {
           top: pos.top,
           left: pos.left,
           transform: "translateX(-50%)",
-          width: matchTriggerWidth ? pos.width : undefined,
+          ...sizeStyle,
         }
       : {
           top: pos.top,
           left: pos.left,
           transform: "translateX(-100%)",
-          width: matchTriggerWidth ? pos.width : undefined,
+          ...sizeStyle,
         };
 
   return createPortal(
@@ -241,7 +249,7 @@ export function DropdownMenuContent({
       ref={panelRef}
       role="menu"
       style={style}
-      className={[base, "min-w-40 p-1", className].join(" ")}
+      className={[base, matchTriggerWidth ? "p-1" : "min-w-40 p-1", className].join(" ")}
     >
       {children}
     </div>,

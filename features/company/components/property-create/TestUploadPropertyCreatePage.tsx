@@ -13,6 +13,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/DropdownMenu";
+import { ChevronDown } from "lucide-react";
 import type { PropertyExtractionData } from "@/lib/schema/property-schema";
 import NaverMap, { type MapMarker } from "@/features/map/components/NaverMap";
 import { createSupabaseClient } from "@/lib/supabaseClient";
@@ -312,6 +313,28 @@ function toWonFromManwon(value: unknown) {
   const manwon = toNumberOrNull(value);
   if (manwon == null) return null;
   return Math.round(manwon * 10000);
+}
+
+function sanitizePercentInput(value: string): string {
+  const onlyAllowed = value.replace(/[^\d.]/g, "");
+  const [head, ...tail] = onlyAllowed.split(".");
+  return tail.length > 0 ? `${head}.${tail.join("")}` : head;
+}
+
+function parsePercentToRatio(value: string): number | null {
+  const normalized = value.replaceAll(",", "").trim();
+  if (!normalized) return null;
+  const percent = Number(normalized);
+  if (!Number.isFinite(percent) || percent <= 0 || percent > 100) return null;
+  return Math.round((percent / 100) * 10000) / 10000;
+}
+
+function formatRatioToPercentText(value: unknown): string {
+  const parsed = toNumberOrNull(value);
+  if (parsed == null || parsed <= 0) return "10";
+  const percent = parsed <= 1 ? parsed * 100 : parsed;
+  const rounded = Math.round(percent * 100) / 100;
+  return String(rounded).replace(/\.0+$/, "").replace(/(\.\d*[1-9])0+$/, "$1");
 }
 
 function normalizeKoreaCoords(
@@ -908,6 +931,10 @@ export default function TestUploadPage() {
   >([]);
   const [modelhouseGalleryImageFiles, setModelhouseGalleryImageFiles] =
     useState<File[]>([]);
+  const [validationContractRatioPercent, setValidationContractRatioPercent] =
+    useState("10");
+  const [validationTransferRestriction, setValidationTransferRestriction] =
+    useState(false);
 
   // PDF에서 추출된 이미지 (A안: 이미지 추출)
   type ExtractedImageWithDestination = {
@@ -978,6 +1005,11 @@ export default function TestUploadPage() {
   >([]);
   const [hideUnitMergeRecommendations, setHideUnitMergeRecommendations] =
     useState(false);
+  const [analysisInProgress, setAnalysisInProgress] = useState(false);
+  const [analysisFileCount, setAnalysisFileCount] = useState(0);
+  const [analysisElapsedSec, setAnalysisElapsedSec] = useState(0);
+  const [editBaselineVersion, setEditBaselineVersion] = useState(0);
+  const analysisTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [selectedUnitMergeRows, setSelectedUnitMergeRows] = useState<number[]>(
     [],
   );
@@ -2471,6 +2503,27 @@ export default function TestUploadPage() {
     return keys;
   };
 
+  const stopAnalysisTimer = useCallback(() => {
+    if (analysisTimerRef.current) {
+      clearInterval(analysisTimerRef.current);
+      analysisTimerRef.current = null;
+    }
+    setAnalysisInProgress(false);
+  }, []);
+
+  const startAnalysisTimer = useCallback((fileCount: number) => {
+    if (analysisTimerRef.current) {
+      clearInterval(analysisTimerRef.current);
+      analysisTimerRef.current = null;
+    }
+    setAnalysisFileCount(fileCount);
+    setAnalysisElapsedSec(0);
+    setAnalysisInProgress(true);
+    analysisTimerRef.current = setInterval(() => {
+      setAnalysisElapsedSec((prev) => prev + 1);
+    }, 1000);
+  }, []);
+
   const handleSubmit = async () => {
     if (files.length === 0) {
       setStatus("파일을 선택해주세요.");
@@ -2494,6 +2547,7 @@ export default function TestUploadPage() {
       const previousAssignmentMap = await buildExtractedImageAssignmentMap();
       const fileKeys = await uploadPdfsToR2Temp(files);
       setStatus(`PDF ${files.length}개 분석 중...`);
+      startAnalysisTimer(files.length);
       const response = await fetch("/api/extract-pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2506,8 +2560,10 @@ export default function TestUploadPage() {
       }
 
       const data = await response.json();
+      stopAnalysisTimer();
       setAllUploadedFiles(files);
       setResult(data);
+      setEditBaselineVersion((prev) => prev + 1);
       setDismissedMergeCandidateKeys([]);
       Object.values(unitFloorPlanUrlsRef.current).forEach((url) =>
         revokeBlobUrl(url),
@@ -2576,10 +2632,12 @@ export default function TestUploadPage() {
         setShowNewPropertyAction(true);
       }
     } catch (err: unknown) {
+      stopAnalysisTimer();
       const message = err instanceof Error ? err.message : "알 수 없는 오류";
       setStatus(`오류: ${toKoreanErrorMessage(message)}`);
       setStatusTone("danger");
     } finally {
+      stopAnalysisTimer();
       setLoading(false);
     }
   };
@@ -2626,6 +2684,7 @@ export default function TestUploadPage() {
           _meta: data._meta ?? prev._meta,
         };
       });
+      setEditBaselineVersion((prev) => prev + 1);
       setDismissedMergeCandidateKeys([]);
 
       setStatus("텍스트 재추출 완료! 기존 이미지는 유지됩니다.");
@@ -2674,6 +2733,7 @@ export default function TestUploadPage() {
       const data = await response.json();
       const merged = mergeExtractResults(result, data);
       setResult(merged);
+      setEditBaselineVersion((prev) => prev + 1);
       setDismissedMergeCandidateKeys([]);
       setAllUploadedFiles((prev) => [...prev, ...filesToMerge]);
       setFiles((prev) => [...prev, ...filesToMerge]);
@@ -3024,6 +3084,7 @@ export default function TestUploadPage() {
       setExistingSnapshot(snapshot);
       setCompareFields(diffFields);
       setSelectionMap(initialSelections);
+      await loadConditionValidationProfile(snapshot.property.id);
 
       if (diffFields.length === 0) {
         setStatus(
@@ -3073,9 +3134,90 @@ export default function TestUploadPage() {
     return callback(propertyId);
   };
 
+  const loadConditionValidationProfile = async (propertyId: number) => {
+    try {
+      const response = await fetch(
+        `/api/condition-validation/profiles/upsert?propertyId=${propertyId}`,
+      );
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            ok?: boolean;
+            resolved?: {
+              contract_ratio?: number | null;
+              transfer_restriction?: boolean | null;
+            };
+          }
+        | null;
+
+      if (!response.ok) return;
+
+      const nextContractRatioPercent = formatRatioToPercentText(
+        payload?.resolved?.contract_ratio,
+      );
+      const nextTransferRestriction = Boolean(
+        payload?.resolved?.transfer_restriction,
+      );
+
+      setValidationContractRatioPercent(nextContractRatioPercent);
+      setValidationTransferRestriction(nextTransferRestriction);
+    } catch {
+      // 조회 실패 시 기존 입력값을 유지한다.
+    }
+  };
+
+  const syncConditionValidationProfile = async (params: {
+    propertyId: number;
+    propertyType: unknown;
+    unitTypes: ExtractUnitTypeExtended[] | null | undefined;
+    contractRatio: number | null;
+    transferRestriction: boolean;
+  }): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const response = await fetch("/api/condition-validation/profiles/upsert", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          propertyId: params.propertyId,
+          propertyType:
+            normalizeComparableValue(params.propertyType) ?? null,
+          unitTypes: params.unitTypes ?? [],
+          contractRatio: params.contractRatio,
+          transferRestriction: params.transferRestriction,
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        return {
+          ok: false,
+          error:
+            typeof payload?.error === "string"
+              ? payload.error
+              : `HTTP ${response.status}`,
+        };
+      }
+
+      return { ok: true };
+    } catch (error) {
+      return {
+        ok: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "조건 검증 기준 동기화 실패",
+      };
+    }
+  };
+
   const applySelectedMerge = async () => {
     if (!existingSnapshot || !result) return;
     if (!confirm(`"${existingSnapshot.property.name}" 현장에 선택한 값을 반영하시겠습니까?`)) return;
+    const parsedContractRatio = parsePercentToRatio(validationContractRatioPercent);
+    if (parsedContractRatio === null) {
+      setStatus("계약금 비율은 0~100 사이 숫자로 입력해주세요. (예: 10)");
+      setStatusTone("danger");
+      return;
+    }
 
     setSavingCompareMerge(true);
     try {
@@ -3270,12 +3412,20 @@ export default function TestUploadPage() {
           targetId,
           unitSync.rowIndexToUnitId,
         );
+        const validationProfileSync = await syncConditionValidationProfile({
+          propertyId: targetId,
+          propertyType: merged.properties.property_type,
+          unitTypes: (result.unit_types ?? []) as ExtractUnitTypeExtended[],
+          contractRatio: parsedContractRatio,
+          transferRestriction: validationTransferRestriction,
+        });
         return {
           targetId,
           unitSync,
           imageSync,
           manualGalleryUploaded,
           manualModelhouseUploaded,
+          validationProfileSynced: validationProfileSync.ok,
         };
       });
 
@@ -3285,8 +3435,8 @@ export default function TestUploadPage() {
 
       setStatus(
         appliedCount > 0
-          ? `선택 반영 완료: ${appliedCount}개 항목, 타입 업데이트 ${syncSummary.unitSync.updated}개, 타입 추가 ${syncSummary.unitSync.inserted}개, 수동 추가사진 ${syncSummary.manualGalleryUploaded}개, 수동 모델하우스사진 ${syncSummary.manualModelhouseUploaded}개, 추출 갤러리 업로드 ${syncSummary.imageSync.galleryUploaded}개/삭제 ${syncSummary.imageSync.galleryDeleted}개(중복 스킵 ${syncSummary.imageSync.gallerySkippedByHash}개), 평면도 업데이트 ${syncSummary.imageSync.floorPlanUpdated}개/해제 ${syncSummary.imageSync.floorPlanCleared}개 — 2초 후 새로고침됩니다.`
-          : `선택된 변경 항목은 없지만 동기화 완료: 타입 업데이트 ${syncSummary.unitSync.updated}개, 타입 추가 ${syncSummary.unitSync.inserted}개, 수동 추가사진 ${syncSummary.manualGalleryUploaded}개, 수동 모델하우스사진 ${syncSummary.manualModelhouseUploaded}개, 추출 갤러리 업로드 ${syncSummary.imageSync.galleryUploaded}개/삭제 ${syncSummary.imageSync.galleryDeleted}개(중복 스킵 ${syncSummary.imageSync.gallerySkippedByHash}개), 평면도 업데이트 ${syncSummary.imageSync.floorPlanUpdated}개/해제 ${syncSummary.imageSync.floorPlanCleared}개 — 2초 후 새로고침됩니다.`,
+          ? `선택 반영 완료: ${appliedCount}개 항목, 타입 업데이트 ${syncSummary.unitSync.updated}개, 타입 추가 ${syncSummary.unitSync.inserted}개, 수동 추가사진 ${syncSummary.manualGalleryUploaded}개, 수동 모델하우스사진 ${syncSummary.manualModelhouseUploaded}개, 추출 갤러리 업로드 ${syncSummary.imageSync.galleryUploaded}개/삭제 ${syncSummary.imageSync.galleryDeleted}개(중복 스킵 ${syncSummary.imageSync.gallerySkippedByHash}개), 평면도 업데이트 ${syncSummary.imageSync.floorPlanUpdated}개/해제 ${syncSummary.imageSync.floorPlanCleared}개, 검증기준 ${syncSummary.validationProfileSynced ? "동기화 완료" : "동기화 실패"} — 2초 후 새로고침됩니다.`
+          : `선택된 변경 항목은 없지만 동기화 완료: 타입 업데이트 ${syncSummary.unitSync.updated}개, 타입 추가 ${syncSummary.unitSync.inserted}개, 수동 추가사진 ${syncSummary.manualGalleryUploaded}개, 수동 모델하우스사진 ${syncSummary.manualModelhouseUploaded}개, 추출 갤러리 업로드 ${syncSummary.imageSync.galleryUploaded}개/삭제 ${syncSummary.imageSync.galleryDeleted}개(중복 스킵 ${syncSummary.imageSync.gallerySkippedByHash}개), 평면도 업데이트 ${syncSummary.imageSync.floorPlanUpdated}개/해제 ${syncSummary.imageSync.floorPlanCleared}개, 검증기준 ${syncSummary.validationProfileSynced ? "동기화 완료" : "동기화 실패"} — 2초 후 새로고침됩니다.`,
       );
       setStatusTone("safe");
       setTimeout(() => window.location.reload(), 2000);
@@ -3302,6 +3452,12 @@ export default function TestUploadPage() {
   const createNewPropertyFromExtract = async () => {
     if (!result) return;
     if (!confirm("새 현장을 등록하시겠습니까?")) return;
+    const parsedContractRatio = parsePercentToRatio(validationContractRatioPercent);
+    if (parsedContractRatio === null) {
+      setStatus("계약금 비율은 0~100 사이 숫자로 입력해주세요. (예: 10)");
+      setStatusTone("danger");
+      return;
+    }
 
     setCreatingNewProperty(true);
     try {
@@ -3466,10 +3622,17 @@ export default function TestUploadPage() {
         propertyId,
         unitSync.rowIndexToUnitId,
       );
+      const validationProfileSync = await syncConditionValidationProfile({
+        propertyId,
+        propertyType: propertyPayload.property_type,
+        unitTypes: (result.unit_types ?? []) as ExtractUnitTypeExtended[],
+        contractRatio: parsedContractRatio,
+        transferRestriction: validationTransferRestriction,
+      });
       setCreatedPropertyId(propertyId);
 
       setStatus(
-        `새 현장 등록 완료 (ID: ${propertyId}, 대표사진 ${mainImagePublicUrl ? 1 : 0}장, 추가사진 ${manualGalleryUploaded}장, 모델하우스사진 ${manualModelhouseUploaded}장, 평면도 ${unitSync.uploadedFloorPlans + imageSync.floorPlanUpdated}장, PDF추출이미지 ${imageSync.galleryUploaded + imageSync.mainUpdated + imageSync.floorPlanUpdated}장, 타입 추가 ${unitSync.inserted}개, 시설 ${facilityRows.length}개, 갤러리 삭제 ${imageSync.galleryDeleted}개, 평면도 해제 ${imageSync.floorPlanCleared}개, 중복스킵 ${imageSync.gallerySkippedByHash}개) — 2초 후 새로고침됩니다.`,
+        `새 현장 등록 완료 (ID: ${propertyId}, 대표사진 ${mainImagePublicUrl ? 1 : 0}장, 추가사진 ${manualGalleryUploaded}장, 모델하우스사진 ${manualModelhouseUploaded}장, 평면도 ${unitSync.uploadedFloorPlans + imageSync.floorPlanUpdated}장, PDF추출이미지 ${imageSync.galleryUploaded + imageSync.mainUpdated + imageSync.floorPlanUpdated}장, 타입 추가 ${unitSync.inserted}개, 시설 ${facilityRows.length}개, 갤러리 삭제 ${imageSync.galleryDeleted}개, 평면도 해제 ${imageSync.floorPlanCleared}개, 중복스킵 ${imageSync.gallerySkippedByHash}개, 검증기준 ${validationProfileSync.ok ? "동기화 완료" : "동기화 실패"}) — 2초 후 새로고침됩니다.`,
       );
       setStatusTone("safe");
       setTimeout(() => window.location.reload(), 2000);
@@ -4112,6 +4275,10 @@ export default function TestUploadPage() {
 
   useEffect(() => {
     return () => {
+      if (analysisTimerRef.current) {
+        clearInterval(analysisTimerRef.current);
+        analysisTimerRef.current = null;
+      }
       Object.values(unitFloorPlanUrlsRef.current).forEach((url) => {
         revokeBlobUrl(url);
       });
@@ -4167,6 +4334,10 @@ export default function TestUploadPage() {
     !loading && (statusTone === "danger" || isComparingStatus);
   const displayStatusMessage =
     statusTone === "danger" ? status.replace(/^오류:\s*/, "") : status;
+  const analysisElapsedLabel = String(analysisElapsedSec).padStart(2, "0");
+  const loadingButtonLabel = analysisInProgress
+    ? `PDF ${analysisFileCount}개 분석 중...(${analysisElapsedLabel}초)`
+    : status;
 
   return (
     <PageContainer className="max-w-240">
@@ -4276,7 +4447,7 @@ export default function TestUploadPage() {
                 size="sm"
               >
                 {loading
-                  ? status
+                  ? loadingButtonLabel
                   : hasExtractionResult
                     ? `다시 추출하기 (PDF ${files.length}개)`
                     : `데이터 추출 시작 (${files.length}개 PDF)`}
@@ -4355,7 +4526,15 @@ export default function TestUploadPage() {
         </Card>
 
         {result ? (
-          <div className="space-y-4">
+          <div key={`extract-ui-${editBaselineVersion}`} className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2 ob-typo-caption">
+              <span className="inline-flex items-center rounded-full border border-sky-400/50 bg-sky-500/10 px-2 py-1 text-sky-200">
+                AI 추출 값
+              </span>
+              <span className="inline-flex items-center rounded-full border border-emerald-400/50 bg-emerald-500/10 px-2 py-1 text-emerald-200">
+                직접 수정한 값
+              </span>
+            </div>
             {checkingSimilar || similarCandidates.length > 0 ? (
               <Card className="p-5">
                 <div className="ob-typo-subtitle text-(--oboon-text-title)">
@@ -4989,6 +5168,53 @@ export default function TestUploadPage() {
                       )
                     }
                   />
+                </div>
+              </div>
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <div className="ob-typo-caption text-(--oboon-text-muted)">
+                    계약금 비율 (%)
+                  </div>
+                  <Input
+                    value={validationContractRatioPercent}
+                    inputMode="decimal"
+                    placeholder="예: 10"
+                    onChange={(e) =>
+                      setValidationContractRatioPercent(
+                        sanitizePercentInput(e.target.value),
+                      )
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <div className="ob-typo-caption text-(--oboon-text-muted)">
+                    전매 제한
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="inline-flex w-full items-center justify-between rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-2.5 ob-typo-body text-(--oboon-text-title)"
+                      >
+                        <span>{validationTransferRestriction ? "있음" : "없음"}</span>
+                        <ChevronDown className="h-4 w-4 text-(--oboon-text-muted)" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" matchTriggerWidth>
+                      <DropdownMenuItem
+                        className={!validationTransferRestriction ? "bg-(--oboon-bg-subtle)" : ""}
+                        onClick={() => setValidationTransferRestriction(false)}
+                      >
+                        없음
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className={validationTransferRestriction ? "bg-(--oboon-bg-subtle)" : ""}
+                        onClick={() => setValidationTransferRestriction(true)}
+                      >
+                        있음
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
             </Section>
@@ -5784,18 +6010,25 @@ function EditableText({
   const normalizeValue = (v: string) => (v === "-" ? "" : v);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(normalizeValue(value));
+  const [initialValue] = useState(() => normalizeValue(value).trim());
   const commit = () => {
     setEditing(false);
     onCommit?.(draft.trim());
   };
   const currentValue = editing ? draft : normalizeValue(value);
   const displayValue = currentValue.trim() ? currentValue : "-";
+  const normalizedCurrentValue = normalizeValue(value).trim();
+  const isUserEdited = normalizedCurrentValue !== initialValue;
+  const valueToneClass = isUserEdited
+    ? "border border-emerald-400/50 bg-emerald-500/10 text-emerald-200"
+    : "border border-sky-400/40 bg-sky-500/10 text-sky-200";
 
   if (!editable) {
     return (
       <span
         className={[
-          "min-w-0 max-w-full overflow-hidden px-2 py-1 ob-typo-body text-(--oboon-text-body)",
+          "min-w-0 max-w-full overflow-hidden rounded-md px-2 py-1 ob-typo-body",
+          valueToneClass,
           center
             ? "inline-flex h-8 w-full items-center justify-center text-center"
             : "inline-block w-fit min-h-8",
@@ -5821,8 +6054,8 @@ function EditableText({
         }}
         className={
           center
-            ? "!h-8 !w-full !rounded-md !border-(--oboon-border-default) !px-2 min-w-0 max-w-full overflow-hidden text-center"
-            : "h-9 w-full min-w-0 max-w-full overflow-hidden"
+            ? `!h-8 !w-full !rounded-md !px-2 min-w-0 max-w-full overflow-hidden text-center ${isUserEdited ? "!border-emerald-400/50 !text-emerald-200" : "!border-sky-400/40 !text-sky-200"}`
+            : `h-9 w-full min-w-0 max-w-full overflow-hidden ${isUserEdited ? "border-emerald-400/50 text-emerald-200" : "border-sky-400/40 text-sky-200"}`
         }
       />
     );
@@ -5836,9 +6069,11 @@ function EditableText({
         setEditing(true);
       }}
       className={[
-        "min-w-0 max-w-full overflow-hidden rounded-md px-2 py-1 ob-typo-body text-(--oboon-text-body) hover:bg-(--oboon-bg-subtle)",
+        "min-w-0 max-w-full overflow-hidden rounded-md px-2 py-1 ob-typo-body transition-colors",
+        valueToneClass,
+        isUserEdited ? "hover:bg-emerald-500/20" : "hover:bg-sky-500/20",
         center
-          ? "inline-flex h-8 w-full items-center justify-center border border-transparent text-center"
+          ? "inline-flex h-8 w-full items-center justify-center text-center"
           : "w-fit min-h-8 text-left",
       ].join(" ")}
       title="클릭해서 수정"

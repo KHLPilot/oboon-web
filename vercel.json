@@ -3,6 +3,14 @@
     {
       "path": "/api/cron/cleanup-cancelled",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/regulation-rules-bootstrap",
+      "schedule": "0 0 1 * *"
+    },
+    {
+      "path": "/api/cron/condition-validation-profiles",
+      "schedule": "10 0 1 * *"
     }
   ]
 }

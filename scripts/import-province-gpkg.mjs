@@ -27,6 +27,7 @@ const FILE_TO_REGION_NAMES = {
 };
 
 const GYEONGGI_FILES = ["gyeonggi-south.gpkg", "gyeonggi_north.gpkg"];
+const GYEONGGI_SI_FILE = "gyeonggi_si.gpkg";
 const GYEONGGI_REGION_NAMES = ["경기도"];
 const GYEONGGI_NORTH_REGION_NAMES = ["경기북부"];
 const GYEONGGI_SOUTH_REGION_NAMES = ["경기남부"];
@@ -339,6 +340,43 @@ function collectMultiPolygonCoordinates(gpkgFileName) {
   return merged;
 }
 
+function collectNamedMultiPolygonCoordinates(gpkgFileName, nameColumn = "SGG_NM") {
+  const file = path.join(IMPORT_DIR, gpkgFileName);
+  const { tableName, srsId: tableSrsId } = getFeatureTable(file);
+  const geomCol = getGeomColumn(file, tableName);
+  const lines = sql(
+    file,
+    `select "${nameColumn}", hex("${geomCol}") from "${tableName}" where "${geomCol}" is not null and "${nameColumn}" is not null;`,
+  )
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length === 0) {
+    throw new Error(`No named geometries in ${gpkgFileName}`);
+  }
+
+  const byName = new Map();
+  for (const line of lines) {
+    const pipeIndex = line.indexOf("|");
+    if (pipeIndex <= 0) continue;
+    const name = line.slice(0, pipeIndex).trim();
+    const hex = line.slice(pipeIndex + 1).trim();
+    if (!name || !hex) continue;
+
+    const parsed = parseGpkgGeomHex(hex);
+    const srsId = Number.isFinite(parsed.srsId) ? parsed.srsId : tableSrsId;
+    const transformed = transformGeometry(parsed.geometry, srsId);
+    const coords = toMultiPolygon(transformed);
+
+    const prev = byName.get(name) ?? [];
+    prev.push(...coords);
+    byName.set(name, prev);
+  }
+
+  return byName;
+}
+
 function replaceGeometryByNames(featureCollection, regionNames, multiPolygonCoords) {
   const features = featureCollection.features ?? [];
   const target = features.find((feature) => {
@@ -394,6 +432,12 @@ function main() {
     const coords = collectMultiPolygonCoordinates(fileName);
     upsertFeatureByName(target, regionName, coords);
     console.log(`upserted ${regionName} from ${fileName} polygons=${coords.length}`);
+  }
+
+  const gyeonggiSiByName = collectNamedMultiPolygonCoordinates(GYEONGGI_SI_FILE);
+  for (const [regionName, coords] of gyeonggiSiByName.entries()) {
+    upsertFeatureByName(target, regionName, coords);
+    console.log(`upserted ${regionName} from ${GYEONGGI_SI_FILE} polygons=${coords.length}`);
   }
 
   writeFileSync(TARGET_GEOJSON, JSON.stringify(target));

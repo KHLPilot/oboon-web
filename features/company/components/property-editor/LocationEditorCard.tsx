@@ -12,6 +12,10 @@ import {
   fetchPropertyLocation,
   savePropertyLocation,
 } from "@/features/company/services/property.location";
+import {
+  ensureDaumPostcodeLoaded,
+  type DaumPostcodeResult,
+} from "@/lib/daum-postcode";
 
 type LocationForm = {
   road_address: string;
@@ -27,15 +31,6 @@ type LocationFormWithTemp = LocationForm & {
   temp_address: string;
 };
 
-type DaumPostcodeResult = {
-  roadAddress: string;
-  jibunAddress: string;
-};
-
-type DaumPostcodeConstructor = new (opts: {
-  oncomplete: (data: DaumPostcodeResult) => void;
-}) => { open: () => void };
-
 type GeoResult = {
   lat: string;
   lng: string;
@@ -43,12 +38,6 @@ type GeoResult = {
   region_2depth: string;
   region_3depth: string;
 };
-
-declare global {
-  interface Window {
-    daum?: { Postcode: DaumPostcodeConstructor };
-  }
-}
 
 export default function LocationEditorCard({
   propertyId,
@@ -136,9 +125,18 @@ export default function LocationEditorCard({
     };
   }, [manualMode]);
 
-  function openPostcode() {
+  async function openPostcode() {
+    const isLoaded = await ensureDaumPostcodeLoaded();
+    if (!isLoaded) {
+      showAlert("주소 검색 도구를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+
     const Postcode = window.daum?.Postcode;
-    if (!Postcode) return;
+    if (!Postcode) {
+      showAlert("주소 검색 도구를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
 
     new Postcode({
       oncomplete: async (data: DaumPostcodeResult) => {
@@ -256,7 +254,7 @@ export default function LocationEditorCard({
               onClick={() => {
                 setIsEditing(true);
                 setManualMode(false);
-                openPostcode();
+                void openPostcode();
               }}
             >
               주소 검색

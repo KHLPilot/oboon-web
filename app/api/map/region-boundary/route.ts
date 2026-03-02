@@ -49,6 +49,12 @@ const REGION_NAME_CANDIDATES: Record<string, string[]> = {
   jeju: ["제주특별자치도"],
 };
 
+const NAME_OPTIMIZE_RULE_KEYS: Array<{ prefix: string; optimizeKey: string }> = [
+  { prefix: "서울특별시 ", optimizeKey: "seoul" },
+  { prefix: "경기도 ", optimizeKey: "gyeonggi" },
+  { prefix: "인천광역시 ", optimizeKey: "incheon" },
+];
+
 type Coord = [number, number]; // [lng, lat]
 type RegionBounds = {
   south: number;
@@ -100,6 +106,7 @@ const REGION_OPTIMIZE_RULES: Partial<Record<string, RegionOptimizeRule>> = {
     maxPointsPerPolygon: 4000,
     maxTotalPoints: 22000,
   },
+  gyeonggi: { minArea: 0, maxPolygons: 32, maxPointsPerPolygon: 4000 },
   gyeongbuk: { minArea: 0, maxPolygons: 24, maxPointsPerPolygon: 4000 },
   gyeongnam: { minArea: 0, maxPolygons: 24, maxPointsPerPolygon: 4000 },
   jeju: {
@@ -261,24 +268,46 @@ function findFeatureForRegion(
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const region = String(searchParams.get("region") ?? "").trim();
-  if (!REGION_NAME_CANDIDATES[region]) {
+  const regionName = String(
+    searchParams.get("name") ?? searchParams.get("regionName") ?? "",
+  ).trim();
+
+  if (!region && !regionName) {
+    return NextResponse.json({ error: "invalid region" }, { status: 400 });
+  }
+  if (region && !REGION_NAME_CANDIDATES[region]) {
     return NextResponse.json({ error: "invalid region" }, { status: 400 });
   }
 
   try {
     const featureCollection = await loadFeatureCollection();
-    const feature = findFeatureForRegion(featureCollection, region);
+    const feature = regionName
+      ? (featureCollection.features ?? []).find(
+          (item) => item?.properties?.name?.trim() === regionName,
+        ) ?? null
+      : findFeatureForRegion(featureCollection, region);
     if (!feature?.geometry) {
       return NextResponse.json({ error: "boundary not found" }, { status: 404 });
     }
 
-    const polygons = optimizePolygons(region, collectPolygonPaths(feature.geometry));
+    const optimizeKey = region
+      ? region
+      : NAME_OPTIMIZE_RULE_KEYS.find((item) => regionName.startsWith(item.prefix))
+          ?.optimizeKey ?? "default";
+    const polygons = optimizePolygons(
+      optimizeKey,
+      collectPolygonPaths(feature.geometry),
+    );
     const bounds = computeBounds(polygons);
     if (!bounds || polygons.length === 0) {
       return NextResponse.json({ error: "boundary not found" }, { status: 404 });
     }
 
-    const response: RegionBoundaryResponse = { region, bounds, polygons };
+    const response: RegionBoundaryResponse = {
+      region: region || regionName,
+      bounds,
+      polygons,
+    };
     return NextResponse.json(response, {
       headers: { "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800" },
     });

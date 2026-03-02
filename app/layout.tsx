@@ -131,6 +131,8 @@ export default function RootLayout({
 }) {
   const isProduction = process.env.NODE_ENV === "production";
   const clarityProjectId = process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID;
+  const gaTrackingId =
+    process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || "G-XF92GCM2KV";
 
   return (
     <html lang="ko" className={suit.variable} suppressHydrationWarning>
@@ -150,21 +152,25 @@ export default function RootLayout({
             })();
           `}
         </Script>
-        {/* Google Analytics */}
-        <Script
-          src="https://www.googletagmanager.com/gtag/js?id=G-XF92GCM2KV"
-          strategy="afterInteractive"
-        />
-        <Script id="gtag-init" strategy="afterInteractive">
-          {`
-            try {
-              window.dataLayer = window.dataLayer || [];
-              function gtag(){dataLayer.push(arguments);}
-              gtag('js', new Date());
-              gtag('config', 'G-XF92GCM2KV');
-            } catch (e) {}
-          `}
-        </Script>
+        {/* Google Analytics (production only) */}
+        {isProduction ? (
+          <>
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${gaTrackingId}`}
+              strategy="lazyOnload"
+            />
+            <Script id="gtag-init" strategy="lazyOnload">
+              {`
+                try {
+                  window.dataLayer = window.dataLayer || [];
+                  function gtag(){dataLayer.push(arguments);}
+                  gtag('js', new Date());
+                  gtag('config', '${gaTrackingId}');
+                } catch (e) {}
+              `}
+            </Script>
+          </>
+        ) : null}
         {/* Microsoft Clarity (production only) */}
         {isProduction && clarityProjectId ? (
           <Script id="clarity-init" strategy="afterInteractive">
@@ -188,10 +194,6 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-dvh flex flex-col">
-        <Script
-          src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"
-          strategy="afterInteractive"
-        />
         <Providers>
           <ProfileChecker />
           <Header />

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useEffect,
   useRef,
   useState,
   type ComponentType,
@@ -26,6 +27,7 @@ import { ToastProvider, useToast } from "@/components/ui/Toast";
 import { showAlert } from "@/shared/alert";
 import { useRequirePropertyEditAccess } from "@/features/company/hooks/useRequirePropertyEditAccess";
 import { updatePropertyImage } from "@/features/company/services/property.create";
+import { createSupabaseClient } from "@/lib/supabaseClient";
 import LocationEditorCard from "@/features/company/components/property-editor/LocationEditorCard";
 import SpecsEditorCard from "@/features/company/components/property-editor/SpecsEditorCard";
 import TimelineEditorCard from "@/features/company/components/property-editor/TimelineEditorCard";
@@ -104,6 +106,30 @@ function IntegratedEditorCard({
   );
 }
 
+function sanitizeContractRatioPercentInput(value: string): string {
+  const onlyAllowed = value.replace(/[^\d.]/g, "");
+  const [head, ...tail] = onlyAllowed.split(".");
+  const merged = tail.length > 0 ? `${head}.${tail.join("")}` : head;
+  return merged;
+}
+
+function parseContractRatioPercentInput(value: string): number | null {
+  const normalized = value.replaceAll(",", "").trim();
+  if (!normalized) return null;
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed) || parsed <= 0 || parsed > 100) return null;
+  return parsed;
+}
+
+function formatContractRatioPercent(value: unknown): string {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return "10";
+  }
+  const percent = value <= 1 ? value * 100 : value;
+  const rounded = Math.round(percent * 100) / 100;
+  return String(rounded).replace(/\.0+$/, "").replace(/(\.\d*[1-9])0+$/, "$1");
+}
+
 /* ==================================================
    메인 페이지
 ================================================== */
@@ -119,6 +145,7 @@ function PropertyDetailPageInner() {
   const params = useParams();
   const router = useRouter();
   const toast = useToast();
+  const supabase = createSupabaseClient();
   const id = Number(params.id);
   const isValidPropertyId = Number.isFinite(id) && id > 0;
   const { loading: accessLoading, allowed: canAccessProperty } =
@@ -131,6 +158,14 @@ function PropertyDetailPageInner() {
   const [showFullDesc, setShowFullDesc] = useState(false);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const [imageFileName, setImageFileName] = useState<string | null>(null);
+  const [validationContractRatioPercent, setValidationContractRatioPercent] =
+    useState("10");
+  const [validationTransferRestriction, setValidationTransferRestriction] =
+    useState(false);
+  const [savedValidationContractRatioPercent, setSavedValidationContractRatioPercent] =
+    useState("10");
+  const [savedValidationTransferRestriction, setSavedValidationTransferRestriction] =
+    useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const {
     galleryInputRef,
@@ -173,6 +208,54 @@ function PropertyDetailPageInner() {
     fetchGalleryImages,
   });
 
+  useEffect(() => {
+    if (!isValidPropertyId || loading) return;
+    let isMounted = true;
+
+    const loadValidationProfile = async () => {
+      try {
+        const response = await fetch(
+          `/api/condition-validation/profiles/upsert?propertyId=${id}`,
+        );
+        const payload = (await response.json().catch(() => null)) as
+          | {
+              ok?: boolean;
+              resolved?: {
+                contract_ratio?: number | null;
+                transfer_restriction?: boolean | null;
+              };
+            }
+          | null;
+
+        if (!isMounted) return;
+
+        const nextContractRatioPercent = formatContractRatioPercent(
+          payload?.resolved?.contract_ratio,
+        );
+        const nextTransferRestriction = Boolean(
+          payload?.resolved?.transfer_restriction,
+        );
+
+        setValidationContractRatioPercent(nextContractRatioPercent);
+        setValidationTransferRestriction(nextTransferRestriction);
+        setSavedValidationContractRatioPercent(nextContractRatioPercent);
+        setSavedValidationTransferRestriction(nextTransferRestriction);
+      } catch {
+        if (!isMounted) return;
+        setValidationContractRatioPercent("10");
+        setValidationTransferRestriction(false);
+        setSavedValidationContractRatioPercent("10");
+        setSavedValidationTransferRestriction(false);
+      }
+    };
+
+    void loadValidationProfile();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [id, isValidPropertyId, loading]);
+
   // 기본 정보 저장
   async function saveBasicInfo() {
     if (!form) return;
@@ -181,6 +264,13 @@ function PropertyDetailPageInner() {
       return;
     }
     if (!validateRequiredOrShowModal(form.name, "현장명")) return;
+    const parsedContractRatioPercent = parseContractRatioPercentInput(
+      validationContractRatioPercent,
+    );
+    if (parsedContractRatioPercent === null) {
+      showAlert("계약금 비율은 0~100 사이 숫자로 입력해주세요. (예: 10)");
+      return;
+    }
     setSaving(true);
     const { data: updatedRow, error } = await updatePropertyBasicInfo(id, {
       name: form.name?.trim() ?? "",
@@ -205,6 +295,39 @@ function PropertyDetailPageInner() {
               : "알 수 없는 오류"),
         );
       }
+    }
+
+    const { data: unitTypeRows } = await supabase
+      .from("property_unit_types")
+      .select("price_min, price_max")
+      .eq("properties_id", id);
+
+    const validationProfileResponse = await fetch(
+      "/api/condition-validation/profiles/upsert",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          propertyId: id,
+          propertyType: form.property_type?.trim() || null,
+          unitTypes: unitTypeRows ?? [],
+          contractRatio: parsedContractRatioPercent / 100,
+          transferRestriction: validationTransferRestriction,
+        }),
+      },
+    );
+
+    if (!validationProfileResponse.ok) {
+      const payload = (await validationProfileResponse.json().catch(() => null)) as
+        | { error?: string }
+        | null;
+      toast.error(
+        payload?.error ?? "조건 검증 기준(전매 제한/계약금 비율) 저장에 실패했습니다.",
+        "주의",
+      );
+    } else {
+      setSavedValidationContractRatioPercent(validationContractRatioPercent);
+      setSavedValidationTransferRestriction(validationTransferRestriction);
     }
 
     setLocalPreview(null);
@@ -309,6 +432,8 @@ function PropertyDetailPageInner() {
       confirmed_comment: data.confirmed_comment,
       estimated_comment: data.estimated_comment,
     });
+    setValidationContractRatioPercent(savedValidationContractRatioPercent);
+    setValidationTransferRestriction(savedValidationTransferRestriction);
     setEditMode(false);
     setLocalPreview(null);
     setImageFileName(null);
@@ -468,6 +593,14 @@ function PropertyDetailPageInner() {
                 prev ? { ...prev, description: value } : prev,
               )
             }
+            validationContractRatioPercent={validationContractRatioPercent}
+            validationTransferRestriction={validationTransferRestriction}
+            onValidationContractRatioChange={(value) =>
+              setValidationContractRatioPercent(
+                sanitizeContractRatioPercentInput(value),
+              )
+            }
+            onValidationTransferRestrictionChange={setValidationTransferRestriction}
           >
             <PropertyGallerySection
               editMode={editMode}

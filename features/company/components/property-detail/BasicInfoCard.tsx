@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Image as ImageIcon } from "lucide-react";
+import { ChevronDown, Image as ImageIcon } from "lucide-react";
 import {
   type Dispatch,
   type MutableRefObject,
@@ -14,6 +14,12 @@ import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Textarea from "@/components/ui/Textarea";
 import { FormField } from "@/components/shared/FormField";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/DropdownMenu";
 import PropertyStatusSelect from "@/app/company/properties/PropertyStatusSelect";
 import {
   PROPERTY_STATUS_OPTIONS,
@@ -88,6 +94,10 @@ export default function BasicInfoCard({
   onPropertyTypeChange,
   onStatusChange,
   onDescriptionChange,
+  validationContractRatioPercent,
+  validationTransferRestriction,
+  onValidationContractRatioChange,
+  onValidationTransferRestrictionChange,
   children,
 }: {
   data: PropertyBasicViewData;
@@ -111,8 +121,17 @@ export default function BasicInfoCard({
   onPropertyTypeChange: (value: string) => void;
   onStatusChange: (value: string) => void;
   onDescriptionChange: (value: string) => void;
+  validationContractRatioPercent: string;
+  validationTransferRestriction: boolean;
+  onValidationContractRatioChange: (value: string) => void;
+  onValidationTransferRestrictionChange: (next: boolean) => void;
   children?: ReactNode;
 }) {
+  const contractRatioLabel = validationContractRatioPercent.trim()
+    ? `${validationContractRatioPercent.trim()}%`
+    : "-";
+  const transferRestrictionLabel = validationTransferRestriction ? "있음" : "없음";
+
   return (
     <Card className="px-6 py-5">
       <div className="mb-6 flex items-center justify-between">
@@ -160,6 +179,8 @@ export default function BasicInfoCard({
             <InfoRow label="현장명" value={data.name} />
             <InfoRow label="분양 유형" value={data.property_type} />
             <InfoRow label="분양 상태" value={statusLabel} />
+            <InfoRow label="계약금 비율" value={contractRatioLabel} />
+            <InfoRow label="전매 제한" value={transferRestrictionLabel} />
           </div>
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
             <InfoRow
@@ -246,6 +267,46 @@ export default function BasicInfoCard({
                 disabled={saving}
               />
             </FormField>
+            <FormField label="계약금 비율 (%)">
+              <Input
+                value={validationContractRatioPercent}
+                placeholder="예) 10"
+                onChange={(e) => onValidationContractRatioChange(e.target.value)}
+                disabled={saving}
+              />
+            </FormField>
+            <FormField label="전매 제한">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    disabled={saving}
+                    className={[
+                      "w-full rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-2.5 text-left ob-typo-body text-(--oboon-text-title)",
+                      "inline-flex items-center justify-between disabled:cursor-not-allowed disabled:opacity-60",
+                    ].join(" ")}
+                  >
+                    <span>{validationTransferRestriction ? "있음" : "없음"}</span>
+                    <ChevronDown className="h-4 w-4 text-(--oboon-text-muted)" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" matchTriggerWidth>
+                  <DropdownMenuItem
+                    className={!validationTransferRestriction ? "bg-(--oboon-bg-subtle)" : ""}
+                    onClick={() => onValidationTransferRestrictionChange(false)}
+                  >
+                    없음
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className={validationTransferRestriction ? "bg-(--oboon-bg-subtle)" : ""}
+                    onClick={() => onValidationTransferRestrictionChange(true)}
+                  >
+                    있음
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </FormField>
+            <div className="hidden md:block" />
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:items-start">

@@ -1,12 +1,16 @@
 ﻿"use client";
 
 // features/offerings/detail/OfferingDetailRight.tsx
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import type { User } from "@supabase/supabase-js";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
+import Modal from "@/components/ui/Modal";
+import { Badge } from "@/components/ui/Badge";
 import BookingModal from "@/features/offerings/components/detail/BookingModal";
+import ConditionValidationCard from "@/features/offerings/components/detail/ConditionValidationCard";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { trackEvent } from "@/lib/analytics";
 
@@ -25,9 +29,103 @@ interface AgentInfo {
   agent_bio?: string | null;
 }
 
+type ConditionValidationPreset = {
+  availableCash: number;
+  monthlyIncome: number;
+  ownedHouseCount: number;
+  creditGrade: "good" | "normal" | "unstable";
+  purchasePurpose: "residence" | "investment" | "both";
+};
+
+type RecommendationCustomerInput = {
+  available_cash: number;
+  monthly_income: number;
+  owned_house_count: number;
+  credit_grade: "good" | "normal" | "unstable";
+  purchase_purpose: "residence" | "investment" | "both";
+};
+
+type RecommendationItem = {
+  property_id: number;
+  property_name: string | null;
+  property_type: string | null;
+  status: string | null;
+  image_url: string | null;
+  show_detailed_metrics?: boolean;
+  final_grade: "GREEN" | "YELLOW" | "RED";
+  action: string;
+  summary_message: string;
+  reason_messages: string[];
+  metrics: {
+    list_price: number;
+    min_cash: number;
+    recommended_cash: number;
+    monthly_payment_est: number;
+    monthly_burden_percent: number;
+  };
+};
+
 function pickFirst<T>(value: T | T[] | null | undefined): T | null {
   if (!value) return null;
   return Array.isArray(value) ? (value[0] ?? null) : value;
+}
+
+function toFiniteInteger(value: unknown): number | null {
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) return null;
+    return Math.round(value);
+  }
+  if (typeof value === "string") {
+    const normalized = value.replaceAll(",", "").trim();
+    if (!normalized) return null;
+    const parsed = Number(normalized);
+    if (!Number.isFinite(parsed)) return null;
+    return Math.round(parsed);
+  }
+  return null;
+}
+
+function formatManwonWithEok(value: number): string {
+  const rounded = Math.round(value);
+  if (rounded < 10000) {
+    return `${rounded.toLocaleString("ko-KR")}만원`;
+  }
+  const eok = Math.floor(rounded / 10000);
+  const restManwon = rounded % 10000;
+  if (restManwon === 0) {
+    return `${eok.toLocaleString("ko-KR")}억원`;
+  }
+  return `${eok.toLocaleString("ko-KR")}억 ${restManwon.toLocaleString("ko-KR")}만원`;
+}
+
+function formatPercent(value: number): string {
+  return `${value.toLocaleString("ko-KR", {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  })}%`;
+}
+
+function gradeMeta(grade: RecommendationItem["final_grade"]): {
+  label: string;
+  badgeVariant: "success" | "warning" | "danger";
+} {
+  if (grade === "GREEN") return { label: "진행 가능", badgeVariant: "success" };
+  if (grade === "YELLOW") return { label: "상담 권장", badgeVariant: "warning" };
+  return { label: "리스크 높음", badgeVariant: "danger" };
+}
+
+function statusLabel(status: string | null): string {
+  const normalized = String(status ?? "").trim().toUpperCase();
+  if (normalized === "OPEN" || normalized === "ONGOING") return "분양 중";
+  if (normalized === "READY") return "분양 예정";
+  if (normalized === "CLOSED") return "분양 종료";
+  return "확인 중";
+}
+
+function isLikelyImageUrl(url: string | null | undefined) {
+  if (!url) return false;
+  if (url.startsWith("data:image/")) return true;
+  return /\.(jpg|jpeg|png|webp|gif|avif|svg)(\?.*)?$/i.test(url);
 }
 
 export default function OfferingDetailRight({
@@ -43,9 +141,18 @@ export default function OfferingDetailRight({
   const [loadingAgents, setLoadingAgents] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [conditionValidationPreset, setConditionValidationPreset] =
+    useState<ConditionValidationPreset | null>(null);
+  const [isRecommendModalOpen, setIsRecommendModalOpen] = useState(false);
+  const [recommendItems, setRecommendItems] = useState<RecommendationItem[]>([]);
   const isLoggedIn = Boolean(user);
   const isBookingBlockedRole = userRole === "agent" || userRole === "admin";
   const hasBookableAgent = hasApprovedAgent && agents.length > 0;
+
+  const resolvedConditionPreset = useMemo(() => {
+    if (!isLoggedIn || userRole !== "user") return null;
+    return conditionValidationPreset;
+  }, [conditionValidationPreset, isLoggedIn, userRole]);
 
   const handleConsultationClick = useCallback(() => {
     trackEvent(
@@ -54,6 +161,58 @@ export default function OfferingDetailRight({
     );
     setIsBookingOpen(true);
   }, [propertyId]);
+
+  const openConsultationFlow = useCallback(() => {
+    if (!isLoggedIn) {
+      router.push("/auth/login");
+      return;
+    }
+    if (isBookingBlockedRole || !hasBookableAgent) return;
+    handleConsultationClick();
+  }, [
+    handleConsultationClick,
+    hasBookableAgent,
+    isBookingBlockedRole,
+    isLoggedIn,
+    router,
+  ]);
+
+  const openAlternativeOfferings = useCallback(
+    async (customer: RecommendationCustomerInput) => {
+      const response = await fetch("/api/condition-validation/recommend", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          customer,
+          options: {
+            exclude_property_id: propertyId,
+            include_red: false,
+            limit: 24,
+          },
+        }),
+      });
+
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            ok?: boolean;
+            recommendations?: RecommendationItem[];
+            error?: { message?: string };
+          }
+        | null;
+
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.error?.message ?? "추천 현장 조회에 실패했습니다.");
+      }
+
+      setRecommendItems(
+        Array.isArray(payload.recommendations) ? payload.recommendations : [],
+      );
+      setIsRecommendModalOpen(true);
+    },
+    [propertyId],
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -68,15 +227,60 @@ export default function OfferingDetailRight({
         setUser(currentUser);
 
         if (currentUser) {
-          const { data: profile } = await supabase
+          const { data: profileWithPreset } = await supabase
+            .from("profiles")
+            .select(
+              "role, cv_available_cash_manwon, cv_monthly_income_manwon, cv_owned_house_count, cv_credit_grade, cv_purchase_purpose",
+            )
+            .eq("id", currentUser.id)
+            .maybeSingle();
+          const { data: profileRoleOnly } = await supabase
             .from("profiles")
             .select("role")
             .eq("id", currentUser.id)
             .maybeSingle();
           if (!isMounted) return;
-          setUserRole((profile?.role as string | null) ?? null);
+          const role = (profileWithPreset?.role ??
+            profileRoleOnly?.role) as string | null;
+          setUserRole(role ?? null);
+          const availableCash = toFiniteInteger(
+            profileWithPreset?.cv_available_cash_manwon,
+          );
+          const monthlyIncome = toFiniteInteger(
+            profileWithPreset?.cv_monthly_income_manwon,
+          );
+          const ownedHouseCount =
+            toFiniteInteger(profileWithPreset?.cv_owned_house_count) ?? 0;
+          const creditGrade =
+            profileWithPreset?.cv_credit_grade === "normal" ||
+            profileWithPreset?.cv_credit_grade === "unstable"
+              ? profileWithPreset.cv_credit_grade
+              : "good";
+          const purchasePurpose =
+            profileWithPreset?.cv_purchase_purpose === "investment" ||
+            profileWithPreset?.cv_purchase_purpose === "both"
+              ? profileWithPreset.cv_purchase_purpose
+              : "residence";
+          const hasPreset =
+            availableCash !== null &&
+            availableCash > 0 &&
+            monthlyIncome !== null &&
+            monthlyIncome > 0 &&
+            ownedHouseCount >= 0;
+          setConditionValidationPreset(
+            hasPreset
+              ? {
+                  availableCash,
+                  monthlyIncome,
+                  ownedHouseCount,
+                  creditGrade,
+                  purchasePurpose,
+                }
+              : null,
+          );
         } else {
           setUserRole(null);
+          setConditionValidationPreset(null);
         }
 
         const { data: propertyAgents } = await supabase
@@ -153,7 +357,7 @@ export default function OfferingDetailRight({
       {/* =========================
           Desktop (lg+) sticky card
          ========================= */}
-      <div className="hidden lg:block">
+      <div className="hidden lg:block space-y-3">
         <Card className="p-4">
           <div className="ob-typo-h3 text-(--oboon-text-title)">
             상담 예약하기
@@ -177,14 +381,7 @@ export default function OfferingDetailRight({
                 size="md"
                 shape="pill"
                 disabled={isBookingBlockedRole}
-                onClick={() => {
-                  if (!isLoggedIn) {
-                    router.push("/auth/login");
-                    return;
-                  }
-                  if (isBookingBlockedRole) return;
-                  handleConsultationClick();
-                }}
+                onClick={openConsultationFlow}
               >
                 {!isLoggedIn
                   ? "로그인 후 예약하기"
@@ -204,6 +401,32 @@ export default function OfferingDetailRight({
             </div>
           )}
         </Card>
+
+        <ConditionValidationCard
+          propertyId={propertyId}
+          propertyName={propertyName}
+          presetCustomer={resolvedConditionPreset}
+          isLoggedIn={isLoggedIn}
+          hasBookableAgent={hasBookableAgent}
+          isBookingBlockedRole={isBookingBlockedRole}
+          onConsultationRequest={openConsultationFlow}
+          onAlternativeRecommendRequest={openAlternativeOfferings}
+          onLoginRequest={() => router.push("/auth/login")}
+        />
+      </div>
+
+      <div className="mt-4 lg:hidden">
+        <ConditionValidationCard
+          propertyId={propertyId}
+          propertyName={propertyName}
+          presetCustomer={resolvedConditionPreset}
+          isLoggedIn={isLoggedIn}
+          hasBookableAgent={hasBookableAgent}
+          isBookingBlockedRole={isBookingBlockedRole}
+          onConsultationRequest={openConsultationFlow}
+          onAlternativeRecommendRequest={openAlternativeOfferings}
+          onLoginRequest={() => router.push("/auth/login")}
+        />
       </div>
 
       {/* =========================
@@ -225,14 +448,7 @@ export default function OfferingDetailRight({
                   className="flex-1"
                   variant="primary"
                   disabled={isBookingBlockedRole}
-                  onClick={() => {
-                    if (!isLoggedIn) {
-                      router.push("/auth/login");
-                      return;
-                    }
-                    if (isBookingBlockedRole) return;
-                    handleConsultationClick();
-                  }}
+                  onClick={openConsultationFlow}
                 >
                   {!isLoggedIn
                     ? "로그인 후 상담 신청"
@@ -265,6 +481,125 @@ export default function OfferingDetailRight({
         propertyName={propertyName}
         propertyImageUrl={propertyImageUrl}
       />
+
+      <Modal
+        open={isRecommendModalOpen}
+        onClose={() => setIsRecommendModalOpen(false)}
+        size="lg"
+        panelClassName="w-[min(100%-2rem,520px)]"
+      >
+        <div className="space-y-3">
+          <div className="pr-8">
+            <h3 className="ob-typo-h3 text-(--oboon-text-title)">조건 맞춤 추천 현장</h3>
+            <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+              입력한 조건을 기준으로 역산한 추천 결과입니다.
+            </p>
+          </div>
+
+          {recommendItems.length === 0 ? (
+            <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-4 py-5 text-center">
+              <p className="ob-typo-body text-(--oboon-text-muted)">
+                조건에 맞는 추천 현장을 찾지 못했어요.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div
+                className="overflow-x-auto pb-1"
+              >
+                <div className="grid grid-flow-col auto-cols-[calc((100%-0.75rem)/2)] gap-3">
+                  {recommendItems.map((item) => {
+                    const grade = gradeMeta(item.final_grade);
+                    const imageUrl = item.image_url;
+                    const hasImage = isLikelyImageUrl(imageUrl);
+                    return (
+                      <Card
+                        key={item.property_id}
+                        className="w-full aspect-[3/5] overflow-hidden p-0"
+                      >
+                        <div className="grid h-full grid-rows-[40%_60%]">
+                          <div className="relative w-full border-b border-(--oboon-border-default) bg-(--oboon-bg-subtle)">
+                            {hasImage && imageUrl ? (
+                              <Image
+                                src={imageUrl}
+                                alt={item.property_name ?? `현장 ${item.property_id}`}
+                                fill
+                                sizes="220px"
+                                className="object-cover"
+                              />
+                            ) : (
+                              <div className="absolute inset-0 flex items-center justify-center bg-linear-to-br from-(--oboon-bg-subtle) to-(--oboon-bg-surface) ob-typo-caption text-(--oboon-text-muted)">
+                                이미지 없음
+                              </div>
+                            )}
+                            <div className="absolute left-2 top-2">
+                              <Badge variant={grade.badgeVariant} className="px-2 py-0.5 ob-typo-caption">
+                                {grade.label}
+                              </Badge>
+                            </div>
+                          </div>
+
+                          <div className="flex min-h-0 flex-col px-2.5 pt-2.5 pb-1.5">
+                            <div>
+                              <h4 className="ob-typo-h3 font-semibold text-(--oboon-text-title) truncate">
+                                {item.property_name ?? `현장 #${item.property_id}`}
+                              </h4>
+                              <p className="mt-0.5 ob-typo-caption text-(--oboon-text-muted)">
+                                {statusLabel(item.status)}
+                                {item.property_type ? ` · ${item.property_type}` : ""}
+                              </p>
+                            </div>
+
+                            {item.show_detailed_metrics !== false ? (
+                              <div className="mt-2 grid grid-cols-2 gap-1.5">
+                                <div className="rounded-md border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-1.5">
+                                  <div className="ob-typo-caption text-(--oboon-text-muted)">최소 현금</div>
+                                  <div className="mt-0.5 ob-typo-body2 font-semibold text-(--oboon-text-title)">
+                                    {formatManwonWithEok(item.metrics.min_cash)}
+                                  </div>
+                                </div>
+                                <div className="rounded-md border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-1.5">
+                                  <div className="ob-typo-caption text-(--oboon-text-muted)">권장 현금</div>
+                                  <div className="mt-0.5 ob-typo-body2 font-semibold text-(--oboon-text-title)">
+                                    {formatManwonWithEok(item.metrics.recommended_cash)}
+                                  </div>
+                                </div>
+                                <div className="rounded-md border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-1.5">
+                                  <div className="ob-typo-caption text-(--oboon-text-muted)">예상 월상환</div>
+                                  <div className="mt-0.5 ob-typo-body2 font-semibold text-(--oboon-text-title)">
+                                    {formatManwonWithEok(item.metrics.monthly_payment_est)}
+                                  </div>
+                                </div>
+                                <div className="rounded-md border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-1.5">
+                                  <div className="ob-typo-caption text-(--oboon-text-muted)">월 부담률</div>
+                                  <div className="mt-0.5 ob-typo-body2 font-semibold text-(--oboon-text-title)">
+                                    {formatPercent(item.metrics.monthly_burden_percent)}
+                                  </div>
+                                </div>
+                              </div>
+                            ) : null}
+
+                            <Button
+                              className={`${item.show_detailed_metrics !== false ? "mt-3" : "mt-2"} w-full`}
+                              size="sm"
+                              onClick={() => {
+                                setIsRecommendModalOpen(false);
+                                router.push(`/offerings/${item.property_id}`);
+                              }}
+                            >
+                              현장 보기
+                            </Button>
+                          </div>
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
     </>
   );
 }
