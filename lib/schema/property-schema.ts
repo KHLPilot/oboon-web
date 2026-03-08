@@ -70,6 +70,13 @@ const propertyFacilitySchema = z.object({
   open_end: z.string().nullable().describe("운영 종료시간 (예: 18:00)"),
 });
 
+const webEvidenceSchema = z.object({
+  field_path: z.string().describe("보완된 필드 경로 (예: specs.developer, timeline.announcement_date)"),
+  source_url: z.string().nullable().describe("값을 보완한 근거 URL"),
+  source_snippet: z.string().nullable().describe("근거 문장/요약"),
+  confidence: z.number().min(0).max(1).nullable().describe("근거 신뢰도(0~1)"),
+});
+
 // Phase 1: 텍스트 + 이미지 기반 속성 추출 (이미지 분류 없음)
 export const propertyExtractionSchema = z.object({
   properties: propertiesSchema,
@@ -78,6 +85,9 @@ export const propertyExtractionSchema = z.object({
   timeline: propertyTimelineSchema,
   unit_types: z.array(propertyUnitTypeSchema),
   facilities: z.array(propertyFacilitySchema),
+  web_evidence: z.array(webEvidenceSchema).default([]).describe(
+    "외부 웹 근거로 보완한 필드 목록. 문서 근거만으로 채운 값이면 비워둔다."
+  ),
 });
 
 export type PropertyExtractionData = z.infer<typeof propertyExtractionSchema>;

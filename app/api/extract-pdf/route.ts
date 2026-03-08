@@ -1,6 +1,10 @@
 import { google } from '@ai-sdk/google';
 import { generateObject } from 'ai';
-import { propertyExtractionSchema, imageClassificationResultSchema } from '@/lib/schema/property-schema';
+import {
+  propertyExtractionSchema,
+  imageClassificationResultSchema,
+  type PropertyExtractionData,
+} from '@/lib/schema/property-schema';
 import { extractImagesFromPDF, renderPagesAsImages, convertImageToBase64 } from '@/lib/pdf-utils';
 import { createSupabaseServer } from '@/lib/supabaseServer';
 import { DeleteObjectCommand, GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
@@ -16,6 +20,9 @@ const MAX_TOTAL_SIZE = 150 * 1024 * 1024; // 150MB
 const MAX_MULTIPART_OVERHEAD = 5 * 1024 * 1024; // 5MB
 const MAX_PHASE2_CLASSIFICATION_IMAGES = 100;
 const MAX_CLASSIFICATION_FALLBACK_IMAGES = 20;
+const MAX_WEB_QUERIES = 4;
+const MAX_WEB_RESULTS_PER_QUERY = 3;
+const MAX_WEB_CONTEXT_CHARS = 6000;
 const R2_BUCKET_NAME = process.env.CLOUDFLARE_R2_BUCKET_NAME!;
 
 const r2 = new S3Client({
@@ -37,12 +44,15 @@ const systemPrompt = `너는 대한민국 아파트/오피스텔 분양 사업�
    - 위치도/배치도 이미지 → 주변 시설, 동 배치 참고
 3. 텍스트에 명시되지 않았더라도 이미지에서 명확히 확인 가능하면 추출하라.
 
-4. 추측은 금지. 이미지/텍스트 모두에 없으면 null.
-5. 숫자는 반드시 숫자 타입으로 반환하라 (문자열 금지).
-6. 면적은 m2(제곱미터) 단위 숫자로 통일하라.
-7. 분양가는 만원 단위 숫자로 반환하라. (예: 5억 3천만원 → 53000)
-8. 날짜는 YYYY-MM-DD 형식으로 반환하라. (예: 2025.03.15 → 2025-03-15)
-9. 입주 예정일(move_in_date)은 정확한 날짜가 없으면 텍스트 그대로 반환하라. (예: "2027년 3월 예정")
+4. 텍스트/이미지에 없거나 불명확한 값은 제공된 web_context(외부 검색 결과)가 있으면 참고해 보완할 수 있다.
+5. web_context로 보완한 필드는 web_evidence에 field_path, source_url, source_snippet, confidence(0~1)를 기록하라.
+6. 문서 근거와 web_context가 충돌하면 모집공고문(문서) 근거를 우선한다.
+7. web_context 근거가 없거나 상충하면 추측하지 말고 null로 반환하라.
+8. 숫자는 반드시 숫자 타입으로 반환하라 (문자열 금지).
+9. 면적은 m2(제곱미터) 단위 숫자로 통일하라.
+10. 분양가는 만원 단위 숫자로 반환하라. (예: 5억 3천만원 → 53000)
+11. 날짜는 YYYY-MM-DD 형식으로 반환하라. (예: 2025.03.15 → 2025-03-15)
+12. 입주 예정일(move_in_date)은 정확한 날짜가 없으면 텍스트 그대로 반환하라. (예: "2027년 3월 예정")
 
 ## 분양 상태(status) 판단 기준
 - 모집공고 전이거나 청약접수 전이면: "READY"
@@ -61,7 +71,8 @@ const systemPrompt = `너는 대한민국 아파트/오피스텔 분양 사업�
 - specs.land_use_zone: 용도지역 (예: 제3종일반주거지역)
 - timeline: 모집공고일, 청약접수 시작/마감, 당첨자발표, 계약 시작/종료, 입주 예정
 - unit_types: 주택형(타입)별 면적, 세대수, 분양가 (최소~최대를 만원 단위로)
-- facilities: 모델하우스/홍보관/견본주택 정보 (유형, 명칭, 주소, 운영시간)`;
+- facilities: 모델하우스/홍보관/견본주택 정보 (유형, 명칭, 주소, 운영시간)
+- web_evidence: web_context로 보완한 필드의 근거 URL/스니펫/신뢰도 목록`;
 
 function toKoreanErrorMessage(message: string) {
   const raw = message.trim();
@@ -178,6 +189,21 @@ type ExtractPdfJsonBody = {
   fileKeys?: unknown;
   textOnly?: unknown;
   cleanupTempKeys?: unknown;
+};
+
+type WebSearchResultItem = {
+  query: string;
+  title: string;
+  url: string;
+  snippet: string;
+  date: string | null;
+};
+
+type WebEvidenceItem = {
+  field_path: string;
+  source_url: string | null;
+  source_snippet: string | null;
+  confidence: number | null;
 };
 
 async function streamToBuffer(stream: unknown): Promise<Buffer> {
@@ -310,6 +336,127 @@ async function resolveLocationAddresses(input: {
   }
 
   return merged;
+}
+
+function isBlank(value: string | null | undefined) {
+  return !value || value.trim().length === 0;
+}
+
+function collectMissingFieldHints(result: PropertyExtractionData): string[] {
+  const hints: string[] = [];
+
+  if (isBlank(result.specs.developer)) hints.push('시행사');
+  if (isBlank(result.specs.builder)) hints.push('시공사');
+  if (isBlank(result.specs.trust_company)) hints.push('신탁사');
+  if (isBlank(result.specs.land_use_zone)) hints.push('용도지역');
+  if (isBlank(result.timeline.announcement_date)) hints.push('모집공고일');
+  if (isBlank(result.timeline.application_start) || isBlank(result.timeline.application_end)) hints.push('청약접수 일정');
+  if (isBlank(result.timeline.contract_start) || isBlank(result.timeline.contract_end)) hints.push('계약 일정');
+  if (result.facilities.length === 0) hints.push('모델하우스 정보');
+  if (!result.unit_types.some((unit) => unit.rooms !== null || unit.bathrooms !== null)) hints.push('방수/욕실수');
+
+  return Array.from(new Set(hints));
+}
+
+function buildWebQueries(result: PropertyExtractionData): string[] {
+  const name = result.properties.name?.trim() || '';
+  const road = result.location.road_address?.trim() || '';
+  const area = [result.location.region_1depth, result.location.region_2depth].filter(Boolean).join(' ');
+  const anchor = [name, area || road].filter(Boolean).join(' ');
+  const base = anchor || name;
+  if (!base) return [];
+
+  const hints = collectMissingFieldHints(result).join(', ');
+
+  const candidates = [
+    `${base} 모집공고문`,
+    `${base} 분양 시행사 시공사 신탁사`,
+    `${base} 청약 일정 계약 일정`,
+    `${base} 모델하우스 주소 운영시간`,
+    `${base} 평면도 방 욕실`,
+    hints ? `${base} ${hints}` : '',
+  ];
+
+  return Array.from(new Set(candidates.map((q) => q.trim()).filter((q) => q.length > 0))).slice(0, MAX_WEB_QUERIES);
+}
+
+async function searchWithSerper(query: string): Promise<WebSearchResultItem[]> {
+  const apiKey = process.env.SERPER_API_KEY;
+  if (!apiKey) return [];
+
+  try {
+    const res = await fetch('https://google.serper.dev/search', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-KEY': apiKey,
+      },
+      body: JSON.stringify({
+        q: query,
+        gl: 'kr',
+        hl: 'ko',
+        num: MAX_WEB_RESULTS_PER_QUERY,
+      }),
+    });
+
+    if (!res.ok) return [];
+
+    const json = await res.json() as {
+      organic?: Array<{ title?: unknown; link?: unknown; snippet?: unknown; date?: unknown }>;
+    };
+    const organic = Array.isArray(json.organic) ? json.organic : [];
+
+    return organic
+      .map((item) => ({
+        query,
+        title: typeof item.title === 'string' ? item.title.trim() : '',
+        url: typeof item.link === 'string' ? item.link.trim() : '',
+        snippet: typeof item.snippet === 'string' ? item.snippet.trim() : '',
+        date: typeof item.date === 'string' ? item.date.trim() : null,
+      }))
+      .filter((item) => item.url.length > 0 && item.title.length > 0)
+      .slice(0, MAX_WEB_RESULTS_PER_QUERY);
+  } catch (error) {
+    console.warn('SERPER 검색 실패:', error);
+    return [];
+  }
+}
+
+async function searchWebContext(queries: string[]): Promise<WebSearchResultItem[]> {
+  if (queries.length === 0) return [];
+  const results = await Promise.all(queries.map((query) => searchWithSerper(query)));
+  return results.flat();
+}
+
+function buildWebContextText(items: WebSearchResultItem[]): string {
+  if (items.length === 0) return '';
+
+  const lines: string[] = ['[web_context]'];
+  items.forEach((item, index) => {
+    lines.push(`${index + 1}. query: ${item.query}`);
+    lines.push(`title: ${item.title}`);
+    lines.push(`url: ${item.url}`);
+    lines.push(`date: ${item.date ?? 'unknown'}`);
+    lines.push(`snippet: ${item.snippet || '(snippet 없음)'}`);
+  });
+
+  const joined = lines.join('\n');
+  return joined.length > MAX_WEB_CONTEXT_CHARS ? joined.slice(0, MAX_WEB_CONTEXT_CHARS) : joined;
+}
+
+function normalizeWebEvidence(items: WebEvidenceItem[] | undefined): WebEvidenceItem[] {
+  if (!Array.isArray(items)) return [];
+  return items
+    .map((item) => ({
+      field_path: typeof item.field_path === 'string' ? item.field_path.trim() : '',
+      source_url: typeof item.source_url === 'string' ? item.source_url.trim() : null,
+      source_snippet: typeof item.source_snippet === 'string' ? item.source_snippet.trim() : null,
+      confidence:
+        typeof item.confidence === 'number' && Number.isFinite(item.confidence)
+          ? Math.max(0, Math.min(1, item.confidence))
+          : null,
+    }))
+    .filter((item) => item.field_path.length > 0);
 }
 
 export async function POST(req: Request) {
@@ -545,12 +692,72 @@ export async function POST(req: Request) {
       });
     }
 
-    const { object: extractionResult } = await generateObject({
+    const { object: firstPassResult } = await generateObject({
       model: google('gemini-2.5-flash'),
       schema: propertyExtractionSchema,
       system: systemPrompt,
       messages: [{ role: 'user', content: phase1Content }],
     });
+
+    let extractionResult: PropertyExtractionData = {
+      ...firstPassResult,
+      web_evidence: normalizeWebEvidence(firstPassResult.web_evidence),
+    };
+    let webEnrichmentAttempted = false;
+    let webEnrichmentApplied = false;
+    let webSearchResultCount = 0;
+    let webQueriesUsed: string[] = [];
+
+    const needsWebEnrichment = collectMissingFieldHints(extractionResult).length > 0;
+    const serperEnabled = Boolean(process.env.SERPER_API_KEY);
+
+    if (needsWebEnrichment && serperEnabled) {
+      webEnrichmentAttempted = true;
+      webQueriesUsed = buildWebQueries(extractionResult);
+      const webResults = await searchWebContext(webQueriesUsed);
+      webSearchResultCount = webResults.length;
+      const webContextText = buildWebContextText(webResults);
+
+      if (webContextText.length > 0) {
+        const refinementContent: Array<
+          | { type: 'text'; text: string }
+          | { type: 'image'; image: string }
+        > = [
+          {
+            type: 'text',
+            text:
+              `다음은 1차 문서 추출 결과다. 문서 근거를 우선 유지하고, 문서에 없거나 불명확한 값만 web_context로 보완하라.\n\n` +
+              `[first_pass_json]\n${JSON.stringify(firstPassResult)}\n\n` +
+              `${webContextText}\n\n` +
+              `보완 시 반드시 web_evidence에 근거를 기록하고, 근거가 불충분하면 null을 유지하라.\n\n` +
+              `[document_text]\n${extractedText}`,
+          },
+        ];
+
+        for (let i = 0; i < phase1ImageLimit; i++) {
+          refinementContent.push({
+            type: 'image',
+            image: allImages[i].base64,
+          });
+        }
+
+        try {
+          const { object: refinedResult } = await generateObject({
+            model: google('gemini-2.5-flash'),
+            schema: propertyExtractionSchema,
+            system: systemPrompt,
+            messages: [{ role: 'user', content: refinementContent }],
+          });
+          extractionResult = {
+            ...refinedResult,
+            web_evidence: normalizeWebEvidence(refinedResult.web_evidence),
+          };
+          webEnrichmentApplied = extractionResult.web_evidence.length > 0;
+        } catch (error) {
+          console.warn('웹 보완 재추출 실패 - 1차 결과를 사용합니다:', error);
+        }
+      }
+    }
 
     // ── Phase 2: 이미지 분류 (이미지만, 간단한 스키마) ──
     let classificationResult: { classifications: Array<{ imageIndex: number; type: 'building' | 'floor_plan' | 'other' }> } | null = null;
@@ -662,6 +869,11 @@ export async function POST(req: Request) {
         filesMeta,
         classificationFailed,
         classificationFallbackUsed: usedClassificationFallback,
+        webEnrichmentAttempted,
+        webEnrichmentApplied,
+        webSearchEnabled: serperEnabled,
+        webQueriesUsed,
+        webSearchResultCount,
         truncated,
         geocoded: geoResult !== null,
       },
