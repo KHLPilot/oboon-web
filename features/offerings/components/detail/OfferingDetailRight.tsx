@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { createPortal } from "react-dom";
 import type { User } from "@supabase/supabase-js";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -145,6 +146,7 @@ export default function OfferingDetailRight({
     useState<ConditionValidationPreset | null>(null);
   const [isRecommendModalOpen, setIsRecommendModalOpen] = useState(false);
   const [recommendItems, setRecommendItems] = useState<RecommendationItem[]>([]);
+  const [mobileConditionSlot, setMobileConditionSlot] = useState<HTMLElement | null>(null);
   const isLoggedIn = Boolean(user);
   const isBookingBlockedRole = userRole === "agent" || userRole === "admin";
   const hasBookableAgent = hasApprovedAgent && agents.length > 0;
@@ -352,6 +354,26 @@ export default function OfferingDetailRight({
     router,
   ]);
 
+  useEffect(() => {
+    setMobileConditionSlot(
+      document.getElementById("offering-mobile-condition-validation-slot"),
+    );
+  }, []);
+
+  const conditionValidationCard = (
+    <ConditionValidationCard
+      propertyId={propertyId}
+      propertyName={propertyName}
+      presetCustomer={resolvedConditionPreset}
+      isLoggedIn={isLoggedIn}
+      hasBookableAgent={hasBookableAgent}
+      isBookingBlockedRole={isBookingBlockedRole}
+      onConsultationRequest={openConsultationFlow}
+      onAlternativeRecommendRequest={openAlternativeOfferings}
+      onLoginRequest={() => router.push("/auth/login")}
+    />
+  );
+
   return (
     <>
       {/* =========================
@@ -402,32 +424,12 @@ export default function OfferingDetailRight({
           )}
         </Card>
 
-        <ConditionValidationCard
-          propertyId={propertyId}
-          propertyName={propertyName}
-          presetCustomer={resolvedConditionPreset}
-          isLoggedIn={isLoggedIn}
-          hasBookableAgent={hasBookableAgent}
-          isBookingBlockedRole={isBookingBlockedRole}
-          onConsultationRequest={openConsultationFlow}
-          onAlternativeRecommendRequest={openAlternativeOfferings}
-          onLoginRequest={() => router.push("/auth/login")}
-        />
+        {conditionValidationCard}
       </div>
 
-      <div className="mt-4 lg:hidden">
-        <ConditionValidationCard
-          propertyId={propertyId}
-          propertyName={propertyName}
-          presetCustomer={resolvedConditionPreset}
-          isLoggedIn={isLoggedIn}
-          hasBookableAgent={hasBookableAgent}
-          isBookingBlockedRole={isBookingBlockedRole}
-          onConsultationRequest={openConsultationFlow}
-          onAlternativeRecommendRequest={openAlternativeOfferings}
-          onLoginRequest={() => router.push("/auth/login")}
-        />
-      </div>
+      {mobileConditionSlot
+        ? createPortal(conditionValidationCard, mobileConditionSlot)
+        : <div className="mt-4 lg:hidden">{conditionValidationCard}</div>}
 
       {/* =========================
           Mobile bottom fixed CTA
@@ -533,15 +535,25 @@ export default function OfferingDetailRight({
                               </div>
                             )}
                             <div className="absolute left-2 top-2">
-                              <Badge variant={grade.badgeVariant} className="px-2 py-0.5 ob-typo-caption">
+                              <Badge
+                                variant={grade.badgeVariant}
+                                className={`px-2 py-0.5 ob-typo-caption ${
+                                  item.final_grade === "GREEN"
+                                    ? "border-(--oboon-safe-border) bg-(--oboon-safe-bg) text-(--oboon-safe)"
+                                    : ""
+                                }`}
+                              >
                                 {grade.label}
                               </Badge>
                             </div>
                           </div>
 
                           <div className="flex min-h-0 flex-col px-2.5 pt-2.5 pb-1.5">
-                            <div>
-                              <h4 className="ob-typo-h3 font-semibold text-(--oboon-text-title) truncate">
+                            <div className="min-w-0">
+                              <h4
+                                className="ob-typo-h3 block overflow-hidden text-ellipsis whitespace-nowrap font-semibold text-(--oboon-text-title)"
+                                title={item.property_name ?? `현장 #${item.property_id}`}
+                              >
                                 {item.property_name ?? `현장 #${item.property_id}`}
                               </h4>
                               <p className="mt-0.5 ob-typo-caption text-(--oboon-text-muted)">

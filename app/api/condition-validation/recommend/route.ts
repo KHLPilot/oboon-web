@@ -3,12 +3,10 @@ import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
 import { evaluateCondition } from "@/features/condition-validation/domain/evaluator";
+import { resolveProfileForRecommendation } from "@/features/condition-validation/server/profile-resolver";
 import type {
   ConditionCustomerInput,
   FinalGrade,
-  PropertyValidationProfile,
-  RegulationArea,
-  ValidationAssetType,
 } from "@/features/condition-validation/domain/types";
 
 type ValidationProfileRow = {
@@ -25,17 +23,17 @@ type PropertyRow = {
   name: string | null;
   status: string | null;
   property_type: string | null;
-  property_unit_types: Array<{ is_price_public?: boolean | null }> | null;
+  property_unit_types: Array<{
+    price_min: number | string | null;
+    price_max: number | string | null;
+    is_price_public?: boolean | null;
+  }> | null;
 };
 
 type PropertySnapshotRow = {
   property_id: number | string | null;
   snapshot: unknown;
   published_at: string | null;
-};
-
-type NumericMatchedProfile = Omit<PropertyValidationProfile, "matchedPropertyId"> & {
-  matchedPropertyId: number;
 };
 
 type EvaluatedRecommendation = {
@@ -45,7 +43,6 @@ type EvaluatedRecommendation = {
   status: string | null;
   property_image_url: string | null;
   show_detailed_metrics: boolean;
-  profile: NumericMatchedProfile;
   result: ReturnType<typeof evaluateCondition>;
 };
 
@@ -114,46 +111,11 @@ function toFiniteNumber(value: unknown): number | null {
   return null;
 }
 
-function normalizePriceToManwon(value: number): number {
-  return Math.abs(value) >= 10_000_000 ? value / 10000 : value;
-}
-
-function parseAssetType(raw: string): ValidationAssetType | null {
-  if (
-    raw === "apartment" ||
-    raw === "officetel" ||
-    raw === "commercial" ||
-    raw === "knowledge_industry"
-  ) {
-    return raw;
-  }
-  return null;
-}
-
-function parseRegulationArea(raw: string): RegulationArea | null {
-  if (
-    raw === "non_regulated" ||
-    raw === "adjustment_target" ||
-    raw === "speculative_overheated"
-  ) {
-    return raw;
-  }
-  return null;
-}
-
 function toPositiveInt(value: unknown): number | null {
   const parsed = toFiniteNumber(value);
   if (parsed === null) return null;
   const asInt = Math.floor(parsed);
   return asInt > 0 ? asInt : null;
-}
-
-function parseContractRatio(value: unknown): number | null {
-  const parsed = toFiniteNumber(value);
-  if (parsed === null) return null;
-  const ratio = parsed > 1 ? parsed / 100 : parsed;
-  if (!Number.isFinite(ratio) || ratio <= 0 || ratio > 1) return null;
-  return ratio;
 }
 
 function normalizeCustomerInput(input: z.infer<typeof requestSchema>["customer"]): ConditionCustomerInput {
@@ -166,43 +128,60 @@ function normalizeCustomerInput(input: z.infer<typeof requestSchema>["customer"]
   };
 }
 
-async function loadValidationProfiles(adminSupabase: ReturnType<typeof createAdminSupabase>) {
-  const { data, error } = await adminSupabase
-    .from("property_validation_profiles")
-    .select(
-      "property_id, asset_type, list_price_manwon, contract_ratio, regulation_area, transfer_restriction",
-    )
-    .order("updated_at", { ascending: false })
-    .limit(1200)
-    .returns<ValidationProfileRow[]>();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-  return data ?? [];
-}
-
-async function loadPropertiesByIds(
+async function loadRecommendationProperties(
   adminSupabase: ReturnType<typeof createAdminSupabase>,
-  ids: number[],
 ) {
-  if (ids.length === 0) return new Map<number, PropertyRow>();
   const rows: PropertyRow[] = [];
   const chunkSize = 200;
-  for (let i = 0; i < ids.length; i += chunkSize) {
-    const chunk = ids.slice(i, i + chunkSize);
+  const maxRows = 1200;
+  let from = 0;
+
+  while (rows.length < maxRows) {
     const { data, error } = await adminSupabase
       .from("properties")
-      .select("id, name, status, property_type, property_unit_types(is_price_public)")
-      .in("id", chunk)
+      .select(
+        "id, name, status, property_type, property_unit_types(price_min,price_max,is_price_public)",
+      )
+      .order("id", { ascending: false })
+      .range(from, from + chunkSize - 1)
       .returns<PropertyRow[]>();
 
     if (error) {
       throw new Error(error.message);
     }
+
+    const page = data ?? [];
+    if (page.length === 0) break;
+    rows.push(...page);
+    if (page.length < chunkSize) break;
+    from += chunkSize;
+  }
+
+  return rows.slice(0, maxRows);
+}
+
+async function loadValidationProfilesByPropertyIds(
+  adminSupabase: ReturnType<typeof createAdminSupabase>,
+  ids: number[],
+) {
+  if (ids.length === 0) return new Map<string, ValidationProfileRow>();
+  const rows: ValidationProfileRow[] = [];
+  const chunkSize = 200;
+  for (let i = 0; i < ids.length; i += chunkSize) {
+    const chunk = ids.slice(i, i + chunkSize).map((id) => String(id));
+    const { data, error } = await adminSupabase
+      .from("property_validation_profiles")
+      .select(
+        "property_id, asset_type, list_price_manwon, contract_ratio, regulation_area, transfer_restriction",
+      )
+      .in("property_id", chunk)
+      .returns<ValidationProfileRow[]>();
+    if (error) {
+      throw new Error(error.message);
+    }
     rows.push(...(data ?? []));
   }
-  return new Map(rows.map((row) => [row.id, row]));
+  return new Map(rows.map((row) => [String(row.property_id), row]));
 }
 
 function shouldShowDetailedMetrics(
@@ -314,7 +293,7 @@ export async function POST(request: Request) {
         error: {
           code: "VALIDATION_ERROR",
           message: "request validation failed",
-          field_errors: z.flattenError(parsed.error).fieldErrors,
+          field_errors: parsed.error.flatten().fieldErrors,
         },
       },
       { status: 400 },
@@ -328,61 +307,40 @@ export async function POST(request: Request) {
     const includeRed = parsed.data.options?.include_red ?? false;
     const excludePropertyId = toPositiveInt(parsed.data.options?.exclude_property_id);
 
-    const rawProfiles = await loadValidationProfiles(adminSupabase);
-
-    const profiles: NumericMatchedProfile[] = rawProfiles
-      .map((row): NumericMatchedProfile | null => {
-        const matchedPropertyId = toPositiveInt(row.property_id);
-        const assetType = parseAssetType(String(row.asset_type));
-        const regulationArea = parseRegulationArea(String(row.regulation_area));
-        const listPriceRaw = toFiniteNumber(row.list_price_manwon);
-        const contractRatio = parseContractRatio(row.contract_ratio);
-        if (!matchedPropertyId || !assetType || !regulationArea) return null;
-        if (listPriceRaw === null || contractRatio === null) return null;
-        return {
-          propertyId: String(matchedPropertyId),
-          propertyName: null,
-          assetType,
-          listPrice: normalizePriceToManwon(listPriceRaw),
-          contractRatio,
-          regulationArea,
-          transferRestriction: Boolean(row.transfer_restriction),
-          source: "validation_profile" as const,
-          matchedPropertyId,
-        };
-      })
-      .filter((item): item is NumericMatchedProfile => item !== null);
-
-    const propertyIds = Array.from(
-      new Set(profiles.map((profile) => profile.matchedPropertyId)),
+    const properties = await loadRecommendationProperties(adminSupabase);
+    const propertyIds = properties.map((property) => property.id);
+    const profileByPropertyId = await loadValidationProfilesByPropertyIds(
+      adminSupabase,
+      propertyIds,
     );
-    const propertyMap = await loadPropertiesByIds(adminSupabase, propertyIds);
     const propertyImageMap = await loadPropertyImageMapByIds(
       adminSupabase,
       propertyIds,
     );
 
-    const evaluated: EvaluatedRecommendation[] = profiles
-      .map((profile): EvaluatedRecommendation | null => {
-        const property = propertyMap.get(profile.matchedPropertyId);
-        if (!property) return null;
-        if (excludePropertyId && profile.matchedPropertyId === excludePropertyId) {
+    const evaluated: EvaluatedRecommendation[] = properties
+      .map((property): EvaluatedRecommendation | null => {
+        if (excludePropertyId && property.id === excludePropertyId) {
           return null;
         }
         if (property.status === "CLOSED") return null;
 
+        const profile = resolveProfileForRecommendation({
+          property,
+          profileRow: profileByPropertyId.get(String(property.id)),
+        });
+        if (!profile) return null;
+
         const result = evaluateCondition({ profile, customer });
         return {
-          property_id: profile.matchedPropertyId,
+          property_id: property.id,
           property_name: property.name,
           property_type: property.property_type,
           status: property.status,
-          property_image_url:
-            propertyImageMap.get(profile.matchedPropertyId) ?? null,
+          property_image_url: propertyImageMap.get(property.id) ?? null,
           show_detailed_metrics: shouldShowDetailedMetrics(
             property.property_unit_types,
           ),
-          profile,
           result,
         };
       })
@@ -397,10 +355,10 @@ export async function POST(request: Request) {
         return a.result.metrics.minCash - b.result.metrics.minCash;
       });
 
-    const preferred = includeRed
+    const filtered = includeRed
       ? evaluated
       : evaluated.filter((item) => item.result.finalGrade !== "RED");
-    const selected = (preferred.length > 0 ? preferred : evaluated).slice(0, limit);
+    const selected = filtered.slice(0, limit);
 
     return NextResponse.json({
       ok: true,

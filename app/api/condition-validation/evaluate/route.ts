@@ -8,36 +8,13 @@ import {
   evaluateCondition,
   reasonMessageByCode,
 } from "@/features/condition-validation/domain/evaluator";
+import { loadPropertyProfile } from "@/features/condition-validation/server/profile-resolver";
 import type {
   ConditionCustomerInput,
   PropertyValidationProfile,
-  RegulationArea,
-  ValidationAssetType,
 } from "@/features/condition-validation/domain/types";
 
-type ValidationProfileRow = {
-  property_id: string;
-  asset_type: string;
-  list_price_manwon: number | string;
-  contract_ratio: number | string;
-  regulation_area: string;
-  transfer_restriction: boolean | null;
-};
-
-type UnitPriceRow = {
-  price_min: number | string | null;
-  price_max: number | string | null;
-  is_price_public?: boolean | null;
-};
-
 type PriceVisibility = "public" | "non_public" | "unknown";
-
-type PropertyFallbackRow = {
-  id: number;
-  name: string;
-  property_type: string | null;
-  property_unit_types: UnitPriceRow[] | null;
-};
 
 type OptionalPersistRequest = {
   customerId: string | null;
@@ -103,97 +80,6 @@ function createAdminSupabase() {
   return createClient(url, serviceRoleKey);
 }
 
-function toFiniteNumber(value: unknown): number | null {
-  if (typeof value === "number") {
-    return Number.isFinite(value) ? value : null;
-  }
-  if (typeof value === "string") {
-    const normalized = value.replaceAll(",", "").trim();
-    if (!normalized) return null;
-    const parsed = Number(normalized);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return null;
-}
-
-function normalizeText(value: string | null | undefined): string {
-  return (value ?? "").toLowerCase().replace(/\s+/g, "");
-}
-
-function parseAssetType(raw: string): ValidationAssetType | null {
-  if (
-    raw === "apartment" ||
-    raw === "officetel" ||
-    raw === "commercial" ||
-    raw === "knowledge_industry"
-  ) {
-    return raw;
-  }
-  return null;
-}
-
-function parseRegulationArea(raw: string): RegulationArea | null {
-  if (
-    raw === "non_regulated" ||
-    raw === "adjustment_target" ||
-    raw === "speculative_overheated"
-  ) {
-    return raw;
-  }
-  return null;
-}
-
-function inferAssetType(raw: string | null): ValidationAssetType {
-  const normalized = normalizeText(raw);
-  if (normalized.includes("오피스텔") || normalized.includes("officetel")) {
-    return "officetel";
-  }
-  if (normalized.includes("아파트") || normalized.includes("apartment")) {
-    return "apartment";
-  }
-  if (normalized.includes("지식산업")) {
-    return "knowledge_industry";
-  }
-  if (normalized.includes("상가") || normalized.includes("상업")) {
-    return "commercial";
-  }
-  return "apartment";
-}
-
-function defaultContractRatio(assetType: ValidationAssetType): number {
-  if (assetType === "apartment") return 0.1;
-  if (assetType === "officetel") return 0.1;
-  return 0.1;
-}
-
-function normalizePriceToManwon(value: number): number {
-  // DB 값이 원 단위로 들어온 경우(예: 200,000,000) 만원으로 정규화한다.
-  return Math.abs(value) >= 10_000_000 ? value / 10000 : value;
-}
-
-function inferRepresentativeListPrice(unitTypes: UnitPriceRow[] | null): number | null {
-  const rows = unitTypes ?? [];
-
-  const visibleRows = rows.filter((row) => row.is_price_public !== false);
-  const sourceRows = visibleRows.length > 0 ? visibleRows : rows;
-
-  const priceCandidates = sourceRows
-    .map((row) => {
-      const priceMax = toFiniteNumber(row.price_max);
-      const priceMin = toFiniteNumber(row.price_min);
-      if (priceMax !== null && priceMax > 0) return normalizePriceToManwon(priceMax);
-      if (priceMin !== null && priceMin > 0) return normalizePriceToManwon(priceMin);
-      return null;
-    })
-    .filter((value): value is number => value !== null);
-
-  if (priceCandidates.length === 0) {
-    return null;
-  }
-
-  return Math.max(...priceCandidates);
-}
-
 function stringifyPropertyId(propertyId: string | number): string {
   return typeof propertyId === "number" ? String(propertyId) : propertyId.trim();
 }
@@ -249,146 +135,6 @@ async function getOptionalUserId(): Promise<string | null> {
   } = await supabase.auth.getUser();
 
   return user?.id ?? null;
-}
-
-async function loadFromValidationProfiles(params: {
-  adminSupabase: ReturnType<typeof createAdminSupabase>;
-  propertyIdInput: string;
-}): Promise<PropertyValidationProfile | null> {
-  const { adminSupabase, propertyIdInput } = params;
-
-  const candidates = Array.from(
-    new Set([
-      propertyIdInput,
-      propertyIdInput.trim(),
-      String(Number(propertyIdInput)),
-    ].filter((value) => value && value !== "NaN")),
-  );
-
-  for (const candidate of candidates) {
-    const { data, error } = await adminSupabase
-      .from("property_validation_profiles")
-      .select(
-        "property_id, asset_type, list_price_manwon, contract_ratio, regulation_area, transfer_restriction",
-      )
-      .eq("property_id", candidate)
-      .maybeSingle<ValidationProfileRow>();
-
-    if (error) {
-      if (!isMissingTableError(error)) {
-        console.error("condition-validation profile query error:", error);
-      }
-      return null;
-    }
-
-    if (!data) {
-      continue;
-    }
-
-    const assetType = parseAssetType(String(data.asset_type));
-    const regulationArea = parseRegulationArea(String(data.regulation_area));
-    const rawListPrice = toFiniteNumber(data.list_price_manwon);
-    const listPrice = rawListPrice === null ? null : normalizePriceToManwon(rawListPrice);
-    const contractRatio = toFiniteNumber(data.contract_ratio);
-
-    if (!assetType || !regulationArea || listPrice === null || contractRatio === null) {
-      continue;
-    }
-
-    return {
-      propertyId: data.property_id,
-      propertyName: null,
-      assetType,
-      listPrice,
-      contractRatio,
-      regulationArea,
-      transferRestriction: Boolean(data.transfer_restriction),
-      source: "validation_profile",
-      matchedPropertyId: Number.isFinite(Number(candidate)) ? Number(candidate) : null,
-    };
-  }
-
-  return null;
-}
-
-async function loadPropertyFallback(params: {
-  adminSupabase: ReturnType<typeof createAdminSupabase>;
-  propertyIdInput: string;
-}): Promise<PropertyValidationProfile | null> {
-  const { adminSupabase, propertyIdInput } = params;
-
-  const selectFields = "id, name, property_type, property_unit_types(price_min,price_max,is_price_public)";
-  const parsedId = Number(propertyIdInput);
-
-  let row: PropertyFallbackRow | null = null;
-
-  if (Number.isFinite(parsedId) && parsedId > 0) {
-    const { data } = await adminSupabase
-      .from("properties")
-      .select(selectFields)
-      .eq("id", Math.floor(parsedId))
-      .maybeSingle<PropertyFallbackRow>();
-    if (data) {
-      row = data;
-    }
-  }
-
-  if (!row) {
-    const { data: exactName } = await adminSupabase
-      .from("properties")
-      .select(selectFields)
-      .eq("name", propertyIdInput)
-      .maybeSingle<PropertyFallbackRow>();
-    if (exactName) {
-      row = exactName;
-    }
-  }
-
-  if (!row) {
-    const { data: fuzzyRows } = await adminSupabase
-      .from("properties")
-      .select(selectFields)
-      .ilike("name", `%${propertyIdInput}%`)
-      .limit(1)
-      .returns<PropertyFallbackRow[]>();
-    if (Array.isArray(fuzzyRows) && fuzzyRows.length > 0) {
-      row = fuzzyRows[0] ?? null;
-    }
-  }
-
-  if (!row) {
-    return null;
-  }
-
-  const listPrice = inferRepresentativeListPrice(row.property_unit_types);
-  if (listPrice === null) {
-    return null;
-  }
-
-  const assetType = inferAssetType(row.property_type);
-
-  return {
-    propertyId: String(row.id),
-    propertyName: row.name,
-    assetType,
-    listPrice,
-    contractRatio: defaultContractRatio(assetType),
-    regulationArea: "non_regulated",
-    transferRestriction: false,
-    source: "property_fallback",
-    matchedPropertyId: row.id,
-  };
-}
-
-async function loadPropertyProfile(params: {
-  adminSupabase: ReturnType<typeof createAdminSupabase>;
-  propertyIdInput: string;
-}): Promise<PropertyValidationProfile | null> {
-  const profileFromRule = await loadFromValidationProfiles(params);
-  if (profileFromRule) {
-    return profileFromRule;
-  }
-  return loadPropertyFallback(params);
 }
 
 async function resolvePriceVisibility(params: {
@@ -509,7 +255,7 @@ export async function POST(request: Request) {
         error: {
           code: "VALIDATION_ERROR",
           message: "request validation failed",
-          field_errors: z.flattenError(parsed.error).fieldErrors,
+          field_errors: parsed.error.flatten().fieldErrors,
         },
       },
       { status: 400 },

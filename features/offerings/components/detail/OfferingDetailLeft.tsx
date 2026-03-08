@@ -731,6 +731,8 @@ export default function OfferingDetailLeft({
         </div>
       ) : null}
 
+      <div id="offering-mobile-condition-validation-slot" className="mt-3 lg:hidden" />
+
       {/* Tabs (sticky) */}
       <div
         className={[
