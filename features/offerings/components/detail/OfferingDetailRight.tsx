@@ -507,9 +507,13 @@ export default function OfferingDetailRight({
           ) : (
             <div className="space-y-2">
               <div
-                className="overflow-x-auto pb-1"
+                className={
+                  recommendItems.length <= 2
+                    ? "pb-1"
+                    : "overflow-x-auto overscroll-x-contain pb-1 [touch-action:pan-x] [-webkit-overflow-scrolling:touch]"
+                }
               >
-                <div className="grid grid-flow-col auto-cols-[calc((100%-0.75rem)/2)] gap-3">
+                <div className={recommendItems.length <= 2 ? "grid grid-cols-2 gap-3" : "flex gap-3"}>
                   {recommendItems.map((item) => {
                     const grade = gradeMeta(item.final_grade);
                     const imageUrl = item.image_url;
@@ -517,10 +521,14 @@ export default function OfferingDetailRight({
                     return (
                       <Card
                         key={item.property_id}
-                        className="w-full aspect-[3/5] overflow-hidden p-0"
+                        className={
+                          recommendItems.length <= 2
+                            ? "w-full overflow-hidden p-0"
+                            : "w-60 shrink-0 overflow-hidden p-0"
+                        }
                       >
-                        <div className="grid h-full grid-rows-[40%_60%]">
-                          <div className="relative w-full border-b border-(--oboon-border-default) bg-(--oboon-bg-subtle)">
+                        <div className="flex h-full flex-col">
+                          <div className="relative h-40 w-full border-b border-(--oboon-border-default) bg-(--oboon-bg-subtle)">
                             {hasImage && imageUrl ? (
                               <Image
                                 src={imageUrl}
@@ -548,8 +556,8 @@ export default function OfferingDetailRight({
                             </div>
                           </div>
 
-                          <div className="flex min-h-0 flex-col px-2.5 pt-2.5 pb-1.5">
-                            <div className="min-w-0">
+                          <div className="flex min-h-0 flex-1 flex-col px-2.5 pt-2.5 pb-1.5">
+                            <div className="min-w-0 min-h-[3.25rem]">
                               <h4
                                 className="ob-typo-h3 block overflow-hidden text-ellipsis whitespace-nowrap font-semibold text-(--oboon-text-title)"
                                 title={item.property_name ?? `현장 #${item.property_id}`}
@@ -563,7 +571,7 @@ export default function OfferingDetailRight({
                             </div>
 
                             {item.show_detailed_metrics !== false ? (
-                              <div className="mt-2 grid grid-cols-2 gap-1.5">
+                              <div className="mt-2 grid auto-rows-fr grid-cols-2 gap-1.5">
                                 <div className="rounded-md border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-1.5">
                                   <div className="ob-typo-caption text-(--oboon-text-muted)">최소 현금</div>
                                   <div className="mt-0.5 ob-typo-body2 font-semibold text-(--oboon-text-title)">

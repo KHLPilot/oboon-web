@@ -100,6 +100,12 @@ function parseNumericInput(value: string): number {
   return Number(value.replaceAll(",", "").trim());
 }
 
+function formatNumericInput(value: string): string {
+  const digitsOnly = value.replace(/[^\d]/g, "");
+  if (!digitsOnly) return "";
+  return Number(digitsOnly).toLocaleString("ko-KR");
+}
+
 function parseNullableNumericInput(value: string): number | null {
   const normalized = value.replaceAll(",", "").trim();
   if (!normalized) return null;
@@ -203,6 +209,7 @@ export default function ConditionValidationCard({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [response, setResponse] = useState<EvaluationResponse | null>(null);
   const [appliedPresetKey, setAppliedPresetKey] = useState<string | null>(null);
+  const [showResultDetails, setShowResultDetails] = useState(false);
 
   const result = response?.ok ? response.result : undefined;
   const metrics = response?.ok ? response.metrics : undefined;
@@ -240,6 +247,10 @@ export default function ConditionValidationCard({
     setIsInputSectionVisible(false);
     setAppliedPresetKey(presetKey);
   }, [appliedPresetKey, presetCustomer, presetKey]);
+
+  useEffect(() => {
+    setShowResultDetails(false);
+  }, [response]);
 
   const parseCustomerInput = (): RecommendationCustomerInput | null => {
     const availableCashNum = parseNumericInput(availableCash);
@@ -363,9 +374,7 @@ export default function ConditionValidationCard({
       ? "일반 회원만 이용 가능"
       : !hasBookableAgent
         ? "상담 가능 상담사 없음"
-        : result?.final_grade === "RED"
-          ? "상담 재설계 요청"
-          : "이 조건으로 상담 예약";
+        : "이 조건으로 상담 예약";
   const shouldShowAlternativeButton =
     result?.final_grade === "RED" ||
     result?.action === "RECOMMEND_ALTERNATIVE_AND_CONSULT";
@@ -403,7 +412,7 @@ export default function ConditionValidationCard({
               <div className="relative">
                 <Input
                   value={availableCash}
-                  onChange={(e) => setAvailableCash(e.target.value)}
+                  onChange={(e) => setAvailableCash(formatNumericInput(e.target.value))}
                   inputMode="numeric"
                   placeholder="예: 8,000"
                   className={availableCashPreview ? "pr-28" : undefined}
@@ -423,7 +432,7 @@ export default function ConditionValidationCard({
               <div className="relative">
                 <Input
                   value={monthlyIncome}
-                  onChange={(e) => setMonthlyIncome(e.target.value)}
+                  onChange={(e) => setMonthlyIncome(formatNumericInput(e.target.value))}
                   inputMode="numeric"
                   placeholder="예: 400"
                   className={monthlyIncomePreview ? "pr-28" : undefined}
@@ -442,7 +451,7 @@ export default function ConditionValidationCard({
               </label>
               <Input
                 value={ownedHouseCount}
-                onChange={(e) => setOwnedHouseCount(e.target.value)}
+                onChange={(e) => setOwnedHouseCount(formatNumericInput(e.target.value))}
                 inputMode="numeric"
                 placeholder="0"
               />
@@ -592,7 +601,18 @@ export default function ConditionValidationCard({
             </div>
           ) : null}
 
-          {trace ? (
+          {trace || shouldShowDetailedMetrics ? (
+            <Button
+              className="mt-3 w-full"
+              variant="secondary"
+              size="sm"
+              onClick={() => setShowResultDetails((prev) => !prev)}
+            >
+              {showResultDetails ? "상세 결과 숨기기" : "상세 결과 보기"}
+            </Button>
+          ) : null}
+
+          {showResultDetails && trace ? (
             <div className="mt-3">
               <div className="ob-typo-caption text-(--oboon-text-muted)">카테고리 결과</div>
               <div className="mt-2 space-y-2">
@@ -637,7 +657,7 @@ export default function ConditionValidationCard({
             </div>
           ) : null}
 
-          {shouldShowDetailedMetrics ? (
+          {showResultDetails && shouldShowDetailedMetrics ? (
             <div className="mt-3 grid grid-cols-2 gap-2">
               <div className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-2">
                 <div className="ob-typo-caption text-(--oboon-text-muted)">최소 필요 현금</div>

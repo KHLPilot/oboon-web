@@ -45,6 +45,36 @@ type PersonalizationSectionProps = {
   onToggleMarketingConsent: () => void;
 };
 
+function formatNumericInput(value: string): string {
+  const digitsOnly = value.replace(/[^\d]/g, "");
+  if (!digitsOnly) return "";
+  return Number(digitsOnly).toLocaleString("ko-KR");
+}
+
+function parseNullableNumericInput(value: string): number | null {
+  const normalized = value.replaceAll(",", "").trim();
+  if (!normalized) return null;
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  return parsed;
+}
+
+function formatManwonPreview(value: string): string {
+  const parsed = parseNullableNumericInput(value);
+  if (parsed === null) return "";
+
+  const manwon = Math.round(parsed);
+  if (manwon < 10000) return `${manwon.toLocaleString("ko-KR")}만원`;
+
+  const eok = Math.floor(manwon / 10000);
+  const restManwon = manwon % 10000;
+  if (restManwon === 0) return `${eok.toLocaleString("ko-KR")}억원`;
+  if (restManwon % 1000 === 0) {
+    return `${eok.toLocaleString("ko-KR")}억 ${restManwon / 1000}천만원`;
+  }
+  return `${eok.toLocaleString("ko-KR")}억 ${restManwon.toLocaleString("ko-KR")}만원`;
+}
+
 export default function PersonalizationSection({
   availableCashManwon,
   monthlyIncomeManwon,
@@ -66,6 +96,9 @@ export default function PersonalizationSection({
   onCancel,
   onToggleMarketingConsent,
 }: PersonalizationSectionProps) {
+  const availableCashPreview = formatManwonPreview(availableCashManwon);
+  const monthlyIncomePreview = formatManwonPreview(monthlyIncomeManwon);
+
   return (
     <div className="space-y-4">
       <Card className="p-4 sm:p-5">
@@ -81,19 +114,27 @@ export default function PersonalizationSection({
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-2">
             <Label>가용 현금 (만원) *</Label>
-            <Input
-              value={availableCashManwon}
-              disabled={!personalizationEditing}
-              onChange={(e) => onAvailableCashChange(e.target.value)}
-              inputMode="numeric"
-              placeholder="예: 8,000"
-              className={[
-                oboonFieldBaseClass,
-                personalizationErrors.availableCashManwon
-                  ? "border-(--oboon-danger-border)"
-                  : "",
-              ].join(" ")}
-            />
+            <div className="relative">
+              <Input
+                value={availableCashManwon}
+                disabled={!personalizationEditing}
+                onChange={(e) => onAvailableCashChange(formatNumericInput(e.target.value))}
+                inputMode="numeric"
+                placeholder="예: 8,000"
+                className={[
+                  oboonFieldBaseClass,
+                  availableCashPreview ? "pr-28" : "",
+                  personalizationErrors.availableCashManwon
+                    ? "border-(--oboon-danger-border)"
+                    : "",
+                ].join(" ")}
+              />
+              {availableCashPreview ? (
+                <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center ob-typo-caption text-(--oboon-text-muted)">
+                  {availableCashPreview}
+                </div>
+              ) : null}
+            </div>
             {personalizationErrors.availableCashManwon ? (
               <p className="ob-typo-caption text-(--oboon-danger)">
                 {personalizationErrors.availableCashManwon}
@@ -103,19 +144,27 @@ export default function PersonalizationSection({
 
           <div className="space-y-2">
             <Label>월 소득 (만원) *</Label>
-            <Input
-              value={monthlyIncomeManwon}
-              disabled={!personalizationEditing}
-              onChange={(e) => onMonthlyIncomeChange(e.target.value)}
-              inputMode="numeric"
-              placeholder="예: 400"
-              className={[
-                oboonFieldBaseClass,
-                personalizationErrors.monthlyIncomeManwon
-                  ? "border-(--oboon-danger-border)"
-                  : "",
-              ].join(" ")}
-            />
+            <div className="relative">
+              <Input
+                value={monthlyIncomeManwon}
+                disabled={!personalizationEditing}
+                onChange={(e) => onMonthlyIncomeChange(formatNumericInput(e.target.value))}
+                inputMode="numeric"
+                placeholder="예: 400"
+                className={[
+                  oboonFieldBaseClass,
+                  monthlyIncomePreview ? "pr-28" : "",
+                  personalizationErrors.monthlyIncomeManwon
+                    ? "border-(--oboon-danger-border)"
+                    : "",
+                ].join(" ")}
+              />
+              {monthlyIncomePreview ? (
+                <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center ob-typo-caption text-(--oboon-text-muted)">
+                  {monthlyIncomePreview}
+                </div>
+              ) : null}
+            </div>
             {personalizationErrors.monthlyIncomeManwon ? (
               <p className="ob-typo-caption text-(--oboon-danger)">
                 {personalizationErrors.monthlyIncomeManwon}
@@ -128,7 +177,7 @@ export default function PersonalizationSection({
             <Input
               value={ownedHouseCount}
               disabled={!personalizationEditing}
-              onChange={(e) => onOwnedHouseCountChange(e.target.value)}
+              onChange={(e) => onOwnedHouseCountChange(formatNumericInput(e.target.value))}
               inputMode="numeric"
               placeholder="0"
               className={[
