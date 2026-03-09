@@ -15,6 +15,11 @@ export interface ImageExtractionStats {
   renderFallbackUsed: boolean;
 }
 
+export interface RenderedPageImage {
+  dataUrl: string;
+  pageNum: number;
+}
+
 const MAX_IMAGES = 20;
 const MAX_DIMENSION = 1280;
 const MAX_RENDERED_PAGES = 10;
@@ -79,6 +84,21 @@ async function loadCanvasModuleOrThrow(): Promise<CanvasModule> {
     throw new Error("@napi-rs/canvas is not available in this environment");
   }
   return canvasModule;
+}
+
+function pickRenderedPageNumbers(totalPages: number, maxPages: number): number[] {
+  if (totalPages <= 0 || maxPages <= 0) return [];
+  if (totalPages <= maxPages) {
+    return Array.from({ length: totalPages }, (_, i) => i + 1);
+  }
+
+  // 앞/중간/뒤 페이지가 모두 포함되도록 균등 샘플링한다.
+  const sampled = new Set<number>();
+  for (let i = 0; i < maxPages; i += 1) {
+    const page = Math.round((i * (totalPages - 1)) / (maxPages - 1)) + 1;
+    sampled.add(page);
+  }
+  return Array.from(sampled).sort((a, b) => a - b);
 }
 
 /**
@@ -218,10 +238,10 @@ export async function extractImagesFromPDF(
  */
 export async function renderPagesAsImages(
   pdfBuffer: Buffer
-): Promise<string[]> {
+): Promise<RenderedPageImage[]> {
   const pdf = await getDocumentProxy(new Uint8Array(pdfBuffer));
-  const dataUrls: string[] = [];
-  const pageCount = Math.min(pdf.numPages, MAX_RENDERED_PAGES);
+  const renderedPages: RenderedPageImage[] = [];
+  const sampledPages = pickRenderedPageNumbers(pdf.numPages, MAX_RENDERED_PAGES);
   let canvasUnavailable = false;
   const canvasModule = await loadCanvasModule();
 
@@ -229,10 +249,10 @@ export async function renderPagesAsImages(
     console.warn(
       "[PDF 렌더링] @napi-rs/canvas를 사용할 수 없어 페이지 렌더링을 건너뜁니다."
     );
-    return dataUrls;
+    return renderedPages;
   }
 
-  for (let pageNum = 1; pageNum <= pageCount; pageNum++) {
+  for (const pageNum of sampledPages) {
     if (canvasUnavailable) break;
     try {
       const dataUrl = await renderPageAsImage(pdf, pageNum, {
@@ -240,7 +260,10 @@ export async function renderPagesAsImages(
         width: 1280,
         toDataURL: true,
       });
-      dataUrls.push(dataUrl as string);
+      renderedPages.push({
+        dataUrl: dataUrl as string,
+        pageNum,
+      });
     } catch (error) {
       if (isCanvasUnavailableError(error)) {
         canvasUnavailable = true;
@@ -253,7 +276,7 @@ export async function renderPagesAsImages(
     }
   }
 
-  return dataUrls;
+  return renderedPages;
 }
 
 /**

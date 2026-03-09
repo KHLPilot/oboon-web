@@ -342,6 +342,66 @@
     "definition": "PRIMARY KEY (id)"
   },
   {
+    "table_name": "condition_validation_requests",
+    "constraint_name": "condition_validation_requests_credit_grade_check",
+    "constraint_type": "c",
+    "definition": "CHECK ((credit_grade = ANY (ARRAY['good'::text, 'normal'::text, 'unstable'::text])))"
+  },
+  {
+    "table_name": "condition_validation_requests",
+    "constraint_name": "condition_validation_requests_owned_house_count_check",
+    "constraint_type": "c",
+    "definition": "CHECK ((owned_house_count >= 0))"
+  },
+  {
+    "table_name": "condition_validation_requests",
+    "constraint_name": "condition_validation_requests_purchase_purpose_check",
+    "constraint_type": "c",
+    "definition": "CHECK ((purchase_purpose = ANY (ARRAY['residence'::text, 'investment'::text, 'both'::text])))"
+  },
+  {
+    "table_name": "condition_validation_requests",
+    "constraint_name": "condition_validation_requests_customer_id_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (customer_id) REFERENCES profiles(id) ON DELETE SET NULL"
+  },
+  {
+    "table_name": "condition_validation_requests",
+    "constraint_name": "condition_validation_requests_pkey",
+    "constraint_type": "p",
+    "definition": "PRIMARY KEY (id)"
+  },
+  {
+    "table_name": "condition_validation_results",
+    "constraint_name": "condition_validation_results_action_code_check",
+    "constraint_type": "c",
+    "definition": "CHECK ((action_code = ANY (ARRAY['VISIT_BOOKING'::text, 'PRE_VISIT_CONSULT'::text, 'RECOMMEND_ALTERNATIVE_AND_CONSULT'::text])))"
+  },
+  {
+    "table_name": "condition_validation_results",
+    "constraint_name": "condition_validation_results_final_grade_check",
+    "constraint_type": "c",
+    "definition": "CHECK ((final_grade = ANY (ARRAY['GREEN'::text, 'YELLOW'::text, 'RED'::text])))"
+  },
+  {
+    "table_name": "condition_validation_results",
+    "constraint_name": "condition_validation_results_request_id_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (request_id) REFERENCES condition_validation_requests(id) ON DELETE CASCADE"
+  },
+  {
+    "table_name": "condition_validation_results",
+    "constraint_name": "condition_validation_results_pkey",
+    "constraint_type": "p",
+    "definition": "PRIMARY KEY (id)"
+  },
+  {
+    "table_name": "condition_validation_results",
+    "constraint_name": "condition_validation_results_request_id_key",
+    "constraint_type": "u",
+    "definition": "UNIQUE (request_id)"
+  },
+  {
     "table_name": "consultation_money_ledger",
     "constraint_name": "consultation_money_ledger_bucket_check",
     "constraint_type": "c",
@@ -492,6 +552,36 @@
     "definition": "PRIMARY KEY (id)"
   },
   {
+    "table_name": "notices",
+    "constraint_name": "notices_category_check",
+    "constraint_type": "c",
+    "definition": "CHECK ((category = ANY (ARRAY['update'::text, 'service'::text, 'event'::text, 'maintenance'::text])))"
+  },
+  {
+    "table_name": "notices",
+    "constraint_name": "notices_created_by_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (created_by) REFERENCES profiles(id)"
+  },
+  {
+    "table_name": "notices",
+    "constraint_name": "notices_updated_by_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (updated_by) REFERENCES profiles(id)"
+  },
+  {
+    "table_name": "notices",
+    "constraint_name": "notices_pkey",
+    "constraint_type": "p",
+    "definition": "PRIMARY KEY (id)"
+  },
+  {
+    "table_name": "notices",
+    "constraint_name": "notices_slug_key",
+    "constraint_type": "u",
+    "definition": "UNIQUE (slug)"
+  },
+  {
     "table_name": "notifications",
     "constraint_name": "notifications_consultation_id_fkey",
     "constraint_type": "f",
@@ -586,6 +676,36 @@
     "constraint_name": "profile_gallery_images_storage_path_key",
     "constraint_type": "u",
     "definition": "UNIQUE (storage_path)"
+  },
+  {
+    "table_name": "profiles",
+    "constraint_name": "profiles_cv_available_cash_manwon_check",
+    "constraint_type": "c",
+    "definition": "CHECK (((cv_available_cash_manwon IS NULL) OR (cv_available_cash_manwon > 0)))"
+  },
+  {
+    "table_name": "profiles",
+    "constraint_name": "profiles_cv_credit_grade_check",
+    "constraint_type": "c",
+    "definition": "CHECK (((cv_credit_grade IS NULL) OR (cv_credit_grade = ANY (ARRAY['good'::text, 'normal'::text, 'unstable'::text]))))"
+  },
+  {
+    "table_name": "profiles",
+    "constraint_name": "profiles_cv_monthly_income_manwon_check",
+    "constraint_type": "c",
+    "definition": "CHECK (((cv_monthly_income_manwon IS NULL) OR (cv_monthly_income_manwon > 0)))"
+  },
+  {
+    "table_name": "profiles",
+    "constraint_name": "profiles_cv_owned_house_count_check",
+    "constraint_type": "c",
+    "definition": "CHECK (((cv_owned_house_count IS NULL) OR (cv_owned_house_count >= 0)))"
+  },
+  {
+    "table_name": "profiles",
+    "constraint_name": "profiles_cv_purchase_purpose_check",
+    "constraint_type": "c",
+    "definition": "CHECK (((cv_purchase_purpose IS NULL) OR (cv_purchase_purpose = ANY (ARRAY['residence'::text, 'investment'::text, 'both'::text]))))"
   },
   {
     "table_name": "profiles",
@@ -864,6 +984,30 @@
     "definition": "PRIMARY KEY (id)"
   },
   {
+    "table_name": "property_validation_profiles",
+    "constraint_name": "property_validation_profiles_asset_type_check",
+    "constraint_type": "c",
+    "definition": "CHECK ((asset_type = ANY (ARRAY['apartment'::text, 'officetel'::text, 'commercial'::text, 'knowledge_industry'::text])))"
+  },
+  {
+    "table_name": "property_validation_profiles",
+    "constraint_name": "property_validation_profiles_regulation_area_check",
+    "constraint_type": "c",
+    "definition": "CHECK ((regulation_area = ANY (ARRAY['non_regulated'::text, 'adjustment_target'::text, 'speculative_overheated'::text])))"
+  },
+  {
+    "table_name": "property_validation_profiles",
+    "constraint_name": "property_validation_profiles_pkey",
+    "constraint_type": "p",
+    "definition": "PRIMARY KEY (id)"
+  },
+  {
+    "table_name": "property_validation_profiles",
+    "constraint_name": "property_validation_profiles_property_id_key",
+    "constraint_type": "u",
+    "definition": "UNIQUE (property_id)"
+  },
+  {
     "table_name": "public_profiles",
     "constraint_name": "public_profiles_id_fkey",
     "constraint_type": "f",
@@ -908,6 +1052,24 @@
   {
     "table_name": "qna_questions",
     "constraint_name": "qna_questions_pkey",
+    "constraint_type": "p",
+    "definition": "PRIMARY KEY (id)"
+  },
+  {
+    "table_name": "regulation_rules",
+    "constraint_name": "regulation_rules_regulation_area_check",
+    "constraint_type": "c",
+    "definition": "CHECK ((regulation_area = ANY (ARRAY['non_regulated'::text, 'adjustment_target'::text, 'speculative_overheated'::text])))"
+  },
+  {
+    "table_name": "regulation_rules",
+    "constraint_name": "regulation_rules_source_check",
+    "constraint_type": "c",
+    "definition": "CHECK ((source = ANY (ARRAY['manual'::text, 'derived'::text])))"
+  },
+  {
+    "table_name": "regulation_rules",
+    "constraint_name": "regulation_rules_pkey",
     "constraint_type": "p",
     "definition": "PRIMARY KEY (id)"
   },

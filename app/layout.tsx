@@ -198,7 +198,7 @@ export default function RootLayout({
           <ProfileChecker />
           <Header />
           <main
-            className="flex-1 relative"
+            className="flex-1 relative w-full min-w-0"
             style={{ paddingTop: "var(--oboon-header-offset)" }}
           >
             {children}

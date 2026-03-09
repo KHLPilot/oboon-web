@@ -181,7 +181,7 @@ export default function Header() {
     <>
       <header
         className={[
-          "fixed top-0 left-0 right-0 z-100 w-full border-b",
+          "fixed top-0 left-0 right-0 z-100 border-b overflow-x-clip",
           "supports-backdrop-filter:backdrop-blur-md",
         ].join(" ")}
         style={{
@@ -195,12 +195,12 @@ export default function Header() {
           backdropFilter: "blur(12px)",
         }}
       >
-        <div className="mx-auto flex h-16 max-w-240 lg:max-w-300 items-center justify-between px-4 sm:px-5 lg:px-8">
-          <div className="flex items-center gap-10">
+        <div className="mx-auto flex h-16 w-full max-w-240 lg:max-w-300 items-center justify-between px-4 sm:px-5 lg:px-8">
+          <div className="min-w-0 flex items-center gap-6 lg:gap-10">
             {/* Logo */}
             <Link
               href="/"
-              className="flex items-center gap-1 ob-typo-h2"
+              className="shrink-0 flex items-center gap-1 ob-typo-h2"
               style={{ color: "var(--oboon-text-title)" }}
             >
               <span className="oboon-logo" aria-hidden />
@@ -208,7 +208,7 @@ export default function Header() {
             </Link>
 
             {/* Desktop nav */}
-            <nav className="mt-1.5 hidden items-center gap-8 ob-typo-nav md:flex">
+            <nav className="mt-1.5 hidden min-w-0 items-center gap-6 lg:gap-8 ob-typo-nav md:flex">
               {NAV_ITEMS.map((item) => {
                 const active = pathname.startsWith(item.href);
                 return (

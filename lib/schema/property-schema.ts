@@ -23,7 +23,6 @@ const propertySpecsSchema = z.object({
   builder: z.string().nullable().describe("시공사 명칭"),
   trust_company: z.string().nullable().describe("신탁사 명칭"),
   sale_type: z.string().nullable().describe("분양 방식 (예: 일반분양, 후분양)"),
-  land_use_zone: z.string().nullable().describe("용도지역 (예: 제3종일반주거지역, 준주거지역)"),
   site_area: z.number().nullable().describe("대지면적 (m2)"),
   building_area: z.number().nullable().describe("건축면적 (m2)"),
   floor_ground: z.number().nullable().describe("지상 층수"),
@@ -66,8 +65,24 @@ const propertyFacilitySchema = z.object({
   type: z.string().describe("시설 유형 (예: 모델하우스, 홍보관, 견본주택)"),
   name: z.string().describe("시설 명칭 (예: OO 모델하우스)"),
   road_address: z.string().nullable().describe("시설 도로명 주소"),
+  address_detail: z.string().nullable().describe("시설 상세 주소 (예: 101동 1층 홍보관)"),
   open_start: z.string().nullable().describe("운영 시작시간 (예: 10:00)"),
   open_end: z.string().nullable().describe("운영 종료시간 (예: 18:00)"),
+});
+
+const propertyValidationSchema = z.object({
+  contract_ratio: z
+    .number()
+    .nullable()
+    .describe("계약금 비율(0~1). 예: 10%는 0.1"),
+  transfer_restriction: z
+    .boolean()
+    .nullable()
+    .describe("전매 제한 여부 (있음=true, 없음=false, 불명확=null)"),
+  transfer_restriction_period: z
+    .string()
+    .nullable()
+    .describe("전매 제한 기간 텍스트 (예: 6개월, 1년, 소유권이전등기시)"),
 });
 
 const webEvidenceSchema = z.object({
@@ -85,6 +100,11 @@ export const propertyExtractionSchema = z.object({
   timeline: propertyTimelineSchema,
   unit_types: z.array(propertyUnitTypeSchema),
   facilities: z.array(propertyFacilitySchema),
+  validation: propertyValidationSchema.default({
+    contract_ratio: null,
+    transfer_restriction: null,
+    transfer_restriction_period: null,
+  }),
   web_evidence: z.array(webEvidenceSchema).default([]).describe(
     "외부 웹 근거로 보완한 필드 목록. 문서 근거만으로 채운 값이면 비워둔다."
   ),

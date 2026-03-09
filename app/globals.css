@@ -140,6 +140,7 @@ input[type="password"]::-webkit-contacts-auto-fill-button {
   /* Core surfaces */
   --oboon-bg-default: #0b0c10;
   --oboon-bg-surface: #0f1117;
+  --oboon-bg-page: var(--oboon-bg-default);
   --oboon-bg-subtle: rgba(255, 255, 255, 0.06);
   --oboon-overlay: rgba(0, 0, 0, 0.6);
 
@@ -168,6 +169,7 @@ input[type="password"]::-webkit-contacts-auto-fill-button {
   --oboon-danger-bg: rgba(239, 68, 68, 0.12);
   --oboon-danger-bg-subtle: rgba(239, 68, 68, 0.18);
   --oboon-danger-border: rgba(239, 68, 68, 0.35);
+  --oboon-danger-text: #f87171;
   --oboon-on-danger: #ffffff;
 
   /* Warning */
@@ -176,6 +178,7 @@ input[type="password"]::-webkit-contacts-auto-fill-button {
   --oboon-warning-bg: rgba(245, 158, 11, 0.12);
   --oboon-warning-bg-subtle: rgba(245, 158, 11, 0.18);
   --oboon-warning-border: rgba(245, 158, 11, 0.35);
+  --oboon-warning-text: #fbbf24;
   --oboon-on-warning: #ffffff;
 
   /* Safe */
@@ -212,23 +215,42 @@ input[type="password"]::-webkit-contacts-auto-fill-button {
 .light {
   color-scheme: light;
 
-  --oboon-bg-default: #f6f7fb;
+  --oboon-bg-default: #f3f5f9;
   --oboon-bg-surface: #ffffff;
-  --oboon-bg-subtle: rgba(15, 23, 42, 0.05);
+  --oboon-bg-page: #f3f5f9;
+  --oboon-bg-subtle: rgba(15, 23, 42, 0.08);
   --oboon-overlay: rgba(15, 23, 42, 0.35);
 
-  --oboon-text-title: rgba(15, 23, 42, 0.92);
-  --oboon-text-body: rgba(15, 23, 42, 0.78);
-  --oboon-text-muted: rgba(15, 23, 42, 0.55);
+  --oboon-text-title: #0f172a;
+  --oboon-text-body: #1f2937;
+  --oboon-text-muted: #475569;
 
-  --oboon-border-default: rgba(15, 23, 42, 0.1);
-  --oboon-border-strong: rgba(15, 23, 42, 0.2);
-  --oboon-shadow-card: 0 10px 26px rgba(15, 23, 42, 0.08);
+  --oboon-border-default: rgba(15, 23, 42, 0.16);
+  --oboon-border-strong: rgba(15, 23, 42, 0.28);
+  --oboon-shadow-card: 0 10px 26px rgba(15, 23, 42, 0.1);
 
   --oboon-primary: #2563eb;
+  --oboon-primary-hover: #1d4ed8;
   --oboon-accent: #2563eb;
   --oboon-on-primary: #ffffff;
   --oboon-on-accent: #ffffff;
+
+  --oboon-warning-bg: #fff7db;
+  --oboon-warning-bg-subtle: #ffefbf;
+  --oboon-warning-border: #f7cf6e;
+  --oboon-warning-text: #92400e;
+
+  --oboon-danger-bg: #feeceb;
+  --oboon-danger-bg-subtle: #fdd6d3;
+  --oboon-danger-border: #f2a7a1;
+  --oboon-danger-text: #991b1b;
+
+  --oboon-safe-bg: #e7f8ee;
+  --oboon-safe-bg-subtle: #d1f0de;
+  --oboon-safe-border: #87d2a8;
+
+  --oboon-badge-selected-bg: rgba(37, 99, 235, 0.14);
+  --oboon-badge-selected-border: rgba(37, 99, 235, 0.32);
 }
 
 /* Dark theme (if you use .dark or data-theme="dark") */

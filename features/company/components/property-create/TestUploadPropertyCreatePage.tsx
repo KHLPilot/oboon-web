@@ -13,7 +13,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/DropdownMenu";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Upload } from "lucide-react";
 import type { PropertyExtractionData } from "@/lib/schema/property-schema";
 import NaverMap, { type MapMarker } from "@/features/map/components/NaverMap";
 import { createSupabaseClient } from "@/lib/supabaseClient";
@@ -57,11 +57,14 @@ type ExtractUnitTypeExtended = ExtractUnitType & {
   supply_count?: number | null;
   floor_plan_url?: string | null;
   image_url?: string | null;
+  is_price_public?: boolean | null;
+  is_public?: boolean | null;
 };
 type ExtractFacilityType = PropertyExtractionData["facilities"][number];
 type ExtractFacilityWithCoords = ExtractFacilityType & {
   lat?: unknown;
   lng?: unknown;
+  address_detail?: unknown;
 };
 
 type StatusTone = "idle" | "safe" | "danger";
@@ -122,6 +125,7 @@ type ExistingPropertySnapshot = {
     contract_start: string | null;
     contract_end: string | null;
     move_in_date: string | null;
+    move_in_text?: string | null;
   } | null;
   images: {
     main_image_url: string | null;
@@ -153,6 +157,8 @@ type ExistingPropertySnapshot = {
     price_max: number | null;
     unit_count: number | null;
     floor_plan_url: string | null;
+    is_price_public: boolean | null;
+    is_public: boolean | null;
   }>;
 };
 
@@ -209,9 +215,11 @@ const tableHeaders = [
   "구조",
   "향",
   "공급 수",
-  "분양가(만원)",
   "세대수",
-  "X",
+  "분양가(만원)",
+  "가격 공개",
+  "타입 공개",
+  "삭제",
 ];
 
 function toKoreanErrorMessage(message: string) {
@@ -331,10 +339,49 @@ function parsePercentToRatio(value: string): number | null {
 
 function formatRatioToPercentText(value: unknown): string {
   const parsed = toNumberOrNull(value);
-  if (parsed == null || parsed <= 0) return "10";
+  if (parsed == null || parsed <= 0) return "";
   const percent = parsed <= 1 ? parsed * 100 : parsed;
   const rounded = Math.round(percent * 100) / 100;
   return String(rounded).replace(/\.0+$/, "").replace(/(\.\d*[1-9])0+$/, "$1");
+}
+
+function formatTransferRestrictionText(
+  value: boolean | null,
+  period: string | null,
+): string {
+  if (typeof period === "string" && period.trim().length > 0) {
+    return period.trim();
+  }
+  if (value === true) return "있음";
+  if (value === false) return "없음";
+  return "미설정";
+}
+
+function parseTransferRestrictionText(value: string): {
+  transferRestriction: boolean | null;
+  transferRestrictionPeriod: string | null;
+} {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) {
+    return { transferRestriction: null, transferRestrictionPeriod: null };
+  }
+  if (["있음", "예", "yes", "y", "true", "1"].includes(normalized)) {
+    return { transferRestriction: true, transferRestrictionPeriod: null };
+  }
+  if (["없음", "아니오", "no", "n", "false", "0"].includes(normalized)) {
+    return { transferRestriction: false, transferRestrictionPeriod: null };
+  }
+  if (["미설정", "null", "-", "unknown"].includes(normalized)) {
+    return { transferRestriction: null, transferRestrictionPeriod: null };
+  }
+  return {
+    transferRestriction: true,
+    transferRestrictionPeriod: value.trim(),
+  };
+}
+
+function normalizeEvidenceFieldPath(path: string) {
+  return path.trim().replace(/\[\d+\]/g, "");
 }
 
 function normalizeKoreaCoords(
@@ -445,6 +492,36 @@ function normalizeComparableValue(value: unknown): unknown {
     return joined || null;
   }
   return value;
+}
+
+function splitFacilityRoadAddress(value: unknown): {
+  roadAddress: string | null;
+  addressDetail: string | null;
+} {
+  const raw = String(normalizeComparableValue(value) ?? "")
+    .trim()
+    .replace(/\s+/g, " ");
+  if (!raw) return { roadAddress: null, addressDetail: null };
+
+  const commaIndex = raw.indexOf(",");
+  if (commaIndex > 0) {
+    return {
+      roadAddress: raw.slice(0, commaIndex).trim() || null,
+      addressDetail: raw.slice(commaIndex + 1).trim() || null,
+    };
+  }
+
+  const trailingDetailMatch = raw.match(
+    /^(.*\d)\s+((?:지하\s*)?B?\d+\s*층(?:\s+.*)?|\d+\s*호(?:\s+.*)?)$/i,
+  );
+  if (trailingDetailMatch) {
+    return {
+      roadAddress: trailingDetailMatch[1].trim() || null,
+      addressDetail: trailingDetailMatch[2].trim() || null,
+    };
+  }
+
+  return { roadAddress: raw, addressDetail: null };
 }
 
 function isSameValue(a: unknown, b: unknown) {
@@ -581,6 +658,32 @@ function normalizeMoveInDate(value: unknown): string | null {
   if (!raw) return null;
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
   if (/^\d{4}-\d{2}$/.test(raw)) return `${raw}-01`;
+  const koreanYmd = raw.match(/^(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일(?:\s*예정)?$/);
+  if (koreanYmd) {
+    const year = koreanYmd[1];
+    const month = koreanYmd[2].padStart(2, "0");
+    const day = koreanYmd[3].padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+  const koreanYm = raw.match(/^(\d{4})년\s*(\d{1,2})월(?:\s*예정)?$/);
+  if (koreanYm) {
+    const year = koreanYm[1];
+    const month = koreanYm[2].padStart(2, "0");
+    return `${year}-${month}-01`;
+  }
+  const dottedYmd = raw.match(/^(\d{4})[./](\d{1,2})[./](\d{1,2})(?:\s*예정)?$/);
+  if (dottedYmd) {
+    const year = dottedYmd[1];
+    const month = dottedYmd[2].padStart(2, "0");
+    const day = dottedYmd[3].padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+  const dottedYm = raw.match(/^(\d{4})[./](\d{1,2})(?:\s*예정)?$/);
+  if (dottedYm) {
+    const year = dottedYm[1];
+    const month = dottedYm[2].padStart(2, "0");
+    return `${year}-${month}-01`;
+  }
   return null;
 }
 
@@ -671,25 +774,6 @@ function buildCompareFields(
       existingValue: existing.location?.region_3depth,
       incomingValue: incoming.location?.region_3depth,
     },
-    {
-      key: "location.lat",
-      section: "location",
-      sectionLabel: "위치",
-      label: "위도",
-      column: "lat",
-      existingValue: existing.location?.lat,
-      incomingValue: incoming.location?.lat,
-    },
-    {
-      key: "location.lng",
-      section: "location",
-      sectionLabel: "위치",
-      label: "경도",
-      column: "lng",
-      existingValue: existing.location?.lng,
-      incomingValue: incoming.location?.lng,
-    },
-
     {
       key: "specs.developer",
       section: "specs",
@@ -886,7 +970,7 @@ function buildCompareFields(
       sectionLabel: "일정",
       label: "입주 예정",
       column: "move_in_date",
-      existingValue: existing.timeline?.move_in_date,
+      existingValue: existing.timeline?.move_in_text ?? existing.timeline?.move_in_date,
       incomingValue: incoming.timeline?.move_in_date,
     },
   ];
@@ -932,9 +1016,13 @@ export default function TestUploadPage() {
   const [modelhouseGalleryImageFiles, setModelhouseGalleryImageFiles] =
     useState<File[]>([]);
   const [validationContractRatioPercent, setValidationContractRatioPercent] =
-    useState("10");
+    useState("");
   const [validationTransferRestriction, setValidationTransferRestriction] =
-    useState(false);
+    useState<boolean | null>(null);
+  const [
+    validationTransferRestrictionPeriod,
+    setValidationTransferRestrictionPeriod,
+  ] = useState<string | null>(null);
 
   // PDF에서 추출된 이미지 (A안: 이미지 추출)
   type ExtractedImageWithDestination = {
@@ -1008,6 +1096,20 @@ export default function TestUploadPage() {
   const [analysisInProgress, setAnalysisInProgress] = useState(false);
   const [analysisFileCount, setAnalysisFileCount] = useState(0);
   const [analysisElapsedSec, setAnalysisElapsedSec] = useState(0);
+
+  // 이 화면은 대형 표/미리보기 블록이 많아 문서 가로폭이 늘어나기 쉬워
+  // 페이지 단위로만 가로 스크롤을 차단한다.
+  useEffect(() => {
+    const prevBodyOverflowX = document.body.style.overflowX;
+    const prevHtmlOverflowX = document.documentElement.style.overflowX;
+    document.body.style.overflowX = "hidden";
+    document.documentElement.style.overflowX = "hidden";
+
+    return () => {
+      document.body.style.overflowX = prevBodyOverflowX;
+      document.documentElement.style.overflowX = prevHtmlOverflowX;
+    };
+  }, []);
   const [editBaselineVersion, setEditBaselineVersion] = useState(0);
   const analysisTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [selectedUnitMergeRows, setSelectedUnitMergeRows] = useState<number[]>(
@@ -1067,6 +1169,32 @@ export default function TestUploadPage() {
   );
 
   const fileNames = useMemo(() => files.map((f) => f.name), [files]);
+  const webEvidenceFieldPathSet = useMemo(() => {
+    const paths = new Set<string>();
+    (result?.web_evidence ?? []).forEach((item) => {
+      const rawPath = typeof item?.field_path === "string" ? item.field_path : "";
+      const normalized = normalizeEvidenceFieldPath(rawPath);
+      if (normalized) paths.add(normalized);
+    });
+    return paths;
+  }, [result?.web_evidence]);
+  const isWebEvidenceField = useCallback(
+    (fieldPath: string) => {
+      const normalizedTarget = normalizeEvidenceFieldPath(fieldPath);
+      if (!normalizedTarget) return false;
+      if (webEvidenceFieldPathSet.has(normalizedTarget)) return true;
+      for (const candidate of webEvidenceFieldPathSet) {
+        if (
+          normalizedTarget.startsWith(`${candidate}.`) ||
+          candidate.startsWith(`${normalizedTarget}.`)
+        ) {
+          return true;
+        }
+      }
+      return false;
+    },
+    [webEvidenceFieldPathSet],
+  );
   const sortedExtractedImages = useMemo(() => {
     const rankByDestination: Record<
       ExtractedImageWithDestination["destination"],
@@ -1317,6 +1445,11 @@ export default function TestUploadPage() {
       location: mergeSection(existing.location, incoming.location),
       specs: mergeSection(existing.specs, incoming.specs),
       timeline: mergeSection(existing.timeline, incoming.timeline),
+      validation: mergeSection(existing.validation, incoming.validation),
+      web_evidence:
+        (incoming.web_evidence ?? []).length > 0
+          ? incoming.web_evidence
+          : existing.web_evidence,
       unit_types: [
         ...(existing.unit_types ?? []),
         ...(incoming.unit_types ?? []).filter(
@@ -1417,6 +1550,14 @@ export default function TestUploadPage() {
           unit_count: isMissing(current.unit_count)
             ? unit.unit_count
             : current.unit_count,
+          is_price_public:
+            typeof current.is_price_public === "boolean"
+              ? current.is_price_public
+              : unit.is_price_public !== false,
+          is_public:
+            typeof current.is_public === "boolean"
+              ? current.is_public
+              : unit.is_public !== false,
           floor_plan_url: isMissing(current.floor_plan_url)
             ? unit.floor_plan_url
             : current.floor_plan_url,
@@ -1440,6 +1581,8 @@ export default function TestUploadPage() {
         price_min: normalizedPrice.min,
         price_max: normalizedPrice.max,
         unit_count: unit.unit_count,
+        is_price_public: unit.is_price_public !== false,
+        is_public: unit.is_public !== false,
         floor_plan_url: unit.floor_plan_url,
         image_url: unit.floor_plan_url,
       });
@@ -1537,21 +1680,21 @@ export default function TestUploadPage() {
         (floorPlanUrl && !floorPlanUrl.startsWith("blob:")
           ? floorPlanUrl
           : normalizeComparableValue(unit.floor_plan_url ?? unit.image_url));
-      const payload = {
-        type_name: typeName,
-        exclusive_area: toNumberOrNull(unit.exclusive_area),
-        supply_area: toNumberOrNull(unit.supply_area),
+        const payload = {
+          type_name: typeName,
+          exclusive_area: toNumberOrNull(unit.exclusive_area),
+          supply_area: toNumberOrNull(unit.supply_area),
         rooms: toNumberOrNull(unit.rooms),
         bathrooms: toNumberOrNull(unit.bathrooms),
         price_min: toWonFromManwon(unit.price_min),
         price_max: toWonFromManwon(unit.price_max),
-        unit_count: toNumberOrNull(unit.unit_count),
-        supply_count: toNumberOrNull(unit.supply_count),
-        building_layout: normalizeComparableValue(unit.building_layout),
-        orientation: normalizeComparableValue(unit.orientation),
-        is_price_public: true,
-        is_public: true,
-      };
+          unit_count: toNumberOrNull(unit.unit_count),
+          supply_count: toNumberOrNull(unit.supply_count),
+          building_layout: normalizeComparableValue(unit.building_layout),
+          orientation: normalizeComparableValue(unit.orientation),
+          is_price_public: unit.is_price_public !== false,
+          is_public: unit.is_public !== false,
+        };
 
       if (existingId) {
         let { error: updateError } = await supabase
@@ -2563,6 +2706,20 @@ export default function TestUploadPage() {
       stopAnalysisTimer();
       setAllUploadedFiles(files);
       setResult(data);
+      setValidationContractRatioPercent(
+        formatRatioToPercentText(data.validation?.contract_ratio),
+      );
+      setValidationTransferRestriction(
+        typeof data.validation?.transfer_restriction === "boolean"
+          ? data.validation.transfer_restriction
+          : null,
+      );
+      setValidationTransferRestrictionPeriod(
+        typeof data.validation?.transfer_restriction_period === "string" &&
+          data.validation.transfer_restriction_period.trim().length > 0
+          ? data.validation.transfer_restriction_period.trim()
+          : null,
+      );
       setEditBaselineVersion((prev) => prev + 1);
       setDismissedMergeCandidateKeys([]);
       Object.values(unitFloorPlanUrlsRef.current).forEach((url) =>
@@ -2679,11 +2836,27 @@ export default function TestUploadPage() {
           location: data.location ?? prev.location,
           specs: data.specs ?? prev.specs,
           timeline: data.timeline ?? prev.timeline,
+          validation: data.validation ?? prev.validation,
           unit_types: data.unit_types ?? prev.unit_types,
           facilities: data.facilities ?? prev.facilities,
+          web_evidence: data.web_evidence ?? prev.web_evidence,
           _meta: data._meta ?? prev._meta,
         };
       });
+      setValidationContractRatioPercent(
+        formatRatioToPercentText(data.validation?.contract_ratio),
+      );
+      setValidationTransferRestriction(
+        typeof data.validation?.transfer_restriction === "boolean"
+          ? data.validation.transfer_restriction
+          : null,
+      );
+      setValidationTransferRestrictionPeriod(
+        typeof data.validation?.transfer_restriction_period === "string" &&
+          data.validation.transfer_restriction_period.trim().length > 0
+          ? data.validation.transfer_restriction_period.trim()
+          : null,
+      );
       setEditBaselineVersion((prev) => prev + 1);
       setDismissedMergeCandidateKeys([]);
 
@@ -2733,6 +2906,20 @@ export default function TestUploadPage() {
       const data = await response.json();
       const merged = mergeExtractResults(result, data);
       setResult(merged);
+      setValidationContractRatioPercent(
+        formatRatioToPercentText(merged.validation?.contract_ratio),
+      );
+      setValidationTransferRestriction(
+        typeof merged.validation?.transfer_restriction === "boolean"
+          ? merged.validation.transfer_restriction
+          : null,
+      );
+      setValidationTransferRestrictionPeriod(
+        typeof merged.validation?.transfer_restriction_period === "string" &&
+          merged.validation.transfer_restriction_period.trim().length > 0
+          ? merged.validation.transfer_restriction_period.trim()
+          : null,
+      );
       setEditBaselineVersion((prev) => prev + 1);
       setDismissedMergeCandidateKeys([]);
       setAllUploadedFiles((prev) => [...prev, ...filesToMerge]);
@@ -2856,7 +3043,7 @@ export default function TestUploadPage() {
         const unitTypes = await supabase
           .from("property_unit_types")
           .select(
-            "id, type_name, exclusive_area, supply_area, rooms, bathrooms, building_layout, orientation, supply_count, price_min, price_max, unit_count",
+            "id, type_name, exclusive_area, supply_area, rooms, bathrooms, building_layout, orientation, supply_count, price_min, price_max, unit_count, is_price_public, is_public",
           )
           .eq("properties_id", selectedCandidateId)
           .order("id", { ascending: true });
@@ -2903,7 +3090,7 @@ export default function TestUploadPage() {
           supabase
             .from("property_timeline")
             .select(
-              "id, announcement_date, application_start, application_end, winner_announce, contract_start, contract_end, move_in_date",
+              "id, announcement_date, application_start, application_end, winner_announce, contract_start, contract_end, move_in_date, move_in_text",
             )
             .eq("properties_id", selectedCandidateId)
             .maybeSingle(),
@@ -3001,6 +3188,8 @@ export default function TestUploadPage() {
               floorPlanAssetByUnitTypeId.get(unit.id) ?? unit.floor_plan_url,
             price_min: normalized.min,
             price_max: normalized.max,
+            is_price_public: unit.is_price_public,
+            is_public: unit.is_public,
           };
         },
       );
@@ -3145,6 +3334,7 @@ export default function TestUploadPage() {
             resolved?: {
               contract_ratio?: number | null;
               transfer_restriction?: boolean | null;
+              transfer_restriction_period?: string | null;
             };
           }
         | null;
@@ -3157,9 +3347,18 @@ export default function TestUploadPage() {
       const nextTransferRestriction = Boolean(
         payload?.resolved?.transfer_restriction,
       );
-
       setValidationContractRatioPercent(nextContractRatioPercent);
-      setValidationTransferRestriction(nextTransferRestriction);
+      setValidationTransferRestriction(
+        typeof payload?.resolved?.transfer_restriction === "boolean"
+          ? nextTransferRestriction
+          : null,
+      );
+      setValidationTransferRestrictionPeriod(
+        typeof payload?.resolved?.transfer_restriction_period === "string" &&
+          payload.resolved.transfer_restriction_period.trim().length > 0
+          ? payload.resolved.transfer_restriction_period.trim()
+          : null,
+      );
     } catch {
       // 조회 실패 시 기존 입력값을 유지한다.
     }
@@ -3170,7 +3369,8 @@ export default function TestUploadPage() {
     propertyType: unknown;
     unitTypes: ExtractUnitTypeExtended[] | null | undefined;
     contractRatio: number | null;
-    transferRestriction: boolean;
+    transferRestriction: boolean | null;
+    transferRestrictionPeriod: string | null;
   }): Promise<{ ok: boolean; error?: string }> => {
     try {
       const response = await fetch("/api/condition-validation/profiles/upsert", {
@@ -3183,6 +3383,7 @@ export default function TestUploadPage() {
           unitTypes: params.unitTypes ?? [],
           contractRatio: params.contractRatio,
           transferRestriction: params.transferRestriction,
+          transferRestrictionPeriod: params.transferRestrictionPeriod,
         }),
       });
 
@@ -3267,7 +3468,10 @@ export default function TestUploadPage() {
           winner_announce: existingSnapshot.timeline?.winner_announce ?? null,
           contract_start: existingSnapshot.timeline?.contract_start ?? null,
           contract_end: existingSnapshot.timeline?.contract_end ?? null,
-          move_in_date: existingSnapshot.timeline?.move_in_date ?? null,
+          move_in_date:
+            existingSnapshot.timeline?.move_in_text ??
+            existingSnapshot.timeline?.move_in_date ??
+            null,
         },
       };
 
@@ -3383,6 +3587,7 @@ export default function TestUploadPage() {
           contract_start: normalizeDateYmd(merged.timeline.contract_start),
           contract_end: normalizeDateYmd(merged.timeline.contract_end),
           move_in_date: normalizeMoveInDate(merged.timeline.move_in_date),
+          move_in_text: normalizeComparableValue(merged.timeline.move_in_date),
         };
 
         const hasTimelineValue = Object.values(timelinePayload).some(
@@ -3418,6 +3623,7 @@ export default function TestUploadPage() {
           unitTypes: (result.unit_types ?? []) as ExtractUnitTypeExtended[],
           contractRatio: parsedContractRatio,
           transferRestriction: validationTransferRestriction,
+          transferRestrictionPeriod: validationTransferRestrictionPeriod,
         });
         return {
           targetId,
@@ -3578,6 +3784,7 @@ export default function TestUploadPage() {
         contract_start: normalizeDateYmd(result.timeline?.contract_start),
         contract_end: normalizeDateYmd(result.timeline?.contract_end),
         move_in_date: normalizeMoveInDate(result.timeline?.move_in_date),
+        move_in_text: normalizeComparableValue(result.timeline?.move_in_date),
       };
       const hasTimelineValue = Object.entries(timelinePayload).some(
         ([key, value]) =>
@@ -3592,17 +3799,24 @@ export default function TestUploadPage() {
       const unitSync = await syncUnitTypesForProperty(supabase, propertyId);
 
       const facilityRows = (result.facilities ?? [])
-        .map((facility) => ({
-          properties_id: propertyId,
-          type: mapFacilityTypeToDb(facility.type),
-          name:
-            String(normalizeComparableValue(facility.name) ?? "").trim() ||
-            null,
-          road_address: normalizeComparableValue(facility.road_address),
-          open_start: normalizeComparableValue(facility.open_start),
-          open_end: normalizeComparableValue(facility.open_end),
-          is_active: true,
-        }))
+        .map((facility) => {
+          const splitAddress = splitFacilityRoadAddress(facility.road_address);
+          const normalizedAddressDetail = normalizeComparableValue(
+            facility.address_detail,
+          );
+          return {
+            properties_id: propertyId,
+            type: mapFacilityTypeToDb(facility.type),
+            name:
+              String(normalizeComparableValue(facility.name) ?? "").trim() ||
+              null,
+            road_address: splitAddress.roadAddress,
+            address_detail: normalizedAddressDetail ?? splitAddress.addressDetail,
+            open_start: normalizeComparableValue(facility.open_start),
+            open_end: normalizeComparableValue(facility.open_end),
+            is_active: true,
+          };
+        })
         .filter((row) => row.name);
 
       if (facilityRows.length > 0) {
@@ -3628,6 +3842,7 @@ export default function TestUploadPage() {
         unitTypes: (result.unit_types ?? []) as ExtractUnitTypeExtended[],
         contractRatio: parsedContractRatio,
         transferRestriction: validationTransferRestriction,
+        transferRestrictionPeriod: validationTransferRestrictionPeriod,
       });
       setCreatedPropertyId(propertyId);
 
@@ -3692,6 +3907,20 @@ export default function TestUploadPage() {
       return { ...prev, unit_types: nextUnits };
     });
   };
+  const isUnitPricePublic = (unit: ExtractUnitTypeExtended | null | undefined) =>
+    unit?.is_price_public !== false;
+  const isUnitPublic = (unit: ExtractUnitTypeExtended | null | undefined) =>
+    unit?.is_public !== false;
+  const setUnitPricePublic = (index: number, isPublic: boolean) => {
+    const current = (result?.unit_types?.[index] as ExtractUnitTypeExtended | undefined) ?? null;
+    if (!current) return;
+    updateResultUnitField(index, "is_price_public", isPublic);
+  };
+  const setUnitPublic = (index: number, isPublic: boolean) => {
+    const current = (result?.unit_types?.[index] as ExtractUnitTypeExtended | undefined) ?? null;
+    if (!current) return;
+    updateResultUnitField(index, "is_public", isPublic);
+  };
   const addUnitTypeRow = () => {
     setResult((prev) => {
       if (!prev) return prev;
@@ -3708,6 +3937,8 @@ export default function TestUploadPage() {
         supply_count: null,
         building_layout: null,
         orientation: null,
+        is_price_public: true,
+        is_public: true,
         floor_plan_url: null,
         image_url: null,
       });
@@ -4340,8 +4571,9 @@ export default function TestUploadPage() {
     : status;
 
   return (
-    <PageContainer className="max-w-240">
-      <div className="space-y-4">
+    <div className="max-w-full overflow-x-hidden">
+      <PageContainer className="max-w-240">
+        <div className="space-y-4 min-w-0">
         <div className="flex items-center gap-3 mb-1">
           <div className="ob-typo-h1 text-(--oboon-text-title)">
             새 현장 등록
@@ -4412,9 +4644,11 @@ export default function TestUploadPage() {
                 files.map((f, index) => (
                   <span
                     key={`${f.name}-${index}`}
-                    className="inline-flex items-center gap-1 rounded-full bg-(--oboon-bg-subtle) px-2 py-1 ob-typo-caption text-(--oboon-text-body)"
+                    className="inline-flex max-w-full items-center gap-1 rounded-full bg-(--oboon-bg-subtle) px-2 py-1 ob-typo-caption text-(--oboon-text-body)"
                   >
-                    {f.name} ({(f.size / 1024 / 1024).toFixed(1)}MB)
+                    <span className="break-all">
+                      {f.name} ({(f.size / 1024 / 1024).toFixed(1)}MB)
+                    </span>
                     <button
                       type="button"
                       onClick={() => removeSelectedPdfFile(index)}
@@ -4526,14 +4760,16 @@ export default function TestUploadPage() {
         </Card>
 
         {result ? (
-          <div key={`extract-ui-${editBaselineVersion}`} className="space-y-4">
+          <div key={`extract-ui-${editBaselineVersion}`} className="space-y-4 min-w-0">
             <div className="flex flex-wrap items-center gap-2 ob-typo-caption">
-              <span className="inline-flex items-center rounded-full border border-sky-400/50 bg-sky-500/10 px-2 py-1 text-sky-200">
-                AI 추출 값
+              <span className="inline-flex items-center rounded-full border border-emerald-400/50 bg-emerald-500/10 px-2 py-1 text-(--oboon-text-body)">
+                직접 수정한 셀
               </span>
-              <span className="inline-flex items-center rounded-full border border-emerald-400/50 bg-emerald-500/10 px-2 py-1 text-emerald-200">
-                직접 수정한 값
-              </span>
+              {webEvidenceFieldPathSet.size > 0 ? (
+                <span className="inline-flex items-center rounded-full border border-(--oboon-warning-border) bg-(--oboon-warning-bg) px-2 py-1 text-(--oboon-text-body)">
+                  웹 검색 채택 셀
+                </span>
+              ) : null}
             </div>
             {checkingSimilar || similarCandidates.length > 0 ? (
               <Card className="p-5">
@@ -4802,7 +5038,7 @@ export default function TestUploadPage() {
                   </div>
                 ) : (
                   <>
-                    <div className="mt-3 overflow-x-auto rounded-lg border border-(--oboon-border-default)">
+                    <div className="mt-3 max-w-full overflow-x-auto rounded-lg border border-(--oboon-border-default)">
                       <table className="w-full min-w-[820px] table-fixed border-collapse">
                         <thead className="bg-(--oboon-bg-subtle)">
                           <tr>
@@ -5125,6 +5361,7 @@ export default function TestUploadPage() {
                   <CompactInfoRow
                     label="현장명"
                     value={val(result.properties?.name)}
+                    isWebEnriched={isWebEvidenceField("properties.name")}
                     onCommit={(value) =>
                       updateResultSectionField(
                         "properties",
@@ -5136,6 +5373,7 @@ export default function TestUploadPage() {
                   <CompactInfoRow
                     label="분양 상태"
                     value={displayValue(result.properties?.status, "status")}
+                    isWebEnriched={isWebEvidenceField("properties.status")}
                     onCommit={(value) =>
                       updateResultSectionField(
                         "properties",
@@ -5149,6 +5387,7 @@ export default function TestUploadPage() {
                   <CompactInfoRow
                     label="분양 유형"
                     value={val(result.properties?.property_type)}
+                    isWebEnriched={isWebEvidenceField("properties.property_type")}
                     onCommit={(value) =>
                       updateResultSectionField(
                         "properties",
@@ -5160,6 +5399,7 @@ export default function TestUploadPage() {
                   <CompactInfoRow
                     label="설명"
                     value={val(result.properties?.description)}
+                    isWebEnriched={isWebEvidenceField("properties.description")}
                     onCommit={(value) =>
                       updateResultSectionField(
                         "properties",
@@ -5170,51 +5410,31 @@ export default function TestUploadPage() {
                   />
                 </div>
               </div>
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <div className="ob-typo-caption text-(--oboon-text-muted)">
-                    계약금 비율 (%)
-                  </div>
-                  <Input
-                    value={validationContractRatioPercent}
-                    inputMode="decimal"
-                    placeholder="예: 10"
-                    onChange={(e) =>
-                      setValidationContractRatioPercent(
-                        sanitizePercentInput(e.target.value),
-                      )
+              <div className="mt-4 grid gap-y-4 gap-x-5 md:grid-cols-2">
+                <div className="space-y-1">
+                  <CompactInfoRow
+                    label="계약금 비율(%)"
+                    value={validationContractRatioPercent || "-"}
+                    onCommit={(value) =>
+                      setValidationContractRatioPercent(sanitizePercentInput(value))
                     }
                   />
                 </div>
-                <div className="space-y-2">
-                  <div className="ob-typo-caption text-(--oboon-text-muted)">
-                    전매 제한
-                  </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        type="button"
-                        className="inline-flex w-full items-center justify-between rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-2.5 ob-typo-body text-(--oboon-text-title)"
-                      >
-                        <span>{validationTransferRestriction ? "있음" : "없음"}</span>
-                        <ChevronDown className="h-4 w-4 text-(--oboon-text-muted)" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" matchTriggerWidth>
-                      <DropdownMenuItem
-                        className={!validationTransferRestriction ? "bg-(--oboon-bg-subtle)" : ""}
-                        onClick={() => setValidationTransferRestriction(false)}
-                      >
-                        없음
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className={validationTransferRestriction ? "bg-(--oboon-bg-subtle)" : ""}
-                        onClick={() => setValidationTransferRestriction(true)}
-                      >
-                        있음
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                <div className="space-y-1">
+                  <CompactInfoRow
+                    label="전매 제한"
+                    value={formatTransferRestrictionText(
+                      validationTransferRestriction,
+                      validationTransferRestrictionPeriod,
+                    )}
+                    onCommit={(value) => {
+                      const parsed = parseTransferRestrictionText(value);
+                      setValidationTransferRestriction(parsed.transferRestriction);
+                      setValidationTransferRestrictionPeriod(
+                        parsed.transferRestrictionPeriod,
+                      );
+                    }}
+                  />
                 </div>
               </div>
             </Section>
@@ -5222,25 +5442,24 @@ export default function TestUploadPage() {
             <Section title="사업 개요">
               <div className="grid gap-y-4 gap-x-5 md:grid-cols-2">
                 <div className="space-y-1">
-                  <CompactInfoRow label="시행사" value={val(result.specs?.developer)} onCommit={(value) => updateResultSectionField("specs", "developer", normalizeTextInput(value))} />
-                  <CompactInfoRow label="신탁사" value={val(result.specs?.trust_company)} onCommit={(value) => updateResultSectionField("specs", "trust_company", normalizeTextInput(value))} />
-                  <CompactInfoRow label="용도지역" value={val(result.specs?.land_use_zone)} onCommit={(value) => updateResultSectionField("specs", "land_use_zone", normalizeTextInput(value))} />
-                  <CompactInfoRow label="건축면적" value={val(result.specs?.building_area)} onCommit={(value) => updateResultSectionField("specs", "building_area", toNullableNumberInput(value))} />
-                  <CompactInfoRow label="지상층" value={val(result.specs?.floor_ground)} onCommit={(value) => updateResultSectionField("specs", "floor_ground", toNullableNumberInput(value))} />
-                  <CompactInfoRow label="총 세대수" value={val(result.specs?.household_total)} onCommit={(value) => updateResultSectionField("specs", "household_total", toNullableNumberInput(value))} />
-                  <CompactInfoRow label="세대당 주차" value={val(result.specs?.parking_per_household)} onCommit={(value) => updateResultSectionField("specs", "parking_per_household", toNullableNumberInput(value))} />
-                  <CompactInfoRow label="용적률" value={val(result.specs?.floor_area_ratio)} onCommit={(value) => updateResultSectionField("specs", "floor_area_ratio", toNullableNumberInput(value))} />
-                  <CompactInfoRow label="부대시설" value={val(result.specs?.amenities)} onCommit={(value) => updateResultSectionField("specs", "amenities", normalizeTextInput(value))} />
+                  <CompactInfoRow label="시행사" value={val(result.specs?.developer)} isWebEnriched={isWebEvidenceField("specs.developer")} onCommit={(value) => updateResultSectionField("specs", "developer", normalizeTextInput(value))} />
+                  <CompactInfoRow label="신탁사" value={val(result.specs?.trust_company)} isWebEnriched={isWebEvidenceField("specs.trust_company")} onCommit={(value) => updateResultSectionField("specs", "trust_company", normalizeTextInput(value))} />
+                  <CompactInfoRow label="건축면적" value={val(result.specs?.building_area)} isWebEnriched={isWebEvidenceField("specs.building_area")} onCommit={(value) => updateResultSectionField("specs", "building_area", toNullableNumberInput(value))} />
+                  <CompactInfoRow label="지상층" value={val(result.specs?.floor_ground)} isWebEnriched={isWebEvidenceField("specs.floor_ground")} onCommit={(value) => updateResultSectionField("specs", "floor_ground", toNullableNumberInput(value))} />
+                  <CompactInfoRow label="총 세대수" value={val(result.specs?.household_total)} isWebEnriched={isWebEvidenceField("specs.household_total")} onCommit={(value) => updateResultSectionField("specs", "household_total", toNullableNumberInput(value))} />
+                  <CompactInfoRow label="세대당 주차" value={val(result.specs?.parking_per_household)} isWebEnriched={isWebEvidenceField("specs.parking_per_household")} onCommit={(value) => updateResultSectionField("specs", "parking_per_household", toNullableNumberInput(value))} />
+                  <CompactInfoRow label="용적률" value={val(result.specs?.floor_area_ratio)} isWebEnriched={isWebEvidenceField("specs.floor_area_ratio")} onCommit={(value) => updateResultSectionField("specs", "floor_area_ratio", toNullableNumberInput(value))} />
+                  <CompactInfoRow label="난방" value={val(result.specs?.heating_type)} isWebEnriched={isWebEvidenceField("specs.heating_type")} onCommit={(value) => updateResultSectionField("specs", "heating_type", normalizeTextInput(value))} />
                 </div>
                 <div className="space-y-1">
-                  <CompactInfoRow label="시공사" value={val(result.specs?.builder)} onCommit={(value) => updateResultSectionField("specs", "builder", normalizeTextInput(value))} />
-                  <CompactInfoRow label="분양 방식" value={val(result.specs?.sale_type)} onCommit={(value) => updateResultSectionField("specs", "sale_type", normalizeTextInput(value))} />
-                  <CompactInfoRow label="대지면적" value={val(result.specs?.site_area)} onCommit={(value) => updateResultSectionField("specs", "site_area", toNullableNumberInput(value))} />
-                  <CompactInfoRow label="지하층" value={val(result.specs?.floor_underground)} onCommit={(value) => updateResultSectionField("specs", "floor_underground", toNullableNumberInput(value))} />
-                  <CompactInfoRow label="동 수" value={val(result.specs?.building_count)} onCommit={(value) => updateResultSectionField("specs", "building_count", toNullableNumberInput(value))} />
-                  <CompactInfoRow label="총 주차대수" value={val(result.specs?.parking_total)} onCommit={(value) => updateResultSectionField("specs", "parking_total", toNullableNumberInput(value))} />
-                  <CompactInfoRow label="난방" value={val(result.specs?.heating_type)} onCommit={(value) => updateResultSectionField("specs", "heating_type", normalizeTextInput(value))} />
-                  <CompactInfoRow label="건폐율" value={val(result.specs?.building_coverage_ratio)} onCommit={(value) => updateResultSectionField("specs", "building_coverage_ratio", toNullableNumberInput(value))} />
+                  <CompactInfoRow label="시공사" value={val(result.specs?.builder)} isWebEnriched={isWebEvidenceField("specs.builder")} onCommit={(value) => updateResultSectionField("specs", "builder", normalizeTextInput(value))} />
+                  <CompactInfoRow label="분양 방식" value={val(result.specs?.sale_type)} isWebEnriched={isWebEvidenceField("specs.sale_type")} onCommit={(value) => updateResultSectionField("specs", "sale_type", normalizeTextInput(value))} />
+                  <CompactInfoRow label="대지면적" value={val(result.specs?.site_area)} isWebEnriched={isWebEvidenceField("specs.site_area")} onCommit={(value) => updateResultSectionField("specs", "site_area", toNullableNumberInput(value))} />
+                  <CompactInfoRow label="지하층" value={val(result.specs?.floor_underground)} isWebEnriched={isWebEvidenceField("specs.floor_underground")} onCommit={(value) => updateResultSectionField("specs", "floor_underground", toNullableNumberInput(value))} />
+                  <CompactInfoRow label="동 수" value={val(result.specs?.building_count)} isWebEnriched={isWebEvidenceField("specs.building_count")} onCommit={(value) => updateResultSectionField("specs", "building_count", toNullableNumberInput(value))} />
+                  <CompactInfoRow label="총 주차대수" value={val(result.specs?.parking_total)} isWebEnriched={isWebEvidenceField("specs.parking_total")} onCommit={(value) => updateResultSectionField("specs", "parking_total", toNullableNumberInput(value))} />
+                  <CompactInfoRow label="건폐율" value={val(result.specs?.building_coverage_ratio)} isWebEnriched={isWebEvidenceField("specs.building_coverage_ratio")} onCommit={(value) => updateResultSectionField("specs", "building_coverage_ratio", toNullableNumberInput(value))} />
+                  <CompactInfoRow label="부대시설" value={val(result.specs?.amenities)} isWebEnriched={isWebEvidenceField("specs.amenities")} onCommit={(value) => updateResultSectionField("specs", "amenities", normalizeTextInput(value))} />
                 </div>
               </div>
             </Section>
@@ -5248,15 +5467,15 @@ export default function TestUploadPage() {
             <Section title="일정">
               <div className="grid gap-y-4 gap-x-5 md:grid-cols-2">
                 <div className="space-y-1">
-                  <CompactInfoRow label="모집공고일" value={val(result.timeline?.announcement_date)} onCommit={(value) => updateResultSectionField("timeline", "announcement_date", normalizeTextInput(value))} />
-                  <CompactInfoRow label="청약 종료" value={val(result.timeline?.application_end)} onCommit={(value) => updateResultSectionField("timeline", "application_end", normalizeTextInput(value))} />
-                  <CompactInfoRow label="계약 시작" value={val(result.timeline?.contract_start)} onCommit={(value) => updateResultSectionField("timeline", "contract_start", normalizeTextInput(value))} />
-                  <CompactInfoRow label="입주 예정" value={val(result.timeline?.move_in_date)} onCommit={(value) => updateResultSectionField("timeline", "move_in_date", normalizeTextInput(value))} />
+                  <CompactInfoRow label="모집공고일" value={val(result.timeline?.announcement_date)} isWebEnriched={isWebEvidenceField("timeline.announcement_date")} onCommit={(value) => updateResultSectionField("timeline", "announcement_date", normalizeTextInput(value))} />
+                  <CompactInfoRow label="청약 종료" value={val(result.timeline?.application_end)} isWebEnriched={isWebEvidenceField("timeline.application_end")} onCommit={(value) => updateResultSectionField("timeline", "application_end", normalizeTextInput(value))} />
+                  <CompactInfoRow label="계약 시작" value={val(result.timeline?.contract_start)} isWebEnriched={isWebEvidenceField("timeline.contract_start")} onCommit={(value) => updateResultSectionField("timeline", "contract_start", normalizeTextInput(value))} />
+                  <CompactInfoRow label="입주 예정" value={val(result.timeline?.move_in_date)} isWebEnriched={isWebEvidenceField("timeline.move_in_date")} onCommit={(value) => updateResultSectionField("timeline", "move_in_date", normalizeTextInput(value))} />
                 </div>
                 <div className="space-y-1">
-                  <CompactInfoRow label="청약 시작" value={val(result.timeline?.application_start)} onCommit={(value) => updateResultSectionField("timeline", "application_start", normalizeTextInput(value))} />
-                  <CompactInfoRow label="당첨자 발표" value={val(result.timeline?.winner_announce)} onCommit={(value) => updateResultSectionField("timeline", "winner_announce", normalizeTextInput(value))} />
-                  <CompactInfoRow label="계약 종료" value={val(result.timeline?.contract_end)} onCommit={(value) => updateResultSectionField("timeline", "contract_end", normalizeTextInput(value))} />
+                  <CompactInfoRow label="청약 시작" value={val(result.timeline?.application_start)} isWebEnriched={isWebEvidenceField("timeline.application_start")} onCommit={(value) => updateResultSectionField("timeline", "application_start", normalizeTextInput(value))} />
+                  <CompactInfoRow label="당첨자 발표" value={val(result.timeline?.winner_announce)} isWebEnriched={isWebEvidenceField("timeline.winner_announce")} onCommit={(value) => updateResultSectionField("timeline", "winner_announce", normalizeTextInput(value))} />
+                  <CompactInfoRow label="계약 종료" value={val(result.timeline?.contract_end)} isWebEnriched={isWebEvidenceField("timeline.contract_end")} onCommit={(value) => updateResultSectionField("timeline", "contract_end", normalizeTextInput(value))} />
                 </div>
               </div>
             </Section>
@@ -5285,7 +5504,7 @@ export default function TestUploadPage() {
                   <div className="ob-typo-caption text-(--oboon-text-muted)">
                     병합 충돌 항목: 값이 달라 선택이 필요합니다.
                   </div>
-                  <div className="mt-2 overflow-x-auto rounded-lg border border-(--oboon-border-default)">
+                  <div className="mt-2 max-w-full overflow-x-auto rounded-lg border border-(--oboon-border-default)">
                     <table className="w-full min-w-[760px] table-fixed border-collapse">
                       <thead className="bg-(--oboon-bg-surface)">
                         <tr>
@@ -5387,7 +5606,7 @@ export default function TestUploadPage() {
                     병합 전 미리보기: 타입명 숫자 + 칼럼 유사도가 높은 후보
                     {` (${visibleUnitMergeCandidates.length}개)`}
                   </div>
-                  <div className="mt-2 space-y-2">
+                  <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-3">
                     {visibleUnitMergeCandidates.slice(0, 8).map((candidate) => {
                       const left = result.unit_types[candidate.leftIndex];
                       const right = result.unit_types[candidate.rightIndex];
@@ -5474,13 +5693,13 @@ export default function TestUploadPage() {
               <div className="mb-3 ob-typo-caption text-(--oboon-text-muted)">
                 체크박스로 병합할 타입을 선택한 뒤 일괄 병합할 수 있습니다.
               </div>
-              <div className="overflow-x-auto rounded-xl border border-(--oboon-border-default)">
-                <table className="min-w-[1200px] w-full border-collapse bg-(--oboon-bg-surface) text-center ob-typo-body text-(--oboon-text-body)">
+              <div className="max-w-full overflow-x-auto rounded-xl border border-(--oboon-border-default)">
+                <table className="min-w-[1380px] w-full border-collapse bg-(--oboon-bg-surface) text-center ob-typo-body text-(--oboon-text-body)">
                   <colgroup>
                     <col className="w-[46px]" />
-                    <col className="w-[46px]" />
-                    <col className="w-[150px]" />
-                    <col className="w-[145px]" />
+                    <col className="w-[38px]" />
+                    <col className="w-[108px]" />
+                    <col className="w-[78px]" />
                     <col className="w-[92px]" />
                     <col className="w-[92px]" />
                     <col className="w-[52px]" />
@@ -5488,9 +5707,11 @@ export default function TestUploadPage() {
                     <col className="w-[52px]" />
                     <col className="w-[52px]" />
                     <col className="w-[68px]" />
-                    <col className="w-[170px]" />
-                    <col className="w-[58px]" />
-                    <col className="w-[52px]" />
+                    <col className="w-[48px]" />
+                    <col className="w-[148px]" />
+                    <col className="w-[64px]" />
+                    <col className="w-[64px]" />
+                    <col className="w-[42px]" />
                   </colgroup>
                   <thead>
                     <tr>
@@ -5568,10 +5789,12 @@ export default function TestUploadPage() {
                             className="h-4 w-4 accent-(--oboon-primary)"
                           />
                         </td>
-                        <td className="px-1 py-2 align-middle border-t border-(--oboon-border-default)">
+                        <td className="p-0 align-middle border-t border-(--oboon-border-default)">
                           <EditableText
                             value={val(u?.type_name)}
                             center
+                            cellMode
+                            isWebEnriched={isWebEvidenceField("unit_types.type_name")}
                             onCommit={(value) =>
                               updateResultUnitField(
                                 i,
@@ -5581,7 +5804,7 @@ export default function TestUploadPage() {
                             }
                           />
                         </td>
-                        <td className="px-1 py-2 align-middle border-t border-(--oboon-border-default)">
+                        <td className="p-0 align-middle border-t border-(--oboon-border-default)">
                           {u ? (
                             <div className="flex items-center justify-center gap-2">
                               <input
@@ -5599,16 +5822,6 @@ export default function TestUploadPage() {
                                   )
                                 }
                               />
-
-                              <Button
-                                size="sm"
-                                variant="secondary"
-                                onClick={() =>
-                                  unitFloorPlanInputRefs.current[i]?.click()
-                                }
-                              >
-                                업로드
-                              </Button>
 
                               {resolveFloorPlanUrl(u, i) ? (
                                 <a
@@ -5631,6 +5844,18 @@ export default function TestUploadPage() {
                                   없음
                                 </span>
                               )}
+
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() =>
+                                  unitFloorPlanInputRefs.current[i]?.click()
+                                }
+                                className="h-8 w-8 p-0"
+                                title="평면도 업로드"
+                              >
+                                <Upload className="h-4 w-4" aria-hidden />
+                              </Button>
                             </div>
                           ) : (
                             <span className="ob-typo-caption text-(--oboon-text-muted)">
@@ -5638,10 +5863,12 @@ export default function TestUploadPage() {
                             </span>
                           )}
                         </td>
-                        <td className="px-1 py-2 align-middle border-t border-(--oboon-border-default)">
+                        <td className="p-0 align-middle border-t border-(--oboon-border-default)">
                           <EditableText
                             value={val(u?.exclusive_area)}
                             center
+                            cellMode
+                            isWebEnriched={isWebEvidenceField("unit_types.exclusive_area")}
                             onCommit={(value) =>
                               updateResultUnitField(
                                 i,
@@ -5651,10 +5878,12 @@ export default function TestUploadPage() {
                             }
                           />
                         </td>
-                        <td className="px-1 py-2 align-middle border-t border-(--oboon-border-default)">
+                        <td className="p-0 align-middle border-t border-(--oboon-border-default)">
                           <EditableText
                             value={val(u?.supply_area)}
                             center
+                            cellMode
+                            isWebEnriched={isWebEvidenceField("unit_types.supply_area")}
                             onCommit={(value) =>
                               updateResultUnitField(
                                 i,
@@ -5664,10 +5893,12 @@ export default function TestUploadPage() {
                             }
                           />
                         </td>
-                        <td className="px-1 py-2 align-middle border-t border-(--oboon-border-default)">
+                        <td className="p-0 align-middle border-t border-(--oboon-border-default)">
                           <EditableText
                             value={val(u?.rooms)}
                             center
+                            cellMode
+                            isWebEnriched={isWebEvidenceField("unit_types.rooms")}
                             onCommit={(value) =>
                               updateResultUnitField(
                                 i,
@@ -5677,10 +5908,12 @@ export default function TestUploadPage() {
                             }
                           />
                         </td>
-                        <td className="px-1 py-2 align-middle border-t border-(--oboon-border-default)">
+                        <td className="p-0 align-middle border-t border-(--oboon-border-default)">
                           <EditableText
                             value={val(u?.bathrooms)}
                             center
+                            cellMode
+                            isWebEnriched={isWebEvidenceField("unit_types.bathrooms")}
                             onCommit={(value) =>
                               updateResultUnitField(
                                 i,
@@ -5690,10 +5923,12 @@ export default function TestUploadPage() {
                             }
                           />
                         </td>
-                        <td className="px-1 py-2 align-middle border-t border-(--oboon-border-default)">
+                        <td className="p-0 align-middle border-t border-(--oboon-border-default)">
                           <EditableText
                             value={val(u?.building_layout)}
                             center
+                            cellMode
+                            isWebEnriched={isWebEvidenceField("unit_types.building_layout")}
                             onCommit={(value) =>
                               updateResultUnitField(
                                 i,
@@ -5703,10 +5938,12 @@ export default function TestUploadPage() {
                             }
                           />
                         </td>
-                        <td className="px-1 py-2 align-middle border-t border-(--oboon-border-default)">
+                        <td className="p-0 align-middle border-t border-(--oboon-border-default)">
                           <EditableText
                             value={val(u?.orientation)}
                             center
+                            cellMode
+                            isWebEnriched={isWebEvidenceField("unit_types.orientation")}
                             onCommit={(value) =>
                               updateResultUnitField(
                                 i,
@@ -5716,10 +5953,12 @@ export default function TestUploadPage() {
                             }
                           />
                         </td>
-                        <td className="px-1 py-2 align-middle border-t border-(--oboon-border-default)">
+                        <td className="p-0 align-middle border-t border-(--oboon-border-default)">
                           <EditableText
                             value={val(u?.supply_count)}
                             center
+                            cellMode
+                            isWebEnriched={isWebEvidenceField("unit_types.supply_count")}
                             onCommit={(value) =>
                               updateResultUnitField(
                                 i,
@@ -5729,25 +5968,12 @@ export default function TestUploadPage() {
                             }
                           />
                         </td>
-                        <td className="px-1 py-2 align-middle border-t border-(--oboon-border-default)">
-                          <EditableText
-                            value={
-                              u && (u.price_min != null || u.price_max != null)
-                                ? `${u.price_min?.toLocaleString() ?? "?"} ~ ${u.price_max?.toLocaleString() ?? "?"}`
-                                : "-"
-                            }
-                            center
-                            onCommit={(value) => {
-                              const parsed = parsePriceRangeInput(value);
-                              updateResultUnitField(i, "price_min", parsed.min);
-                              updateResultUnitField(i, "price_max", parsed.max);
-                            }}
-                          />
-                        </td>
-                        <td className="px-1 py-2 align-middle border-t border-(--oboon-border-default)">
+                        <td className="p-0 align-middle border-t border-(--oboon-border-default)">
                           <EditableText
                             value={val(u?.unit_count)}
                             center
+                            cellMode
+                            isWebEnriched={isWebEvidenceField("unit_types.unit_count")}
                             onCommit={(value) =>
                               updateResultUnitField(
                                 i,
@@ -5756,6 +5982,60 @@ export default function TestUploadPage() {
                               )
                             }
                           />
+                        </td>
+                        <td className="p-0 align-middle border-t border-(--oboon-border-default)">
+                          <EditableText
+                            value={
+                              u && (u.price_min != null || u.price_max != null)
+                                ? `${u.price_min?.toLocaleString() ?? "?"} ~ ${u.price_max?.toLocaleString() ?? "?"}`
+                                : "-"
+                            }
+                            center
+                            cellMode
+                            isWebEnriched={
+                              isWebEvidenceField("unit_types.price_min") ||
+                              isWebEvidenceField("unit_types.price_max")
+                            }
+                            onCommit={(value) => {
+                              const parsed = parsePriceRangeInput(value);
+                              updateResultUnitField(i, "price_min", parsed.min);
+                              updateResultUnitField(i, "price_max", parsed.max);
+                            }}
+                          />
+                        </td>
+                        <td className="px-1 py-2 align-middle border-t border-(--oboon-border-default)">
+                          {u ? (
+                            <label className="inline-flex items-center gap-1 text-xs whitespace-nowrap">
+                              <input
+                                type="checkbox"
+                                checked={isUnitPricePublic(u)}
+                                onChange={(e) => setUnitPricePublic(i, e.target.checked)}
+                                className="h-3.5 w-3.5 accent-(--oboon-primary)"
+                              />
+                              <span>{isUnitPricePublic(u) ? "공개" : "비공개"}</span>
+                            </label>
+                          ) : (
+                            <span className="ob-typo-caption text-(--oboon-text-muted)">
+                              -
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-1 py-2 align-middle border-t border-(--oboon-border-default)">
+                          {u ? (
+                            <label className="inline-flex items-center gap-1 text-xs whitespace-nowrap">
+                              <input
+                                type="checkbox"
+                                checked={isUnitPublic(u)}
+                                onChange={(e) => setUnitPublic(i, e.target.checked)}
+                                className="h-3.5 w-3.5 accent-(--oboon-primary)"
+                              />
+                              <span>{isUnitPublic(u) ? "공개" : "비공개"}</span>
+                            </label>
+                          ) : (
+                            <span className="ob-typo-caption text-(--oboon-text-muted)">
+                              -
+                            </span>
+                          )}
                         </td>
                         <td className="px-1 py-2 align-middle border-t border-(--oboon-border-default)">
                           <Button
@@ -5778,13 +6058,11 @@ export default function TestUploadPage() {
             <Section title="현장 위치">
               <div className="grid gap-y-4 gap-x-5 md:grid-cols-2">
                 <div className="space-y-1">
-                  <CompactInfoRow label="도로명 주소" value={val(result.location?.road_address)} onCommit={(value) => updateResultSectionField("location", "road_address", normalizeTextInput(value))} />
-                  <CompactInfoRow label="지번 주소" value={val(result.location?.jibun_address)} onCommit={(value) => updateResultSectionField("location", "jibun_address", normalizeTextInput(value))} />
-                  <CompactInfoRow label="시/도" value={val(result.location?.region_1depth)} onCommit={(value) => updateResultSectionField("location", "region_1depth", normalizeTextInput(value))} />
-                  <CompactInfoRow label="시/군/구" value={val(result.location?.region_2depth)} onCommit={(value) => updateResultSectionField("location", "region_2depth", normalizeTextInput(value))} />
-                  <CompactInfoRow label="읍/면/동" value={val(result.location?.region_3depth)} onCommit={(value) => updateResultSectionField("location", "region_3depth", normalizeTextInput(value))} />
-                  <CompactInfoRow label="위도" value={val(result.location?.lat)} onCommit={(value) => updateResultSectionField("location", "lat", toNullableNumberInput(value))} />
-                  <CompactInfoRow label="경도" value={val(result.location?.lng)} onCommit={(value) => updateResultSectionField("location", "lng", toNullableNumberInput(value))} />
+                  <CompactInfoRow label="도로명 주소" value={val(result.location?.road_address)} isWebEnriched={isWebEvidenceField("location.road_address")} onCommit={(value) => updateResultSectionField("location", "road_address", normalizeTextInput(value))} />
+                  <CompactInfoRow label="지번 주소" value={val(result.location?.jibun_address)} isWebEnriched={isWebEvidenceField("location.jibun_address")} onCommit={(value) => updateResultSectionField("location", "jibun_address", normalizeTextInput(value))} />
+                  <CompactInfoRow label="시/도" value={val(result.location?.region_1depth)} isWebEnriched={isWebEvidenceField("location.region_1depth")} onCommit={(value) => updateResultSectionField("location", "region_1depth", normalizeTextInput(value))} />
+                  <CompactInfoRow label="시/군/구" value={val(result.location?.region_2depth)} isWebEnriched={isWebEvidenceField("location.region_2depth")} onCommit={(value) => updateResultSectionField("location", "region_2depth", normalizeTextInput(value))} />
+                  <CompactInfoRow label="읍/면/동" value={val(result.location?.region_3depth)} isWebEnriched={isWebEvidenceField("location.region_3depth")} onCommit={(value) => updateResultSectionField("location", "region_3depth", normalizeTextInput(value))} />
                 </div>
                 <div>
                   {locationMarkers.length > 0 ? (
@@ -5812,14 +6090,19 @@ export default function TestUploadPage() {
               <div className="grid gap-y-4 gap-x-5 md:grid-cols-2">
                 <div className="space-y-2">
                   {(result.facilities.length > 0 ? result.facilities : [null]).map(
-                    (f: ExtractFacilityType | null, i: number) => (
-                      <div
-                        key={`${f?.name ?? "facility"}-${i}`}
-                        className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-3"
-                      >
+                    (f: ExtractFacilityWithCoords | null, i: number) => {
+                      const splitAddress = splitFacilityRoadAddress(
+                        f?.road_address ?? null,
+                      );
+                      return (
+                        <div
+                          key={`${f?.name ?? "facility"}-${i}`}
+                          className="space-y-0"
+                        >
                         <CompactInfoRow
                           label="유형"
                           value={f?.type ?? "-"}
+                          isWebEnriched={isWebEvidenceField(`facilities[${i}].type`)}
                           onCommit={(value) =>
                             updateResultFacilityField(
                               i,
@@ -5831,6 +6114,7 @@ export default function TestUploadPage() {
                         <CompactInfoRow
                           label="명칭"
                           value={f?.name ?? "-"}
+                          isWebEnriched={isWebEvidenceField(`facilities[${i}].name`)}
                           onCommit={(value) =>
                             updateResultFacilityField(
                               i,
@@ -5842,6 +6126,7 @@ export default function TestUploadPage() {
                         <CompactInfoRow
                           label="주소"
                           value={f?.road_address ?? "-"}
+                          isWebEnriched={isWebEvidenceField(`facilities[${i}].road_address`)}
                           onCommit={(value) =>
                             updateResultFacilityField(
                               i,
@@ -5851,8 +6136,28 @@ export default function TestUploadPage() {
                           }
                         />
                         <CompactInfoRow
+                          label="상세주소"
+                          value={
+                            val(
+                              normalizeComparableValue(f?.address_detail) ??
+                                splitAddress.addressDetail,
+                            )
+                          }
+                          isWebEnriched={isWebEvidenceField(
+                            `facilities[${i}].address_detail`,
+                          )}
+                          onCommit={(value) =>
+                            updateResultFacilityField(
+                              i,
+                              "address_detail",
+                              normalizeTextInput(value),
+                            )
+                          }
+                        />
+                        <CompactInfoRow
                           label="운영 시작"
                           value={f?.open_start ?? "-"}
+                          isWebEnriched={isWebEvidenceField(`facilities[${i}].open_start`)}
                           onCommit={(value) =>
                             updateResultFacilityField(
                               i,
@@ -5864,6 +6169,7 @@ export default function TestUploadPage() {
                         <CompactInfoRow
                           label="운영 종료"
                           value={f?.open_end ?? "-"}
+                          isWebEnriched={isWebEvidenceField(`facilities[${i}].open_end`)}
                           onCommit={(value) =>
                             updateResultFacilityField(
                               i,
@@ -5873,7 +6179,8 @@ export default function TestUploadPage() {
                           }
                         />
                       </div>
-                    ),
+                      );
+                    },
                   )}
                 </div>
                 <div>
@@ -5944,8 +6251,9 @@ export default function TestUploadPage() {
             </Button>
           </div>
         </div>
-      )}
-    </PageContainer>
+        )}
+      </PageContainer>
+    </div>
   );
 }
 
@@ -5977,11 +6285,13 @@ function CompactInfoRow({
   label,
   value,
   editable = true,
+  isWebEnriched = false,
   onCommit,
 }: {
   label: string;
   value: string;
   editable?: boolean;
+  isWebEnriched?: boolean;
   onCommit?: (nextValue: string) => void;
 }) {
   return (
@@ -5990,7 +6300,12 @@ function CompactInfoRow({
         {label}
       </span>
       <div className="min-w-0 flex-1">
-        <EditableText value={value} editable={editable} onCommit={onCommit} />
+        <EditableText
+          value={value}
+          editable={editable}
+          isWebEnriched={isWebEnriched}
+          onCommit={onCommit}
+        />
       </div>
     </div>
   );
@@ -5999,12 +6314,16 @@ function CompactInfoRow({
 function EditableText({
   value,
   center = false,
+  cellMode = false,
   editable = true,
+  isWebEnriched = false,
   onCommit,
 }: {
   value: string;
   center?: boolean;
+  cellMode?: boolean;
   editable?: boolean;
+  isWebEnriched?: boolean;
   onCommit?: (nextValue: string) => void;
 }) {
   const normalizeValue = (v: string) => (v === "-" ? "" : v);
@@ -6019,28 +6338,44 @@ function EditableText({
   const displayValue = currentValue.trim() ? currentValue : "-";
   const normalizedCurrentValue = normalizeValue(value).trim();
   const isUserEdited = normalizedCurrentValue !== initialValue;
-  const valueToneClass = isUserEdited
-    ? "border border-emerald-400/50 bg-emerald-500/10 text-emerald-200"
-    : "border border-sky-400/40 bg-sky-500/10 text-sky-200";
+  const valueBaseClass = "border border-transparent bg-transparent";
+  const highlightClass = isUserEdited
+    ? "bg-emerald-500/10"
+    : isWebEnriched
+      ? "bg-(--oboon-warning-bg)"
+      : "";
+  const cellHighlightClass = [
+    highlightClass,
+    cellMode
+      ? "h-full w-full px-1 py-2"
+      : highlightClass
+        ? "w-full min-h-8 rounded-md box-border"
+        : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const withCellHighlight = (content: ReactNode) =>
+    cellHighlightClass ? <div className={cellHighlightClass}>{content}</div> : content;
 
   if (!editable) {
-    return (
+    const content = (
       <span
         className={[
           "min-w-0 max-w-full overflow-hidden rounded-md px-2 py-1 ob-typo-body",
-          valueToneClass,
+          valueBaseClass,
           center
             ? "inline-flex h-8 w-full items-center justify-center text-center"
-            : "inline-block w-fit min-h-8",
+            : "inline-flex h-8 w-fit items-center",
         ].join(" ")}
       >
         {displayValue}
       </span>
     );
+    return <>{withCellHighlight(content)}</>;
   }
 
   if (editing) {
-    return (
+    const content = (
       <Input
         autoFocus
         value={draft}
@@ -6054,14 +6389,15 @@ function EditableText({
         }}
         className={
           center
-            ? `!h-8 !w-full !rounded-md !px-2 min-w-0 max-w-full overflow-hidden text-center ${isUserEdited ? "!border-emerald-400/50 !text-emerald-200" : "!border-sky-400/40 !text-sky-200"}`
-            : `h-9 w-full min-w-0 max-w-full overflow-hidden ${isUserEdited ? "border-emerald-400/50 text-emerald-200" : "border-sky-400/40 text-sky-200"}`
+            ? "!h-8 !w-full !rounded-md !px-2 !border-transparent !bg-transparent min-w-0 max-w-full overflow-hidden text-center"
+            : "h-9 w-full !border-transparent !bg-transparent min-w-0 max-w-full overflow-hidden"
         }
       />
     );
+    return <>{withCellHighlight(content)}</>;
   }
 
-  return (
+  const content = (
     <button
       type="button"
       onClick={() => {
@@ -6070,8 +6406,8 @@ function EditableText({
       }}
       className={[
         "min-w-0 max-w-full overflow-hidden rounded-md px-2 py-1 ob-typo-body transition-colors",
-        valueToneClass,
-        isUserEdited ? "hover:bg-emerald-500/20" : "hover:bg-sky-500/20",
+        valueBaseClass,
+        "hover:bg-transparent",
         center
           ? "inline-flex h-8 w-full items-center justify-center text-center"
           : "w-fit min-h-8 text-left",
@@ -6081,4 +6417,5 @@ function EditableText({
       {displayValue}
     </button>
   );
+  return <>{withCellHighlight(content)}</>;
 }

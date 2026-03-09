@@ -21,6 +21,7 @@ type ValidationProfileRow = {
   contract_ratio: number | string;
   regulation_area: RegulationArea;
   transfer_restriction: boolean | null;
+  transfer_restriction_period?: string | null;
 };
 
 const adminSupabase = createClient(
@@ -69,12 +70,6 @@ function inferAssetType(raw: unknown): ValidationAssetType {
   return "apartment";
 }
 
-function defaultContractRatio(assetType: ValidationAssetType): number {
-  if (assetType === "apartment") return 0.1;
-  if (assetType === "officetel") return 0.1;
-  return 0.1;
-}
-
 function normalizePriceToManwon(value: number): number {
   // 과거 데이터/입력에 원 단위(예: 200,000,000)가 섞이면 만원 단위로 보정한다.
   return Math.abs(value) >= 10_000_000 ? value / 10000 : value;
@@ -97,6 +92,17 @@ function parseContractRatio(raw: unknown): number | null {
   const ratio = parsed > 1 ? parsed / 100 : parsed;
   if (!Number.isFinite(ratio) || ratio <= 0 || ratio > 1) return null;
   return Math.round(ratio * 10000) / 10000;
+}
+
+function parseTransferRestrictionPeriod(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const normalized = raw.trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
+function isMissingColumnError(error: unknown): boolean {
+  const maybeCode = (error as { code?: string } | null)?.code;
+  return maybeCode === "42703";
 }
 
 function inferRepresentativeListPrice(unitTypes: unknown): number | null {
@@ -203,15 +209,32 @@ async function authorizePropertyAccess(params: {
 }
 
 async function fetchExistingProfile(propertyId: string) {
-  const { data: existingProfile } = await adminSupabase
+  const baseSelect =
+    "property_id, asset_type, list_price_manwon, contract_ratio, regulation_area, transfer_restriction";
+  const extendedSelect = `${baseSelect}, transfer_restriction_period`;
+
+  const { data: existingProfileWithPeriod, error: profileErrorWithPeriod } =
+    await adminSupabase
+      .from("property_validation_profiles")
+      .select(extendedSelect)
+      .eq("property_id", propertyId)
+      .maybeSingle<ValidationProfileRow>();
+
+  if (!profileErrorWithPeriod) {
+    return existingProfileWithPeriod ?? null;
+  }
+
+  if (!isMissingColumnError(profileErrorWithPeriod)) {
+    throw profileErrorWithPeriod;
+  }
+
+  const { data: existingProfileWithoutPeriod } = await adminSupabase
     .from("property_validation_profiles")
-    .select(
-      "property_id, asset_type, list_price_manwon, contract_ratio, regulation_area, transfer_restriction",
-    )
+    .select(baseSelect)
     .eq("property_id", propertyId)
     .maybeSingle<ValidationProfileRow>();
 
-  return existingProfile ?? null;
+  return existingProfileWithoutPeriod ?? null;
 }
 
 export async function GET(request: Request) {
@@ -237,18 +260,21 @@ export async function GET(request: Request) {
     }
 
     const existingProfile = await fetchExistingProfile(propertyId);
-    const fallbackAssetType = inferAssetType(authorized.property.property_type);
 
     return NextResponse.json({
       ok: true,
       profile: existingProfile,
       resolved: {
-        contract_ratio:
-          parseContractRatio(existingProfile?.contract_ratio) ??
-          defaultContractRatio(fallbackAssetType),
+        contract_ratio: parseContractRatio(existingProfile?.contract_ratio),
         regulation_area:
           parseRegulationArea(existingProfile?.regulation_area) ?? "non_regulated",
-        transfer_restriction: Boolean(existingProfile?.transfer_restriction),
+        transfer_restriction:
+          typeof existingProfile?.transfer_restriction === "boolean"
+            ? existingProfile.transfer_restriction
+            : null,
+        transfer_restriction_period: parseTransferRestrictionPeriod(
+          existingProfile?.transfer_restriction_period,
+        ),
       },
     });
   } catch (error) {
@@ -317,8 +343,13 @@ export async function POST(request: Request) {
 
     const contractRatio =
       requestedContractRatio ??
-      parseContractRatio(existingProfile?.contract_ratio) ??
-      defaultContractRatio(assetType);
+      parseContractRatio(existingProfile?.contract_ratio);
+    if (contractRatio === null) {
+      return NextResponse.json(
+        { error: "계약금 비율(contractRatio)이 설정되지 않았습니다." },
+        { status: 400 },
+      );
+    }
 
     const regulationArea =
       parseRegulationArea(body?.regulationArea) ??
@@ -328,26 +359,58 @@ export async function POST(request: Request) {
     const transferRestriction =
       typeof body?.transferRestriction === "boolean"
         ? body.transferRestriction
-        : Boolean(existingProfile?.transfer_restriction);
+        : body?.transferRestriction === null
+          ? null
+          : typeof existingProfile?.transfer_restriction === "boolean"
+            ? existingProfile.transfer_restriction
+            : null;
+    const transferRestrictionPeriod =
+      parseTransferRestrictionPeriod(body?.transferRestrictionPeriod) ??
+      parseTransferRestrictionPeriod(existingProfile?.transfer_restriction_period);
 
-    const { data: upserted, error: upsertError } = await adminSupabase
+    const upsertPayloadBase = {
+      property_id: propertyId,
+      asset_type: assetType,
+      list_price_manwon: listPriceManwon,
+      contract_ratio: contractRatio,
+      regulation_area: regulationArea,
+      transfer_restriction: transferRestriction,
+      updated_at: new Date().toISOString(),
+    };
+
+    const upsertPayloadWithPeriod = {
+      ...upsertPayloadBase,
+      transfer_restriction_period: transferRestrictionPeriod,
+    };
+
+    const selectBase =
+      "property_id, asset_type, list_price_manwon, contract_ratio, regulation_area, transfer_restriction, updated_at";
+    const selectWithPeriod = `${selectBase}, transfer_restriction_period`;
+
+    let upserted: Record<string, unknown> | null = null;
+    let upsertError: unknown = null;
+
+    const firstTry = await adminSupabase
       .from("property_validation_profiles")
       .upsert(
-        {
-          property_id: propertyId,
-          asset_type: assetType,
-          list_price_manwon: listPriceManwon,
-          contract_ratio: contractRatio,
-          regulation_area: regulationArea,
-          transfer_restriction: transferRestriction,
-          updated_at: new Date().toISOString(),
-        },
+        upsertPayloadWithPeriod,
         { onConflict: "property_id" },
       )
-      .select(
-        "property_id, asset_type, list_price_manwon, contract_ratio, regulation_area, transfer_restriction, updated_at",
-      )
+      .select(selectWithPeriod)
       .maybeSingle();
+
+    upserted = firstTry.data;
+    upsertError = firstTry.error;
+
+    if (upsertError && isMissingColumnError(upsertError)) {
+      const secondTry = await adminSupabase
+        .from("property_validation_profiles")
+        .upsert(upsertPayloadBase, { onConflict: "property_id" })
+        .select(selectBase)
+        .maybeSingle();
+      upserted = secondTry.data;
+      upsertError = secondTry.error;
+    }
 
     if (upsertError) {
       console.error("property_validation_profiles upsert failed:", upsertError);

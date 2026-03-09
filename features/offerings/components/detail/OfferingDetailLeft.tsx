@@ -225,7 +225,10 @@ function isModelHouseType(value: string | null | undefined) {
   return (
     normalized === "modelhouse" ||
     normalized === "modelhome" ||
-    raw.includes("모델하우스")
+    raw.includes("모델하우스") ||
+    raw.includes("견본주택") ||
+    raw.includes("홍보관") ||
+    raw.includes("분양사무실")
   );
 }
 

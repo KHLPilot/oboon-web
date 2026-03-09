@@ -85,6 +85,16 @@
     "rls_forced": false
   },
   {
+    "table_name": "condition_validation_requests",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "condition_validation_results",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
     "table_name": "consultation_money_ledger",
     "rls_enabled": true,
     "rls_forced": false
@@ -106,6 +116,11 @@
   },
   {
     "table_name": "faq_items",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "notices",
     "rls_enabled": true,
     "rls_forced": false
   },
@@ -195,6 +210,11 @@
     "rls_forced": false
   },
   {
+    "table_name": "property_validation_profiles",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
     "table_name": "public_profiles",
     "rls_enabled": true,
     "rls_forced": false
@@ -207,6 +227,11 @@
   {
     "table_name": "qna_questions",
     "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "regulation_rules",
+    "rls_enabled": false,
     "rls_forced": false
   },
   {

@@ -731,6 +731,26 @@
   },
   {
     "schemaname": "public",
+    "tablename": "notices",
+    "policyname": "notices admin all",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "ALL",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = 'admin'::text))))",
+    "with_check_expression": "(EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = 'admin'::text))))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "notices",
+    "policyname": "notices public read published",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "(is_published = true)",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
     "tablename": "notifications",
     "policyname": "service_insert_notifications",
     "permissive": "PERMISSIVE",

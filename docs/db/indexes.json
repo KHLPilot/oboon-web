@@ -255,6 +255,36 @@
     "definition": "CREATE INDEX idx_community_posts_is_agent_only ON public.community_posts USING btree (is_agent_only)"
   },
   {
+    "table_name": "condition_validation_requests",
+    "index_name": "condition_validation_requests_pkey",
+    "definition": "CREATE UNIQUE INDEX condition_validation_requests_pkey ON public.condition_validation_requests USING btree (id)"
+  },
+  {
+    "table_name": "condition_validation_requests",
+    "index_name": "idx_condition_validation_requests_property_requested_at",
+    "definition": "CREATE INDEX idx_condition_validation_requests_property_requested_at ON public.condition_validation_requests USING btree (property_id, requested_at DESC)"
+  },
+  {
+    "table_name": "condition_validation_results",
+    "index_name": "condition_validation_results_pkey",
+    "definition": "CREATE UNIQUE INDEX condition_validation_results_pkey ON public.condition_validation_results USING btree (id)"
+  },
+  {
+    "table_name": "condition_validation_results",
+    "index_name": "condition_validation_results_request_id_key",
+    "definition": "CREATE UNIQUE INDEX condition_validation_results_request_id_key ON public.condition_validation_results USING btree (request_id)"
+  },
+  {
+    "table_name": "condition_validation_results",
+    "index_name": "idx_condition_validation_results_grade_created_at",
+    "definition": "CREATE INDEX idx_condition_validation_results_grade_created_at ON public.condition_validation_results USING btree (final_grade, created_at DESC)"
+  },
+  {
+    "table_name": "condition_validation_results",
+    "index_name": "idx_condition_validation_results_request_id",
+    "definition": "CREATE INDEX idx_condition_validation_results_request_id ON public.condition_validation_results USING btree (request_id)"
+  },
+  {
     "table_name": "consultation_money_ledger",
     "index_name": "consultation_money_ledger_pkey",
     "definition": "CREATE UNIQUE INDEX consultation_money_ledger_pkey ON public.consultation_money_ledger USING btree (id)"
@@ -378,6 +408,26 @@
     "table_name": "faq_items",
     "index_name": "idx_faq_items_sort",
     "definition": "CREATE INDEX idx_faq_items_sort ON public.faq_items USING btree (category_id, sort_order)"
+  },
+  {
+    "table_name": "notices",
+    "index_name": "notices_category_idx",
+    "definition": "CREATE INDEX notices_category_idx ON public.notices USING btree (category, published_at DESC)"
+  },
+  {
+    "table_name": "notices",
+    "index_name": "notices_pkey",
+    "definition": "CREATE UNIQUE INDEX notices_pkey ON public.notices USING btree (id)"
+  },
+  {
+    "table_name": "notices",
+    "index_name": "notices_published_idx",
+    "definition": "CREATE INDEX notices_published_idx ON public.notices USING btree (is_published, published_at DESC)"
+  },
+  {
+    "table_name": "notices",
+    "index_name": "notices_slug_key",
+    "definition": "CREATE UNIQUE INDEX notices_slug_key ON public.notices USING btree (slug)"
   },
   {
     "table_name": "notifications",
@@ -635,6 +685,16 @@
     "definition": "CREATE UNIQUE INDEX property_unit_types_pkey ON public.property_unit_types USING btree (id)"
   },
   {
+    "table_name": "property_validation_profiles",
+    "index_name": "property_validation_profiles_pkey",
+    "definition": "CREATE UNIQUE INDEX property_validation_profiles_pkey ON public.property_validation_profiles USING btree (id)"
+  },
+  {
+    "table_name": "property_validation_profiles",
+    "index_name": "property_validation_profiles_property_id_key",
+    "definition": "CREATE UNIQUE INDEX property_validation_profiles_property_id_key ON public.property_validation_profiles USING btree (property_id)"
+  },
+  {
     "table_name": "public_profiles",
     "index_name": "public_profiles_pkey",
     "definition": "CREATE UNIQUE INDEX public_profiles_pkey ON public.public_profiles USING btree (id)"
@@ -668,6 +728,26 @@
     "table_name": "qna_questions",
     "index_name": "qna_questions_pkey",
     "definition": "CREATE UNIQUE INDEX qna_questions_pkey ON public.qna_questions USING btree (id)"
+  },
+  {
+    "table_name": "regulation_rules",
+    "index_name": "idx_regulation_rules_active",
+    "definition": "CREATE INDEX idx_regulation_rules_active ON public.regulation_rules USING btree (is_active, updated_at DESC)"
+  },
+  {
+    "table_name": "regulation_rules",
+    "index_name": "idx_regulation_rules_region",
+    "definition": "CREATE INDEX idx_regulation_rules_region ON public.regulation_rules USING btree (region_1depth, region_2depth, region_3depth)"
+  },
+  {
+    "table_name": "regulation_rules",
+    "index_name": "regulation_rules_pkey",
+    "definition": "CREATE UNIQUE INDEX regulation_rules_pkey ON public.regulation_rules USING btree (id)"
+  },
+  {
+    "table_name": "regulation_rules",
+    "index_name": "uq_regulation_rules_region_area",
+    "definition": "CREATE UNIQUE INDEX uq_regulation_rules_region_area ON public.regulation_rules USING btree (region_key, regulation_area)"
   },
   {
     "table_name": "term_consents",
