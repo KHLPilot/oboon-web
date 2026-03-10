@@ -188,16 +188,26 @@ function inferRegionalSubwayLine(lineToken: string, source: string): string | nu
 
 function normalizeSubwayLines(rawLines: string[], source: string): string[] {
   const lines = new Set<string>();
+  const explicitRegionalByLine = new Map<string, Set<string>>();
   const parseRegionalLine = (lineToken: string) => {
     const matched = lineToken.match(/^(서울|인천|부산|대구|광주|대전)([1-9])호선$/);
     if (!matched?.[1] || !matched?.[2]) return null;
     return { region: matched[1], lineNum: matched[2] };
   };
 
-  const addLine = (rawToken: string) => {
+  const markExplicitRegional = (lineToken: string) => {
+    const regional = parseRegionalLine(canonicalizeSubwayLine(lineToken));
+    if (!regional) return;
+    const set = explicitRegionalByLine.get(regional.lineNum) ?? new Set<string>();
+    set.add(regional.region);
+    explicitRegionalByLine.set(regional.lineNum, set);
+  };
+
+  const addLine = (rawToken: string, explicit = false) => {
     const compact = rawToken.replace(/\s+/g, "").trim();
     if (!compact) return;
     const canonical = canonicalizeSubwayLine(compact);
+    if (explicit) markExplicitRegional(canonical || compact);
     if (canonical) lines.add(canonical);
     const inferred = inferRegionalSubwayLine(canonical || compact, source);
     if (!inferred) return;
@@ -225,7 +235,25 @@ function normalizeSubwayLines(rawLines: string[], source: string): string[] {
     /(공항철도|인천공항철도|용인에버라인|에버라인|김포골드라인|김포도시철도|수인분당선|신분당선|경의중앙선|경춘선|경강선|서해선|신림선|신안산선|우이신설선|의정부경전철|동해선|동해본선|동해남부선|동북선|위례선|대경선|동탄인덕원선|대장홍대선|(?:서울|수도권|인천|부산|대구|광주|대전)\s*(?:도시철도|선)?\s*[1-9]호선|[1-9]호선\s*\((?:서울|수도권|인천|부산|대구|광주|대전)\)|대전\s*도시철도|인천\s*1호선|인천\s*2호선|[1-9]호선)/gi;
   const sourceMatches = source.match(sourceLineRegex) ?? [];
   for (const matched of sourceMatches) {
-    addLine(matched);
+    addLine(matched, true);
+  }
+
+  for (const [lineNum, regions] of explicitRegionalByLine.entries()) {
+    if (regions.size === 0) continue;
+    for (const existing of Array.from(lines)) {
+      const existingRegional = parseRegionalLine(existing);
+      if (existingRegional && existingRegional.lineNum === lineNum) {
+        if (!regions.has(existingRegional.region)) {
+          lines.delete(existing);
+        }
+        continue;
+      }
+
+      const genericLineNum = existing.match(/^([1-9])호선$/)?.[1];
+      if (genericLineNum === lineNum) {
+        lines.delete(existing);
+      }
+    }
   }
 
   return Array.from(lines);

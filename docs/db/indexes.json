@@ -136,11 +136,6 @@
   },
   {
     "table_name": "chat_messages",
-    "index_name": "idx_chat_messages_created",
-    "definition": "CREATE INDEX idx_chat_messages_created ON public.chat_messages USING btree (created_at DESC)"
-  },
-  {
-    "table_name": "chat_messages",
     "index_name": "idx_chat_messages_created_at",
     "definition": "CREATE INDEX idx_chat_messages_created_at ON public.chat_messages USING btree (created_at)"
   },
@@ -151,18 +146,8 @@
   },
   {
     "table_name": "chat_messages",
-    "index_name": "idx_chat_messages_room",
-    "definition": "CREATE INDEX idx_chat_messages_room ON public.chat_messages USING btree (room_id)"
-  },
-  {
-    "table_name": "chat_messages",
     "index_name": "idx_chat_messages_room_id",
     "definition": "CREATE INDEX idx_chat_messages_room_id ON public.chat_messages USING btree (room_id)"
-  },
-  {
-    "table_name": "chat_messages",
-    "index_name": "idx_chat_messages_sender",
-    "definition": "CREATE INDEX idx_chat_messages_sender ON public.chat_messages USING btree (sender_id)"
   },
   {
     "table_name": "chat_rooms",
@@ -173,21 +158,6 @@
     "table_name": "chat_rooms",
     "index_name": "chat_rooms_unique_triplet_idx",
     "definition": "CREATE UNIQUE INDEX chat_rooms_unique_triplet_idx ON public.chat_rooms USING btree (property_id, customer_id, agent_id) WHERE (property_id IS NOT NULL)"
-  },
-  {
-    "table_name": "chat_rooms",
-    "index_name": "idx_chat_rooms_agent",
-    "definition": "CREATE INDEX idx_chat_rooms_agent ON public.chat_rooms USING btree (agent_id)"
-  },
-  {
-    "table_name": "chat_rooms",
-    "index_name": "idx_chat_rooms_consultation",
-    "definition": "CREATE INDEX idx_chat_rooms_consultation ON public.chat_rooms USING btree (consultation_id)"
-  },
-  {
-    "table_name": "chat_rooms",
-    "index_name": "idx_chat_rooms_customer",
-    "definition": "CREATE INDEX idx_chat_rooms_customer ON public.chat_rooms USING btree (customer_id)"
   },
   {
     "table_name": "chat_rooms",
@@ -205,6 +175,16 @@
     "definition": "CREATE UNIQUE INDEX community_bookmarks_pkey ON public.community_bookmarks USING btree (post_id, profile_id)"
   },
   {
+    "table_name": "community_bookmarks",
+    "index_name": "idx_community_bookmarks_post_id",
+    "definition": "CREATE INDEX idx_community_bookmarks_post_id ON public.community_bookmarks USING btree (post_id)"
+  },
+  {
+    "table_name": "community_bookmarks",
+    "index_name": "idx_community_bookmarks_profile_id",
+    "definition": "CREATE INDEX idx_community_bookmarks_profile_id ON public.community_bookmarks USING btree (profile_id)"
+  },
+  {
     "table_name": "community_comment_likes",
     "index_name": "community_comment_likes_pkey",
     "definition": "CREATE UNIQUE INDEX community_comment_likes_pkey ON public.community_comment_likes USING btree (comment_id, profile_id)"
@@ -213,6 +193,11 @@
     "table_name": "community_comments",
     "index_name": "community_comments_pkey",
     "definition": "CREATE UNIQUE INDEX community_comments_pkey ON public.community_comments USING btree (id)"
+  },
+  {
+    "table_name": "community_comments",
+    "index_name": "idx_community_comments_post_created_at",
+    "definition": "CREATE INDEX idx_community_comments_post_created_at ON public.community_comments USING btree (post_id, created_at DESC)"
   },
   {
     "table_name": "community_comments",
@@ -245,14 +230,39 @@
     "definition": "CREATE UNIQUE INDEX community_likes_pkey ON public.community_likes USING btree (post_id, profile_id)"
   },
   {
+    "table_name": "community_likes",
+    "index_name": "idx_community_likes_post_id",
+    "definition": "CREATE INDEX idx_community_likes_post_id ON public.community_likes USING btree (post_id)"
+  },
+  {
+    "table_name": "community_likes",
+    "index_name": "idx_community_likes_profile_id",
+    "definition": "CREATE INDEX idx_community_likes_profile_id ON public.community_likes USING btree (profile_id)"
+  },
+  {
     "table_name": "community_posts",
     "index_name": "community_posts_pkey",
     "definition": "CREATE UNIQUE INDEX community_posts_pkey ON public.community_posts USING btree (id)"
   },
   {
     "table_name": "community_posts",
+    "index_name": "idx_community_posts_created_at",
+    "definition": "CREATE INDEX idx_community_posts_created_at ON public.community_posts USING btree (created_at DESC)"
+  },
+  {
+    "table_name": "community_posts",
     "index_name": "idx_community_posts_is_agent_only",
     "definition": "CREATE INDEX idx_community_posts_is_agent_only ON public.community_posts USING btree (is_agent_only)"
+  },
+  {
+    "table_name": "community_posts",
+    "index_name": "idx_community_posts_property_id",
+    "definition": "CREATE INDEX idx_community_posts_property_id ON public.community_posts USING btree (property_id)"
+  },
+  {
+    "table_name": "community_posts",
+    "index_name": "idx_community_posts_status_created_at",
+    "definition": "CREATE INDEX idx_community_posts_status_created_at ON public.community_posts USING btree (status, created_at DESC)"
   },
   {
     "table_name": "condition_validation_requests",
@@ -290,6 +300,16 @@
     "definition": "CREATE UNIQUE INDEX consultation_money_ledger_pkey ON public.consultation_money_ledger USING btree (id)"
   },
   {
+    "table_name": "consultation_money_ledger",
+    "index_name": "idx_consultation_money_ledger_consultation",
+    "definition": "CREATE INDEX idx_consultation_money_ledger_consultation ON public.consultation_money_ledger USING btree (consultation_id, created_at DESC)"
+  },
+  {
+    "table_name": "consultation_money_ledger",
+    "index_name": "idx_consultation_money_ledger_event_type",
+    "definition": "CREATE INDEX idx_consultation_money_ledger_event_type ON public.consultation_money_ledger USING btree (event_type)"
+  },
+  {
     "table_name": "consultations",
     "index_name": "consultations_pkey",
     "definition": "CREATE UNIQUE INDEX consultations_pkey ON public.consultations USING btree (id)"
@@ -301,33 +321,23 @@
   },
   {
     "table_name": "consultations",
-    "index_name": "idx_consultations_agent",
-    "definition": "CREATE INDEX idx_consultations_agent ON public.consultations USING btree (agent_id)"
-  },
-  {
-    "table_name": "consultations",
     "index_name": "idx_consultations_agent_id",
     "definition": "CREATE INDEX idx_consultations_agent_id ON public.consultations USING btree (agent_id)"
   },
   {
     "table_name": "consultations",
     "index_name": "idx_consultations_agent_slot_approved",
-    "definition": "CREATE UNIQUE INDEX idx_consultations_agent_slot_approved ON public.consultations USING btree (agent_id, scheduled_at) WHERE (status = 'confirmed'::text)"
+    "definition": "CREATE UNIQUE INDEX idx_consultations_agent_slot_approved ON public.consultations USING btree (agent_id, scheduled_at) WHERE ((status)::text = 'confirmed'::text)"
   },
   {
     "table_name": "consultations",
     "index_name": "idx_consultations_agent_timeslot_active_unique",
-    "definition": "CREATE UNIQUE INDEX idx_consultations_agent_timeslot_active_unique ON public.consultations USING btree (agent_id, scheduled_at) WHERE (status = ANY (ARRAY['requested'::text, 'pending'::text, 'confirmed'::text]))"
+    "definition": "CREATE UNIQUE INDEX idx_consultations_agent_timeslot_active_unique ON public.consultations USING btree (agent_id, scheduled_at) WHERE ((status)::text = ANY ((ARRAY['requested'::character varying, 'pending'::character varying, 'confirmed'::character varying])::text[]))"
   },
   {
     "table_name": "consultations",
     "index_name": "idx_consultations_cancelled_at",
-    "definition": "CREATE INDEX idx_consultations_cancelled_at ON public.consultations USING btree (cancelled_at) WHERE (status = 'cancelled'::text)"
-  },
-  {
-    "table_name": "consultations",
-    "index_name": "idx_consultations_customer",
-    "definition": "CREATE INDEX idx_consultations_customer ON public.consultations USING btree (customer_id)"
+    "definition": "CREATE INDEX idx_consultations_cancelled_at ON public.consultations USING btree (cancelled_at) WHERE ((status)::text = 'cancelled'::text)"
   },
   {
     "table_name": "consultations",
@@ -338,16 +348,6 @@
     "table_name": "consultations",
     "index_name": "idx_consultations_hidden",
     "definition": "CREATE INDEX idx_consultations_hidden ON public.consultations USING btree (hidden_by_customer, hidden_by_agent)"
-  },
-  {
-    "table_name": "consultations",
-    "index_name": "idx_consultations_property",
-    "definition": "CREATE INDEX idx_consultations_property ON public.consultations USING btree (property_id)"
-  },
-  {
-    "table_name": "consultations",
-    "index_name": "idx_consultations_qr",
-    "definition": "CREATE INDEX idx_consultations_qr ON public.consultations USING btree (qr_code)"
   },
   {
     "table_name": "consultations",
@@ -363,26 +363,6 @@
     "table_name": "contracts",
     "index_name": "contracts_pkey",
     "definition": "CREATE UNIQUE INDEX contracts_pkey ON public.contracts USING btree (id)"
-  },
-  {
-    "table_name": "contracts",
-    "index_name": "idx_contracts_agent",
-    "definition": "CREATE INDEX idx_contracts_agent ON public.contracts USING btree (agent_id)"
-  },
-  {
-    "table_name": "contracts",
-    "index_name": "idx_contracts_consultation",
-    "definition": "CREATE INDEX idx_contracts_consultation ON public.contracts USING btree (consultation_id)"
-  },
-  {
-    "table_name": "contracts",
-    "index_name": "idx_contracts_customer",
-    "definition": "CREATE INDEX idx_contracts_customer ON public.contracts USING btree (customer_id)"
-  },
-  {
-    "table_name": "contracts",
-    "index_name": "idx_contracts_status",
-    "definition": "CREATE INDEX idx_contracts_status ON public.contracts USING btree (status)"
   },
   {
     "table_name": "faq_categories",
@@ -446,8 +426,8 @@
   },
   {
     "table_name": "payout_requests",
-    "index_name": "payout_requests_consultation_id_type_key",
-    "definition": "CREATE UNIQUE INDEX payout_requests_consultation_id_type_key ON public.payout_requests USING btree (consultation_id, type)"
+    "index_name": "idx_payout_requests_status_type",
+    "definition": "CREATE INDEX idx_payout_requests_status_type ON public.payout_requests USING btree (status, type, created_at)"
   },
   {
     "table_name": "payout_requests",
@@ -455,24 +435,9 @@
     "definition": "CREATE UNIQUE INDEX payout_requests_pkey ON public.payout_requests USING btree (id)"
   },
   {
-    "table_name": "profile_bank_accounts",
-    "index_name": "profile_bank_accounts_pkey",
-    "definition": "CREATE UNIQUE INDEX profile_bank_accounts_pkey ON public.profile_bank_accounts USING btree (id)"
-  },
-  {
-    "table_name": "profile_gallery_images",
-    "index_name": "idx_profile_gallery_images_user_sort",
-    "definition": "CREATE INDEX idx_profile_gallery_images_user_sort ON public.profile_gallery_images USING btree (user_id, sort_order, created_at)"
-  },
-  {
-    "table_name": "profile_gallery_images",
-    "index_name": "profile_gallery_images_pkey",
-    "definition": "CREATE UNIQUE INDEX profile_gallery_images_pkey ON public.profile_gallery_images USING btree (id)"
-  },
-  {
-    "table_name": "profile_gallery_images",
-    "index_name": "profile_gallery_images_storage_path_key",
-    "definition": "CREATE UNIQUE INDEX profile_gallery_images_storage_path_key ON public.profile_gallery_images USING btree (storage_path)"
+    "table_name": "payout_requests",
+    "index_name": "payout_requests_unique_consultation",
+    "definition": "CREATE UNIQUE INDEX payout_requests_unique_consultation ON public.payout_requests USING btree (consultation_id, type)"
   },
   {
     "table_name": "profiles",
@@ -526,18 +491,8 @@
   },
   {
     "table_name": "property_agents",
-    "index_name": "idx_property_agents_agent_status",
-    "definition": "CREATE INDEX idx_property_agents_agent_status ON public.property_agents USING btree (agent_id, status)"
-  },
-  {
-    "table_name": "property_agents",
     "index_name": "idx_property_agents_property_id",
     "definition": "CREATE INDEX idx_property_agents_property_id ON public.property_agents USING btree (property_id)"
-  },
-  {
-    "table_name": "property_agents",
-    "index_name": "idx_property_agents_property_status",
-    "definition": "CREATE INDEX idx_property_agents_property_status ON public.property_agents USING btree (property_id, status)"
   },
   {
     "table_name": "property_agents",
@@ -651,8 +606,28 @@
   },
   {
     "table_name": "property_requests",
+    "index_name": "property_requests_agent_id_idx",
+    "definition": "CREATE INDEX property_requests_agent_id_idx ON public.property_requests USING btree (agent_id)"
+  },
+  {
+    "table_name": "property_requests",
     "index_name": "property_requests_pkey",
     "definition": "CREATE UNIQUE INDEX property_requests_pkey ON public.property_requests USING btree (id)"
+  },
+  {
+    "table_name": "property_requests",
+    "index_name": "property_requests_property_id_idx",
+    "definition": "CREATE INDEX property_requests_property_id_idx ON public.property_requests USING btree (property_id)"
+  },
+  {
+    "table_name": "property_requests",
+    "index_name": "property_requests_requested_at_idx",
+    "definition": "CREATE INDEX property_requests_requested_at_idx ON public.property_requests USING btree (requested_at)"
+  },
+  {
+    "table_name": "property_requests",
+    "index_name": "property_requests_status_idx",
+    "definition": "CREATE INDEX property_requests_status_idx ON public.property_requests USING btree (status)"
   },
   {
     "table_name": "property_requests",
@@ -673,6 +648,11 @@
     "table_name": "property_timeline",
     "index_name": "property_timeline_pkey",
     "definition": "CREATE UNIQUE INDEX property_timeline_pkey ON public.property_timeline USING btree (id)"
+  },
+  {
+    "table_name": "property_timeline",
+    "index_name": "property_timeline_properties_id_unique",
+    "definition": "CREATE UNIQUE INDEX property_timeline_properties_id_unique ON public.property_timeline USING btree (properties_id)"
   },
   {
     "table_name": "property_unit_types",
@@ -846,11 +826,6 @@
   },
   {
     "table_name": "visit_confirm_requests",
-    "index_name": "idx_visit_confirm_requests_token_id",
-    "definition": "CREATE INDEX idx_visit_confirm_requests_token_id ON public.visit_confirm_requests USING btree (token_id)"
-  },
-  {
-    "table_name": "visit_confirm_requests",
     "index_name": "visit_confirm_requests_pkey",
     "definition": "CREATE UNIQUE INDEX visit_confirm_requests_pkey ON public.visit_confirm_requests USING btree (id)"
   },
@@ -866,11 +841,6 @@
   },
   {
     "table_name": "visit_logs",
-    "index_name": "idx_visit_logs_token_id",
-    "definition": "CREATE INDEX idx_visit_logs_token_id ON public.visit_logs USING btree (token_id)"
-  },
-  {
-    "table_name": "visit_logs",
     "index_name": "idx_visit_logs_verified_at",
     "definition": "CREATE INDEX idx_visit_logs_verified_at ON public.visit_logs USING btree (verified_at)"
   },
@@ -878,11 +848,6 @@
     "table_name": "visit_logs",
     "index_name": "visit_logs_pkey",
     "definition": "CREATE UNIQUE INDEX visit_logs_pkey ON public.visit_logs USING btree (id)"
-  },
-  {
-    "table_name": "visit_tokens",
-    "index_name": "idx_visit_tokens_agent_id",
-    "definition": "CREATE INDEX idx_visit_tokens_agent_id ON public.visit_tokens USING btree (agent_id)"
   },
   {
     "table_name": "visit_tokens",
