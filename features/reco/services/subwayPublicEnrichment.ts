@@ -4,13 +4,29 @@ type SubwayLineInfo = {
   lines: string[];
   rawPublic: Record<string, unknown> | null;
 };
+const TRANSIT_LINE_TOKEN_REGEX =
+  /(공항철도|인천공항철도|용인에버라인|에버라인|김포골드라인|김포도시철도|수인분당선|신분당선|경의중앙선|경춘선|경강선|서해선|신림선|신안산선|우이신설선|의정부경전철|동해선|동해본선|동해남부선|동북선|위례선|대경선|동탄인덕원선|대장홍대선|대구산업선|(?:서울|수도권|인천|부산|대구|광주|대전)\s*(?:도시철도|선)?\s*[1-9]호선|[1-9]호선\s*\((?:서울|수도권|인천|부산|대구|광주|대전)\)|[0-9]+호선|KTX|SRT|ITX|GTX-[A-D])/gi;
 
 function normalizeStationName(raw: string): string {
-  return raw
-    .replace(/\(.*?\)/g, "")
-    .replace(/\s+/g, "")
-    .replace(/역$/, "")
+  const withoutParens = raw.replace(/\(.*?\)/g, " ").replace(/\s+/g, " ").trim();
+  if (!withoutParens) return "";
+
+  const directStation = withoutParens.match(/[가-힣A-Za-z0-9]+역/g)?.[0];
+  if (directStation) {
+    return directStation.replace(/역$/, "").trim();
+  }
+
+  const normalized = withoutParens
+    .replace(TRANSIT_LINE_TOKEN_REGEX, " ")
+    .replace(/\s+/g, " ")
     .trim();
+  if (!normalized) return "";
+
+  const token =
+    normalized.split(" ").find((value) => /역$/.test(value)) ??
+    normalized.split(" ").at(-1) ??
+    normalized;
+  return token.replace(/역$/, "").trim();
 }
 
 function toArrayDeep(input: unknown): Record<string, unknown>[] {

@@ -30,6 +30,8 @@ const NON_RESIDENTIAL_PROPERTY_TYPE_KEYWORDS = [
   "공장",
   "창고",
 ] as const;
+const TRANSIT_LINE_TOKEN_REGEX =
+  /(공항철도|인천공항철도|용인에버라인|에버라인|김포골드라인|김포도시철도|수인분당선|신분당선|경의중앙선|경춘선|경강선|서해선|신림선|신안산선|우이신설선|의정부경전철|동해선|동해본선|동해남부선|동북선|위례선|대경선|동탄인덕원선|대장홍대선|대구산업선|(?:서울|수도권|인천|부산|대구|광주|대전)\s*(?:도시철도|선)?\s*[1-9]호선|[1-9]호선\s*\((?:서울|수도권|인천|부산|대구|광주|대전)\)|[0-9]+호선|KTX|SRT|ITX|GTX-[A-D])/gi;
 
 function toNumberOrNull(value: number | string | null | undefined) {
   if (value == null) return null;
@@ -49,19 +51,24 @@ export function isLivingInfraAllowed(propertyType: string | null | undefined) {
 }
 
 export function normalizeStationName(name: string) {
-  const normalized = name
-    .replace(/\([^)]*\)/g, "")
-    .replace(/\s*[0-9]+호선/g, "")
-    .replace(
-      /\s*(경의중앙선|수인분당선|신분당선|경춘선|경강선|서해선|공항철도|인천공항철도|용인에버라인|에버라인|김포골드라인|김포도시철도|KTX|SRT|ITX|GTX-[A-D])\s*/gi,
-      " ",
-    )
+  const withoutParens = name.replace(/\([^)]*\)/g, " ").replace(/\s+/g, " ").trim();
+  if (!withoutParens) return "";
+
+  const directStation = withoutParens.match(/[가-힣A-Za-z0-9]+역/g)?.[0];
+  if (directStation) return directStation;
+
+  const normalized = withoutParens
+    .replace(TRANSIT_LINE_TOKEN_REGEX, " ")
     .replace(/\s+/g, " ")
     .trim();
 
   if (!normalized) return "";
   const tokens = normalized.split(" ");
-  return tokens[tokens.length - 1] ?? normalized;
+  return (
+    tokens.find((token) => /역$/.test(token)) ??
+    tokens[tokens.length - 1] ??
+    normalized
+  );
 }
 
 function isStationName(name: string) {
