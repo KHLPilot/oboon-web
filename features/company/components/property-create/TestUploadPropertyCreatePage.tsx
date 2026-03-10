@@ -1062,12 +1062,12 @@ export default function TestUploadPage() {
     Record<number, HTMLInputElement | null>
   >({});
   const [unitFloorPlanUrls, setUnitFloorPlanUrls] = useState<
-    Record<number, string>
+    Record<number, string[]>
   >({});
   const [unitFloorPlanFiles, setUnitFloorPlanFiles] = useState<
-    Record<number, File | null>
+    Record<number, File[]>
   >({});
-  const unitFloorPlanUrlsRef = useRef<Record<number, string>>({});
+  const unitFloorPlanUrlsRef = useRef<Record<number, string[]>>({});
   const mainImageInputRef = useRef<HTMLInputElement>(null);
   const galleryImageInputRef = useRef<HTMLInputElement>(null);
   const modelhouseMainImageInputRef = useRef<HTMLInputElement>(null);
@@ -1439,6 +1439,9 @@ export default function TestUploadPage() {
   const revokeBlobUrl = (url?: string | null) => {
     if (url && url.startsWith("blob:")) URL.revokeObjectURL(url);
   };
+  const revokeBlobUrls = (urls?: string[] | null) => {
+    (urls ?? []).forEach((url) => revokeBlobUrl(url));
+  };
   const makeExtractedImage = (
     img: {
       id: string;
@@ -1661,32 +1664,38 @@ export default function TestUploadPage() {
   };
 
   const uploadEditedFloorPlans = async (propertyId: number) => {
-    const uploadedFloorPlanUrls: Record<number, string> = {};
+    const uploadedFloorPlanUrls: Record<number, string[]> = {};
     const floorPlanEntries = Object.entries(unitFloorPlanFiles);
-    for (const [indexText, file] of floorPlanEntries) {
-      if (!file) continue;
+    for (const [indexText, files] of floorPlanEntries) {
+      if (!Array.isArray(files) || files.length === 0) continue;
       const rowIndex = Number(indexText);
       if (!Number.isFinite(rowIndex)) continue;
 
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("propertyId", String(propertyId));
-      fd.append("mode", "property_floor_plan");
-      fd.append(
-        "unitType",
-        String(result?.unit_types?.[rowIndex]?.type_name ?? `type-${rowIndex}`),
-      );
+      const uploadedUrls: string[] = [];
+      for (const file of files.slice(0, 5)) {
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("propertyId", String(propertyId));
+        fd.append("mode", "property_floor_plan");
+        fd.append(
+          "unitType",
+          String(result?.unit_types?.[rowIndex]?.type_name ?? `type-${rowIndex}`),
+        );
 
-      const fpRes = await fetch("/api/r2/upload", {
-        method: "POST",
-        body: fd,
-      });
-      const fpPayload = await fpRes.json().catch(() => null);
-      if (!fpRes.ok || !fpPayload?.url) {
-        throw new Error(fpPayload?.error || "평면도 업로드 실패");
+        const fpRes = await fetch("/api/r2/upload", {
+          method: "POST",
+          body: fd,
+        });
+        const fpPayload = await fpRes.json().catch(() => null);
+        if (!fpRes.ok || !fpPayload?.url) {
+          throw new Error(fpPayload?.error || "평면도 업로드 실패");
+        }
+        uploadedUrls.push(String(fpPayload.url));
       }
 
-      uploadedFloorPlanUrls[rowIndex] = String(fpPayload.url);
+      if (uploadedUrls.length > 0) {
+        uploadedFloorPlanUrls[rowIndex] = uploadedUrls;
+      }
     }
 
     return uploadedFloorPlanUrls;
@@ -1696,7 +1705,7 @@ export default function TestUploadPage() {
     supabase: ReturnType<typeof createSupabaseClient>,
     propertyId: number,
   ) => {
-    const uploadedFloorPlanUrls = await uploadEditedFloorPlans(propertyId);
+    const uploadedFloorPlanUrlsByRow = await uploadEditedFloorPlans(propertyId);
     const units = result?.unit_types ?? [];
     const rowIndexToUnitId: Record<number, number> = {};
 
@@ -1744,11 +1753,16 @@ export default function TestUploadPage() {
       }
 
       const floorPlanUrl = resolveFloorPlanUrl(unit, index);
-      const floorPlanAssetUrl =
-        uploadedFloorPlanUrls[index] ??
-        (floorPlanUrl && !floorPlanUrl.startsWith("blob:")
+      const fallbackFloorPlanUrl =
+        floorPlanUrl && !floorPlanUrl.startsWith("blob:")
           ? floorPlanUrl
-          : normalizeComparableValue(unit.floor_plan_url ?? unit.image_url));
+          : normalizeComparableValue(unit.floor_plan_url ?? unit.image_url);
+      const floorPlanAssetUrls =
+        uploadedFloorPlanUrlsByRow[index] && uploadedFloorPlanUrlsByRow[index].length > 0
+          ? uploadedFloorPlanUrlsByRow[index]
+          : fallbackFloorPlanUrl
+            ? [String(fallbackFloorPlanUrl)]
+            : [];
         const payload = {
           type_name: typeName,
           exclusive_area: toNumberOrNull(unit.exclusive_area),
@@ -1784,16 +1798,19 @@ export default function TestUploadPage() {
         if (updateError) throw updateError;
         rowIndexToUnitId[index] = existingId;
         updated += 1;
-        if (floorPlanAssetUrl) {
-          await upsertPropertyImageAsset(supabase, {
-            property_id: propertyId,
-            unit_type_id: existingId,
-            kind: "floor_plan",
-            image_url: String(floorPlanAssetUrl),
-            image_hash: extractImageHashFromUrl(String(floorPlanAssetUrl)),
-            caption: null,
-            sort_order: 0,
-          });
+        if (floorPlanAssetUrls.length > 0) {
+          for (let floorPlanIndex = 0; floorPlanIndex < floorPlanAssetUrls.length; floorPlanIndex += 1) {
+            const floorPlanAssetUrl = floorPlanAssetUrls[floorPlanIndex];
+            await upsertPropertyImageAsset(supabase, {
+              property_id: propertyId,
+              unit_type_id: existingId,
+              kind: "floor_plan",
+              image_url: String(floorPlanAssetUrl),
+              image_hash: extractImageHashFromUrl(String(floorPlanAssetUrl)),
+              caption: null,
+              sort_order: floorPlanIndex,
+            });
+          }
         }
       } else {
         const insertPayload = { ...payload, properties_id: propertyId };
@@ -1823,16 +1840,19 @@ export default function TestUploadPage() {
         existingUnitIdSet.add(insertedId);
         seenExistingIds.add(insertedId);
         inserted += 1;
-        if (floorPlanAssetUrl) {
-          await upsertPropertyImageAsset(supabase, {
-            property_id: propertyId,
-            unit_type_id: insertedId,
-            kind: "floor_plan",
-            image_url: String(floorPlanAssetUrl),
-            image_hash: extractImageHashFromUrl(String(floorPlanAssetUrl)),
-            caption: null,
-            sort_order: 0,
-          });
+        if (floorPlanAssetUrls.length > 0) {
+          for (let floorPlanIndex = 0; floorPlanIndex < floorPlanAssetUrls.length; floorPlanIndex += 1) {
+            const floorPlanAssetUrl = floorPlanAssetUrls[floorPlanIndex];
+            await upsertPropertyImageAsset(supabase, {
+              property_id: propertyId,
+              unit_type_id: insertedId,
+              kind: "floor_plan",
+              image_url: String(floorPlanAssetUrl),
+              image_hash: extractImageHashFromUrl(String(floorPlanAssetUrl)),
+              caption: null,
+              sort_order: floorPlanIndex,
+            });
+          }
         }
       }
     }
@@ -1868,7 +1888,10 @@ export default function TestUploadPage() {
       rowIndexToUnitId,
       updated,
       inserted,
-      uploadedFloorPlans: Object.keys(uploadedFloorPlanUrls).length,
+      uploadedFloorPlans: Object.values(uploadedFloorPlanUrlsByRow).reduce(
+        (sum, urls) => sum + urls.length,
+        0,
+      ),
     };
   };
 
@@ -2791,8 +2814,8 @@ export default function TestUploadPage() {
       );
       setEditBaselineVersion((prev) => prev + 1);
       setDismissedMergeCandidateKeys([]);
-      Object.values(unitFloorPlanUrlsRef.current).forEach((url) =>
-        revokeBlobUrl(url),
+      Object.values(unitFloorPlanUrlsRef.current).forEach((urls) =>
+        revokeBlobUrls(urls),
       );
       revokeBlobUrl(mainImageUrlRef.current);
       galleryImageUrlsRef.current.forEach((url) => revokeBlobUrl(url));
@@ -4190,8 +4213,8 @@ export default function TestUploadPage() {
     });
   };
   const removeUnitTypeRow = (removeIndex: number) => {
-    const removedPreviewUrl = unitFloorPlanUrlsRef.current[removeIndex];
-    revokeBlobUrl(removedPreviewUrl);
+    const removedPreviewUrls = unitFloorPlanUrlsRef.current[removeIndex];
+    revokeBlobUrls(removedPreviewUrls);
 
     setResult((prev) => {
       if (!prev) return prev;
@@ -4202,7 +4225,7 @@ export default function TestUploadPage() {
     });
 
     setUnitFloorPlanFiles((prev) => {
-      const next: Record<number, File | null> = {};
+      const next: Record<number, File[]> = {};
       Object.entries(prev).forEach(([key, file]) => {
         const index = Number(key);
         if (!Number.isFinite(index) || index === removeIndex) return;
@@ -4213,12 +4236,12 @@ export default function TestUploadPage() {
     });
 
     setUnitFloorPlanUrls((prev) => {
-      const next: Record<number, string> = {};
-      Object.entries(prev).forEach(([key, url]) => {
+      const next: Record<number, string[]> = {};
+      Object.entries(prev).forEach(([key, urls]) => {
         const index = Number(key);
         if (!Number.isFinite(index) || index === removeIndex) return;
         const target = index > removeIndex ? index - 1 : index;
-        next[target] = url;
+        next[target] = urls;
       });
       return next;
     });
@@ -4397,7 +4420,7 @@ export default function TestUploadPage() {
       return { ...prev, unit_types: nextUnits };
     });
     setUnitFloorPlanFiles((prev) => {
-      const next: Record<number, File | null> = {};
+      const next: Record<number, File[]> = {};
       const leftFile = prev[normalizedLeft];
       const rightFile = prev[normalizedRight];
       Object.entries(prev).forEach(([key, file]) => {
@@ -4414,14 +4437,14 @@ export default function TestUploadPage() {
       return next;
     });
     setUnitFloorPlanUrls((prev) => {
-      const next: Record<number, string> = {};
+      const next: Record<number, string[]> = {};
       const leftUrl = prev[normalizedLeft];
       const rightUrl = prev[normalizedRight];
-      Object.entries(prev).forEach(([key, url]) => {
+      Object.entries(prev).forEach(([key, urls]) => {
         const index = Number(key);
         if (!Number.isFinite(index) || index === normalizedRight) return;
         const target = index > normalizedRight ? index - 1 : index;
-        next[target] = url;
+        next[target] = urls;
       });
       if (!next[normalizedLeft] && rightUrl) {
         next[normalizedLeft] = rightUrl;
@@ -4477,7 +4500,7 @@ export default function TestUploadPage() {
     });
 
     setUnitFloorPlanFiles((prev) => {
-      const next: Record<number, File | null> = {};
+      const next: Record<number, File[]> = {};
       Object.entries(prev).forEach(([key, file]) => {
         const index = Number(key);
         if (!Number.isFinite(index)) return;
@@ -4487,11 +4510,11 @@ export default function TestUploadPage() {
     });
 
     setUnitFloorPlanUrls((prev) => {
-      const next: Record<number, string> = {};
-      Object.entries(prev).forEach(([key, url]) => {
+      const next: Record<number, string[]> = {};
+      Object.entries(prev).forEach(([key, urls]) => {
         const index = Number(key);
         if (!Number.isFinite(index)) return;
-        next[remapIndexByMove(index, fromIndex, toIndex)] = url;
+        next[remapIndexByMove(index, fromIndex, toIndex)] = urls;
       });
       return next;
     });
@@ -4567,23 +4590,41 @@ export default function TestUploadPage() {
     rowIndex: number,
   ) => {
     const edited = unitFloorPlanUrls[rowIndex];
-    if (edited) return edited;
+    if (Array.isArray(edited) && edited.length > 0) return edited[0];
     return unit?.floor_plan_url || unit?.image_url || "";
+  };
+
+  const resolveFloorPlanUrls = (
+    unit: ExtractUnitTypeExtended | null,
+    rowIndex: number,
+  ) => {
+    const edited = unitFloorPlanUrls[rowIndex];
+    if (Array.isArray(edited) && edited.length > 0) return edited;
+    const fallback = unit?.floor_plan_url || unit?.image_url || "";
+    return fallback ? [fallback] : [];
   };
 
   const handleFloorPlanFileChange = (
     rowIndex: number,
-    file: File | null,
+    filesList: FileList | null,
     fallbackUrl = "",
   ) => {
-    const nextUrl = file ? URL.createObjectURL(file) : fallbackUrl;
-    setUnitFloorPlanFiles((prev) => ({ ...prev, [rowIndex]: file }));
+    const selectedFiles = Array.from(filesList ?? []).slice(0, 5);
+    if ((filesList?.length ?? 0) > 5) {
+      setStatus("평면도는 타입별 최대 5장까지 업로드할 수 있습니다.");
+      setStatusTone("danger");
+    }
+    setUnitFloorPlanFiles((prev) => ({ ...prev, [rowIndex]: selectedFiles }));
     setUnitFloorPlanUrls((prev) => {
       const current = prev[rowIndex];
-      if (current && current.startsWith("blob:")) {
-        URL.revokeObjectURL(current);
-      }
-      return { ...prev, [rowIndex]: nextUrl };
+      revokeBlobUrls(current);
+      const nextUrls =
+        selectedFiles.length > 0
+          ? selectedFiles.map((file) => URL.createObjectURL(file))
+          : fallbackUrl
+            ? [fallbackUrl]
+            : [];
+      return { ...prev, [rowIndex]: nextUrls };
     });
   };
 
@@ -4758,8 +4799,8 @@ export default function TestUploadPage() {
         clearInterval(analysisTimerRef.current);
         analysisTimerRef.current = null;
       }
-      Object.values(unitFloorPlanUrlsRef.current).forEach((url) => {
-        revokeBlobUrl(url);
+      Object.values(unitFloorPlanUrlsRef.current).forEach((urls) => {
+        revokeBlobUrls(urls);
       });
       revokeBlobUrl(mainImageUrlRef.current);
       galleryImageUrlsRef.current.forEach((url) => revokeBlobUrl(url));
@@ -6069,14 +6110,16 @@ export default function TestUploadPage() {
                                 }}
                                 type="file"
                                 accept="image/*"
+                                multiple
                                 className="sr-only"
-                                onChange={(e) =>
+                                onChange={(e) => {
                                   handleFloorPlanFileChange(
                                     i,
-                                    e.target.files?.[0] ?? null,
+                                    e.target.files,
                                     u.floor_plan_url || u.image_url || "",
-                                  )
-                                }
+                                  );
+                                  e.currentTarget.value = "";
+                                }}
                               />
 
                               {resolveFloorPlanUrl(u, i) ? (
@@ -6094,6 +6137,11 @@ export default function TestUploadPage() {
                                     className="object-cover"
                                     unoptimized
                                   />
+                                  {resolveFloorPlanUrls(u, i).length > 1 ? (
+                                    <span className="absolute -right-1 -top-1 rounded-full bg-(--oboon-primary) px-1 py-0.5 text-[10px] leading-none text-white">
+                                      {resolveFloorPlanUrls(u, i).length}
+                                    </span>
+                                  ) : null}
                                 </a>
                               ) : (
                                 <span className="ob-typo-caption text-(--oboon-text-muted)">
@@ -6108,7 +6156,7 @@ export default function TestUploadPage() {
                                   unitFloorPlanInputRefs.current[i]?.click()
                                 }
                                 className="h-8 w-8 p-0"
-                                title="평면도 업로드"
+                                title="평면도 업로드(최대 5장)"
                               >
                                 <Upload className="h-4 w-4" aria-hidden />
                               </Button>
@@ -6597,6 +6645,10 @@ function EditableText({
   };
   const currentValue = editing ? draft : normalizeValue(value);
   const displayValue = currentValue.trim() ? currentValue : "-";
+  const shouldUseMultilineLayout =
+    !center &&
+    !cellMode &&
+    (currentValue.includes("\n") || currentValue.trim().length >= 28);
   const normalizedCurrentValue = normalizeValue(value).trim();
   const isUserEdited = normalizedCurrentValue !== initialValue;
   const valueBaseClass = "border border-transparent bg-transparent";
@@ -6624,11 +6676,13 @@ function EditableText({
     const content = (
       <span
         className={[
-          "min-w-0 max-w-full overflow-hidden rounded-md px-2 py-1 ob-typo-body",
+          "min-w-0 max-w-full rounded-md px-2 py-1 ob-typo-body",
           valueBaseClass,
           center
             ? "inline-flex h-8 w-full items-center justify-center text-center"
-            : "inline-flex h-8 w-fit items-center",
+            : shouldUseMultilineLayout
+              ? "inline-flex min-h-8 w-full items-start whitespace-pre-wrap break-words"
+              : "inline-flex h-8 w-fit items-center overflow-hidden",
         ].join(" ")}
       >
         {displayValue}
@@ -6638,6 +6692,25 @@ function EditableText({
   }
 
   if (editing) {
+    if (shouldUseMultilineLayout) {
+      const content = (
+        <textarea
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") commit();
+            if (e.key === "Escape") {
+              setEditing(false);
+            }
+          }}
+          rows={2}
+          className="min-h-[3.25rem] w-full resize-y rounded-md border border-transparent bg-transparent px-2 py-1.5 ob-typo-body leading-5"
+        />
+      );
+      return <>{withCellHighlight(content)}</>;
+    }
     const content = (
       <Input
         autoFocus
@@ -6668,12 +6741,14 @@ function EditableText({
         setEditing(true);
       }}
       className={[
-        "min-w-0 max-w-full overflow-hidden rounded-md px-2 py-1 ob-typo-body transition-colors",
+        "min-w-0 max-w-full rounded-md px-2 py-1 ob-typo-body transition-colors",
         valueBaseClass,
         "hover:bg-transparent",
         center
           ? "inline-flex h-8 w-full items-center justify-center text-center"
-          : "inline-flex h-8 w-full items-center text-left",
+          : shouldUseMultilineLayout
+            ? "inline-flex min-h-8 w-full items-start text-left whitespace-pre-wrap break-words"
+            : "inline-flex h-8 w-full items-center overflow-hidden text-left",
       ].join(" ")}
       title="클릭해서 수정"
     >
