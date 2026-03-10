@@ -279,6 +279,7 @@ export default function AdminRegulationRulesTab({ active }: AdminRegulationRules
   const [bootstrapLoading, setBootstrapLoading] = useState<"preview" | "apply" | null>(
     null,
   );
+  const [recoPoiBatchLoading, setRecoPoiBatchLoading] = useState(false);
   const [items, setItems] = useState<RegulationRuleItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [listRegulationFilter, setListRegulationFilter] = useState<
@@ -520,6 +521,36 @@ export default function AdminRegulationRulesTab({ active }: AdminRegulationRules
     }
   };
 
+  const runRecoPoiBatch = async () => {
+    const ok = window.confirm(
+      "주변 인프라 재수집 배치를 지금 실행할까요?\n(대기 중인 큐와 갱신 대상 현장을 처리합니다.)",
+    );
+    if (!ok) return;
+
+    setRecoPoiBatchLoading(true);
+    try {
+      const response = await fetch(
+        "/api/admin/reco-pois/run?chunk=100&topN=3&radius=5000&concurrency=4",
+        { method: "POST" },
+      );
+      const payload = (await response.json().catch(() => null)) as
+        | { error?: string; stats?: { processed?: number; succeeded?: number; failed?: number } }
+        | null;
+      if (!response.ok) {
+        throw new Error(payload?.error || "주변 인프라 재수집 실행 실패");
+      }
+
+      toast.success(
+        `재수집 완료: 처리 ${payload?.stats?.processed ?? 0}건 / 성공 ${payload?.stats?.succeeded ?? 0}건`,
+        "완료",
+      );
+    } catch (error) {
+      toast.error(toKoreanErrorMessage(error, "주변 인프라 재수집 실행 실패"), "오류");
+    } finally {
+      setRecoPoiBatchLoading(false);
+    }
+  };
+
   const loadMapBoundaries = useCallback(async () => {
     if (!hasNaverMapClientId) {
       toast.error("네이버 지도 키가 없어 지도를 표시할 수 없습니다.", "오류");
@@ -639,6 +670,15 @@ export default function AdminRegulationRulesTab({ active }: AdminRegulationRules
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            shape="pill"
+            onClick={() => void runRecoPoiBatch()}
+            loading={recoPoiBatchLoading}
+          >
+            주변 인프라 재수집 실행
+          </Button>
           <Button
             variant="secondary"
             size="sm"
