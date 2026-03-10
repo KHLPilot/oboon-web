@@ -494,6 +494,46 @@ function normalizeComparableValue(value: unknown): unknown {
   return value;
 }
 
+function normalizeFacilityOpenDateForDb(value: unknown): string | null {
+  const normalized = normalizeComparableValue(value);
+  if (typeof normalized !== "string") return null;
+
+  const compact = normalized.trim();
+  if (!compact) return null;
+
+  if (/^\d{4}-(0[1-9]|1[0-2])$/.test(compact)) return compact;
+  if (/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(compact)) {
+    const [year, month, day] = compact.split("-").map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    const isValid =
+      date.getUTCFullYear() === year &&
+      date.getUTCMonth() + 1 === month &&
+      date.getUTCDate() === day;
+    return isValid ? compact : null;
+  }
+
+  const dotted = compact.match(
+    /^(\d{4})[./\s년]+(0?[1-9]|1[0-2])(?:[./\s월]+(0?[1-9]|[12]\d|3[01]))?일?$/,
+  );
+  if (!dotted) return null;
+  const year = Number(dotted[1]);
+  const month = Number(dotted[2]);
+  const day = dotted[3] ? Number(dotted[3]) : null;
+
+  if (day == null) {
+    return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}`;
+  }
+
+  const date = new Date(Date.UTC(year, month - 1, day));
+  const isValid =
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() + 1 === month &&
+    date.getUTCDate() === day;
+  if (!isValid) return null;
+
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
 function splitFacilityRoadAddress(value: unknown): {
   roadAddress: string | null;
   addressDetail: string | null;
@@ -3812,8 +3852,8 @@ export default function TestUploadPage() {
               null,
             road_address: splitAddress.roadAddress,
             address_detail: normalizedAddressDetail ?? splitAddress.addressDetail,
-            open_start: normalizeComparableValue(facility.open_start),
-            open_end: normalizeComparableValue(facility.open_end),
+            open_start: normalizeFacilityOpenDateForDb(facility.open_start),
+            open_end: normalizeFacilityOpenDateForDb(facility.open_end),
             is_active: true,
           };
         })

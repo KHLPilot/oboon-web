@@ -66,8 +66,8 @@ const propertyFacilitySchema = z.object({
   name: z.string().describe("시설 명칭 (예: OO 모델하우스)"),
   road_address: z.string().nullable().describe("시설 도로명 주소"),
   address_detail: z.string().nullable().describe("시설 상세 주소 (예: 101동 1층 홍보관)"),
-  open_start: z.string().nullable().describe("운영 시작시간 (예: 10:00)"),
-  open_end: z.string().nullable().describe("운영 종료시간 (예: 18:00)"),
+  open_start: z.string().nullable().describe("운영 시작일 (YYYY-MM 또는 YYYY-MM-DD)"),
+  open_end: z.string().nullable().describe("운영 종료일 (YYYY-MM 또는 YYYY-MM-DD)"),
 });
 
 const propertyValidationSchema = z.object({

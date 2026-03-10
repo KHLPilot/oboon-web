@@ -68,6 +68,7 @@ const systemPrompt = `너는 대한민국 분양 관련 PDF 묶음(모집공고�
 12. 분양가는 만원 단위 숫자로 반환하라. (예: 5억 3천만원 → 53000)
 13. 날짜는 YYYY-MM-DD 형식으로 반환하라. (예: 2025.03.15 → 2025-03-15)
 14. 입주 예정일(move_in_date)은 정확한 날짜가 없으면 텍스트 그대로 반환하라. (예: "2027년 3월 예정")
+15. facilities.open_start/open_end는 운영 시작일/종료일로 추출하라. 월 단위만 확인되면 YYYY-MM, 일자까지 확인되면 YYYY-MM-DD로 반환하라.
 
 ## 분양 상태(status) 판단 기준
 - 모집공고 전이거나 청약접수 전이면: "READY"
@@ -85,7 +86,7 @@ const systemPrompt = `너는 대한민국 분양 관련 PDF 묶음(모집공고�
 - specs.trust_company: 신탁사 / 관리형 신탁사
 - timeline: 모집공고일, 청약접수 시작/마감, 당첨자발표, 계약 시작/종료, 입주 예정
 - unit_types: 주택형(타입)별 면적, 세대수, 분양가 (최소~최대를 만원 단위로)
-- facilities: 모델하우스/홍보관/견본주택 정보 (유형, 명칭, 주소, 상세주소, 운영시간)
+- facilities: 모델하우스/홍보관/견본주택 정보 (유형, 명칭, 주소, 상세주소, 운영 시작일/종료일)
 - validation.contract_ratio: 계약금 비율(예: 10% -> 0.1)
 - validation.transfer_restriction: 전매 제한 여부(있음=true, 없음=false, 불명확=null)
 - validation.transfer_restriction_period: 전매 제한 기간 텍스트(예: 6개월, 1년, 소유권이전등기시)
@@ -1483,19 +1484,73 @@ function extractTransferRestrictionPeriodFromRawText(rawText: string): string | 
   return null;
 }
 
-function parseKoreanTimeToHHmm(raw: string): string | null {
-  const normalized = raw.replace(/\s+/g, '');
-  const match = normalized.match(/(오전|오후)?(\d{1,2})(?::?(\d{2}))?(?:분)?/);
-  if (!match) return null;
-  const ampm = match[1] ?? null;
-  let hour = Number(match[2]);
-  const minute = Number(match[3] ?? '0');
-  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
-  if (hour < 0 || hour > 24 || minute < 0 || minute > 59) return null;
-  if (ampm === '오전' && hour === 12) hour = 0;
-  if (ampm === '오후' && hour < 12) hour += 12;
-  if (hour === 24) hour = 0;
-  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+function formatFacilityOpenDate(
+  year: number,
+  month: number,
+  day?: number | null,
+): string | null {
+  if (!Number.isInteger(year) || year < 1900 || year > 2100) return null;
+  if (!Number.isInteger(month) || month < 1 || month > 12) return null;
+  if (day == null) {
+    return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}`;
+  }
+  if (!Number.isInteger(day) || day < 1 || day > 31) return null;
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  const isValid =
+    parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() + 1 === month &&
+    parsed.getUTCDate() === day;
+  if (!isValid) return null;
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function parseFacilityDateToken(
+  raw: string,
+  fallbackYear: number,
+): { value: string | null; year: number } {
+  const value = raw.trim().replace(/\s+/g, ' ');
+  if (!value) return { value: null, year: fallbackYear };
+
+  const iso = value.match(/^(\d{4})[./-](\d{1,2})(?:[./-](\d{1,2}))?$/);
+  if (iso) {
+    const year = Number(iso[1]);
+    const month = Number(iso[2]);
+    const day = iso[3] ? Number(iso[3]) : null;
+    return { value: formatFacilityOpenDate(year, month, day), year };
+  }
+
+  const koreanYmd = value.match(
+    /^(\d{4})\s*년\s*(\d{1,2})\s*월(?:\s*(\d{1,2})\s*일?)?$/,
+  );
+  if (koreanYmd) {
+    const year = Number(koreanYmd[1]);
+    const month = Number(koreanYmd[2]);
+    const day = koreanYmd[3] ? Number(koreanYmd[3]) : null;
+    return { value: formatFacilityOpenDate(year, month, day), year };
+  }
+
+  const koreanMd = value.match(/^(\d{1,2})\s*월(?:\s*(\d{1,2})\s*일?)?$/);
+  if (koreanMd) {
+    const month = Number(koreanMd[1]);
+    const day = koreanMd[2] ? Number(koreanMd[2]) : null;
+    return {
+      value: formatFacilityOpenDate(fallbackYear, month, day),
+      year: fallbackYear,
+    };
+  }
+
+  return { value: null, year: fallbackYear };
+}
+
+function toDateFromFacilityOpenValue(value: string): Date | null {
+  const trimmed = value.trim();
+  if (/^\d{4}-\d{2}$/.test(trimmed)) {
+    return new Date(`${trimmed}-01T00:00:00+09:00`);
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return new Date(`${trimmed}T00:00:00+09:00`);
+  }
+  return null;
 }
 
 function extractFacilityFromRawText(
@@ -1535,12 +1590,17 @@ function extractFacilityFromRawText(
   let openStart: string | null = null;
   let openEnd: string | null = null;
 
-  const timeRangePattern =
-    /(오전|오후)?\s*\d{1,2}(?::\d{2}|시)?\s*[~\-]\s*(오전|오후)?\s*\d{1,2}(?::\d{2}|시)?/;
-  const facilityTimeKeywords = /(견본주택|모델하우스|홍보관)/;
-  const operationKeywords = /(운영시간|관람시간|운영안내|개관시간|개관안내|관람안내)/;
+  const dateToken =
+    '(?:\\d{4}[./-]\\d{1,2}(?:[./-]\\d{1,2})?|\\d{4}\\s*년\\s*\\d{1,2}\\s*월(?:\\s*\\d{1,2}\\s*일)?|\\d{1,2}\\s*월(?:\\s*\\d{1,2}\\s*일)?)';
+  const dateRangePattern = new RegExp(
+    `(${dateToken})\\s*(?:~|∼|부터|\\s[-–—]\\s)\\s*(${dateToken})(?:\\s*까지)?`,
+  );
+  const facilityDateKeywords = /(견본주택|모델하우스|홍보관)/;
+  const operationDateKeywords =
+    /(운영기간|운영일정|관람기간|개관일|오픈일|운영시작|운영종료|개관기간)/;
 
-  const timeCandidates: Array<{ start: string; end: string; score: number }> = [];
+  const dateCandidates: Array<{ start: string; end: string; score: number }> = [];
+  const currentYear = new Date().getFullYear();
   for (let i = 0; i < lines.length; i += 1) {
     const near = `${lines[i - 1] ?? ''} ${lines[i]} ${lines[i + 1] ?? ''}`
       .replace(/\s+/g, ' ')
@@ -1554,38 +1614,46 @@ function extractFacilityFromRawText(
     ) {
       continue;
     }
-    if (!near.includes('현장접수') && !near.includes('견본주택')) continue;
-    if (!facilityTimeKeywords.test(near)) continue;
-    const rangeMatch = near.match(timeRangePattern);
-    if (!rangeMatch?.[0]) continue;
-    const [left, right] = rangeMatch[0].split(/~|-/).map((part) => part.trim());
-    const parsedStart = left ? parseKoreanTimeToHHmm(left) : null;
-    const parsedEnd = right ? parseKoreanTimeToHHmm(right) : null;
-    if (!parsedStart || !parsedEnd) continue;
+    if (!facilityDateKeywords.test(near)) continue;
+    if (!operationDateKeywords.test(near)) continue;
+    const rangeMatch = near.match(dateRangePattern);
+    if (!rangeMatch?.[1] || !rangeMatch?.[2]) continue;
+    const parsedStart = parseFacilityDateToken(rangeMatch[1], currentYear);
+    const parsedEnd = parseFacilityDateToken(rangeMatch[2], parsedStart.year);
+    if (!parsedStart.value || !parsedEnd.value) continue;
+    const startDate = toDateFromFacilityOpenValue(parsedStart.value);
+    const endDate = toDateFromFacilityOpenValue(parsedEnd.value);
+    if (startDate && endDate && startDate.getTime() > endDate.getTime()) continue;
     let score = 0;
-    if (near.includes('현장접수')) score += 4;
     if (near.includes('견본주택') || near.includes('모델하우스')) score += 3;
-    if (operationKeywords.test(near)) score += 2;
-    if (parsedStart === '10:00' && parsedEnd === '14:00') score += 3;
-    if (parsedStart === '09:00' && parsedEnd === '17:30') score -= 2;
-    timeCandidates.push({ start: parsedStart, end: parsedEnd, score });
+    if (operationDateKeywords.test(near)) score += 2;
+    dateCandidates.push({
+      start: parsedStart.value,
+      end: parsedEnd.value,
+      score,
+    });
   }
 
-  if (timeCandidates.length > 0) {
-    timeCandidates.sort((a, b) => b.score - a.score);
-    openStart = timeCandidates[0].start;
-    openEnd = timeCandidates[0].end;
+  if (dateCandidates.length > 0) {
+    dateCandidates.sort((a, b) => b.score - a.score);
+    openStart = dateCandidates[0].start;
+    openEnd = dateCandidates[0].end;
   }
 
   if (!openStart || !openEnd) {
     const fallbackMatch = collapsed.match(
-      /(견본주택|모델하우스|홍보관)[^.\n]{0,120}?(오전|오후)?\s*\d{1,2}(?::\d{2}|시)?\s*[~\-]\s*(오전|오후)?\s*\d{1,2}(?::\d{2}|시)?/,
+      new RegExp(
+        `(견본주택|모델하우스|홍보관)[^.\\n]{0,140}?(${dateToken})\\s*(?:~|∼|부터|\\s[-–—]\\s)\\s*(${dateToken})(?:\\s*까지)?`,
+      ),
     );
-    const rangeMatch = fallbackMatch?.[0]?.match(timeRangePattern);
-    if (rangeMatch?.[0]) {
-      const [left, right] = rangeMatch[0].split(/~|-/).map((part) => part.trim());
-      openStart = left ? parseKoreanTimeToHHmm(left) : null;
-      openEnd = right ? parseKoreanTimeToHHmm(right) : null;
+    if (fallbackMatch?.[2] && fallbackMatch?.[3]) {
+      const parsedStart = parseFacilityDateToken(fallbackMatch[2], currentYear);
+      const parsedEnd = parseFacilityDateToken(
+        fallbackMatch[3],
+        parsedStart.year,
+      );
+      openStart = parsedStart.value;
+      openEnd = parsedEnd.value;
     }
   }
 
@@ -2396,7 +2464,7 @@ function buildWebQueries(result: PropertyExtractionData, missingFieldPaths: stri
     candidates.push(`${base} 청약 일정 계약 일정`);
   }
   if (hasAny('facilities')) {
-    candidates.push(`${base} 모델하우스 주소 운영시간`);
+    candidates.push(`${base} 모델하우스 주소 운영기간`);
   }
   if (hasAny('unit_types.rooms', 'unit_types.bathrooms')) {
     candidates.push(`${base} 평면도 방 욕실`);
