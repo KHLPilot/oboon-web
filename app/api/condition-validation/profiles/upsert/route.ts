@@ -90,7 +90,7 @@ function parseContractRatio(raw: unknown): number | null {
   const parsed = toFiniteNumber(raw);
   if (parsed === null) return null;
   const ratio = parsed > 1 ? parsed / 100 : parsed;
-  if (!Number.isFinite(ratio) || ratio <= 0 || ratio > 1) return null;
+  if (!Number.isFinite(ratio) || ratio < 0 || ratio > 1) return null;
   return Math.round(ratio * 10000) / 10000;
 }
 

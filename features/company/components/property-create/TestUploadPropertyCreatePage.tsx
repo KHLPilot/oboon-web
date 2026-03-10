@@ -355,13 +355,13 @@ function parsePercentToRatio(value: string): number | null {
   const normalized = value.replaceAll(",", "").trim();
   if (!normalized) return null;
   const percent = Number(normalized);
-  if (!Number.isFinite(percent) || percent <= 0 || percent > 100) return null;
+  if (!Number.isFinite(percent) || percent < 0 || percent > 100) return null;
   return Math.round((percent / 100) * 10000) / 10000;
 }
 
 function formatRatioToPercentText(value: unknown): string {
   const parsed = toNumberOrNull(value);
-  if (parsed == null || parsed <= 0) return "";
+  if (parsed == null || parsed < 0) return "";
   const percent = parsed <= 1 ? parsed * 100 : parsed;
   const rounded = Math.round(percent * 100) / 100;
   return String(rounded).replace(/\.0+$/, "").replace(/(\.\d*[1-9])0+$/, "$1");

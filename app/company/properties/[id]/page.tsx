@@ -117,12 +117,12 @@ function parseContractRatioPercentInput(value: string): number | null {
   const normalized = value.replaceAll(",", "").trim();
   if (!normalized) return null;
   const parsed = Number(normalized);
-  if (!Number.isFinite(parsed) || parsed <= 0 || parsed > 100) return null;
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) return null;
   return parsed;
 }
 
 function formatContractRatioPercent(value: unknown): string {
-  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
     return "10";
   }
   const percent = value <= 1 ? value * 100 : value;

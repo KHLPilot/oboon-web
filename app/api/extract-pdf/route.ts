@@ -1506,7 +1506,7 @@ function extractContractRatioFromRawText(rawText: string): number | null {
   const match = collapsed.match(/계약금\s*\(?\s*(\d{1,2}(?:\.\d+)?)\s*%\s*\)?/);
   if (!match) return null;
   const percent = Number(match[1]);
-  if (!Number.isFinite(percent) || percent <= 0 || percent > 100) return null;
+  if (!Number.isFinite(percent) || percent < 0 || percent > 100) return null;
   return Math.round((percent / 100) * 10000) / 10000;
 }
 
