@@ -564,6 +564,13 @@ function splitFacilityRoadAddress(value: unknown): {
   return { roadAddress: raw, addressDetail: null };
 }
 
+function normalizeFacilitySyncKeyPart(value: unknown) {
+  return String(normalizeComparableValue(value) ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
 function isSameValue(a: unknown, b: unknown) {
   const na = normalizeComparableValue(a);
   const nb = normalizeComparableValue(b);
@@ -3450,6 +3457,97 @@ export default function TestUploadPage() {
     }
   };
 
+  const buildFacilityRowsForProperty = (propertyId: number) => {
+    const source = result?.facilities ?? [];
+    const basePropertyName =
+      String(normalizeComparableValue(result?.properties?.name) ?? "").trim() ||
+      "현장";
+
+    return source.map((facility) => {
+      const splitAddress = splitFacilityRoadAddress(facility.road_address);
+      const normalizedType =
+        String(normalizeComparableValue(facility.type) ?? "").trim() ||
+        "모델하우스";
+      const normalizedName = String(
+        normalizeComparableValue(facility.name) ?? "",
+      ).trim();
+      const fallbackName = `${basePropertyName} ${normalizedType}`.trim();
+      const normalizedAddressDetail = normalizeComparableValue(
+        facility.address_detail,
+      );
+
+      return {
+        properties_id: propertyId,
+        type: mapFacilityTypeToDb(facility.type),
+        name: normalizedName || fallbackName,
+        road_address: splitAddress.roadAddress,
+        address_detail: normalizedAddressDetail ?? splitAddress.addressDetail,
+        open_start: normalizeFacilityOpenDateForDb(facility.open_start),
+        open_end: normalizeFacilityOpenDateForDb(facility.open_end),
+        is_active: true,
+      };
+    });
+  };
+
+  const makeFacilitySyncKey = (facility: {
+    type: unknown;
+    name: unknown;
+    road_address: unknown;
+    address_detail: unknown;
+    open_start: unknown;
+    open_end: unknown;
+  }) =>
+    [
+      normalizeFacilitySyncKeyPart(facility.type),
+      normalizeFacilitySyncKeyPart(facility.name),
+      normalizeFacilitySyncKeyPart(facility.road_address),
+      normalizeFacilitySyncKeyPart(facility.address_detail),
+      normalizeFacilitySyncKeyPart(facility.open_start),
+      normalizeFacilitySyncKeyPart(facility.open_end),
+    ].join("|");
+
+  const syncFacilitiesForProperty = async (
+    supabase: ReturnType<typeof createSupabaseClient>,
+    propertyId: number,
+  ) => {
+    const preparedRows = buildFacilityRowsForProperty(propertyId).filter(
+      (row) => String(row.name ?? "").trim().length > 0,
+    );
+    if (preparedRows.length === 0) {
+      return { prepared: 0, inserted: 0, skippedDuplicates: 0 };
+    }
+
+    const { data: existingFacilities, error: existingFacilitiesError } =
+      await supabase
+        .from("property_facilities")
+        .select("type, name, road_address, address_detail, open_start, open_end")
+        .eq("properties_id", propertyId);
+    if (existingFacilitiesError) throw existingFacilitiesError;
+
+    const existingKeys = new Set(
+      (existingFacilities ?? []).map((row) => makeFacilitySyncKey(row)),
+    );
+    const rowsToInsert = preparedRows.filter((row) => {
+      const key = makeFacilitySyncKey(row);
+      if (existingKeys.has(key)) return false;
+      existingKeys.add(key);
+      return true;
+    });
+
+    if (rowsToInsert.length > 0) {
+      const { error: facilitiesError } = await supabase
+        .from("property_facilities")
+        .insert(rowsToInsert);
+      if (facilitiesError) throw facilitiesError;
+    }
+
+    return {
+      prepared: preparedRows.length,
+      inserted: rowsToInsert.length,
+      skippedDuplicates: preparedRows.length - rowsToInsert.length,
+    };
+  };
+
   const applySelectedMerge = async () => {
     if (!existingSnapshot || !result) return;
     if (!confirm(`"${existingSnapshot.property.name}" 현장에 선택한 값을 반영하시겠습니까?`)) return;
@@ -3646,6 +3744,7 @@ export default function TestUploadPage() {
           if (timelineInsertError) throw timelineInsertError;
         }
 
+        const facilitySync = await syncFacilitiesForProperty(supabase, targetId);
         const unitSync = await syncUnitTypesForProperty(supabase, targetId);
         const manualGalleryUploaded = await syncManualGalleryFilesForProperty(
           targetId,
@@ -3671,6 +3770,7 @@ export default function TestUploadPage() {
           imageSync,
           manualGalleryUploaded,
           manualModelhouseUploaded,
+          facilitySync,
           validationProfileSynced: validationProfileSync.ok,
         };
       });
@@ -3681,8 +3781,8 @@ export default function TestUploadPage() {
 
       setStatus(
         appliedCount > 0
-          ? `선택 반영 완료: ${appliedCount}개 항목, 타입 업데이트 ${syncSummary.unitSync.updated}개, 타입 추가 ${syncSummary.unitSync.inserted}개, 수동 추가사진 ${syncSummary.manualGalleryUploaded}개, 수동 모델하우스사진 ${syncSummary.manualModelhouseUploaded}개, 추출 갤러리 업로드 ${syncSummary.imageSync.galleryUploaded}개/삭제 ${syncSummary.imageSync.galleryDeleted}개(중복 스킵 ${syncSummary.imageSync.gallerySkippedByHash}개), 평면도 업데이트 ${syncSummary.imageSync.floorPlanUpdated}개/해제 ${syncSummary.imageSync.floorPlanCleared}개, 검증기준 ${syncSummary.validationProfileSynced ? "동기화 완료" : "동기화 실패"} — 2초 후 새로고침됩니다.`
-          : `선택된 변경 항목은 없지만 동기화 완료: 타입 업데이트 ${syncSummary.unitSync.updated}개, 타입 추가 ${syncSummary.unitSync.inserted}개, 수동 추가사진 ${syncSummary.manualGalleryUploaded}개, 수동 모델하우스사진 ${syncSummary.manualModelhouseUploaded}개, 추출 갤러리 업로드 ${syncSummary.imageSync.galleryUploaded}개/삭제 ${syncSummary.imageSync.galleryDeleted}개(중복 스킵 ${syncSummary.imageSync.gallerySkippedByHash}개), 평면도 업데이트 ${syncSummary.imageSync.floorPlanUpdated}개/해제 ${syncSummary.imageSync.floorPlanCleared}개, 검증기준 ${syncSummary.validationProfileSynced ? "동기화 완료" : "동기화 실패"} — 2초 후 새로고침됩니다.`,
+          ? `선택 반영 완료: ${appliedCount}개 항목, 타입 업데이트 ${syncSummary.unitSync.updated}개, 타입 추가 ${syncSummary.unitSync.inserted}개, 시설 추가 ${syncSummary.facilitySync.inserted}개(중복 스킵 ${syncSummary.facilitySync.skippedDuplicates}개), 수동 추가사진 ${syncSummary.manualGalleryUploaded}개, 수동 모델하우스사진 ${syncSummary.manualModelhouseUploaded}개, 추출 갤러리 업로드 ${syncSummary.imageSync.galleryUploaded}개/삭제 ${syncSummary.imageSync.galleryDeleted}개(중복 스킵 ${syncSummary.imageSync.gallerySkippedByHash}개), 평면도 업데이트 ${syncSummary.imageSync.floorPlanUpdated}개/해제 ${syncSummary.imageSync.floorPlanCleared}개, 검증기준 ${syncSummary.validationProfileSynced ? "동기화 완료" : "동기화 실패"} — 2초 후 새로고침됩니다.`
+          : `선택된 변경 항목은 없지만 동기화 완료: 타입 업데이트 ${syncSummary.unitSync.updated}개, 타입 추가 ${syncSummary.unitSync.inserted}개, 시설 추가 ${syncSummary.facilitySync.inserted}개(중복 스킵 ${syncSummary.facilitySync.skippedDuplicates}개), 수동 추가사진 ${syncSummary.manualGalleryUploaded}개, 수동 모델하우스사진 ${syncSummary.manualModelhouseUploaded}개, 추출 갤러리 업로드 ${syncSummary.imageSync.galleryUploaded}개/삭제 ${syncSummary.imageSync.galleryDeleted}개(중복 스킵 ${syncSummary.imageSync.gallerySkippedByHash}개), 평면도 업데이트 ${syncSummary.imageSync.floorPlanUpdated}개/해제 ${syncSummary.imageSync.floorPlanCleared}개, 검증기준 ${syncSummary.validationProfileSynced ? "동기화 완료" : "동기화 실패"} — 2초 후 새로고침됩니다.`,
       );
       setStatusTone("safe");
       setTimeout(() => window.location.reload(), 2000);
@@ -3837,34 +3937,7 @@ export default function TestUploadPage() {
         if (timelineError) throw timelineError;
       }
       const unitSync = await syncUnitTypesForProperty(supabase, propertyId);
-
-      const facilityRows = (result.facilities ?? [])
-        .map((facility) => {
-          const splitAddress = splitFacilityRoadAddress(facility.road_address);
-          const normalizedAddressDetail = normalizeComparableValue(
-            facility.address_detail,
-          );
-          return {
-            properties_id: propertyId,
-            type: mapFacilityTypeToDb(facility.type),
-            name:
-              String(normalizeComparableValue(facility.name) ?? "").trim() ||
-              null,
-            road_address: splitAddress.roadAddress,
-            address_detail: normalizedAddressDetail ?? splitAddress.addressDetail,
-            open_start: normalizeFacilityOpenDateForDb(facility.open_start),
-            open_end: normalizeFacilityOpenDateForDb(facility.open_end),
-            is_active: true,
-          };
-        })
-        .filter((row) => row.name);
-
-      if (facilityRows.length > 0) {
-        const { error: facilitiesError } = await supabase
-          .from("property_facilities")
-          .insert(facilityRows);
-        if (facilitiesError) throw facilitiesError;
-      }
+      const facilitySync = await syncFacilitiesForProperty(supabase, propertyId);
 
       const manualGalleryUploaded =
         await syncManualGalleryFilesForProperty(propertyId);
@@ -3887,7 +3960,7 @@ export default function TestUploadPage() {
       setCreatedPropertyId(propertyId);
 
       setStatus(
-        `새 현장 등록 완료 (ID: ${propertyId}, 대표사진 ${mainImagePublicUrl ? 1 : 0}장, 추가사진 ${manualGalleryUploaded}장, 모델하우스사진 ${manualModelhouseUploaded}장, 평면도 ${unitSync.uploadedFloorPlans + imageSync.floorPlanUpdated}장, PDF추출이미지 ${imageSync.galleryUploaded + imageSync.mainUpdated + imageSync.floorPlanUpdated}장, 타입 추가 ${unitSync.inserted}개, 시설 ${facilityRows.length}개, 갤러리 삭제 ${imageSync.galleryDeleted}개, 평면도 해제 ${imageSync.floorPlanCleared}개, 중복스킵 ${imageSync.gallerySkippedByHash}개, 검증기준 ${validationProfileSync.ok ? "동기화 완료" : "동기화 실패"}) — 2초 후 새로고침됩니다.`,
+        `새 현장 등록 완료 (ID: ${propertyId}, 대표사진 ${mainImagePublicUrl ? 1 : 0}장, 추가사진 ${manualGalleryUploaded}장, 모델하우스사진 ${manualModelhouseUploaded}장, 평면도 ${unitSync.uploadedFloorPlans + imageSync.floorPlanUpdated}장, PDF추출이미지 ${imageSync.galleryUploaded + imageSync.mainUpdated + imageSync.floorPlanUpdated}장, 타입 추가 ${unitSync.inserted}개, 시설 추가 ${facilitySync.inserted}개(중복 스킵 ${facilitySync.skippedDuplicates}개), 갤러리 삭제 ${imageSync.galleryDeleted}개, 평면도 해제 ${imageSync.floorPlanCleared}개, 중복스킵 ${imageSync.gallerySkippedByHash}개, 검증기준 ${validationProfileSync.ok ? "동기화 완료" : "동기화 실패"}) — 2초 후 새로고침됩니다.`,
       );
       setStatusTone("safe");
       setTimeout(() => window.location.reload(), 2000);
