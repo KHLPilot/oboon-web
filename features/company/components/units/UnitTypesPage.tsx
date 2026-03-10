@@ -174,6 +174,16 @@ function manwonToWonInput(value: string): number | null {
   return Math.round(parsed * 10000);
 }
 
+function formatPriceRangeManwon(
+  priceMin: number | null | undefined,
+  priceMax: number | null | undefined,
+) {
+  const min = wonToManwonInput(priceMin);
+  const max = wonToManwonInput(priceMax);
+  if (!min && !max) return "-";
+  return `${min || "?"} ~ ${max || "?"}`;
+}
+
 function parseFloorPlanUrls(
   floorPlanUrl: string | null | undefined,
   imageUrl: string | null | undefined,
@@ -528,24 +538,23 @@ export default function UnitTypesPage({
           ) : null}
 
           <div className="overflow-x-auto rounded-xl border border-(--oboon-border-default)">
-            <table className="min-w-[1200px] w-full border-collapse bg-(--oboon-bg-surface)">
+            <table className="min-w-[1320px] w-full border-collapse bg-(--oboon-bg-surface)">
               <thead>
                 <tr>
                   <HeaderCell className="min-w-[42px] !px-0">순서</HeaderCell>
-                  <HeaderCell className="min-w-[120px]">타입명</HeaderCell>
+                  <HeaderCell className="min-w-[120px]">타입</HeaderCell>
+                  <HeaderCell className="min-w-[92px]">평면도</HeaderCell>
                   <HeaderCell className="min-w-[72px]">전용(㎡)</HeaderCell>
                   <HeaderCell className="min-w-[72px]">공급(㎡)</HeaderCell>
                   <HeaderCell className="min-w-[60px]">방</HeaderCell>
                   <HeaderCell className="min-w-[60px]">욕실</HeaderCell>
                   <HeaderCell className="min-w-[120px]">구조</HeaderCell>
                   <HeaderCell className="min-w-[72px]">향</HeaderCell>
-                    <HeaderCell className="min-w-[130px]">가격 하한(만원)</HeaderCell>
-                    <HeaderCell className="min-w-[130px]">가격 상한(만원)</HeaderCell>
+                  <HeaderCell className="min-w-[84px]">공급 수</HeaderCell>
                   <HeaderCell className="min-w-[84px]">세대수</HeaderCell>
-                  <HeaderCell className="min-w-[84px]">공급규모</HeaderCell>
-                  <HeaderCell className="min-w-[92px]">평면도</HeaderCell>
-                  <HeaderCell className="min-w-[60px]">게시</HeaderCell>
+                  <HeaderCell className="min-w-[148px]">분양가(만원)</HeaderCell>
                   <HeaderCell className="min-w-[68px]">가격 공개</HeaderCell>
+                  <HeaderCell className="min-w-[60px]">타입 공개</HeaderCell>
                   <HeaderCell className="min-w-[56px]">삭제</HeaderCell>
                 </tr>
               </thead>
@@ -561,6 +570,10 @@ export default function UnitTypesPage({
 
                   const isNew = Boolean(newRow);
                   const draft = unit ? draftsById[unit.id] : (newRow?.draft as UnitDraft);
+                  const floorPlanUrls = unit
+                    ? parseFloorPlanUrls(unit.floor_plan_url, unit.image_url)
+                    : [];
+                  const floorPlanPreviewUrl = floorPlanUrls[0] ?? null;
 
                   return (
                     <tr
@@ -593,6 +606,54 @@ export default function UnitTypesPage({
                       </div>
                     </Cell>
                     <Cell>{editMode ? <Input className={INPUT_8_CHAR_CLASS} value={draft.type_name ?? ""} onChange={(e) => isNew ? setNewRowFieldByKey(rowKey, "type_name", e.target.value) : setRowField(unit!.id, "type_name", e.target.value)} /> : <div className="text-center">{draft.type_name ?? "-"}</div>}</Cell>
+                    <Cell className="p-0 align-middle">
+                      <div className="flex h-11 items-center justify-center gap-2 ob-typo-caption text-(--oboon-text-muted)">
+                        {isNew ? (
+                          <span>저장 후 관리</span>
+                        ) : (
+                          <>
+                            {floorPlanPreviewUrl ? (
+                              <a
+                                href={floorPlanPreviewUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="relative h-8 w-8 overflow-hidden rounded border border-(--oboon-border-default)"
+                                title="평면도 보기"
+                              >
+                                <Image
+                                  src={floorPlanPreviewUrl}
+                                  alt={`${draft.type_name ?? "타입"} 평면도`}
+                                  fill
+                                  className="object-cover"
+                                  unoptimized
+                                />
+                                {floorPlanUrls.length > 1 ? (
+                                  <span className="absolute -right-1 -top-1 rounded-full bg-(--oboon-primary) px-1 py-0.5 text-[10px] leading-none text-white">
+                                    {floorPlanUrls.length}
+                                  </span>
+                                ) : null}
+                              </a>
+                            ) : (
+                              <span>없음</span>
+                            )}
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              shape="pill"
+                              className="h-8 px-2"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setFloorPlanModalUnitId(unit!.id);
+                                setFloorPlanModalUrls(floorPlanUrls);
+                              }}
+                              disabled={savingAll || deletingRowKey !== null}
+                            >
+                              관리
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </Cell>
                     <Cell>
                       {editMode ? (
                         <NumberInput
@@ -657,23 +718,13 @@ export default function UnitTypesPage({
                     <Cell>
                       {editMode ? (
                         <NumberInput
-                          className={INPUT_6_CHAR_CLASS}
-                          value={wonToManwonInput(draft.price_min)}
-                          onChange={(e) => isNew ? setNewRowFieldByKey(rowKey, "price_min", manwonToWonInput(e.target.value)) : setRowField(unit!.id, "price_min", manwonToWonInput(e.target.value))}
+                          className={INPUT_4_DIGIT_CLASS}
+                          max={9999}
+                          value={draft.supply_count ?? ""}
+                          onChange={(e) => isNew ? setNewRowFieldByKey(rowKey, "supply_count", toIntOrNull(e.target.value)) : setRowField(unit!.id, "supply_count", toIntOrNull(e.target.value))}
                         />
                       ) : (
-                        <div className="text-center">{wonToManwonInput(draft.price_min) || "-"}</div>
-                      )}
-                    </Cell>
-                    <Cell>
-                      {editMode ? (
-                        <NumberInput
-                          className={INPUT_6_CHAR_CLASS}
-                          value={wonToManwonInput(draft.price_max)}
-                          onChange={(e) => isNew ? setNewRowFieldByKey(rowKey, "price_max", manwonToWonInput(e.target.value)) : setRowField(unit!.id, "price_max", manwonToWonInput(e.target.value))}
-                        />
-                      ) : (
-                        <div className="text-center">{wonToManwonInput(draft.price_max) || "-"}</div>
+                        <div className="text-center">{draft.supply_count ?? "-"}</div>
                       )}
                     </Cell>
                     <Cell>
@@ -690,33 +741,48 @@ export default function UnitTypesPage({
                     </Cell>
                     <Cell>
                       {editMode ? (
-                        <NumberInput
-                          className={INPUT_4_DIGIT_CLASS}
-                          max={9999}
-                          value={draft.supply_count ?? ""}
-                          onChange={(e) => isNew ? setNewRowFieldByKey(rowKey, "supply_count", toIntOrNull(e.target.value)) : setRowField(unit!.id, "supply_count", toIntOrNull(e.target.value))}
-                        />
-                      ) : (
-                        <div className="text-center">{draft.supply_count ?? "-"}</div>
-                      )}
-                    </Cell>
-                    <Cell className="p-0 align-middle">
-                        <div className="flex h-11 items-center justify-center ob-typo-caption text-(--oboon-text-muted)">
-                          {isNew ? "저장 후 관리" : parseFloorPlanUrls(unit!.floor_plan_url, unit!.image_url).length}
-                        </div>
-                    </Cell>
-                    <Cell className="!p-1 text-center align-middle">
-                      <div className="flex min-h-8 items-center justify-center">
-                        {editMode ? (
-                          <BooleanToggle
-                            checked={Boolean(draft.is_public)}
-                            onChange={(next) => isNew ? setNewRowFieldByKey(rowKey, "is_public", next) : setRowField(unit!.id, "is_public", next)}
-                            label="게시"
+                        <div className="mx-auto flex w-[148px] items-center justify-center gap-1">
+                          <NumberInput
+                            className="w-[68px] px-1 text-center"
+                            value={wonToManwonInput(draft.price_min)}
+                            onChange={(e) =>
+                              isNew
+                                ? setNewRowFieldByKey(
+                                    rowKey,
+                                    "price_min",
+                                    manwonToWonInput(e.target.value),
+                                  )
+                                : setRowField(
+                                    unit!.id,
+                                    "price_min",
+                                    manwonToWonInput(e.target.value),
+                                  )
+                            }
                           />
-                        ) : (
-                          <span className="ob-typo-caption text-(--oboon-text-muted)">{draft.is_public ? "ON" : "OFF"}</span>
-                        )}
-                      </div>
+                          <span className="ob-typo-caption text-(--oboon-text-muted)">~</span>
+                          <NumberInput
+                            className="w-[68px] px-1 text-center"
+                            value={wonToManwonInput(draft.price_max)}
+                            onChange={(e) =>
+                              isNew
+                                ? setNewRowFieldByKey(
+                                    rowKey,
+                                    "price_max",
+                                    manwonToWonInput(e.target.value),
+                                  )
+                                : setRowField(
+                                    unit!.id,
+                                    "price_max",
+                                    manwonToWonInput(e.target.value),
+                                  )
+                            }
+                          />
+                        </div>
+                      ) : (
+                        <div className="text-center">
+                          {formatPriceRangeManwon(draft.price_min, draft.price_max)}
+                        </div>
+                      )}
                     </Cell>
                     <Cell className="!p-1 text-center align-middle">
                       <div className="flex min-h-8 items-center justify-center">
@@ -728,6 +794,19 @@ export default function UnitTypesPage({
                           />
                         ) : (
                           <span className="ob-typo-caption text-(--oboon-text-muted)">{draft.is_price_public ? "ON" : "OFF"}</span>
+                        )}
+                      </div>
+                    </Cell>
+                    <Cell className="!p-1 text-center align-middle">
+                      <div className="flex min-h-8 items-center justify-center">
+                        {editMode ? (
+                          <BooleanToggle
+                            checked={Boolean(draft.is_public)}
+                            onChange={(next) => isNew ? setNewRowFieldByKey(rowKey, "is_public", next) : setRowField(unit!.id, "is_public", next)}
+                            label="타입 공개"
+                          />
+                        ) : (
+                          <span className="ob-typo-caption text-(--oboon-text-muted)">{draft.is_public ? "ON" : "OFF"}</span>
                         )}
                       </div>
                     </Cell>
