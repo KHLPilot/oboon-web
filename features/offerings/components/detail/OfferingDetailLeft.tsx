@@ -311,14 +311,15 @@ export default function OfferingDetailLeft({
   const recoPois = asArray<PropertyRecoPoiRow>(p.property_reco_pois).slice();
 
   const unitTypes = asArray<PropertyUnitTypeRow>(p.property_unit_types)
-    .filter((u) => u.is_public !== false)
-    .slice()
+    .map((unit, index) => ({ unit, index }))
+    .filter(({ unit }) => unit.is_public !== false)
     .sort((a, b) => {
-      if ((a.sort_order ?? 0) !== (b.sort_order ?? 0)) {
-        return (a.sort_order ?? 0) - (b.sort_order ?? 0);
+      if ((a.unit.sort_order ?? 0) !== (b.unit.sort_order ?? 0)) {
+        return (a.unit.sort_order ?? 0) - (b.unit.sort_order ?? 0);
       }
-      return (a.type_name ?? "").localeCompare(b.type_name ?? "");
-    });
+      return a.index - b.index;
+    })
+    .map(({ unit }) => unit);
   const hasPriceTable = unitTypes.length > 0;
 
   const hasPrivatePriceUnits = unitTypes.some(

@@ -454,10 +454,7 @@ export default function OfferingUnitTypesAccordion({
   imagePlaceholderText: string;
 }) {
   const rows = useMemo(() => {
-    return (unitTypes ?? [])
-      .filter((u) => u.is_public !== false)
-      .slice()
-      .sort((a, b) => (a.type_name ?? "").localeCompare(b.type_name ?? ""));
+    return (unitTypes ?? []).filter((u) => u.is_public !== false);
   }, [unitTypes]);
 
   const [selectedId, setSelectedId] = useState<number | null>(null);

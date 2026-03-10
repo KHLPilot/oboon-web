@@ -4099,6 +4099,8 @@ export default function TestUploadPage() {
   };
 
   const val = (v: unknown) => (v != null && v !== "" ? String(v) : "-");
+  const isAiSelectedField = (fieldKey: string) =>
+    (selectionMap[fieldKey] ?? "existing") === "incoming";
   const removeSelectedPdfFile = (removeIndex: number) => {
     setFiles((prev) => prev.filter((_, index) => index !== removeIndex));
     setAllUploadedFiles((prev) =>
@@ -5303,7 +5305,10 @@ export default function TestUploadPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {compareFields.map((field) => (
+                          {compareFields.map((field) => {
+                            const selectedSource =
+                              selectionMap[field.key] ?? "existing";
+                            return (
                             <tr key={field.key} className="align-top">
                               <td className="border-b border-(--oboon-border-default) px-3 py-3 ob-typo-caption text-(--oboon-text-muted)">
                                 {field.sectionLabel}
@@ -5322,7 +5327,7 @@ export default function TestUploadPage() {
                                   }
                                   className={[
                                     "w-full rounded-lg border p-2 text-left whitespace-normal",
-                                    selectionMap[field.key] === "existing"
+                                    selectedSource === "existing"
                                       ? "border-(--oboon-primary) bg-(--oboon-primary)/5"
                                       : "border-(--oboon-border-default)",
                                   ].join(" ")}
@@ -5346,7 +5351,7 @@ export default function TestUploadPage() {
                                   }
                                   className={[
                                     "w-full rounded-lg border p-2 text-left whitespace-normal",
-                                    selectionMap[field.key] === "incoming"
+                                    selectedSource === "incoming"
                                       ? "border-(--oboon-primary) bg-(--oboon-primary)/5"
                                       : "border-(--oboon-border-default)",
                                   ].join(" ")}
@@ -5360,7 +5365,8 @@ export default function TestUploadPage() {
                                 </button>
                               </td>
                             </tr>
-                          ))}
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -5607,6 +5613,7 @@ export default function TestUploadPage() {
                   <CompactInfoRow
                     label="현장명"
                     value={val(result.properties?.name)}
+                    isAiSelected={isAiSelectedField("properties.name")}
                     isWebEnriched={isWebEvidenceField("properties.name")}
                     onCommit={(value) =>
                       updateResultSectionField(
@@ -5619,6 +5626,7 @@ export default function TestUploadPage() {
                   <CompactInfoRow
                     label="분양 상태"
                     value={displayValue(result.properties?.status, "status")}
+                    isAiSelected={isAiSelectedField("properties.status")}
                     isWebEnriched={isWebEvidenceField("properties.status")}
                     onCommit={(value) =>
                       updateResultSectionField(
@@ -5633,6 +5641,7 @@ export default function TestUploadPage() {
                   <CompactInfoRow
                     label="분양 유형"
                     value={val(result.properties?.property_type)}
+                    isAiSelected={isAiSelectedField("properties.property_type")}
                     isWebEnriched={isWebEvidenceField("properties.property_type")}
                     onCommit={(value) =>
                       updateResultSectionField(
@@ -5645,6 +5654,7 @@ export default function TestUploadPage() {
                   <CompactInfoRow
                     label="설명"
                     value={val(result.properties?.description)}
+                    isAiSelected={isAiSelectedField("properties.description")}
                     isWebEnriched={isWebEvidenceField("properties.description")}
                     onCommit={(value) =>
                       updateResultSectionField(
@@ -5688,24 +5698,24 @@ export default function TestUploadPage() {
             <Section title="사업 개요">
               <div className="grid gap-y-4 gap-x-5 md:grid-cols-2">
                 <div className="space-y-1">
-                  <CompactInfoRow label="시행사" value={val(result.specs?.developer)} isWebEnriched={isWebEvidenceField("specs.developer")} onCommit={(value) => updateResultSectionField("specs", "developer", normalizeTextInput(value))} />
-                  <CompactInfoRow label="신탁사" value={val(result.specs?.trust_company)} isWebEnriched={isWebEvidenceField("specs.trust_company")} onCommit={(value) => updateResultSectionField("specs", "trust_company", normalizeTextInput(value))} />
-                  <CompactInfoRow label="건축면적" value={val(result.specs?.building_area)} isWebEnriched={isWebEvidenceField("specs.building_area")} onCommit={(value) => updateResultSectionField("specs", "building_area", toNullableNumberInput(value))} />
-                  <CompactInfoRow label="지상층" value={val(result.specs?.floor_ground)} isWebEnriched={isWebEvidenceField("specs.floor_ground")} onCommit={(value) => updateResultSectionField("specs", "floor_ground", toNullableNumberInput(value))} />
-                  <CompactInfoRow label="총 세대수" value={val(result.specs?.household_total)} isWebEnriched={isWebEvidenceField("specs.household_total")} onCommit={(value) => updateResultSectionField("specs", "household_total", toNullableNumberInput(value))} />
-                  <CompactInfoRow label="세대당 주차" value={val(result.specs?.parking_per_household)} isWebEnriched={isWebEvidenceField("specs.parking_per_household")} onCommit={(value) => updateResultSectionField("specs", "parking_per_household", toNullableNumberInput(value))} />
-                  <CompactInfoRow label="용적률" value={val(result.specs?.floor_area_ratio)} isWebEnriched={isWebEvidenceField("specs.floor_area_ratio")} onCommit={(value) => updateResultSectionField("specs", "floor_area_ratio", toNullableNumberInput(value))} />
-                  <CompactInfoRow label="난방" value={val(result.specs?.heating_type)} isWebEnriched={isWebEvidenceField("specs.heating_type")} onCommit={(value) => updateResultSectionField("specs", "heating_type", normalizeTextInput(value))} />
+                  <CompactInfoRow label="시행사" value={val(result.specs?.developer)} isAiSelected={isAiSelectedField("specs.developer")} isWebEnriched={isWebEvidenceField("specs.developer")} onCommit={(value) => updateResultSectionField("specs", "developer", normalizeTextInput(value))} />
+                  <CompactInfoRow label="신탁사" value={val(result.specs?.trust_company)} isAiSelected={isAiSelectedField("specs.trust_company")} isWebEnriched={isWebEvidenceField("specs.trust_company")} onCommit={(value) => updateResultSectionField("specs", "trust_company", normalizeTextInput(value))} />
+                  <CompactInfoRow label="건축면적" value={val(result.specs?.building_area)} isAiSelected={isAiSelectedField("specs.building_area")} isWebEnriched={isWebEvidenceField("specs.building_area")} onCommit={(value) => updateResultSectionField("specs", "building_area", toNullableNumberInput(value))} />
+                  <CompactInfoRow label="지상층" value={val(result.specs?.floor_ground)} isAiSelected={isAiSelectedField("specs.floor_ground")} isWebEnriched={isWebEvidenceField("specs.floor_ground")} onCommit={(value) => updateResultSectionField("specs", "floor_ground", toNullableNumberInput(value))} />
+                  <CompactInfoRow label="총 세대수" value={val(result.specs?.household_total)} isAiSelected={isAiSelectedField("specs.household_total")} isWebEnriched={isWebEvidenceField("specs.household_total")} onCommit={(value) => updateResultSectionField("specs", "household_total", toNullableNumberInput(value))} />
+                  <CompactInfoRow label="세대당 주차" value={val(result.specs?.parking_per_household)} isAiSelected={isAiSelectedField("specs.parking_per_household")} isWebEnriched={isWebEvidenceField("specs.parking_per_household")} onCommit={(value) => updateResultSectionField("specs", "parking_per_household", toNullableNumberInput(value))} />
+                  <CompactInfoRow label="용적률" value={val(result.specs?.floor_area_ratio)} isAiSelected={isAiSelectedField("specs.floor_area_ratio")} isWebEnriched={isWebEvidenceField("specs.floor_area_ratio")} onCommit={(value) => updateResultSectionField("specs", "floor_area_ratio", toNullableNumberInput(value))} />
+                  <CompactInfoRow label="난방" value={val(result.specs?.heating_type)} isAiSelected={isAiSelectedField("specs.heating_type")} isWebEnriched={isWebEvidenceField("specs.heating_type")} onCommit={(value) => updateResultSectionField("specs", "heating_type", normalizeTextInput(value))} />
                 </div>
                 <div className="space-y-1">
-                  <CompactInfoRow label="시공사" value={val(result.specs?.builder)} isWebEnriched={isWebEvidenceField("specs.builder")} onCommit={(value) => updateResultSectionField("specs", "builder", normalizeTextInput(value))} />
-                  <CompactInfoRow label="분양 방식" value={val(result.specs?.sale_type)} isWebEnriched={isWebEvidenceField("specs.sale_type")} onCommit={(value) => updateResultSectionField("specs", "sale_type", normalizeTextInput(value))} />
-                  <CompactInfoRow label="대지면적" value={val(result.specs?.site_area)} isWebEnriched={isWebEvidenceField("specs.site_area")} onCommit={(value) => updateResultSectionField("specs", "site_area", toNullableNumberInput(value))} />
-                  <CompactInfoRow label="지하층" value={val(result.specs?.floor_underground)} isWebEnriched={isWebEvidenceField("specs.floor_underground")} onCommit={(value) => updateResultSectionField("specs", "floor_underground", toNullableNumberInput(value))} />
-                  <CompactInfoRow label="동 수" value={val(result.specs?.building_count)} isWebEnriched={isWebEvidenceField("specs.building_count")} onCommit={(value) => updateResultSectionField("specs", "building_count", toNullableNumberInput(value))} />
-                  <CompactInfoRow label="총 주차대수" value={val(result.specs?.parking_total)} isWebEnriched={isWebEvidenceField("specs.parking_total")} onCommit={(value) => updateResultSectionField("specs", "parking_total", toNullableNumberInput(value))} />
-                  <CompactInfoRow label="건폐율" value={val(result.specs?.building_coverage_ratio)} isWebEnriched={isWebEvidenceField("specs.building_coverage_ratio")} onCommit={(value) => updateResultSectionField("specs", "building_coverage_ratio", toNullableNumberInput(value))} />
-                  <CompactInfoRow label="부대시설" value={val(result.specs?.amenities)} isWebEnriched={isWebEvidenceField("specs.amenities")} onCommit={(value) => updateResultSectionField("specs", "amenities", normalizeTextInput(value))} />
+                  <CompactInfoRow label="시공사" value={val(result.specs?.builder)} isAiSelected={isAiSelectedField("specs.builder")} isWebEnriched={isWebEvidenceField("specs.builder")} onCommit={(value) => updateResultSectionField("specs", "builder", normalizeTextInput(value))} />
+                  <CompactInfoRow label="분양 방식" value={val(result.specs?.sale_type)} isAiSelected={isAiSelectedField("specs.sale_type")} isWebEnriched={isWebEvidenceField("specs.sale_type")} onCommit={(value) => updateResultSectionField("specs", "sale_type", normalizeTextInput(value))} />
+                  <CompactInfoRow label="대지면적" value={val(result.specs?.site_area)} isAiSelected={isAiSelectedField("specs.site_area")} isWebEnriched={isWebEvidenceField("specs.site_area")} onCommit={(value) => updateResultSectionField("specs", "site_area", toNullableNumberInput(value))} />
+                  <CompactInfoRow label="지하층" value={val(result.specs?.floor_underground)} isAiSelected={isAiSelectedField("specs.floor_underground")} isWebEnriched={isWebEvidenceField("specs.floor_underground")} onCommit={(value) => updateResultSectionField("specs", "floor_underground", toNullableNumberInput(value))} />
+                  <CompactInfoRow label="동 수" value={val(result.specs?.building_count)} isAiSelected={isAiSelectedField("specs.building_count")} isWebEnriched={isWebEvidenceField("specs.building_count")} onCommit={(value) => updateResultSectionField("specs", "building_count", toNullableNumberInput(value))} />
+                  <CompactInfoRow label="총 주차대수" value={val(result.specs?.parking_total)} isAiSelected={isAiSelectedField("specs.parking_total")} isWebEnriched={isWebEvidenceField("specs.parking_total")} onCommit={(value) => updateResultSectionField("specs", "parking_total", toNullableNumberInput(value))} />
+                  <CompactInfoRow label="건폐율" value={val(result.specs?.building_coverage_ratio)} isAiSelected={isAiSelectedField("specs.building_coverage_ratio")} isWebEnriched={isWebEvidenceField("specs.building_coverage_ratio")} onCommit={(value) => updateResultSectionField("specs", "building_coverage_ratio", toNullableNumberInput(value))} />
+                  <CompactInfoRow label="부대시설" value={val(result.specs?.amenities)} isAiSelected={isAiSelectedField("specs.amenities")} isWebEnriched={isWebEvidenceField("specs.amenities")} onCommit={(value) => updateResultSectionField("specs", "amenities", normalizeTextInput(value))} />
                 </div>
               </div>
             </Section>
@@ -5713,15 +5723,15 @@ export default function TestUploadPage() {
             <Section title="일정">
               <div className="grid gap-y-4 gap-x-5 md:grid-cols-2">
                 <div className="space-y-1">
-                  <CompactInfoRow label="모집공고일" value={val(result.timeline?.announcement_date)} isWebEnriched={isWebEvidenceField("timeline.announcement_date")} onCommit={(value) => updateResultSectionField("timeline", "announcement_date", normalizeTextInput(value))} />
-                  <CompactInfoRow label="청약 종료" value={val(result.timeline?.application_end)} isWebEnriched={isWebEvidenceField("timeline.application_end")} onCommit={(value) => updateResultSectionField("timeline", "application_end", normalizeTextInput(value))} />
-                  <CompactInfoRow label="계약 시작" value={val(result.timeline?.contract_start)} isWebEnriched={isWebEvidenceField("timeline.contract_start")} onCommit={(value) => updateResultSectionField("timeline", "contract_start", normalizeTextInput(value))} />
-                  <CompactInfoRow label="입주 예정" value={val(result.timeline?.move_in_date)} isWebEnriched={isWebEvidenceField("timeline.move_in_date")} onCommit={(value) => updateResultSectionField("timeline", "move_in_date", normalizeTextInput(value))} />
+                  <CompactInfoRow label="모집공고일" value={val(result.timeline?.announcement_date)} isAiSelected={isAiSelectedField("timeline.announcement_date")} isWebEnriched={isWebEvidenceField("timeline.announcement_date")} onCommit={(value) => updateResultSectionField("timeline", "announcement_date", normalizeTextInput(value))} />
+                  <CompactInfoRow label="청약 종료" value={val(result.timeline?.application_end)} isAiSelected={isAiSelectedField("timeline.application_end")} isWebEnriched={isWebEvidenceField("timeline.application_end")} onCommit={(value) => updateResultSectionField("timeline", "application_end", normalizeTextInput(value))} />
+                  <CompactInfoRow label="계약 시작" value={val(result.timeline?.contract_start)} isAiSelected={isAiSelectedField("timeline.contract_start")} isWebEnriched={isWebEvidenceField("timeline.contract_start")} onCommit={(value) => updateResultSectionField("timeline", "contract_start", normalizeTextInput(value))} />
+                  <CompactInfoRow label="입주 예정" value={val(result.timeline?.move_in_date)} isAiSelected={isAiSelectedField("timeline.move_in_date")} isWebEnriched={isWebEvidenceField("timeline.move_in_date")} onCommit={(value) => updateResultSectionField("timeline", "move_in_date", normalizeTextInput(value))} />
                 </div>
                 <div className="space-y-1">
-                  <CompactInfoRow label="청약 시작" value={val(result.timeline?.application_start)} isWebEnriched={isWebEvidenceField("timeline.application_start")} onCommit={(value) => updateResultSectionField("timeline", "application_start", normalizeTextInput(value))} />
-                  <CompactInfoRow label="당첨자 발표" value={val(result.timeline?.winner_announce)} isWebEnriched={isWebEvidenceField("timeline.winner_announce")} onCommit={(value) => updateResultSectionField("timeline", "winner_announce", normalizeTextInput(value))} />
-                  <CompactInfoRow label="계약 종료" value={val(result.timeline?.contract_end)} isWebEnriched={isWebEvidenceField("timeline.contract_end")} onCommit={(value) => updateResultSectionField("timeline", "contract_end", normalizeTextInput(value))} />
+                  <CompactInfoRow label="청약 시작" value={val(result.timeline?.application_start)} isAiSelected={isAiSelectedField("timeline.application_start")} isWebEnriched={isWebEvidenceField("timeline.application_start")} onCommit={(value) => updateResultSectionField("timeline", "application_start", normalizeTextInput(value))} />
+                  <CompactInfoRow label="당첨자 발표" value={val(result.timeline?.winner_announce)} isAiSelected={isAiSelectedField("timeline.winner_announce")} isWebEnriched={isWebEvidenceField("timeline.winner_announce")} onCommit={(value) => updateResultSectionField("timeline", "winner_announce", normalizeTextInput(value))} />
+                  <CompactInfoRow label="계약 종료" value={val(result.timeline?.contract_end)} isAiSelected={isAiSelectedField("timeline.contract_end")} isWebEnriched={isWebEvidenceField("timeline.contract_end")} onCommit={(value) => updateResultSectionField("timeline", "contract_end", normalizeTextInput(value))} />
                 </div>
               </div>
             </Section>
@@ -6304,11 +6314,11 @@ export default function TestUploadPage() {
             <Section title="현장 위치">
               <div className="grid gap-y-4 gap-x-5 md:grid-cols-2">
                 <div className="space-y-1">
-                  <CompactInfoRow label="도로명 주소" value={val(result.location?.road_address)} isWebEnriched={isWebEvidenceField("location.road_address")} onCommit={(value) => updateResultSectionField("location", "road_address", normalizeTextInput(value))} />
-                  <CompactInfoRow label="지번 주소" value={val(result.location?.jibun_address)} isWebEnriched={isWebEvidenceField("location.jibun_address")} onCommit={(value) => updateResultSectionField("location", "jibun_address", normalizeTextInput(value))} />
-                  <CompactInfoRow label="시/도" value={val(result.location?.region_1depth)} isWebEnriched={isWebEvidenceField("location.region_1depth")} onCommit={(value) => updateResultSectionField("location", "region_1depth", normalizeTextInput(value))} />
-                  <CompactInfoRow label="시/군/구" value={val(result.location?.region_2depth)} isWebEnriched={isWebEvidenceField("location.region_2depth")} onCommit={(value) => updateResultSectionField("location", "region_2depth", normalizeTextInput(value))} />
-                  <CompactInfoRow label="읍/면/동" value={val(result.location?.region_3depth)} isWebEnriched={isWebEvidenceField("location.region_3depth")} onCommit={(value) => updateResultSectionField("location", "region_3depth", normalizeTextInput(value))} />
+                  <CompactInfoRow label="도로명 주소" value={val(result.location?.road_address)} isAiSelected={isAiSelectedField("location.road_address")} isWebEnriched={isWebEvidenceField("location.road_address")} onCommit={(value) => updateResultSectionField("location", "road_address", normalizeTextInput(value))} />
+                  <CompactInfoRow label="지번 주소" value={val(result.location?.jibun_address)} isAiSelected={isAiSelectedField("location.jibun_address")} isWebEnriched={isWebEvidenceField("location.jibun_address")} onCommit={(value) => updateResultSectionField("location", "jibun_address", normalizeTextInput(value))} />
+                  <CompactInfoRow label="시/도" value={val(result.location?.region_1depth)} isAiSelected={isAiSelectedField("location.region_1depth")} isWebEnriched={isWebEvidenceField("location.region_1depth")} onCommit={(value) => updateResultSectionField("location", "region_1depth", normalizeTextInput(value))} />
+                  <CompactInfoRow label="시/군/구" value={val(result.location?.region_2depth)} isAiSelected={isAiSelectedField("location.region_2depth")} isWebEnriched={isWebEvidenceField("location.region_2depth")} onCommit={(value) => updateResultSectionField("location", "region_2depth", normalizeTextInput(value))} />
+                  <CompactInfoRow label="읍/면/동" value={val(result.location?.region_3depth)} isAiSelected={isAiSelectedField("location.region_3depth")} isWebEnriched={isWebEvidenceField("location.region_3depth")} onCommit={(value) => updateResultSectionField("location", "region_3depth", normalizeTextInput(value))} />
                 </div>
                 <div>
                   {locationMarkers.length > 0 ? (
@@ -6531,12 +6541,14 @@ function CompactInfoRow({
   label,
   value,
   editable = true,
+  isAiSelected = false,
   isWebEnriched = false,
   onCommit,
 }: {
   label: string;
   value: string;
   editable?: boolean;
+  isAiSelected?: boolean;
   isWebEnriched?: boolean;
   onCommit?: (nextValue: string) => void;
 }) {
@@ -6549,6 +6561,7 @@ function CompactInfoRow({
         <EditableText
           value={value}
           editable={editable}
+          isAiSelected={isAiSelected}
           isWebEnriched={isWebEnriched}
           onCommit={onCommit}
         />
@@ -6562,6 +6575,7 @@ function EditableText({
   center = false,
   cellMode = false,
   editable = true,
+  isAiSelected = false,
   isWebEnriched = false,
   onCommit,
 }: {
@@ -6569,6 +6583,7 @@ function EditableText({
   center?: boolean;
   cellMode?: boolean;
   editable?: boolean;
+  isAiSelected?: boolean;
   isWebEnriched?: boolean;
   onCommit?: (nextValue: string) => void;
 }) {
@@ -6587,6 +6602,8 @@ function EditableText({
   const valueBaseClass = "border border-transparent bg-transparent";
   const highlightClass = isUserEdited
     ? "bg-emerald-500/10"
+    : isAiSelected
+      ? "bg-blue-500/10"
     : isWebEnriched
       ? "bg-(--oboon-warning-bg)"
       : "";
@@ -6636,7 +6653,7 @@ function EditableText({
         className={
           center
             ? "!h-8 !w-full !rounded-md !px-2 !border-transparent !bg-transparent min-w-0 max-w-full overflow-hidden text-center"
-            : "h-9 w-full !border-transparent !bg-transparent min-w-0 max-w-full overflow-hidden"
+            : "!h-8 !w-full !rounded-md !px-2 !border-transparent !bg-transparent min-w-0 max-w-full overflow-hidden"
         }
       />
     );
@@ -6656,7 +6673,7 @@ function EditableText({
         "hover:bg-transparent",
         center
           ? "inline-flex h-8 w-full items-center justify-center text-center"
-          : "w-fit min-h-8 text-left",
+          : "inline-flex h-8 w-full items-center text-left",
       ].join(" ")}
       title="클릭해서 수정"
     >
