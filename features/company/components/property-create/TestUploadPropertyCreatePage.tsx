@@ -3639,6 +3639,23 @@ export default function TestUploadPage() {
     };
   };
 
+  const applyHouseholdTotalOverride = async (
+    supabase: ReturnType<typeof createSupabaseClient>,
+    propertyId: number,
+    householdTotal: number | null,
+  ) => {
+    if (householdTotal == null) return;
+
+    const { error } = await supabase.from("property_specs").upsert(
+      {
+        properties_id: propertyId,
+        household_total: householdTotal,
+      },
+      { onConflict: "properties_id" },
+    );
+    if (error) throw error;
+  };
+
   const applySelectedMerge = async () => {
     if (!existingSnapshot || !result) return;
     if (!confirm(`"${existingSnapshot.property.name}" 현장에 선택한 값을 반영하시겠습니까?`)) return;
@@ -3734,6 +3751,11 @@ export default function TestUploadPage() {
       }
 
       const syncSummary = await handleSaveByContext(async (targetId) => {
+        const selectedIncomingHouseholdTotal =
+          selectionMap["specs.household_total"] === "incoming";
+        const selectedHouseholdTotal = selectedIncomingHouseholdTotal
+          ? toNumberOrNullLoose(merged.specs.household_total)
+          : null;
         const { error: propertyError } = await supabase
           .from("properties")
           .update({
@@ -3857,6 +3879,11 @@ export default function TestUploadPage() {
           transferRestriction: validationTransferRestriction,
           transferRestrictionPeriod: validationTransferRestrictionPeriod,
         });
+        await applyHouseholdTotalOverride(
+          supabase,
+          targetId,
+          selectedHouseholdTotal,
+        );
         return {
           targetId,
           unitSync,
@@ -4050,6 +4077,11 @@ export default function TestUploadPage() {
         transferRestriction: validationTransferRestriction,
         transferRestrictionPeriod: validationTransferRestrictionPeriod,
       });
+      await applyHouseholdTotalOverride(
+        supabase,
+        propertyId,
+        toNumberOrNullLoose(result.specs?.household_total),
+      );
       setCreatedPropertyId(propertyId);
 
       setStatus(
