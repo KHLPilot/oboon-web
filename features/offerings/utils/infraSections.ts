@@ -111,21 +111,39 @@ function isSubwayCategoryName(poi: PropertyRecoPoiRow) {
 
 function extractSubwayLineCandidates(poi: PropertyRecoPoiRow) {
   const lines = new Set<string>();
+  const source = `${poi.name} ${poi.category_name ?? ""}`;
+
+  const inferRegionalLine = (lineToken: string) => {
+    const lineNum = lineToken.match(/^([1-9])호선$/)?.[1];
+    if (!lineNum) return null;
+    if (/인천/.test(source)) return `인천${lineNum}호선`;
+    if (/부산/.test(source)) return `부산${lineNum}호선`;
+    if (/대구/.test(source)) return `대구${lineNum}호선`;
+    if (/광주/.test(source)) return `광주${lineNum}호선`;
+    if (/대전/.test(source)) return `대전${lineNum}호선`;
+    if (/서울|수도권/.test(source)) return `서울${lineNum}호선`;
+    return null;
+  };
 
   if (Array.isArray(poi.subway_lines)) {
     for (const line of poi.subway_lines) {
       const normalized = String(line ?? "").trim();
-      if (normalized) lines.add(normalized);
+      if (!normalized) continue;
+      lines.add(normalized);
+      const inferred = inferRegionalLine(normalized.replace(/\s+/g, ""));
+      if (inferred) lines.add(inferred);
     }
   }
 
-  const source = `${poi.name} ${poi.category_name ?? ""}`;
   const regex =
-    /(공항철도|인천공항철도|용인에버라인|에버라인|김포골드라인|김포도시철도|수인분당선|신분당선|경의중앙선|경춘선|경강선|서해선|신림선|신안산선|우이신설선|의정부경전철|동해선|동북선|위례선|대경선|동탄인덕원선|대장홍대선|인천\s*1호선|인천\s*2호선|[1-9]호선)/gi;
+    /(공항철도|인천공항철도|용인에버라인|에버라인|김포골드라인|김포도시철도|수인분당선|신분당선|경의중앙선|경춘선|경강선|서해선|신림선|신안산선|우이신설선|의정부경전철|동해선|동해본선|동해남부선|동북선|위례선|대경선|동탄인덕원선|대장홍대선|인천\s*1호선|인천\s*2호선|[1-9]호선)/gi;
   const matches = source.match(regex) ?? [];
   for (const matched of matches) {
     const normalized = matched.replace(/\s+/g, "");
-    if (normalized) lines.add(normalized);
+    if (!normalized) continue;
+    lines.add(normalized);
+    const inferred = inferRegionalLine(normalized);
+    if (inferred) lines.add(inferred);
   }
 
   return Array.from(lines);

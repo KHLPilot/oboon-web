@@ -65,7 +65,7 @@ const SUBWAY_ICON_MAPPINGS: Array<{ keywords: string[]; path: string }> = [
     path: "/icons/subway/Daejeon-line-2.svg",
   },
   { keywords: ["동북선", "dongbuk"], path: "/icons/subway/Dongbuk-Line.svg" },
-  { keywords: ["동해선", "donghae"], path: "/icons/subway/Donghae-Line.svg" },
+  { keywords: ["동해선", "동해본선", "동해남부선", "donghae"], path: "/icons/subway/Donghae-Line.svg" },
   {
     keywords: ["동탄인덕원선", "dongtan-indeogwon"],
     path: "/icons/subway/Dongtan-Indeogwon-Line.svg",
@@ -150,11 +150,11 @@ const SUBWAY_ICON_MAPPINGS: Array<{ keywords: string[]; path: string }> = [
     path: "/icons/subway/Gyeongui-Jungang-Line.svg",
   },
   {
-    keywords: ["인천1호선", "incheon-line-1", "incheon1"],
+    keywords: ["인천1호선", "인천선1호선", "인천도시철도1호선", "incheon-line-1", "incheon1"],
     path: "/icons/subway/Incheon-line-1.svg",
   },
   {
-    keywords: ["인천2호선", "incheon-line-2", "incheon2"],
+    keywords: ["인천2호선", "인천선2호선", "인천도시철도2호선", "incheon-line-2", "incheon2"],
     path: "/icons/subway/Incheon-line-2.svg",
   },
   {
