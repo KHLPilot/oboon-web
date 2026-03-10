@@ -3464,6 +3464,7 @@ export default function TestUploadPage() {
       "현장";
 
     return source.map((facility) => {
+      const facilityWithCoords = facility as ExtractFacilityWithCoords;
       const splitAddress = splitFacilityRoadAddress(facility.road_address);
       const normalizedType =
         String(normalizeComparableValue(facility.type) ?? "").trim() ||
@@ -3475,6 +3476,9 @@ export default function TestUploadPage() {
       const normalizedAddressDetail = normalizeComparableValue(
         facility.address_detail,
       );
+      const rawLat = toNumberOrNull(facilityWithCoords.lat);
+      const rawLng = toNumberOrNull(facilityWithCoords.lng);
+      const { lat, lng } = normalizeKoreaCoords(rawLat, rawLng);
 
       return {
         properties_id: propertyId,
@@ -3482,6 +3486,8 @@ export default function TestUploadPage() {
         name: normalizedName || fallbackName,
         road_address: splitAddress.roadAddress,
         address_detail: normalizedAddressDetail ?? splitAddress.addressDetail,
+        lat,
+        lng,
         open_start: normalizeFacilityOpenDateForDb(facility.open_start),
         open_end: normalizeFacilityOpenDateForDb(facility.open_end),
         is_active: true,
@@ -3514,25 +3520,79 @@ export default function TestUploadPage() {
       (row) => String(row.name ?? "").trim().length > 0,
     );
     if (preparedRows.length === 0) {
-      return { prepared: 0, inserted: 0, skippedDuplicates: 0 };
+      return { prepared: 0, inserted: 0, updated: 0, skippedDuplicates: 0 };
     }
 
     const { data: existingFacilities, error: existingFacilitiesError } =
       await supabase
         .from("property_facilities")
-        .select("type, name, road_address, address_detail, open_start, open_end")
+        .select(
+          "id, type, name, road_address, address_detail, lat, lng, open_start, open_end",
+        )
         .eq("properties_id", propertyId);
     if (existingFacilitiesError) throw existingFacilitiesError;
 
-    const existingKeys = new Set(
-      (existingFacilities ?? []).map((row) => makeFacilitySyncKey(row)),
-    );
-    const rowsToInsert = preparedRows.filter((row) => {
+    const existingByKey = new Map<
+      string,
+      {
+        id: number;
+        road_address: string | null;
+        address_detail: string | null;
+        lat: number | null;
+        lng: number | null;
+        open_start: string | null;
+        open_end: string | null;
+      }
+    >();
+    for (const row of existingFacilities ?? []) {
       const key = makeFacilitySyncKey(row);
-      if (existingKeys.has(key)) return false;
-      existingKeys.add(key);
-      return true;
-    });
+      if (existingByKey.has(key)) continue;
+      existingByKey.set(key, {
+        id: row.id,
+        road_address: row.road_address ?? null,
+        address_detail: row.address_detail ?? null,
+        lat: toNumberOrNull(row.lat),
+        lng: toNumberOrNull(row.lng),
+        open_start: row.open_start ?? null,
+        open_end: row.open_end ?? null,
+      });
+    }
+
+    const rowsToInsert: typeof preparedRows = [];
+    const rowsToUpdate: Array<{ id: number; payload: Record<string, unknown> }> = [];
+
+    for (const row of preparedRows) {
+      const key = makeFacilitySyncKey(row);
+      const existing = existingByKey.get(key);
+      if (!existing) {
+        rowsToInsert.push(row);
+        continue;
+      }
+
+      const payload: Record<string, unknown> = {};
+      if (existing.road_address == null && row.road_address != null) {
+        payload.road_address = row.road_address;
+      }
+      if (existing.address_detail == null && row.address_detail != null) {
+        payload.address_detail = row.address_detail;
+      }
+      if (existing.open_start == null && row.open_start != null) {
+        payload.open_start = row.open_start;
+      }
+      if (existing.open_end == null && row.open_end != null) {
+        payload.open_end = row.open_end;
+      }
+      if (existing.lat == null && row.lat != null) {
+        payload.lat = row.lat;
+      }
+      if (existing.lng == null && row.lng != null) {
+        payload.lng = row.lng;
+      }
+
+      if (Object.keys(payload).length > 0) {
+        rowsToUpdate.push({ id: existing.id, payload });
+      }
+    }
 
     if (rowsToInsert.length > 0) {
       const { error: facilitiesError } = await supabase
@@ -3540,11 +3600,20 @@ export default function TestUploadPage() {
         .insert(rowsToInsert);
       if (facilitiesError) throw facilitiesError;
     }
+    for (const row of rowsToUpdate) {
+      const { error: updateError } = await supabase
+        .from("property_facilities")
+        .update(row.payload)
+        .eq("id", row.id);
+      if (updateError) throw updateError;
+    }
 
     return {
       prepared: preparedRows.length,
       inserted: rowsToInsert.length,
-      skippedDuplicates: preparedRows.length - rowsToInsert.length,
+      updated: rowsToUpdate.length,
+      skippedDuplicates:
+        preparedRows.length - rowsToInsert.length - rowsToUpdate.length,
     };
   };
 
@@ -3781,8 +3850,8 @@ export default function TestUploadPage() {
 
       setStatus(
         appliedCount > 0
-          ? `선택 반영 완료: ${appliedCount}개 항목, 타입 업데이트 ${syncSummary.unitSync.updated}개, 타입 추가 ${syncSummary.unitSync.inserted}개, 시설 추가 ${syncSummary.facilitySync.inserted}개(중복 스킵 ${syncSummary.facilitySync.skippedDuplicates}개), 수동 추가사진 ${syncSummary.manualGalleryUploaded}개, 수동 모델하우스사진 ${syncSummary.manualModelhouseUploaded}개, 추출 갤러리 업로드 ${syncSummary.imageSync.galleryUploaded}개/삭제 ${syncSummary.imageSync.galleryDeleted}개(중복 스킵 ${syncSummary.imageSync.gallerySkippedByHash}개), 평면도 업데이트 ${syncSummary.imageSync.floorPlanUpdated}개/해제 ${syncSummary.imageSync.floorPlanCleared}개, 검증기준 ${syncSummary.validationProfileSynced ? "동기화 완료" : "동기화 실패"} — 2초 후 새로고침됩니다.`
-          : `선택된 변경 항목은 없지만 동기화 완료: 타입 업데이트 ${syncSummary.unitSync.updated}개, 타입 추가 ${syncSummary.unitSync.inserted}개, 시설 추가 ${syncSummary.facilitySync.inserted}개(중복 스킵 ${syncSummary.facilitySync.skippedDuplicates}개), 수동 추가사진 ${syncSummary.manualGalleryUploaded}개, 수동 모델하우스사진 ${syncSummary.manualModelhouseUploaded}개, 추출 갤러리 업로드 ${syncSummary.imageSync.galleryUploaded}개/삭제 ${syncSummary.imageSync.galleryDeleted}개(중복 스킵 ${syncSummary.imageSync.gallerySkippedByHash}개), 평면도 업데이트 ${syncSummary.imageSync.floorPlanUpdated}개/해제 ${syncSummary.imageSync.floorPlanCleared}개, 검증기준 ${syncSummary.validationProfileSynced ? "동기화 완료" : "동기화 실패"} — 2초 후 새로고침됩니다.`,
+          ? `선택 반영 완료: ${appliedCount}개 항목, 타입 업데이트 ${syncSummary.unitSync.updated}개, 타입 추가 ${syncSummary.unitSync.inserted}개, 시설 추가 ${syncSummary.facilitySync.inserted}개/보완 ${syncSummary.facilitySync.updated}개(중복 스킵 ${syncSummary.facilitySync.skippedDuplicates}개), 수동 추가사진 ${syncSummary.manualGalleryUploaded}개, 수동 모델하우스사진 ${syncSummary.manualModelhouseUploaded}개, 추출 갤러리 업로드 ${syncSummary.imageSync.galleryUploaded}개/삭제 ${syncSummary.imageSync.galleryDeleted}개(중복 스킵 ${syncSummary.imageSync.gallerySkippedByHash}개), 평면도 업데이트 ${syncSummary.imageSync.floorPlanUpdated}개/해제 ${syncSummary.imageSync.floorPlanCleared}개, 검증기준 ${syncSummary.validationProfileSynced ? "동기화 완료" : "동기화 실패"} — 2초 후 새로고침됩니다.`
+          : `선택된 변경 항목은 없지만 동기화 완료: 타입 업데이트 ${syncSummary.unitSync.updated}개, 타입 추가 ${syncSummary.unitSync.inserted}개, 시설 추가 ${syncSummary.facilitySync.inserted}개/보완 ${syncSummary.facilitySync.updated}개(중복 스킵 ${syncSummary.facilitySync.skippedDuplicates}개), 수동 추가사진 ${syncSummary.manualGalleryUploaded}개, 수동 모델하우스사진 ${syncSummary.manualModelhouseUploaded}개, 추출 갤러리 업로드 ${syncSummary.imageSync.galleryUploaded}개/삭제 ${syncSummary.imageSync.galleryDeleted}개(중복 스킵 ${syncSummary.imageSync.gallerySkippedByHash}개), 평면도 업데이트 ${syncSummary.imageSync.floorPlanUpdated}개/해제 ${syncSummary.imageSync.floorPlanCleared}개, 검증기준 ${syncSummary.validationProfileSynced ? "동기화 완료" : "동기화 실패"} — 2초 후 새로고침됩니다.`,
       );
       setStatusTone("safe");
       setTimeout(() => window.location.reload(), 2000);
@@ -3960,7 +4029,7 @@ export default function TestUploadPage() {
       setCreatedPropertyId(propertyId);
 
       setStatus(
-        `새 현장 등록 완료 (ID: ${propertyId}, 대표사진 ${mainImagePublicUrl ? 1 : 0}장, 추가사진 ${manualGalleryUploaded}장, 모델하우스사진 ${manualModelhouseUploaded}장, 평면도 ${unitSync.uploadedFloorPlans + imageSync.floorPlanUpdated}장, PDF추출이미지 ${imageSync.galleryUploaded + imageSync.mainUpdated + imageSync.floorPlanUpdated}장, 타입 추가 ${unitSync.inserted}개, 시설 추가 ${facilitySync.inserted}개(중복 스킵 ${facilitySync.skippedDuplicates}개), 갤러리 삭제 ${imageSync.galleryDeleted}개, 평면도 해제 ${imageSync.floorPlanCleared}개, 중복스킵 ${imageSync.gallerySkippedByHash}개, 검증기준 ${validationProfileSync.ok ? "동기화 완료" : "동기화 실패"}) — 2초 후 새로고침됩니다.`,
+        `새 현장 등록 완료 (ID: ${propertyId}, 대표사진 ${mainImagePublicUrl ? 1 : 0}장, 추가사진 ${manualGalleryUploaded}장, 모델하우스사진 ${manualModelhouseUploaded}장, 평면도 ${unitSync.uploadedFloorPlans + imageSync.floorPlanUpdated}장, PDF추출이미지 ${imageSync.galleryUploaded + imageSync.mainUpdated + imageSync.floorPlanUpdated}장, 타입 추가 ${unitSync.inserted}개, 시설 추가 ${facilitySync.inserted}개/보완 ${facilitySync.updated}개(중복 스킵 ${facilitySync.skippedDuplicates}개), 갤러리 삭제 ${imageSync.galleryDeleted}개, 평면도 해제 ${imageSync.floorPlanCleared}개, 중복스킵 ${imageSync.gallerySkippedByHash}개, 검증기준 ${validationProfileSync.ok ? "동기화 완료" : "동기화 실패"}) — 2초 후 새로고침됩니다.`,
       );
       setStatusTone("safe");
       setTimeout(() => window.location.reload(), 2000);
@@ -3989,6 +4058,7 @@ export default function TestUploadPage() {
     field: string,
     value: unknown,
   ) => {
+    const key = `${section}.${field}`;
     setResult((prev) => {
       if (!prev) return prev;
       const currentSection = (prev as Record<string, unknown>)[section] as
@@ -4002,6 +4072,9 @@ export default function TestUploadPage() {
         },
       };
     });
+    if (existingSnapshot) {
+      setSelectionMap((prev) => ({ ...prev, [key]: "incoming" }));
+    }
   };
   const updateResultUnitField = (
     index: number,
@@ -4415,7 +4488,11 @@ export default function TestUploadPage() {
   const toNullableNumberInput = (value: string) => {
     const trimmed = value.trim();
     if (!trimmed) return null;
-    return toNumberOrNull(trimmed);
+    const strictParsed = toNumberOrNull(trimmed);
+    if (strictParsed != null) return strictParsed;
+    const looseMatch = trimmed.match(/-?\d[\d,]*(?:\.\d+)?/);
+    if (!looseMatch?.[0]) return null;
+    return toNumberOrNull(looseMatch[0]);
   };
   const parsePriceRangeInput = (value: string) => {
     const normalized = value.replaceAll("~", " ").replaceAll("-", " ");
