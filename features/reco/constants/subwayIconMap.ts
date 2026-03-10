@@ -1,5 +1,47 @@
 const normalizeLine = (line: string) => line.toLowerCase().replace(/\s+/g, "");
 
+const SUBWAY_REGION_ALIASES: Record<string, string> = {
+  서울: "서울",
+  수도권: "서울",
+  인천: "인천",
+  부산: "부산",
+  대구: "대구",
+  광주: "광주",
+  대전: "대전",
+};
+
+function canonicalizeRegionToken(token: string): string | null {
+  const compact = token.replace(/\s+/g, "");
+  return SUBWAY_REGION_ALIASES[compact] ?? null;
+}
+
+export function canonicalizeSubwayLine(line: string): string {
+  const compact = String(line ?? "").replace(/\s+/g, "").trim();
+  if (!compact) return "";
+
+  const regionalNumber = compact.match(
+    /^(서울|수도권|인천|부산|대구|광주|대전)(?:도시철도|선)?([1-9])호선$/,
+  );
+  if (regionalNumber?.[1] && regionalNumber?.[2]) {
+    const region = canonicalizeRegionToken(regionalNumber[1]);
+    if (region) return `${region}${regionalNumber[2]}호선`;
+  }
+
+  const numberWithRegion = compact.match(
+    /^([1-9])호선\((서울|수도권|인천|부산|대구|광주|대전)\)$/,
+  );
+  if (numberWithRegion?.[1] && numberWithRegion?.[2]) {
+    const region = canonicalizeRegionToken(numberWithRegion[2]);
+    if (region) return `${region}${numberWithRegion[1]}호선`;
+  }
+
+  if (compact === "대전도시철도") {
+    return "대전1호선";
+  }
+
+  return compact;
+}
+
 const SUBWAY_ICON_MAPPINGS: Array<{ keywords: string[]; path: string }> = [
   {
     keywords: [
@@ -57,7 +99,14 @@ const SUBWAY_ICON_MAPPINGS: Array<{ keywords: string[]; path: string }> = [
     path: "/icons/subway/Daejang-Hongdae-Line.svg",
   },
   {
-    keywords: ["대전1호선", "daejeon-line-1", "daejeon1"],
+    keywords: [
+      "대전1호선",
+      "대전도시철도1호선",
+      "대전도시철도",
+      "1호선(대전)",
+      "daejeon-line-1",
+      "daejeon1",
+    ],
     path: "/icons/subway/Daejeon-line-1.svg",
   },
   {
@@ -150,11 +199,25 @@ const SUBWAY_ICON_MAPPINGS: Array<{ keywords: string[]; path: string }> = [
     path: "/icons/subway/Gyeongui-Jungang-Line.svg",
   },
   {
-    keywords: ["인천1호선", "인천선1호선", "인천도시철도1호선", "incheon-line-1", "incheon1"],
+    keywords: [
+      "인천1호선",
+      "인천선1호선",
+      "인천도시철도1호선",
+      "1호선(인천)",
+      "incheon-line-1",
+      "incheon1",
+    ],
     path: "/icons/subway/Incheon-line-1.svg",
   },
   {
-    keywords: ["인천2호선", "인천선2호선", "인천도시철도2호선", "incheon-line-2", "incheon2"],
+    keywords: [
+      "인천2호선",
+      "인천선2호선",
+      "인천도시철도2호선",
+      "2호선(인천)",
+      "incheon-line-2",
+      "incheon2",
+    ],
     path: "/icons/subway/Incheon-line-2.svg",
   },
   {
@@ -162,7 +225,14 @@ const SUBWAY_ICON_MAPPINGS: Array<{ keywords: string[]; path: string }> = [
     path: "/icons/subway/Seohae-Line.svg",
   },
   {
-    keywords: ["서울1호선", "수도권1호선", "seoul-line-1", "seoul1"],
+    keywords: [
+      "서울1호선",
+      "수도권1호선",
+      "1호선(서울)",
+      "1호선(수도권)",
+      "seoul-line-1",
+      "seoul1",
+    ],
     path: "/icons/subway/Seoul-line-1.svg",
   },
   {
@@ -240,13 +310,14 @@ const SUBWAY_ICON_MAPPINGS: Array<{ keywords: string[]; path: string }> = [
 ];
 
 export function getSubwayIconPath(line: string): string | null {
-  const normalized = normalizeLine(line);
+  const canonical = canonicalizeSubwayLine(line);
+  const normalized = normalizeLine(canonical);
   const hit = SUBWAY_ICON_MAPPINGS.find((m) =>
     m.keywords.some((k) => normalized.includes(normalizeLine(k))),
   );
   if (hit) return hit.path;
 
-  const n = line.match(/([0-9]+)호선/);
+  const n = canonical.match(/([0-9]+)호선/);
   if (n?.[1]) return `/icons/subway/Seoul-line-${n[1]}.svg`;
 
   return null;

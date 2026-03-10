@@ -1,4 +1,7 @@
-import { getSubwayIconPath } from "@/features/reco/constants/subwayIconMap";
+import {
+  canonicalizeSubwayLine,
+  getSubwayIconPath,
+} from "@/features/reco/constants/subwayIconMap";
 import {
   getHighSpeedRailLinesForStation,
 } from "@/features/reco/constants/highSpeedRailMap";
@@ -112,38 +115,73 @@ function isSubwayCategoryName(poi: PropertyRecoPoiRow) {
 function extractSubwayLineCandidates(poi: PropertyRecoPoiRow) {
   const lines = new Set<string>();
   const source = `${poi.name} ${poi.category_name ?? ""}`;
+  const parseRegionalLine = (lineToken: string) => {
+    const matched = lineToken.match(/^(서울|인천|부산|대구|광주|대전)([1-9])호선$/);
+    if (!matched?.[1] || !matched?.[2]) return null;
+    return { region: matched[1], lineNum: matched[2] };
+  };
 
   const inferRegionalLine = (lineToken: string) => {
-    const lineNum = lineToken.match(/^([1-9])호선$/)?.[1];
+    const compact = lineToken.replace(/\s+/g, "").trim();
+    if (!compact) return null;
+
+    const canonical = canonicalizeSubwayLine(compact);
+    const exactRegional = canonical.match(
+      /^(서울|인천|부산|대구|광주|대전)([1-9])호선$/,
+    )?.[0];
+    if (exactRegional) return exactRegional;
+
+    if (canonical === "대전1호선") return canonical;
+
+    const lineNum = canonical.match(/^([1-9])호선$/)?.[1];
     if (!lineNum) return null;
-    if (/인천/.test(source)) return `인천${lineNum}호선`;
-    if (/부산/.test(source)) return `부산${lineNum}호선`;
-    if (/대구/.test(source)) return `대구${lineNum}호선`;
-    if (/광주/.test(source)) return `광주${lineNum}호선`;
-    if (/대전/.test(source)) return `대전${lineNum}호선`;
-    if (/서울|수도권/.test(source)) return `서울${lineNum}호선`;
-    return null;
+    const regionHints = new Set<"서울" | "인천" | "부산" | "대구" | "광주" | "대전">();
+    if (/인천|인천도시철도/.test(source)) regionHints.add("인천");
+    if (/부산/.test(source)) regionHints.add("부산");
+    if (/대구/.test(source)) regionHints.add("대구");
+    if (/광주/.test(source)) regionHints.add("광주");
+    if (/대전|대전도시철도/.test(source)) regionHints.add("대전");
+    if (/서울|수도권/.test(source)) regionHints.add("서울");
+    if (regionHints.size !== 1) return null;
+    const [region] = Array.from(regionHints);
+    if (!region) return null;
+    return `${region}${lineNum}호선`;
+  };
+
+  const addLineCandidate = (rawToken: string) => {
+    const compact = rawToken.replace(/\s+/g, "").trim();
+    if (!compact) return;
+    const canonical = canonicalizeSubwayLine(compact);
+    if (canonical) lines.add(canonical);
+    const inferred = inferRegionalLine(canonical || compact);
+    if (!inferred) return;
+
+    const inferredRegional = parseRegionalLine(inferred);
+    if (inferredRegional) {
+      for (const existing of Array.from(lines)) {
+        const genericLineNum = existing.match(/^([1-9])호선$/)?.[1];
+        if (genericLineNum === inferredRegional.lineNum) {
+          lines.delete(existing);
+        }
+      }
+    }
+
+    lines.add(inferred);
   };
 
   if (Array.isArray(poi.subway_lines)) {
     for (const line of poi.subway_lines) {
       const normalized = String(line ?? "").trim();
       if (!normalized) continue;
-      lines.add(normalized);
-      const inferred = inferRegionalLine(normalized.replace(/\s+/g, ""));
-      if (inferred) lines.add(inferred);
+      addLineCandidate(normalized);
     }
   }
 
   const regex =
-    /(공항철도|인천공항철도|용인에버라인|에버라인|김포골드라인|김포도시철도|수인분당선|신분당선|경의중앙선|경춘선|경강선|서해선|신림선|신안산선|우이신설선|의정부경전철|동해선|동해본선|동해남부선|동북선|위례선|대경선|동탄인덕원선|대장홍대선|인천\s*1호선|인천\s*2호선|[1-9]호선)/gi;
+    /(공항철도|인천공항철도|용인에버라인|에버라인|김포골드라인|김포도시철도|수인분당선|신분당선|경의중앙선|경춘선|경강선|서해선|신림선|신안산선|우이신설선|의정부경전철|동해선|동해본선|동해남부선|동북선|위례선|대경선|동탄인덕원선|대장홍대선|(?:서울|수도권|인천|부산|대구|광주|대전)\s*(?:도시철도|선)?\s*[1-9]호선|[1-9]호선\s*\((?:서울|수도권|인천|부산|대구|광주|대전)\)|대전\s*도시철도|인천\s*1호선|인천\s*2호선|[1-9]호선)/gi;
   const matches = source.match(regex) ?? [];
   for (const matched of matches) {
-    const normalized = matched.replace(/\s+/g, "");
-    if (!normalized) continue;
-    lines.add(normalized);
-    const inferred = inferRegionalLine(normalized);
-    if (inferred) lines.add(inferred);
+    addLineCandidate(matched);
   }
 
   return Array.from(lines);

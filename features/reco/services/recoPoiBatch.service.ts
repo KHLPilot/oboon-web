@@ -20,6 +20,7 @@ import {
   getHighSpeedRailLinesForStation,
   isHighSpeedRailStation,
 } from "@/features/reco/constants/highSpeedRailMap";
+import { canonicalizeSubwayLine } from "@/features/reco/constants/subwayIconMap";
 
 const FETCH_CATEGORIES: Array<"SUBWAY" | "SCHOOL" | "HOSPITAL"> = [
   "SUBWAY",
@@ -155,6 +156,79 @@ function isLivingInfraAllowed(propertyType: string | null | undefined) {
   return !NON_RESIDENTIAL_PROPERTY_TYPE_KEYWORDS.some((keyword) =>
     normalized.includes(keyword.replace(/\s+/g, "").toLowerCase()),
   );
+}
+
+function inferRegionalSubwayLine(lineToken: string, source: string): string | null {
+  const compact = lineToken.replace(/\s+/g, "").trim();
+  if (!compact) return null;
+
+  const canonical = canonicalizeSubwayLine(compact);
+  const exactRegional = canonical.match(
+    /^(서울|인천|부산|대구|광주|대전)([1-9])호선$/,
+  )?.[0];
+  if (exactRegional) return exactRegional;
+
+  if (canonical === "대전1호선") return canonical;
+
+  const lineNum = canonical.match(/^([1-9])호선$/)?.[1];
+  if (!lineNum) return null;
+
+  const regionHints = new Set<"서울" | "인천" | "부산" | "대구" | "광주" | "대전">();
+  if (/인천|인천도시철도/.test(source)) regionHints.add("인천");
+  if (/부산/.test(source)) regionHints.add("부산");
+  if (/대구/.test(source)) regionHints.add("대구");
+  if (/광주/.test(source)) regionHints.add("광주");
+  if (/대전|대전도시철도/.test(source)) regionHints.add("대전");
+  if (/서울|수도권/.test(source)) regionHints.add("서울");
+  if (regionHints.size !== 1) return null;
+  const [region] = Array.from(regionHints);
+  if (!region) return null;
+  return `${region}${lineNum}호선`;
+}
+
+function normalizeSubwayLines(rawLines: string[], source: string): string[] {
+  const lines = new Set<string>();
+  const parseRegionalLine = (lineToken: string) => {
+    const matched = lineToken.match(/^(서울|인천|부산|대구|광주|대전)([1-9])호선$/);
+    if (!matched?.[1] || !matched?.[2]) return null;
+    return { region: matched[1], lineNum: matched[2] };
+  };
+
+  const addLine = (rawToken: string) => {
+    const compact = rawToken.replace(/\s+/g, "").trim();
+    if (!compact) return;
+    const canonical = canonicalizeSubwayLine(compact);
+    if (canonical) lines.add(canonical);
+    const inferred = inferRegionalSubwayLine(canonical || compact, source);
+    if (!inferred) return;
+
+    const inferredRegional = parseRegionalLine(inferred);
+    if (inferredRegional) {
+      for (const existing of Array.from(lines)) {
+        const genericLineNum = existing.match(/^([1-9])호선$/)?.[1];
+        if (genericLineNum === inferredRegional.lineNum) {
+          lines.delete(existing);
+        }
+      }
+    }
+
+    lines.add(inferred);
+  };
+
+  for (const rawLine of rawLines) {
+    const line = String(rawLine ?? "").trim();
+    if (!line) continue;
+    addLine(line);
+  }
+
+  const sourceLineRegex =
+    /(공항철도|인천공항철도|용인에버라인|에버라인|김포골드라인|김포도시철도|수인분당선|신분당선|경의중앙선|경춘선|경강선|서해선|신림선|신안산선|우이신설선|의정부경전철|동해선|동해본선|동해남부선|동북선|위례선|대경선|동탄인덕원선|대장홍대선|(?:서울|수도권|인천|부산|대구|광주|대전)\s*(?:도시철도|선)?\s*[1-9]호선|[1-9]호선\s*\((?:서울|수도권|인천|부산|대구|광주|대전)\)|대전\s*도시철도|인천\s*1호선|인천\s*2호선|[1-9]호선)/gi;
+  const sourceMatches = source.match(sourceLineRegex) ?? [];
+  for (const matched of sourceMatches) {
+    addLine(matched);
+  }
+
+  return Array.from(lines);
 }
 
 async function withRetry<T>(fn: () => Promise<T>, maxRetry = MAX_RETRY) {
@@ -502,9 +576,20 @@ async function processProperty(params: {
             transitCategory === "HIGH_SPEED_RAIL"
               ? getHighSpeedRailLinesForStation(toStationToken(p.place_name))
               : [];
-          const mergedLines = Array.from(
-            new Set([...(enriched.lines ?? []), ...highSpeedFallbackLines]),
-          );
+          const mergedLinesRaw = [...(enriched.lines ?? []), ...highSpeedFallbackLines];
+          const mergedLines =
+            transitCategory === "SUBWAY"
+              ? normalizeSubwayLines(
+                  mergedLinesRaw,
+                  `${p.place_name} ${p.category_name ?? ""}`,
+                )
+              : Array.from(
+                  new Set(
+                    mergedLinesRaw
+                      .map((line) => String(line ?? "").trim())
+                      .filter((line) => line.length > 0),
+                  ),
+                );
           row.subway_lines = mergedLines.length > 0 ? mergedLines : null;
           row.subway_station_code = enriched.stationCode;
           row.raw_public = enriched.rawPublic;
