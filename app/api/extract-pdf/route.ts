@@ -12,6 +12,7 @@ import { DeleteObjectCommand, GetObjectCommand, S3Client } from '@aws-sdk/client
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
+const EXTRACTION_SOFT_TIMEOUT_MS = Number(process.env.EXTRACT_PDF_SOFT_TIMEOUT_MS ?? 95000);
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pdfParse = require('pdf-parse');
@@ -341,6 +342,10 @@ function parseFileKeys(raw: unknown): string[] {
     .filter((v): v is string => typeof v === 'string')
     .map((v) => v.trim())
     .filter((v) => v.length > 0);
+}
+
+function hasRemainingTime(startedAtMs: number, reserveMs: number) {
+  return Date.now() - startedAtMs < EXTRACTION_SOFT_TIMEOUT_MS - reserveMs;
 }
 
 function splitRoadAddressAndDetail(raw: string | null | undefined): {
@@ -2930,6 +2935,7 @@ function buildFallbackWebEvidence(input: {
 export async function POST(req: Request) {
   let tempKeysToCleanup: string[] = [];
   let cleanupTempKeys = false;
+  const requestStartedAt = Date.now();
   try {
     console.info("extract-pdf env check", {
       vercelEnv: process.env.VERCEL_ENV ?? null,
@@ -3040,6 +3046,7 @@ export async function POST(req: Request) {
     const allImages: AnalyzedImage[] = [];
     const tableSupplementImages: AnalyzedImage[] = [];
     const filesMeta: FileProcessMeta[] = [];
+    let optionalPhasesSkippedByTimeout = false;
     const combinedStats = {
       totalPages: 0,
       imagesFound: 0,
@@ -3113,39 +3120,49 @@ export async function POST(req: Request) {
         }
 
         // 페이지 렌더링 (벡터 평면도 캡처용)
-        try {
-          const renderedPages = await renderPagesAsImages(buffer);
-          for (const renderedPage of renderedPages) {
-            allImages.push({
-              base64: renderedPage.dataUrl,
-              fileName: file.fileName,
-              index: renderedPage.pageNum,
-              source: 'render',
-              pageNum: renderedPage.pageNum,
-            });
-            fileMeta.renderedImageCount += 1;
+        if (hasRemainingTime(requestStartedAt, 45000)) {
+          try {
+            const renderedPages = await renderPagesAsImages(buffer);
+            for (const renderedPage of renderedPages) {
+              allImages.push({
+                base64: renderedPage.dataUrl,
+                fileName: file.fileName,
+                index: renderedPage.pageNum,
+                source: 'render',
+                pageNum: renderedPage.pageNum,
+              });
+              fileMeta.renderedImageCount += 1;
+            }
+          } catch (error) {
+            console.warn(`${file.fileName}에서 페이지 렌더링 실패:`, error);
           }
-        } catch (error) {
-          console.warn(`${file.fileName}에서 페이지 렌더링 실패:`, error);
+        } else {
+          optionalPhasesSkippedByTimeout = true;
+          console.info(`${file.fileName} 페이지 렌더링 생략: 남은 실행 시간 부족`);
         }
       } else if (tableSupplementImages.length < MAX_TABLE_SUPPLEMENT_IMAGES) {
-        try {
-          const renderedPages = await renderPagesAsImages(buffer);
-          const remaining = Math.max(
-            0,
-            MAX_TABLE_SUPPLEMENT_IMAGES - tableSupplementImages.length,
-          );
-          renderedPages.slice(0, remaining).forEach((renderedPage) => {
-            tableSupplementImages.push({
-              base64: renderedPage.dataUrl,
-              fileName: file.fileName,
-              index: renderedPage.pageNum,
-              source: 'render',
-              pageNum: renderedPage.pageNum,
+        if (hasRemainingTime(requestStartedAt, 45000)) {
+          try {
+            const renderedPages = await renderPagesAsImages(buffer);
+            const remaining = Math.max(
+              0,
+              MAX_TABLE_SUPPLEMENT_IMAGES - tableSupplementImages.length,
+            );
+            renderedPages.slice(0, remaining).forEach((renderedPage) => {
+              tableSupplementImages.push({
+                base64: renderedPage.dataUrl,
+                fileName: file.fileName,
+                index: renderedPage.pageNum,
+                source: 'render',
+                pageNum: renderedPage.pageNum,
+              });
             });
-          });
-        } catch (error) {
-          console.warn(`${file.fileName}에서 표 보강용 렌더링 실패:`, error);
+          } catch (error) {
+            console.warn(`${file.fileName}에서 표 보강용 렌더링 실패:`, error);
+          }
+        } else {
+          optionalPhasesSkippedByTimeout = true;
+          console.info(`${file.fileName} 표 보강용 렌더링 생략: 남은 실행 시간 부족`);
         }
       }
 
@@ -3224,7 +3241,7 @@ export async function POST(req: Request) {
       isBlank(extractionResult.specs.builder) ||
       (normalizedDeveloper.length > 0 && normalizedDeveloper === normalizedTrustCompany) ||
       (normalizedDeveloper.length > 0 && normalizedDeveloper === normalizedBuilder);
-    if (companyRescueNeeded) {
+    if (companyRescueNeeded && hasRemainingTime(requestStartedAt, 40000)) {
       const companyRescueImages = selectCompanyRescueImages(allImages, documentProfiles);
       const companyRescueContent: Array<
         | { type: 'text'; text: string }
@@ -3272,6 +3289,9 @@ export async function POST(req: Request) {
       }
 
       extractionResult = applyDeterministicTextEnrichment(extractionResult, rawText);
+    } else if (companyRescueNeeded) {
+      optionalPhasesSkippedByTimeout = true;
+      console.info('시행사/시공사 보강 생략: 남은 실행 시간 부족');
     }
 
     // ── 표 전용 보강: specs 그룹 (Gemini Vision) ──
@@ -3279,7 +3299,11 @@ export async function POST(req: Request) {
       0,
       MAX_TABLE_SUPPLEMENT_IMAGES,
     );
-    if (hasMissingTableSpecFields(extractionResult) && tableCandidateImages.length > 0) {
+    if (
+      hasMissingTableSpecFields(extractionResult) &&
+      tableCandidateImages.length > 0 &&
+      hasRemainingTime(requestStartedAt, 32000)
+    ) {
       const tableSupplementContent: Array<
         | { type: 'text'; text: string }
         | { type: 'image'; image: string }
@@ -3314,10 +3338,17 @@ export async function POST(req: Request) {
       } catch (error) {
         console.warn('표 전용 보강 추출 실패 - 기존 결과 유지:', error);
       }
+    } else if (hasMissingTableSpecFields(extractionResult) && tableCandidateImages.length > 0) {
+      optionalPhasesSkippedByTimeout = true;
+      console.info('specs 표 보강 생략: 남은 실행 시간 부족');
     }
 
     // ── 표 전용 보강: timeline 그룹 (Gemini Vision) ──
-    if (hasMissingTimelineTableFields(extractionResult) && tableCandidateImages.length > 0) {
+    if (
+      hasMissingTimelineTableFields(extractionResult) &&
+      tableCandidateImages.length > 0 &&
+      hasRemainingTime(requestStartedAt, 28000)
+    ) {
       const timelineSupplementContent: Array<
         | { type: 'text'; text: string }
         | { type: 'image'; image: string }
@@ -3352,10 +3383,17 @@ export async function POST(req: Request) {
       } catch (error) {
         console.warn('timeline 표 보강 추출 실패 - 기존 결과 유지:', error);
       }
+    } else if (hasMissingTimelineTableFields(extractionResult) && tableCandidateImages.length > 0) {
+      optionalPhasesSkippedByTimeout = true;
+      console.info('timeline 표 보강 생략: 남은 실행 시간 부족');
     }
 
     // ── 표 전용 보강: validation 그룹 (Gemini Vision) ──
-    if (hasMissingValidationTableFields(extractionResult) && tableCandidateImages.length > 0) {
+    if (
+      hasMissingValidationTableFields(extractionResult) &&
+      tableCandidateImages.length > 0 &&
+      hasRemainingTime(requestStartedAt, 24000)
+    ) {
       const validationSupplementContent: Array<
         | { type: 'text'; text: string }
         | { type: 'image'; image: string }
@@ -3394,10 +3432,17 @@ export async function POST(req: Request) {
       } catch (error) {
         console.warn('validation 표 보강 추출 실패 - 기존 결과 유지:', error);
       }
+    } else if (hasMissingValidationTableFields(extractionResult) && tableCandidateImages.length > 0) {
+      optionalPhasesSkippedByTimeout = true;
+      console.info('validation 표 보강 생략: 남은 실행 시간 부족');
     }
 
     // ── 표 전용 보강: unit 그룹(방/욕실) (Gemini Vision) ──
-    if (hasMissingUnitTableFields(extractionResult) && tableCandidateImages.length > 0) {
+    if (
+      hasMissingUnitTableFields(extractionResult) &&
+      tableCandidateImages.length > 0 &&
+      hasRemainingTime(requestStartedAt, 20000)
+    ) {
       const unitSupplementContent: Array<
         | { type: 'text'; text: string }
         | { type: 'image'; image: string }
@@ -3438,6 +3483,9 @@ export async function POST(req: Request) {
       } catch (error) {
         console.warn('unit 표 보강 추출 실패 - 기존 결과 유지:', error);
       }
+    } else if (hasMissingUnitTableFields(extractionResult) && tableCandidateImages.length > 0) {
+      optionalPhasesSkippedByTimeout = true;
+      console.info('unit 표 보강 생략: 남은 실행 시간 부족');
     }
 
     const missingFieldPaths = collectMissingFieldPaths(extractionResult);
@@ -3445,7 +3493,7 @@ export async function POST(req: Request) {
     const needsWebEnrichment = missingFieldPaths.length > 0;
     const webSearchEnabled = Boolean(process.env.GOOGLE_GENERATIVE_AI_API_KEY);
 
-    if (needsWebEnrichment && webSearchEnabled) {
+    if (needsWebEnrichment && webSearchEnabled && hasRemainingTime(requestStartedAt, 18000)) {
       webEnrichmentAttempted = true;
       webQueriesUsed = buildWebQueries(extractionResult, missingFieldPaths);
       const webResults = await searchWebContext(webQueriesUsed);
@@ -3522,6 +3570,9 @@ export async function POST(req: Request) {
           console.warn('웹 보완 재추출 실패 - 1차 결과를 사용합니다:', error);
         }
       }
+    } else if (needsWebEnrichment && webSearchEnabled) {
+      optionalPhasesSkippedByTimeout = true;
+      console.info('웹 보완 생략: 남은 실행 시간 부족');
     }
 
     // ── Phase 2: 이미지 분류 (이미지만, 간단한 스키마) ──
@@ -3529,7 +3580,7 @@ export async function POST(req: Request) {
     let phase2ImageLimit = 0;
     let classificationFailed = false;
 
-    if (allImages.length > 0) {
+    if (allImages.length > 0 && hasRemainingTime(requestStartedAt, 12000)) {
       // 더 많은 이미지를 분류해야 건물/평면도를 찾을 확률이 높음
       phase2ImageLimit = Math.min(allImages.length, MAX_PHASE2_CLASSIFICATION_IMAGES);
 
@@ -3562,6 +3613,10 @@ export async function POST(req: Request) {
         classificationFailed = true;
         console.warn('이미지 분류(Phase2) 실패 - 텍스트 추출 결과만 반환합니다:', error);
       }
+    } else if (allImages.length > 0) {
+      optionalPhasesSkippedByTimeout = true;
+      classificationFailed = true;
+      console.info('이미지 분류(Phase2) 생략: 남은 실행 시간 부족');
     }
 
     // ── 카카오 주소 보완 ──
@@ -3648,6 +3703,7 @@ export async function POST(req: Request) {
         webSearchEnabled,
         webQueriesUsed,
         webSearchResultCount,
+        optionalPhasesSkippedByTimeout,
         textOnlyRequested: textOnly,
         truncated,
         extractionMode,

@@ -112,7 +112,7 @@ function NumberInput({
 const INPUT_3_DIGIT_CLASS = "mx-auto w-[6ch] text-center px-2";
 const INPUT_1_DIGIT_CLASS = "mx-auto w-[4.5ch] text-center px-2";
 const INPUT_3_CHAR_CLASS = "mx-auto w-[6ch] text-center px-2";
-const INPUT_4_DIGIT_CLASS = "mx-auto w-[7ch] text-center px-2";
+const INPUT_3_COUNT_CLASS = "mx-auto w-[6ch] text-center px-2";
 const INPUT_6_CHAR_CLASS = "mx-auto w-[10ch] text-center px-2";
 const INPUT_8_CHAR_CLASS = "mx-auto w-[12ch] text-center px-2";
 
@@ -527,9 +527,9 @@ export default function UnitTypesPage({
                   <HeaderCell className="min-w-[60px]">욕실</HeaderCell>
                   <HeaderCell className="min-w-[120px]">구조</HeaderCell>
                   <HeaderCell className="min-w-[72px]">향</HeaderCell>
-                  <HeaderCell className="min-w-[84px]">공급 수</HeaderCell>
-                  <HeaderCell className="min-w-[84px]">세대수</HeaderCell>
-                  <HeaderCell className="min-w-[148px]">분양가(만원)</HeaderCell>
+                  <HeaderCell className="min-w-[74px]">공급 수</HeaderCell>
+                  <HeaderCell className="min-w-[74px]">세대수</HeaderCell>
+                  <HeaderCell className="min-w-[186px]">분양가(만원)</HeaderCell>
                   <HeaderCell className="min-w-[68px]">가격 공개</HeaderCell>
                   <HeaderCell className="min-w-[60px]">타입 공개</HeaderCell>
                   <HeaderCell className="min-w-[56px]">삭제</HeaderCell>
@@ -714,8 +714,8 @@ export default function UnitTypesPage({
                     <Cell>
                       {editMode ? (
                         <NumberInput
-                          className={INPUT_4_DIGIT_CLASS}
-                          max={9999}
+                          className={INPUT_3_COUNT_CLASS}
+                          max={999}
                           value={draft.supply_count ?? ""}
                           onChange={(e) => isNew ? setNewRowFieldByKey(rowKey, "supply_count", toIntOrNull(e.target.value)) : setRowField(unit!.id, "supply_count", toIntOrNull(e.target.value))}
                         />
@@ -726,8 +726,8 @@ export default function UnitTypesPage({
                     <Cell>
                       {editMode ? (
                         <NumberInput
-                          className={INPUT_4_DIGIT_CLASS}
-                          max={9999}
+                          className={INPUT_3_COUNT_CLASS}
+                          max={999}
                           value={draft.unit_count ?? ""}
                           onChange={(e) => isNew ? setNewRowFieldByKey(rowKey, "unit_count", toIntOrNull(e.target.value)) : setRowField(unit!.id, "unit_count", toIntOrNull(e.target.value))}
                         />
@@ -737,9 +737,9 @@ export default function UnitTypesPage({
                     </Cell>
                     <Cell>
                       {editMode ? (
-                        <div className="mx-auto flex w-[148px] items-center justify-center gap-1">
+                        <div className="mx-auto flex w-[186px] items-center justify-center gap-1">
                           <NumberInput
-                            className="w-[68px] px-1 text-center"
+                            className="w-[8.5ch] px-1 text-center"
                             value={wonToManwonInput(draft.price_min)}
                             onChange={(e) =>
                               isNew
@@ -757,7 +757,7 @@ export default function UnitTypesPage({
                           />
                           <span className="ob-typo-caption text-(--oboon-text-muted)">~</span>
                           <NumberInput
-                            className="w-[68px] px-1 text-center"
+                            className="w-[8.5ch] px-1 text-center"
                             value={wonToManwonInput(draft.price_max)}
                             onChange={(e) =>
                               isNew

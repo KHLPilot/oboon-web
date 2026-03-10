@@ -1076,6 +1076,8 @@ export default function TestUploadPage() {
   const [mainImageFile, setMainImageFile] = useState<File | null>(null);
   const [galleryImageUrls, setGalleryImageUrls] = useState<string[]>([]);
   const [galleryImageFiles, setGalleryImageFiles] = useState<File[]>([]);
+  const [draggedGalleryImageIndex, setDraggedGalleryImageIndex] = useState<number | null>(null);
+  const [dragOverGalleryImageIndex, setDragOverGalleryImageIndex] = useState<number | null>(null);
   const [modelhouseMainImageUrl, setModelhouseMainImageUrl] = useState("");
   const [modelhouseMainImageFile, setModelhouseMainImageFile] =
     useState<File | null>(null);
@@ -1084,6 +1086,8 @@ export default function TestUploadPage() {
   >([]);
   const [modelhouseGalleryImageFiles, setModelhouseGalleryImageFiles] =
     useState<File[]>([]);
+  const [draggedModelhouseGalleryImageIndex, setDraggedModelhouseGalleryImageIndex] = useState<number | null>(null);
+  const [dragOverModelhouseGalleryImageIndex, setDragOverModelhouseGalleryImageIndex] = useState<number | null>(null);
   const [validationContractRatioPercent, setValidationContractRatioPercent] =
     useState("");
   const [validationTransferRestriction, setValidationTransferRestriction] =
@@ -4683,6 +4687,42 @@ export default function TestUploadPage() {
     });
   };
 
+  const moveGalleryImage = (from: number, to: number) => {
+    if (to < 0 || to >= galleryImageUrls.length || from === to) return;
+    setGalleryImageUrls((prev) => {
+      const next = [...prev];
+      const [picked] = next.splice(from, 1);
+      if (!picked) return prev;
+      next.splice(to, 0, picked);
+      return next;
+    });
+    setGalleryImageFiles((prev) => {
+      const next = [...prev];
+      const [picked] = next.splice(from, 1);
+      if (!picked) return prev;
+      next.splice(to, 0, picked);
+      return next;
+    });
+  };
+
+  const moveModelhouseGalleryImage = (from: number, to: number) => {
+    if (to < 0 || to >= modelhouseGalleryImageUrls.length || from === to) return;
+    setModelhouseGalleryImageUrls((prev) => {
+      const next = [...prev];
+      const [picked] = next.splice(from, 1);
+      if (!picked) return prev;
+      next.splice(to, 0, picked);
+      return next;
+    });
+    setModelhouseGalleryImageFiles((prev) => {
+      const next = [...prev];
+      const [picked] = next.splice(from, 1);
+      if (!picked) return prev;
+      next.splice(to, 0, picked);
+      return next;
+    });
+  };
+
   // 추출된 이미지 배치 변경 함수
   const updateImageDestination = (localKey: string, destination: string) => {
     setExtractedImages((prev) =>
@@ -5538,18 +5578,67 @@ export default function TestUploadPage() {
                   </div>
                   <div className="rounded-lg border border-dashed border-(--oboon-border-default) p-3 ob-typo-caption text-(--oboon-text-muted)">
                     {galleryImageUrls.length > 0 ? (
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span>{galleryImageUrls.length}장 선택됨</span>
-                        {galleryImageUrls.slice(0, 3).map((url, i) => (
-                          <button
-                            key={`${url}-${i}`}
-                            type="button"
-                            onClick={() => removeGalleryImage(i)}
-                            className="rounded-full border border-(--oboon-border-default) px-2 py-0.5 text-(--oboon-text-muted) hover:bg-(--oboon-bg-subtle)"
-                          >
-                            {i + 1}번 제거
-                          </button>
-                        ))}
+                      <div className="space-y-2">
+                        <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 md:grid md:grid-cols-5 md:overflow-visible">
+                          {galleryImageUrls.map((url, i) => (
+                            <div
+                              key={`${url}-${i}`}
+                              draggable
+                              onDragStart={(event) => {
+                                setDraggedGalleryImageIndex(i);
+                                setDragOverGalleryImageIndex(i);
+                                event.dataTransfer.effectAllowed = "move";
+                              }}
+                              onDragOver={(event) => {
+                                event.preventDefault();
+                                if (draggedGalleryImageIndex == null || draggedGalleryImageIndex === i) return;
+                                if (dragOverGalleryImageIndex !== i) setDragOverGalleryImageIndex(i);
+                              }}
+                              onDrop={(event) => {
+                                event.preventDefault();
+                                if (draggedGalleryImageIndex == null || draggedGalleryImageIndex === i) return;
+                                moveGalleryImage(draggedGalleryImageIndex, i);
+                                setDraggedGalleryImageIndex(null);
+                                setDragOverGalleryImageIndex(null);
+                              }}
+                              onDragEnd={() => {
+                                setDraggedGalleryImageIndex(null);
+                                setDragOverGalleryImageIndex(null);
+                              }}
+                              className={[
+                                "relative w-28 shrink-0 snap-start overflow-hidden rounded-xl border bg-(--oboon-bg-surface) md:w-auto",
+                                dragOverGalleryImageIndex === i && draggedGalleryImageIndex !== i
+                                  ? "outline outline-(--oboon-primary)"
+                                  : "border-(--oboon-border-default)",
+                                draggedGalleryImageIndex === i ? "opacity-60" : "",
+                                "cursor-grab active:cursor-grabbing",
+                              ].join(" ")}
+                            >
+                              <div className="relative aspect-square w-full overflow-hidden bg-(--oboon-bg-subtle)">
+                                <Image
+                                  src={url}
+                                  alt={`추가 사진 ${i + 1}`}
+                                  width={320}
+                                  height={320}
+                                  className="h-full w-full object-cover"
+                                  unoptimized
+                                />
+                                <div className="pointer-events-none absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-(--oboon-overlay) ob-typo-caption font-medium text-(--oboon-on-primary)">
+                                  {i + 1}
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="absolute right-2 top-1 h-6 w-6 min-w-0 rounded-full p-0 !bg-transparent text-(--oboon-on-primary) hover:!bg-transparent hover:text-(--oboon-on-primary)"
+                                  onClick={() => removeGalleryImage(i)}
+                                  title={`${i + 1}번 사진 삭제`}
+                                >
+                                  <span className="text-(--oboon-danger)">×</span>
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     ) : (
                       "추가 사진이 없습니다."
@@ -5627,17 +5716,70 @@ export default function TestUploadPage() {
                   </div>
                   <div className="rounded-lg border border-dashed border-(--oboon-border-default) p-3 ob-typo-caption text-(--oboon-text-muted)">
                     {modelhouseGalleryImageUrls.length > 0 ? (
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span>{modelhouseGalleryImageUrls.length}장 선택됨</span>
-                        {modelhouseGalleryImageUrls.slice(0, 3).map((url, i) => (
-                          <button
+                      <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 md:grid md:grid-cols-5 md:overflow-visible">
+                        {modelhouseGalleryImageUrls.map((url, i) => (
+                          <div
                             key={`${url}-${i}`}
-                            type="button"
-                            onClick={() => removeModelhouseGalleryImage(i)}
-                            className="rounded-full border border-(--oboon-border-default) px-2 py-0.5 text-(--oboon-text-muted) hover:bg-(--oboon-bg-subtle)"
+                            draggable
+                            onDragStart={(event) => {
+                              setDraggedModelhouseGalleryImageIndex(i);
+                              setDragOverModelhouseGalleryImageIndex(i);
+                              event.dataTransfer.effectAllowed = "move";
+                            }}
+                            onDragOver={(event) => {
+                              event.preventDefault();
+                              if (draggedModelhouseGalleryImageIndex == null || draggedModelhouseGalleryImageIndex === i) return;
+                              if (dragOverModelhouseGalleryImageIndex !== i) setDragOverModelhouseGalleryImageIndex(i);
+                            }}
+                            onDrop={(event) => {
+                              event.preventDefault();
+                              if (
+                                draggedModelhouseGalleryImageIndex == null ||
+                                draggedModelhouseGalleryImageIndex === i
+                              ) {
+                                return;
+                              }
+                              moveModelhouseGalleryImage(draggedModelhouseGalleryImageIndex, i);
+                              setDraggedModelhouseGalleryImageIndex(null);
+                              setDragOverModelhouseGalleryImageIndex(null);
+                            }}
+                            onDragEnd={() => {
+                              setDraggedModelhouseGalleryImageIndex(null);
+                              setDragOverModelhouseGalleryImageIndex(null);
+                            }}
+                            className={[
+                              "relative w-28 shrink-0 snap-start overflow-hidden rounded-xl border bg-(--oboon-bg-surface) md:w-auto",
+                              dragOverModelhouseGalleryImageIndex === i &&
+                              draggedModelhouseGalleryImageIndex !== i
+                                ? "outline outline-(--oboon-primary)"
+                                : "border-(--oboon-border-default)",
+                              draggedModelhouseGalleryImageIndex === i ? "opacity-60" : "",
+                              "cursor-grab active:cursor-grabbing",
+                            ].join(" ")}
                           >
-                            {i + 1}번 제거
-                          </button>
+                            <div className="relative aspect-square w-full overflow-hidden bg-(--oboon-bg-subtle)">
+                              <Image
+                                src={url}
+                                alt={`모델하우스 추가 사진 ${i + 1}`}
+                                width={320}
+                                height={320}
+                                className="h-full w-full object-cover"
+                                unoptimized
+                              />
+                              <div className="pointer-events-none absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-(--oboon-overlay) ob-typo-caption font-medium text-(--oboon-on-primary)">
+                                {i + 1}
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="absolute right-2 top-1 h-6 w-6 min-w-0 rounded-full p-0 !bg-transparent text-(--oboon-on-primary) hover:!bg-transparent hover:text-(--oboon-on-primary)"
+                                onClick={() => removeModelhouseGalleryImage(i)}
+                                title={`${i + 1}번 사진 삭제`}
+                              >
+                                <span className="text-(--oboon-danger)">×</span>
+                              </Button>
+                            </div>
+                          </div>
                         ))}
                       </div>
                     ) : (
@@ -6003,9 +6145,9 @@ export default function TestUploadPage() {
                     <col className="w-[52px]" />
                     <col className="w-[52px]" />
                     <col className="w-[52px]" />
-                    <col className="w-[68px]" />
-                    <col className="w-[48px]" />
-                    <col className="w-[148px]" />
+                    <col className="w-[60px]" />
+                    <col className="w-[60px]" />
+                    <col className="w-[186px]" />
                     <col className="w-[64px]" />
                     <col className="w-[64px]" />
                     <col className="w-[42px]" />
@@ -6289,10 +6431,10 @@ export default function TestUploadPage() {
                         </td>
                         <td className="p-0 align-middle border-t border-(--oboon-border-default)">
                           {u ? (
-                            <div className="mx-auto flex w-[148px] items-center justify-center gap-1 px-1 py-1">
+                            <div className="mx-auto flex w-[186px] items-center justify-center gap-1 px-1 py-1">
                               <Input
                                 type="number"
-                                className="h-8 w-[64px] px-1 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                className="h-8 w-[8.5ch] px-1 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                 value={u.price_min ?? ""}
                                 onChange={(e) =>
                                   updateResultUnitField(
@@ -6305,7 +6447,7 @@ export default function TestUploadPage() {
                               <span className="ob-typo-caption text-(--oboon-text-muted)">~</span>
                               <Input
                                 type="number"
-                                className="h-8 w-[64px] px-1 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                className="h-8 w-[8.5ch] px-1 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                 value={u.price_max ?? ""}
                                 onChange={(e) =>
                                   updateResultUnitField(
