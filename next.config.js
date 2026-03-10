@@ -10,6 +10,7 @@ const nextConfig = {
     return config;
   },
   images: {
+    unoptimized: true,
     remotePatterns: [
       // 운영 안정 우선: HTTPS 전체 도메인 허용
       { protocol: "https", hostname: "**", pathname: "/**" },
