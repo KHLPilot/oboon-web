@@ -69,7 +69,7 @@ export async function POST(request: Request) {
     const { searchParams, origin } = new URL(request.url);
     const chunk = toPositiveInt(searchParams.get("chunk"), 100);
     const topN = toPositiveInt(searchParams.get("topN"), 3);
-    const radius = toPositiveInt(searchParams.get("radius"), 5000);
+    const radius = toPositiveInt(searchParams.get("radius"), 2000);
     const concurrency = toPositiveInt(searchParams.get("concurrency"), 4);
 
     const cronSecret = process.env.CRON_SECRET;

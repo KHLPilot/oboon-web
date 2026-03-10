@@ -27,7 +27,7 @@ const FETCH_CATEGORIES: Array<"SUBWAY" | "SCHOOL" | "HOSPITAL"> = [
   "HOSPITAL",
 ];
 const DEFAULT_TOP_N = 3;
-const DEFAULT_RADIUS = 5000;
+const DEFAULT_RADIUS = 2000;
 const HOSPITAL_SEARCH_PAGES = 4;
 const KAKAO_MAX_PAGES = 45;
 const OUTLET_KEYWORDS = ["아울렛", "롯데아울렛", "현대아울렛", "신세계아울렛"] as const;

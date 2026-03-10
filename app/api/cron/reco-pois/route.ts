@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     const { searchParams } = new URL(req.url);
     const chunkSize = toPositiveInt(searchParams.get("chunk"), 50);
     const topN = toPositiveInt(searchParams.get("topN"), 3);
-    const radius = toPositiveInt(searchParams.get("radius"), 5000);
+    const radius = toPositiveInt(searchParams.get("radius"), 2000);
     const concurrency = toPositiveInt(searchParams.get("concurrency"), 3);
 
     const startedAt = new Date().toISOString();

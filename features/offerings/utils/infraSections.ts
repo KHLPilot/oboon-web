@@ -109,11 +109,30 @@ function isSubwayCategoryName(poi: PropertyRecoPoiRow) {
   );
 }
 
+function extractSubwayLineCandidates(poi: PropertyRecoPoiRow) {
+  const lines = new Set<string>();
+
+  if (Array.isArray(poi.subway_lines)) {
+    for (const line of poi.subway_lines) {
+      const normalized = String(line ?? "").trim();
+      if (normalized) lines.add(normalized);
+    }
+  }
+
+  const source = `${poi.name} ${poi.category_name ?? ""}`;
+  const regex =
+    /(공항철도|인천공항철도|용인에버라인|에버라인|김포골드라인|김포도시철도|수인분당선|신분당선|경의중앙선|경춘선|경강선|서해선|신림선|신안산선|우이신설선|의정부경전철|동해선|동북선|위례선|대경선|동탄인덕원선|대장홍대선|인천\s*1호선|인천\s*2호선|[1-9]호선)/gi;
+  const matches = source.match(regex) ?? [];
+  for (const matched of matches) {
+    const normalized = matched.replace(/\s+/g, "");
+    if (normalized) lines.add(normalized);
+  }
+
+  return Array.from(lines);
+}
+
 function extractSubwayPrimaryLine(poi: PropertyRecoPoiRow) {
-  const lines =
-    Array.isArray(poi.subway_lines) && poi.subway_lines.length > 0
-      ? poi.subway_lines
-      : [];
+  const lines = extractSubwayLineCandidates(poi);
   if (lines[0]) return lines[0];
 
   const gtx = poi.name.match(/gtx\s*-?\s*([a-d])/i);
@@ -143,6 +162,25 @@ export function getSubwayVisual(poi: PropertyRecoPoiRow) {
   const primary = extractSubwayPrimaryLine(poi);
   const iconPath = getSubwayIconPath(primary ?? poi.name);
   return { primary, iconPath };
+}
+
+export function getSubwayLines(poi: PropertyRecoPoiRow) {
+  return extractSubwayLineCandidates(poi);
+}
+
+export function getSubwayIconPaths(poi: PropertyRecoPoiRow) {
+  const lines = extractSubwayLineCandidates(poi);
+  const paths = Array.from(
+    new Set(
+      lines
+        .map((line) => getSubwayIconPath(line))
+        .filter((value): value is string => Boolean(value)),
+    ),
+  );
+  if (paths.length > 0) return paths;
+
+  const fallback = getSubwayVisual(poi).iconPath;
+  return fallback ? [fallback] : [];
 }
 
 export function getDisplayStationName(
@@ -246,14 +284,24 @@ export function buildInfraSections(
         if (!key) return acc;
         const existing = acc.get(key);
         if (!existing) {
-          acc.set(key, poi);
+          const mergedPoi = {
+            ...poi,
+            subway_lines: extractSubwayLineCandidates(poi),
+          };
+          acc.set(key, mergedPoi);
           return acc;
         }
 
         const existingIsSubway = isSubwayCategoryName(existing);
         const currentIsSubway = isSubwayCategoryName(poi);
+        const mergedLines = Array.from(
+          new Set([
+            ...extractSubwayLineCandidates(existing),
+            ...extractSubwayLineCandidates(poi),
+          ]),
+        );
         if (currentIsSubway && !existingIsSubway) {
-          acc.set(key, poi);
+          acc.set(key, { ...poi, subway_lines: mergedLines });
           return acc;
         }
 
@@ -263,8 +311,12 @@ export function buildInfraSections(
           const existingDistance =
             toNumberOrNull(existing.distance_m) ?? Number.MAX_SAFE_INTEGER;
           if (currentDistance < existingDistance) {
-            acc.set(key, poi);
+            acc.set(key, { ...poi, subway_lines: mergedLines });
+          } else {
+            acc.set(key, { ...existing, subway_lines: mergedLines });
           }
+        } else {
+          acc.set(key, { ...existing, subway_lines: mergedLines });
         }
 
         return acc;

@@ -44,6 +44,7 @@ import { formatPriceRange } from "@/shared/price";
 import {
   buildInfraSections,
   getDisplayStationName,
+  getSubwayIconPaths,
   getSubwayVisual,
   HIGH_SPEED_RAIL_ICON_BG,
   HIGH_SPEED_RAIL_ICON_PATH,
@@ -846,20 +847,24 @@ export default function OfferingDetailLeft({
                           primary,
                           iconPath,
                         );
-                        const lineSuffix = !iconPath && primary ? ` ${primary}` : "";
-                        return `${stationName}${lineSuffix} · ${fmtDistance(distance)}/도보 ${walkMin}분`;
+                        return `${stationName} · ${fmtDistance(distance)}/도보 ${walkMin}분`;
                       },
                       (poi) => {
-                        const { primary, iconPath } = getSubwayVisual(poi);
-                        if (!iconPath) return null;
+                        const iconPaths = getSubwayIconPaths(poi);
+                        if (iconPaths.length === 0) return null;
                         return (
-                          <Image
-                            src={iconPath}
-                            alt={primary ?? poi.name}
-                            width={20}
-                            height={20}
-                            className="h-5 w-5 rounded-full"
-                          />
+                          <span className="inline-flex items-center gap-1">
+                            {iconPaths.map((path, index) => (
+                              <Image
+                                key={`${poi.kakao_place_id}-${path}-${index}`}
+                                src={path}
+                                alt={poi.name}
+                                width={20}
+                                height={20}
+                                className="h-5 w-5 rounded-full"
+                              />
+                            ))}
+                          </span>
                         );
                       },
                     )}

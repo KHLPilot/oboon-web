@@ -530,7 +530,7 @@ export default function AdminRegulationRulesTab({ active }: AdminRegulationRules
     setRecoPoiBatchLoading(true);
     try {
       const response = await fetch(
-        "/api/admin/reco-pois/run?chunk=100&topN=3&radius=5000&concurrency=4",
+        "/api/admin/reco-pois/run?chunk=100&topN=3&radius=2000&concurrency=4",
         { method: "POST" },
       );
       const payload = (await response.json().catch(() => null)) as
