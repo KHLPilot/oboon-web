@@ -7,6 +7,8 @@ export function markerVars(type: MarkerType) {
       ? "var(--oboon-primary)"
       : type === "valuation"
         ? "var(--oboon-danger)"
+        : type === "all"
+          ? "var(--oboon-warning)"
         : type === "modelhouse"
           ? "var(--oboon-safe)"
         : type === "open"

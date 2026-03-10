@@ -39,7 +39,7 @@ export type MapPropertyRow = {
 
 export type DbOffering = {
   id: number;
-  type: MarkerLayer | "both";
+  type: MarkerLayer | "all" | "both";
   title: string;
   region: string;
   regionSido: string;
@@ -127,12 +127,14 @@ export function mapPropertyRowsToDbOfferings(rows: MapPropertyRow[]) {
       const layers: MarkerLayer[] = [];
       if (hasAgent) layers.push("agent");
       if (hasValuation) layers.push("valuation");
-      const type: MarkerLayer | "both" =
+      const type: MarkerLayer | "all" | "both" =
         hasAgent && hasValuation
           ? "both"
           : hasAgent
             ? "agent"
-            : "valuation";
+            : hasValuation
+              ? "valuation"
+              : "all";
 
       return {
         id: r.id,

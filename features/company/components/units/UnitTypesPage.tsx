@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { ArrowLeft, ArrowRight, X } from "lucide-react";
+import { X } from "lucide-react";
 
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -225,6 +225,8 @@ export default function UnitTypesPage({
   const [deletingRowKey, setDeletingRowKey] = useState<string | null>(null);
   const [floorPlanModalUnitId, setFloorPlanModalUnitId] = useState<number | null>(null);
   const [floorPlanModalUrls, setFloorPlanModalUrls] = useState<string[]>([]);
+  const [draggedFloorPlanIndex, setDraggedFloorPlanIndex] = useState<number | null>(null);
+  const [dragOverFloorPlanIndex, setDragOverFloorPlanIndex] = useState<number | null>(null);
   const [floorPlanPreviewUrl, setFloorPlanPreviewUrl] = useState<string | null>(null);
   const [floorPlanUploading, setFloorPlanUploading] = useState(false);
   const [floorPlanSaving, setFloorPlanSaving] = useState(false);
@@ -301,6 +303,8 @@ export default function UnitTypesPage({
     if (floorPlanUploading || floorPlanSaving) return;
     setFloorPlanModalUnitId(null);
     setFloorPlanModalUrls([]);
+    setDraggedFloorPlanIndex(null);
+    setDragOverFloorPlanIndex(null);
   }
 
   async function handlePickFloorPlans(files: File[]) {
@@ -929,7 +933,37 @@ export default function UnitTypesPage({
                   {floorPlanModalUrls.map((url, index) => (
                     <div
                       key={`${url}-${index}`}
-                      className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-2"
+                      draggable={!floorPlanUploading && !floorPlanSaving}
+                      onDragStart={(event) => {
+                        setDraggedFloorPlanIndex(index);
+                        setDragOverFloorPlanIndex(index);
+                        event.dataTransfer.effectAllowed = "move";
+                        event.dataTransfer.setData("text/plain", String(index));
+                      }}
+                      onDragOver={(event) => {
+                        event.preventDefault();
+                        if (draggedFloorPlanIndex == null || draggedFloorPlanIndex === index) return;
+                        if (dragOverFloorPlanIndex !== index) setDragOverFloorPlanIndex(index);
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        if (draggedFloorPlanIndex == null || draggedFloorPlanIndex === index) return;
+                        moveFloorPlan(draggedFloorPlanIndex, index);
+                        setDraggedFloorPlanIndex(null);
+                        setDragOverFloorPlanIndex(null);
+                      }}
+                      onDragEnd={() => {
+                        setDraggedFloorPlanIndex(null);
+                        setDragOverFloorPlanIndex(null);
+                      }}
+                      className={[
+                        "rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-2",
+                        "cursor-grab active:cursor-grabbing",
+                        dragOverFloorPlanIndex === index && draggedFloorPlanIndex !== index
+                          ? "outline outline-(--oboon-primary)"
+                          : "",
+                        draggedFloorPlanIndex === index ? "opacity-60" : "",
+                      ].join(" ")}
                     >
                       <div className="relative aspect-square overflow-hidden rounded-lg bg-(--oboon-bg-subtle)">
                         <Image
@@ -954,32 +988,9 @@ export default function UnitTypesPage({
                           <X className="h-4 w-4 text-(--oboon-danger)" />
                         </Button>
                       </div>
-                      <div className="mt-2 flex items-center justify-between gap-1">
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          shape="pill"
-                          className="px-2"
-                          onClick={() => moveFloorPlan(index, index - 1)}
-                          disabled={index === 0 || floorPlanUploading || floorPlanSaving}
-                        >
-                          <ArrowLeft className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          shape="pill"
-                          className="px-2"
-                          onClick={() => moveFloorPlan(index, index + 1)}
-                          disabled={
-                            index === floorPlanModalUrls.length - 1 ||
-                            floorPlanUploading ||
-                            floorPlanSaving
-                          }
-                        >
-                          <ArrowRight className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
+                      <p className="mt-2 text-center ob-typo-caption text-(--oboon-text-muted)">
+                        드래그로 순서 변경
+                      </p>
                     </div>
                   ))}
                 </div>

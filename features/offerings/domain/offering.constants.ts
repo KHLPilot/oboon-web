@@ -40,10 +40,73 @@ export function normalizeRegionTab(
 ): OfferingRegionTab {
   const t = (region1Depth ?? "").trim();
   if (!t) return "전체";
-  const hit = OFFERING_REGION_TABS.find(
-    (r) => r !== "전체" && t.startsWith(r)
-  );
-  return hit ?? "전체";
+  if (t.startsWith("서울")) return "서울";
+  if (t.startsWith("경기")) return "경기";
+  if (t.startsWith("인천")) return "인천";
+  if (t.startsWith("강원")) return "강원";
+  if (t.startsWith("제주")) return "제주";
+
+  if (
+    t.startsWith("부산") ||
+    t.startsWith("대구") ||
+    t.startsWith("울산") ||
+    t.startsWith("경남") ||
+    t.startsWith("경북") ||
+    t.startsWith("경상")
+  ) {
+    return "경상";
+  }
+
+  if (
+    t.startsWith("광주") ||
+    t.startsWith("전남") ||
+    t.startsWith("전북") ||
+    t.startsWith("전라")
+  ) {
+    return "전라";
+  }
+
+  if (
+    t.startsWith("대전") ||
+    t.startsWith("세종") ||
+    t.startsWith("충남") ||
+    t.startsWith("충북") ||
+    t.startsWith("충청")
+  ) {
+    return "충청";
+  }
+
+  return "전체";
+}
+
+export function normalizeRegionBadgeLabel(
+  region1Depth: string | null | undefined
+): string | null {
+  const t = (region1Depth ?? "").trim();
+  if (!t) return null;
+
+  if (t.startsWith("서울")) return "서울";
+  if (t.startsWith("부산")) return "부산";
+  if (t.startsWith("대구")) return "대구";
+  if (t.startsWith("인천")) return "인천";
+  if (t.startsWith("광주")) return "광주";
+  if (t.startsWith("대전")) return "대전";
+  if (t.startsWith("울산")) return "울산";
+  if (t.startsWith("세종")) return "세종";
+  if (t.startsWith("경기")) return "경기";
+  if (t.startsWith("강원")) return "강원";
+  if (t.startsWith("충북")) return "충북";
+  if (t.startsWith("충남")) return "충남";
+  if (t.startsWith("전북")) return "전북";
+  if (t.startsWith("전남")) return "전남";
+  if (t.startsWith("경북")) return "경북";
+  if (t.startsWith("경남")) return "경남";
+  if (t.startsWith("제주")) return "제주";
+  if (t.startsWith("충청")) return "충청";
+  if (t.startsWith("전라")) return "전라";
+  if (t.startsWith("경상")) return "경상";
+
+  return t;
 }
 
 export { OFFERING_REGION_TABS, OFFERING_STATUS_VALUES };

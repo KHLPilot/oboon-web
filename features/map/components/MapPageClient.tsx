@@ -141,6 +141,29 @@ function isGyeonggiNorth(addressFull: string) {
   );
 }
 
+function resolveRegionTabKeyFromClusterLabel(label: string) {
+  const t = label.trim();
+  if (!t) return null;
+  if (t.includes("서울")) return "seoul";
+  if (t.includes("경기")) return "gyeonggi";
+  if (t.includes("인천")) return "incheon";
+  if (t.includes("부산")) return "busan";
+  if (t.includes("대구")) return "daegu";
+  if (t.includes("광주")) return "gwangju";
+  if (t.includes("대전")) return "daejeon";
+  if (t.includes("울산")) return "ulsan";
+  if (t.includes("세종")) return "sejong";
+  if (t.includes("강원")) return "gangwon";
+  if (t.includes("충북")) return "chungbuk";
+  if (t.includes("충남")) return "chungnam";
+  if (t.includes("전북")) return "jeonbuk";
+  if (t.includes("전남")) return "jeonnam";
+  if (t.includes("경북")) return "gyeongbuk";
+  if (t.includes("경남")) return "gyeongnam";
+  if (t.includes("제주")) return "jeju";
+  return null;
+}
+
 type RegionBoundaryPayload = {
   region: string;
   bounds: MapFocusBounds;
@@ -326,11 +349,11 @@ export default function MapPageClient() {
   }, []);
 
   const filtered = useMemo(() => {
-    if (!showAllOfferings) return [];
     const regionMatchers = REGION_NAME_MATCHERS[activeRegionTab] ?? [];
     const selectedLayers = (Object.entries(filters) as Array<[MarkerLayer, boolean]>)
       .filter(([, enabled]) => enabled)
       .map(([layer]) => layer);
+    if (!showAllOfferings && selectedLayers.length === 0) return [];
     const selectedSeoulGuTab = SEOUL_GU_TABS.find(
       (tab) => tab.key === activeSubRegionTab,
     );
@@ -342,7 +365,7 @@ export default function MapPageClient() {
         : null;
 
     return all.filter((item) => {
-      if (selectedLayers.length > 0) {
+      if (!showAllOfferings && selectedLayers.length > 0) {
         const matchesLayer = selectedLayers.some((layer) =>
           item.layers.includes(layer),
         );
@@ -552,6 +575,11 @@ export default function MapPageClient() {
                 focusBounds={activeRegionFocusBounds}
                 focusPolygons={activeRegionFocusPolygons}
                 regionClusterEnabled={activeRegionTab === "all"}
+                onClusterRegionSelect={(regionLabel) => {
+                  const regionKey = resolveRegionTabKeyFromClusterLabel(regionLabel);
+                  if (!regionKey) return;
+                  handleMoveRegion(regionKey);
+                }}
                 onMapReady={() => setMapReady(true)}
                 hoveredId={hoveredId}
                 focusedId={focusedId}

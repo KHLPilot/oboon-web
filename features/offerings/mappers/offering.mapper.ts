@@ -4,6 +4,7 @@ import {
   normalizeOfferingStatusValue,
   statusLabelOf,
   normalizeRegionTab,
+  normalizeRegionBadgeLabel,
 } from "@/features/offerings/domain/offering.constants";
 
 type PropertyLocationRow = {
@@ -113,9 +114,9 @@ export function mapPropertyRowToOffering(
   const statusValue = normalizeOfferingStatusValue(row.status);
   const status = statusLabelOf(statusValue);
 
-  const regionTab = normalizeRegionTab(loc0?.region_1depth);
-  const regionLabel =
-    regionTab === "전체" ? fallback.regionShort : regionTab;
+  const regionRaw = loc0?.region_1depth;
+  const regionTab = normalizeRegionTab(regionRaw);
+  const regionLabel = normalizeRegionBadgeLabel(regionRaw) ?? fallback.regionShort;
 
   const offering: Offering = {
     id: String(row.id),

@@ -220,6 +220,7 @@ const NaverMap = forwardRef<
     fitToMarkers?: boolean;
     initialZoom?: number;
     onMarkerSelect?: (id: number) => void;
+    onClusterRegionSelect?: (regionLabel: string) => void;
     onMarkerAction?: (
       markerId: number,
       action: "copy-address" | "consult",
@@ -248,6 +249,7 @@ const NaverMap = forwardRef<
       fitToMarkers = false,
       initialZoom = 12,
       onMarkerSelect,
+      onClusterRegionSelect,
       onMarkerAction,
       onHoverChange = () => {},
       onVisibleIdsChange,
@@ -699,6 +701,7 @@ const NaverMap = forwardRef<
     // 콜백 Ref
     const callbacksRef = useRef({
       onMarkerSelect,
+      onClusterRegionSelect,
       onMarkerAction,
       onHoverChange,
       onVisibleIdsChange,
@@ -711,6 +714,7 @@ const NaverMap = forwardRef<
     useEffect(() => {
       callbacksRef.current = {
         onMarkerSelect,
+        onClusterRegionSelect,
         onMarkerAction,
         onHoverChange,
         onVisibleIdsChange,
@@ -742,10 +746,16 @@ const NaverMap = forwardRef<
       if (value.includes("울산")) return "울산";
       if (value.includes("세종")) return "세종";
       if (value.includes("강원")) return "강원";
+      if (value.includes("충청북")) return "충북";
+      if (value.includes("충청남")) return "충남";
       if (value.includes("충북")) return "충북";
       if (value.includes("충남")) return "충남";
+      if (value.includes("전라북")) return "전북";
+      if (value.includes("전라남")) return "전남";
       if (value.includes("전북")) return "전북";
       if (value.includes("전남")) return "전남";
+      if (value.includes("경상북")) return "경북";
+      if (value.includes("경상남")) return "경남";
       if (value.includes("경북")) return "경북";
       if (value.includes("경남")) return "경남";
       if (value.includes("제주")) return "제주";
@@ -1021,6 +1031,13 @@ const NaverMap = forwardRef<
               event.domEvent.stopPropagation();
             }
             if (m.isCluster) {
+              const regionLabel = normalizeRegionLabel(
+                m.clusterRegion ?? m.topLabel,
+              );
+              if (regionLabel && callbacksRef.current.onClusterRegionSelect) {
+                callbacksRef.current.onClusterRegionSelect(regionLabel);
+                return;
+              }
               map.setZoom(map.getZoom() + 2, true);
               map.panTo(new naverObj.maps.LatLng(m.lat, m.lng));
               return;

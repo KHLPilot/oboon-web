@@ -69,7 +69,7 @@ export default function LayerControl({
               onChange={onToggleAll}
               className="accent-(--oboon-primary)"
             />
-            <span className="w-2 h-2 rounded-full bg-(--oboon-primary)" />
+            <span className="w-2 h-2 rounded-full bg-(--oboon-warning)" />
             전체 현장
           </label>
 
