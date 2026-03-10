@@ -2595,23 +2595,26 @@ export default function TestUploadPage() {
 
   const syncManualGalleryFilesForProperty = async (propertyId: number) => {
     if (galleryImageFiles.length === 0) return 0;
+    let uploadedCount = 0;
+    for (const file of galleryImageFiles) {
+      const galleryFormData = new FormData();
+      galleryFormData.append("propertyId", String(propertyId));
+      galleryFormData.append("files", file);
 
-    const galleryFormData = new FormData();
-    galleryFormData.append("propertyId", String(propertyId));
-    galleryImageFiles.forEach((file) => galleryFormData.append("files", file));
-
-    const galleryRes = await fetch("/api/property/gallery", {
-      method: "POST",
-      body: galleryFormData,
-    });
-    const galleryPayload = await galleryRes.json().catch(() => null);
-    if (!galleryRes.ok) {
-      throw new Error(galleryPayload?.error || "추가 사진 업로드 실패");
+      const galleryRes = await fetch("/api/property/gallery", {
+        method: "POST",
+        body: galleryFormData,
+      });
+      const galleryPayload = await galleryRes.json().catch(() => null);
+      if (!galleryRes.ok) {
+        if (galleryRes.status === 413) {
+          throw new Error("업로드 용량이 너무 큽니다. 이미지 수를 줄이거나 파일 크기를 줄여 다시 시도해주세요.");
+        }
+        throw new Error(galleryPayload?.error || "추가 사진 업로드 실패");
+      }
+      uploadedCount += 1;
     }
 
-    const uploadedCount = Array.isArray(galleryPayload?.images)
-      ? (galleryPayload.images as Array<unknown>).length
-      : 0;
     setGalleryImageFiles([]);
     setGalleryImageUrls((prev) => {
       prev.forEach((url) => revokeBlobUrl(url));

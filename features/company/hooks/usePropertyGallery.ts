@@ -59,23 +59,40 @@ export function usePropertyGallery({
 
       setGalleryUploading(true);
       try {
-        const formData = new FormData();
-        formData.append("propertyId", String(propertyId));
-        files.forEach((file) => formData.append("files", file));
+        let latestImages: PropertyGalleryImage[] = galleryImages;
+        let uploadedCount = 0;
 
-        const response = await fetch("/api/property/gallery", {
-          method: "POST",
-          body: formData,
-        });
-        const payload = await response.json();
-        if (!response.ok) {
-          throw new Error(
-            payload.error || "업로드 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.",
-          );
+        for (const file of files) {
+          const formData = new FormData();
+          formData.append("propertyId", String(propertyId));
+          formData.append("files", file);
+
+          const response = await fetch("/api/property/gallery", {
+            method: "POST",
+            body: formData,
+          });
+          const payload = await response.json().catch(() => null);
+          if (!response.ok) {
+            if (response.status === 413) {
+              throw new Error(
+                "업로드 용량이 너무 큽니다. 이미지 수를 줄이거나 파일 크기를 줄여 다시 시도해주세요.",
+              );
+            }
+            throw new Error(
+              payload?.error || "업로드 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.",
+            );
+          }
+          latestImages = (payload?.images || []) as PropertyGalleryImage[];
+          uploadedCount += 1;
         }
 
-        setGalleryImages((payload.images || []) as PropertyGalleryImage[]);
-        toast.success("추가 사진이 업로드되었습니다.", "완료");
+        setGalleryImages(latestImages);
+        toast.success(
+          uploadedCount > 0
+            ? `추가 사진 ${uploadedCount}장이 업로드되었습니다.`
+            : "추가 사진이 업로드되었습니다.",
+          "완료",
+        );
       } catch (error: unknown) {
         toast.error(
           (error instanceof Error ? error.message : "알 수 없는 오류") ||
