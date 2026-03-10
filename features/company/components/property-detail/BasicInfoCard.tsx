@@ -96,8 +96,10 @@ export default function BasicInfoCard({
   onDescriptionChange,
   validationContractRatioPercent,
   validationTransferRestriction,
+  validationTransferRestrictionPeriod,
   onValidationContractRatioChange,
   onValidationTransferRestrictionChange,
+  onValidationTransferRestrictionPeriodChange,
   children,
 }: {
   data: PropertyBasicViewData;
@@ -123,14 +125,18 @@ export default function BasicInfoCard({
   onDescriptionChange: (value: string) => void;
   validationContractRatioPercent: string;
   validationTransferRestriction: boolean;
+  validationTransferRestrictionPeriod: string;
   onValidationContractRatioChange: (value: string) => void;
   onValidationTransferRestrictionChange: (next: boolean) => void;
+  onValidationTransferRestrictionPeriodChange: (value: string) => void;
   children?: ReactNode;
 }) {
   const contractRatioLabel = validationContractRatioPercent.trim()
     ? `${validationContractRatioPercent.trim()}%`
     : "-";
-  const transferRestrictionLabel = validationTransferRestriction ? "있음" : "없음";
+  const transferRestrictionLabel = validationTransferRestriction
+    ? validationTransferRestrictionPeriod.trim() || "있음"
+    : "없음";
 
   return (
     <Card className="px-6 py-5">
@@ -306,7 +312,20 @@ export default function BasicInfoCard({
                 </DropdownMenuContent>
               </DropdownMenu>
             </FormField>
-            <div className="hidden md:block" />
+            <FormField label="전매 제한 기간">
+              <Input
+                value={
+                  validationTransferRestriction
+                    ? validationTransferRestrictionPeriod
+                    : "없음"
+                }
+                placeholder="예) 6개월, 3년, 소유권이전등기시"
+                onChange={(e) =>
+                  onValidationTransferRestrictionPeriodChange(e.target.value)
+                }
+                disabled={saving || !validationTransferRestriction}
+              />
+            </FormField>
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:items-start">

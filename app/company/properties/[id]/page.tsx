@@ -162,10 +162,16 @@ function PropertyDetailPageInner() {
     useState("10");
   const [validationTransferRestriction, setValidationTransferRestriction] =
     useState(false);
+  const [validationTransferRestrictionPeriod, setValidationTransferRestrictionPeriod] =
+    useState("없음");
   const [savedValidationContractRatioPercent, setSavedValidationContractRatioPercent] =
     useState("10");
   const [savedValidationTransferRestriction, setSavedValidationTransferRestriction] =
     useState(false);
+  const [
+    savedValidationTransferRestrictionPeriod,
+    setSavedValidationTransferRestrictionPeriod,
+  ] = useState("없음");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const {
     galleryInputRef,
@@ -223,6 +229,7 @@ function PropertyDetailPageInner() {
               resolved?: {
                 contract_ratio?: number | null;
                 transfer_restriction?: boolean | null;
+                transfer_restriction_period?: string | null;
               };
             }
           | null;
@@ -235,17 +242,28 @@ function PropertyDetailPageInner() {
         const nextTransferRestriction = Boolean(
           payload?.resolved?.transfer_restriction,
         );
+        const nextTransferRestrictionPeriod =
+          typeof payload?.resolved?.transfer_restriction_period === "string" &&
+          payload.resolved.transfer_restriction_period.trim().length > 0
+            ? payload.resolved.transfer_restriction_period.trim()
+            : nextTransferRestriction
+              ? ""
+              : "없음";
 
         setValidationContractRatioPercent(nextContractRatioPercent);
         setValidationTransferRestriction(nextTransferRestriction);
+        setValidationTransferRestrictionPeriod(nextTransferRestrictionPeriod);
         setSavedValidationContractRatioPercent(nextContractRatioPercent);
         setSavedValidationTransferRestriction(nextTransferRestriction);
+        setSavedValidationTransferRestrictionPeriod(nextTransferRestrictionPeriod);
       } catch {
         if (!isMounted) return;
         setValidationContractRatioPercent("10");
         setValidationTransferRestriction(false);
+        setValidationTransferRestrictionPeriod("없음");
         setSavedValidationContractRatioPercent("10");
         setSavedValidationTransferRestriction(false);
+        setSavedValidationTransferRestrictionPeriod("없음");
       }
     };
 
@@ -313,6 +331,9 @@ function PropertyDetailPageInner() {
           unitTypes: unitTypeRows ?? [],
           contractRatio: parsedContractRatioPercent / 100,
           transferRestriction: validationTransferRestriction,
+          transferRestrictionPeriod: validationTransferRestriction
+            ? validationTransferRestrictionPeriod.trim() || null
+            : "없음",
         }),
       },
     );
@@ -328,6 +349,11 @@ function PropertyDetailPageInner() {
     } else {
       setSavedValidationContractRatioPercent(validationContractRatioPercent);
       setSavedValidationTransferRestriction(validationTransferRestriction);
+      setSavedValidationTransferRestrictionPeriod(
+        validationTransferRestriction
+          ? validationTransferRestrictionPeriod.trim() || ""
+          : "없음",
+      );
     }
 
     setLocalPreview(null);
@@ -434,6 +460,9 @@ function PropertyDetailPageInner() {
     });
     setValidationContractRatioPercent(savedValidationContractRatioPercent);
     setValidationTransferRestriction(savedValidationTransferRestriction);
+    setValidationTransferRestrictionPeriod(
+      savedValidationTransferRestrictionPeriod,
+    );
     setEditMode(false);
     setLocalPreview(null);
     setImageFileName(null);
@@ -595,12 +624,22 @@ function PropertyDetailPageInner() {
             }
             validationContractRatioPercent={validationContractRatioPercent}
             validationTransferRestriction={validationTransferRestriction}
+            validationTransferRestrictionPeriod={validationTransferRestrictionPeriod}
             onValidationContractRatioChange={(value) =>
               setValidationContractRatioPercent(
                 sanitizeContractRatioPercentInput(value),
               )
             }
-            onValidationTransferRestrictionChange={setValidationTransferRestriction}
+            onValidationTransferRestrictionChange={(next) => {
+              setValidationTransferRestriction(next);
+              setValidationTransferRestrictionPeriod((prev) => {
+                if (!next) return "없음";
+                return prev === "없음" ? "" : prev;
+              });
+            }}
+            onValidationTransferRestrictionPeriodChange={(value) =>
+              setValidationTransferRestrictionPeriod(value)
+            }
           >
             <PropertyGallerySection
               editMode={editMode}

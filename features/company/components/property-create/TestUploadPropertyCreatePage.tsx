@@ -6288,24 +6288,39 @@ export default function TestUploadPage() {
                           />
                         </td>
                         <td className="p-0 align-middle border-t border-(--oboon-border-default)">
-                          <EditableText
-                            value={
-                              u && (u.price_min != null || u.price_max != null)
-                                ? `${u.price_min?.toLocaleString() ?? "?"} ~ ${u.price_max?.toLocaleString() ?? "?"}`
-                                : "-"
-                            }
-                            center
-                            cellMode
-                            isWebEnriched={
-                              isWebEvidenceField("unit_types.price_min") ||
-                              isWebEvidenceField("unit_types.price_max")
-                            }
-                            onCommit={(value) => {
-                              const parsed = parsePriceRangeInput(value);
-                              updateResultUnitField(i, "price_min", parsed.min);
-                              updateResultUnitField(i, "price_max", parsed.max);
-                            }}
-                          />
+                          {u ? (
+                            <div className="mx-auto flex w-[148px] items-center justify-center gap-1 px-1 py-1">
+                              <Input
+                                type="number"
+                                className="h-8 w-[64px] px-1 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                value={u.price_min ?? ""}
+                                onChange={(e) =>
+                                  updateResultUnitField(
+                                    i,
+                                    "price_min",
+                                    toNullableNumberInput(e.target.value),
+                                  )
+                                }
+                              />
+                              <span className="ob-typo-caption text-(--oboon-text-muted)">~</span>
+                              <Input
+                                type="number"
+                                className="h-8 w-[64px] px-1 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                value={u.price_max ?? ""}
+                                onChange={(e) =>
+                                  updateResultUnitField(
+                                    i,
+                                    "price_max",
+                                    toNullableNumberInput(e.target.value),
+                                  )
+                                }
+                              />
+                            </div>
+                          ) : (
+                            <span className="ob-typo-caption text-(--oboon-text-muted)">
+                              -
+                            </span>
+                          )}
                         </td>
                         <td className="px-1 py-2 align-middle border-t border-(--oboon-border-default)">
                           {u ? (

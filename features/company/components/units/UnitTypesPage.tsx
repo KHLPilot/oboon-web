@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { ArrowLeft, ArrowRight, ChevronDown, ChevronUp, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, X } from "lucide-react";
 
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -106,37 +106,6 @@ function NumberInput({
       className={[NUMBER_INPUT_NO_SPIN_CLASS, className ?? ""].join(" ").trim()}
       {...rest}
     />
-  );
-}
-
-function BooleanToggle({
-  checked,
-  onChange,
-  label,
-}: {
-  checked: boolean;
-  onChange: (next: boolean) => void;
-  label: string;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      onClick={() => onChange(!checked)}
-      className={[
-        "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
-        checked ? "bg-(--oboon-primary)" : "bg-(--oboon-bg-subtle)",
-      ].join(" ")}
-    >
-      <span
-        className={[
-          "inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform",
-          checked ? "translate-x-4" : "translate-x-0.5",
-        ].join(" ")}
-      />
-    </button>
   );
 }
 
@@ -248,12 +217,15 @@ export default function UnitTypesPage({
   const [rowDrafts, setRowDrafts] = useState<Record<number, UnitDraft>>({});
   const [newRows, setNewRows] = useState<NewUnitRow[]>([]);
   const [rowSequence, setRowSequence] = useState<string[]>([]);
+  const [draggedRowKey, setDraggedRowKey] = useState<string | null>(null);
+  const [dragOverRowKey, setDragOverRowKey] = useState<string | null>(null);
   const [newRowKeySeq, setNewRowKeySeq] = useState(0);
   const [editMode, setEditMode] = useState(false);
   const [savingAll, setSavingAll] = useState(false);
   const [deletingRowKey, setDeletingRowKey] = useState<string | null>(null);
   const [floorPlanModalUnitId, setFloorPlanModalUnitId] = useState<number | null>(null);
   const [floorPlanModalUrls, setFloorPlanModalUrls] = useState<string[]>([]);
+  const [floorPlanPreviewUrl, setFloorPlanPreviewUrl] = useState<string | null>(null);
   const [floorPlanUploading, setFloorPlanUploading] = useState(false);
   const [floorPlanSaving, setFloorPlanSaving] = useState(false);
   const floorPlanInputRef = useRef<HTMLInputElement | null>(null);
@@ -312,14 +284,15 @@ export default function UnitTypesPage({
       ? null
       : units.find((unit) => unit.id === floorPlanModalUnitId) ?? null;
 
-  function moveRowByKey(key: string, dir: -1 | 1) {
+  function moveRowKey(fromKey: string, toKey: string) {
     setRowSequence((prev) => {
-      const index = prev.indexOf(key);
-      if (index === -1) return prev;
-      const nextIndex = index + dir;
-      if (nextIndex < 0 || nextIndex >= prev.length) return prev;
+      const fromIndex = prev.indexOf(fromKey);
+      const toIndex = prev.indexOf(toKey);
+      if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return prev;
       const next = [...prev];
-      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+      const [moved] = next.splice(fromIndex, 1);
+      if (!moved) return prev;
+      next.splice(toIndex, 0, moved);
       return next;
     });
   }
@@ -538,7 +511,7 @@ export default function UnitTypesPage({
           ) : null}
 
           <div className="overflow-x-auto rounded-xl border border-(--oboon-border-default)">
-            <table className="min-w-[1320px] w-full border-collapse bg-(--oboon-bg-surface)">
+            <table className="min-w-[1320px] w-full border-collapse bg-(--oboon-bg-surface) text-center ob-typo-body text-(--oboon-text-body)">
               <thead>
                 <tr>
                   <HeaderCell className="min-w-[42px] !px-0">순서</HeaderCell>
@@ -563,7 +536,7 @@ export default function UnitTypesPage({
                   if (!editMode) setEditMode(true);
                 }}
               >
-                {rowSequence.map((rowKey, seqIndex) => {
+                {rowSequence.map((rowKey) => {
                   const unit = existingByKey.get(rowKey);
                   const newRow = unit ? null : newByKey.get(rowKey) ?? null;
                   if (!unit && !newRow) return null;
@@ -578,31 +551,46 @@ export default function UnitTypesPage({
                   return (
                     <tr
                       key={rowKey}
+                      draggable
+                      onDragStart={(event) => {
+                        setDraggedRowKey(rowKey);
+                        setDragOverRowKey(rowKey);
+                        event.dataTransfer.effectAllowed = "move";
+                      }}
+                      onDragOver={(event) => {
+                        if (!draggedRowKey || draggedRowKey === rowKey) return;
+                        event.preventDefault();
+                        if (dragOverRowKey !== rowKey) setDragOverRowKey(rowKey);
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        if (!draggedRowKey || draggedRowKey === rowKey) return;
+                        moveRowKey(draggedRowKey, rowKey);
+                        setDraggedRowKey(null);
+                        setDragOverRowKey(null);
+                      }}
+                      onDragEnd={() => {
+                        setDraggedRowKey(null);
+                        setDragOverRowKey(null);
+                      }}
                       className={[
                         "border-t border-(--oboon-border-default)",
                         isNew ? "bg-(--oboon-bg-subtle)/40" : "",
+                        dragOverRowKey === rowKey && draggedRowKey !== rowKey
+                          ? "outline outline-(--oboon-primary)"
+                          : "",
+                        draggedRowKey === rowKey ? "opacity-60" : "",
                       ].join(" ")}
                     >
                     <Cell className="!p-0 text-center align-middle">
-                      <div className="flex h-11 flex-col items-center justify-center gap-1">
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          className="h-5 w-5 min-w-0 px-0"
-                          onClick={() => moveRowByKey(rowKey, -1)}
-                          disabled={seqIndex === 0 || savingAll}
+                      <div className="flex h-11 items-center justify-center">
+                        <button
+                          type="button"
+                          className="h-7 w-7 rounded border border-(--oboon-border-default) text-(--oboon-text-muted) cursor-grab active:cursor-grabbing"
+                          title="드래그해서 행 순서 변경"
                         >
-                          <ChevronUp className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          className="h-5 w-5 min-w-0 px-0"
-                          onClick={() => moveRowByKey(rowKey, 1)}
-                          disabled={seqIndex === rowSequence.length - 1 || savingAll}
-                        >
-                          <ChevronDown className="h-3 w-3" />
-                        </Button>
+                          ≡
+                        </button>
                       </div>
                     </Cell>
                     <Cell>{editMode ? <Input className={INPUT_8_CHAR_CLASS} value={draft.type_name ?? ""} onChange={(e) => isNew ? setNewRowFieldByKey(rowKey, "type_name", e.target.value) : setRowField(unit!.id, "type_name", e.target.value)} /> : <div className="text-center">{draft.type_name ?? "-"}</div>}</Cell>
@@ -613,26 +601,30 @@ export default function UnitTypesPage({
                         ) : (
                           <>
                             {floorPlanPreviewUrl ? (
-                              <a
-                                href={floorPlanPreviewUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="relative h-8 w-8 overflow-hidden rounded border border-(--oboon-border-default)"
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setFloorPlanPreviewUrl(floorPlanPreviewUrl);
+                                }}
+                                className="relative h-8 w-8 overflow-visible"
                                 title="평면도 보기"
                               >
-                                <Image
-                                  src={floorPlanPreviewUrl}
-                                  alt={`${draft.type_name ?? "타입"} 평면도`}
-                                  fill
-                                  className="object-cover"
-                                  unoptimized
-                                />
+                                <span className="absolute inset-0 overflow-hidden rounded border border-(--oboon-border-default)">
+                                  <Image
+                                    src={floorPlanPreviewUrl}
+                                    alt={`${draft.type_name ?? "타입"} 평면도`}
+                                    fill
+                                    className="object-cover"
+                                    unoptimized
+                                  />
+                                </span>
                                 {floorPlanUrls.length > 1 ? (
-                                  <span className="absolute -right-1 -top-1 rounded-full bg-(--oboon-primary) px-1 py-0.5 text-[10px] leading-none text-white">
+                                  <span className="absolute -right-1.5 -top-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-(--oboon-primary) px-1 text-xs font-semibold leading-none text-white ring-2 ring-(--oboon-bg-surface)">
                                     {floorPlanUrls.length}
                                   </span>
                                 ) : null}
-                              </a>
+                              </button>
                             ) : (
                               <span>없음</span>
                             )}
@@ -784,29 +776,49 @@ export default function UnitTypesPage({
                         </div>
                       )}
                     </Cell>
-                    <Cell className="!p-1 text-center align-middle">
+                    <Cell className="px-1 py-2 align-middle border-t border-(--oboon-border-default)">
                       <div className="flex min-h-8 items-center justify-center">
                         {editMode ? (
-                          <BooleanToggle
-                            checked={Boolean(draft.is_price_public)}
-                            onChange={(next) => isNew ? setNewRowFieldByKey(rowKey, "is_price_public", next) : setRowField(unit!.id, "is_price_public", next)}
-                            label="가격 공개"
-                          />
+                          <label className="inline-flex items-center gap-1 text-xs whitespace-nowrap">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(draft.is_price_public)}
+                              onChange={(e) =>
+                                isNew
+                                  ? setNewRowFieldByKey(rowKey, "is_price_public", e.target.checked)
+                                  : setRowField(unit!.id, "is_price_public", e.target.checked)
+                              }
+                              className="h-3.5 w-3.5 accent-(--oboon-primary)"
+                            />
+                            <span>{draft.is_price_public ? "공개" : "비공개"}</span>
+                          </label>
                         ) : (
-                          <span className="ob-typo-caption text-(--oboon-text-muted)">{draft.is_price_public ? "ON" : "OFF"}</span>
+                          <span className="ob-typo-caption text-(--oboon-text-muted)">
+                            {draft.is_price_public ? "공개" : "비공개"}
+                          </span>
                         )}
                       </div>
                     </Cell>
-                    <Cell className="!p-1 text-center align-middle">
+                    <Cell className="px-1 py-2 align-middle border-t border-(--oboon-border-default)">
                       <div className="flex min-h-8 items-center justify-center">
                         {editMode ? (
-                          <BooleanToggle
-                            checked={Boolean(draft.is_public)}
-                            onChange={(next) => isNew ? setNewRowFieldByKey(rowKey, "is_public", next) : setRowField(unit!.id, "is_public", next)}
-                            label="타입 공개"
-                          />
+                          <label className="inline-flex items-center gap-1 text-xs whitespace-nowrap">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(draft.is_public)}
+                              onChange={(e) =>
+                                isNew
+                                  ? setNewRowFieldByKey(rowKey, "is_public", e.target.checked)
+                                  : setRowField(unit!.id, "is_public", e.target.checked)
+                              }
+                              className="h-3.5 w-3.5 accent-(--oboon-primary)"
+                            />
+                            <span>{draft.is_public ? "공개" : "비공개"}</span>
+                          </label>
                         ) : (
-                          <span className="ob-typo-caption text-(--oboon-text-muted)">{draft.is_public ? "ON" : "OFF"}</span>
+                          <span className="ob-typo-caption text-(--oboon-text-muted)">
+                            {draft.is_public ? "공개" : "비공개"}
+                          </span>
                         )}
                       </div>
                     </Cell>
@@ -995,6 +1007,25 @@ export default function UnitTypesPage({
                 </Button>
               </div>
             </div>
+          </Modal>
+
+          <Modal
+            open={Boolean(floorPlanPreviewUrl)}
+            onClose={() => setFloorPlanPreviewUrl(null)}
+            size="lg"
+          >
+            {floorPlanPreviewUrl ? (
+              <div className="relative w-full overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle)">
+                <Image
+                  src={floorPlanPreviewUrl}
+                  alt="평면도 미리보기"
+                  width={1600}
+                  height={1200}
+                  className="h-auto w-full object-contain"
+                  unoptimized
+                />
+              </div>
+            ) : null}
           </Modal>
       </div>
     </main>
