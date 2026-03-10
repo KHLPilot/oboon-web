@@ -174,6 +174,19 @@ type CompareField = {
   incomingValue: unknown;
 };
 
+const NUMERIC_COMPARE_KEYS = new Set([
+  "specs.site_area",
+  "specs.building_area",
+  "specs.floor_ground",
+  "specs.floor_underground",
+  "specs.building_count",
+  "specs.household_total",
+  "specs.parking_total",
+  "specs.parking_per_household",
+  "specs.floor_area_ratio",
+  "specs.building_coverage_ratio",
+]);
+
 type UnitMergePreviewCandidate = {
   leftIndex: number;
   rightIndex: number;
@@ -288,6 +301,15 @@ function toNumberOrNull(value: unknown) {
     return Number.isFinite(parsed) ? parsed : null;
   }
   return null;
+}
+
+function toNumberOrNullLoose(value: unknown) {
+  const strict = toNumberOrNull(value);
+  if (strict != null) return strict;
+  if (typeof value !== "string") return null;
+  const match = value.match(/-?\d[\d,]*(?:\.\d+)?/);
+  if (!match?.[0]) return null;
+  return toNumberOrNull(match[0]);
 }
 
 function toManwonFromWon(value: unknown) {
@@ -3689,6 +3711,8 @@ export default function TestUploadPage() {
         const normalizedIncoming =
           field.key === "properties.status"
             ? normalizeStatusForDb(String(field.incomingValue ?? ""))
+            : NUMERIC_COMPARE_KEYS.has(field.key)
+              ? toNumberOrNullLoose(field.incomingValue)
             : normalizeComparableValue(field.incomingValue);
 
         if (field.section === "properties") {
@@ -3758,19 +3782,19 @@ export default function TestUploadPage() {
           builder: normalizeComparableValue(merged.specs.builder),
           trust_company: normalizeComparableValue(merged.specs.trust_company),
           sale_type: normalizeComparableValue(merged.specs.sale_type),
-          site_area: toNumberOrNull(merged.specs.site_area),
-          building_area: toNumberOrNull(merged.specs.building_area),
-          floor_ground: toNumberOrNull(merged.specs.floor_ground),
-          floor_underground: toNumberOrNull(merged.specs.floor_underground),
-          building_count: toNumberOrNull(merged.specs.building_count),
-          household_total: toNumberOrNull(merged.specs.household_total),
-          parking_total: toNumberOrNull(merged.specs.parking_total),
-          parking_per_household: toNumberOrNull(
+          site_area: toNumberOrNullLoose(merged.specs.site_area),
+          building_area: toNumberOrNullLoose(merged.specs.building_area),
+          floor_ground: toNumberOrNullLoose(merged.specs.floor_ground),
+          floor_underground: toNumberOrNullLoose(merged.specs.floor_underground),
+          building_count: toNumberOrNullLoose(merged.specs.building_count),
+          household_total: toNumberOrNullLoose(merged.specs.household_total),
+          parking_total: toNumberOrNullLoose(merged.specs.parking_total),
+          parking_per_household: toNumberOrNullLoose(
             merged.specs.parking_per_household,
           ),
           heating_type: normalizeComparableValue(merged.specs.heating_type),
-          floor_area_ratio: toNumberOrNull(merged.specs.floor_area_ratio),
-          building_coverage_ratio: toNumberOrNull(
+          floor_area_ratio: toNumberOrNullLoose(merged.specs.floor_area_ratio),
+          building_coverage_ratio: toNumberOrNullLoose(
             merged.specs.building_coverage_ratio,
           ),
         };

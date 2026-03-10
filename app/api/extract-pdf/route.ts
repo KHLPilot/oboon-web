@@ -86,6 +86,8 @@ const systemPrompt = `너는 대한민국 분양 관련 PDF 묶음(모집공고�
 - specs.trust_company: 신탁사 / 관리형 신탁사
 - timeline: 모집공고일, 청약접수 시작/마감, 당첨자발표, 계약 시작/종료, 입주 예정
 - unit_types: 주택형(타입)별 면적, 세대수, 분양가 (최소~최대를 만원 단위로)
+  - unit_count는 해당 타입의 총공급 세대수
+  - supply_count는 해당 타입의 일반공급 세대수
 - facilities: 모델하우스/홍보관/견본주택 정보 (유형, 명칭, 주소, 상세주소, 운영 시작일/종료일)
 - validation.contract_ratio: 계약금 비율(예: 10% -> 0.1)
 - validation.transfer_restriction: 전매 제한 여부(있음=true, 없음=false, 불명확=null)
@@ -1370,22 +1372,36 @@ function extractUnitPriceRangesFromRawText(
   return byType;
 }
 
-function extractUnitCountsFromRawText(rawText: string, typeNames: string[]): Map<string, number> {
+function extractUnitSupplyCountsFromRawText(
+  rawText: string,
+  typeNames: string[],
+): Map<string, { totalCount: number | null; generalCount: number | null }> {
   const normalizedTypeNames = Array.from(
     new Set(typeNames.map((type) => type.trim()).filter((type) => type.length > 0)),
   );
   if (normalizedTypeNames.length === 0) return new Map();
 
-  const counts = new Map<string, number>();
-  const pushCount = (typeName: string, rawValue: number | null) => {
-    if (rawValue == null || !Number.isFinite(rawValue)) return;
+  const counts = new Map<string, { totalCount: number | null; generalCount: number | null }>();
+  const normalizeCount = (rawValue: number | null): number | null => {
+    if (rawValue == null || !Number.isFinite(rawValue)) return null;
     let value = Math.trunc(rawValue);
     if (value >= 100 && value <= 999) {
       // pdf-parse 컬럼 병합으로 '279호'처럼 붙는 경우(=27호 + 9호) 보정
       value = Math.trunc(value / 10);
     }
-    if (value < 1 || value > 300) return;
-    counts.set(normalizeMergeKey(typeName), value);
+    if (value < 1 || value > 300) return null;
+    return value;
+  };
+  const upsertCount = (
+    typeName: string,
+    next: { totalCount?: number | null; generalCount?: number | null },
+  ) => {
+    const key = normalizeMergeKey(typeName);
+    const prev = counts.get(key) ?? { totalCount: null, generalCount: null };
+    counts.set(key, {
+      totalCount: next.totalCount ?? prev.totalCount,
+      generalCount: next.generalCount ?? prev.generalCount,
+    });
   };
 
   const sectionIndex = rawText.indexOf('공급금액 및 납부일정');
@@ -1407,14 +1423,53 @@ function extractUnitCountsFromRawText(rawText: string, typeNames: string[]): Map
         : Math.min(section.length, start + 700);
       const block = section.slice(start, end);
 
+      const totalFromTotalKeyword = block.match(
+        /총(?:공급)?[^0-9]{0,12}(\d{1,3})\s*(?:세대|호)/,
+      );
+      const totalFromHoKeyword = block.match(
+        /공급세대수[^0-9]{0,12}(\d{1,3})\s*(?:세대|호)/,
+      );
+      const totalFromSeDaeKeyword = block.match(
+        /(?:세대수|공급규모)[^0-9]{0,12}(\d{1,3})\s*(?:세대|호)/,
+      );
+      const generalFromKeyword = block.match(
+        /일반(?:공급|분양)?[^0-9]{0,12}(\d{1,3})\s*(?:세대|호)/,
+      );
+      const specialFromKeyword = block.match(
+        /특별(?:공급)?[^0-9]{0,12}(\d{1,3})\s*(?:세대|호)/,
+      );
+
       const compactHoMatch = block.match(new RegExp(`^${typeName}\\s*(\\d{1,3})\\s*호`));
+      const compactTotalGeneralMatch = block.match(
+        new RegExp(`^${typeName}\\s*(\\d{1,3})\\s*(?:호)?\\s*[,/\\s]+\\s*(\\d{1,3})\\s*호`),
+      );
+      if (compactTotalGeneralMatch) {
+        upsertCount(typeName, {
+          totalCount: normalizeCount(Number(compactTotalGeneralMatch[1])),
+          generalCount: normalizeCount(Number(compactTotalGeneralMatch[2])),
+        });
+        continue;
+      }
       if (compactHoMatch) {
-        pushCount(typeName, Number(compactHoMatch[1]));
+        upsertCount(typeName, {
+          totalCount: normalizeCount(Number(compactHoMatch[1])),
+          generalCount: normalizeCount(Number(generalFromKeyword?.[1] ?? null)),
+        });
         continue;
       }
       const splitHoMatch = block.match(new RegExp(`^${typeName}\\s*(\\d{1,2})\\s+\\d+호`));
       if (splitHoMatch) {
-        pushCount(typeName, Number(splitHoMatch[1]));
+        const generalCount = normalizeCount(Number(generalFromKeyword?.[1] ?? null));
+        const specialCount = normalizeCount(Number(specialFromKeyword?.[1] ?? null));
+        const totalCount =
+          normalizeCount(Number(totalFromTotalKeyword?.[1] ?? null)) ??
+          normalizeCount(Number(totalFromHoKeyword?.[1] ?? null)) ??
+          normalizeCount(Number(totalFromSeDaeKeyword?.[1] ?? null)) ??
+          normalizeCount(Number(splitHoMatch[1])) ??
+          (generalCount != null && specialCount != null
+            ? normalizeCount(generalCount + specialCount)
+            : null);
+        upsertCount(typeName, { totalCount, generalCount });
       }
     }
   }
@@ -1423,11 +1478,24 @@ function extractUnitCountsFromRawText(rawText: string, typeNames: string[]): Map
 
   const collapsed = rawText.replace(/\s+/g, ' ');
   for (const typeName of normalizedTypeNames) {
-    const explicitMatch = collapsed.match(
+    const compactTotalGeneral = collapsed.match(
+      new RegExp(`${typeName}\\s*(\\d{1,3})\\s*(?:호)?\\s*[,/\\s]+\\s*(\\d{1,3})\\s*호`),
+    );
+    const explicitTotal = collapsed.match(
       new RegExp(`${typeName}[^\\n]{0,30}?(\\d{1,3})\\s*세대`),
     );
-    if (!explicitMatch) continue;
-    pushCount(typeName, Number(explicitMatch[1]));
+    const explicitGeneral = collapsed.match(
+      new RegExp(`${typeName}[^\\n]{0,40}?일반(?:공급|분양)?[^0-9]{0,12}(\\d{1,3})\\s*세대`),
+    );
+    if (!compactTotalGeneral && !explicitTotal && !explicitGeneral) continue;
+    upsertCount(typeName, {
+      totalCount:
+        normalizeCount(Number(compactTotalGeneral?.[1] ?? null)) ??
+        normalizeCount(Number(explicitTotal?.[1] ?? null)),
+      generalCount:
+        normalizeCount(Number(compactTotalGeneral?.[2] ?? null)) ??
+        normalizeCount(Number(explicitGeneral?.[1] ?? null)),
+    });
   }
 
   return counts;
@@ -2048,23 +2116,39 @@ function applyDeterministicTextEnrichment(
   }
   next.unit_types = next.unit_types.map((unit) => normalizeUnitPriceScale(unit));
 
-  const unitCounts = extractUnitCountsFromRawText(
+  const unitCounts = extractUnitSupplyCountsFromRawText(
     rawText,
     next.unit_types.map((unit) => unit.type_name),
   );
   if (unitCounts.size > 0) {
     next.unit_types = next.unit_types.map((unit) => {
       const key = normalizeMergeKey(unit.type_name);
-      const parsedCount = unitCounts.get(key);
-      if (parsedCount == null) return unit;
-      const currentCount = toNumberOrNull(unit.unit_count);
-      const shouldReplaceCount =
-        currentCount == null ||
-        currentCount <= 0 ||
-        Math.abs(currentCount - parsedCount) >= 5;
+      const parsedCounts = unitCounts.get(key);
+      if (!parsedCounts) return unit;
+      const currentTotalCount = toNumberOrNull(unit.unit_count);
+      const currentGeneralCount = toNumberOrNull(
+        (unit as { supply_count?: unknown }).supply_count,
+      );
+      const shouldReplaceTotalCount =
+        currentTotalCount == null ||
+        currentTotalCount <= 0 ||
+        (parsedCounts.totalCount != null &&
+          Math.abs(currentTotalCount - parsedCounts.totalCount) >= 5);
+      const shouldReplaceGeneralCount =
+        currentGeneralCount == null ||
+        currentGeneralCount <= 0 ||
+        (parsedCounts.generalCount != null &&
+          Math.abs(currentGeneralCount - parsedCounts.generalCount) >= 5);
       return {
         ...unit,
-        unit_count: shouldReplaceCount ? parsedCount : currentCount,
+        unit_count:
+          shouldReplaceTotalCount && parsedCounts.totalCount != null
+            ? parsedCounts.totalCount
+            : currentTotalCount,
+        supply_count:
+          shouldReplaceGeneralCount && parsedCounts.generalCount != null
+            ? parsedCounts.generalCount
+            : currentGeneralCount,
       };
     });
   }

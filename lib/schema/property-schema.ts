@@ -57,7 +57,8 @@ const propertyUnitTypeSchema = z.object({
   bathrooms: z.number().nullable().describe("욕실 수"),
   price_min: z.number().nullable().describe("최소 분양가 (만원 단위)"),
   price_max: z.number().nullable().describe("최대 분양가 (만원 단위)"),
-  unit_count: z.number().nullable().describe("해당 타입 세대수"),
+  unit_count: z.number().nullable().describe("해당 타입 총공급 세대수"),
+  supply_count: z.number().nullable().describe("해당 타입 일반공급 세대수"),
 });
 
 // property_facilities 테이블 (홍보시설/모델하우스)
