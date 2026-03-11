@@ -20,9 +20,6 @@ import type {
 } from "@/features/map/domain/marker/marker.type";
 
 import LayerControl from "@/features/map/components/MapLayer";
-import MapOfferingCompactList, {
-  type MapOfferingCompactItem,
-} from "@/features/map/components/MapOfferingCompactList";
 import FullscreenMapOverlay from "@/features/map/components/FullscreenMapOverlay";
 
 import {
@@ -254,20 +251,6 @@ function toMarker(m: DbOffering): MapMarker {
   };
 }
 
-function toCompactItem(m: DbOffering): MapOfferingCompactItem {
-  return {
-    id: m.id,
-    title: m.title,
-    address: m.addressFull,
-    priceRange: formatPriceRange(m.priceMinWon, m.priceMaxWon, {
-      unknownLabel: m.isPricePrivate
-        ? UXCopy.pricePrivateShort
-        : UXCopy.priceRangeShort,
-    }),
-    statusValue: m.statusEnum,
-  };
-}
-
 export default function MapPageClient() {
   const [filters, setFilters] =
     useState<Record<MarkerLayer, boolean>>(INITIAL_FILTERS);
@@ -275,7 +258,7 @@ export default function MapPageClient() {
 
   const [all, setAll] = useState<DbOffering[]>([]);
   // null = 아직 지도 가시영역 계산 전(초기 상태)
-  const [visibleIds, setVisibleIds] = useState<number[] | null>(null);
+  const [, setVisibleIds] = useState<number[] | null>(null);
 
   const [hoveredId, setHoveredId] = useState<number | null>(null);
   const [focusedId, setFocusedId] = useState<number | null>(null);
@@ -391,19 +374,9 @@ export default function MapPageClient() {
     });
   }, [activeRegionTab, activeSubRegionTab, all, filters, showAllOfferings]);
 
-  const visible = useMemo(() => {
-    if (!visibleIds) return filtered;
-    const set = new Set(visibleIds);
-    return filtered.filter((item) => set.has(item.id));
-  }, [filtered, visibleIds]);
-
   const markers = useMemo(() => {
     return filtered.map(toMarker);
   }, [filtered]);
-
-  const compactItems = useMemo(() => {
-    return visible.map(toCompactItem);
-  }, [visible]);
   const activeBoundaryRegionKey = useMemo(() => {
     if (activeRegionTab === "seoul" && activeSubRegionTab !== "all") {
       const seoulTab = SEOUL_GU_TABS.find((tab) => tab.key === activeSubRegionTab);
@@ -513,137 +486,141 @@ export default function MapPageClient() {
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <div className="ob-typo-h1 text-(--oboon-text-title)">지도</div>
-              <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
-                상담 지도에서 위치를 보고, 하단에서 현장을 빠르게 비교하세요.
+              <p className="mt-1 ob-typo-body text-(--oboon-text-muted)">
+                상담 지도에서 위치를 확인하고 지역별로 현장을 탐색하세요.
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            {REGION_TABS.map((tab) => (
-              <Button
-                key={tab.key}
-                type="button"
-                size="sm"
-                shape="pill"
-                variant={activeRegionTab === tab.key ? "primary" : "secondary"}
-                onClick={() => handleMoveRegion(tab.key)}
-              >
-                {tab.label}
-              </Button>
-            ))}
-          </div>
-          {activeRegionTab === "seoul" ? (
-            <div className="flex flex-wrap gap-2">
-              {SEOUL_GU_TABS.map((tab) => (
-                <Button
-                  key={tab.key}
-                  type="button"
-                  size="sm"
-                  shape="pill"
-                  variant={activeSubRegionTab === tab.key ? "primary" : "secondary"}
-                  onClick={() => handleMoveSubRegion(tab.key)}
-                >
-                  {tab.label}
-                </Button>
-              ))}
+          <div className="flex flex-col gap-2 lg:gap-3">
+            <div className="-mx-4 lg:mx-0">
+              <div className="flex gap-1.5 overflow-x-auto whitespace-nowrap pb-1 pl-4 pr-4 scrollbar-none lg:flex-wrap lg:overflow-visible lg:whitespace-normal lg:gap-2 lg:pl-0 lg:pr-0">
+                {REGION_TABS.map((tab) => (
+                  <Button
+                    key={tab.key}
+                    type="button"
+                    size="sm"
+                    shape="pill"
+                    className="shrink-0 lg:shrink"
+                    variant={activeRegionTab === tab.key ? "primary" : "secondary"}
+                    onClick={() => handleMoveRegion(tab.key)}
+                  >
+                    {tab.label}
+                  </Button>
+                ))}
+              </div>
             </div>
-          ) : null}
-          {activeRegionTab === "gyeonggi" ? (
-            <div className="flex flex-wrap gap-2">
-              {GYEONGGI_SUB_TABS.map((tab) => (
-                <Button
-                  key={tab.key}
-                  type="button"
-                  size="sm"
-                  shape="pill"
-                  variant={activeSubRegionTab === tab.key ? "primary" : "secondary"}
-                  onClick={() => handleMoveSubRegion(tab.key)}
-                >
-                  {tab.label}
-                </Button>
-              ))}
-            </div>
-          ) : null}
 
-          <div className="relative h-[360px] overflow-hidden rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) sm:h-[420px] md:h-[480px]">
-            <div className="absolute inset-0">
-              <NaverMap
-                ref={mapApiRef}
-                markers={markers}
-                initialZoom={13}
-                focusBounds={activeRegionFocusBounds}
-                focusPolygons={activeRegionFocusPolygons}
-                regionClusterEnabled={activeRegionTab === "all"}
-                onClusterRegionSelect={(regionLabel) => {
-                  const regionKey = resolveRegionTabKeyFromClusterLabel(regionLabel);
-                  if (!regionKey) return;
-                  handleMoveRegion(regionKey);
-                }}
-                onMapReady={() => setMapReady(true)}
-                hoveredId={hoveredId}
-                focusedId={focusedId}
-                onVisibleIdsChange={setVisibleIds}
-                onHoverChange={setHoveredId}
-                onMarkerSelect={(id) => {
-                  if (focusedId === id) {
-                    router.push(`/offerings/${id}`);
-                    return;
-                  }
-                  setFocusedId(id);
-                }}
-                onClearFocus={() => setFocusedId(null)}
+            {activeRegionTab === "seoul" ? (
+              <div className="-mx-4 lg:mx-0">
+                <div className="flex gap-1.5 overflow-x-auto whitespace-nowrap pb-1 pl-4 pr-4 scrollbar-none lg:flex-wrap lg:overflow-visible lg:whitespace-normal lg:gap-2 lg:pl-0 lg:pr-0">
+                  {SEOUL_GU_TABS.map((tab) => (
+                    <Button
+                      key={tab.key}
+                      type="button"
+                      size="sm"
+                      shape="pill"
+                      className="shrink-0 lg:shrink"
+                      variant={activeSubRegionTab === tab.key ? "primary" : "secondary"}
+                      onClick={() => handleMoveSubRegion(tab.key)}
+                    >
+                      {tab.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {activeRegionTab === "gyeonggi" ? (
+              <div className="-mx-4 lg:mx-0">
+                <div className="flex gap-1.5 overflow-x-auto whitespace-nowrap pb-1 pl-4 pr-4 scrollbar-none lg:flex-wrap lg:overflow-visible lg:whitespace-normal lg:gap-2 lg:pl-0 lg:pr-0">
+                  {GYEONGGI_SUB_TABS.map((tab) => (
+                    <Button
+                      key={tab.key}
+                      type="button"
+                      size="sm"
+                      shape="pill"
+                      className="shrink-0 lg:shrink"
+                      variant={activeSubRegionTab === tab.key ? "primary" : "secondary"}
+                      onClick={() => handleMoveSubRegion(tab.key)}
+                    >
+                      {tab.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="relative h-[420px] overflow-hidden rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) sm:h-[520px] md:h-[620px]">
+              <div className="absolute inset-0">
+                <NaverMap
+                  ref={mapApiRef}
+                  markers={markers}
+                  initialZoom={13}
+                  focusBounds={activeRegionFocusBounds}
+                  focusPolygons={activeRegionFocusPolygons}
+                  regionClusterEnabled={activeRegionTab === "all"}
+                  onClusterRegionSelect={(regionLabel) => {
+                    const regionKey = resolveRegionTabKeyFromClusterLabel(regionLabel);
+                    if (!regionKey) return;
+                    handleMoveRegion(regionKey);
+                  }}
+                  onMapReady={() => setMapReady(true)}
+                  hoveredId={hoveredId}
+                  focusedId={focusedId}
+                  onVisibleIdsChange={setVisibleIds}
+                  onHoverChange={setHoveredId}
+                  onMarkerSelect={(id) => {
+                    if (focusedId === id) {
+                      router.push(`/offerings/${id}`);
+                      return;
+                    }
+                    setFocusedId(id);
+                  }}
+                  onClearFocus={() => setFocusedId(null)}
+                />
+              </div>
+
+              <LayerControl
+                showAll={showAllOfferings}
+                onToggleAll={() => setShowAllOfferings((prev) => !prev)}
+                filters={filters}
+                onToggle={handleToggleLayer}
               />
-            </div>
 
-            <LayerControl
-              showAll={showAllOfferings}
-              onToggleAll={() => setShowAllOfferings((prev) => !prev)}
-              filters={filters}
-              onToggle={handleToggleLayer}
-            />
-
-            <div className="pointer-events-none absolute right-4 top-4 flex flex-col gap-2">
-              <Button
-                type="button"
-                shape="pill"
-                size="sm"
-                variant="secondary"
-                className="pointer-events-auto h-10 w-10 bg-(--oboon-bg-surface)/50"
-                onClick={() => mapApiRef.current?.zoomIn()}
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
-              <Button
-                type="button"
-                shape="pill"
-                size="sm"
-                variant="secondary"
-                className="pointer-events-auto h-10 w-10 bg-(--oboon-bg-surface)/50"
-                onClick={() => mapApiRef.current?.zoomOut()}
-              >
-                <Minus className="h-4 w-4" />
-              </Button>
-              <Button
-                type="button"
-                shape="pill"
-                size="sm"
-                variant="secondary"
-                className="pointer-events-auto h-10 w-10 bg-(--oboon-bg-surface)/50 md:hidden"
-                onClick={() => setOverlayOpen(true)}
-              >
-                <Expand className="h-4 w-4" />
-              </Button>
+              <div className="pointer-events-none absolute right-4 top-4 flex flex-col gap-2">
+                <Button
+                  type="button"
+                  shape="pill"
+                  size="sm"
+                  variant="secondary"
+                  className="pointer-events-auto h-10 w-10 bg-(--oboon-bg-surface)/50"
+                  onClick={() => mapApiRef.current?.zoomIn()}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  shape="pill"
+                  size="sm"
+                  variant="secondary"
+                  className="pointer-events-auto h-10 w-10 bg-(--oboon-bg-surface)/50"
+                  onClick={() => mapApiRef.current?.zoomOut()}
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  shape="pill"
+                  size="sm"
+                  variant="secondary"
+                  className="pointer-events-auto h-10 w-10 bg-(--oboon-bg-surface)/50 md:hidden"
+                  onClick={() => setOverlayOpen(true)}
+                >
+                  <Expand className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </div>
-
-          <MapOfferingCompactList
-            items={compactItems}
-            hoveredId={hoveredId}
-            focusedId={focusedId}
-            onHover={setHoveredId}
-            onSelect={setFocusedId}
-          />
 
           <FullscreenMapOverlay
             open={overlayOpen}

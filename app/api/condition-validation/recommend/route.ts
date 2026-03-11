@@ -376,6 +376,11 @@ export async function POST(request: Request) {
         summary_message: item.result.summaryMessage,
         reason_messages: item.result.reasonMessages,
         show_detailed_metrics: item.show_detailed_metrics,
+        categories: {
+          cash: item.result.trace.step1CashGrade,
+          burden: item.result.trace.step2BurdenGrade,
+          risk: item.result.trace.step3RiskGrade,
+        },
         metrics: {
           list_price: item.result.metrics.listPrice,
           min_cash: item.result.metrics.minCash,

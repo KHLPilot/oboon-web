@@ -16,13 +16,38 @@ import { trackEvent } from "@/lib/analytics";
 
 import OfferingBadge from "./OfferingBadges";
 
+type ConditionGrade = "GREEN" | "YELLOW" | "RED";
+type ConditionCategoryGrades = {
+  cash: ConditionGrade;
+  burden: ConditionGrade;
+  risk: ConditionGrade;
+};
+
 function isLikelyImageUrl(url: string | null | undefined) {
   if (!url) return false;
   if (url.startsWith("data:image/")) return true;
   return /\.(jpg|jpeg|png|webp|gif|avif|svg)(\?.*)?$/i.test(url);
 }
 
-export default function OfferingCard({ offering }: { offering: Offering }) {
+function gradeText(grade: ConditionGrade): "안전" | "경계" | "위험" {
+  if (grade === "GREEN") return "안전";
+  if (grade === "YELLOW") return "경계";
+  return "위험";
+}
+
+function gradeClass(grade: ConditionGrade): string {
+  if (grade === "GREEN") return "border-(--oboon-safe-border) bg-(--oboon-safe-bg) text-(--oboon-safe-text)";
+  if (grade === "YELLOW") return "border-(--oboon-warning-border) bg-(--oboon-warning-bg) text-(--oboon-warning-text)";
+  return "border-(--oboon-danger-border) bg-(--oboon-danger-bg) text-(--oboon-danger-text)";
+}
+
+export default function OfferingCard({
+  offering,
+  conditionCategories,
+}: {
+  offering: Offering;
+  conditionCategories?: ConditionCategoryGrades | null;
+}) {
   const priceRange = formatPriceRange(
     offering.priceMin억,
     offering.priceMax억,
@@ -117,6 +142,20 @@ export default function OfferingCard({ offering }: { offering: Offering }) {
               </p>
             </div>
           </div>
+
+          {conditionCategories ? (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              <span className={["rounded-full border px-2 py-0.5 ob-typo-caption", gradeClass(conditionCategories.cash)].join(" ")}>
+                자금 {gradeText(conditionCategories.cash)}
+              </span>
+              <span className={["rounded-full border px-2 py-0.5 ob-typo-caption", gradeClass(conditionCategories.burden)].join(" ")}>
+                부담 {gradeText(conditionCategories.burden)}
+              </span>
+              <span className={["rounded-full border px-2 py-0.5 ob-typo-caption", gradeClass(conditionCategories.risk)].join(" ")}>
+                위험 {gradeText(conditionCategories.risk)}
+              </span>
+            </div>
+          ) : null}
         </div>
       </Card>
     </Link>

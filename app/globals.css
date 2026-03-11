@@ -192,6 +192,17 @@ input[type="password"]::-webkit-contacts-auto-fill-button {
   /* Optional: map */
   --oboon-map-shadow-default: 0 12px 32px rgba(0, 0, 0, 0.25);
   --oboon-map-shadow-strong: 0 18px 45px rgba(0, 0, 0, 0.35);
+  --oboon-map-bg: #1b2130;
+  --oboon-map-dot: #516186;
+  --oboon-map-hatch: #5f6f94;
+  --oboon-map-block-a: #2a3348;
+  --oboon-map-block-b: #232d43;
+  --oboon-map-block-c: #303a52;
+  --oboon-map-ellipse-a: #35415f;
+  --oboon-map-ellipse-b: #2c3650;
+  --oboon-map-road: rgba(224, 232, 255, 0.18);
+  --oboon-map-road-dash: rgba(142, 157, 199, 0.45);
+  --oboon-map-road-label: rgba(170, 184, 221, 0.82);
 
   /* Optional: badge selected */
   --oboon-badge-selected-bg: rgba(91, 140, 255, 0.16);
@@ -251,6 +262,17 @@ input[type="password"]::-webkit-contacts-auto-fill-button {
 
   --oboon-badge-selected-bg: rgba(37, 99, 235, 0.14);
   --oboon-badge-selected-border: rgba(37, 99, 235, 0.32);
+  --oboon-map-bg: #edf0f9;
+  --oboon-map-dot: #cbd3ec;
+  --oboon-map-hatch: #c4ccdf;
+  --oboon-map-block-a: #e2e7f4;
+  --oboon-map-block-b: #d8dff0;
+  --oboon-map-block-c: #dce3f2;
+  --oboon-map-ellipse-a: #d4dcea;
+  --oboon-map-ellipse-b: #cdd5e8;
+  --oboon-map-road: #ffffff;
+  --oboon-map-road-dash: #c7d0e8;
+  --oboon-map-road-label: #a0aacc;
 }
 
 /* Dark theme (if you use .dark or data-theme="dark") */

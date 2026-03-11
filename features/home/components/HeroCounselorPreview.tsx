@@ -65,7 +65,7 @@ export default function HeroCounselorPreview({
   }, []);
 
   return (
-    <section className="relative w-full overflow-hidden rounded-3xl border border-white/55 bg-white/45 p-4 shadow-(--oboon-shadow-card) backdrop-blur-md sm:p-6">
+    <section className="relative h-full w-full overflow-hidden rounded-3xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-4 shadow-(--oboon-shadow-card) backdrop-blur-md sm:p-6">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0"
@@ -85,13 +85,13 @@ export default function HeroCounselorPreview({
       </div>
 
       <div className="md:hidden">
-        <div className="-mx-1 overflow-x-auto pb-1">
+        <div className="-mx-1 overflow-x-auto pb-1 scrollbar-none">
           <div className="flex snap-x snap-mandatory gap-3 px-1">
             {previewItems.map((counselor, index) => (
               <article
                 key={counselor.name}
                 className={[
-                  "w-[84%] shrink-0 snap-center rounded-2xl border-2 border-white/60 bg-white/72 p-4 shadow-[0_4px_14px_rgba(0,0,0,0.12)] backdrop-blur-md transition-all duration-300",
+                  "w-[84%] shrink-0 snap-center rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-page) p-4 shadow-(--oboon-shadow-card) backdrop-blur-md transition-all duration-300",
                   "hover:-translate-y-1 hover:scale-[1.02] hover:shadow-(--oboon-shadow-card)",
                   entered ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0",
                 ].join(" ")}
@@ -111,7 +111,7 @@ export default function HeroCounselorPreview({
           <div key={counselor.name} className={["absolute w-[48%] lg:w-[47%]", STACK_POSITIONS[index]].join(" ")}>
             <article
               className={[
-                "rounded-2xl border-2 border-white/60 bg-white/72 p-4 shadow-[0_4px_14px_rgba(0,0,0,0.12)] backdrop-blur-md transition-all duration-300",
+                "rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-page) p-4 shadow-(--oboon-shadow-card) backdrop-blur-md transition-all duration-300",
                 "hover:-translate-y-1 hover:scale-[1.02] hover:shadow-(--oboon-shadow-card)",
                 entered ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0",
               ].join(" ")}
@@ -138,7 +138,7 @@ function CardBody({ counselor }: { counselor: Counselor }) {
   return (
     <div>
       <div className="flex items-center gap-3">
-        <div className="relative h-11 w-11 overflow-hidden rounded-full border border-black/20 bg-(--oboon-bg-subtle)">
+        <div className="relative h-11 w-11 overflow-hidden rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle)">
           <Image
             src={counselor.image}
             alt={`${counselor.name} 프로필 이미지`}
@@ -148,8 +148,8 @@ function CardBody({ counselor }: { counselor: Counselor }) {
           />
         </div>
         <div className="min-w-0">
-          <p className="ob-typo-caption text-black/65">분양상담사</p>
-          <p className="truncate ob-typo-body2 text-black">
+          <p className="ob-typo-caption text-(--oboon-text-muted)">분양상담사</p>
+          <p className="truncate ob-typo-body2 text-(--oboon-text-title)">
             {counselor.name}
           </p>
         </div>
@@ -159,7 +159,7 @@ function CardBody({ counselor }: { counselor: Counselor }) {
         {safeTags.map((tag) => (
           <span
             key={`${counselor.name}-${tag}`}
-            className="inline-flex items-center rounded-full border px-2.5 py-1 ob-typo-caption text-black/90"
+            className="inline-flex items-center rounded-full border px-2.5 py-1 ob-typo-caption text-(--oboon-text-body)"
             style={{
               borderColor:
                 "color-mix(in srgb, var(--oboon-primary) 35%, var(--oboon-border-default))",
@@ -172,7 +172,7 @@ function CardBody({ counselor }: { counselor: Counselor }) {
         ))}
       </div>
 
-      <p className="mt-2 ob-typo-body text-black/85">{counselor.intro}</p>
+      <p className="mt-2 ob-typo-body text-(--oboon-text-body)">{counselor.intro}</p>
     </div>
   );
 }

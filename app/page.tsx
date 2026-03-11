@@ -12,11 +12,9 @@ export default function HomePage() {
   return (
     <main className="min-h-screen bg-(--oboon-bg-page)">
       <PageContainer>
-        <div className="flex flex-col gap-10">
+        <div className="flex flex-col gap-5">
           <HeroSection />
-
           <HomeOfferingsSection />
-
           {/* <HomeBriefingSection /> */}
         </div>
       </PageContainer>
