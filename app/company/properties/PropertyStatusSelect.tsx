@@ -1,20 +1,10 @@
-// /app/company/properties/Property.ts
+// /app/company/properties/PropertyStatusSelect.tsx
 
 "use client";
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/DropdownMenu";
-
-import Button from "@/components/ui/Button";
+import Select from "@/components/ui/Select";
 import type { PropertyStatus } from "@/features/property/domain/propertyStatus";
-import {
-  PROPERTY_STATUS_OPTIONS,
-  PROPERTY_STATUS_LABEL,
-} from "@/features/property/domain/propertyStatus";
+import { PROPERTY_STATUS_OPTIONS } from "@/features/property/domain/propertyStatus";
 
 export default function PropertyStatusSelect({
   value,
@@ -25,31 +15,12 @@ export default function PropertyStatusSelect({
   onChange: (v: PropertyStatus) => void;
   disabled?: boolean;
 }) {
-  const label = PROPERTY_STATUS_LABEL[value];
-
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="secondary"
-          size="md"
-          shape="default"
-          disabled={disabled}
-          className="w-full justify-between"
-          aria-haspopup="listbox"
-        >
-          <span className="text-sm font-medium">{label}</span>
-          <span className="text-xs text-(--oboon-text-muted)">▼</span>
-        </Button>
-      </DropdownMenuTrigger>
-
-      <DropdownMenuContent align="start" className="min-w-60 max-w-90">
-        {PROPERTY_STATUS_OPTIONS.map((opt) => (
-          <DropdownMenuItem key={opt.value} onClick={() => onChange(opt.value)}>
-            {opt.label}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <Select
+      value={value}
+      onChange={onChange}
+      options={PROPERTY_STATUS_OPTIONS}
+      disabled={disabled}
+    />
   );
 }

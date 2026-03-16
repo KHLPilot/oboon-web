@@ -217,6 +217,7 @@ const NaverMap = forwardRef<
     focusedId?: number | null;
     richMarkerIds?: number[];
     showFocusedAsRich?: boolean;
+    useDefaultMarkers?: boolean;
     fitToMarkers?: boolean;
     initialZoom?: number;
     onMarkerSelect?: (id: number) => void;
@@ -228,6 +229,7 @@ const NaverMap = forwardRef<
     onHoverChange?: (id: number | null) => void;
     onVisibleIdsChange?: (ids: number[]) => void;
     onClearFocus?: () => void;
+    onMapMoveStart?: () => void;
     focusBounds?: MapFocusBounds | null;
     focusPolygons?: MapFocusPolygonPath[];
     focusPolygonGroups?: MapFocusPolygonGroup[];
@@ -246,6 +248,7 @@ const NaverMap = forwardRef<
       focusedId = null,
       richMarkerIds = [],
       showFocusedAsRich = true,
+      useDefaultMarkers = false,
       fitToMarkers = false,
       initialZoom = 12,
       onMarkerSelect,
@@ -254,6 +257,7 @@ const NaverMap = forwardRef<
       onHoverChange = () => {},
       onVisibleIdsChange,
       onClearFocus,
+      onMapMoveStart,
       focusBounds = null,
       focusPolygons = [],
       focusPolygonGroups = [],
@@ -706,6 +710,7 @@ const NaverMap = forwardRef<
       onHoverChange,
       onVisibleIdsChange,
       onClearFocus,
+      onMapMoveStart,
       onMapReady,
       onSelectPosition,
       mode,
@@ -719,6 +724,7 @@ const NaverMap = forwardRef<
         onHoverChange,
         onVisibleIdsChange,
         onClearFocus,
+        onMapMoveStart,
         onMapReady,
         onSelectPosition,
         mode,
@@ -828,6 +834,14 @@ const NaverMap = forwardRef<
           : "default";
       const isRich = shouldBeRich(m);
 
+      if (useDefaultMarkers && !m.isCluster) {
+        mk.setIcon(null);
+        if (isFocused) mk.setZIndex(1000);
+        else if (isHovered) mk.setZIndex(500);
+        else mk.setZIndex(100);
+        return;
+      }
+
       const icon = m.isCluster
         ? clusterLabelIconFor({
             label: m.label || `${m.clusterRegion ?? "권역"} 집계`,
@@ -933,40 +947,17 @@ const NaverMap = forwardRef<
         .join("|");
       if (!force && markersKey === lastFittedMarkersKeyRef.current) return;
 
-      const lats = next.map((m) => m.lat);
-      const lngs = next.map((m) => m.lng);
-      const minLat = Math.min(...lats);
-      const maxLat = Math.max(...lats);
-      const minLng = Math.min(...lngs);
-      const maxLng = Math.max(...lngs);
+      const bounds = new naverObj.maps.LatLngBounds();
+      next.forEach((marker) => {
+        bounds.extend(new naverObj.maps.LatLng(marker.lat, marker.lng));
+      });
 
-      const centerLat = (minLat + maxLat) / 2;
-      const centerLng = (minLng + maxLng) / 2;
-
-      // 마커가 화면 가장자리에 걸리지 않도록 최소한의 여유만 적용
-      const latSpan = Math.max(maxLat - minLat, 0.0002) * 1.2;
-      const lngSpan = Math.max(maxLng - minLng, 0.0002) * 1.2;
-      const span = Math.max(latSpan, lngSpan);
-
-      const targetZoom =
-        span > 1
-          ? 9
-          : span > 0.5
-            ? 10
-            : span > 0.2
-              ? 11
-              : span > 0.1
-                ? 12
-                : span > 0.05
-                  ? 13
-                  : span > 0.02
-                    ? 14
-                    : span > 0.01
-                      ? 15
-                      : 16;
-
-      map.panTo(new naverObj.maps.LatLng(centerLat, centerLng));
-      map.setZoom(targetZoom, true);
+      map.fitBounds(bounds, {
+        top: 48,
+        right: 48,
+        bottom: 48,
+        left: 48,
+      });
 
       // 일부 환경에서 setCenter/setZoom 이후 실제 bounds 계산이 늦게 반영되어
       // 마커 일부가 화면 밖으로 남는 경우가 있어, 후검증으로 보정한다.
@@ -981,7 +972,7 @@ const NaverMap = forwardRef<
         );
         if (allVisible) return;
 
-        const nextZoom = Math.max(currentMap.getZoom() - 1, 13);
+        const nextZoom = Math.max(currentMap.getZoom() - 1, 3);
         if (nextZoom === currentMap.getZoom()) return;
         currentMap.setZoom(nextZoom, true);
         window.setTimeout(() => ensureVisible(attempt + 1), 120);
@@ -1253,6 +1244,7 @@ const NaverMap = forwardRef<
           "dragstart",
           () => {
             isInteractingRef.current = true;
+            callbacksRef.current.onMapMoveStart?.();
           },
         );
 
@@ -1274,6 +1266,7 @@ const NaverMap = forwardRef<
           "zoom_changed",
           () => {
             isInteractingRef.current = true;
+            callbacksRef.current.onMapMoveStart?.();
             refreshDisplayMarkersRef.current(naverObj);
             applyRegionFocusOverlayRef.current(naverObj);
             // 현 정책상 focused만 갱신하면 충분

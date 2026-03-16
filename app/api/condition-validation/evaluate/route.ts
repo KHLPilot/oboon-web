@@ -35,8 +35,8 @@ const amountSchema = z.preprocess((value) => {
 }, z.number().finite());
 
 const manwonAmountSchema = amountSchema
-  .refine((value) => value > 0, {
-    message: "must be > 0",
+  .refine((value) => value >= 0, {
+    message: "must be >= 0",
   })
   .refine((value) => Number.isInteger(value), {
     message: "must be integer in manwon unit",
@@ -304,6 +304,7 @@ export async function POST(request: Request) {
       matchedPropertyId: profile.matchedPropertyId,
     });
     const userId = await getOptionalUserId();
+    const masked = !userId;
 
     void persistEvaluation({
       adminSupabase,
@@ -328,40 +329,76 @@ export async function POST(request: Request) {
       },
       result: {
         final_grade: result.finalGrade,
+        total_score: result.totalScore,
+        max_score: result.maxScore,
         action: result.action,
-        reason_codes: result.reasonCodes,
-        reason_messages: result.reasonMessages,
+        reason_codes: masked ? [] : result.reasonCodes,
+        reason_messages: masked ? [] : result.reasonMessages,
         summary_message: result.summaryMessage,
       },
-      metrics: {
-        list_price: result.metrics.listPrice,
-        contract_amount: result.metrics.contractAmount,
-        min_cash: result.metrics.minCash,
-        recommended_cash: result.metrics.recommendedCash,
-        loan_ratio: result.metrics.loanRatio,
-        loan_amount: result.metrics.loanAmount,
-        interest_rate: result.metrics.interestRate,
-        monthly_payment_est: result.metrics.monthlyPaymentEst,
-        monthly_burden_ratio: result.metrics.monthlyBurdenRatio,
-        monthly_burden_percent: result.metrics.monthlyBurdenPercent,
-      },
+      metrics: masked
+        ? undefined
+        : {
+            list_price: result.metrics.listPrice,
+            contract_amount: result.metrics.contractAmount,
+            min_cash: result.metrics.minCash,
+            recommended_cash: result.metrics.recommendedCash,
+            loan_ratio: result.metrics.loanRatio,
+            loan_amount: result.metrics.loanAmount,
+            interest_rate: result.metrics.interestRate,
+            monthly_payment_est: result.metrics.monthlyPaymentEst,
+            monthly_burden_ratio: result.metrics.monthlyBurdenRatio,
+            monthly_burden_percent: result.metrics.monthlyBurdenPercent,
+          },
       warnings: result.warnings,
       display: {
+        masked,
         show_detailed_metrics: priceVisibility !== "non_public",
         price_visibility: priceVisibility,
       },
-      trace: parsed.data.options?.trace
+      categories: {
+        cash: {
+          grade: result.categories.cash.grade,
+          score: masked ? null : result.categories.cash.score,
+          max_score: result.categories.cash.maxScore,
+          masked,
+          reason_message: masked
+            ? null
+            : reasonMessageByCode(result.trace.step1CashReasonCode),
+        },
+        burden: {
+          grade: result.categories.burden.grade,
+          score: masked ? null : result.categories.burden.score,
+          max_score: result.categories.burden.maxScore,
+          masked,
+          reason_message: masked
+            ? null
+            : result.trace.step2BurdenReasonCode
+              ? reasonMessageByCode(result.trace.step2BurdenReasonCode)
+              : "월 부담이 40% 이하입니다.",
+        },
+        risk: {
+          grade: result.categories.risk.grade,
+          score: masked ? null : result.categories.risk.score,
+          max_score: result.categories.risk.maxScore,
+          masked,
+          reason_message: masked
+            ? null
+            : result.trace.step3RiskReasonCodes.length > 0
+              ? result.trace.step3RiskReasonCodes.map((code) => reasonMessageByCode(code)).join(" · ")
+              : "추가 리스크 없음",
+        },
+      },
+      trace: parsed.data.options?.trace && !masked
         ? {
             step1_cash_grade: result.trace.step1CashGrade,
             step1_cash_reason_code: result.trace.step1CashReasonCode,
-            step1_cash_reason_message: reasonMessageByCode(
-              result.trace.step1CashReasonCode,
-            ),
+            step1_cash_reason_message: reasonMessageByCode(result.trace.step1CashReasonCode),
             step2_burden_grade: result.trace.step2BurdenGrade,
             step2_burden_reason_code: result.trace.step2BurdenReasonCode,
             step2_burden_reason_message: result.trace.step2BurdenReasonCode
               ? reasonMessageByCode(result.trace.step2BurdenReasonCode)
-              : null,
+              : "월 부담이 40% 이하입니다.",
             step3_risk_grade: result.trace.step3RiskGrade,
             step3_risk_reason_codes: result.trace.step3RiskReasonCodes,
             step3_risk_reason_messages: result.trace.step3RiskReasonCodes.map(

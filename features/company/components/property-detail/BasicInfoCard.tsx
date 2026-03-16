@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { ChevronDown, Image as ImageIcon } from "lucide-react";
+import { Image as ImageIcon } from "lucide-react";
 import {
   type Dispatch,
   type MutableRefObject,
@@ -12,14 +12,14 @@ import {
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
+import Select from "@/components/ui/Select";
 import Textarea from "@/components/ui/Textarea";
 import { FormField } from "@/components/shared/FormField";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/DropdownMenu";
+
+const TRANSFER_RESTRICTION_OPTIONS = [
+  { label: "없음", value: "false" },
+  { label: "있음", value: "true" },
+] as const;
 import PropertyStatusSelect from "@/app/company/properties/PropertyStatusSelect";
 import {
   PROPERTY_STATUS_OPTIONS,
@@ -282,35 +282,12 @@ export default function BasicInfoCard({
               />
             </FormField>
             <FormField label="전매 제한">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    disabled={saving}
-                    className={[
-                      "w-full rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-2.5 text-left ob-typo-body text-(--oboon-text-title)",
-                      "inline-flex items-center justify-between disabled:cursor-not-allowed disabled:opacity-60",
-                    ].join(" ")}
-                  >
-                    <span>{validationTransferRestriction ? "있음" : "없음"}</span>
-                    <ChevronDown className="h-4 w-4 text-(--oboon-text-muted)" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" matchTriggerWidth>
-                  <DropdownMenuItem
-                    className={!validationTransferRestriction ? "bg-(--oboon-bg-subtle)" : ""}
-                    onClick={() => onValidationTransferRestrictionChange(false)}
-                  >
-                    없음
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    className={validationTransferRestriction ? "bg-(--oboon-bg-subtle)" : ""}
-                    onClick={() => onValidationTransferRestrictionChange(true)}
-                  >
-                    있음
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <Select
+                value={String(validationTransferRestriction)}
+                onChange={(val) => onValidationTransferRestrictionChange(val === "true")}
+                options={TRANSFER_RESTRICTION_OPTIONS}
+                disabled={saving}
+              />
             </FormField>
             <FormField label="전매 제한 기간">
               <Input

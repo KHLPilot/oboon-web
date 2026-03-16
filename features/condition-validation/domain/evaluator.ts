@@ -1,5 +1,6 @@
 import type {
   ActionCode,
+  CategoryResult,
   ConditionCustomerInput,
   ConditionEvaluationResult,
   FinalGrade,
@@ -18,6 +19,7 @@ const REASON_MESSAGES: Record<ReasonCode, string> = {
   CASH_BELOW_MIN: "최소 필요 현금 미달",
   CASH_BETWEEN_MIN_AND_RECOMMENDED: "최소~권장 구간",
   CASH_ABOVE_RECOMMENDED: "권장 현금 이상",
+  BURDEN_INCOME_ZERO: "월 소득이 0이라 부담률 계산이 불가합니다.",
   BURDEN_WARNING_40_TO_50: "월 부담이 40~50% 구간입니다.",
   BURDEN_HIGH_OVER_50: "월 부담이 50%를 초과합니다.",
   RISK_MULTI_HOME_REGULATED: "다주택 + 규제지역 리스크가 있습니다.",
@@ -33,12 +35,6 @@ function mapAction(grade: FinalGrade): ActionCode {
   if (grade === "GREEN") return "VISIT_BOOKING";
   if (grade === "YELLOW") return "PRE_VISIT_CONSULT";
   return "RECOMMEND_ALTERNATIVE_AND_CONSULT";
-}
-
-function downgrade(grade: FinalGrade): FinalGrade {
-  if (grade === "GREEN") return "YELLOW";
-  if (grade === "YELLOW") return "RED";
-  return "RED";
 }
 
 function getCashRule(assetType: ValidationAssetType): {
@@ -68,6 +64,9 @@ function buildSummaryMessage(grade: FinalGrade, reasons: ReasonCode[]): string {
   if (reasons.includes("CASH_BELOW_MIN")) {
     return "최소 필요 현금 미달";
   }
+  if (reasons.includes("BURDEN_INCOME_ZERO")) {
+    return "월 소득이 0이라 부담률 계산이 불가합니다.";
+  }
   if (reasons.includes("BURDEN_HIGH_OVER_50")) {
     return "월 부담이 과도합니다";
   }
@@ -78,6 +77,119 @@ function buildSummaryMessage(grade: FinalGrade, reasons: ReasonCode[]): string {
     return "상담 후 진행 권장";
   }
   return "대안 상담이 필요합니다";
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function scoreCash(params: {
+  availableCash: number;
+  minCash: number;
+  recommendedCash: number;
+  grade: FinalGrade;
+}): CategoryResult {
+  const { availableCash, minCash, recommendedCash, grade } = params;
+
+  let score = 0;
+  const premiumCash = recommendedCash * 1.3;
+  if (availableCash >= premiumCash) {
+    score = 40;
+  } else if (availableCash >= recommendedCash) {
+    const progress = premiumCash === recommendedCash
+      ? 1
+      : (availableCash - recommendedCash) / (premiumCash - recommendedCash);
+    score = 34 + progress * 6;
+  } else if (availableCash >= minCash) {
+    const progress = recommendedCash <= minCash
+      ? 1
+      : (availableCash - minCash) / (recommendedCash - minCash);
+    score = 28 + progress * 6;
+  } else {
+    const progress = minCash <= 0 ? 0 : availableCash / minCash;
+    score = clamp(progress * 27, 0, 27);
+  }
+
+  return {
+    grade,
+    score: round2(score),
+    maxScore: 40,
+  };
+}
+
+function scoreBurden(params: {
+  monthlyBurdenRatio: number | null;
+  grade: FinalGrade;
+}): CategoryResult {
+  const { monthlyBurdenRatio, grade } = params;
+
+  if (monthlyBurdenRatio === null) {
+    return {
+      grade,
+      score: 0,
+      maxScore: 35,
+    };
+  }
+
+  let score = 0;
+  if (monthlyBurdenRatio < 0.2) {
+    score = 35;
+  } else if (monthlyBurdenRatio < 0.3) {
+    const progress = (monthlyBurdenRatio - 0.2) / 0.1;
+    score = 35 - progress * 6;
+  } else if (monthlyBurdenRatio <= 0.4) {
+    const progress = (monthlyBurdenRatio - 0.3) / 0.1;
+    score = 29 - progress * 8;
+  } else if (monthlyBurdenRatio <= 0.5) {
+    const progress = (monthlyBurdenRatio - 0.4) / 0.1;
+    score = 21 - progress * 11;
+  } else {
+    const progress = clamp((monthlyBurdenRatio - 0.5) / 0.5, 0, 1);
+    score = 10 - progress * 10;
+  }
+
+  return {
+    grade,
+    score: round2(score),
+    maxScore: 35,
+  };
+}
+
+function scoreRisk(reasonCodes: Array<
+  | "RISK_MULTI_HOME_REGULATED"
+  | "RISK_CREDIT_UNSTABLE"
+  | "RISK_INVESTMENT_TRANSFER_LIMITED"
+>): CategoryResult {
+  let score = 25;
+
+  for (const code of reasonCodes) {
+    if (code === "RISK_INVESTMENT_TRANSFER_LIMITED") {
+      score -= 5;
+      continue;
+    }
+    score -= 10;
+  }
+
+  score = clamp(score, 0, 25);
+
+  let grade: FinalGrade = "GREEN";
+  if (score < 15) {
+    grade = "RED";
+  } else if (score < 25) {
+    grade = "YELLOW";
+  }
+
+  return {
+    grade,
+    score: round2(score),
+    maxScore: 25,
+  };
+}
+
+function gradeFromTotalScore(totalScore: number): FinalGrade {
+  if (totalScore >= 80) return "GREEN";
+  if (totalScore >= 50) return "YELLOW";
+  return "RED";
 }
 
 export function evaluateCondition(params: {
@@ -97,7 +209,8 @@ export function evaluateCondition(params: {
   const interestRate = INTEREST_RATE_BY_CREDIT[customer.creditGrade];
   const loanAmount = profile.listPrice * loanRatio;
   const monthlyPaymentEst = loanAmount * (interestRate / 12) * 1.3;
-  const monthlyBurdenRatio = monthlyPaymentEst / customer.monthlyIncome;
+  const monthlyBurdenRatio =
+    customer.monthlyIncome === 0 ? null : monthlyPaymentEst / customer.monthlyIncome;
 
   let step1CashGrade: FinalGrade;
   let step1CashReasonCode:
@@ -117,19 +230,21 @@ export function evaluateCondition(params: {
   }
   reasonSet.add(step1CashReasonCode);
 
-  let grade: FinalGrade = step1CashGrade;
-
   let step2BurdenGrade: FinalGrade = "GREEN";
-  let step2BurdenReasonCode: "BURDEN_WARNING_40_TO_50" | "BURDEN_HIGH_OVER_50" | null =
-    null;
-  if (monthlyBurdenRatio > 0.5) {
+  let step2BurdenReasonCode:
+    | "BURDEN_INCOME_ZERO"
+    | "BURDEN_WARNING_40_TO_50"
+    | "BURDEN_HIGH_OVER_50"
+    | null = null;
+  if (monthlyBurdenRatio === null) {
+    step2BurdenReasonCode = "BURDEN_INCOME_ZERO";
+    step2BurdenGrade = "RED";
+  } else if (monthlyBurdenRatio > 0.5) {
     step2BurdenReasonCode = "BURDEN_HIGH_OVER_50";
     step2BurdenGrade = "RED";
-    grade = "RED";
   } else if (monthlyBurdenRatio > 0.4) {
     step2BurdenReasonCode = "BURDEN_WARNING_40_TO_50";
     step2BurdenGrade = "YELLOW";
-    grade = downgrade(grade);
   } else {
     step2BurdenGrade = "GREEN";
   }
@@ -158,19 +273,28 @@ export function evaluateCondition(params: {
   for (const reason of step3RiskReasonCodes) {
     reasonSet.add(reason);
   }
-
-  const step3RiskGrade: FinalGrade =
-    step3RiskReasonCodes.length > 0 ? "YELLOW" : "GREEN";
-
-  if (step3RiskReasonCodes.length > 0) {
-    grade = downgrade(grade);
-  }
+  const cashCategory = scoreCash({
+    availableCash: customer.availableCash,
+    minCash,
+    recommendedCash,
+    grade: step1CashGrade,
+  });
+  const burdenCategory = scoreBurden({
+    monthlyBurdenRatio,
+    grade: step2BurdenGrade,
+  });
+  const riskCategory = scoreRisk(step3RiskReasonCodes);
+  const step3RiskGrade = riskCategory.grade;
+  const totalScore = round2(
+    cashCategory.score + burdenCategory.score + riskCategory.score,
+  );
+  const grade = gradeFromTotalScore(totalScore);
   const action = mapAction(grade);
-  // 고정 우선순위로 reason 순서를 맞춘다.
   const reasonOrder: ReasonCode[] = [
     "CASH_BELOW_MIN",
     "CASH_BETWEEN_MIN_AND_RECOMMENDED",
     "CASH_ABOVE_RECOMMENDED",
+    "BURDEN_INCOME_ZERO",
     "BURDEN_HIGH_OVER_50",
     "BURDEN_WARNING_40_TO_50",
     "RISK_MULTI_HOME_REGULATED",
@@ -182,6 +306,8 @@ export function evaluateCondition(params: {
 
   return {
     finalGrade: grade,
+    totalScore,
+    maxScore: 100,
     action,
     reasonCodes: orderedReasons,
     reasonMessages,
@@ -196,8 +322,10 @@ export function evaluateCondition(params: {
       loanAmount: round2(loanAmount),
       interestRate: round2(interestRate),
       monthlyPaymentEst: round2(monthlyPaymentEst),
-      monthlyBurdenRatio: round2(monthlyBurdenRatio),
-      monthlyBurdenPercent: round2(monthlyBurdenRatio * 100),
+      monthlyBurdenRatio:
+        monthlyBurdenRatio === null ? null : round2(monthlyBurdenRatio),
+      monthlyBurdenPercent:
+        monthlyBurdenRatio === null ? null : round2(monthlyBurdenRatio * 100),
     },
     trace: {
       step1CashGrade,
@@ -206,6 +334,11 @@ export function evaluateCondition(params: {
       step2BurdenReasonCode,
       step3RiskGrade,
       step3RiskReasonCodes,
+    },
+    categories: {
+      cash: cashCategory,
+      burden: burdenCategory,
+      risk: riskCategory,
     },
   };
 }

@@ -12,6 +12,7 @@ import type { User } from "@supabase/supabase-js";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { trackEvent } from "@/lib/analytics";
 import { getAvatarUrlOrDefault, normalizeImageUrl } from "@/shared/imageUrl";
+import { ROUTES } from "@/types/index";
 import ThemeToggle from "./ThemeToggle";
 import Button from "../ui/Button";
 
@@ -56,8 +57,8 @@ export default function Header() {
 
   const NAV_ITEMS = useMemo(
     () => [
-      { label: "분양 리스트", href: "/offerings" },
-      { label: "지도", href: "/map" },
+      { label: "분양 리스트", href: ROUTES.offerings.list },
+      { label: "맞춤 현장", href: ROUTES.recommendations },
       // { label: "브리핑", href: "/briefing" },
       { label: "커뮤니티", href: "/community" },
       { label: "고객센터", href: "/support" },

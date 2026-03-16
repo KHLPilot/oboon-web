@@ -2,12 +2,18 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Search, SlidersHorizontal } from "lucide-react";
+import { Check, ChevronDown, Search, SlidersHorizontal, X } from "lucide-react";
 import type {
   OfferingRegionTab,
   OfferingStatusValue,
 } from "@/features/offerings/domain/offering.types";
 import Button from "@/components/ui/Button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/DropdownMenu";
 import Input from "@/components/ui/Input";
 import Label from "@/components/ui/Label";
 import {
@@ -16,26 +22,53 @@ import {
   OFFERING_STATUS_VALUES,
   isOfferingStatusValue,
 } from "@/features/offerings/domain/offering.constants";
+import { formatEokPreview, parseEok } from "@/lib/format/currency";
 import { cn } from "@/lib/utils/cn";
+import OfferingsViewToggle from "@/features/offerings/components/OfferingsViewToggle";
 
 const REGIONS: OfferingRegionTab[] = [...OFFERING_REGION_TABS];
+const SEOUL_SUB_REGIONS = [
+  "전체",
+  "강남구",
+  "강동구",
+  "강북구",
+  "강서구",
+  "관악구",
+  "광진구",
+  "구로구",
+  "금천구",
+  "노원구",
+  "도봉구",
+  "동대문구",
+  "동작구",
+  "마포구",
+  "서대문구",
+  "서초구",
+  "성동구",
+  "성북구",
+  "송파구",
+  "양천구",
+  "영등포구",
+  "용산구",
+  "은평구",
+  "종로구",
+  "중구",
+  "중랑구",
+] as const;
+const GYEONGGI_SUB_REGIONS = [
+  { label: "전체", value: "전체" },
+  { label: "경기 북부", value: "north" },
+  { label: "경기 남부", value: "south" },
+] as const;
 
 const STATUSES: Array<OfferingStatusValue | "전체"> = [
   "전체",
   ...OFFERING_STATUS_VALUES,
 ];
 
-const BUDGET_PRESETS: Array<{ label: string; min: number; max: number | null }> = [
-  { label: "1억 미만", min: 0, max: 1 },
-  { label: "1–3억", min: 1, max: 3 },
-  { label: "3–5억", min: 3, max: 5 },
-  { label: "5–10억", min: 5, max: 10 },
-  { label: "10–20억", min: 10, max: 20 },
-  { label: "20–30억", min: 20, max: 30 },
-  { label: "30–50억", min: 30, max: 50 },
-  { label: "50–100억", min: 50, max: 100 },
-  { label: "100억 이상", min: 100, max: null },
-];
+const BUDGET_SLIDER_POSITION_MIN = 0;
+const BUDGET_SLIDER_POSITION_MAX = 37;
+const BUDGET_VALUE_MAX = 100;
 
 const AGENT_FILTERS = [
   { label: "전체", value: "전체" },
@@ -49,104 +82,103 @@ const APPRAISAL_FILTERS = [
 ] as const;
 type AppraisalFilterValue = (typeof APPRAISAL_FILTERS)[number]["value"];
 
-function MobileChipRow({
-  children,
-  className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={cn("sm:hidden -mx-4", className)}>
-      <div className="relative px-4">
-        <div
-          className={cn(
-            "flex gap-2 overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch]",
-            "scrollbar-none",
-            "scroll-pl-4 scroll-pr-4"
-          )}
-        >
-          {children}
-          <div className="shrink-0 w-3" />
-        </div>
-
-        {/* edge fade */}
-        <div className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-linear-to-r from-(--oboon-bg-surface) to-transparent" />
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-linear-to-l from-(--oboon-bg-surface) to-transparent" />
-      </div>
-    </div>
-  );
-}
-
-function cx(...v: (string | false | null | undefined)[]) {
-  return v.filter(Boolean).join(" ");
-}
-
 function isRegionTab(v: string): v is OfferingRegionTab {
   return (OFFERING_REGION_TABS as readonly string[]).includes(v);
 }
 
-// 예산 입력 정규화
-function normalizeBudgetInput(raw: string) {
-  const trimmed = raw.trim();
-  if (!trimmed) return "";
-
-  // iOS 등에서 소수점 콤마 입력 가능성 대비
-  const v = trimmed.replace(/,/g, ".");
-
-  // 음수 입력 즉시 제거
-  if (v.startsWith("-")) return "";
-
-  // 숫자/점만 남기기
-  const cleaned = v.replace(/[^0-9.]/g, "");
-
-  // 점 1개만 허용
-  const parts = cleaned.split(".");
-  if (parts.length <= 1) return cleaned;
-  return `${parts[0]}.${parts.slice(1).join("")}`;
+function sliderPositionToBudget(position: number) {
+  if (position <= 10) return Math.floor(position) / 10;
+  if (position <= 19) return position - 9;
+  return 10 + (position - 19) * 5;
 }
 
-function blockNegativeNumberKeys(e: React.KeyboardEvent<HTMLInputElement>) {
-  // number input에서 흔한 문제: -, +, e/E 입력 가능(지수 표기)
-  if (e.key === "-" || e.key === "+" || e.key === "e" || e.key === "E") {
-    e.preventDefault();
+function budgetToSliderPosition(value: number) {
+  if (value <= 1) return Math.round(value * 10);
+  if (value <= 10) return Math.round(value + 9);
+  return Math.round((value - 10) / 5) + 19;
+}
+
+function clampBudgetPosition(value: number) {
+  return Math.min(
+    BUDGET_SLIDER_POSITION_MAX,
+    Math.max(BUDGET_SLIDER_POSITION_MIN, value)
+  );
+}
+
+function clampBudgetValue(value: number) {
+  if (value <= 1) {
+    return Math.min(1, Math.max(0, Math.round(value * 10) / 10));
   }
+  if (value <= 10) return Math.max(1, Math.round(value));
+  return Math.min(BUDGET_VALUE_MAX, Math.max(10, Math.round(value / 5) * 5));
 }
 
-function parseEok(v: string) {
-  if (!v) return null;
-  const n = Number(v);
-  if (!Number.isFinite(n) || n < 0) return null;
-  // 소수 1자리(천 단위)까지만 유지
-  return Math.floor(n * 10) / 10;
-}
-
-function formatEokPreview(raw: string): string | null {
-  const v = raw.trim();
-  if (!v) return null;
-
-  const n = Number(v);
-  if (!Number.isFinite(n) || n < 0) return null;
-
-  const eok = Math.floor(n);
-  const frac = n - eok;
-
-  // 0.1억 단위(=천)로 반올림
-  let cheon = Math.round(frac * 10);
-  let eokCarry = eok;
-  if (cheon >= 10) {
-    eokCarry += 1;
-    cheon = 0;
-  }
-
-  // 표기 조합
-  if (eokCarry > 0 && cheon > 0) return `${eokCarry}억 ${cheon}천`;
-  if (eokCarry > 0) return `${eokCarry}억`;
-  if (cheon > 0) return `${cheon}천`;
-  return "0";
+function formatBudgetSummary(min: number | null, max: number | null) {
+  if (min == null && max == null) return "전체";
+  if (min != null && max == null) return `${formatEokPreview(min)} 이상`;
+  if (min == null && max != null) return `${formatEokPreview(max)} 이하`;
+  return formatEokPreview(min as number, max as number);
 }
 
 type ToggleSetter = (value: boolean | ((prev: boolean) => boolean)) => void;
+type OfferingsView = "list" | "map";
+
+function FilterDropdown<T extends string>({
+  label,
+  value,
+  options,
+  onSelect,
+}: {
+  label: string;
+  value: T;
+  options: readonly { label: string; value: T }[];
+  onSelect: (next: T) => void;
+}) {
+  const selectedLabel =
+    options.find((option) => option.value === value)?.label ?? label;
+
+  return (
+    <div className="space-y-2">
+      <div className="ob-typo-caption text-(--oboon-text-muted)">{label}</div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className={cn(
+              "flex h-11 w-full items-center justify-between rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-page) px-4 text-left",
+              "ob-typo-body text-(--oboon-text-title)"
+            )}
+            aria-label={`${label} 선택`}
+          >
+            <span className="truncate">{selectedLabel}</span>
+            <ChevronDown className="h-4 w-4 shrink-0 text-(--oboon-text-muted)" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="start"
+          matchTriggerWidth
+          className="max-h-[19.25rem] overflow-y-auto sm:max-h-none"
+        >
+          {options.map((option) => (
+            <DropdownMenuItem
+              key={option.value}
+              className={cn(
+                "flex items-center justify-between gap-2",
+                option.value === value ? "bg-(--oboon-bg-subtle)" : ""
+              )}
+              onClick={() => onSelect(option.value)}
+            >
+              <span>{option.label}</span>
+              {option.value === value ? (
+                <Check className="h-4 w-4 text-(--oboon-primary)" />
+              ) : null}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
 
 type FilterBarBodyProps = {
   sp: ReturnType<typeof useSearchParams>;
@@ -155,6 +187,8 @@ type FilterBarBodyProps = {
   urlQ: string;
   urlBudgetMin: string;
   urlBudgetMax: string;
+  view: OfferingsView;
+  onViewChange: (next: OfferingsView) => void;
 };
 
 function FilterBarBody({
@@ -164,6 +198,8 @@ function FilterBarBody({
   urlQ,
   urlBudgetMin,
   urlBudgetMax,
+  view,
+  onViewChange,
 }: FilterBarBodyProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -175,6 +211,7 @@ function FilterBarBody({
   const rawStatus = sp.get("status");
   const status: OfferingStatusValue | "전체" =
     rawStatus && isOfferingStatusValue(rawStatus) ? rawStatus : "전체";
+  const subRegion = sp.get("subRegion") ?? "전체";
   const rawAgent = sp.get("agent");
   const agentFilter: AgentFilterValue = rawAgent === "has" ? "has" : "전체";
   const rawAppraisal = sp.get("appraisal");
@@ -184,6 +221,7 @@ function FilterBarBody({
   const [q, setQ] = useState(urlQ);
   const [budgetMin, setBudgetMin] = useState(urlBudgetMin);
   const [budgetMax, setBudgetMax] = useState(urlBudgetMax);
+  const [budgetMaxUnlimited, setBudgetMaxUnlimited] = useState(!urlBudgetMax);
 
   const qs = useMemo(() => new URLSearchParams(sp.toString()), [sp]);
 
@@ -208,12 +246,14 @@ function FilterBarBody({
     setQ("");
     setBudgetMin("");
     setBudgetMax("");
+    setBudgetMaxUnlimited(true);
     setOpen(true);
     router.replace(pathname, { scroll: false });
   }
 
   const activeCount =
     (region !== "전체" ? 1 : 0) +
+    (subRegion !== "전체" ? 1 : 0) +
     (status !== "전체" ? 1 : 0) +
     (agentFilter !== "전체" ? 1 : 0) +
     (appraisalFilter !== "전체" ? 1 : 0) +
@@ -221,9 +261,42 @@ function FilterBarBody({
 
   const minVal = parseEok(budgetMin);
   const maxVal = parseEok(budgetMax);
+  const effectiveMaxVal = budgetMaxUnlimited ? null : maxVal;
+  const sliderMinPosition = clampBudgetPosition(
+    budgetToSliderPosition(minVal ?? 0)
+  );
+  const sliderMaxPosition = clampBudgetPosition(
+    budgetToSliderPosition(budgetMaxUnlimited ? BUDGET_VALUE_MAX : maxVal ?? BUDGET_VALUE_MAX)
+  );
+  const sliderProgressStart =
+    (sliderMinPosition / BUDGET_SLIDER_POSITION_MAX) * 100;
+  const sliderProgressEnd =
+    (sliderMaxPosition / BUDGET_SLIDER_POSITION_MAX) * 100;
+  const regionOptions = REGIONS.map((item) => ({ label: item, value: item }));
+  const statusOptions = STATUSES.map((item) => ({
+    label: item === "전체" ? "전체" : OFFERING_STATUS_LABEL[item],
+    value: item,
+  }));
+  const agentOptions = AGENT_FILTERS.map((item) => ({
+    label: item.label,
+    value: item.value,
+  }));
+  const appraisalOptions = APPRAISAL_FILTERS.map((item) => ({
+    label: item.label,
+    value: item.value,
+  }));
+  const subRegionOptions =
+    region === "서울"
+      ? SEOUL_SUB_REGIONS.map((item) => ({ label: item, value: item }))
+      : region === "경기"
+        ? GYEONGGI_SUB_REGIONS.map((item) => ({
+            label: item.label,
+            value: item.value,
+          }))
+        : [];
 
   const budgetError =
-    minVal != null && maxVal != null && minVal > maxVal
+    minVal != null && effectiveMaxVal != null && minVal > effectiveMaxVal
       ? "최소 예산이 최대 예산보다 커요"
       : null;
 
@@ -234,7 +307,8 @@ function FilterBarBody({
     if (applyDisabled) return;
 
     const normalizedMin = minVal == null ? "" : String(minVal);
-    const normalizedMax = maxVal == null ? "" : String(maxVal);
+    const normalizedMax =
+      budgetMaxUnlimited || maxVal == null ? "" : String(maxVal);
 
     setBudgetMin(normalizedMin);
     setBudgetMax(normalizedMax);
@@ -246,17 +320,180 @@ function FilterBarBody({
     setOpen(false);
   }
 
-  function onBudgetEnter(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key !== "Enter") return;
-    e.preventDefault();
-    applyBudget();
+  function handleSliderMinChange(nextRaw: string) {
+    const nextPosition = clampBudgetPosition(Number(nextRaw));
+    const boundedPosition = Math.min(nextPosition, sliderMaxPosition);
+    const bounded = clampBudgetValue(sliderPositionToBudget(boundedPosition));
+    setBudgetMin(String(bounded));
+    if (budgetMaxUnlimited) return;
+    if (boundedPosition > sliderMaxPosition) {
+      setBudgetMax(String(bounded));
+    }
   }
+
+  function handleSliderMaxChange(nextRaw: string) {
+    const nextPosition = clampBudgetPosition(Number(nextRaw));
+    const boundedPosition = Math.max(nextPosition, sliderMinPosition);
+    const bounded = clampBudgetValue(sliderPositionToBudget(boundedPosition));
+    setBudgetMaxUnlimited(false);
+    setBudgetMax(String(bounded));
+  }
+
+  const filterPanelContent = (
+    <>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+        <FilterDropdown
+          label="지역"
+          value={region}
+          options={regionOptions}
+          onSelect={(next) => pushParams({ region: next, subRegion: null })}
+        />
+        {subRegionOptions.length > 0 ? (
+          <FilterDropdown
+            label={region === "서울" ? "서울 세부 지역" : "경기 세부 지역"}
+            value={subRegion}
+            options={subRegionOptions}
+            onSelect={(next) =>
+              pushParams({ subRegion: next === "전체" ? null : next })
+            }
+          />
+        ) : null}
+        <FilterDropdown
+          label="분양 상태"
+          value={status}
+          options={statusOptions}
+          onSelect={(next) => pushParams({ status: next })}
+        />
+        <FilterDropdown
+          label="상담사"
+          value={agentFilter}
+          options={agentOptions}
+          onSelect={(next) =>
+            pushParams({ agent: next === "전체" ? null : next })
+          }
+        />
+        <FilterDropdown
+          label="감정평가"
+          value={appraisalFilter}
+          options={appraisalOptions}
+          onSelect={(next) =>
+            pushParams({ appraisal: next === "전체" ? null : next })
+          }
+        />
+      </div>
+
+      <div className="mt-5 space-y-2">
+        <div className="ob-typo-subtitle text-(--oboon-text-title)">예산</div>
+        <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-page) p-4">
+          {/* 헤더: 범위 요약 + 전체 버튼 */}
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="ob-typo-subtitle text-(--oboon-text-title)">
+              {formatBudgetSummary(minVal, effectiveMaxVal)}
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              shape="pill"
+              variant="primary"
+              disabled={applyDisabled}
+              className={cn(
+                "h-8 px-4 ob-typo-button shrink-0",
+                applyDisabled ? "opacity-60 cursor-not-allowed" : ""
+              )}
+              onClick={applyBudget}
+            >
+              적용
+            </Button>
+          </div>
+
+          {/* 최소/최대 현재값 칩 */}
+          <div className="flex items-center gap-2">
+            <div className="flex-1 rounded-2xl bg-(--oboon-bg-subtle) px-3 py-2">
+              <div className="ob-typo-caption text-(--oboon-text-muted)">최소</div>
+              <div className="ob-typo-body font-semibold text-(--oboon-primary)">
+                {minVal != null && minVal > 0
+                  ? formatEokPreview(minVal)
+                  : "0"}
+              </div>
+            </div>
+            <span className="ob-typo-caption text-(--oboon-text-muted)">~</span>
+            <div className="flex-1 rounded-2xl bg-(--oboon-bg-subtle) px-3 py-2 text-right">
+              <div className="ob-typo-caption text-(--oboon-text-muted)">최대</div>
+              <div className="ob-typo-body font-semibold text-(--oboon-primary)">
+                {budgetMaxUnlimited || maxVal == null
+                  ? "제한 없음"
+                  : formatEokPreview(maxVal)}
+              </div>
+            </div>
+          </div>
+
+          {/* 슬라이더 — 트랙 두께↑, 썸 크기↑ */}
+          <div className="mb-2 px-1">
+            <div className="relative h-12">
+              <div className="absolute left-0 right-0 top-1/2 h-2.5 -translate-y-1/2 rounded-full bg-(--oboon-bg-subtle)" />
+              <div
+                className="absolute top-1/2 h-2.5 -translate-y-1/2 rounded-full bg-(--oboon-primary)"
+                style={{
+                  left: `${sliderProgressStart}%`,
+                  width: `${Math.max(sliderProgressEnd - sliderProgressStart, 0)}%`,
+                }}
+              />
+              <input
+                type="range"
+                min={BUDGET_SLIDER_POSITION_MIN}
+                max={BUDGET_SLIDER_POSITION_MAX}
+                step={1}
+                value={sliderMinPosition}
+                onChange={(e) => handleSliderMinChange(e.target.value)}
+                className="pointer-events-none absolute inset-0 h-12 w-full appearance-none bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-(--oboon-bg-surface) [&::-webkit-slider-thumb]:bg-(--oboon-primary) [&::-webkit-slider-thumb]:shadow-md [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:h-6 [&::-moz-range-thumb]:w-6 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-(--oboon-bg-surface) [&::-moz-range-thumb]:bg-(--oboon-primary)"
+                aria-label="최소 예산 슬라이더"
+              />
+              <input
+                type="range"
+                min={BUDGET_SLIDER_POSITION_MIN}
+                max={BUDGET_SLIDER_POSITION_MAX}
+                step={1}
+                value={sliderMaxPosition}
+                onChange={(e) => handleSliderMaxChange(e.target.value)}
+                className="pointer-events-none absolute inset-0 h-12 w-full appearance-none bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-(--oboon-bg-surface) [&::-webkit-slider-thumb]:bg-(--oboon-primary) [&::-webkit-slider-thumb]:shadow-md [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:h-6 [&::-moz-range-thumb]:w-6 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-(--oboon-bg-surface) [&::-moz-range-thumb]:bg-(--oboon-primary)"
+                aria-label="최대 예산 슬라이더"
+              />
+            </div>
+            <div className="flex items-center justify-between ob-typo-body text-(--oboon-text-muted)">
+              <span>0</span>
+              <span>1억</span>
+              <span>10억</span>
+              <span>100억+</span>
+            </div>
+          </div>
+        </div>
+
+        {budgetError ? (
+          <div className="mt-2 ob-typo-caption text-(--oboon-warning-text)">
+            {budgetError}
+          </div>
+        ) : null}
+      </div>
+
+      <div className="mt-4 flex justify-end">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-8 px-2 ob-typo-button text-(--oboon-text-muted)"
+          onClick={resetAll}
+        >
+          초기화
+        </Button>
+      </div>
+    </>
+  );
 
   return (
     <div className="space-y-4">
       {/* ---------------- Mobile: Search bar + icon buttons ---------------- */}
       <div className="sm:hidden">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <div className="flex-1">
             <Label className="sr-only" htmlFor="q_mobile">
               검색
@@ -266,8 +503,8 @@ function FilterBarBody({
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="지역, 단지명으로 검색"
-              className={cx(
-                "h-10 w-full rounded-full px-5 ob-typo-body",
+              className={cn(
+                "h-10 w-full rounded-xl px-5 ob-typo-body",
                 "outline-none focus:ring-2 focus:ring-(--oboon-primary)/30"
               )}
               onKeyDown={(e) => {
@@ -290,6 +527,8 @@ function FilterBarBody({
           >
             <Search className="h-4 w-4" />
           </Button>
+
+          <OfferingsViewToggle value={view} onChange={onViewChange} />
 
           <Button
             type="button"
@@ -317,7 +556,7 @@ function FilterBarBody({
 
       {/* ---------------- Desktop: 스샷처럼 (검색 인풋 + 아이콘 버튼) ---------------- */}
       <div className="hidden sm:block">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <div className="flex-1">
             <Label className="sr-only" htmlFor="q">
               검색
@@ -327,8 +566,8 @@ function FilterBarBody({
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="지역, 단지명으로 검색"
-              className={cx(
-                "h-10 w-full rounded-full px-5 ob-typo-body",
+              className={cn(
+                "h-10 w-full rounded-xl px-5 ob-typo-body",
                 "outline-none focus:ring-2 focus:ring-(--oboon-primary)/30"
               )}
               onKeyDown={(e) => {
@@ -351,6 +590,8 @@ function FilterBarBody({
           >
             <Search className="h-4 w-4" />
           </Button>
+
+          <OfferingsViewToggle value={view} onChange={onViewChange} />
 
           <Button
             type="button"
@@ -376,399 +617,52 @@ function FilterBarBody({
         </div>
       </div>
 
-      {/* ---------------- Filter Panel ---------------- */}
+      {/* ---------------- Mobile Filter Drawer ---------------- */}
+      {open ? (
+        <div className="sm:hidden">
+          <div
+            className="fixed inset-0 z-(--oboon-z-modal) bg-(--oboon-overlay) backdrop-blur-sm"
+            onClick={() => setOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="fixed inset-x-0 bottom-0 z-(--oboon-z-modal) max-h-[88dvh] overflow-y-auto rounded-t-xl border border-b-0 border-(--oboon-border-default) bg-(--oboon-bg-surface) p-5 shadow-(--oboon-shadow-card) pb-[calc(env(safe-area-inset-bottom)+1.25rem)]">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="ob-typo-h3 text-(--oboon-text-title)">필터</div>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-page)"
+                aria-label="필터 닫기"
+              >
+                <X className="h-4 w-4 text-(--oboon-text-muted)" />
+              </button>
+            </div>
+            {filterPanelContent}
+          </div>
+        </div>
+      ) : null}
+
+      {/* ---------------- Desktop Filter Panel ---------------- */}
       <div
-        className={cx(
-          // Mobile/desktop 공통: open=false면 숨김 (데스크탑도 접기/펼치기 가능)
-          !open && "hidden",
-          // Desktop도 스샷처럼 '박스' 유지
-          "mt-4 rounded-3xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-5"
+        className={cn(
+          "hidden sm:block",
+          !open && "sm:hidden",
+          "mt-4 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-5"
         )}
       >
-        {/* Panel top row: 안내 + 초기화 (Desktop에서도 우측에 노출) */}
-        <div className="flex items-center justify-between pb-3">
-          <div className="ob-typo-body text-(--oboon-text-muted)">
-            조건을 선택해보세요.
-          </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-8 px-2 ob-typo-button text-(--oboon-text-muted)"
-            onClick={resetAll}
-          >
-            초기화
-          </Button>
-        </div>
-        {/* 지역 */}
-        <div className="space-y-2">
-          <div className="ob-typo-subtitle text-(--oboon-text-title)">지역</div>
-          {/* Mobile */}
-          <MobileChipRow>
-            {REGIONS.map((r) => {
-              const active = r === region;
-              return (
-                <Button
-                  key={r}
-                  type="button"
-                  size="sm"
-                  shape="pill"
-                  variant={active ? "primary" : "secondary"}
-                  className="h-9 px-4 ob-typo-button shrink-0"
-                  onClick={() => pushParams({ region: r })}
-                >
-                  {r}
-                </Button>
-              );
-            })}
-          </MobileChipRow>
-
-          {/* Desktop */}
-          <div className="hidden sm:flex flex-wrap gap-2">
-            {REGIONS.map((r) => {
-              const active = r === region;
-              return (
-                <Button
-                  key={r}
-                  type="button"
-                  size="sm"
-                  shape="pill"
-                  variant={active ? "primary" : "secondary"}
-                  className="h-9 px-4 ob-typo-button"
-                  onClick={() => pushParams({ region: r })}
-                >
-                  {r}
-                </Button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* 분양 상태 */}
-        <div className="mt-5 space-y-2">
-          <div className="ob-typo-subtitle text-(--oboon-text-title)">
-            분양 상태
-          </div>
-          <MobileChipRow>
-            {STATUSES.map((s) => {
-              const active = s === status;
-              const label = s === "전체" ? "전체" : OFFERING_STATUS_LABEL[s];
-              return (
-                <Button
-                  key={s}
-                  type="button"
-                  size="sm"
-                  shape="pill"
-                  variant={active ? "primary" : "secondary"}
-                  className="h-9 px-4 ob-typo-button shrink-0"
-                  onClick={() => pushParams({ status: s })}
-                >
-                  {label}
-                </Button>
-              );
-            })}
-          </MobileChipRow>
-
-          <div className="hidden sm:flex flex-wrap gap-2">
-            {STATUSES.map((s) => {
-              const active = s === status;
-              const label = s === "전체" ? "전체" : OFFERING_STATUS_LABEL[s];
-              return (
-                <Button
-                  key={s}
-                  type="button"
-                  size="sm"
-                  shape="pill"
-                  variant={active ? "primary" : "secondary"}
-                  className="h-9 px-4 ob-typo-button"
-                  onClick={() => pushParams({ status: s })}
-                >
-                  {label}
-                </Button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* 예산 */}
-        <div className="mt-5 space-y-2">
-          <div className="ob-typo-subtitle text-(--oboon-text-title)">예산</div>
-
-          <MobileChipRow>
-            <Button
-              type="button"
-              size="sm"
-              shape="pill"
-              variant={!urlBudgetMin && !urlBudgetMax ? "primary" : "secondary"}
-              className="h-9 px-4 ob-typo-button shrink-0"
-              onClick={() => {
-                setBudgetMin("");
-                setBudgetMax("");
-                pushParams({ budgetMin: null, budgetMax: null });
-              }}
-            >
-              전체
-            </Button>
-
-            {BUDGET_PRESETS.map((p) => {
-              const presetMin = String(p.min);
-              const presetMax = p.max == null ? "" : String(p.max);
-              const active =
-                presetMin === urlBudgetMin &&
-                presetMax === urlBudgetMax;
-              return (
-                <Button
-                  key={p.label}
-                  type="button"
-                  size="sm"
-                  shape="pill"
-                  variant={active ? "primary" : "secondary"}
-                  className="h-9 px-4 ob-typo-button shrink-0"
-                  onClick={() => {
-                    const nextMin = presetMin;
-                    const nextMax = presetMax;
-                    setBudgetMin(nextMin);
-                    setBudgetMax(nextMax);
-                    pushParams({
-                      budgetMin: nextMin,
-                      budgetMax: nextMax || null,
-                    });
-                  }}
-                >
-                  {p.label}
-                </Button>
-              );
-            })}
-          </MobileChipRow>
-
-          <div className="hidden sm:flex flex-wrap gap-2">
-            <Button
-              type="button"
-              size="sm"
-              shape="pill"
-              variant={!urlBudgetMin && !urlBudgetMax ? "primary" : "secondary"}
-              className="h-9 px-4 ob-typo-button shrink-0"
-              onClick={() => {
-                setBudgetMin("");
-                setBudgetMax("");
-                pushParams({ budgetMin: null, budgetMax: null });
-              }}
-            >
-              전체
-            </Button>
-            {BUDGET_PRESETS.map((p) => {
-              const presetMin = String(p.min);
-              const presetMax = p.max == null ? "" : String(p.max);
-              const active =
-                presetMin === urlBudgetMin &&
-                presetMax === urlBudgetMax;
-              return (
-                <Button
-                  key={p.label}
-                  type="button"
-                  size="sm"
-                  shape="pill"
-                  variant={active ? "primary" : "secondary"}
-                  className="h-9 px-4 ob-typo-button shrink-0"
-                  onClick={() => {
-                    const nextMin = presetMin;
-                    const nextMax = presetMax;
-                    setBudgetMin(nextMin);
-                    setBudgetMax(nextMax);
-                    pushParams({
-                      budgetMin: nextMin,
-                      budgetMax: nextMax || null,
-                    });
-                  }}
-                >
-                  {p.label}
-                </Button>
-              );
-            })}{" "}
-          </div>
-
-          {/* 최소~최대 + 적용 */}
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <Input
-                type="number"
-                inputMode="decimal"
-                min={0}
-                step={0.1}
-                placeholder="최소"
-                value={budgetMin}
-                onKeyDown={(e) => {
-                  blockNegativeNumberKeys(e);
-                  onBudgetEnter(e);
-                }}
-                onChange={(e) =>
-                  setBudgetMin(normalizeBudgetInput(e.target.value))
-                }
-                className={cx(
-                  "h-11 w-full rounded-full px-4 pr-16 ob-typo-body",
-                  budgetError
-                    ? "border-(--oboon-warning-border) focus:ring-(--oboon-warning)/20"
-                    : "border-(--oboon-border-default) focus:ring-(--oboon-primary)/20"
-                )}
-              />
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 ob-typo-caption text-(--oboon-text-muted)">
-                {formatEokPreview(budgetMin) ?? "억"}
-              </span>
-            </div>
-
-            <span className="text-(--oboon-text-muted)">~</span>
-
-            <div className="relative flex-1">
-              <Input
-                type="number"
-                inputMode="decimal"
-                min={0}
-                step={0.1}
-                placeholder="최대"
-                value={budgetMax}
-                onKeyDown={(e) => {
-                  blockNegativeNumberKeys(e);
-                  onBudgetEnter(e);
-                }}
-                onChange={(e) =>
-                  setBudgetMax(normalizeBudgetInput(e.target.value))
-                }
-                className={cx(
-                  "h-11 w-full rounded-full px-4 pr-16 ob-typo-body",
-                  budgetError
-                    ? "border-(--oboon-warning-border) focus:ring-(--oboon-warning)/20"
-                    : "border-(--oboon-border-default) focus:ring-(--oboon-primary)/20"
-                )}
-              />
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 ob-typo-caption text-(--oboon-text-muted)">
-                {formatEokPreview(budgetMax) ?? "억"}
-              </span>
-            </div>
-
-            <Button
-              type="button"
-              disabled={applyDisabled}
-              onClick={applyBudget}
-              variant="primary"
-              shape="pill"
-              size="md"
-              className={cx(
-                "h-11 rounded-full px-4 ob-typo-button",
-                applyDisabled ? "opacity-60 cursor-not-allowed" : ""
-              )}
-            >
-              적용
-            </Button>
-          </div>
-
-          {budgetError ? (
-            <div className="mt-2 ob-typo-caption text-(--oboon-warning-text)">
-              {budgetError}
-            </div>
-          ) : null}
-        </div>
-
-        {/* 상담사 */}
-        <div className="mt-5 space-y-2">
-          <div className="ob-typo-subtitle text-(--oboon-text-title)">상담사</div>
-          <MobileChipRow>
-            {AGENT_FILTERS.map((item) => {
-              const active = agentFilter === item.value;
-              return (
-                <Button
-                  key={item.value}
-                  type="button"
-                  size="sm"
-                  shape="pill"
-                  variant={active ? "primary" : "secondary"}
-                  className="h-9 px-4 ob-typo-button shrink-0"
-                  onClick={() =>
-                    pushParams({ agent: item.value === "전체" ? null : item.value })
-                  }
-                >
-                  {item.label}
-                </Button>
-              );
-            })}
-          </MobileChipRow>
-
-          <div className="hidden sm:flex flex-wrap gap-2">
-            {AGENT_FILTERS.map((item) => {
-              const active = agentFilter === item.value;
-              return (
-                <Button
-                  key={item.value}
-                  type="button"
-                  size="sm"
-                  shape="pill"
-                  variant={active ? "primary" : "secondary"}
-                  className="h-9 px-4 ob-typo-button shrink-0"
-                  onClick={() =>
-                    pushParams({ agent: item.value === "전체" ? null : item.value })
-                  }
-                >
-                  {item.label}
-                </Button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* 감정평가 */}
-        <div className="mt-5 space-y-2">
-          <div className="ob-typo-subtitle text-(--oboon-text-title)">감정평가</div>
-          <MobileChipRow>
-            {APPRAISAL_FILTERS.map((item) => {
-              const active = appraisalFilter === item.value;
-              return (
-                <Button
-                  key={item.value}
-                  type="button"
-                  size="sm"
-                  shape="pill"
-                  variant={active ? "primary" : "secondary"}
-                  className="h-9 px-4 ob-typo-button shrink-0"
-                  onClick={() =>
-                    pushParams({
-                      appraisal: item.value === "전체" ? null : item.value,
-                    })
-                  }
-                >
-                  {item.label}
-                </Button>
-              );
-            })}
-          </MobileChipRow>
-
-          <div className="hidden sm:flex flex-wrap gap-2">
-            {APPRAISAL_FILTERS.map((item) => {
-              const active = appraisalFilter === item.value;
-              return (
-                <Button
-                  key={item.value}
-                  type="button"
-                  size="sm"
-                  shape="pill"
-                  variant={active ? "primary" : "secondary"}
-                  className="h-9 px-4 ob-typo-button shrink-0"
-                  onClick={() =>
-                    pushParams({
-                      appraisal: item.value === "전체" ? null : item.value,
-                    })
-                  }
-                >
-                  {item.label}
-                </Button>
-              );
-            })}
-          </div>
-        </div>
+        {filterPanelContent}
       </div>
     </div>
   );
 }
 
-export default function FilterBar() {
+export default function FilterBar({
+  view,
+  onViewChange,
+}: {
+  view: OfferingsView;
+  onViewChange: (next: OfferingsView) => void;
+}) {
   const sp = useSearchParams();
   // 하이드레이션 일치: 최초 렌더는 항상 닫힘으로 시작하고,
   // 마운트 이후에만 뷰포트 기준 상태를 반영한다.
@@ -788,6 +682,19 @@ export default function FilterBar() {
       mq.removeEventListener?.("change", onChange);
     };
   }, []);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 640px)");
+    if (!open || mq.matches) return;
+
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [open]);
+
   const urlQ = sp.get("q") ?? "";
   const urlBudgetMin = sp.get("budgetMin") ?? "";
   const urlBudgetMax = sp.get("budgetMax") ?? "";
@@ -802,6 +709,8 @@ export default function FilterBar() {
       urlQ={urlQ}
       urlBudgetMin={urlBudgetMin}
       urlBudgetMax={urlBudgetMax}
+      view={view}
+      onViewChange={onViewChange}
     />
   );
 }

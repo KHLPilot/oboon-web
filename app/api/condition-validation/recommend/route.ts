@@ -4,10 +4,7 @@ import { z } from "zod";
 
 import { evaluateCondition } from "@/features/condition-validation/domain/evaluator";
 import { resolveProfileForRecommendation } from "@/features/condition-validation/server/profile-resolver";
-import type {
-  ConditionCustomerInput,
-  FinalGrade,
-} from "@/features/condition-validation/domain/types";
+import type { ConditionCustomerInput } from "@/features/condition-validation/domain/types";
 
 type ValidationProfileRow = {
   property_id: string;
@@ -56,12 +53,23 @@ const amountSchema = z.preprocess((value) => {
 }, z.number().finite());
 
 const manwonAmountSchema = amountSchema
-  .refine((value) => value > 0, {
-    message: "must be > 0",
+  .refine((value) => value >= 0, {
+    message: "must be >= 0",
   })
   .refine((value) => Number.isInteger(value), {
     message: "must be integer in manwon unit",
   });
+
+function compareNullableNumber(
+  a: number | null,
+  b: number | null,
+  direction: "asc" | "desc" = "asc",
+) {
+  if (a === null && b === null) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  return direction === "asc" ? a - b : b - a;
+}
 
 const requestSchema = z.object({
   customer: z.object({
@@ -261,12 +269,6 @@ async function loadPropertyImageMapByIds(
   return imageMap;
 }
 
-const GRADE_RANK: Record<FinalGrade, number> = {
-  GREEN: 0,
-  YELLOW: 1,
-  RED: 2,
-};
-
 export async function POST(request: Request) {
   let payload: unknown = null;
 
@@ -346,18 +348,26 @@ export async function POST(request: Request) {
       })
       .filter((item): item is EvaluatedRecommendation => item !== null)
       .sort((a, b) => {
-        const gradeDiff =
-          GRADE_RANK[a.result.finalGrade] - GRADE_RANK[b.result.finalGrade];
-        if (gradeDiff !== 0) return gradeDiff;
-        const burdenDiff =
-          a.result.metrics.monthlyBurdenPercent - b.result.metrics.monthlyBurdenPercent;
+        const scoreDiff = b.result.totalScore - a.result.totalScore;
+        if (scoreDiff !== 0) return scoreDiff;
+        const burdenDiff = compareNullableNumber(
+          a.result.metrics.monthlyBurdenPercent,
+          b.result.metrics.monthlyBurdenPercent,
+          "asc",
+        );
         if (burdenDiff !== 0) return burdenDiff;
         return a.result.metrics.minCash - b.result.metrics.minCash;
       });
 
     const filtered = includeRed
       ? evaluated
-      : evaluated.filter((item) => item.result.finalGrade !== "RED");
+      : evaluated.filter(
+          (item) =>
+            item.result.finalGrade !== "RED" &&
+            item.result.categories.cash.grade !== "RED" &&
+            item.result.categories.burden.grade !== "RED" &&
+            item.result.categories.risk.grade !== "RED",
+        );
     const selected = filtered.slice(0, limit);
 
     return NextResponse.json({
@@ -372,14 +382,24 @@ export async function POST(request: Request) {
         status: item.status,
         image_url: item.property_image_url,
         final_grade: item.result.finalGrade,
+        total_score: item.result.totalScore,
         action: item.result.action,
         summary_message: item.result.summaryMessage,
         reason_messages: item.result.reasonMessages,
         show_detailed_metrics: item.show_detailed_metrics,
         categories: {
-          cash: item.result.trace.step1CashGrade,
-          burden: item.result.trace.step2BurdenGrade,
-          risk: item.result.trace.step3RiskGrade,
+          cash: {
+            grade: item.result.categories.cash.grade,
+            score: item.result.categories.cash.score,
+          },
+          burden: {
+            grade: item.result.categories.burden.grade,
+            score: item.result.categories.burden.score,
+          },
+          risk: {
+            grade: item.result.categories.risk.grade,
+            score: item.result.categories.risk.score,
+          },
         },
         metrics: {
           list_price: item.result.metrics.listPrice,

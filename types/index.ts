@@ -15,6 +15,7 @@ export interface Offering {
 
   title: string;
   addressShort: string;
+  addressFull?: string;
   region: OfferingRegionTab;
   regionLabel?: string;
   status: OfferingStatusLabel;
@@ -28,6 +29,8 @@ export interface Offering {
 
   imageUrl?: string | null;
   deadlineLabel?: string | null;
+  lat?: number | null;
+  lng?: number | null;
 }
 
 /* =========================
@@ -37,6 +40,7 @@ export interface Offering {
 export const ROUTES = {
   home: "/",
   briefing: "/briefing",
+  recommendations: "/recommendations",
 
   offerings: {
     list: "/offerings",

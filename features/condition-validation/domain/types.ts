@@ -24,6 +24,7 @@ export type ReasonCode =
   | "CASH_BELOW_MIN"
   | "CASH_BETWEEN_MIN_AND_RECOMMENDED"
   | "CASH_ABOVE_RECOMMENDED"
+  | "BURDEN_INCOME_ZERO"
   | "BURDEN_WARNING_40_TO_50"
   | "BURDEN_HIGH_OVER_50"
   | "RISK_MULTI_HOME_REGULATED"
@@ -58,6 +59,7 @@ export type ConditionEvaluationTrace = {
     | "CASH_ABOVE_RECOMMENDED";
   step2BurdenGrade: FinalGrade;
   step2BurdenReasonCode:
+    | "BURDEN_INCOME_ZERO"
     | "BURDEN_WARNING_40_TO_50"
     | "BURDEN_HIGH_OVER_50"
     | null;
@@ -69,6 +71,12 @@ export type ConditionEvaluationTrace = {
   >;
 };
 
+export type CategoryResult = {
+  grade: FinalGrade;
+  score: number;
+  maxScore: number;
+};
+
 export type ConditionMetrics = {
   listPrice: number;
   contractAmount: number;
@@ -78,12 +86,14 @@ export type ConditionMetrics = {
   loanAmount: number;
   interestRate: number;
   monthlyPaymentEst: number;
-  monthlyBurdenRatio: number;
-  monthlyBurdenPercent: number;
+  monthlyBurdenRatio: number | null;
+  monthlyBurdenPercent: number | null;
 };
 
 export type ConditionEvaluationResult = {
   finalGrade: FinalGrade;
+  totalScore: number;
+  maxScore: number;
   action: ActionCode;
   reasonCodes: ReasonCode[];
   reasonMessages: string[];
@@ -91,4 +101,118 @@ export type ConditionEvaluationResult = {
   warnings: ReasonCode[];
   metrics: ConditionMetrics;
   trace: ConditionEvaluationTrace;
+  categories: {
+    cash: CategoryResult;
+    burden: CategoryResult;
+    risk: CategoryResult;
+  };
+};
+
+export type ConditionCategoryGrades = {
+  cash: { grade: FinalGrade; score?: number };
+  burden: { grade: FinalGrade; score?: number };
+  risk: { grade: FinalGrade; score?: number };
+  totalScore?: number;
+};
+
+export type ConditionEvaluationResponse = {
+  ok: boolean;
+  result?: {
+    final_grade: FinalGrade;
+    total_score: number;
+    max_score: number;
+    action: string;
+    reason_codes: string[];
+    reason_messages: string[];
+    summary_message: string;
+  };
+  metrics?: {
+    list_price: number | null;
+    contract_amount: number | null;
+    min_cash: number | null;
+    recommended_cash: number | null;
+    loan_ratio: number | null;
+    loan_amount: number | null;
+    interest_rate: number | null;
+    monthly_payment_est: number | null;
+    monthly_burden_ratio: number | null;
+    monthly_burden_percent: number | null;
+  };
+  warnings?: string[];
+  display?: {
+    masked?: boolean;
+    show_detailed_metrics?: boolean;
+    price_visibility?: "public" | "non_public" | "unknown";
+  };
+  categories?: {
+    cash: {
+      grade: FinalGrade;
+      score: number | null;
+      max_score: number;
+      masked: boolean;
+      reason_message: string | null;
+    };
+    burden: {
+      grade: FinalGrade;
+      score: number | null;
+      max_score: number;
+      masked: boolean;
+      reason_message: string | null;
+    };
+    risk: {
+      grade: FinalGrade;
+      score: number | null;
+      max_score: number;
+      masked: boolean;
+      reason_message: string | null;
+    };
+  };
+  trace?: {
+    step1_cash_grade: FinalGrade;
+    step1_cash_reason_code:
+      | "CASH_BELOW_MIN"
+      | "CASH_BETWEEN_MIN_AND_RECOMMENDED"
+      | "CASH_ABOVE_RECOMMENDED";
+    step1_cash_reason_message: string | null;
+    step2_burden_grade: FinalGrade;
+    step2_burden_reason_code:
+      | "BURDEN_INCOME_ZERO"
+      | "BURDEN_WARNING_40_TO_50"
+      | "BURDEN_HIGH_OVER_50"
+      | null;
+    step2_burden_reason_message: string | null;
+    step3_risk_grade: FinalGrade;
+    step3_risk_reason_codes: Array<
+      | "RISK_MULTI_HOME_REGULATED"
+      | "RISK_CREDIT_UNSTABLE"
+      | "RISK_INVESTMENT_TRANSFER_LIMITED"
+    >;
+    step3_risk_reason_messages: string[];
+  };
+  error?: {
+    code?: string;
+    message?: string;
+    field_errors?: Record<string, string[] | undefined>;
+  };
+};
+
+export type ConditionRecommendationItem = {
+  property_id: number;
+  property_name: string | null;
+  property_type: string | null;
+  status: string | null;
+  image_url: string | null;
+  show_detailed_metrics?: boolean;
+  final_grade: FinalGrade;
+  total_score?: number;
+  action: string;
+  summary_message: string;
+  reason_messages: string[];
+  metrics: {
+    list_price: number;
+    min_cash: number;
+    recommended_cash: number;
+    monthly_payment_est: number;
+    monthly_burden_percent: number | null;
+  };
 };

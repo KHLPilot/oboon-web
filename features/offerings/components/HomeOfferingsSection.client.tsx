@@ -8,16 +8,27 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import Input from "@/components/ui/Input";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/DropdownMenu";
-import { ArrowRight, BusFront, ChevronDown, Circle, GraduationCap, PawPrint, Pickaxe } from "lucide-react";
-import { oboonFieldBaseClass } from "@/lib/ui/formFieldStyles";
+import Select from "@/components/ui/Select";
+import { ArrowRight, BusFront, GraduationCap, PawPrint, Pickaxe } from "lucide-react";
+
+const CREDIT_OPTIONS = [
+  { label: "양호", value: "good" },
+  { label: "보통", value: "normal" },
+  { label: "불안", value: "unstable" },
+] as const;
+
+const PURPOSE_OPTIONS = [
+  { label: "실거주", value: "residence" },
+  { label: "투자", value: "investment" },
+  { label: "둘다", value: "both" },
+] as const;
 import { UXCopy } from "@/shared/uxCopy";
 
+import type { ConditionCategoryGrades } from "@/features/condition-validation/domain/types";
+import {
+  parseCustomerInput,
+  type ParsedCustomerInput,
+} from "@/features/condition-validation/domain/validation";
 import OfferingCard from "@/features/offerings/components/OfferingCard";
 import { fetchPropertiesForOfferings } from "@/features/offerings/services/offering.query";
 import {
@@ -27,26 +38,12 @@ import {
 import { OFFERING_REGION_TABS } from "@/features/offerings/domain/offering.constants";
 import type { OfferingRegionTab } from "@/features/offerings/domain/offering.types";
 
+import { formatManwonPreview } from "@/lib/format/currency";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import type { Offering } from "@/types/index";
 import { toKoreanErrorMessage } from "@/shared/errorMessage";
 
 type HomeOfferingView = "consult" | "condition";
-
-type RecommendationCustomerInput = {
-  available_cash: number;
-  monthly_income: number;
-  owned_house_count: number;
-  credit_grade: "good" | "normal" | "unstable";
-  purchase_purpose: "residence" | "investment" | "both";
-};
-
-type ConditionGrade = "GREEN" | "YELLOW" | "RED";
-type RecommendationCategories = {
-  cash: ConditionGrade;
-  burden: ConditionGrade;
-  risk: ConditionGrade;
-};
 
 type ConditionValidationRequestRow = {
   id: string | number;
@@ -57,14 +54,18 @@ type ConditionValidationRequestRow = {
   purchase_purpose: "residence" | "investment" | "both";
 };
 
-function parseNumericInput(value: string): number {
-  return Number(value.replaceAll(",", "").trim());
-}
-
 function formatNumericInput(value: string): string {
   const digitsOnly = value.replace(/[^\d]/g, "");
   if (!digitsOnly) return "";
   return Number(digitsOnly).toLocaleString("ko-KR");
+}
+
+function parseNullableNumericInput(value: string): number | null {
+  const normalized = value.replaceAll(",", "").trim();
+  if (!normalized) return null;
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  return parsed;
 }
 
 export default function HomeOfferingsSection() {
@@ -91,10 +92,18 @@ export default function HomeOfferingsSection() {
   const [conditionApplyLoading, setConditionApplyLoading] = useState(false);
   const [recommendedPropertyIds, setRecommendedPropertyIds] = useState<number[] | null>(null);
   const [recommendedCategoriesById, setRecommendedCategoriesById] = useState<
-    Map<number, RecommendationCategories>
+    Map<number, ConditionCategoryGrades>
   >(new Map());
   const [appliedCustomerSummary, setAppliedCustomerSummary] = useState<string | null>(null);
   const [showConditionSetupCard, setShowConditionSetupCard] = useState(true);
+  const availableCashPreview = useMemo(() => {
+    const parsed = parseNullableNumericInput(availableCash);
+    return parsed === null ? "" : formatManwonPreview(parsed);
+  }, [availableCash]);
+  const monthlyIncomePreview = useMemo(() => {
+    const parsed = parseNullableNumericInput(monthlyIncome);
+    return parsed === null ? "" : formatManwonPreview(parsed);
+  }, [monthlyIncome]);
 
   useEffect(() => {
     let mounted = true;
@@ -261,39 +270,40 @@ export default function HomeOfferingsSection() {
     return ordered.slice(0, 8);
   }, [offeringById, recommendedPropertyIds]);
 
-  const parseCustomerInput = useCallback((): RecommendationCustomerInput | null => {
-    const availableCashNum = parseNumericInput(availableCash);
-    const monthlyIncomeNum = parseNumericInput(monthlyIncome);
-    const ownedHouseCountNum = parseNumericInput(ownedHouseCount || "0");
+  const parseCustomerInputFromState = useCallback((): ParsedCustomerInput | null => {
+    const parsed = parseCustomerInput(
+      {
+        availableCash,
+        monthlyIncome,
+        ownedHouseCount,
+        creditGrade,
+        purchasePurpose,
+      },
+      {
+        availableCash: {
+          invalid: "가용 현금은 만원 단위 정수로 입력해주세요.",
+          nonInteger: "가용 현금은 만원 단위 정수로 입력해주세요.",
+        },
+        monthlyIncome: {
+          invalid: "월 소득은 만원 단위 정수로 입력해주세요.",
+          nonInteger: "월 소득은 만원 단위 정수로 입력해주세요.",
+        },
+        ownedHouseCount: {
+          invalid: "보유 주택 수는 0 이상의 정수로 입력해주세요.",
+        },
+      },
+    );
 
-    if (!Number.isFinite(availableCashNum) || availableCashNum <= 0 || !Number.isInteger(availableCashNum)) {
-      setConditionError("가용 현금은 만원 단위 정수로 입력해주세요.");
-      return null;
-    }
-    if (!Number.isFinite(monthlyIncomeNum) || monthlyIncomeNum <= 0 || !Number.isInteger(monthlyIncomeNum)) {
-      setConditionError("월 소득은 만원 단위 정수로 입력해주세요.");
-      return null;
-    }
-    if (
-      !Number.isFinite(ownedHouseCountNum) ||
-      ownedHouseCountNum < 0 ||
-      !Number.isInteger(ownedHouseCountNum)
-    ) {
-      setConditionError("보유 주택 수는 0 이상의 정수로 입력해주세요.");
+    if (!parsed.ok) {
+      setConditionError(parsed.error);
       return null;
     }
 
-    return {
-      available_cash: availableCashNum,
-      monthly_income: monthlyIncomeNum,
-      owned_house_count: ownedHouseCountNum,
-      credit_grade: creditGrade,
-      purchase_purpose: purchasePurpose,
-    };
+    return parsed.data;
   }, [availableCash, creditGrade, monthlyIncome, ownedHouseCount, purchasePurpose]);
 
   const applyRecommendationByCustomer = useCallback(
-    async (customer: RecommendationCustomerInput, options?: { closeModal?: boolean }) => {
+    async (customer: ParsedCustomerInput, options?: { closeModal?: boolean }) => {
       setConditionError(null);
       setConditionApplyLoading(true);
       try {
@@ -317,7 +327,8 @@ export default function HomeOfferingsSection() {
             property_ids?: Array<number | string>;
             recommendations?: Array<{
               property_id?: number | string;
-              categories?: RecommendationCategories;
+              categories?: ConditionCategoryGrades;
+              total_score?: number;
             }>;
             error?: { message?: string };
           }
@@ -331,11 +342,14 @@ export default function HomeOfferingsSection() {
         const ids = (payload.property_ids ?? [])
           .map((id) => Number(id))
           .filter((id) => Number.isFinite(id));
-        const nextCategories = new Map<number, RecommendationCategories>();
+        const nextCategories = new Map<number, ConditionCategoryGrades>();
         for (const item of payload.recommendations ?? []) {
           const id = Number(item.property_id);
           if (!Number.isFinite(id) || !item.categories) continue;
-          nextCategories.set(id, item.categories);
+          nextCategories.set(id, {
+            ...item.categories,
+            totalScore: item.total_score,
+          });
         }
         setRecommendedPropertyIds(ids);
         setRecommendedCategoriesById(nextCategories);
@@ -368,14 +382,14 @@ export default function HomeOfferingsSection() {
 
   const handleApplyCondition = useCallback(async () => {
     setConditionError(null);
-    const customer = parseCustomerInput();
+    const customer = parseCustomerInputFromState();
     if (!customer) return;
     await applyRecommendationByCustomer(customer, { closeModal: true });
-  }, [applyRecommendationByCustomer, parseCustomerInput]);
+  }, [applyRecommendationByCustomer, parseCustomerInputFromState]);
 
   const handleLoginAndSaveCondition = useCallback(() => {
     setConditionError(null);
-    const customer = parseCustomerInput();
+    const customer = parseCustomerInputFromState();
     if (!customer) return;
 
     try {
@@ -389,7 +403,7 @@ export default function HomeOfferingsSection() {
     }
 
     router.push("/login?next=/");
-  }, [parseCustomerInput, router]);
+  }, [parseCustomerInputFromState, router]);
 
   useEffect(() => {
     let mounted = true;
@@ -427,7 +441,7 @@ export default function HomeOfferingsSection() {
         return;
       }
 
-      const customer: RecommendationCustomerInput = {
+      const customer: ParsedCustomerInput = {
         available_cash: Math.max(0, Math.round(Number(latest.available_cash_manwon) || 0)),
         monthly_income: Math.max(0, Math.round(Number(latest.monthly_income_manwon) || 0)),
         owned_house_count: Math.max(0, Math.round(Number(latest.owned_house_count) || 0)),
@@ -658,23 +672,39 @@ export default function HomeOfferingsSection() {
               <label className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
                 가용 현금 (만원)
               </label>
-              <Input
-                value={availableCash}
-                onChange={(e) => setAvailableCash(formatNumericInput(e.target.value))}
-                inputMode="numeric"
-                placeholder="예: 8,000"
-              />
+              <div className="relative">
+                <Input
+                  value={availableCash}
+                  onChange={(e) => setAvailableCash(formatNumericInput(e.target.value))}
+                  inputMode="numeric"
+                  placeholder="예: 8,000"
+                  className={availableCashPreview ? "pr-28" : undefined}
+                />
+                {availableCashPreview ? (
+                  <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center ob-typo-caption text-(--oboon-text-muted)">
+                    {availableCashPreview}
+                  </div>
+                ) : null}
+              </div>
             </div>
             <div>
               <label className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
                 월 소득 (만원)
               </label>
-              <Input
-                value={monthlyIncome}
-                onChange={(e) => setMonthlyIncome(formatNumericInput(e.target.value))}
-                inputMode="numeric"
-                placeholder="예: 400"
-              />
+              <div className="relative">
+                <Input
+                  value={monthlyIncome}
+                  onChange={(e) => setMonthlyIncome(formatNumericInput(e.target.value))}
+                  inputMode="numeric"
+                  placeholder="예: 400"
+                  className={monthlyIncomePreview ? "pr-28" : undefined}
+                />
+                {monthlyIncomePreview ? (
+                  <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center ob-typo-caption text-(--oboon-text-muted)">
+                    {monthlyIncomePreview}
+                  </div>
+                ) : null}
+              </div>
             </div>
             <div>
               <label className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
@@ -692,91 +722,21 @@ export default function HomeOfferingsSection() {
                 <label className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
                   신용
                 </label>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      className={[
-                        oboonFieldBaseClass,
-                        "inline-flex items-center justify-between",
-                      ].join(" ")}
-                    >
-                      <span>
-                        {creditGrade === "good"
-                          ? "양호"
-                          : creditGrade === "normal"
-                            ? "보통"
-                            : "불안"}
-                      </span>
-                      <ChevronDown className="h-4 w-4 text-(--oboon-text-muted)" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" matchTriggerWidth>
-                    <DropdownMenuItem
-                      className={creditGrade === "good" ? "bg-(--oboon-bg-subtle)" : ""}
-                      onClick={() => setCreditGrade("good")}
-                    >
-                      양호
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className={creditGrade === "normal" ? "bg-(--oboon-bg-subtle)" : ""}
-                      onClick={() => setCreditGrade("normal")}
-                    >
-                      보통
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className={creditGrade === "unstable" ? "bg-(--oboon-bg-subtle)" : ""}
-                      onClick={() => setCreditGrade("unstable")}
-                    >
-                      불안
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <Select
+                  value={creditGrade}
+                  onChange={setCreditGrade}
+                  options={CREDIT_OPTIONS}
+                />
               </div>
               <div>
                 <label className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
                   목적
                 </label>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      className={[
-                        oboonFieldBaseClass,
-                        "inline-flex items-center justify-between",
-                      ].join(" ")}
-                    >
-                      <span>
-                        {purchasePurpose === "residence"
-                          ? "실거주"
-                          : purchasePurpose === "investment"
-                            ? "투자"
-                            : "둘다"}
-                      </span>
-                      <ChevronDown className="h-4 w-4 text-(--oboon-text-muted)" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" matchTriggerWidth>
-                    <DropdownMenuItem
-                      className={purchasePurpose === "residence" ? "bg-(--oboon-bg-subtle)" : ""}
-                      onClick={() => setPurchasePurpose("residence")}
-                    >
-                      실거주
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className={purchasePurpose === "investment" ? "bg-(--oboon-bg-subtle)" : ""}
-                      onClick={() => setPurchasePurpose("investment")}
-                    >
-                      투자
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className={purchasePurpose === "both" ? "bg-(--oboon-bg-subtle)" : ""}
-                      onClick={() => setPurchasePurpose("both")}
-                    >
-                      둘다
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <Select
+                  value={purchasePurpose}
+                  onChange={setPurchasePurpose}
+                  options={PURPOSE_OPTIONS}
+                />
               </div>
             </div>
           </div>
@@ -903,7 +863,7 @@ function ResponsiveOfferingRow({
   recommendedCategoriesById,
 }: {
   items: Offering[];
-  recommendedCategoriesById?: Map<number, RecommendationCategories>;
+  recommendedCategoriesById?: Map<number, ConditionCategoryGrades>;
 }) {
   return (
     <>

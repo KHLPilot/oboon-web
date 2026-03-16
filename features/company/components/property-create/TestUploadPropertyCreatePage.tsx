@@ -13,7 +13,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/DropdownMenu";
-import { ChevronDown, Upload } from "lucide-react";
+import { Upload } from "lucide-react";
 import type { PropertyExtractionData } from "@/lib/schema/property-schema";
 import NaverMap, { type MapMarker } from "@/features/map/components/NaverMap";
 import { createSupabaseClient } from "@/lib/supabaseClient";
@@ -1440,12 +1440,12 @@ export default function TestUploadPage() {
     setHideUnitMergeRecommendations(false);
   }, []);
 
-  const revokeBlobUrl = (url?: string | null) => {
+  const revokeBlobUrl = useCallback((url?: string | null) => {
     if (url && url.startsWith("blob:")) URL.revokeObjectURL(url);
-  };
-  const revokeBlobUrls = (urls?: string[] | null) => {
+  }, []);
+  const revokeBlobUrls = useCallback((urls?: string[] | null) => {
     (urls ?? []).forEach((url) => revokeBlobUrl(url));
-  };
+  }, [revokeBlobUrl]);
   const makeExtractedImage = (
     img: {
       id: string;
@@ -4582,16 +4582,6 @@ export default function TestUploadPage() {
     if (!looseMatch?.[0]) return null;
     return toNumberOrNull(looseMatch[0]);
   };
-  const parsePriceRangeInput = (value: string) => {
-    const normalized = value.replaceAll("~", " ").replaceAll("-", " ");
-    const numbers = normalized
-      .split(" ")
-      .map((part) => toNumberOrNull(part))
-      .filter((part): part is number => part != null);
-    if (numbers.length === 0) return { min: null, max: null };
-    if (numbers.length === 1) return { min: numbers[0], max: numbers[0] };
-    return normalizePriceRange(numbers[0], numbers[1]);
-  };
   const resolveFloorPlanUrl = (
     unit: ExtractUnitTypeExtended | null,
     rowIndex: number,
@@ -4850,7 +4840,7 @@ export default function TestUploadPage() {
       revokeBlobUrl(modelhouseMainImageUrlRef.current);
       modelhouseGalleryImageUrlsRef.current.forEach((url) => revokeBlobUrl(url));
     };
-  }, []);
+  }, [revokeBlobUrl, revokeBlobUrls]);
   const rawLocationLat = toNumberOrNull(result?.location?.lat);
   const rawLocationLng = toNumberOrNull(result?.location?.lng);
   const { lat: locationLat, lng: locationLng } = normalizeKoreaCoords(

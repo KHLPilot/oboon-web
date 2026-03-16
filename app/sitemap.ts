@@ -8,7 +8,6 @@ const publicPaths = [
   "/offerings",
   "/briefing",
   "/briefing/oboon-original",
-  "/map",
   "/community",
   "/notice",
   "/support",
@@ -182,11 +181,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "weekly",
       priority: 0.7,
       lastModified: latestBriefingModified ?? latestSiteModified,
-    },
-    "/map": {
-      changeFrequency: "weekly",
-      priority: 0.7,
-      lastModified: latestSiteModified,
     },
     "/community": {
       changeFrequency: "weekly",

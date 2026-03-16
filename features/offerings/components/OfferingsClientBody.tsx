@@ -2,9 +2,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import FilterBar from "@/features/offerings/components/FilterBar";
 import OfferingCard from "@/features/offerings/components/OfferingCard";
+import OfferingsMapView from "@/features/offerings/components/OfferingsMapView";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import type { Offering } from "@/types/index";
 import PageContainer from "@/components/shared/PageContainer";
@@ -16,8 +17,10 @@ import {
   type PropertyRow,
 } from "@/features/offerings/mappers/offering.mapper";
 import {
+  GYEONGGI_NORTH_CITIES,
   OFFERING_REGION_TABS,
   isOfferingStatusValue,
+  normalizeOfferingStatusValue,
 } from "@/features/offerings/domain/offering.constants";
 import type {
   OfferingRegionTab,
@@ -29,7 +32,9 @@ import type {
  * ================================ */
 
 type SearchParams = {
+  view?: string;
   region?: string;
+  subRegion?: string;
   status?: string;
   q?: string;
   budgetMin?: string; // 억 단위
@@ -49,25 +54,141 @@ function toUnknownRecord(value: unknown): Record<string, unknown> {
   return (value ?? {}) as Record<string, unknown>;
 }
 
+function normalizeNonEmptyString(value: string | null | undefined): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
 function pickOfferingRegion(o: Offering): string | null {
-  const anyO = toUnknownRecord(o);
   const candidates = [
-    anyO.regionTab,
-    anyO.region,
-    anyO.regionShort,
-    anyO.regionLabel,
-    anyO.topLabel, // 지도/카드에서 쓰는 경우가 있음
+    o.region,
+    o.regionLabel,
   ];
   for (const c of candidates) {
-    if (typeof c === "string" && c.trim()) return c.trim();
+    const normalized = normalizeNonEmptyString(c);
+    if (normalized) return normalized;
   }
   return null;
 }
 
 function pickOfferingStatus(o: Offering): string | null {
+  const statusValue = o.statusValue;
+  if (typeof statusValue === "string" && isOfferingStatusValue(statusValue)) {
+    return statusValue;
+  }
+
+  const s = normalizeNonEmptyString(o.status);
+  if (!s) return null;
+
+  const normalized = normalizeOfferingStatusValue(s);
+  if (normalized) return normalized;
+
+  const compact = s.replace(/\s+/g, "");
+  if (compact === "분양예정" || compact === "예정") return "READY";
+  if (compact === "분양중" || compact === "진행중" || compact === "모집중") {
+    return "OPEN";
+  }
+  if (compact === "분양종료" || compact === "종료") return "CLOSED";
+
+  return s.trim();
+}
+
+function passesExcludeAndRecommended(
+  o: Offering,
+  excludeIds: ReadonlySet<string>,
+  recommendedMode: boolean,
+  recommendedIds: ReadonlySet<string>,
+): boolean {
+  if (excludeIds.has(String(o.id))) return false;
+  if (!recommendedMode) return true;
+  if (recommendedIds.size === 0) return false;
+  return recommendedIds.has(String(o.id));
+}
+
+function passesRegion(
+  o: Offering,
+  region: OfferingRegionTab,
+  subRegion: string,
+): boolean {
+  if (region !== "전체") {
+    const r = pickOfferingRegion(o);
+    if (!r || !r.includes(region)) return false;
+  }
+
+  if (!subRegion) return true;
+
+  const addressSource = o.addressFull ?? o.addressShort;
+
+  if (region === "서울") {
+    return addressSource.includes(subRegion);
+  }
+
+  if (region === "경기") {
+    const isNorth = GYEONGGI_NORTH_CITIES.some((matcher) =>
+      addressSource.includes(matcher),
+    );
+    if (subRegion === "north") return isNorth;
+    if (subRegion === "south") return !isNorth;
+  }
+
+  return true;
+}
+
+function passesStatus(
+  o: Offering,
+  status: OfferingStatusValue | "전체",
+): boolean {
+  if (status === "전체") return true;
+  const s = pickOfferingStatus(o);
+  return Boolean(s && s === status);
+}
+
+function passesAgent(
+  o: Offering,
+  agentFilter: "has" | "전체",
+  approvedAgentPropertyIds: ReadonlySet<string>,
+): boolean {
+  if (agentFilter !== "has") return true;
+  return approvedAgentPropertyIds.has(String(o.id));
+}
+
+function passesAppraisal(
+  o: Offering,
+  appraisalFilter: "done" | "전체",
+): boolean {
+  if (appraisalFilter !== "done") return true;
+  return Boolean(o.hasAppraiserComment);
+}
+
+function passesBudget(
+  o: Offering,
+  budgetMinWon: number | null,
+  budgetMaxWon: number | null,
+  hasBudgetFilter: boolean,
+): boolean {
   const anyO = toUnknownRecord(o);
-  const s = anyO.status;
-  return typeof s === "string" && s.trim() ? s.trim() : null;
+  const priceMin =
+    typeof anyO.priceMin억 === "number" ? anyO.priceMin억 : null;
+  const priceMax =
+    typeof anyO.priceMax억 === "number" ? anyO.priceMax억 : null;
+
+  if (hasBudgetFilter && priceMin == null && priceMax == null) return false;
+
+  if (budgetMinWon != null) {
+    const upper = priceMax ?? priceMin;
+    if (upper == null || upper < budgetMinWon) return false;
+  }
+  if (budgetMaxWon != null) {
+    const lower = priceMin ?? priceMax;
+    if (lower == null || lower > budgetMaxWon) return false;
+  }
+
+  return true;
+}
+
+function passesQuery(o: Offering, q: string): boolean {
+  if (!q) return true;
+  const title = String(toUnknownRecord(o).title ?? "").toLowerCase();
+  return title.includes(q);
 }
 
 function filterOfferings(
@@ -82,6 +203,7 @@ function filterOfferings(
   const rawStatus = sp.status ?? "";
   const status: OfferingStatusValue | "전체" =
     rawStatus && isOfferingStatusValue(rawStatus) ? rawStatus : "전체";
+  const subRegion = (sp.subRegion ?? "").trim();
 
   const q = (sp.q ?? "").trim().toLowerCase();
 
@@ -118,63 +240,15 @@ function filterOfferings(
       .filter(Boolean),
   );
 
-  return all.filter((o) => {
-    if (excludeIds.has(String(o.id))) return false;
-    if (recommendedMode) {
-      if (recommendedIds.size === 0) return false;
-      if (!recommendedIds.has(String(o.id))) return false;
-    }
-
-    // region
-    if (region !== "전체") {
-      const r = pickOfferingRegion(o);
-      // “수도권/서울/전체” 같은 탭 문자열이 offering에 직접 있지 않을 수 있어,
-      // 후보 필드들에서 부분 일치로 처리(가장 안전한 최소 동작).
-      if (!r || !r.includes(region)) return false;
-    }
-
-    // status
-    if (status !== "전체") {
-      const s = pickOfferingStatus(o);
-      if (!s || s !== status) return false;
-    }
-
-    // agent
-    if (agentFilter === "has" && !approvedAgentPropertyIds.has(String(o.id))) {
-      return false;
-    }
-
-    // appraisal
-    if (appraisalFilter === "done" && !o.hasAppraiserComment) {
-      return false;
-    }
-
-    // budget (o.priceMin/o.priceMax는 원(won) 단위로 가정)
-    const anyO = toUnknownRecord(o);
-    const priceMin = typeof anyO.priceMin === "number" ? anyO.priceMin : null;
-    const priceMax = typeof anyO.priceMax === "number" ? anyO.priceMax : null;
-
-    // budget (o.priceMin/o.priceMax는 원(won) 단위로 가정)
-    // 예산 필터가 켜져 있을 때 가격 정보가 전혀 없으면 결과에서 제외한다.
-    if (hasBudgetFilter && priceMin == null && priceMax == null) return false;
-
-    if (budgetMinWon != null) {
-      const upper = priceMax ?? priceMin;
-      if (upper == null || upper < budgetMinWon) return false;
-    }
-    if (budgetMaxWon != null) {
-      const lower = priceMin ?? priceMax;
-      if (lower == null || lower > budgetMaxWon) return false;
-    }
-
-    // q
-    if (q) {
-      const title = String(toUnknownRecord(o).title ?? "").toLowerCase();
-      if (!title.includes(q)) return false;
-    }
-
-    return true;
-  });
+  return all.filter((o) =>
+    passesExcludeAndRecommended(o, excludeIds, recommendedMode, recommendedIds) &&
+    passesRegion(o, region, subRegion) &&
+    passesStatus(o, status) &&
+    passesAgent(o, agentFilter, approvedAgentPropertyIds) &&
+    passesAppraisal(o, appraisalFilter) &&
+    passesBudget(o, budgetMinWon, budgetMaxWon, hasBudgetFilter) &&
+    passesQuery(o, q)
+  );
 }
 
 /* ================================
@@ -183,10 +257,14 @@ function filterOfferings(
 
 export default function OfferingsClientBody() {
   const sp = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
 
   const searchParams: SearchParams = useMemo(() => {
     return {
+      view: sp.get("view") ?? undefined,
       region: sp.get("region") ?? undefined,
+      subRegion: sp.get("subRegion") ?? undefined,
       status: sp.get("status") ?? undefined,
       q: sp.get("q") ?? undefined,
       budgetMin: sp.get("budgetMin") ?? undefined,
@@ -272,6 +350,21 @@ export default function OfferingsClientBody() {
     [offerings, searchParams, approvedAgentPropertyIds],
   );
   const isRecommendedMode = searchParams.recommended === "1";
+  const view = searchParams.view === "map" ? "map" : "list";
+
+  function handleViewChange(nextView: "list" | "map") {
+    const next = new URLSearchParams(sp.toString());
+    if (nextView === "map") {
+      next.set("view", "map");
+    } else {
+      next.delete("view");
+    }
+
+    const query = next.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, {
+      scroll: false,
+    });
+  }
 
   return (
     <main className="bg-(--oboon-bg-page)">
@@ -285,7 +378,7 @@ export default function OfferingsClientBody() {
           조건에 맞는 분양 정보를 빠르게 찾을 수 있어요.
         </p>
         <div className="flex flex-col gap-5">
-          <FilterBar />
+          <FilterBar view={view} onViewChange={handleViewChange} />
 
           {loadError ? (
             <div className="rounded-2xl border border-(--oboon-danger-border) bg-(--oboon-danger-bg) px-4 py-3">
@@ -301,6 +394,8 @@ export default function OfferingsClientBody() {
                   : "아직 등록된 분양이 없어요."}
               </p>
             </div>
+          ) : view === "map" ? (
+            <OfferingsMapView offerings={filtered} />
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {filtered.map((offering) => (

@@ -1,18 +1,23 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
-
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Label from "@/components/ui/Label";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/DropdownMenu";
+import Select from "@/components/ui/Select";
 import { oboonFieldBaseClass } from "@/lib/ui/formFieldStyles";
+
+const CREDIT_OPTIONS = [
+  { label: "양호", value: "good" },
+  { label: "보통", value: "normal" },
+  { label: "불안", value: "unstable" },
+] as const;
+
+const PURPOSE_OPTIONS = [
+  { label: "실거주", value: "residence" },
+  { label: "투자", value: "investment" },
+  { label: "둘다", value: "both" },
+] as const;
 
 type ValidationCreditGrade = "good" | "normal" | "unstable";
 type ValidationPurchasePurpose = "residence" | "investment" | "both";
@@ -196,92 +201,22 @@ export default function PersonalizationSection({
 
           <div className="space-y-2">
             <Label>신용</Label>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  disabled={!personalizationEditing}
-                  className={[
-                    oboonFieldBaseClass,
-                    "inline-flex items-center justify-between disabled:cursor-not-allowed disabled:opacity-60",
-                  ].join(" ")}
-                >
-                  <span>
-                    {personalCreditGrade === "good"
-                      ? "양호"
-                      : personalCreditGrade === "normal"
-                        ? "보통"
-                        : "불안"}
-                  </span>
-                  <ChevronDown className="h-4 w-4 text-(--oboon-text-muted)" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" matchTriggerWidth>
-                <DropdownMenuItem
-                  className={personalCreditGrade === "good" ? "bg-(--oboon-bg-subtle)" : ""}
-                  onClick={() => onCreditGradeChange("good")}
-                >
-                  양호
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className={personalCreditGrade === "normal" ? "bg-(--oboon-bg-subtle)" : ""}
-                  onClick={() => onCreditGradeChange("normal")}
-                >
-                  보통
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className={personalCreditGrade === "unstable" ? "bg-(--oboon-bg-subtle)" : ""}
-                  onClick={() => onCreditGradeChange("unstable")}
-                >
-                  불안
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <Select
+              value={personalCreditGrade}
+              onChange={onCreditGradeChange}
+              options={CREDIT_OPTIONS}
+              disabled={!personalizationEditing}
+            />
           </div>
 
           <div className="space-y-2 sm:col-span-2">
             <Label>구매 목적</Label>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  disabled={!personalizationEditing}
-                  className={[
-                    oboonFieldBaseClass,
-                    "inline-flex items-center justify-between disabled:cursor-not-allowed disabled:opacity-60",
-                  ].join(" ")}
-                >
-                  <span>
-                    {personalPurchasePurpose === "residence"
-                      ? "실거주"
-                      : personalPurchasePurpose === "investment"
-                        ? "투자"
-                        : "둘다"}
-                  </span>
-                  <ChevronDown className="h-4 w-4 text-(--oboon-text-muted)" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" matchTriggerWidth>
-                <DropdownMenuItem
-                  className={personalPurchasePurpose === "residence" ? "bg-(--oboon-bg-subtle)" : ""}
-                  onClick={() => onPurchasePurposeChange("residence")}
-                >
-                  실거주
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className={personalPurchasePurpose === "investment" ? "bg-(--oboon-bg-subtle)" : ""}
-                  onClick={() => onPurchasePurposeChange("investment")}
-                >
-                  투자
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className={personalPurchasePurpose === "both" ? "bg-(--oboon-bg-subtle)" : ""}
-                  onClick={() => onPurchasePurposeChange("both")}
-                >
-                  둘다
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <Select
+              value={personalPurchasePurpose}
+              onChange={onPurchasePurposeChange}
+              options={PURPOSE_OPTIONS}
+              disabled={!personalizationEditing}
+            />
           </div>
         </div>
 

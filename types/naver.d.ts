@@ -21,6 +21,12 @@ declare namespace naver.maps {
     anchor: Point;
   };
 
+  class LatLngBounds {
+    constructor();
+    extend(latLng: LatLng): void;
+    hasLatLng(latLng: LatLng): boolean;
+  }
+
   type MarkerOptions = {
     position: LatLng;
     map: Map;
@@ -31,7 +37,7 @@ declare namespace naver.maps {
     setMap(map: Map | null): void;
     setPosition(position: LatLng): void;
     getPosition(): LatLng;
-    setIcon(icon: MarkerIcon): void;
+    setIcon(icon: MarkerIcon | null): void;
     setZIndex(zIndex: number): void;
   }
 
@@ -56,6 +62,15 @@ declare namespace naver.maps {
     getProjection(): MapProjection;
     getSize(): Size;
     panTo(target: LatLng): void;
+    fitBounds(
+      bounds: LatLngBounds,
+      padding?: {
+        top?: number;
+        right?: number;
+        bottom?: number;
+        left?: number;
+      },
+    ): void;
   }
 
   type EventHandle = object;

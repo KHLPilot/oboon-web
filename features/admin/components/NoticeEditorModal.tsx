@@ -1,20 +1,13 @@
 "use client";
 
 import type { Dispatch, SetStateAction } from "react";
-import { ChevronDown } from "lucide-react";
 
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
+import Select from "@/components/ui/Select";
 import Textarea from "@/components/ui/Textarea";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/DropdownMenu";
-import {
-  noticeCategoryLabel,
   NOTICE_CATEGORY_OPTIONS,
 } from "@/features/admin/lib/dashboard-labels";
 import type { NoticeEditor } from "@/features/admin/types/dashboard";
@@ -48,38 +41,22 @@ export default function NoticeEditorModal({
 
           <label className="block">
             <span className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">카테고리</span>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="secondary"
-                  className="w-full justify-between rounded-xl"
-                  disabled={noticeSaving}
-                >
-                  <span>{noticeCategoryLabel(noticeEditor.category)}</span>
-                  <ChevronDown className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" matchTriggerWidth className="min-w-[260px]">
-                {NOTICE_CATEGORY_OPTIONS.map((item) => (
-                  <DropdownMenuItem
-                    key={item.value}
-                    onClick={() =>
-                      setNoticeEditor((prev) =>
-                        prev
-                          ? {
-                              ...prev,
-                              category: item.value,
-                              isMaintenance: item.value === "maintenance" || prev.isMaintenance,
-                            }
-                          : prev,
-                      )
-                    }
-                  >
-                    {item.label}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <Select
+              value={noticeEditor.category}
+              onChange={(val) =>
+                setNoticeEditor((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        category: val,
+                        isMaintenance: val === "maintenance" || prev.isMaintenance,
+                      }
+                    : prev
+                )
+              }
+              options={NOTICE_CATEGORY_OPTIONS}
+              disabled={noticeSaving}
+            />
           </label>
 
           <label className="block">
@@ -193,4 +170,3 @@ export default function NoticeEditorModal({
     </Modal>
   );
 }
-

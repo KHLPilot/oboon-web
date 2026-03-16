@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -24,7 +24,9 @@ import ConditionMapSvgBackground from "@/features/home/components/ConditionMapSv
 
 export type HomeHeroSlide = "agent" | "condition";
 
-const HERO_ROTATE_MS = 6000;
+const HERO_ROTATE_MS = 10000;
+const HERO_SLIDE_ANIMATION_CLASS =
+  "animate-[heroSlideReveal_760ms_cubic-bezier(0.22,1,0.36,1)]";
 
 type AgentAvatar = {
   id: string;
@@ -291,7 +293,6 @@ function buildConditionCards(sourceCards: ConditionMapCardSource[]): ConditionMa
 
 export default function HeroSection() {
   const supabase = useMemo(() => createSupabaseClient(), []);
-  const sectionRef = useRef<HTMLElement | null>(null);
   const agentCardRef = useRef<HTMLDivElement | null>(null);
   const conditionCardRef = useRef<HTMLDivElement | null>(null);
   const [agentCount, setAgentCount] = useState(0);
@@ -302,50 +303,14 @@ export default function HeroSection() {
   );
   const [agentsLoaded, setAgentsLoaded] = useState(false);
   const [activeSlide, setActiveSlide] = useState<HomeHeroSlide>("agent");
-  const [indicatorTop, setIndicatorTop] = useState<number | null>(null);
-
-  const updateIndicatorPosition = useCallback(() => {
-    const section = sectionRef.current;
-    const activeCard = activeSlide === "agent" ? agentCardRef.current : conditionCardRef.current;
-    if (!section || !activeCard) return;
-
-    const sectionRect = section.getBoundingClientRect();
-    const cardRect = activeCard.getBoundingClientRect();
-    const midpointY = (cardRect.bottom + sectionRect.bottom) / 2;
-    const relativeTop = midpointY - sectionRect.top;
-    setIndicatorTop(relativeTop);
-  }, [activeSlide]);
 
   useEffect(() => {
-    const timer = window.setInterval(() => {
+    const timer = window.setTimeout(() => {
       setActiveSlide((prev) => (prev === "agent" ? "condition" : "agent"));
     }, HERO_ROTATE_MS);
 
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    updateIndicatorPosition();
-
-    const onResize = () => updateIndicatorPosition();
-    window.addEventListener("resize", onResize);
-
-    const observer =
-      typeof ResizeObserver !== "undefined"
-        ? new ResizeObserver(() => updateIndicatorPosition())
-        : null;
-
-    if (observer) {
-      if (sectionRef.current) observer.observe(sectionRef.current);
-      if (agentCardRef.current) observer.observe(agentCardRef.current);
-      if (conditionCardRef.current) observer.observe(conditionCardRef.current);
-    }
-
-    return () => {
-      window.removeEventListener("resize", onResize);
-      observer?.disconnect();
-    };
-  }, [updateIndicatorPosition, previewCounselors.length, conditionCards.length]);
+    return () => window.clearTimeout(timer);
+  }, [activeSlide]);
 
   useEffect(() => {
     let mounted = true;
@@ -566,7 +531,6 @@ export default function HeroSection() {
 
   return (
     <section
-      ref={sectionRef}
       className={[
         "relative isolate min-h-[720px] overflow-hidden rounded-3xl px-4 py-7 sm:min-h-[680px] sm:px-6 sm:py-8 md:min-h-[600px] lg:min-h-[470px] lg:px-8 lg:py-7",
         "border border-(--oboon-border-default) bg-(--oboon-bg-surface)",
@@ -602,7 +566,10 @@ export default function HeroSection() {
       />
       <div className="relative">
         {activeSlide === "agent" ? (
-          <div className="relative grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:gap-8">
+          <div
+            key="agent"
+            className={`relative grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:gap-8 ${HERO_SLIDE_ANIMATION_CLASS}`}
+          >
             <div className="lg:pr-4">
               <Badge
                 variant="status"
@@ -654,11 +621,15 @@ export default function HeroSection() {
                   variant="secondary"
                   className="w-full md:w-auto bg-(--oboon-bg-surface) hover:bg-(--oboon-bg-default)"
                 >
-                  <Link href="/map" aria-label="지도로 현장 찾기">
+                  <Link
+                    href="/offerings?view=map"
+                    aria-label="분양 리스트를 지도 모드로 보기"
+                  >
                     지도로 현장 찾기
                     <MapPin className="h-4 w-4" aria-hidden="true" />
                   </Link>
                 </Button>
+
               </div>
 
               <div className="mt-5 flex items-center gap-3">
@@ -702,7 +673,10 @@ export default function HeroSection() {
             </div>
           </div>
         ) : (
-          <div className="relative grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:gap-8">
+          <div
+            key="condition"
+            className={`relative grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:gap-8 ${HERO_SLIDE_ANIMATION_CLASS}`}
+          >
             <div className="lg:pr-4">
               <Badge
                 variant="status"
@@ -758,32 +732,41 @@ export default function HeroSection() {
         )}
       </div>
 
-      <div
-        className="absolute inset-x-0"
-        style={indicatorTop === null ? undefined : { top: `${indicatorTop}px` }}
-      >
-        <div className="-translate-y-1/2">
-          <div className="relative flex items-center justify-center gap-2">
-            {HERO_SLIDES.map((slide, index) => {
-              const active = slide.key === activeSlide;
-              return (
-                <button
-                  key={slide.key}
-                  type="button"
-                  onClick={() => setActiveSlide(slide.key)}
-                  aria-label={`${index + 1}번 히어로 ${active ? "활성" : "비활성"}`}
-                  aria-pressed={active}
-                  className={[
-                    "inline-flex h-2.5 w-2.5 rounded-full border transition-colors duration-300",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--oboon-accent)/30",
-                    active ? "bg-(--oboon-primary) border-(--oboon-primary)" : "bg-(--oboon-bg-surface) border-(--oboon-border-default)",
-                  ].join(" ")}
-                />
-              );
-            })}
-          </div>
+      <div className="absolute inset-x-0 bottom-3 flex justify-center sm:bottom-4 lg:bottom-3">
+        <div className="relative flex items-center justify-center gap-2">
+          {HERO_SLIDES.map((slide, index) => {
+            const active = slide.key === activeSlide;
+            return (
+              <button
+                key={slide.key}
+                type="button"
+                onClick={() => setActiveSlide(slide.key)}
+                aria-label={`${index + 1}번 히어로 ${active ? "활성" : "비활성"}`}
+                aria-pressed={active}
+                className={[
+                  "inline-flex h-2.5 w-2.5 rounded-full border transition-colors duration-300",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--oboon-accent)/30",
+                  active ? "bg-(--oboon-primary) border-(--oboon-primary)" : "bg-(--oboon-bg-surface) border-(--oboon-border-default)",
+                ].join(" ")}
+              />
+            );
+          })}
         </div>
       </div>
+      <style jsx>{`
+        @keyframes heroSlideReveal {
+          0% {
+            opacity: 0;
+            transform: translateY(18px) scale(0.985);
+            filter: blur(8px);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+            filter: blur(0);
+          }
+        }
+      `}</style>
     </section>
   );
 }

@@ -104,7 +104,7 @@ export function usePropertyGallery({
         event.target.value = "";
       }
     },
-    [galleryImages.length, propertyId, toast],
+    [galleryImages, propertyId, toast],
   );
 
   const handleGalleryDelete = useCallback(

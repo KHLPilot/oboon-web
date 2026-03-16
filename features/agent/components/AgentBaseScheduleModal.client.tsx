@@ -1,16 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, Sun } from "lucide-react";
+import { Sun } from "lucide-react";
 
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/DropdownMenu";
+import Select from "@/components/ui/Select";
 import OboonDatePicker from "@/components/ui/DatePicker";
 import { showAlert } from "@/shared/alert";
 
@@ -91,7 +86,10 @@ export default function AgentBaseScheduleModal({
   const [holidayDate, setHolidayDate] = useState<Date | null>(null);
   const [holidayDates, setHolidayDates] = useState<string[]>([]);
 
-  const timeOptions = useMemo(() => TIME_OPTIONS, []);
+  const timeOptions = useMemo(
+    () => TIME_OPTIONS.map((t) => ({ label: t, value: t })),
+    [],
+  );
 
   function handleWeekdayToggle(next: boolean) {
     setWeekdayEnabled(next);
@@ -244,37 +242,12 @@ export default function AgentBaseScheduleModal({
                 <div className="ob-typo-body text-(--oboon-text-muted) mb-1">
                   시작 시간
                 </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      disabled={loading}
-                      className={[
-                        "w-full rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-page) px-3 py-2",
-                        "ob-typo-body text-(--oboon-text-title) flex items-center justify-between",
-                        "transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--oboon-accent)/30",
-                        "disabled:opacity-60",
-                      ].join(" ")}
-                    >
-                      <span>{weekdayStart}</span>
-                      <ChevronDown className="h-4 w-4 text-(--oboon-text-muted)" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    align="start"
-                    matchTriggerWidth
-                    className="min-w-40"
-                  >
-                    {timeOptions.map((t) => (
-                      <DropdownMenuItem
-                        key={t}
-                        onClick={() => setWeekdayStart(t)}
-                      >
-                        {t}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <Select
+                  value={weekdayStart}
+                  onChange={setWeekdayStart}
+                  options={timeOptions}
+                  disabled={loading}
+                />
               </div>
               <div className="pb-2 ob-typo-body text-(--oboon-text-muted)">
                 ~
@@ -284,37 +257,12 @@ export default function AgentBaseScheduleModal({
                 <div className="ob-typo-body text-(--oboon-text-muted) mb-1">
                   종료 시간
                 </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      disabled={loading}
-                      className={[
-                        "w-full rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-page) px-3 py-2",
-                        "ob-typo-body text-(--oboon-text-title) flex items-center justify-between",
-                        "transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--oboon-accent)/30",
-                        "disabled:opacity-60",
-                      ].join(" ")}
-                    >
-                      <span>{weekdayEnd}</span>
-                      <ChevronDown className="h-4 w-4 text-(--oboon-text-muted)" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    align="start"
-                    matchTriggerWidth
-                    className="min-w-40"
-                  >
-                    {timeOptions.map((t) => (
-                      <DropdownMenuItem
-                        key={t}
-                        onClick={() => setWeekdayEnd(t)}
-                      >
-                        {t}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <Select
+                  value={weekdayEnd}
+                  onChange={setWeekdayEnd}
+                  options={timeOptions}
+                  disabled={loading}
+                />
               </div>
             </div>
           )}

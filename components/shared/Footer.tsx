@@ -45,19 +45,6 @@ export default function Footer() {
                   </Link>
                 </li>
                 <li>
-                  <Link href="/map" className="hover:text-(--oboon-text-default)">
-                    지도로 검색하기
-                  </Link>
-                </li>
-                {/* <li>
-                  <Link
-                    href="/briefing"
-                    className="hover:text-(--oboon-text-default)"
-                  >
-                    브리핑
-                  </Link>
-                </li> */}
-                <li>
                   <Link
                     href="/community"
                     className="hover:text-(--oboon-text-default)"

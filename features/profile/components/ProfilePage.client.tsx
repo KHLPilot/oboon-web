@@ -69,14 +69,33 @@ function getErrorMessage(error: unknown, fallback: string) {
 type ValidationCreditGrade = "good" | "normal" | "unstable";
 type ValidationPurchasePurpose = "residence" | "investment" | "both";
 
-function parsePositiveInteger(value: string): number | null {
+function parseRequiredNonNegativeInteger(value: string): number | null {
   const normalized = value.replaceAll(",", "").trim();
   if (!normalized) return null;
   const parsed = Number(normalized);
-  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed <= 0) {
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed < 0) {
     return null;
   }
   return parsed;
+}
+
+function parseOptionalInteger(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || !Number.isInteger(value)) return null;
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.replaceAll(",", "").trim();
+    if (!normalized) return null;
+    const parsed = Number(normalized);
+    if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) return null;
+    return parsed;
+  }
+
+  return null;
 }
 
 function parseNonNegativeInteger(value: string): number | null {
@@ -300,22 +319,27 @@ export default function ProfilePage({
         );
         setAgentSummary(String(profile.agent_summary ?? ""));
         setAgentEtc(String(profile.agent_bio ?? ""));
-        const loadedAvailableCash = Number(profile.cv_available_cash_manwon ?? 0);
-        const loadedMonthlyIncome = Number(profile.cv_monthly_income_manwon ?? 0);
-        const loadedOwnedHouseCount = Number(profile.cv_owned_house_count ?? 0);
+        const loadedAvailableCash = parseOptionalInteger(
+          profile.cv_available_cash_manwon,
+        );
+        const loadedMonthlyIncome = parseOptionalInteger(
+          profile.cv_monthly_income_manwon,
+        );
+        const loadedOwnedHouseCount =
+          parseOptionalInteger(profile.cv_owned_house_count) ?? 0;
         setAvailableCashManwon(
-          Number.isFinite(loadedAvailableCash) && loadedAvailableCash > 0
-            ? Math.round(loadedAvailableCash).toLocaleString("ko-KR")
+          loadedAvailableCash !== null && loadedAvailableCash >= 0
+            ? loadedAvailableCash.toLocaleString("ko-KR")
             : "",
         );
         setMonthlyIncomeManwon(
-          Number.isFinite(loadedMonthlyIncome) && loadedMonthlyIncome > 0
-            ? Math.round(loadedMonthlyIncome).toLocaleString("ko-KR")
+          loadedMonthlyIncome !== null && loadedMonthlyIncome >= 0
+            ? loadedMonthlyIncome.toLocaleString("ko-KR")
             : "",
         );
         setOwnedHouseCount(
-          Number.isFinite(loadedOwnedHouseCount) && loadedOwnedHouseCount >= 0
-            ? String(Math.round(loadedOwnedHouseCount))
+          loadedOwnedHouseCount >= 0
+            ? String(loadedOwnedHouseCount)
             : "0",
         );
         setPersonalCreditGrade(
@@ -494,8 +518,8 @@ export default function ProfilePage({
       ownedHouseCount?: string;
     } = {};
 
-    const parsedAvailableCash = parsePositiveInteger(availableCashManwon);
-    const parsedMonthlyIncome = parsePositiveInteger(monthlyIncomeManwon);
+    const parsedAvailableCash = parseRequiredNonNegativeInteger(availableCashManwon);
+    const parsedMonthlyIncome = parseRequiredNonNegativeInteger(monthlyIncomeManwon);
     const parsedOwnedHouseCount = parseNonNegativeInteger(ownedHouseCount ?? "0");
 
     if (parsedAvailableCash === null) {

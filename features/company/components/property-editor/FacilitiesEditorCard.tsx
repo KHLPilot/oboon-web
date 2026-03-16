@@ -1,6 +1,5 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 
@@ -9,6 +8,7 @@ import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Label from "@/components/ui/Label";
 import Modal from "@/components/ui/Modal";
+import Select from "@/components/ui/Select";
 import { Badge } from "@/components/ui/Badge";
 import {
   DropdownMenu,
@@ -580,29 +580,11 @@ export function PropertyFacilitiesEditor({
 
                 <div className="space-y-2">
                   <Label>시설 유형</Label>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="secondary"
-                        size="md"
-                        shape="default"
-                        className="h-11 w-full justify-between"
-                      >
-                        <span>{facilityTypeLabel(createDraft.type)}</span>
-                        <ChevronDown className="h-4 w-4 text-(--oboon-text-muted)" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" matchTriggerWidth>
-                      {FACILITY_TYPE_OPTIONS.map((opt) => (
-                        <DropdownMenuItem
-                          key={opt.value}
-                          onClick={() => updateCreateField("type", opt.value)}
-                        >
-                          {opt.label}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <Select
+                    value={createDraft.type}
+                    onChange={(val) => updateCreateField("type", val)}
+                    options={FACILITY_TYPE_OPTIONS}
+                  />
                 </div>
 
                 {createDraft.road_address ? (
@@ -916,29 +898,11 @@ export function PropertyFacilitiesEditor({
 
                     <div className="space-y-2">
                       <Label>시설 유형</Label>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="secondary"
-                            size="md"
-                            shape="default"
-                            className="h-11 w-full justify-between"
-                          >
-                            <span>{facilityTypeLabel(f.type)}</span>
-                            <ChevronDown className="h-4 w-4 text-(--oboon-text-muted)" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start" matchTriggerWidth>
-                          {FACILITY_TYPE_OPTIONS.map((opt) => (
-                            <DropdownMenuItem
-                              key={opt.value}
-                              onClick={() => updateField(idx, "type", opt.value)}
-                            >
-                              {opt.label}
-                            </DropdownMenuItem>
-                          ))}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <Select
+                        value={f.type}
+                        onChange={(val) => updateField(idx, "type", val)}
+                        options={FACILITY_TYPE_OPTIONS}
+                      />
                     </div>
 
                     {f.road_address ? (

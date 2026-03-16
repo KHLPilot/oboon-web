@@ -6,6 +6,7 @@ import { ChevronDown } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
+import Select from "@/components/ui/Select";
 import Textarea from "@/components/ui/Textarea";
 import {
   DropdownMenu,
@@ -13,7 +14,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/DropdownMenu";
+
 import type { FAQCategory, FAQEditor } from "@/features/admin/types/dashboard";
+
+const ACTIVE_OPTIONS = [
+  { label: "활성", value: "true" },
+  { label: "비활성", value: "false" },
+] as const;
 
 type FaqEditorModalProps = {
   faqEditor: FAQEditor | null;
@@ -119,34 +126,14 @@ export default function FaqEditorModal({
                 <span className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
                   노출 상태
                 </span>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="secondary"
-                      className="w-full justify-between rounded-xl"
-                      disabled={faqSaving}
-                    >
-                      <span>{faqEditor.isActive ? "활성" : "비활성"}</span>
-                      <ChevronDown className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-full min-w-[140px]">
-                    <DropdownMenuItem
-                      onClick={() =>
-                        setFaqEditor((prev) => (prev ? { ...prev, isActive: true } : prev))
-                      }
-                    >
-                      활성
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() =>
-                        setFaqEditor((prev) => (prev ? { ...prev, isActive: false } : prev))
-                      }
-                    >
-                      비활성
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <Select
+                  value={String(faqEditor.isActive)}
+                  onChange={(val) =>
+                    setFaqEditor((prev) => (prev ? { ...prev, isActive: val === "true" } : prev))
+                  }
+                  options={ACTIVE_OPTIONS}
+                  disabled={faqSaving}
+                />
               </label>
             </div>
           </div>

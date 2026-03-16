@@ -12,6 +12,8 @@ import Modal from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import BookingModal from "@/features/offerings/components/detail/BookingModal";
 import ConditionValidationCard from "@/features/offerings/components/detail/ConditionValidationCard";
+import type { ConditionRecommendationItem } from "@/features/condition-validation/domain/types";
+import { formatManwonWithEok, formatPercent } from "@/lib/format/currency";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { trackEvent } from "@/lib/analytics";
 
@@ -46,26 +48,6 @@ type RecommendationCustomerInput = {
   purchase_purpose: "residence" | "investment" | "both";
 };
 
-type RecommendationItem = {
-  property_id: number;
-  property_name: string | null;
-  property_type: string | null;
-  status: string | null;
-  image_url: string | null;
-  show_detailed_metrics?: boolean;
-  final_grade: "GREEN" | "YELLOW" | "RED";
-  action: string;
-  summary_message: string;
-  reason_messages: string[];
-  metrics: {
-    list_price: number;
-    min_cash: number;
-    recommended_cash: number;
-    monthly_payment_est: number;
-    monthly_burden_percent: number;
-  };
-};
-
 function pickFirst<T>(value: T | T[] | null | undefined): T | null {
   if (!value) return null;
   return Array.isArray(value) ? (value[0] ?? null) : value;
@@ -86,27 +68,7 @@ function toFiniteInteger(value: unknown): number | null {
   return null;
 }
 
-function formatManwonWithEok(value: number): string {
-  const rounded = Math.round(value);
-  if (rounded < 10000) {
-    return `${rounded.toLocaleString("ko-KR")}만원`;
-  }
-  const eok = Math.floor(rounded / 10000);
-  const restManwon = rounded % 10000;
-  if (restManwon === 0) {
-    return `${eok.toLocaleString("ko-KR")}억원`;
-  }
-  return `${eok.toLocaleString("ko-KR")}억 ${restManwon.toLocaleString("ko-KR")}만원`;
-}
-
-function formatPercent(value: number): string {
-  return `${value.toLocaleString("ko-KR", {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  })}%`;
-}
-
-function gradeMeta(grade: RecommendationItem["final_grade"]): {
+function gradeMeta(grade: ConditionRecommendationItem["final_grade"]): {
   label: string;
   badgeVariant: "success" | "warning" | "danger";
 } {
@@ -145,7 +107,7 @@ export default function OfferingDetailRight({
   const [conditionValidationPreset, setConditionValidationPreset] =
     useState<ConditionValidationPreset | null>(null);
   const [isRecommendModalOpen, setIsRecommendModalOpen] = useState(false);
-  const [recommendItems, setRecommendItems] = useState<RecommendationItem[]>([]);
+  const [recommendItems, setRecommendItems] = useState<ConditionRecommendationItem[]>([]);
   const [mobileConditionSlot, setMobileConditionSlot] = useState<HTMLElement | null>(null);
   const isLoggedIn = Boolean(user);
   const isBookingBlockedRole = userRole === "agent" || userRole === "admin";
@@ -199,7 +161,7 @@ export default function OfferingDetailRight({
       const payload = (await response.json().catch(() => null)) as
         | {
             ok?: boolean;
-            recommendations?: RecommendationItem[];
+            recommendations?: ConditionRecommendationItem[];
             error?: { message?: string };
           }
         | null;
@@ -265,9 +227,9 @@ export default function OfferingDetailRight({
               : "residence";
           const hasPreset =
             availableCash !== null &&
-            availableCash > 0 &&
+            availableCash >= 0 &&
             monthlyIncome !== null &&
-            monthlyIncome > 0 &&
+            monthlyIncome >= 0 &&
             ownedHouseCount >= 0;
           setConditionValidationPreset(
             hasPreset
@@ -553,6 +515,11 @@ export default function OfferingDetailRight({
                               >
                                 {grade.label}
                               </Badge>
+                              {typeof item.total_score === "number" ? (
+                                <Badge variant="primary" className="ml-1 px-2 py-0.5 ob-typo-caption">
+                                  매칭률 {Math.round(item.total_score)}%
+                                </Badge>
+                              ) : null}
                             </div>
                           </div>
 
@@ -593,7 +560,9 @@ export default function OfferingDetailRight({
                                 <div className="rounded-md border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-1.5">
                                   <div className="ob-typo-caption text-(--oboon-text-muted)">월 부담률</div>
                                   <div className="mt-0.5 ob-typo-body2 font-semibold text-(--oboon-text-title)">
-                                    {formatPercent(item.metrics.monthly_burden_percent)}
+                                    {item.metrics.monthly_burden_percent == null
+                                      ? "계산 불가"
+                                      : formatPercent(item.metrics.monthly_burden_percent)}
                                   </div>
                                 </div>
                               </div>

@@ -1,80 +1,37 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, ChevronDown } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Lock } from "lucide-react";
 
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
+import Select from "@/components/ui/Select";
 import { Badge } from "@/components/ui/Badge";
+import type {
+  ConditionEvaluationResponse,
+  FinalGrade,
+} from "@/features/condition-validation/domain/types";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/DropdownMenu";
-import { oboonFieldBaseClass } from "@/lib/ui/formFieldStyles";
+  parseCustomerInput,
+  type ParsedCustomerInput,
+} from "@/features/condition-validation/domain/validation";
+import {
+  formatManwonPreview,
+  formatManwonWithEok,
+  formatPercent,
+} from "@/lib/format/currency";
+const CREDIT_OPTIONS = [
+  { label: "양호", value: "good" },
+  { label: "보통", value: "normal" },
+  { label: "불안", value: "unstable" },
+] as const;
 
-type FinalGrade = "GREEN" | "YELLOW" | "RED";
-
-type EvaluationResponse = {
-  ok: boolean;
-  result?: {
-    final_grade: FinalGrade;
-    action: string;
-    reason_codes: string[];
-    reason_messages: string[];
-    summary_message: string;
-  };
-  metrics?: {
-    list_price: number;
-    contract_amount: number;
-    min_cash: number;
-    recommended_cash: number;
-    loan_ratio: number;
-    loan_amount: number;
-    interest_rate: number;
-    monthly_payment_est: number;
-    monthly_burden_ratio: number;
-    monthly_burden_percent: number;
-  };
-  warnings?: string[];
-  display?: {
-    show_detailed_metrics?: boolean;
-    price_visibility?: "public" | "non_public" | "unknown";
-  };
-  trace?: {
-    step1_cash_grade: FinalGrade;
-    step1_cash_reason_code:
-      | "CASH_BELOW_MIN"
-      | "CASH_BETWEEN_MIN_AND_RECOMMENDED"
-      | "CASH_ABOVE_RECOMMENDED";
-    step1_cash_reason_message: string;
-    step2_burden_grade: FinalGrade;
-    step2_burden_reason_code: "BURDEN_WARNING_40_TO_50" | "BURDEN_HIGH_OVER_50" | null;
-    step2_burden_reason_message: string | null;
-    step3_risk_grade: FinalGrade;
-    step3_risk_reason_codes: Array<
-      | "RISK_MULTI_HOME_REGULATED"
-      | "RISK_CREDIT_UNSTABLE"
-      | "RISK_INVESTMENT_TRANSFER_LIMITED"
-    >;
-    step3_risk_reason_messages: string[];
-  };
-  error?: {
-    code?: string;
-    message?: string;
-    field_errors?: Record<string, string[] | undefined>;
-  };
-};
-
-type RecommendationCustomerInput = {
-  available_cash: number;
-  monthly_income: number;
-  owned_house_count: number;
-  credit_grade: "good" | "normal" | "unstable";
-  purchase_purpose: "residence" | "investment" | "both";
-};
+const PURPOSE_OPTIONS = [
+  { label: "실거주", value: "residence" },
+  { label: "투자", value: "investment" },
+  { label: "둘다", value: "both" },
+] as const;
 
 type ConditionValidationCardProps = {
   propertyId?: number;
@@ -91,14 +48,10 @@ type ConditionValidationCardProps = {
   isBookingBlockedRole: boolean;
   onConsultationRequest: () => void;
   onAlternativeRecommendRequest: (
-    customer: RecommendationCustomerInput,
+    customer: ParsedCustomerInput,
   ) => Promise<void> | void;
   onLoginRequest: () => void;
 };
-
-function parseNumericInput(value: string): number {
-  return Number(value.replaceAll(",", "").trim());
-}
 
 function formatNumericInput(value: string): string {
   const digitsOnly = value.replace(/[^\d]/g, "");
@@ -114,54 +67,6 @@ function parseNullableNumericInput(value: string): number | null {
   return parsed;
 }
 
-function formatManwonWithEok(value: number): string {
-  const rounded = Math.round(value);
-  if (rounded < 10000) {
-    return `${rounded.toLocaleString("ko-KR")}만원`;
-  }
-
-  const eok = Math.floor(rounded / 10000);
-  const restManwon = rounded % 10000;
-
-  if (restManwon === 0) {
-    return `${eok.toLocaleString("ko-KR")}억원`;
-  }
-
-  return `${eok.toLocaleString("ko-KR")}억 ${restManwon.toLocaleString("ko-KR")}만원`;
-}
-
-function formatManwonPreview(value: string): string {
-  const parsed = parseNullableNumericInput(value);
-  if (parsed === null) {
-    return "";
-  }
-
-  const manwon = Math.round(parsed);
-  if (manwon < 10000) {
-    return `${manwon.toLocaleString("ko-KR")}만원`;
-  }
-
-  const eok = Math.floor(manwon / 10000);
-  const restManwon = manwon % 10000;
-
-  if (restManwon === 0) {
-    return `${eok.toLocaleString("ko-KR")}억원`;
-  }
-
-  if (restManwon % 1000 === 0) {
-    return `${eok.toLocaleString("ko-KR")}억 ${restManwon / 1000}천만원`;
-  }
-
-  return `${eok.toLocaleString("ko-KR")}억 ${restManwon.toLocaleString("ko-KR")}만원`;
-}
-
-function formatPercent(value: number): string {
-  return `${value.toLocaleString("ko-KR", {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  })}%`;
-}
-
 function gradeMeta(grade: FinalGrade): {
   label: string;
   badgeVariant: "success" | "warning" | "danger";
@@ -173,6 +78,12 @@ function gradeMeta(grade: FinalGrade): {
     return { label: "상담 권장", badgeVariant: "warning" };
   }
   return { label: "리스크 높음", badgeVariant: "danger" };
+}
+
+function scoreToneClass(grade: FinalGrade): string {
+  if (grade === "GREEN") return "text-(--oboon-safe)";
+  if (grade === "YELLOW") return "text-(--oboon-warning)";
+  return "text-(--oboon-danger)";
 }
 
 function categoryCardClass(grade: FinalGrade): string {
@@ -207,13 +118,14 @@ export default function ConditionValidationCard({
   const [loading, setLoading] = useState(false);
   const [recommendLoading, setRecommendLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [response, setResponse] = useState<EvaluationResponse | null>(null);
+  const [response, setResponse] = useState<ConditionEvaluationResponse | null>(null);
   const [appliedPresetKey, setAppliedPresetKey] = useState<string | null>(null);
   const [showResultDetails, setShowResultDetails] = useState(false);
 
   const result = response?.ok ? response.result : undefined;
   const metrics = response?.ok ? response.metrics : undefined;
-  const trace = response?.ok ? response.trace : undefined;
+  const categories = response?.ok ? response.categories : undefined;
+  const isMasked = response?.ok ? response.display?.masked === true : false;
   const shouldShowDetailedMetrics = response?.ok
     ? response.display?.show_detailed_metrics !== false
     : true;
@@ -230,8 +142,18 @@ export default function ConditionValidationCard({
   const hasPresetCustomer = Boolean(presetCustomer && presetKey);
   const showInputSection = isInputSectionVisible || (!result && !hasPresetCustomer);
   const showModifyButton = !showInputSection;
-  const availableCashPreview = formatManwonPreview(availableCash);
-  const monthlyIncomePreview = formatManwonPreview(monthlyIncome);
+  const availableCashPreviewValue = parseNullableNumericInput(availableCash);
+  const monthlyIncomePreviewValue = parseNullableNumericInput(monthlyIncome);
+  const availableCashPreview =
+    availableCashPreviewValue === null ? "" : formatManwonPreview(availableCashPreviewValue);
+  const monthlyIncomePreview =
+    monthlyIncomePreviewValue === null ? "" : formatManwonPreview(monthlyIncomePreviewValue);
+  let monthlyBurdenPercentLabel = "계산 불가";
+  if (isMasked) {
+    monthlyBurdenPercentLabel = "비공개";
+  } else if (metrics && metrics.monthly_burden_percent !== null) {
+    monthlyBurdenPercentLabel = formatPercent(metrics.monthly_burden_percent);
+  }
 
   useEffect(() => {
     if (!presetCustomer || !presetKey) return;
@@ -252,43 +174,21 @@ export default function ConditionValidationCard({
     setShowResultDetails(false);
   }, [response]);
 
-  const parseCustomerInput = (): RecommendationCustomerInput | null => {
-    const availableCashNum = parseNumericInput(availableCash);
-    const monthlyIncomeNum = parseNumericInput(monthlyIncome);
-    const ownedHouseCountNum = parseNumericInput(ownedHouseCount || "0");
+  const parseCustomerInputFromState = (): ParsedCustomerInput | null => {
+    const parsed = parseCustomerInput({
+      availableCash,
+      monthlyIncome,
+      ownedHouseCount,
+      creditGrade,
+      purchasePurpose,
+    });
 
-    if (!Number.isFinite(availableCashNum) || availableCashNum <= 0) {
-      setErrorMessage("가용 현금을 올바르게 입력해주세요.");
-      return null;
-    }
-    if (!Number.isInteger(availableCashNum)) {
-      setErrorMessage("가용 현금은 만원 단위 정수로 입력해주세요.");
-      return null;
-    }
-    if (!Number.isFinite(monthlyIncomeNum) || monthlyIncomeNum <= 0) {
-      setErrorMessage("월 소득을 올바르게 입력해주세요.");
-      return null;
-    }
-    if (!Number.isInteger(monthlyIncomeNum)) {
-      setErrorMessage("월 소득은 만원 단위 정수로 입력해주세요.");
-      return null;
-    }
-    if (
-      !Number.isFinite(ownedHouseCountNum) ||
-      ownedHouseCountNum < 0 ||
-      !Number.isInteger(ownedHouseCountNum)
-    ) {
-      setErrorMessage("보유 주택 수는 0 이상의 정수로 입력해주세요.");
+    if (!parsed.ok) {
+      setErrorMessage(parsed.error);
       return null;
     }
 
-    return {
-      available_cash: availableCashNum,
-      monthly_income: monthlyIncomeNum,
-      owned_house_count: ownedHouseCountNum,
-      credit_grade: creditGrade,
-      purchase_purpose: purchasePurpose,
-    };
+    return parsed.data;
   };
 
   const handleEvaluate = async () => {
@@ -299,7 +199,7 @@ export default function ConditionValidationCard({
       return;
     }
 
-    const customer = parseCustomerInput();
+    const customer = parseCustomerInputFromState();
     if (!customer) {
       return;
     }
@@ -321,7 +221,7 @@ export default function ConditionValidationCard({
         }),
       });
 
-      const data = (await res.json().catch(() => null)) as EvaluationResponse | null;
+      const data = (await res.json().catch(() => null)) as ConditionEvaluationResponse | null;
 
       if (!res.ok || !data?.ok) {
         const fieldError = data?.error?.field_errors
@@ -355,7 +255,7 @@ export default function ConditionValidationCard({
 
   const handleAlternativeRecommend = async () => {
     setErrorMessage(null);
-    const customer = parseCustomerInput();
+    const customer = parseCustomerInputFromState();
     if (!customer) return;
 
     setRecommendLoading(true);
@@ -462,91 +362,21 @@ export default function ConditionValidationCard({
                 <label className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
                   신용
                 </label>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      className={[
-                        oboonFieldBaseClass,
-                        "inline-flex items-center justify-between",
-                      ].join(" ")}
-                    >
-                      <span>
-                        {creditGrade === "good"
-                          ? "양호"
-                          : creditGrade === "normal"
-                            ? "보통"
-                            : "불안"}
-                      </span>
-                      <ChevronDown className="h-4 w-4 text-(--oboon-text-muted)" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" matchTriggerWidth>
-                    <DropdownMenuItem
-                      className={creditGrade === "good" ? "bg-(--oboon-bg-subtle)" : ""}
-                      onClick={() => setCreditGrade("good")}
-                    >
-                      양호
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className={creditGrade === "normal" ? "bg-(--oboon-bg-subtle)" : ""}
-                      onClick={() => setCreditGrade("normal")}
-                    >
-                      보통
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className={creditGrade === "unstable" ? "bg-(--oboon-bg-subtle)" : ""}
-                      onClick={() => setCreditGrade("unstable")}
-                    >
-                      불안
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <Select
+                  value={creditGrade}
+                  onChange={setCreditGrade}
+                  options={CREDIT_OPTIONS}
+                />
               </div>
               <div>
                 <label className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
                   목적
                 </label>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      className={[
-                        oboonFieldBaseClass,
-                        "inline-flex items-center justify-between",
-                      ].join(" ")}
-                    >
-                      <span>
-                        {purchasePurpose === "residence"
-                          ? "실거주"
-                          : purchasePurpose === "investment"
-                            ? "투자"
-                            : "둘다"}
-                      </span>
-                      <ChevronDown className="h-4 w-4 text-(--oboon-text-muted)" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" matchTriggerWidth>
-                    <DropdownMenuItem
-                      className={purchasePurpose === "residence" ? "bg-(--oboon-bg-subtle)" : ""}
-                      onClick={() => setPurchasePurpose("residence")}
-                    >
-                      실거주
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className={purchasePurpose === "investment" ? "bg-(--oboon-bg-subtle)" : ""}
-                      onClick={() => setPurchasePurpose("investment")}
-                    >
-                      투자
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className={purchasePurpose === "both" ? "bg-(--oboon-bg-subtle)" : ""}
-                      onClick={() => setPurchasePurpose("both")}
-                    >
-                      둘다
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <Select
+                  value={purchasePurpose}
+                  onChange={setPurchasePurpose}
+                  options={PURPOSE_OPTIONS}
+                />
               </div>
             </div>
           </div>
@@ -579,16 +409,24 @@ export default function ConditionValidationCard({
         </div>
       ) : null}
 
-      {result && metrics ? (
+      {result ? (
         <div className="mt-3 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-3">
           <div className="flex items-start justify-between gap-2 text-(--oboon-text-title)">
             <div className="flex items-center gap-1.5">
               <CheckCircle2 className="h-4 w-4" />
               <span className="ob-typo-body">{result.summary_message}</span>
             </div>
-            <Badge variant={gradeMeta(result.final_grade).badgeVariant}>
-              {gradeMeta(result.final_grade).label}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <div className="text-right">
+                <div className={["ob-typo-subtitle font-semibold", scoreToneClass(result.final_grade)].join(" ")}>
+                  매칭률 {Math.round(result.total_score)}%
+                </div>
+                <div className="ob-typo-caption text-(--oboon-text-muted)">조건 적합도</div>
+              </div>
+              <Badge variant={gradeMeta(result.final_grade).badgeVariant}>
+                {gradeMeta(result.final_grade).label}
+              </Badge>
+            </div>
           </div>
 
           {result.reason_messages.length > 0 ? (
@@ -601,7 +439,7 @@ export default function ConditionValidationCard({
             </div>
           ) : null}
 
-          {trace || shouldShowDetailedMetrics ? (
+          {categories || shouldShowDetailedMetrics || isMasked ? (
             <Button
               className="mt-3 w-full"
               variant="secondary"
@@ -612,77 +450,135 @@ export default function ConditionValidationCard({
             </Button>
           ) : null}
 
-          {showResultDetails && trace ? (
+          {showResultDetails && categories ? (
             <div className="mt-3">
               <div className="ob-typo-caption text-(--oboon-text-muted)">카테고리 결과</div>
-              <div className="mt-2 space-y-2">
-                <div className={`rounded-md border p-2 ${categoryCardClass(trace.step1_cash_grade)}`}>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="ob-typo-body font-semibold text-(--oboon-text-title)">자금</span>
-                    <Badge variant="status">
-                      {gradeMeta(trace.step1_cash_grade).label}
-                    </Badge>
+              <div className="relative mt-2">
+                <div className={isMasked ? "pointer-events-none select-none blur-[6px]" : ""}>
+                  <div className="space-y-2">
+                    <div className={`rounded-md border p-2 ${categoryCardClass(categories.cash.grade)}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="ob-typo-body font-semibold text-(--oboon-text-title)">자금</span>
+                        <div className="flex items-center gap-2">
+                          <span className="ob-typo-caption font-semibold text-(--oboon-text-title)">
+                            {categories.cash.score ?? 0} / {categories.cash.max_score}
+                          </span>
+                          <Badge variant="status">
+                            {gradeMeta(categories.cash.grade).label}
+                          </Badge>
+                        </div>
+                      </div>
+                      <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+                        {categories.cash.reason_message ?? "로그인 후 자금 분석을 확인할 수 있어요."}
+                      </p>
+                    </div>
+
+                    <div className={`rounded-md border p-2 ${categoryCardClass(categories.burden.grade)}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="ob-typo-body font-semibold text-(--oboon-text-title)">월 부담</span>
+                        <div className="flex items-center gap-2">
+                          <span className="ob-typo-caption font-semibold text-(--oboon-text-title)">
+                            {categories.burden.score ?? 0} / {categories.burden.max_score}
+                          </span>
+                          <Badge variant="status">
+                            {gradeMeta(categories.burden.grade).label}
+                          </Badge>
+                        </div>
+                      </div>
+                      <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+                        {categories.burden.reason_message ?? "로그인 후 월부담 분석을 확인할 수 있어요."}
+                      </p>
+                    </div>
+
+                    <div className={`rounded-md border p-2 ${categoryCardClass(categories.risk.grade)}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="ob-typo-body font-semibold text-(--oboon-text-title)">리스크</span>
+                        <div className="flex items-center gap-2">
+                          <span className="ob-typo-caption font-semibold text-(--oboon-text-title)">
+                            {categories.risk.score ?? 0} / {categories.risk.max_score}
+                          </span>
+                          <Badge variant="status">
+                            {gradeMeta(categories.risk.grade).label}
+                          </Badge>
+                        </div>
+                      </div>
+                      <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+                        {categories.risk.reason_message ?? "로그인 후 리스크 분석을 확인할 수 있어요."}
+                      </p>
+                    </div>
                   </div>
-                  <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
-                    {trace.step1_cash_reason_message}
-                  </p>
                 </div>
 
-                <div className={`rounded-md border p-2 ${categoryCardClass(trace.step2_burden_grade)}`}>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="ob-typo-body font-semibold text-(--oboon-text-title)">월 부담</span>
-                    <Badge variant="status">
-                      {gradeMeta(trace.step2_burden_grade).label}
-                    </Badge>
-                  </div>
-                  <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
-                    {trace.step2_burden_reason_message ?? "월 부담이 40% 이하입니다."}
-                  </p>
-                </div>
-
-                <div className={`rounded-md border p-2 ${categoryCardClass(trace.step3_risk_grade)}`}>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="ob-typo-body font-semibold text-(--oboon-text-title)">위험 요인</span>
-                    <Badge variant="status">
-                      {gradeMeta(trace.step3_risk_grade).label}
-                    </Badge>
-                  </div>
-                  <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
-                    {trace.step3_risk_reason_messages.length > 0
-                      ? trace.step3_risk_reason_messages.join(" · ")
-                      : "추가 리스크 없음"}
-                  </p>
-                </div>
+                {isMasked ? (
+                  <button
+                    type="button"
+                    onClick={onLoginRequest}
+                    className="absolute inset-0 flex items-center justify-center rounded-xl border border-dashed border-(--oboon-border-default) bg-black/45 px-4 text-center backdrop-blur-[1px]"
+                  >
+                    <div>
+                      <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white">
+                        <Lock className="h-4 w-4" />
+                      </div>
+                      <p className="mt-2 ob-typo-body font-semibold text-white">
+                        로그인하면 상세 분석을 볼 수 있어요
+                      </p>
+                      <p className="mt-1 ob-typo-caption text-white/75">
+                        상세 분석과 판단 근거를 바로 확인할 수 있습니다.
+                      </p>
+                    </div>
+                  </button>
+                ) : null}
               </div>
             </div>
           ) : null}
 
-          {showResultDetails && shouldShowDetailedMetrics ? (
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <div className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-2">
-                <div className="ob-typo-caption text-(--oboon-text-muted)">최소 필요 현금</div>
-                <div className="mt-1 ob-typo-body text-(--oboon-text-title)">
-                  {formatManwonWithEok(metrics.min_cash)}
+          {showResultDetails && (shouldShowDetailedMetrics || isMasked) ? (
+            <div className="relative mt-3">
+              <div className={isMasked ? "pointer-events-none select-none blur-[6px]" : ""}>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-2">
+                    <div className="ob-typo-caption text-(--oboon-text-muted)">최소 필요 현금</div>
+                    <div className="mt-1 ob-typo-body text-(--oboon-text-title)">
+                      {metrics?.min_cash == null ? "비공개" : formatManwonWithEok(metrics.min_cash)}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-2">
+                    <div className="ob-typo-caption text-(--oboon-text-muted)">권장 현금</div>
+                    <div className="mt-1 ob-typo-body text-(--oboon-text-title)">
+                      {metrics?.recommended_cash == null ? "비공개" : formatManwonWithEok(metrics.recommended_cash)}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-2">
+                    <div className="ob-typo-caption text-(--oboon-text-muted)">예상 월상환</div>
+                    <div className="mt-1 ob-typo-body text-(--oboon-text-title)">
+                      {metrics?.monthly_payment_est == null ? "비공개" : formatManwonWithEok(metrics.monthly_payment_est)}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-2">
+                    <div className="ob-typo-caption text-(--oboon-text-muted)">월 부담률</div>
+                    <div className="mt-1 ob-typo-body text-(--oboon-text-title)">
+                      {monthlyBurdenPercentLabel}
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-2">
-                <div className="ob-typo-caption text-(--oboon-text-muted)">권장 현금</div>
-                <div className="mt-1 ob-typo-body text-(--oboon-text-title)">
-                  {formatManwonWithEok(metrics.recommended_cash)}
-                </div>
-              </div>
-              <div className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-2">
-                <div className="ob-typo-caption text-(--oboon-text-muted)">예상 월상환</div>
-                <div className="mt-1 ob-typo-body text-(--oboon-text-title)">
-                  {formatManwonWithEok(metrics.monthly_payment_est)}
-                </div>
-              </div>
-              <div className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-2">
-                <div className="ob-typo-caption text-(--oboon-text-muted)">월 부담률</div>
-                <div className="mt-1 ob-typo-body text-(--oboon-text-title)">
-                  {formatPercent(metrics.monthly_burden_percent)}
-                </div>
-              </div>
+
+              {isMasked ? (
+                <button
+                  type="button"
+                  onClick={onLoginRequest}
+                  className="absolute inset-0 flex items-center justify-center rounded-xl border border-dashed border-(--oboon-border-default) bg-black/45 px-4 text-center backdrop-blur-[1px]"
+                >
+                  <div>
+                    <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white">
+                      <Lock className="h-4 w-4" />
+                    </div>
+                    <p className="mt-2 ob-typo-body font-semibold text-white">
+                      로그인하면 상세 분석을 볼 수 있어요
+                    </p>
+                  </div>
+                </button>
+              ) : null}
             </div>
           ) : null}
 

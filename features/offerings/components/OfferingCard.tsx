@@ -4,24 +4,23 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import type { FocusEventHandler, MouseEventHandler } from "react";
 
 import type { Offering } from "@/types/index";
 import { ROUTES } from "@/types/index";
 
 import Card from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import type {
+  ConditionCategoryGrades,
+  FinalGrade,
+} from "@/features/condition-validation/domain/types";
 import { UXCopy } from "@/shared/uxCopy";
 import { formatPriceRange } from "@/shared/price";
 import { trackEvent } from "@/lib/analytics";
+import { cn } from "@/lib/utils/cn";
 
 import OfferingBadge from "./OfferingBadges";
-
-type ConditionGrade = "GREEN" | "YELLOW" | "RED";
-type ConditionCategoryGrades = {
-  cash: ConditionGrade;
-  burden: ConditionGrade;
-  risk: ConditionGrade;
-};
 
 function isLikelyImageUrl(url: string | null | undefined) {
   if (!url) return false;
@@ -29,24 +28,52 @@ function isLikelyImageUrl(url: string | null | undefined) {
   return /\.(jpg|jpeg|png|webp|gif|avif|svg)(\?.*)?$/i.test(url);
 }
 
-function gradeText(grade: ConditionGrade): "안전" | "경계" | "위험" {
+function gradeText(grade: FinalGrade): "안전" | "경계" | "위험" {
   if (grade === "GREEN") return "안전";
   if (grade === "YELLOW") return "경계";
   return "위험";
 }
 
-function gradeClass(grade: ConditionGrade): string {
+function riskGradeText(grade: FinalGrade): "안전" | "경계" | "위험" {
+  if (grade === "GREEN") return "안전";
+  if (grade === "YELLOW") return "경계";
+  return "위험";
+}
+
+function gradeClass(grade: FinalGrade): string {
   if (grade === "GREEN") return "border-(--oboon-safe-border) bg-(--oboon-safe-bg) text-(--oboon-safe-text)";
   if (grade === "YELLOW") return "border-(--oboon-warning-border) bg-(--oboon-warning-bg) text-(--oboon-warning-text)";
   return "border-(--oboon-danger-border) bg-(--oboon-danger-bg) text-(--oboon-danger-text)";
 }
 
+function matchRateBarClass(totalScore?: number): string {
+  if ((totalScore ?? 0) >= 80) return "bg-(--oboon-safe)";
+  if ((totalScore ?? 0) >= 50) return "bg-(--oboon-warning)";
+  return "bg-(--oboon-danger)";
+}
+
 export default function OfferingCard({
   offering,
   conditionCategories,
+  isSelected = false,
+  onMouseEnter,
+  onFocusCapture,
+  interactionMode = "link",
+  onCardClick,
+  cardAriaLabel,
+  disableHover = false,
+  compactLayout = false,
 }: {
   offering: Offering;
   conditionCategories?: ConditionCategoryGrades | null;
+  isSelected?: boolean;
+  onMouseEnter?: MouseEventHandler<HTMLElement>;
+  onFocusCapture?: FocusEventHandler<HTMLElement>;
+  interactionMode?: "link" | "button";
+  onCardClick?: () => void;
+  cardAriaLabel?: string;
+  disableHover?: boolean;
+  compactLayout?: boolean;
 }) {
   const priceRange = formatPriceRange(
     offering.priceMin억,
@@ -66,24 +93,36 @@ export default function OfferingCard({
   // 지역 배지 값: 프로젝트 내 Offering 형태가 섞여있을 수 있어 안전하게 폴백 처리
   const regionBadge =
     offering.regionLabel ?? offering.region ?? UXCopy.regionShort;
-
-  return (
-    <Link
-      href={ROUTES.offerings.detail(offering.id)}
-      className="group block h-full"
-      onClick={() => trackEvent("property_view", { property_id: offering.id })}
+  const isConditionMatchedCard = Boolean(conditionCategories);
+  const cardContent = (
+    <Card
+      className={cn(
+        "h-full overflow-hidden p-0",
+        !disableHover &&
+          "transition duration-200 group-hover:-translate-y-0.5 group-hover:shadow-md",
+        isConditionMatchedCard &&
+          "border-(--oboon-border-strong) bg-(--oboon-bg-surface)",
+        isSelected && "border-(--oboon-primary) ring-1 ring-(--oboon-primary)",
+      )}
     >
-      {/* hover shadow 책임은 Card로 (정책 일관성) */}
-      <Card className="h-full p-0 overflow-hidden transition hover:shadow-md">
-        {/* 이미지 영역 */}
-        <div className="relative aspect-video w-full bg-(--oboon-bg-subtle)">
+      <div className={isConditionMatchedCard ? "flex h-full flex-col" : ""}>
+        <div
+          className={[
+            "relative w-full bg-(--oboon-bg-subtle)",
+            "aspect-video",
+          ].join(" ")}
+        >
           {hasValidImage ? (
             <Image
               src={normalizedImageUrl}
               alt={offering.title || "offering"}
               fill
               sizes="(max-width: 768px) 100vw, 33vw"
-              className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+              className={cn(
+                "object-cover",
+                !disableHover &&
+                  "transition-transform duration-300 group-hover:scale-[1.03]",
+              )}
               priority={false}
             />
           ) : (
@@ -95,69 +134,174 @@ export default function OfferingCard({
             </div>
           )}
 
-          {/* 좌상단 배지 */}
-          <div className="absolute left-3 top-3 flex items-center gap-2">
-            {/* 지역 배지 */}
-            <OfferingBadge type="region" value={regionBadge} />
+          {isConditionMatchedCard ? (
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-linear-to-t from-black/45 via-black/15 to-transparent" />
+          ) : null}
 
-            {/* 상태 배지 */}
+          <div className="absolute left-3 top-3 flex flex-wrap items-center gap-1.5">
+            <OfferingBadge
+              type="region"
+              value={regionBadge}
+            />
             <OfferingBadge
               type="status"
               value={offering.statusValue ?? undefined}
             />
-            {offering.hasAppraiserComment ? (
+            {!isConditionMatchedCard && offering.hasAppraiserComment ? (
               <Badge variant="primary" className="border-(--oboon-primary)">
                 감정 평가
               </Badge>
             ) : null}
-
-            {/* type / tag 확장 */}
-            {/*
-                {offering.type ? (
-                  <span className="shrink-0 rounded-full bg-(--oboon-bg-surface)/80 px-2.5 py-1 text-[11px] font-semibold text-(--oboon-text-muted) backdrop-blur">
-                    {offering.type}
-                  </span>
-                ) : null}
-                 */}
           </div>
         </div>
 
-        {/* 텍스트/배지 영역 */}
-        <div className="px-4 pt-4 pb-4 sm:px-4 sm:pt-4 sm:pb-4">
-          <h3 className="ob-typo-h3 text-(--oboon-text-title) line-clamp-2">
-            {offering.title}
-          </h3>
+        {isConditionMatchedCard && conditionCategories ? (
+          <div
+            className={cn(
+              "flex flex-1 px-3",
+              compactLayout ? "gap-3 py-3" : "gap-3.5 py-3.5",
+            )}
+          >
+            <div
+              className={[
+                "w-[3px] shrink-0 rounded-full",
+                matchRateBarClass(conditionCategories.totalScore),
+              ].join(" ")}
+            />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-end gap-1.5">
+                <span className="ob-typo-subtitle leading-none font-semibold text-(--oboon-text-title)">
+                  {Math.round(conditionCategories.totalScore ?? 0)}%
+                </span>
+                <span className="ob-typo-caption pb-0.5 font-medium text-(--oboon-text-muted)">
+                  매칭률
+                </span>
+              </div>
 
-          <p className="mt-0.5 sm:mt-1 ob-typo-body text-(--oboon-text-muted)">
-            {offering.addressShort}
-          </p>
+              <div className={cn(compactLayout ? "mt-2 min-h-[56px]" : "mt-3 min-h-[76px]")}>
+                <h3 className="line-clamp-2 ob-typo-h3 text-(--oboon-text-title)">
+                  {offering.title}
+                </h3>
 
-          <div className="mt-3 sm:mt-4 flex items-end justify-between gap-3">
-            <div>
-              <p className="ob-typo-subtitle text-(--oboon-text-title)">
-                {priceRange}
-              </p>
-              <p className="mt-0.5 ob-typo-caption text-(--oboon-text-muted)">
-                분양가 기준
-              </p>
+                <p
+                  className={cn(
+                    "line-clamp-1 ob-typo-body text-(--oboon-text-muted)",
+                    compactLayout ? "mt-0.5" : "mt-1",
+                  )}
+                >
+                  {offering.addressShort}
+                </p>
+              </div>
+
+              <div
+                className={cn(
+                  "h-px w-full bg-(--oboon-border-default)",
+                  compactLayout ? "mt-2" : "mt-3",
+                )}
+              />
+
+              <div className={compactLayout ? "mt-2" : "mt-3"}>
+                <p className="ob-typo-subtitle text-(--oboon-text-title)">
+                  {priceRange}
+                </p>
+                <p
+                  className={cn(
+                    "ob-typo-caption text-(--oboon-text-muted)",
+                    compactLayout ? "mt-0" : "mt-0.5",
+                  )}
+                >
+                  분양가 기준
+                </p>
+              </div>
+
+              <div
+                className={cn(
+                  "flex flex-wrap gap-1.5",
+                  compactLayout ? "mt-2" : "mt-3",
+                )}
+              >
+                <span className={["rounded-full border px-2 py-0.5 ob-typo-caption", gradeClass(conditionCategories.cash.grade)].join(" ")}>
+                  자금 {gradeText(conditionCategories.cash.grade)}
+                </span>
+                <span className={["rounded-full border px-2 py-0.5 ob-typo-caption", gradeClass(conditionCategories.burden.grade)].join(" ")}>
+                  부담 {gradeText(conditionCategories.burden.grade)}
+                </span>
+                <span className={["rounded-full border px-2 py-0.5 ob-typo-caption", gradeClass(conditionCategories.risk.grade)].join(" ")}>
+                  리스크 {riskGradeText(conditionCategories.risk.grade)}
+                </span>
+              </div>
             </div>
           </div>
+        ) : (
+          <div className="px-4 pt-4 pb-4 sm:px-4 sm:pt-4 sm:pb-4">
+            <div className="min-h-[76px]">
+              <h3 className="ob-typo-h3 text-(--oboon-text-title) line-clamp-2">
+                {offering.title}
+              </h3>
 
-          {conditionCategories ? (
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              <span className={["rounded-full border px-2 py-0.5 ob-typo-caption", gradeClass(conditionCategories.cash)].join(" ")}>
-                자금 {gradeText(conditionCategories.cash)}
-              </span>
-              <span className={["rounded-full border px-2 py-0.5 ob-typo-caption", gradeClass(conditionCategories.burden)].join(" ")}>
-                부담 {gradeText(conditionCategories.burden)}
-              </span>
-              <span className={["rounded-full border px-2 py-0.5 ob-typo-caption", gradeClass(conditionCategories.risk)].join(" ")}>
-                위험 {gradeText(conditionCategories.risk)}
-              </span>
+              <p className="mt-0.5 sm:mt-1 line-clamp-1 ob-typo-body text-(--oboon-text-muted)">
+                {offering.addressShort}
+              </p>
             </div>
-          ) : null}
-        </div>
-      </Card>
+
+            <div className="mt-3 sm:mt-4 flex items-end justify-between gap-3">
+              <div>
+                <p className="ob-typo-subtitle text-(--oboon-text-title)">
+                  {priceRange}
+                </p>
+                <p className="mt-0.5 ob-typo-caption text-(--oboon-text-muted)">
+                  분양가 기준
+                </p>
+              </div>
+            </div>
+
+            {conditionCategories ? (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                <span className={["rounded-full border px-2 py-0.5 ob-typo-caption", gradeClass(conditionCategories.cash.grade)].join(" ")}>
+                  자금 {gradeText(conditionCategories.cash.grade)}
+                </span>
+                <span className={["rounded-full border px-2 py-0.5 ob-typo-caption", gradeClass(conditionCategories.burden.grade)].join(" ")}>
+                  부담 {gradeText(conditionCategories.burden.grade)}
+                </span>
+                <span className={["rounded-full border px-2 py-0.5 ob-typo-caption", gradeClass(conditionCategories.risk.grade)].join(" ")}>
+                  리스크 {riskGradeText(conditionCategories.risk.grade)}
+                </span>
+              </div>
+            ) : null}
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+
+  if (interactionMode === "button") {
+    return (
+      <button
+        type="button"
+        className="group block h-full w-full rounded-2xl border-0 bg-transparent p-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--oboon-primary)/35"
+        onClick={onCardClick}
+        onMouseEnter={onMouseEnter}
+        onFocusCapture={onFocusCapture}
+        aria-label={cardAriaLabel}
+        aria-pressed={isSelected}
+      >
+        {cardContent}
+      </button>
+    );
+  }
+
+  return (
+    <Link
+      href={ROUTES.offerings.detail(offering.id)}
+      className="group block h-full rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--oboon-primary)/35"
+      onClick={() => {
+        trackEvent("property_view", { property_id: offering.id });
+        onCardClick?.();
+      }}
+      onMouseEnter={onMouseEnter}
+      onFocusCapture={onFocusCapture}
+    >
+      {cardContent}
     </Link>
   );
 }

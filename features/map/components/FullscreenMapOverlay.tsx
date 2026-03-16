@@ -132,6 +132,7 @@ export default function FullscreenMapOverlay({
               markers={markers}
               hoveredId={hoveredId}
               focusedId={focusedId}
+              showFocusedAsRich={false}
               onHoverChange={onHoverChange}
               onClearFocus={() => onSelect(0)}
               onMarkerSelect={(id) => onSelect(id)}

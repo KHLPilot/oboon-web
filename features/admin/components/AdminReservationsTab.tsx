@@ -1,18 +1,13 @@
 "use client";
 
-import { ChevronDown, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
+import Select from "@/components/ui/Select";
 import { Badge } from "@/components/ui/Badge";
 import Input from "@/components/ui/Input";
 import OboonDatePicker from "@/components/ui/DatePicker";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/DropdownMenu";
 import { AdminTd, AdminTh } from "@/features/admin/components/AdminTable";
 import AdminAvatar from "@/features/admin/components/AdminAvatar";
 import type { ReservationRow } from "@/features/admin/types/dashboard";
@@ -91,25 +86,11 @@ export default function AdminReservationsTab({
       </div>
 
       <div className="grid grid-cols-1 items-center gap-3 sm:grid-cols-3">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="secondary" size="md" className="w-full justify-between">
-              <span>
-                {reservationStatus === "all"
-                  ? "모든 상태"
-                  : reservationStatusLabel[reservationStatus] || reservationStatus}
-              </span>
-              <ChevronDown className="h-4 w-4 text-(--oboon-text-muted)" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" matchTriggerWidth>
-            {RESERVATION_STATUS_OPTIONS.map((option) => (
-              <DropdownMenuItem key={option.value} onClick={() => onSelectStatus(option.value)}>
-                {option.label}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <Select
+          value={reservationStatus}
+          onChange={onSelectStatus}
+          options={RESERVATION_STATUS_OPTIONS}
+        />
 
         <OboonDatePicker
           selected={reservationDate}

@@ -15,6 +15,20 @@ export const OFFERING_STATUS_LABEL: Record<
   CLOSED: "분양 종료",
 };
 
+export const GYEONGGI_NORTH_CITIES: readonly string[] = [
+  "고양시",
+  "김포시",
+  "동두천시",
+  "양주시",
+  "의정부시",
+  "파주시",
+  "포천시",
+  "연천군",
+  "가평군",
+  "구리시",
+  "남양주시",
+];
+
 export function isOfferingStatusValue(v: string): v is OfferingStatusValue {
   return (OFFERING_STATUS_VALUES as readonly string[]).includes(v);
 }

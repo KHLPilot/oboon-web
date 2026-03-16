@@ -137,6 +137,19 @@ export default function RootLayout({
   return (
     <html lang="ko" className={suit.variable} suppressHydrationWarning>
       <head>
+        {process.env.NODE_ENV === "development" && (
+          <Script
+            src="//unpkg.com/react-grab/dist/index.global.js"
+            crossOrigin="anonymous"
+            strategy="beforeInteractive"
+          />
+        )}
+        {process.env.NODE_ENV === "development" && (
+          <Script
+            src="//unpkg.com/@react-grab/mcp/dist/client.global.js"
+            strategy="lazyOnload"
+          />
+        )}
         <Script id="theme-init" strategy="beforeInteractive">
           {`
             (function () {

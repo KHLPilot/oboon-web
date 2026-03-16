@@ -8,6 +8,8 @@ import {
 } from "@/features/offerings/domain/offering.constants";
 
 type PropertyLocationRow = {
+  lat?: number | string | null;
+  lng?: number | string | null;
   road_address: string | null;
   jibun_address: string | null;
   region_1depth: string | null;
@@ -122,6 +124,7 @@ export function mapPropertyRowToOffering(
     id: String(row.id),
     title: row.name,
     addressShort,
+    addressFull: addr ?? fallback.addressShort,
     region: regionTab,
     regionLabel,
     status,
@@ -131,6 +134,8 @@ export function mapPropertyRowToOffering(
     priceMin억: min,
     priceMax억: max,
     isPricePrivate: isPrivate,
+    lat: toNumber(loc0?.lat),
+    lng: toNumber(loc0?.lng),
   };
 
   return offering;
