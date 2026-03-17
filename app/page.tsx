@@ -10,7 +10,7 @@ import HomeOfferingsSection from "@/features/offerings/components/HomeOfferingsS
  * ================================ */
 export default function HomePage() {
   return (
-    <main className="min-h-screen bg-(--oboon-bg-page)">
+    <main className="bg-(--oboon-bg-page)">
       <PageContainer>
         <div className="flex flex-col gap-5">
           <HeroSection />

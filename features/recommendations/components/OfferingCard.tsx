@@ -131,59 +131,146 @@ export default function OfferingCard(props: OfferingCardProps) {
         }
       }}
       className={cn(
-        "group flex cursor-pointer overflow-hidden rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:shadow-(--oboon-shadow-card)",
-        flushImageToEdge ? "items-stretch p-0" : "items-start p-3 lg:p-4",
+        "group cursor-pointer overflow-hidden rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:shadow-(--oboon-shadow-card)",
+        flushImageToEdge ? "flex items-stretch p-0" : "p-3 lg:p-4",
         isSelected && "lg:shadow-(--oboon-shadow-card)",
       )}
     >
-      {shouldRenderImage ? (
-        <div
-          className={cn(
-            "relative shrink-0 overflow-hidden bg-(--oboon-bg-subtle)",
-            flushImageToEdge
-              ? "w-[132px] self-stretch rounded-l-2xl lg:w-[180px]"
-              : "aspect-[3/4] w-[72px] rounded-xl lg:w-[120px]",
-          )}
-        >
-          {hasImage && meta.imageUrl ? (
-            <Image
-              src={meta.imageUrl}
-              alt={meta.name}
-              fill
-              sizes={
-                flushImageToEdge
-                  ? "(max-width: 1023px) 132px, 180px"
-                  : "(max-width: 1023px) 72px, 120px"
-              }
-              className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-            />
-          ) : (
-            <div className="flex h-full items-center justify-center bg-linear-to-br from-(--oboon-bg-subtle) to-(--oboon-bg-surface)">
-              <Building2 className="h-7 w-7 text-(--oboon-text-muted)" />
+      {flushImageToEdge ? (
+        <>
+          {shouldRenderImage ? (
+            <div className="relative w-[132px] shrink-0 self-stretch overflow-hidden rounded-l-2xl bg-(--oboon-bg-subtle) lg:w-[180px]">
+              {hasImage && meta.imageUrl ? (
+                <Image
+                  src={meta.imageUrl}
+                  alt={meta.name}
+                  fill
+                  sizes="(max-width: 1023px) 132px, 180px"
+                  className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center bg-linear-to-br from-(--oboon-bg-subtle) to-(--oboon-bg-surface)">
+                  <Building2 className="h-7 w-7 text-(--oboon-text-muted)" />
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      ) : null}
+          ) : null}
 
-      <div
-        className={cn(
-          "flex min-w-0 flex-1 flex-col gap-3",
-          flushImageToEdge ? "p-3 lg:p-4" : "",
-        )}
-      >
+          <div className="flex min-w-0 flex-1 flex-col gap-3 p-3 lg:p-4">
+            <div className="space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="line-clamp-2 ob-typo-subtitle text-(--oboon-text-title)">
+                    {meta.name}
+                  </h2>
+                  <p className="mt-1 line-clamp-2 ob-typo-caption text-(--oboon-text-muted)">
+                    {meta.regionLabel}
+                    {meta.propertyType ? ` · ${meta.propertyType}` : ""}
+                    {` · ${meta.statusLabel}`}
+                  </p>
+                  <div className="mt-2 ob-typo-body2 text-(--oboon-text-title)">
+                    {meta.priceLabel}
+                  </div>
+                </div>
+
+                <Badge
+                  className={cn("shrink-0 border ob-typo-caption", finalMeta.badgeClassName)}
+                >
+                  {finalMeta.badgeLabel}
+                </Badge>
+              </div>
+
+              <div className="h-px bg-(--oboon-border-default)" />
+
+              {evalResult.isMasked ? (
+                <div className="rounded-xl border border-(--oboon-warning-border) bg-(--oboon-warning-bg-subtle) px-3 py-2.5">
+                  <div className="flex items-start gap-2">
+                    <Lock className="mt-0.5 h-4 w-4 shrink-0 text-(--oboon-warning-text)" />
+                    <p className="ob-typo-caption text-(--oboon-warning-text)">
+                      로그인하면 상세 매칭 결과를 확인할 수 있어요.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-3 gap-3">
+                    <MetricDot
+                      label="현금"
+                      category={evalResult.categories.cash}
+                    />
+                    <MetricDot
+                      label="부담률"
+                      category={evalResult.categories.burden}
+                      valueLabel={monthlyBurdenLabel}
+                    />
+                    <MetricDot
+                      label="리스크"
+                      category={evalResult.categories.risk}
+                    />
+                  </div>
+
+                  {evalResult.totalScore !== null ? (
+                    <div className="space-y-1.5">
+                      <div className="ob-typo-body2 text-(--oboon-text-title)">
+                        매칭률
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-(--oboon-bg-subtle)">
+                          <div
+                            className={cn(
+                              "h-full rounded-full transition-[width]",
+                              finalMeta.barClassName,
+                            )}
+                            style={{
+                              width: `${Math.max(0, Math.min(100, totalScore))}%`,
+                            }}
+                          />
+                        </div>
+                        <div className="shrink-0 ob-typo-body2 text-(--oboon-text-title)">
+                          {Math.round(totalScore)}%
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      ) : (
         <div className="space-y-3">
           <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h2 className="line-clamp-2 ob-typo-subtitle text-(--oboon-text-title)">
-                {meta.name}
-              </h2>
-              <p className="mt-1 line-clamp-2 ob-typo-caption text-(--oboon-text-muted)">
-                {meta.regionLabel}
-                {meta.propertyType ? ` · ${meta.propertyType}` : ""}
-                {` · ${meta.statusLabel}`}
-              </p>
-              <div className="mt-2 ob-typo-body2 text-(--oboon-text-title)">
-                {meta.priceLabel}
+            <div className="flex min-w-0 flex-1 items-start gap-3">
+              {shouldRenderImage ? (
+                <div className="relative aspect-square w-[72px] shrink-0 overflow-hidden rounded-xl bg-(--oboon-bg-subtle)">
+                  {hasImage && meta.imageUrl ? (
+                    <Image
+                      src={meta.imageUrl}
+                      alt={meta.name}
+                      fill
+                      sizes="72px"
+                      className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center bg-linear-to-br from-(--oboon-bg-subtle) to-(--oboon-bg-surface)">
+                      <Building2 className="h-7 w-7 text-(--oboon-text-muted)" />
+                    </div>
+                  )}
+                </div>
+              ) : null}
+
+              <div className="min-w-0 flex-1">
+                <h2 className="line-clamp-2 ob-typo-subtitle text-(--oboon-text-title)">
+                  {meta.name}
+                </h2>
+                <p className="mt-1 line-clamp-2 ob-typo-caption text-(--oboon-text-muted)">
+                  {meta.regionLabel}
+                  {meta.propertyType ? ` · ${meta.propertyType}` : ""}
+                  {` · ${meta.statusLabel}`}
+                </p>
+                <div className="mt-2 ob-typo-body2 text-(--oboon-text-title)">
+                  {meta.priceLabel}
+                </div>
               </div>
             </div>
 
@@ -249,7 +336,7 @@ export default function OfferingCard(props: OfferingCardProps) {
             </div>
           )}
         </div>
-      </div>
+      )}
     </article>
   );
 }

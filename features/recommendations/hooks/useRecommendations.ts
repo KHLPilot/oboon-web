@@ -146,8 +146,18 @@ const DEFAULT_CONDITION: RecommendationCondition = {
 const CASH_MAX_SCORE = 40;
 const BURDEN_MAX_SCORE = 35;
 const RISK_MAX_SCORE = 25;
-const SIMULATOR_AVAILABLE_CASH_MAX = 30_000;
-const SIMULATOR_MONTHLY_INCOME_MAX = 2_000;
+const SIMULATOR_AVAILABLE_CASH_MAX = 1_000_000;
+const SIMULATOR_MONTHLY_INCOME_MAX = 10_000;
+const SIMULATOR_AVAILABLE_CASH_STEPS = [
+  ...Array.from({ length: 11 }, (_, index) => index * 1_000),
+  ...Array.from({ length: 9 }, (_, index) => (index + 2) * 10_000),
+  ...Array.from({ length: 9 }, (_, index) => (index + 2) * 100_000),
+];
+const SIMULATOR_MONTHLY_INCOME_STEPS = [
+  ...Array.from({ length: 11 }, (_, index) => index * 100),
+  ...Array.from({ length: 8 }, (_, index) => 1_500 + index * 500),
+  ...Array.from({ length: 5 }, (_, index) => 6_000 + index * 1_000),
+];
 
 function toFiniteNumber(value: unknown): number | null {
   if (typeof value === "number") {
@@ -181,6 +191,34 @@ function sanitizeAmount(value: number): number {
   return Math.max(0, Math.round(value));
 }
 
+function snapSimulatorAvailableCash(value: number): number {
+  const normalized = clamp(
+    sanitizeAmount(value),
+    0,
+    SIMULATOR_AVAILABLE_CASH_MAX,
+  );
+
+  return SIMULATOR_AVAILABLE_CASH_STEPS.reduce((closest, current) =>
+    Math.abs(current - normalized) < Math.abs(closest - normalized)
+      ? current
+      : closest,
+  );
+}
+
+function snapSimulatorMonthlyIncome(value: number): number {
+  const normalized = clamp(
+    sanitizeAmount(value),
+    0,
+    SIMULATOR_MONTHLY_INCOME_MAX,
+  );
+
+  return SIMULATOR_MONTHLY_INCOME_STEPS.reduce((closest, current) =>
+    Math.abs(current - normalized) < Math.abs(closest - normalized)
+      ? current
+      : closest,
+  );
+}
+
 function normalizeOwnedHouseCount(value: number): OwnedHouseCount {
   if (value >= 2) return 2;
   if (value <= 0) return 0;
@@ -201,16 +239,8 @@ function normalizeSimulatorCondition(
   condition: RecommendationCondition,
 ): RecommendationCondition {
   return {
-    availableCash: clamp(
-      sanitizeAmount(condition.availableCash),
-      0,
-      SIMULATOR_AVAILABLE_CASH_MAX,
-    ),
-    monthlyIncome: clamp(
-      sanitizeAmount(condition.monthlyIncome),
-      0,
-      SIMULATOR_MONTHLY_INCOME_MAX,
-    ),
+    availableCash: snapSimulatorAvailableCash(condition.availableCash),
+    monthlyIncome: snapSimulatorMonthlyIncome(condition.monthlyIncome),
     ownedHouseCount: normalizeOwnedHouseCount(condition.ownedHouseCount),
     creditGrade: condition.creditGrade,
     purchasePurpose: condition.purchasePurpose,

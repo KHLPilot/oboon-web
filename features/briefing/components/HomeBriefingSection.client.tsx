@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import Card from "@/components/ui/Card";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 
 import HomeBriefingCompactCard from "@/features/home/components/HomeBriefingCompactCard";
@@ -199,11 +200,10 @@ export default function HomeBriefingSection() {
       />
 
       {briefingError ? (
-        <Card className="p-6">
-          <div className="ob-typo-body text-(--oboon-text-muted)">
-            {briefingError}
-          </div>
-        </Card>
+        <EmptyState
+          title="브리핑을 불러오지 못했어요"
+          description={briefingError}
+        />
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
           {/* 최신 브리핑 */}
@@ -230,11 +230,10 @@ export default function HomeBriefingSection() {
 
             <div className="p-4">
               {briefingPosts.length === 0 ? (
-                <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-5">
-                  <div className="ob-typo-caption text-(--oboon-text-muted)">
-                    아직 공개된 브리핑이 없습니다.
-                  </div>
-                </div>
+                <EmptyState
+                  title="공개된 브리핑이 없어요"
+                  description="곧 새로운 콘텐츠가 등록될 예정이에요."
+                />
               ) : (
                 <>
                   {/* Mobile: 2개만 */}
@@ -279,11 +278,10 @@ export default function HomeBriefingSection() {
 
             <div className="p-4">
               {briefingOriginal.length === 0 ? (
-                <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-5">
-                  <div className="ob-typo-caption text-(--oboon-text-muted)">
-                    아직 공개된 시리즈가 없습니다.
-                  </div>
-                </div>
+                <EmptyState
+                  title="공개된 시리즈가 없어요"
+                  description="곧 새로운 시리즈가 등록될 예정이에요."
+                />
               ) : (
                 <>
                   {/* Mobile: 2개만 */}

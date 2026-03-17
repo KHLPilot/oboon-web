@@ -5,7 +5,7 @@ import type {
   CreditGrade,
   PurchasePurpose,
 } from "@/features/condition-validation/domain/types";
-import { formatManwon } from "@/lib/format/currency";
+import { formatManwonPreview } from "@/lib/format/currency";
 import { cn } from "@/lib/utils/cn";
 import type {
   OwnedHouseCount,
@@ -46,17 +46,30 @@ const PURPOSE_OPTIONS: Array<SelectOption<PurchasePurpose>> = [
   { value: "both", label: "실거주 + 투자" },
 ];
 
+const AVAILABLE_CASH_STEPS = [
+  ...Array.from({ length: 11 }, (_, index) => index * 1_000),
+  ...Array.from({ length: 9 }, (_, index) => (index + 2) * 10_000),
+  ...Array.from({ length: 9 }, (_, index) => (index + 2) * 100_000),
+];
+
+const MONTHLY_INCOME_STEPS = [
+  ...Array.from({ length: 11 }, (_, index) => index * 100),
+  ...Array.from({ length: 8 }, (_, index) => 1_500 + index * 500),
+  ...Array.from({ length: 5 }, (_, index) => 6_000 + index * 1_000),
+];
+
 function SliderField(props: {
   label: string;
   valueLabel: string;
   minLabel: string;
   midLabel: string;
   maxLabel: string;
-  min: number;
-  max: number;
-  step: number;
   value: number;
   onChange: (value: number) => void;
+  positions?: number[];
+  min?: number;
+  max?: number;
+  step?: number;
 }) {
   const {
     label,
@@ -64,13 +77,24 @@ function SliderField(props: {
     minLabel,
     midLabel,
     maxLabel,
-    min,
-    max,
-    step,
     value,
     onChange,
+    positions,
+    min = 0,
+    max = 100,
+    step = 1,
   } = props;
-  const percent = ((value - min) / (max - min)) * 100;
+  const resolvedPositions = positions ?? null;
+  const rangeMin = resolvedPositions ? 0 : min;
+  const rangeMax = resolvedPositions ? Math.max(resolvedPositions.length - 1, 0) : max;
+  const rangeStep = resolvedPositions ? 1 : step;
+  const currentRangeValue = resolvedPositions
+    ? Math.max(0, resolvedPositions.indexOf(value))
+    : value;
+  const percent =
+    rangeMax <= rangeMin
+      ? 0
+      : ((currentRangeValue - rangeMin) / (rangeMax - rangeMin)) * 100;
 
   return (
     <div className="space-y-0">
@@ -89,11 +113,18 @@ function SliderField(props: {
         />
         <input
           type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={value}
-          onChange={(event) => onChange(Number(event.currentTarget.value))}
+          min={rangeMin}
+          max={rangeMax}
+          step={rangeStep}
+          value={currentRangeValue}
+          onChange={(event) => {
+            const nextValue = Number(event.currentTarget.value);
+            if (resolvedPositions) {
+              onChange(resolvedPositions[nextValue] ?? resolvedPositions[0] ?? 0);
+              return;
+            }
+            onChange(nextValue);
+          }}
           className={cn(
             "absolute inset-0 h-full w-full appearance-none bg-transparent",
             "[&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none",
@@ -138,27 +169,23 @@ export default function SimulatorBar(props: SimulatorBarProps) {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <SliderField
           label="가용 현금"
-          valueLabel={formatManwon(condition.availableCash)}
+          valueLabel={formatManwonPreview(condition.availableCash)}
           minLabel="0만"
-          midLabel="1억"
-          maxLabel="3억+"
-          min={0}
-          max={30000}
-          step={500}
+          midLabel="10억"
+          maxLabel="100억"
           value={condition.availableCash}
+          positions={AVAILABLE_CASH_STEPS}
           onChange={(availableCash) => onChange({ availableCash })}
         />
 
         <SliderField
           label="월 소득"
-          valueLabel={formatManwon(condition.monthlyIncome)}
+          valueLabel={formatManwonPreview(condition.monthlyIncome)}
           minLabel="0만"
-          midLabel="1,000만"
-          maxLabel="2,000만"
-          min={0}
-          max={2000}
-          step={50}
+          midLabel="5,000만"
+          maxLabel="1억"
           value={condition.monthlyIncome}
+          positions={MONTHLY_INCOME_STEPS}
           onChange={(monthlyIncome) => onChange({ monthlyIncome })}
         />
       </div>

@@ -20,7 +20,9 @@ import { Badge } from "@/components/ui/Badge";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { getAvatarUrlOrDefault } from "@/shared/imageUrl";
 import HeroCounselorPreview from "@/features/home/components/HeroCounselorPreview";
+import { HeroCounselorPreviewSkeleton } from "@/features/home/components/HeroCounselorPreviewSkeleton";
 import ConditionMapSvgBackground from "@/features/home/components/ConditionMapSvgBackground";
+import { HERO_SIDE_PANEL_HEIGHT_CLASS } from "@/features/home/components/heroPreview.constants";
 
 export type HomeHeroSlide = "agent" | "condition";
 
@@ -127,7 +129,6 @@ const HERO_SLIDES: Array<{ key: HomeHeroSlide; label: string }> = [
   { key: "agent", label: "상담사 매칭" },
   { key: "condition", label: "맞춤 현장" },
 ];
-const HERO_SIDE_CARD_HEIGHT = "h-[270px] sm:h-[340px] lg:h-[430px]";
 const CONDITION_HARDCODED_RATES = [95, 92, 88] as const;
 const CONDITION_TAG_PRIORITY: ConditionMapTag[] = ["교통", "학군", "개발", "반려"];
 const CONDITION_MAP_SLOTS: ConditionMapSlot[] = [
@@ -532,7 +533,7 @@ export default function HeroSection() {
   return (
     <section
       className={[
-        "relative isolate min-h-[720px] overflow-hidden rounded-3xl px-4 py-7 sm:min-h-[680px] sm:px-6 sm:py-8 md:min-h-[600px] lg:min-h-[470px] lg:px-8 lg:py-7",
+        "relative isolate min-h-[580px] overflow-hidden rounded-3xl px-4 py-7 sm:min-h-[540px] sm:px-6 sm:py-8 md:min-h-[460px] lg:min-h-[400px] lg:px-8 lg:py-7",
         "border border-(--oboon-border-default) bg-(--oboon-bg-surface)",
       ].join(" ")}
     >
@@ -568,7 +569,7 @@ export default function HeroSection() {
         {activeSlide === "agent" ? (
           <div
             key="agent"
-            className={`relative grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:gap-8 ${HERO_SLIDE_ANIMATION_CLASS}`}
+            className={`relative grid grid-cols-1 gap-6 md:grid-cols-2 md:items-center md:gap-8 ${HERO_SLIDE_ANIMATION_CLASS}`}
           >
             <div className="lg:pr-4">
               <Badge
@@ -619,7 +620,7 @@ export default function HeroSection() {
                   asChild
                   size="lg"
                   variant="secondary"
-                  className="w-full md:w-auto bg-(--oboon-bg-surface) hover:bg-(--oboon-bg-default)"
+                  className="w-full md:w-auto border-transparent bg-transparent text-(--oboon-text-body) hover:bg-(--oboon-bg-subtle) hover:text-(--oboon-text-title)"
                 >
                   <Link
                     href="/offerings?view=map"
@@ -632,50 +633,49 @@ export default function HeroSection() {
 
               </div>
 
-              <div className="mt-5 flex items-center gap-3">
-                <div className="flex items-center">
-                  {(agentAvatars.length > 0
-                    ? agentAvatars
-                    : [
-                        { id: "fallback-1", name: "상담사", avatarUrl: null },
-                        { id: "fallback-2", name: "상담사", avatarUrl: null },
-                        { id: "fallback-3", name: "상담사", avatarUrl: null },
-                      ]
-                  ).map((agent, index) => (
-                    <div
-                      key={agent.id}
-                      aria-hidden="true"
-                      className="h-9 w-9 overflow-hidden rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-default)"
-                      style={{ marginLeft: index === 0 ? 0 : -10 }}
-                    >
-                      <Image
-                        src={getAvatarUrlOrDefault(agent.avatarUrl)}
-                        alt={`${agent.name} 아바타`}
-                        width={36}
-                        height={36}
-                        className="h-full w-full object-cover"
-                      />
-                    </div>
-                  ))}
+              {agentsLoaded && agentCount > 0 && (
+                <div className="mt-5 flex items-center gap-3">
+                  <div className="flex items-center">
+                    {agentAvatars.map((agent, index) => (
+                      <div
+                        key={agent.id}
+                        aria-hidden="true"
+                        className="h-9 w-9 overflow-hidden rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-default)"
+                        style={{ marginLeft: index === 0 ? 0 : -10 }}
+                      >
+                        <Image
+                          src={getAvatarUrlOrDefault(agent.avatarUrl)}
+                          alt={`${agent.name} 아바타`}
+                          width={36}
+                          height={36}
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <p className="ob-typo-body text-(--oboon-text-body)">
+                    <span className="text-(--oboon-primary)">{agentCount}명+</span>의
+                    상담사 대기 중
+                  </p>
                 </div>
-                <p className="ob-typo-body text-(--oboon-text-body)">
-                  <span className="text-(--oboon-primary)">{agentCount}명+</span>의
-                  상담사 대기 중
-                </p>
-              </div>
+              )}
             </div>
 
-            <div ref={agentCardRef} className={HERO_SIDE_CARD_HEIGHT}>
-              <HeroCounselorPreview
-                counselors={previewCounselors}
-                showFallback={agentsLoaded && agentCount === 0}
-              />
+            <div ref={agentCardRef} className={HERO_SIDE_PANEL_HEIGHT_CLASS}>
+              {!agentsLoaded ? (
+                <HeroCounselorPreviewSkeleton />
+              ) : (
+                <HeroCounselorPreview
+                  counselors={previewCounselors}
+                  showFallback={agentCount === 0}
+                />
+              )}
             </div>
           </div>
         ) : (
           <div
             key="condition"
-            className={`relative grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:gap-8 ${HERO_SLIDE_ANIMATION_CLASS}`}
+            className={`relative grid grid-cols-1 gap-6 md:grid-cols-2 md:items-center md:gap-8 ${HERO_SLIDE_ANIMATION_CLASS}`}
           >
             <div className="lg:pr-4">
               <Badge
@@ -708,7 +708,7 @@ export default function HeroSection() {
                   asChild
                   size="lg"
                   variant="secondary"
-                  className="w-full md:w-auto bg-(--oboon-bg-surface) hover:bg-(--oboon-bg-default)"
+                  className="w-full md:w-auto border-transparent bg-transparent text-(--oboon-text-body) hover:bg-(--oboon-bg-subtle) hover:text-(--oboon-text-title)"
                 >
                   <Link href="/offerings" aria-label="조건 상세 설정">
                     조건 상세 설정
@@ -725,7 +725,7 @@ export default function HeroSection() {
               </div>
             </div>
 
-            <div ref={conditionCardRef} className={HERO_SIDE_CARD_HEIGHT}>
+            <div ref={conditionCardRef} className={HERO_SIDE_PANEL_HEIGHT_CLASS}>
               <ConditionHeroPanel cards={conditionCards} />
             </div>
           </div>
@@ -744,9 +744,11 @@ export default function HeroSection() {
                 aria-label={`${index + 1}번 히어로 ${active ? "활성" : "비활성"}`}
                 aria-pressed={active}
                 className={[
-                  "inline-flex h-2.5 w-2.5 rounded-full border transition-colors duration-300",
+                  "inline-flex rounded-full transition-all duration-300",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--oboon-accent)/30",
-                  active ? "bg-(--oboon-primary) border-(--oboon-primary)" : "bg-(--oboon-bg-surface) border-(--oboon-border-default)",
+                  active
+                    ? "h-2 w-8 bg-(--oboon-primary)"
+                    : "h-2 w-2 bg-(--oboon-border-default) hover:bg-(--oboon-text-muted)",
                 ].join(" ")}
               />
             );
@@ -757,13 +759,11 @@ export default function HeroSection() {
         @keyframes heroSlideReveal {
           0% {
             opacity: 0;
-            transform: translateY(18px) scale(0.985);
-            filter: blur(8px);
+            transform: translateY(16px);
           }
           100% {
             opacity: 1;
-            transform: translateY(0) scale(1);
-            filter: blur(0);
+            transform: translateY(0);
           }
         }
       `}</style>
@@ -780,7 +780,7 @@ function ConditionHeroPanel({ cards }: { cards: ConditionMapCard[] }) {
   }, []);
 
   return (
-    <section className="relative h-full overflow-hidden rounded-3xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) shadow-(--oboon-shadow-card)">
+    <section className="relative h-full overflow-hidden rounded-3xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) shadow-(--oboon-shadow-card) backdrop-blur-md">
       <ConditionMapSvgBackground />
 
       <div className="relative h-full p-4 sm:p-5">
@@ -797,8 +797,7 @@ function ConditionHeroPanel({ cards }: { cards: ConditionMapCard[] }) {
           <article
             key={`${card.propertyId}-${card.title}`}
             className={[
-              "absolute rounded-2xl border px-3.5 py-3 shadow-(--oboon-shadow-card)",
-              "px-2.5 py-2.5 sm:px-3.5 sm:py-3",
+              "absolute rounded-2xl border px-2.5 py-2.5 shadow-(--oboon-shadow-card) sm:px-3.5 sm:py-3",
               "transition-all duration-300",
               "hover:-translate-y-0.5",
               entered ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0",

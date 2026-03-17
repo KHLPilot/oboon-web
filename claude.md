@@ -14,7 +14,15 @@ pnpm typecheck    # TypeScript 타입 체크
 pnpm ssot:check   # SSOT 규칙 검증
 ```
 
-**작업 종료 시 필수 검증**: `pnpm lint && pnpm build`
+**Claude Code (Bash 도구)에서 실행 시**: Claude Code의 Bash 샌드박스는 `/usr/bin`, `/bin` 등 시스템 PATH가 누락되어 `pnpm` 실행이 실패합니다. 반드시 아래 형식으로 실행하세요:
+
+```bash
+PATH="/opt/homebrew/opt/node@21/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin" pnpm lint
+PATH="/opt/homebrew/opt/node@21/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin" pnpm build
+PATH="/opt/homebrew/opt/node@21/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin" pnpm typecheck
+```
+
+**작업 종료 시 필수 검증**: 위 형식으로 lint → build 순서로 실행
 
 ---
 

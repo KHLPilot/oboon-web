@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
 
 import PageContainer from "@/components/shared/PageContainer";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Skeleton } from "@/components/ui/Skeleton";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -143,15 +145,34 @@ function SortDropdown(props: {
 
 function SkeletonCard() {
   return (
-    <div className="flex gap-3 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-4 animate-pulse">
-      <div className="aspect-[3/4] w-[72px] shrink-0 rounded-xl bg-(--oboon-bg-subtle) lg:w-[120px]" />
-      <div className="flex flex-1 flex-col gap-2.5">
-        <div className="h-4 w-3/4 rounded bg-(--oboon-bg-subtle)" />
-        <div className="h-3 w-2/3 rounded bg-(--oboon-bg-subtle)" />
-        <div className="h-3 w-1/3 rounded bg-(--oboon-bg-subtle)" />
-        <div className="mt-2 h-px w-full bg-(--oboon-border-default)" />
-        <div className="h-3 w-5/6 rounded bg-(--oboon-bg-subtle)" />
-        <div className="mt-auto h-8 w-full rounded-xl bg-(--oboon-bg-subtle)" />
+    <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          <Skeleton className="aspect-square w-[72px] shrink-0 rounded-xl" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <Skeleton className="h-5 w-3/4" />
+            <Skeleton className="h-3.5 w-2/3" />
+            <Skeleton className="h-4 w-1/2" />
+          </div>
+        </div>
+        <Skeleton className="h-7 w-20 shrink-0 rounded-full" />
+      </div>
+
+      <div className="mt-3 h-px w-full bg-(--oboon-border-default)" />
+
+      <div className="mt-3 space-y-3">
+        <div className="grid grid-cols-3 gap-3">
+          <Skeleton className="h-4" />
+          <Skeleton className="h-4" />
+          <Skeleton className="h-4" />
+        </div>
+        <div className="space-y-1.5">
+          <Skeleton className="h-4 w-14" />
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-2 flex-1 rounded-full" />
+            <Skeleton className="h-4 w-10" />
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -159,27 +180,27 @@ function SkeletonCard() {
 
 function DesktopSkeletonCard() {
   return (
-    <div className="overflow-hidden rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) animate-pulse">
-      <div className="aspect-video w-full bg-(--oboon-bg-subtle)" />
+    <div className="overflow-hidden rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)">
+      <Skeleton className="aspect-video w-full rounded-none" />
       <div className="space-y-3 p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1 space-y-2">
-            <div className="h-5 w-3/4 rounded bg-(--oboon-bg-subtle)" />
-            <div className="h-4 w-2/3 rounded bg-(--oboon-bg-subtle)" />
+            <Skeleton className="h-5 w-3/4" />
+            <Skeleton className="h-4 w-2/3" />
           </div>
-          <div className="h-7 w-20 rounded-full bg-(--oboon-bg-subtle)" />
+          <Skeleton className="h-7 w-20 rounded-full" />
         </div>
-        <div className="h-12 rounded-xl bg-(--oboon-bg-subtle)" />
+        <Skeleton className="h-12 rounded-xl" />
         <div className="space-y-2">
-          <div className="h-3 rounded bg-(--oboon-bg-subtle)" />
-          <div className="h-3 rounded bg-(--oboon-bg-subtle)" />
-          <div className="h-3 rounded bg-(--oboon-bg-subtle)" />
+          <Skeleton className="h-3" />
+          <Skeleton className="h-3" />
+          <Skeleton className="h-3" />
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <div className="h-14 rounded-xl bg-(--oboon-bg-subtle)" />
-          <div className="h-14 rounded-xl bg-(--oboon-bg-subtle)" />
+          <Skeleton className="h-14 rounded-xl" />
+          <Skeleton className="h-14 rounded-xl" />
         </div>
-        <div className="h-9 rounded-full bg-(--oboon-bg-subtle)" />
+        <Skeleton className="h-9 rounded-full" />
       </div>
     </div>
   );
@@ -449,11 +470,17 @@ export default function RecommendationsPage() {
                 ) : null}
 
                 {shouldShowEmpty ? (
-                  <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-5 py-8 text-center">
-                    <p className="ob-typo-body text-(--oboon-text-muted)">
-                      입력한 조건에 맞는 추천 현장을 찾지 못했어요.
-                    </p>
-                  </div>
+                  <EmptyState
+                    icon={
+                      <svg viewBox="0 0 56 56" fill="none" aria-hidden="true" className="h-14 w-14">
+                        <circle cx="28" cy="22" r="10" stroke="currentColor" strokeWidth="2.5" />
+                        <path d="M14 44c0-7.732 6.268-14 14-14s14 6.268 14 14" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+                        <line x1="22" y1="22" x2="34" y2="22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                      </svg>
+                    }
+                    title="맞춤 현장을 찾지 못했어요"
+                    description="조건을 조정하고 다시 평가해보세요."
+                  />
                 ) : null}
 
                 {!showSkeleton && sortedResults.length > 0
@@ -470,7 +497,6 @@ export default function RecommendationsPage() {
                               property={item}
                               isSelected={selectedId === item.property.id}
                               onClick={() => handleSelectFromCard(item.property.id)}
-                              hideImage
                             />
                           </div>
                           <div className="hidden sm:block">

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import FilterBar from "@/features/offerings/components/FilterBar";
 import OfferingCard from "@/features/offerings/components/OfferingCard";
+import { EmptyState } from "@/components/ui/EmptyState";
 import OfferingsMapView from "@/features/offerings/components/OfferingsMapView";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import type { Offering } from "@/types/index";
@@ -16,6 +17,7 @@ import {
   mapPropertyRowToOffering,
   type PropertyRow,
 } from "@/features/offerings/mappers/offering.mapper";
+import { OfferingCardSkeleton } from "@/features/offerings/components/OfferingCardSkeleton";
 import {
   GYEONGGI_NORTH_CITIES,
   OFFERING_REGION_TABS,
@@ -279,6 +281,7 @@ export default function OfferingsClientBody() {
 
   const supabase = useMemo(() => createSupabaseClient(), []);
   const [rows, setRows] = useState<PropertyRow[]>([]);
+  const [rowsLoaded, setRowsLoaded] = useState(false);
   const [approvedAgentPropertyIds, setApprovedAgentPropertyIds] = useState<
     Set<string>
   >(new Set());
@@ -305,6 +308,7 @@ export default function OfferingsClientBody() {
       if (error) {
         setLoadError(toKoreanErrorMessage(error, "데이터를 불러오지 못했어요."));
         setRows([]);
+        setRowsLoaded(true);
         return;
       }
 
@@ -326,6 +330,7 @@ export default function OfferingsClientBody() {
 
       setLoadError(null);
       setRows((data ?? []) as PropertyRow[]);
+      setRowsLoaded(true);
     })();
 
     return () => {
@@ -386,14 +391,33 @@ export default function OfferingsClientBody() {
             </div>
           ) : null}
 
-          {filtered.length === 0 ? (
-            <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-6">
-              <p className="ob-typo-body text-(--oboon-text-muted)">
-                {isRecommendedMode
-                  ? "입력한 조건에 맞는 추천 현장을 찾지 못했어요."
-                  : "아직 등록된 분양이 없어요."}
-              </p>
+          {!rowsLoaded ? (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {[0, 1, 2, 3, 4, 5].map((i) => (
+                <OfferingCardSkeleton key={i} />
+              ))}
             </div>
+          ) : filtered.length === 0 ? (
+            <EmptyState
+              icon={
+                <svg viewBox="0 0 56 56" fill="none" aria-hidden="true" className="h-14 w-14">
+                  <circle cx="24" cy="24" r="14" stroke="currentColor" strokeWidth="2.5" />
+                  <line x1="34.8" y1="34.8" x2="48" y2="48" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+                  {isRecommendedMode && (
+                    <>
+                      <line x1="20" y1="24" x2="28" y2="24" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                      <line x1="24" y1="20" x2="24" y2="28" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    </>
+                  )}
+                </svg>
+              }
+              title={isRecommendedMode ? "조건에 맞는 현장이 없어요" : "아직 등록된 분양이 없어요"}
+              description={isRecommendedMode ? "필터를 조정하거나 전체 현장을 확인해보세요." : "곧 새로운 분양 현장이 등록될 예정이에요."}
+              actions={isRecommendedMode ? [
+                { label: "필터 초기화", onClick: () => router.replace(pathname), variant: "secondary" },
+                { label: "전체 보기", onClick: () => router.push("/offerings"), variant: "primary" },
+              ] : undefined}
+            />
           ) : view === "map" ? (
             <OfferingsMapView offerings={filtered} />
           ) : (
