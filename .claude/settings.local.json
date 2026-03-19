@@ -38,7 +38,9 @@
       "Bash(pnpm typecheck:*)",
       "Bash(/usr/local/bin/pnpm typecheck:*)",
       "Read(//Users/songzo/.local/share/**)",
-      "Read(//opt/homebrew/lib/node_modules/pnpm/bin/**)"
+      "Read(//opt/homebrew/lib/node_modules/pnpm/bin/**)",
+      "Bash(PATH=\"/opt/homebrew/opt/node@21/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin\" pnpm lint)",
+      "Bash(PATH=\"/opt/homebrew/opt/node@21/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin\" pnpm build)"
     ]
   }
 }

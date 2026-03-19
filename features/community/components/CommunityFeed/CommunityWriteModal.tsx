@@ -21,19 +21,22 @@ import type {
   CommunityPropertyOption,
   CommunityUserRole,
 } from "../../domain/community";
-import { createCommunityPost } from "../../services/community.posts";
+import { createCommunityPost, repostCommunityPost } from "../../services/community.posts";
 import {
   canWriteVisitedCommunityPost,
   getCommunityPropertyOptions,
   getVisitedCommunityPropertyOptions,
 } from "../../services/community.meta";
 
+type WriteTypeKey = CommunityPostStatus | "property_qna";
+
 const WRITE_TYPE_OPTIONS: Array<{
-  key: CommunityPostStatus;
+  key: WriteTypeKey;
   label: string;
 }> = [
   { key: "thinking", label: "지금 고민 올리기" },
   { key: "visited", label: "다녀온 현장 남기기" },
+  { key: "property_qna", label: "현장 Q&A 질문하기" },
   { key: "agent_only", label: "상담사 전용 기록 남기기" },
 ];
 
@@ -42,13 +45,15 @@ export default function CommunityWriteModal({
   onClose,
   isLoggedIn = false,
   userRole = null,
+  repostOf = null,
 }: {
   open: boolean;
   onClose: () => void;
   isLoggedIn?: boolean;
   userRole?: CommunityUserRole | null;
+  repostOf?: { id: string; title: string; body: string; authorName: string } | null;
 }) {
-  const [writeType, setWriteType] = useState<CommunityPostStatus>("thinking");
+  const [writeType, setWriteType] = useState<WriteTypeKey>("thinking");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -77,10 +82,7 @@ export default function CommunityWriteModal({
     [userRole],
   );
 
-  const currentLabel = useMemo(
-    () => writeTypeOptions.find((opt) => opt.key === writeType)?.label ?? "",
-    [writeType, writeTypeOptions],
-  );
+  const isPropertyQnaMode = writeType === "property_qna";
 
   useEffect(() => {
     const hasCurrentType = writeTypeOptions.some((option) => option.key === writeType);
@@ -104,6 +106,7 @@ export default function CommunityWriteModal({
     () => (writeType === "visited" ? visitedPropertyOptions : propertyOptions),
     [propertyOptions, visitedPropertyOptions, writeType],
   );
+
 
   const filteredProperties = useMemo(() => {
     const query = propertySearch.trim();
@@ -173,6 +176,27 @@ export default function CommunityWriteModal({
 
   const handleSubmit = async () => {
     if (isSubmitting) return;
+
+    // 리포스트 모드
+    if (repostOf) {
+      setIsSubmitting(true);
+      try {
+        const result = await repostCommunityPost(repostOf.id, body.trim() || undefined);
+        if (!result.ok) {
+          showAlert(result.message);
+          return;
+        }
+        showAlert("리포스트가 등록되었습니다.");
+        onClose();
+      } catch (error) {
+        console.error("repost submit error:", error);
+        showAlert("리포스트 중 오류가 발생했습니다. 다시 시도해주세요.");
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
     if (!title.trim()) {
       showAlert("제목을 입력해주세요.");
       return;
@@ -181,15 +205,17 @@ export default function CommunityWriteModal({
       showAlert("내용을 입력해주세요.");
       return;
     }
-    if (writeType === "visited" && !selectedProperty) {
+    if ((writeType === "visited" || isPropertyQnaMode) && !selectedProperty) {
       showAlert("현장을 선택해주세요.");
       return;
     }
 
     setIsSubmitting(true);
     try {
+      const actualStatus: CommunityPostStatus =
+        writeType === "property_qna" ? "thinking" : writeType;
       const result = await createCommunityPost({
-        status: writeType,
+        status: actualStatus,
         title: title.trim(),
         body: body.trim(),
         propertyId: selectedProperty?.id ?? null,
@@ -197,6 +223,7 @@ export default function CommunityWriteModal({
           writeType === "visited" ? (selectedProperty?.visitedOn ?? null) : null,
         isAnonymous,
         anonymousNickname: isAnonymous ? anonymousNickname : null,
+        isPropertyQna: isPropertyQnaMode,
       });
 
       if (!result.ok) {
@@ -220,17 +247,53 @@ export default function CommunityWriteModal({
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="ob-typo-h2 text-(--oboon-text-title)">
-              기록 남기기
+              {repostOf ? "리포스트" : "기록 남기기"}
             </div>
             {!isLoggedIn ? (
               <div className="mt-2 ob-typo-body text-(--oboon-text-muted)">
-                기록은 로그인 후에 남길 수 있어요
+                {repostOf ? "리포스트는 로그인 후에 할 수 있어요" : "기록은 로그인 후에 남길 수 있어요"}
               </div>
             ) : null}
           </div>
         </div>
 
-        {!isLoggedIn ? (
+        {/* 리포스트 모드 */}
+        {repostOf && isLoggedIn ? (
+          <div className="space-y-4">
+            {/* 원본 글 인용 */}
+            <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-3 space-y-1">
+              <div className="ob-typo-caption text-(--oboon-text-muted)">
+                {repostOf.authorName}님의 글
+              </div>
+              <p className="ob-typo-body2 text-(--oboon-text-title) font-medium line-clamp-2">
+                {repostOf.title}
+              </p>
+              {repostOf.body ? (
+                <p className="ob-typo-caption text-(--oboon-text-body) line-clamp-2">
+                  {repostOf.body}
+                </p>
+              ) : null}
+            </div>
+
+            <Textarea
+              className="min-h-24 resize-none"
+              placeholder="한마디 추가하기 (선택)"
+              value={body}
+              onChange={(event) => setBody(event.target.value)}
+            />
+
+            <Button
+              variant="primary"
+              size="md"
+              shape="pill"
+              className="w-full justify-center"
+              loading={isSubmitting}
+              onClick={handleSubmit}
+            >
+              리포스트하기
+            </Button>
+          </div>
+        ) : !isLoggedIn ? (
           <Card className="p-4">
             <p className="ob-typo-body text-(--oboon-text-muted)">
               한 번 남긴 기록은 나중에 다시 볼 수 있고, 비슷한 고민을 가진
@@ -248,27 +311,20 @@ export default function CommunityWriteModal({
           </Card>
         ) : (
           <div className="space-y-4">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  className="flex w-full items-center justify-between rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-4 py-3 ob-typo-body text-(--oboon-text-title)"
+            {/* 타입 선택: 세그먼트 버튼 */}
+            <div className="flex flex-wrap gap-2">
+              {writeTypeOptions.map((option) => (
+                <Button
+                  key={option.key}
+                  variant={writeType === option.key ? "primary" : "secondary"}
+                  size="sm"
+                  shape="pill"
+                  onClick={() => setWriteType(option.key)}
                 >
-                  <span>{currentLabel}</span>
-                  <ChevronDown className="h-4 w-4 text-(--oboon-text-muted)" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" matchTriggerWidth>
-                {writeTypeOptions.map((option) => (
-                  <DropdownMenuItem
-                    key={option.key}
-                    onClick={() => setWriteType(option.key)}
-                  >
-                    {option.label}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  {option.label}
+                </Button>
+              ))}
+            </div>
 
             {shouldBlockVisitedWrite ? (
               <Card className="p-4 border-(--oboon-danger-border) bg-(--oboon-danger-bg)">
@@ -307,11 +363,19 @@ export default function CommunityWriteModal({
                   ) : null}
                 </div>
 
+                {isPropertyQnaMode ? (
+                  <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-4 py-2.5 ob-typo-caption text-(--oboon-text-muted)">
+                    현장 Q&A에 올린 질문은 공개 피드에 노출되며 상담사가 댓글로 답변합니다.
+                  </div>
+                ) : null}
+
                 <Input
                   className="ob-typo-body"
                   placeholder={
                     writeType === "agent_only"
                       ? "상담사 전용으로 공유할 핵심 포인트를 적어주세요"
+                      : isPropertyQnaMode
+                      ? "현장에 대해 궁금한 점을 질문으로 적어주세요"
                       : writeType === "thinking"
                       ? "가장 헷갈리는 한 가지를 질문으로 적어주세요"
                       : "다녀와서 가장 먼저 든 생각을 한 문장으로 적어주세요"
@@ -325,6 +389,8 @@ export default function CommunityWriteModal({
                   placeholder={
                     writeType === "agent_only"
                       ? "상담사끼리 공유할 실무 메모나 이슈를 자유롭게 작성해주세요"
+                      : isPropertyQnaMode
+                      ? "질문 배경이나 구체적인 상황을 적어주세요"
                       : writeType === "thinking"
                       ? "왜 고민되는지 배경을 조금만 적어주세요"
                       : "어떤 점이 고민되었는지 자유롭게 적어주세요\n괜찮았던 점과 아쉬운 점을 함께 써도 괜찮아요"
@@ -458,7 +524,7 @@ export default function CommunityWriteModal({
                   size="md"
                   shape="pill"
                   className="w-full justify-center"
-                  disabled={writeType === "visited" && !selectedProperty}
+                  disabled={(writeType === "visited" || isPropertyQnaMode) && !selectedProperty}
                   loading={isSubmitting}
                   onClick={handleSubmit}
                 >
@@ -466,7 +532,9 @@ export default function CommunityWriteModal({
                     ? "고민 올리기"
                     : writeType === "visited"
                       ? "다녀온 현장 기록하기"
-                      : "상담사 전용 기록하기"}
+                      : isPropertyQnaMode
+                        ? "Q&A 질문하기"
+                        : "상담사 전용 기록하기"}
                 </Button>
               </>
             )}

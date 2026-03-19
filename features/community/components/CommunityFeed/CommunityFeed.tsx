@@ -14,16 +14,20 @@ import { mapCommunityPost } from "../../mappers/community.mapper";
 import { getCommunityAuthStatus } from "../../services/community.meta";
 import {
   createCommunityComment,
+  deleteCommunityComment,
   deleteCommunityPost,
   getCommunityFeed as getCommunityFeedPosts,
   getCommunityComments,
   toggleCommunityCommentLike,
   toggleCommunityBookmark,
   toggleCommunityLike,
+  updateCommunityComment,
   updateCommunityPost,
   type CommunityComment,
 } from "../../services/community.posts";
+import type { CommunityPostViewModel } from "../../domain/community";
 import CommunityPostCard from "./CommunityPostCard";
+import { CommunityPostCardSkeleton } from "./CommunityPostCardSkeleton";
 import CommunityTabs from "./CommunityTabs";
 import CommunityWriteModal from "./CommunityWriteModal";
 import { showAlert } from "@/shared/alert";
@@ -55,6 +59,7 @@ export default function CommunityFeed() {
   const [activeTab, setActiveTab] = useState<CommunityTabKey>("all");
   const [writeOpen, setWriteOpen] = useState(searchParams.get("write") === "1");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<CommunityUserRole | null>(null);
   const [posts, setPosts] = useState<ReturnType<typeof mapCommunityPost>[]>([]);
   const [loading, setLoading] = useState(true);
@@ -91,6 +96,7 @@ export default function CommunityFeed() {
   const [commentLikeLoadingId, setCommentLikeLoadingId] = useState<string | null>(
     null,
   );
+  const [repostOf, setRepostOf] = useState<{ id: string; title: string; body: string; authorName: string } | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -113,9 +119,10 @@ export default function CommunityFeed() {
   useEffect(() => {
     let isMounted = true;
 
-    getCommunityAuthStatus().then(({ isLoggedIn: loggedIn, role }) => {
+    getCommunityAuthStatus().then(({ isLoggedIn: loggedIn, role, user }) => {
       if (!isMounted) return;
       setIsLoggedIn(loggedIn);
+      setUserId(user?.id ?? null);
       setUserRole(role ?? null);
     });
 
@@ -124,17 +131,36 @@ export default function CommunityFeed() {
     };
   }, []);
 
-  const visibleTabs = COMMUNITY_TABS.filter(
-    (tab) => tab.key !== "agent_only" || userRole === "agent" || userRole === "admin",
-  );
+  const visibleTabs = COMMUNITY_TABS.filter((tab) => {
+    if (tab.key === "agent_only") return userRole === "agent" || userRole === "admin";
+    if (tab.key === "follow") return isLoggedIn;
+    return true;
+  });
 
   useEffect(() => {
-    if (userRole === "agent" || userRole === "admin") return;
-    if (activeTab === "agent_only") {
+    if (activeTab === "agent_only" && userRole !== "agent" && userRole !== "admin") {
       setActiveTab("all");
       setLoading(true);
     }
-  }, [activeTab, userRole]);
+    if (activeTab === "follow" && !isLoggedIn) {
+      setActiveTab("all");
+      setLoading(true);
+    }
+  }, [activeTab, userRole, isLoggedIn]);
+
+  const handleRepost = (post: CommunityPostViewModel) => {
+    if (!isLoggedIn) {
+      showAlert("로그인 후 이용할 수 있습니다.");
+      return;
+    }
+    setRepostOf({
+      id: post.id,
+      title: post.title,
+      body: post.body,
+      authorName: post.authorName,
+    });
+    setWriteOpen(true);
+  };
 
   const handleToggleLike = async (postId: string) => {
     if (!isLoggedIn) {
@@ -374,6 +400,46 @@ export default function CommunityFeed() {
     setPosts((prev) => prev.filter((post) => post.id !== postId));
   };
 
+  const handleEditComment = async (postId: string, commentId: string, currentBody: string) => {
+    const nextBody = window.prompt("댓글을 수정하세요.", currentBody)?.trim();
+    if (!nextBody || nextBody === currentBody) return;
+
+    const result = await updateCommunityComment(commentId, nextBody);
+    if (!result.ok) {
+      showAlert(result.message);
+      return;
+    }
+
+    setCommentsMap((prev) => ({
+      ...prev,
+      [postId]: (prev[postId] ?? []).map((c) =>
+        c.id === commentId ? { ...c, body: nextBody } : c,
+      ),
+    }));
+  };
+
+  const handleDeleteComment = async (postId: string, commentId: string) => {
+    if (!window.confirm("이 댓글을 삭제하시겠습니까?")) return;
+
+    const result = await deleteCommunityComment(commentId);
+    if (!result.ok) {
+      showAlert(result.message);
+      return;
+    }
+
+    setCommentsMap((prev) => ({
+      ...prev,
+      [postId]: (prev[postId] ?? []).filter((c) => c.id !== commentId),
+    }));
+    setPosts((prev) =>
+      prev.map((post) =>
+        post.id === postId
+          ? { ...post, comments: Math.max(0, post.comments - 1) }
+          : post,
+      ),
+    );
+  };
+
   const renderCommentsPanel = (postId: string) => {
     const comments = commentsMap[postId] ?? [];
     const rootComments = comments.filter((comment) => !comment.parentCommentId);
@@ -524,6 +590,24 @@ export default function CommunityFeed() {
                         >
                           답글
                         </button>
+                        {userId && comment.authorId === userId ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => void handleEditComment(postId, comment.id, comment.body)}
+                              className="ob-typo-caption text-(--oboon-text-muted)"
+                            >
+                              수정
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handleDeleteComment(postId, comment.id)}
+                              className="ob-typo-caption text-(--oboon-danger)"
+                            >
+                              삭제
+                            </button>
+                          </>
+                        ) : null}
                       </div>
                     </div>
                   </div>
@@ -651,35 +735,39 @@ export default function CommunityFeed() {
 
   return (
     <div className="space-y-3">
+      {/* 탭 + 데스크톱 글쓰기 버튼 */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-          <CommunityTabs
-            tabs={visibleTabs}
-            value={activeTab}
-            onChange={(tab) => {
-              setLoading(true);
-              setActiveTab(tab);
-            }}
-          />
+        <CommunityTabs
+          tabs={visibleTabs}
+          value={activeTab}
+          onChange={(tab) => {
+            setLoading(true);
+            setActiveTab(tab);
+          }}
+        />
+        {/* 데스크톱에서만 표시 */}
         <Button
           variant="primary"
           size="sm"
           shape="pill"
           onClick={() => setWriteOpen(true)}
+          className="hidden lg:flex"
         >
           + 기록 남기기
         </Button>
       </div>
 
-      <Card className="p-4">
+      {/* 공지 카드: subtle 스타일 */}
+      <Card className="p-4 bg-(--oboon-bg-subtle) border-(--oboon-border-default)">
         <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle) flex items-center justify-center text-(--oboon-text-muted)">
+          <div className="h-8 w-8 rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-surface) flex items-center justify-center text-(--oboon-text-muted) flex-shrink-0">
             <Megaphone className="h-4 w-4" />
           </div>
           <div>
-            <div className="ob-typo-h3 font-semibold text-(--oboon-text-title)">
+            <div className="ob-typo-body2 font-semibold text-(--oboon-text-title)">
               OBOON 커뮤니티 이용 수칙 안내
             </div>
-            <p className="mt-0.5 ob-typo-body text-(--oboon-text-muted)">
+            <p className="mt-0.5 ob-typo-caption text-(--oboon-text-muted)">
               모두가 즐거운 커뮤니티를 위해 서로 존중하는 문화를 만들어가요.
             </p>
           </div>
@@ -702,13 +790,13 @@ export default function CommunityFeed() {
       ) : (
         <div className="space-y-3">
           {loading && (
-            <Card className="p-4">
-              <div className="ob-typo-body text-(--oboon-text-muted)">
-                불러오는 중...
-              </div>
-            </Card>
+            <>
+              {[0, 1, 2].map((i) => (
+                <CommunityPostCardSkeleton key={i} />
+              ))}
+            </>
           )}
-          {posts.map((post) => (
+          {!loading && posts.map((post) => (
             <CommunityPostCard
               key={post.id}
               post={post}
@@ -719,6 +807,7 @@ export default function CommunityFeed() {
               onToggleLike={() => void handleToggleLike(post.id)}
               onToggleBookmark={() => void handleToggleBookmark(post.id)}
               onToggleComments={() => void handleToggleComments(post.id)}
+              onRepost={() => handleRepost(post)}
               likeLoading={likeLoadingId === post.id}
               bookmarkLoading={bookmarkLoadingId === post.id}
               commentsExpanded={Boolean(commentsOpenMap[post.id])}
@@ -730,10 +819,24 @@ export default function CommunityFeed() {
 
       <CommunityWriteModal
         open={writeOpen}
-        onClose={() => setWriteOpen(false)}
+        onClose={() => {
+          setWriteOpen(false);
+          setRepostOf(null);
+        }}
         isLoggedIn={isLoggedIn}
         userRole={userRole}
+        repostOf={repostOf}
       />
+
+      {/* 모바일 FAB: lg 미만에서만 표시 */}
+      <Button
+        variant="primary"
+        shape="pill"
+        onClick={() => setWriteOpen(true)}
+        className="lg:hidden fixed bottom-6 right-4 z-50 shadow-lg shadow-(--oboon-primary)/30 px-5"
+      >
+        <span className="mr-1">✏</span> 기록
+      </Button>
     </div>
   );
 }

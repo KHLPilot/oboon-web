@@ -239,7 +239,7 @@ export async function POST(
 
     const { data: postRow, error: postError } = await adminSupabase
       .from("community_posts")
-      .select("id, status, is_agent_only")
+      .select("id, status, is_agent_only, author_profile_id, title")
       .eq("id", postId)
       .maybeSingle();
 
@@ -339,6 +339,25 @@ export async function POST(
       .select("id, name, nickname, avatar_url")
       .eq("id", user.id)
       .maybeSingle();
+
+    // 알림: 내 댓글이 아닌 경우 글 작성자에게 알림
+    const postAuthorId = (postRow as { author_profile_id?: string | null }).author_profile_id;
+    const postTitle = (postRow as { title?: string | null }).title ?? "게시글";
+    if (postAuthorId && postAuthorId !== user.id) {
+      const commenterName =
+        (authorProfile as { nickname?: string | null; name?: string | null } | null)
+          ?.nickname?.trim() ||
+        (authorProfile as { nickname?: string | null; name?: string | null } | null)
+          ?.name?.trim() ||
+        "누군가";
+      await adminSupabase.from("notifications").insert({
+        recipient_id: postAuthorId,
+        type: "community_comment",
+        title: `내 글에 댓글이 달렸어요`,
+        message: `${commenterName}님이 "${postTitle.slice(0, 30)}"에 댓글을 남겼습니다.`,
+        metadata: { post_id: postId, comment_id: inserted.id },
+      });
+    }
 
     return NextResponse.json({
       success: true,

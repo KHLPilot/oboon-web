@@ -68,7 +68,7 @@ export async function POST(
 
     const { data: postRow, error: postError } = await adminSupabase
       .from("community_posts")
-      .select("id, status, is_agent_only")
+      .select("id, status, is_agent_only, author_profile_id, title")
       .eq("id", postId)
       .maybeSingle();
 
@@ -161,6 +161,32 @@ export async function POST(
       .from("community_posts")
       .update({ like_count: likeCount })
       .eq("id", postId);
+
+    // 알림: 좋아요 추가 시(취소 아닐 때) 글 작성자에게 알림
+    if (liked) {
+      const postAuthorId = (postRow as { author_profile_id?: string | null }).author_profile_id;
+      const postTitle = (postRow as { title?: string | null }).title ?? "게시글";
+      if (postAuthorId && postAuthorId !== user.id) {
+        const { data: likerProfile } = await adminSupabase
+          .from("profiles")
+          .select("nickname, name")
+          .eq("id", user.id)
+          .maybeSingle();
+        const likerName =
+          (likerProfile as { nickname?: string | null; name?: string | null } | null)
+            ?.nickname?.trim() ||
+          (likerProfile as { nickname?: string | null; name?: string | null } | null)
+            ?.name?.trim() ||
+          "누군가";
+        await adminSupabase.from("notifications").insert({
+          recipient_id: postAuthorId,
+          type: "community_like",
+          title: "내 글에 좋아요가 달렸어요",
+          message: `${likerName}님이 "${postTitle.slice(0, 30)}"을 좋아합니다.`,
+          metadata: { post_id: postId },
+        });
+      }
+    }
 
     return NextResponse.json({
       success: true,

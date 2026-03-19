@@ -15,6 +15,7 @@ import {
 } from "../../mappers/community.mapper";
 import { getCommunityProfile } from "../../services/community.profile";
 import {
+  getCommunityBookmarkedPosts,
   getCommunityCommentedPosts,
   getCommunityProfileFeed,
 } from "../../services/community.posts";
@@ -126,6 +127,13 @@ export default function CommunityProfilePage() {
         return;
       }
 
+      if (activeTab === "bookmarks") {
+        const rows = await getCommunityBookmarkedPosts(profile.id, 50);
+        if (!isMounted) return;
+        setPosts(rows.map(mapCommunityPost));
+        return;
+      }
+
       const rows = await getCommunityProfileFeed(
         profile.id,
         activeTab as CommunityTabKey,
@@ -169,14 +177,18 @@ export default function CommunityProfilePage() {
             title={
               activeTab === "comments"
                 ? "아직 남긴 댓글이 없습니다"
-                : "아직 첫 기록이 없습니다"
+                : activeTab === "bookmarks"
+                  ? "아직 북마크한 글이 없습니다"
+                  : "아직 첫 기록이 없습니다"
             }
             description={
               activeTab === "comments"
                 ? profile
                   ? "댓글을 남기면 여기에서 확인할 수 있어요."
                   : "로그인 후 댓글 기록을 확인할 수 있어요."
-                : "다녀온 현장이나 고민 중인 내용을 남겨보세요."
+                : activeTab === "bookmarks"
+                  ? "마음에 드는 글에 북마크하면 여기에 모입니다."
+                  : "다녀온 현장이나 고민 중인 내용을 남겨보세요."
             }
             onAction={() => router.push("/community?write=1")}
           />

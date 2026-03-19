@@ -30,6 +30,7 @@ export default function OfferingDetailTabs({
         hasTimeline ? { id: "timeline", label: "일정" } : null,
         { id: "location", label: "위치" },
         { id: "basic", label: "기본 정보" },
+        { id: "community", label: "커뮤니티" },
       ].filter((tab): tab is Tab => tab !== null),
     [hasMemo, hasPrices, hasTimeline, hasInfra],
   );

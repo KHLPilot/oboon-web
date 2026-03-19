@@ -1,61 +1,63 @@
-# HANDOFF — 2026-02-08
+# HANDOFF — 2026-03-19
 
 ## 현재 목표
-QnA 및 FAQ 고객센터 기능 구현 완료
+커뮤니티 추가 기능 5개 구현 완료.
 
 ## 완료된 작업
-- [x] DB 마이그레이션 (`supabase/migrations/009_support_qna_faq.sql`)
-  - `faq_categories` 테이블 (4개 카테고리 초기 데이터 포함)
-  - `faq_items` 테이블 (관리자만 작성)
-  - `qna_questions` 테이블 (비밀글/익명 옵션)
-  - `qna_answers` 테이블 (관리자만 작성)
-  - RLS 정책 설정 완료
-- [x] bcrypt 유틸 (`lib/password.ts`)
-- [x] Support 도메인 (`features/support/`)
-  - domain/support.ts: 타입 및 상수 정의
-  - services/faq.service.ts, faq.server.ts: FAQ 조회/관리
-  - services/qna.service.ts, qna.server.ts: QnA 조회/작성/답변
-  - components/faq/: FAQAccordion, FAQCategoryTabs
-  - components/qna/: QnAList, QnADetail, QnAWriteModal, QnAPasswordModal
-  - components/SupportShell.tsx: 탭 전환 레이아웃
-- [x] API 라우트 (`app/api/support/`)
-  - faq/route.ts, categories/route.ts, admin/route.ts
-  - qna/route.ts, [id]/route.ts, verify-password/route.ts, answer/route.ts
-- [x] 페이지 (`app/support/`)
-  - page.tsx (FAQ 메인, 아코디언 UI)
-  - qna/page.tsx (QnA 목록)
-  - qna/[id]/page.tsx (QnA 상세, 비밀번호 입력 모달)
-- [x] Header.tsx NAV_ITEMS에 "고객센터" 추가
-- [x] 쿠키 오류 수정 (`lib/supabaseServer.ts` - setAll try-catch 추가)
-- [x] pnpm build 성공
 
-## 수정된 파일 목록
-- `supabase/migrations/009_support_qna_faq.sql` — 새 파일
-- `lib/password.ts` — 새 파일 (bcrypt 유틸)
-- `lib/supabaseServer.ts` — setAll에 try-catch 추가 (쿠키 오류 수정)
-- `features/support/**` — 새 폴더 (도메인, 서비스, 컴포넌트)
-- `app/support/**` — 새 폴더 (페이지)
-- `app/api/support/**` — 새 폴더 (API)
-- `components/shared/Header.tsx` — NAV_ITEMS에 고객센터 추가
-- `package.json` — bcryptjs 추가
+### 내 활동 피드 — 북마크 탭
+- [x] `COMMUNITY_PROFILE_TABS`에 `{ key: "bookmarks", label: "북마크" }` 추가 (domain/community.ts)
+- [x] `CommunityProfilePage.tsx`: bookmarks 탭 → `getCommunityBookmarkedPosts(profile.id, 50)` 호출
+
+### 댓글 수정/삭제
+- [x] API: `app/api/community/comments/[commentId]/route.ts` 신규 (PATCH/DELETE)
+- [x] 서비스: `updateCommunityComment`, `deleteCommunityComment` (community.posts.ts)
+- [x] UI: `CommunityFeed.tsx` — 내 댓글에 수정/삭제 버튼 (userId 상태 추가)
+
+### 현장 Q&A 탭
+- [x] DB 마이그레이션: `072_community_posts_property_qna.sql` — `is_property_qna boolean` 컬럼
+- [x] `COMMUNITY_TABS`에 `{ key: "property_qna", label: "현장 Q&A" }` 추가
+- [x] 도메인 타입: `CommunityPostRow`, `CommunityPostViewModel`에 `isPropertyQna: boolean` 추가
+- [x] 서비스: `getCommunityFeed`에서 `property_qna` 탭 필터 처리
+- [x] 서비스: `createCommunityPost`에 `isPropertyQna?: boolean` 파라미터 추가
+- [x] UI: `CommunityWriteModal` — "현장 Q&A 질문하기" 옵션 추가, 현장 선택 필수
+
+### 현장별 커뮤니티 위젯
+- [x] 서비스: `getCommunityPostsByPropertyId(propertyId, limit)` 추가
+- [x] 신규 컴포넌트: `features/community/components/PropertyCommunityWidget.tsx`
+- [x] `OfferingDetailPage.tsx` 우측 사이드바에 위젯 삽입
+
+### 커뮤니티 알림
+- [x] 댓글 POST API: 글 작성자(자신 제외)에게 `community_comment` 알림 insert
+- [x] 좋아요 POST API: 글 작성자(자신 제외)에게 `community_like` 알림 insert
+- [x] 기존 `notifications` 테이블 활용, 마이그레이션 불필요
+
+## 미완료 작업
+
+### DB 마이그레이션 적용
+- 테스트 DB(`ketjqhoeucxmxgnutlww`)에 `072_community_posts_property_qna.sql` 아직 미적용
+- `supabase link --project-ref ketjqhoeucxmxgnutlww && supabase db push` 필요
+
+## 수정된 파일
+- `features/community/domain/community.ts` — 탭 + 타입 추가
+- `features/community/mappers/community.mapper.ts` — isPropertyQna, propertyId 매핑
+- `features/community/services/community.posts.ts` — Q&A 필터, 댓글 CRUD, 위젯 서비스
+- `features/community/components/Profile/CommunityProfilePage.tsx` — 북마크 탭
+- `features/community/components/CommunityFeed/CommunityFeed.tsx` — 댓글 수정/삭제 UI
+- `features/community/components/CommunityFeed/CommunityWriteModal.tsx` — Q&A 옵션
+- `features/community/components/PropertyCommunityWidget.tsx` — 신규
+- `features/offerings/components/detail/OfferingDetailPage.tsx` — 위젯 삽입
+- `app/api/community/comments/[commentId]/route.ts` — 신규 (PATCH/DELETE)
+- `app/api/community/posts/[postId]/comments/route.ts` — 알림 추가
+- `app/api/community/posts/[postId]/like/route.ts` — 알림 추가
+- `supabase/migrations/072_community_posts_property_qna.sql` — 신규
 
 ## 주의사항
-- `009_support_qna_faq.sql`은 Supabase SQL Editor에서 직접 실행해야 DB에 반영됨
-- FAQ 카테고리 초기 데이터: service, reservation, cost, privacy
-- QnA 비밀글 비밀번호는 bcrypt로 해싱되어 저장
-- 관리자(role='admin')만 FAQ 작성 및 QnA 답변 가능
-
-## 기능 요약
-| 기능 | 경로 | 설명 |
-|------|------|------|
-| FAQ | /support | 카테고리별 아코디언 UI |
-| QnA 목록 | /support/qna | 질문 리스트, 비밀글 아이콘 표시 |
-| QnA 작성 | /support/qna (모달) | 비밀글/익명 옵션, 로그인 필수 |
-| QnA 상세 | /support/qna/[id] | 비밀글은 비밀번호 입력 필요, 관리자는 바로 열람 |
-| 관리자 답변 | /support/qna/[id] | 관리자만 답변 작성 가능 |
+- `is_property_qna` 컬럼이 DB에 없으면 Q&A 탭 쿼리가 실패함 → 마이그레이션 먼저 적용
+- 현장 Q&A 글은 `status = "thinking"`, `is_property_qna = true`로 저장됨 (전체/고민중 탭에도 노출됨)
+- 알림은 service role key 필요 (API route에서만 insert, 클라이언트 노출 없음)
 
 ## 다음 세션 시작 시
 1. 이 파일 읽기
-2. `pnpm build`로 상태 확인
-3. Supabase에서 `009_support_qna_faq.sql` 실행 확인
-4. FAQ 초기 콘텐츠 추가 (관리자 페이지 또는 직접 DB)
+2. `supabase link --project-ref ketjqhoeucxmxgnutlww && supabase db push`로 마이그레이션 적용
+3. 테스트 후 메인 DB에도 적용

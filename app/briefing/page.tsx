@@ -1,12 +1,9 @@
 // app/briefing/page.tsx
-import Link from "next/link";
-
 import PageContainer from "@/components/shared/PageContainer";
-import Card from "@/components/ui/Card";
-import Button from "@/components/ui/Button";
 
 import { fetchBriefingHomeData } from "@/features/briefing/services/briefing.home";
-import { Cover, cx } from "@/features/briefing/components/briefing.ui";
+import BriefingHeroPost from "@/features/briefing/components/BriefingHeroPost";
+import BriefingSearchInput from "@/features/briefing/components/BriefingSearchInput";
 import BriefingCardGrid from "@/features/briefing/components/BriefingCardGrid";
 
 type PostRow = {
@@ -24,27 +21,23 @@ type PostRow = {
     | null;
   post_tags?:
     | {
-        tag: {
-          id: string;
-          name: string;
-          sort_order: number | null;
-          is_active: boolean;
-        } | {
-          id: string;
-          name: string;
-          sort_order: number | null;
-          is_active: boolean;
-        }[] | null;
+        tag:
+          | {
+              id: string;
+              name: string;
+              sort_order: number | null;
+              is_active: boolean;
+            }
+          | {
+              id: string;
+              name: string;
+              sort_order: number | null;
+              is_active: boolean;
+            }[]
+          | null;
       }[]
     | null;
 };
-
-function pickName(
-  v: { name?: string } | { name?: string }[] | null,
-): string | null {
-  if (!v) return null;
-  return Array.isArray(v) ? v?.[0]?.name ?? null : v?.name ?? null;
-}
 
 function pickFirst<T>(v: T | T[] | null | undefined): T | null {
   if (!v) return null;
@@ -78,99 +71,35 @@ function pickPrimaryTagName(post: PostRow): string | null {
   return activeTags[0]?.name ?? null;
 }
 
-export default async function BriefingPage() {
-  const { isAdmin, heroPost, tagData, generalPosts } =
-    await fetchBriefingHomeData();
+function pickName(
+  v: { name?: string } | { name?: string }[] | null,
+): string | null {
+  if (!v) return null;
+  return Array.isArray(v) ? (v?.[0]?.name ?? null) : (v?.name ?? null);
+}
+
+export default async function BriefingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const { page: pageParam } = await searchParams;
+  const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
+
+  const { isAdmin, heroPost, generalPosts, generalTotalCount, pageSize } =
+    await fetchBriefingHomeData(page);
 
   return (
     <main className="bg-(--oboon-bg-page)">
       <PageContainer className="pb-20">
-        {/* ===== HERO (OBOON Original) ===== */}
-        <div className="mb-10">
-          <Card className="p-5 overflow-hidden shadow-none h-125">
-            <div className="grid grid-cols-1 md:grid-cols-2 h-full gap-5">
-              {/* left */}
-              <div className="relative h-full">
-                <div className="flex h-full flex-col">
-                  {/* chips (좌상단) */}
-                  <div className="flex flex-wrap gap-2">
-                    {(tagData ?? []).map((t) => (
-                      <span
-                        key={t.key}
-                        className={cx(
-                          "inline-flex items-center rounded-full border px-3 py-1 ob-typo-caption",
-                          "border-(--oboon-border-default) bg-(--oboon-bg-subtle) text-(--oboon-text-muted)"
-                        )}
-                      >
-                        {t.name}
-                      </span>
-                    ))}
-                  </div>
+        {/* ===== HERO ===== */}
+        {heroPost && page === 1 && (
+          <BriefingHeroPost post={heroPost} isAdmin={isAdmin} />
+        )}
 
-                  {/* 중앙 카피 (스크린샷처럼 가운데 정렬) */}
-                  <div className="flex-1 flex items-center justify-end">
-                    <div
-                      className={cx(
-                        "ob-typo-h3 text-(--oboon-text-muted)",
-                        "text-right",
-                        "break-keep",
-                        "max-w-60"
-                      )}
-                    >
-                      OBOON이 직접 정리한
-                      <br />
-                      분양을 읽는 기준.
-                    </div>
-                  </div>
-
-                  {/* 하단: 타이틀  버튼 (스크린샷처럼 같은 줄) */}
-
-                  <div className="ob-typo-display text-(--oboon-text-title)">
-                    OBOON
-                    <br />
-                    Original
-                  </div>
-                  <div
-                    className={cx(
-                      "absolute bottom-0 right-0 flex items-center gap-2"
-                    )}
-                  >
-                    {isAdmin ? (
-                      <Link href="/briefing/admin/posts/new">
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          shape="pill"
-                          className="h-10 mb-2.5"
-                        >
-                          글쓰기
-                        </Button>
-                      </Link>
-                    ) : null}
-
-                    <Link href="/briefing/oboon-original" className="shrink-0">
-                      <Button
-                        size="sm"
-                        shape="pill"
-                        className="w-35 h-10 mb-2.5"
-                      >
-                        보러가기
-                      </Button>
-                    </Link>
-                  </div>
-                </div>
-              </div>
-
-              {/* right image */}
-              <div className="h-full">
-                <Cover
-                  mode="fill"
-                  imageUrl={heroPost?.cover_image_url ?? undefined}
-                  className="rounded-2xl md:h-full w-full"
-                />
-              </div>
-            </div>
-          </Card>
+        {/* ===== 검색바 ===== */}
+        <div className="mb-8">
+          <BriefingSearchInput />
         </div>
 
         {/* ===== 일반 브리핑 ===== */}
@@ -197,8 +126,7 @@ export default async function BriefingPage() {
             badgeLabel:
               pickPrimaryTagName(p) ?? pickName(p.category) ?? "브리핑",
           }))}
-          initialCount={4}
-          step={4}
+          pagination={{ currentPage: page, totalCount: generalTotalCount, pageSize }}
         />
       </PageContainer>
     </main>

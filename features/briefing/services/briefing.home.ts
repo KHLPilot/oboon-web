@@ -1,7 +1,11 @@
 import { createSupabaseServer } from "@/lib/supabaseServer";
 
-export async function fetchBriefingHomeData() {
+export const BRIEFING_HOME_PAGE_SIZE = 8;
+
+export async function fetchBriefingHomeData(page = 1) {
   const supabase = await createSupabaseServer();
+  const pageSize = BRIEFING_HOME_PAGE_SIZE;
+  const offset = (Math.max(1, page) - 1) * pageSize;
 
   const { data: auth } = await supabase.auth.getUser();
   const user = auth.user;
@@ -46,7 +50,7 @@ export async function fetchBriefingHomeData() {
     .order("sort_order");
   if (tagErr) throw tagErr;
 
-  const { data: generalData, error: generalErr } = await supabase
+  const { data: generalData, error: generalErr, count: generalCount } = await supabase
     .from("briefing_posts")
     .select(
       `
@@ -57,12 +61,13 @@ export async function fetchBriefingHomeData() {
         tag:briefing_tags(id,key,name,sort_order,is_active)
       )
       `,
+      { count: "exact" }
     )
     .eq("status", "published")
     .eq("board.key", "general")
     .order("published_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
-    .limit(20);
+    .range(offset, offset + pageSize - 1);
   if (generalErr) throw generalErr;
 
   return {
@@ -71,5 +76,8 @@ export async function fetchBriefingHomeData() {
     heroPost: heroData ?? null,
     tagData: tagData ?? [],
     generalPosts: generalData ?? [],
+    generalTotalCount: generalCount ?? 0,
+    page,
+    pageSize,
   };
 }

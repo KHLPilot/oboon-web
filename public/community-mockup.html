@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>커뮤니티 페이지 재설계 목업</title>
+  <style>
+    /* ── Design Tokens (OBOON) ── */
+    :root {
+      --oboon-bg-page:       #f8f8f8;
+      --oboon-bg-surface:    #ffffff;
+      --oboon-bg-subtle:     #f0f0f2;
+      --oboon-border-default:#e4e4e7;
+      --oboon-text-title:    #18181b;
+      --oboon-text-body:     #3f3f46;
+      --oboon-text-muted:    #a1a1aa;
+      --oboon-primary:       #5046e5;
+      --oboon-primary-fg:    #ffffff;
+      --oboon-danger:        #ef4444;
+      --oboon-success-bg:    #dcfce7;
+      --oboon-success-text:  #15803d;
+      --tag-visited-bg:      #eff6ff;
+      --tag-visited-text:    #1d4ed8;
+      --tag-thinking-bg:     #fef9c3;
+      --tag-thinking-text:   #854d0e;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--oboon-bg-page);
+      color: var(--oboon-text-body);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* ── Typography ── */
+    .typo-h2 { font-size: 18px; font-weight: 700; line-height: 1.3; }
+    .typo-h3 { font-size: 15px; font-weight: 600; line-height: 1.4; }
+    .typo-body { font-size: 14px; font-weight: 400; }
+    .typo-body2 { font-size: 13px; font-weight: 400; }
+    .typo-caption { font-size: 12px; font-weight: 400; }
+
+    .text-title { color: var(--oboon-text-title); }
+    .text-body  { color: var(--oboon-text-body); }
+    .text-muted { color: var(--oboon-text-muted); }
+    .text-primary { color: var(--oboon-primary); }
+
+    /* ── Layout ── */
+    .page-wrapper { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+    .section-label {
+      display: inline-block;
+      background: var(--oboon-primary);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-bottom: 12px;
+    }
+    .section-title {
+      font-size: 16px; font-weight: 700; color: var(--oboon-text-title);
+      margin-bottom: 16px; padding-bottom: 8px;
+      border-bottom: 2px solid var(--oboon-primary);
+    }
+
+    /* ── Card ── */
+    .card {
+      background: var(--oboon-bg-surface);
+      border: 1px solid var(--oboon-border-default);
+      border-radius: 16px;
+    }
+
+    /* ── Badge ── */
+    .badge {
+      display: inline-flex; align-items: center; gap: 3px;
+      font-size: 11px; font-weight: 500; padding: 2px 8px;
+      border-radius: 999px; border: 1px solid transparent;
+    }
+    .badge-visited   { background: var(--tag-visited-bg); color: var(--tag-visited-text); }
+    .badge-thinking  { background: var(--tag-thinking-bg); color: var(--tag-thinking-text); }
+    .badge-property  { background: var(--oboon-bg-subtle); color: var(--oboon-text-muted); }
+    .badge-answered  { background: var(--oboon-success-bg); color: var(--oboon-success-text); }
+
+    /* ── Button ── */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap-4px;
+      padding: 7px 16px; border-radius: 999px; font-size: 13px; font-weight: 500;
+      cursor: pointer; border: none; transition: opacity .15s;
+    }
+    .btn-primary { background: var(--oboon-primary); color: #fff; }
+    .btn-secondary {
+      background: var(--oboon-bg-surface); color: var(--oboon-text-title);
+      border: 1px solid var(--oboon-border-default);
+    }
+    .btn-ghost { background: transparent; color: var(--oboon-text-muted); }
+    .btn-sm { padding: 5px 12px; font-size: 12px; }
+
+    /* ── Avatar ── */
+    .avatar {
+      border-radius: 999px; background: var(--oboon-bg-subtle);
+      border: 1px solid var(--oboon-border-default);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; color: var(--oboon-text-muted); font-weight: 600;
+      flex-shrink: 0;
+    }
+    .avatar-sm  { width: 24px; height: 24px; }
+    .avatar-md  { width: 32px; height: 32px; font-size: 13px; }
+    .avatar-lg  { width: 48px; height: 48px; font-size: 17px; }
+
+    /* ── Divider ── */
+    .divider { height: 1px; background: var(--oboon-border-default); margin: 12px 0; }
+
+    /* ── Skeleton ── */
+    .skeleton {
+      border-radius: 6px;
+      background: linear-gradient(90deg,
+        var(--oboon-bg-subtle) 0%,
+        var(--oboon-border-default) 40%,
+        var(--oboon-bg-subtle) 80%
+      );
+      background-size: 800px 100%;
+      animation: shimmer 1.4s infinite linear;
+    }
+    @keyframes shimmer {
+      0%   { background-position: -400px 0; }
+      100% { background-position:  400px 0; }
+    }
+
+    /* ─────────────────────────────────────────────────
+       SECTION 1: POST CARD (Before / After)
+    ───────────────────────────────────────────────── */
+    .compare-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    @media (max-width: 640px) { .compare-grid { grid-template-columns: 1fr; } }
+
+    /* ── OLD PostCard ── */
+    .post-card-old { padding: 16px; }
+    .old-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .old-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+    .old-title { margin-top: 12px; font-size: 15px; font-weight: 600; color: var(--oboon-text-title); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .old-body { margin-top: 8px; font-size: 14px; color: var(--oboon-text-muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .old-menu-btn { width: 32px; height: 32px; border: 1px solid var(--oboon-border-default); border-radius: 999px; background: transparent; cursor: pointer; color: var(--oboon-text-muted); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .old-divider { height: 1px; background: var(--oboon-border-default); margin: 12px 0; }
+    .old-footer { display: flex; align-items: center; justify-content: space-between; }
+    .old-author { display: flex; align-items: center; gap: 8px; }
+    .old-actions { display: flex; align-items: center; gap: 12px; color: var(--oboon-text-muted); font-size: 12px; }
+    .action-btn { display: flex; align-items: center; gap: 4px; background: none; border: none; cursor: pointer; color: var(--oboon-text-muted); font-size: 12px; }
+
+    /* ── NEW PostCard ── */
+    .post-card-new { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+    .new-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+    .new-badges { display: flex; flex-wrap: wrap; gap: 5px; flex: 1; min-width: 0; }
+    .new-menu-btn {
+      width: 36px; height: 36px; border: 1px solid var(--oboon-border-default);
+      border-radius: 999px; background: transparent; cursor: pointer;
+      color: var(--oboon-text-muted); display: flex; align-items: center;
+      justify-content: center; flex-shrink: 0; margin-top: -2px;
+    }
+    .new-title {
+      font-size: 15px; font-weight: 600; color: var(--oboon-text-title);
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .new-body {
+      font-size: 14px; color: var(--oboon-text-body);
+      display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .new-footer { display: flex; align-items: center; justify-content: space-between; }
+    .new-author { display: flex; align-items: center; gap: 6px; }
+    .new-author-name { font-size: 12px; color: var(--oboon-text-body); }
+    .new-author-time { font-size: 12px; color: var(--oboon-text-muted); }
+    .new-actions { display: flex; align-items: center; gap: 10px; }
+    .new-action { display: flex; align-items: center; gap: 3px; font-size: 12px; color: var(--oboon-text-muted); background: none; border: none; cursor: pointer; }
+    .liked { color: var(--oboon-primary); }
+
+    /* ─────────────────────────────────────────────────
+       SECTION 2: SIDEBAR
+    ───────────────────────────────────────────────── */
+
+    /* ── OLD ProfileSummary ── */
+    .profile-old { padding: 16px; }
+    .profile-old-header { display: flex; align-items: center; justify-content: space-between; }
+    .profile-old-left { display: flex; align-items: center; gap: 12px; }
+    .profile-old-stats { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+    .profile-old-stat { display: flex; justify-content: space-between; font-size: 13px; }
+
+    /* ── NEW ProfileSummary ── */
+    .profile-new { padding: 20px; }
+    .profile-new-header { display: flex; align-items: center; justify-content: space-between; }
+    .profile-new-left { display: flex; align-items: center; gap: 12px; }
+    .profile-new-name { font-size: 15px; font-weight: 600; color: var(--oboon-text-title); }
+    .profile-new-role { font-size: 13px; color: var(--oboon-text-muted); margin-top: 2px; }
+    .profile-new-stats {
+      margin-top: 16px;
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; text-align: center;
+    }
+    .profile-new-stat-item { display: flex; flex-direction: column; gap: 2px; }
+    .profile-new-stat-number { font-size: 20px; font-weight: 700; color: var(--oboon-text-title); }
+    .profile-new-stat-label { font-size: 11px; color: var(--oboon-text-muted); }
+
+    /* ── OLD Trending ── */
+    .trending-old { padding: 16px; }
+    .trending-old-title { font-size: 15px; font-weight: 600; color: var(--oboon-text-title); margin-bottom: 12px; }
+    .trending-old-item { margin-bottom: 12px; }
+    .trending-old-item-title { font-size: 14px; color: var(--oboon-text-title); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
+    .trending-old-item-meta { font-size: 12px; color: var(--oboon-text-muted); }
+
+    /* ── NEW Trending ── */
+    .trending-new { padding: 16px; }
+    .trending-new-title { font-size: 15px; font-weight: 600; color: var(--oboon-text-title); margin-bottom: 12px; }
+    .trending-new-item { display: flex; gap: 10px; padding: 8px; border-radius: 10px; cursor: pointer; transition: background .15s; margin-bottom: 2px; }
+    .trending-new-item:hover { background: var(--oboon-bg-subtle); }
+    .trending-new-rank { font-size: 15px; font-weight: 700; color: var(--oboon-text-muted); width: 16px; flex-shrink: 0; padding-top: 1px; }
+    .trending-new-rank.top { color: var(--oboon-primary); }
+    .trending-new-content { flex: 1; min-width: 0; }
+    .trending-new-item-title { font-size: 13px; font-weight: 500; color: var(--oboon-text-title); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px; }
+    .trending-new-meta { display: flex; align-items: center; gap: 6px; }
+
+    /* ─────────────────────────────────────────────────
+       SECTION 3: WRITE MODAL
+    ───────────────────────────────────────────────── */
+    .modal-box { background: var(--oboon-bg-surface); border-radius: 20px; padding: 24px; max-width: 440px; border: 1px solid var(--oboon-border-default); }
+    .modal-title { font-size: 18px; font-weight: 700; color: var(--oboon-text-title); margin-bottom: 16px; }
+
+    /* OLD: dropdown */
+    .dropdown-btn {
+      display: flex; align-items: center; justify-content: space-between;
+      width: 100%; padding: 10px 14px; border: 1px solid var(--oboon-border-default);
+      border-radius: 10px; background: var(--oboon-bg-surface); cursor: pointer;
+      font-size: 14px; color: var(--oboon-text-title);
+    }
+
+    /* NEW: segment */
+    .segment-group { display: flex; gap: 8px; flex-wrap: wrap; }
+    .segment-btn {
+      padding: 7px 14px; border-radius: 999px; font-size: 13px; font-weight: 500;
+      cursor: pointer; border: 1px solid var(--oboon-border-default);
+      background: var(--oboon-bg-surface); color: var(--oboon-text-title); transition: all .15s;
+    }
+    .segment-btn.active {
+      background: var(--oboon-primary); color: #fff; border-color: var(--oboon-primary);
+    }
+
+    .input-field {
+      width: 100%; padding: 10px 12px; border: 1px solid var(--oboon-border-default);
+      border-radius: 10px; font-size: 14px; color: var(--oboon-text-title); background: var(--oboon-bg-surface);
+      outline: none; font-family: inherit;
+    }
+    textarea.input-field { resize: none; min-height: 80px; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-label { font-size: 13px; font-weight: 500; color: var(--oboon-text-title); }
+
+    /* ─────────────────────────────────────────────────
+       SECTION 4: MOBILE LAYOUT
+    ───────────────────────────────────────────────── */
+    .mobile-frame {
+      width: 375px; border: 2px solid var(--oboon-border-default); border-radius: 20px;
+      overflow: hidden; background: var(--oboon-bg-page); position: relative;
+      box-shadow: 0 8px 32px rgba(0,0,0,.12);
+    }
+    .mobile-header {
+      background: var(--oboon-bg-surface); border-bottom: 1px solid var(--oboon-border-default);
+      padding: 12px 16px; font-size: 16px; font-weight: 700; color: var(--oboon-text-title);
+    }
+    .mobile-tabs {
+      background: var(--oboon-bg-surface); padding: 8px 16px;
+      display: flex; gap: 8px; border-bottom: 1px solid var(--oboon-border-default);
+      overflow-x: auto; scrollbar-width: none;
+    }
+    .mobile-tab {
+      padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 500;
+      white-space: nowrap; background: var(--oboon-bg-subtle); color: var(--oboon-text-body); border: none; cursor: pointer;
+    }
+    .mobile-tab.active { background: var(--oboon-primary); color: #fff; }
+    .mobile-feed { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+    .mobile-fab {
+      position: absolute; bottom: 20px; right: 16px;
+      background: var(--oboon-primary); color: #fff; border: none; border-radius: 999px;
+      padding: 12px 20px; font-size: 14px; font-weight: 600; cursor: pointer;
+      box-shadow: 0 4px 16px rgba(80,70,229,.35);
+      display: flex; align-items: center; gap: 6px;
+    }
+
+    /* ── Page layout ── */
+    .sections { display: flex; flex-direction: column; gap: 48px; padding-bottom: 80px; }
+    .compare-label {
+      font-size: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
+      color: var(--oboon-text-muted); margin-bottom: 8px;
+    }
+    .compare-col { display: flex; flex-direction: column; gap: 8px; }
+  </style>
+</head>
+<body>
+<div class="page-wrapper">
+  <div style="margin-bottom:32px;">
+    <h1 class="typo-h2 text-title" style="margin-bottom:6px;">커뮤니티 페이지 재설계 목업</h1>
+    <p class="typo-body text-muted">좌: 현재(Before) / 우: 새 디자인(After)</p>
+  </div>
+
+  <div class="sections">
+
+    <!-- ═══════════════════════════════════════
+         1. POST CARD
+    ═══════════════════════════════════════ -->
+    <section>
+      <div class="section-title">① PostCard</div>
+      <div class="compare-grid">
+
+        <!-- BEFORE -->
+        <div class="compare-col">
+          <div class="compare-label">Before — 현재</div>
+          <div class="card post-card-old">
+            <div class="old-header">
+              <div style="min-width:0;">
+                <div class="old-badges">
+                  <span class="badge badge-visited">다녀왔어요</span>
+                  <span class="badge badge-property">래미안 원펜타스</span>
+                </div>
+                <div class="old-title">실제로 다녀온 후기인데 제목이 길면 잘려버립니다 트런케이트</div>
+              </div>
+              <button class="old-menu-btn">⋯</button>
+            </div>
+            <p class="old-body">분양가가 생각보다 높았고 옵션도 많이 붙어서 최종 가격이 상당했어요. 그래도 입지는 정말 좋더라고요.</p>
+            <div class="old-divider"></div>
+            <div class="old-footer">
+              <div class="old-author">
+                <div class="avatar avatar-sm">김</div>
+                <span class="typo-body2 text-body">김분양</span>
+              </div>
+              <div class="old-actions">
+                <button class="action-btn">♡ 12</button>
+                <button class="action-btn">🔖</button>
+                <button class="action-btn">💬 3</button>
+                <span class="typo-caption text-muted">2시간 전</span>
+              </div>
+            </div>
+          </div>
+          <p class="typo-caption text-muted" style="margin-top:4px;">
+            ⚠ 제목 1줄 truncate · divider 2개 · 푸터 cramped · 메뉴 h-8 작음
+          </p>
+        </div>
+
+        <!-- AFTER -->
+        <div class="compare-col">
+          <div class="compare-label">After — 새 디자인</div>
+          <div class="card post-card-new">
+            <div class="new-top">
+              <div class="new-badges">
+                <span class="badge badge-visited">🏠 다녀왔어요</span>
+                <span class="badge badge-property">래미안 원펜타스</span>
+              </div>
+              <button class="new-menu-btn">⋯</button>
+            </div>
+            <div class="new-title">실제로 다녀온 후기인데 제목이 길면<br>이렇게 2줄까지 보여줍니다 line-clamp-2</div>
+            <p class="new-body">분양가가 생각보다 높았고 옵션도 많이 붙어서 최종 가격이 상당했어요. 그래도 입지는 정말 좋더라고요. 주변 교통도 편리하고 학교도 가까워요.</p>
+            <div class="new-footer">
+              <div class="new-author">
+                <div class="avatar avatar-sm">김</div>
+                <span class="new-author-name">김분양</span>
+                <span class="new-author-time">· 2시간 전</span>
+              </div>
+              <div class="new-actions">
+                <button class="new-action liked">♥ 12</button>
+                <button class="new-action">💬 3</button>
+                <button class="new-action">🔖</button>
+              </div>
+            </div>
+          </div>
+          <p class="typo-caption text-muted" style="margin-top:4px;color:var(--oboon-primary);">
+            ✓ 제목 2줄 · divider 제거 · 아이콘 뱃지 · 메뉴 h-9 · 클린 푸터
+          </p>
+        </div>
+      </div>
+
+      <!-- 두 번째 카드 예시: 고민 중 -->
+      <div style="margin-top:16px;" class="compare-grid">
+        <div class="card post-card-old" style="opacity:.6;">
+          <div class="old-header">
+            <div>
+              <div class="old-badges"><span class="badge badge-thinking">고민 중</span></div>
+              <div class="old-title">은평뉴타운 청약을 넣어야 할지 고민입니다</div>
+            </div>
+            <button class="old-menu-btn">⋯</button>
+          </div>
+          <p class="old-body" style="color:var(--oboon-text-muted);">1순위 자격이 되는데 분양가가 너무 높아서 고민 중이에요. 주변 시세 대비 어떨지 모르겠고...</p>
+          <div class="old-divider"></div>
+          <div class="old-footer">
+            <div class="old-author"><div class="avatar avatar-sm">이</div><span class="typo-body2 text-body">이청약</span></div>
+            <div class="old-actions"><button class="action-btn">♡ 5</button><button class="action-btn">💬 8</button><span class="typo-caption text-muted">어제</span></div>
+          </div>
+        </div>
+        <div class="card post-card-new">
+          <div class="new-top">
+            <div class="new-badges"><span class="badge badge-thinking">💭 고민 중이에요</span></div>
+          </div>
+          <div class="new-title">은평뉴타운 청약을 넣어야 할지<br>진짜 너무 고민됩니다</div>
+          <p class="new-body">1순위 자격이 되는데 분양가가 너무 높아서 고민 중이에요. 주변 시세 대비 어떨지 모르겠고 대출 한도도 빠듯할 것 같아서요.</p>
+          <div class="new-footer">
+            <div class="new-author"><div class="avatar avatar-sm">이</div><span class="new-author-name">이청약</span><span class="new-author-time">· 어제</span></div>
+            <div class="new-actions"><button class="new-action">♡ 5</button><button class="new-action">💬 8</button><button class="new-action">🔖</button></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════
+         2. SIDEBAR
+    ═══════════════════════════════════════ -->
+    <section>
+      <div class="section-title">② 사이드바 — ProfileSummary + Trending</div>
+      <div class="compare-grid">
+
+        <!-- BEFORE sidebars -->
+        <div class="compare-col" style="gap:16px;">
+          <div class="compare-label">Before — 현재</div>
+          <div class="card profile-old">
+            <div class="profile-old-header">
+              <div class="profile-old-left">
+                <div class="avatar avatar-md">박</div>
+                <div>
+                  <div class="typo-h3 text-title">박상담</div>
+                  <div class="typo-body text-muted">상담사</div>
+                </div>
+              </div>
+              <span style="color:var(--oboon-text-muted); font-size:14px;">›</span>
+            </div>
+            <div class="divider"></div>
+            <div class="profile-old-stats">
+              <div class="profile-old-stat"><span class="text-title">내가 쓴 글</span><span class="text-muted">12</span></div>
+              <div class="profile-old-stat"><span class="text-title">내가 쓴 댓글</span><span class="text-muted">34</span></div>
+              <div class="profile-old-stat"><span class="text-title">북마크한 후기</span><span class="text-muted">7</span></div>
+            </div>
+          </div>
+          <div class="card trending-old">
+            <div class="trending-old-title">최근 댓글 많은 현장</div>
+            <div class="trending-old-item"><div class="trending-old-item-title">래미안 원펜타스 분양가 진짜 어떻게 생각...</div><div class="trending-old-item-meta">좋아요 23 · 댓글 15 · 1시간 전</div></div>
+            <div class="trending-old-item"><div class="trending-old-item-title">은평뉴타운 청약 1순위 자격 있는데 넣어야 할...</div><div class="trending-old-item-meta">좋아요 8 · 댓글 12 · 3시간 전</div></div>
+            <div class="trending-old-item"><div class="trending-old-item-title">마포 자이 어때요 실거주 목적인데</div><div class="trending-old-item-meta">좋아요 5 · 댓글 9 · 어제</div></div>
+          </div>
+        </div>
+
+        <!-- AFTER sidebars -->
+        <div class="compare-col" style="gap:16px;">
+          <div class="compare-label">After — 새 디자인</div>
+          <div class="card profile-new">
+            <div class="profile-new-header">
+              <div class="profile-new-left">
+                <div class="avatar avatar-lg">박</div>
+                <div>
+                  <div class="profile-new-name">박상담</div>
+                  <div class="profile-new-role">상담사 · 인증 완료</div>
+                </div>
+              </div>
+              <span style="color:var(--oboon-text-muted); font-size:14px;">›</span>
+            </div>
+            <div class="divider"></div>
+            <div class="profile-new-stats">
+              <div class="profile-new-stat-item">
+                <span class="profile-new-stat-number">12</span>
+                <span class="profile-new-stat-label">내 글</span>
+              </div>
+              <div class="profile-new-stat-item" style="border-left:1px solid var(--oboon-border-default); border-right:1px solid var(--oboon-border-default);">
+                <span class="profile-new-stat-number">34</span>
+                <span class="profile-new-stat-label">댓글</span>
+              </div>
+              <div class="profile-new-stat-item">
+                <span class="profile-new-stat-number">7</span>
+                <span class="profile-new-stat-label">북마크</span>
+              </div>
+            </div>
+          </div>
+          <div class="card trending-new">
+            <div class="trending-new-title">인기 기록</div>
+            <div class="trending-new-item">
+              <span class="trending-new-rank top">1</span>
+              <div class="trending-new-content">
+                <div class="trending-new-item-title">래미안 원펜타스 분양가 진짜 어떻게 생각하세요</div>
+                <div class="trending-new-meta">
+                  <span class="badge badge-visited" style="font-size:10px; padding:1px 6px;">다녀왔어요</span>
+                  <span class="typo-caption text-muted">댓글 15</span>
+                </div>
+              </div>
+            </div>
+            <div class="trending-new-item">
+              <span class="trending-new-rank top">2</span>
+              <div class="trending-new-content">
+                <div class="trending-new-item-title">은평뉴타운 청약 1순위 자격 있는데 넣어야 할까요</div>
+                <div class="trending-new-meta">
+                  <span class="badge badge-thinking" style="font-size:10px; padding:1px 6px;">고민 중</span>
+                  <span class="typo-caption text-muted">댓글 12</span>
+                </div>
+              </div>
+            </div>
+            <div class="trending-new-item">
+              <span class="trending-new-rank">3</span>
+              <div class="trending-new-content">
+                <div class="trending-new-item-title">마포 자이 어때요 실거주 목적인데</div>
+                <div class="trending-new-meta">
+                  <span class="badge badge-property" style="font-size:10px; padding:1px 6px;">마포 자이</span>
+                  <span class="typo-caption text-muted">댓글 9</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════
+         3. WRITE MODAL
+    ═══════════════════════════════════════ -->
+    <section>
+      <div class="section-title">③ 글쓰기 — 타입 선택 UX</div>
+      <div class="compare-grid">
+
+        <!-- BEFORE modal -->
+        <div class="compare-col">
+          <div class="compare-label">Before — 드롭다운</div>
+          <div class="modal-box">
+            <div class="modal-title">기록 남기기</div>
+            <div class="form-group" style="margin-bottom:14px;">
+              <div class="form-label">기록 유형</div>
+              <button class="dropdown-btn">
+                <span>지금 고민 올리기</span>
+                <span style="color:var(--oboon-text-muted);">▾</span>
+              </button>
+            </div>
+            <div class="form-group" style="margin-bottom:14px;">
+              <div class="form-label">제목</div>
+              <input class="input-field" placeholder="제목을 입력하세요" />
+            </div>
+            <div class="form-group" style="margin-bottom:20px;">
+              <div class="form-label">내용</div>
+              <textarea class="input-field" placeholder="내용을 입력하세요"></textarea>
+            </div>
+            <button class="btn btn-primary" style="width:100%;">기록 남기기</button>
+          </div>
+          <p class="typo-caption text-muted" style="margin-top:4px;">⚠ 클릭 → 드롭다운 열기 → 선택 (2단계)</p>
+        </div>
+
+        <!-- AFTER modal -->
+        <div class="compare-col">
+          <div class="compare-label">After — 세그먼트 버튼</div>
+          <div class="modal-box">
+            <div class="modal-title">기록 남기기</div>
+            <div style="margin-bottom:16px;">
+              <div class="segment-group">
+                <button class="segment-btn active">💭 고민 중이에요</button>
+                <button class="segment-btn">🏠 다녀왔어요</button>
+                <button class="segment-btn">🔒 상담사 전용</button>
+              </div>
+            </div>
+            <div class="form-group" style="margin-bottom:14px;">
+              <div class="form-label">제목</div>
+              <input class="input-field" placeholder="제목을 입력하세요" />
+            </div>
+            <div class="form-group" style="margin-bottom:20px;">
+              <div class="form-label">내용</div>
+              <textarea class="input-field" placeholder="내용을 입력하세요"></textarea>
+            </div>
+            <button class="btn btn-primary" style="width:100%;">기록 남기기</button>
+          </div>
+          <p class="typo-caption" style="margin-top:4px;color:var(--oboon-primary);">✓ 한 눈에 모든 선택지 보임 · 1클릭 선택</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════
+         4. MOBILE LAYOUT
+    ═══════════════════════════════════════ -->
+    <section>
+      <div class="section-title">④ 모바일 레이아웃 (375px)</div>
+      <div class="compare-grid">
+
+        <!-- BEFORE mobile -->
+        <div class="compare-col">
+          <div class="compare-label">Before — 사이드바 피드 아래 쌓임</div>
+          <div style="border:2px solid var(--oboon-border-default); border-radius:20px; overflow:hidden; max-width:375px;">
+            <div class="mobile-header">커뮤니티</div>
+            <div class="mobile-tabs">
+              <button class="mobile-tab active">전체</button>
+              <button class="mobile-tab">다녀왔어요</button>
+              <button class="mobile-tab">고민 중</button>
+              <button class="mobile-tab" style="display:flex;align-items:center;gap:4px;"><span>기록 남기기</span></button>
+            </div>
+            <div class="mobile-feed">
+              <div class="card post-card-new" style="padding:12px;">
+                <div class="new-top"><div class="new-badges"><span class="badge badge-visited">🏠 다녀왔어요</span></div></div>
+                <div class="new-title">래미안 원펜타스 실방 후기</div>
+                <div class="new-footer"><div class="new-author"><div class="avatar avatar-sm">김</div><span class="new-author-name">김분양</span></div><div class="new-actions"><button class="new-action">♡ 12</button><button class="new-action">💬 3</button></div></div>
+              </div>
+              <div style="padding:12px; text-align:center; color:var(--oboon-text-muted); font-size:13px; border:1px dashed var(--oboon-border-default); border-radius:12px;">
+                📌 사이드바 (ProfileSummary) — 피드 뒤에 숨어서 거의 안 보임
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- AFTER mobile -->
+        <div class="compare-col">
+          <div class="compare-label">After — FAB + 사이드바 숨김</div>
+          <div class="mobile-frame" style="min-height:480px;">
+            <div class="mobile-header">커뮤니티</div>
+            <div class="mobile-tabs">
+              <button class="mobile-tab active">전체</button>
+              <button class="mobile-tab">다녀왔어요</button>
+              <button class="mobile-tab">고민 중</button>
+            </div>
+            <div class="mobile-feed">
+              <div class="card post-card-new" style="padding:12px;">
+                <div class="new-top"><div class="new-badges"><span class="badge badge-visited">🏠 다녀왔어요</span></div></div>
+                <div class="new-title">래미안 원펜타스 실방 후기</div>
+                <div class="new-footer"><div class="new-author"><div class="avatar avatar-sm">김</div><span class="new-author-name">김분양</span><span class="new-author-time">· 2시간 전</span></div><div class="new-actions"><button class="new-action liked">♥ 12</button><button class="new-action">💬 3</button></div></div>
+              </div>
+              <div class="card post-card-new" style="padding:12px;">
+                <div class="new-top"><div class="new-badges"><span class="badge badge-thinking">💭 고민 중이에요</span></div></div>
+                <div class="new-title">은평뉴타운 청약 넣어야 할까요</div>
+                <div class="new-footer"><div class="new-author"><div class="avatar avatar-sm">이</div><span class="new-author-name">이청약</span><span class="new-author-time">· 어제</span></div><div class="new-actions"><button class="new-action">♡ 5</button><button class="new-action">💬 8</button></div></div>
+              </div>
+              <div style="height:60px;"></div>
+            </div>
+            <button class="mobile-fab">✏ 기록</button>
+          </div>
+          <p class="typo-caption" style="margin-top:8px;color:var(--oboon-primary);">
+            ✓ 탭 영역 넓어짐 · FAB 항상 접근 가능 · 사이드바 /community/profile에서 접근
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════
+         5. SKELETON
+    ═══════════════════════════════════════ -->
+    <section>
+      <div class="section-title">⑤ PostCard 스켈레톤 (새 레이아웃 반영)</div>
+      <div class="compare-grid">
+        <div>
+          <div class="compare-label">New Skeleton</div>
+          <div class="card" style="padding:16px; display:flex; flex-direction:column; gap:10px;">
+            <div style="display:flex; gap:6px;">
+              <div class="skeleton" style="height:20px; width:72px; border-radius:999px;"></div>
+              <div class="skeleton" style="height:20px; width:88px; border-radius:999px;"></div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              <div class="skeleton" style="height:16px; width:100%;"></div>
+              <div class="skeleton" style="height:16px; width:70%;"></div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:5px;">
+              <div class="skeleton" style="height:13px; width:100%;"></div>
+              <div class="skeleton" style="height:13px; width:90%;"></div>
+              <div class="skeleton" style="height:13px; width:75%;"></div>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div style="display:flex; gap:6px; align-items:center;">
+                <div class="skeleton" style="height:24px; width:24px; border-radius:999px;"></div>
+                <div class="skeleton" style="height:12px; width:48px;"></div>
+                <div class="skeleton" style="height:12px; width:36px;"></div>
+              </div>
+              <div style="display:flex; gap:8px;">
+                <div class="skeleton" style="height:12px; width:32px;"></div>
+                <div class="skeleton" style="height:12px; width:28px;"></div>
+                <div class="skeleton" style="height:12px; width:20px;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="compare-label">ProfileSummary 스켈레톤 (로딩 중)</div>
+          <div class="card" style="padding:20px; display:flex; flex-direction:column; gap:14px;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div class="skeleton" style="height:48px; width:48px; border-radius:999px;"></div>
+              <div style="flex:1; display:flex; flex-direction:column; gap:6px;">
+                <div class="skeleton" style="height:15px; width:80px;"></div>
+                <div class="skeleton" style="height:12px; width:60px;"></div>
+              </div>
+            </div>
+            <div class="divider" style="margin:0;"></div>
+            <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:4px; text-align:center;">
+              <div style="display:flex;flex-direction:column;gap:4px;align-items:center;">
+                <div class="skeleton" style="height:22px; width:30px;"></div>
+                <div class="skeleton" style="height:11px; width:28px;"></div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:4px;align-items:center;">
+                <div class="skeleton" style="height:22px; width:30px;"></div>
+                <div class="skeleton" style="height:11px; width:24px;"></div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:4px;align-items:center;">
+                <div class="skeleton" style="height:22px; width:30px;"></div>
+                <div class="skeleton" style="height:11px; width:32px;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div><!-- /sections -->
+</div><!-- /page-wrapper -->
+</body>
+</html>

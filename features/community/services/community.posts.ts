@@ -1,6 +1,7 @@
 import { createSupabaseClient } from "@/lib/supabaseClient";
 
 import type {
+  CommunityOriginalPost,
   CommunityPostRow,
   CommunityPostStatus,
   CommunityTabKey,
@@ -27,6 +28,11 @@ type CommunityPostWithAuthorDbRow = {
 
   property_id: number | null;
   property_name: string | null;
+
+  repost_original_post_id: string | null;
+  repost_count: number | null;
+  is_property_qna: boolean | null;
+  original_post_summary: CommunityOriginalPost | null;
 };
 
 type CommunityPostBaseDbRow = {
@@ -43,6 +49,9 @@ type CommunityPostBaseDbRow = {
   is_anonymous: boolean | null;
   anonymous_nickname: string | null;
   property_id: number | null;
+  repost_original_post_id: string | null;
+  repost_count: number | null;
+  is_property_qna: boolean | null;
 };
 
 type CommunityAuthorDbRow = {
@@ -67,6 +76,17 @@ type CommentDbRow = {
   created_at: string | null;
 };
 
+type OriginalPostDbRow = {
+  id: string;
+  title: string | null;
+  body: string | null;
+  author_profile_id: string | null;
+  property_id: number | null;
+  created_at: string | null;
+  is_anonymous: boolean | null;
+  anonymous_nickname: string | null;
+};
+
 type CreateCommunityPostArgs = {
   status: CommunityPostStatus;
   title: string;
@@ -75,6 +95,7 @@ type CreateCommunityPostArgs = {
   visitedOn?: string | null;
   isAnonymous?: boolean;
   anonymousNickname?: string | null;
+  isPropertyQna?: boolean;
 };
 
 type CreateCommunityPostResult =
@@ -102,6 +123,7 @@ const mapPostRow = (row: CommunityPostWithAuthorDbRow): CommunityPostRow => {
     id: row.id,
     status: uiStatus,
     propertyName: row.property_name?.trim() ?? "",
+    propertyId: row.property_id ?? null,
     title: row.title ?? "",
     body: row.body ?? "",
     authorId: row.author_profile_id,
@@ -112,7 +134,12 @@ const mapPostRow = (row: CommunityPostWithAuthorDbRow): CommunityPostRow => {
     isLiked: false,
     isBookmarked: false,
     isMine: false,
+    isFollowingAuthor: false,
     createdAt: row.created_at ?? new Date().toISOString(),
+    isRepost: Boolean(row.repost_original_post_id),
+    repostCount: row.repost_count ?? 0,
+    isPropertyQna: row.is_property_qna === true,
+    originalPost: row.original_post_summary ?? null,
   };
 };
 
@@ -129,7 +156,10 @@ const postBaseSelect = `
   author_profile_id,
   is_anonymous,
   anonymous_nickname,
-  property_id
+  property_id,
+  repost_original_post_id,
+  repost_count,
+  is_property_qna
 `;
 
 function canReadAgentOnlyRole(role: CommunityUserRole | null | undefined) {
@@ -194,8 +224,15 @@ async function enrichPostRows(
   const propertyIds = Array.from(
     new Set(rows.map((row) => row.property_id).filter((id) => id !== null)),
   ) as number[];
+  const repostOriginalIds = Array.from(
+    new Set(
+      rows
+        .filter((row) => row.repost_original_post_id)
+        .map((row) => row.repost_original_post_id!),
+    ),
+  );
 
-  const [authorsRes, propertiesRes] = await Promise.all([
+  const [authorsRes, propertiesRes, originalPostsRes] = await Promise.all([
     authorIds.length > 0
       ? supabase
           .from("profiles")
@@ -205,6 +242,14 @@ async function enrichPostRows(
     propertyIds.length > 0
       ? supabase.from("properties").select("id, name").in("id", propertyIds)
       : Promise.resolve({ data: [] as CommunityPropertyDbRow[], error: null }),
+    repostOriginalIds.length > 0
+      ? supabase
+          .from("community_posts")
+          .select(
+            "id, title, body, author_profile_id, property_id, created_at, is_anonymous, anonymous_nickname",
+          )
+          .in("id", repostOriginalIds)
+      : Promise.resolve({ data: [] as OriginalPostDbRow[], error: null }),
   ]);
 
   if (authorsRes.error) {
@@ -224,6 +269,61 @@ async function enrichPostRows(
     (propertiesRes.data ?? []).map((row) => [row.id, row]),
   );
 
+  // Load authors and properties for original posts
+  const originalPostRows = (originalPostsRes.data ?? []) as OriginalPostDbRow[];
+  const origAuthorIds = Array.from(
+    new Set(originalPostRows.map((r) => r.author_profile_id).filter(Boolean)),
+  ) as string[];
+  const origPropertyIds = Array.from(
+    new Set(
+      originalPostRows.map((r) => r.property_id).filter((id) => id !== null),
+    ),
+  ) as number[];
+
+  const [origAuthorsRes, origPropsRes] = await Promise.all([
+    origAuthorIds.length > 0
+      ? supabase
+          .from("profiles")
+          .select("id, name, nickname")
+          .in("id", origAuthorIds)
+      : Promise.resolve({
+          data: [] as Array<{ id: string; name: string | null; nickname: string | null }>,
+          error: null,
+        }),
+    origPropertyIds.length > 0
+      ? supabase.from("properties").select("id, name").in("id", origPropertyIds)
+      : Promise.resolve({ data: [] as CommunityPropertyDbRow[], error: null }),
+  ]);
+
+  const origAuthorMap = new Map(
+    (origAuthorsRes.data ?? []).map((r) => [r.id, r]),
+  );
+  const origPropertyMap = new Map(
+    (origPropsRes.data ?? []).map((r) => [r.id, r]),
+  );
+
+  const originalPostSummaryMap = new Map<string, CommunityOriginalPost>();
+  originalPostRows.forEach((row) => {
+    const author = row.author_profile_id
+      ? origAuthorMap.get(row.author_profile_id)
+      : null;
+    const prop =
+      row.property_id !== null ? origPropertyMap.get(row.property_id) : null;
+    const isAnon = row.is_anonymous === true;
+    const anonName =
+      row.anonymous_nickname?.trim() ? row.anonymous_nickname.trim() : "익명";
+    const authorDisplayName =
+      author?.nickname?.trim() || author?.name?.trim() || "사용자";
+    originalPostSummaryMap.set(row.id, {
+      id: row.id,
+      title: row.title ?? "",
+      body: row.body ?? "",
+      authorName: isAnon ? anonName : authorDisplayName,
+      propertyName: prop?.name?.trim() ?? "",
+      createdAt: row.created_at ?? new Date().toISOString(),
+    });
+  });
+
   return rows.map((row) => {
     const author = row.author_profile_id
       ? authorMap.get(row.author_profile_id)
@@ -239,6 +339,9 @@ async function enrichPostRows(
       is_anonymous: row.is_anonymous ?? false,
       anonymous_nickname: row.anonymous_nickname ?? null,
       property_name: property?.name ?? null,
+      original_post_summary: row.repost_original_post_id
+        ? (originalPostSummaryMap.get(row.repost_original_post_id) ?? null)
+        : null,
     };
   });
 }
@@ -270,7 +373,7 @@ async function getPostsByIdsPreserveOrder(
   const byId = new Map<string, CommunityPostWithAuthorDbRow>();
   enriched.forEach((row) => byId.set(row.id, row));
 
-  // 입력 ids 순서대로 정렬(북마크/댓글 “최근순” 유지)
+  // 입력 ids 순서대로 정렬(북마크/댓글 "최근순" 유지)
   return ids
     .map((id) => byId.get(id))
     .filter(Boolean)
@@ -290,19 +393,30 @@ async function attachViewerReactions(
   if (!user) return rows;
 
   const postIds = rows.map((row) => row.id);
+  const authorIds = Array.from(
+    new Set(rows.map((row) => row.authorId).filter(Boolean)),
+  ) as string[];
 
-  const [{ data: likedRows }, { data: bookmarkedRows }] = await Promise.all([
-    supabase
-      .from("community_likes")
-      .select("post_id")
-      .eq("profile_id", user.id)
-      .in("post_id", postIds),
-    supabase
-      .from("community_bookmarks")
-      .select("post_id")
-      .eq("profile_id", user.id)
-      .in("post_id", postIds),
-  ]);
+  const [{ data: likedRows }, { data: bookmarkedRows }, { data: followedRows }] =
+    await Promise.all([
+      supabase
+        .from("community_likes")
+        .select("post_id")
+        .eq("profile_id", user.id)
+        .in("post_id", postIds),
+      supabase
+        .from("community_bookmarks")
+        .select("post_id")
+        .eq("profile_id", user.id)
+        .in("post_id", postIds),
+      authorIds.length > 0
+        ? supabase
+            .from("community_follows")
+            .select("following_id")
+            .eq("follower_id", user.id)
+            .in("following_id", authorIds)
+        : Promise.resolve({ data: [] }),
+    ]);
 
   const likedSet = new Set(
     (likedRows ?? [])
@@ -314,18 +428,28 @@ async function attachViewerReactions(
       .map((row) => (row as { post_id?: string | null }).post_id)
       .filter((id): id is string => Boolean(id)),
   );
+  const followedSet = new Set(
+    (followedRows ?? [])
+      .map((row) => (row as { following_id?: string | null }).following_id)
+      .filter((id): id is string => Boolean(id)),
+  );
 
   return rows.map((row) => ({
     ...row,
     isLiked: likedSet.has(row.id),
     isBookmarked: bookmarkedSet.has(row.id),
     isMine: row.authorId === user.id,
+    isFollowingAuthor: row.authorId ? followedSet.has(row.authorId) : false,
   }));
 }
 
 export async function getCommunityFeed(
   tabKey: CommunityTabKey,
 ): Promise<CommunityPostRow[]> {
+  if (tabKey === "follow") {
+    return getCommunityFollowFeed();
+  }
+
   const supabase = createSupabaseClient();
   const viewerRole = await getViewerRole(supabase);
   const canViewAgentOnly = canReadAgentOnlyRole(viewerRole);
@@ -339,17 +463,20 @@ export async function getCommunityFeed(
     .select(postBaseSelect)
     .order("created_at", { ascending: false });
 
-  if (tabKey === "agent_only") {
+  if (tabKey === "property_qna") {
+    query = query.eq("is_property_qna", true).eq("is_agent_only", false);
+  } else if (tabKey === "agent_only") {
     query = query.eq("is_agent_only", true);
   } else {
     query = query.eq("is_agent_only", false);
-  }
 
-  if (tabKey !== "all" && tabKey !== "agent_only") {
-    if (tabKey === "visited") {
-      query = query.not("visited_on", "is", null);
-    } else {
-      query = query.is("visited_on", null);
+    if (tabKey !== "all") {
+      if (tabKey === "visited") {
+        query = query.not("visited_on", "is", null);
+      } else {
+        // "thinking" tab: non-visited, non-agent-only
+        query = query.is("visited_on", null);
+      }
     }
   }
 
@@ -357,6 +484,53 @@ export async function getCommunityFeed(
 
   if (error) {
     console.error("community feed load error:", error.message);
+    return [];
+  }
+
+  const visibleRows = ((data ?? []) as CommunityPostBaseDbRow[]).filter((row) =>
+    isVisiblePostStatus(row.status),
+  );
+  const enriched = await enrichPostRows(visibleRows);
+  return attachViewerReactions(enriched.map((row) => mapPostRow(row)));
+}
+
+export async function getCommunityFollowFeed(): Promise<CommunityPostRow[]> {
+  const supabase = createSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return [];
+
+  const { data: follows } = await supabase
+    .from("community_follows")
+    .select("following_id")
+    .eq("follower_id", user.id);
+
+  const followingIds = (follows ?? [])
+    .map((r) => (r as { following_id?: string | null }).following_id)
+    .filter((id): id is string => Boolean(id));
+
+  if (followingIds.length === 0) return [];
+
+  const viewerRole = await getViewerRole(supabase);
+  const canViewAgentOnly = canReadAgentOnlyRole(viewerRole);
+
+  let query = supabase
+    .from("community_posts")
+    .select(postBaseSelect)
+    .in("author_profile_id", followingIds)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  if (!canViewAgentOnly) {
+    query = query.eq("is_agent_only", false);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error("community follow feed load error:", error.message);
     return [];
   }
 
@@ -491,7 +665,7 @@ export async function getCommunityCommentedPosts(
     return [];
   }
 
-  // 중복 제거(댓글 여러 번 단 글은 1번만), “최근 댓글 단 순”은 유지
+  // 중복 제거(댓글 여러 번 단 글은 1번만), "최근 댓글 단 순"은 유지
   const seen = new Set<string>();
   const ids: string[] = [];
 
@@ -574,6 +748,7 @@ export async function createCommunityPost(
         ? args.anonymousNickname.trim()
         : null,
     is_agent_only: isAgentOnlyPost,
+    is_property_qna: args.isPropertyQna === true,
   };
 
   let data: { id?: string } | null = null;
@@ -638,6 +813,10 @@ type ToggleBookmarkResult =
   | { ok: true; bookmarked: boolean }
   | { ok: false; message: string };
 
+export type ToggleFollowResult =
+  | { ok: true; isFollowing: boolean; followerCount: number }
+  | { ok: false; message: string };
+
 type UpdateCommunityPostResult = { ok: true } | { ok: false; message: string };
 type DeleteCommunityPostResult = { ok: true } | { ok: false; message: string };
 
@@ -698,6 +877,56 @@ export async function toggleCommunityBookmark(
     ok: true,
     bookmarked: Boolean(data?.bookmarked),
   };
+}
+
+export async function toggleCommunityFollow(
+  profileId: string,
+): Promise<ToggleFollowResult> {
+  const response = await fetch(`/api/community/follows/${profileId}`, {
+    method: "POST",
+  });
+  const data = await response.json();
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      message: String(data?.error ?? "팔로우 처리에 실패했습니다."),
+    };
+  }
+
+  return {
+    ok: true,
+    isFollowing: Boolean(data?.isFollowing),
+    followerCount:
+      typeof data?.followerCount === "number" &&
+      Number.isFinite(data.followerCount)
+        ? data.followerCount
+        : 0,
+  };
+}
+
+export async function repostCommunityPost(
+  originalPostId: string,
+  body?: string,
+): Promise<{ ok: true; id: string } | { ok: false; message: string }> {
+  const response = await fetch(
+    `/api/community/posts/${originalPostId}/repost`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ body }),
+    },
+  );
+  const data = await response.json();
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      message: String(data?.error ?? "리포스트에 실패했습니다."),
+    };
+  }
+
+  return { ok: true, id: String(data?.id ?? "") };
 }
 
 export async function updateCommunityPost(
@@ -778,7 +1007,8 @@ export async function getCommunityComments(
             ? comment.parentCommentId
             : null,
         likeCount:
-          typeof comment.likeCount === "number" && Number.isFinite(comment.likeCount)
+          typeof comment.likeCount === "number" &&
+          Number.isFinite(comment.likeCount)
             ? comment.likeCount
             : 0,
         isLiked: Boolean(comment.isLiked),
@@ -844,7 +1074,8 @@ export async function createCommunityComment(
       isAnonymous: Boolean(data?.comment?.isAnonymous),
     },
     commentCount:
-      typeof data?.commentCount === "number" && Number.isFinite(data.commentCount)
+      typeof data?.commentCount === "number" &&
+      Number.isFinite(data.commentCount)
         ? data.commentCount
         : 0,
   };
@@ -877,4 +1108,81 @@ export async function toggleCommunityCommentLike(
         ? data.likeCount
         : 0,
   };
+}
+
+type UpdateCommentResult = { ok: true } | { ok: false; message: string };
+type DeleteCommentResult = { ok: true } | { ok: false; message: string };
+
+export async function updateCommunityComment(
+  commentId: string,
+  body: string,
+): Promise<UpdateCommentResult> {
+  const response = await fetch(`/api/community/comments/${commentId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ body }),
+  });
+  const data = await response.json();
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      message: String(data?.error ?? "댓글 수정에 실패했습니다."),
+    };
+  }
+
+  return { ok: true };
+}
+
+export async function deleteCommunityComment(
+  commentId: string,
+): Promise<DeleteCommentResult> {
+  const response = await fetch(`/api/community/comments/${commentId}`, {
+    method: "DELETE",
+  });
+  const data = await response.json();
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      message: String(data?.error ?? "댓글 삭제에 실패했습니다."),
+    };
+  }
+
+  return { ok: true };
+}
+
+export async function getCommunityPostsByPropertyId(
+  propertyId: number,
+  limit = 3,
+): Promise<{ posts: CommunityPostRow[]; total: number }> {
+  const supabase = createSupabaseClient();
+
+  const [{ data, error }, { count }] = await Promise.all([
+    supabase
+      .from("community_posts")
+      .select(postBaseSelect)
+      .eq("property_id", propertyId)
+      .eq("is_agent_only", false)
+      .order("created_at", { ascending: false })
+      .limit(limit),
+    supabase
+      .from("community_posts")
+      .select("id", { count: "exact", head: true })
+      .eq("property_id", propertyId)
+      .eq("is_agent_only", false)
+      .not("status", "in", '("hidden","deleted","draft")'),
+  ]);
+
+  if (error) {
+    console.error("community posts by property load error:", error.message);
+    return { posts: [], total: 0 };
+  }
+
+  const visibleRows = ((data ?? []) as CommunityPostBaseDbRow[]).filter((row) =>
+    isVisiblePostStatus(row.status),
+  );
+  const enriched = await enrichPostRows(visibleRows);
+  const posts = await attachViewerReactions(enriched.map((row) => mapPostRow(row)));
+  return { posts, total: count ?? 0 };
 }

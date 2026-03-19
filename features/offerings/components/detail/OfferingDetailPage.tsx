@@ -63,7 +63,7 @@ export default async function OfferingDetailPage({ id }: { id: number }) {
           />
         </div>
 
-        <div className="lg:sticky lg:top-32 lg:h-fit">
+        <div className="lg:sticky lg:top-32 lg:h-fit space-y-4">
           <OfferingDetailRight
             propertyId={property.id}
             propertyName={property.name}

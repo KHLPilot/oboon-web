@@ -10,19 +10,23 @@ import BriefingCardGrid from "@/features/briefing/components/BriefingCardGrid";
 
 export default async function OboonOriginalCategoryPage({
   params,
+  searchParams,
 }: {
-  params: { categoryKey: string };
+  params: Promise<{ categoryKey: string }>;
+  searchParams: Promise<{ page?: string }>;
 }) {
-  const categoryKey = decodeURIComponent(params.categoryKey);
+  const { categoryKey: rawKey } = await params;
+  const { page: pageParam } = await searchParams;
 
-  // board_id 확보 (DB key: oboon_original)
-  const { category, posts } =
-    await fetchOboonOriginalCategoryPageData(categoryKey);
+  const categoryKey = decodeURIComponent(rawKey);
+  const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
+
+  const { category, posts, totalCount, pageSize } =
+    await fetchOboonOriginalCategoryPageData(categoryKey, page);
 
   if (!category) notFound();
 
   const heroDesc = category.description ?? "";
-  const heroCover = null;
   const postItems = (posts ?? []) as Array<{
     id: string;
     slug: string;
@@ -36,7 +40,7 @@ export default async function OboonOriginalCategoryPage({
   return (
     <main className="bg-(--oboon-bg-page)">
       <PageContainer className="pb-20">
-        {/* ===== HERO (OBOON Original) ===== */}
+        {/* ===== HERO ===== */}
         <div className="mb-10">
           <Card className="p-5 overflow-hidden shadow-none h-125">
             <div className="grid grid-cols-1 md:grid-cols-2 h-full gap-5">
@@ -71,7 +75,7 @@ export default async function OboonOriginalCategoryPage({
                 <div className="relative h-full w-full overflow-hidden rounded-2xl border border-(--oboon-border-default)">
                   <Cover
                     mode="fill"
-                    imageUrl={heroCover ?? undefined}
+                    imageUrl={undefined}
                     className="h-full w-full"
                   />
                 </div>
@@ -94,8 +98,7 @@ export default async function OboonOriginalCategoryPage({
             cover_image_url: p.cover_image_url ?? null,
             badgeLabel: category.name,
           }))}
-          initialCount={4}
-          step={4}
+          pagination={{ currentPage: page, totalCount, pageSize }}
         />
       </PageContainer>
     </main>

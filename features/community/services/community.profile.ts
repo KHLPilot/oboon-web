@@ -4,6 +4,7 @@ import type {
   CommunityProfileRow,
   CommunityProfileStats,
   CommunityUserRole,
+  FollowStats,
 } from "../domain/community";
 
 const DEFAULT_STATS: CommunityProfileStats = {
@@ -35,6 +36,64 @@ async function getProfileStats(
     posts: posts.count ?? 0,
     comments: comments.count ?? 0,
     bookmarks: bookmarks.count ?? 0,
+  };
+}
+
+export async function getFollowStats(profileId: string): Promise<FollowStats> {
+  const supabase = createSupabaseClient();
+  const [{ count: followerCount }, { count: followingCount }] = await Promise.all([
+    supabase
+      .from("community_follows")
+      .select("follower_id", { count: "exact", head: true })
+      .eq("following_id", profileId),
+    supabase
+      .from("community_follows")
+      .select("following_id", { count: "exact", head: true })
+      .eq("follower_id", profileId),
+  ]);
+  return {
+    followerCount: followerCount ?? 0,
+    followingCount: followingCount ?? 0,
+  };
+}
+
+export async function getIsFollowing(profileId: string): Promise<boolean> {
+  const supabase = createSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+
+  const { data } = await supabase
+    .from("community_follows")
+    .select("follower_id")
+    .eq("follower_id", user.id)
+    .eq("following_id", profileId)
+    .maybeSingle();
+
+  return Boolean(data);
+}
+
+export async function getPublicProfile(userId: string): Promise<CommunityProfileRow | null> {
+  const supabase = createSupabaseClient();
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("name, nickname, role, avatar_url")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (!profile) return null;
+
+  const stats = await getProfileStats(userId, supabase).catch(() => DEFAULT_STATS);
+
+  return {
+    id: userId,
+    email: null,
+    name: (profile as { name?: string | null }).name ?? null,
+    nickname: (profile as { nickname?: string | null }).nickname ?? null,
+    metaName: null,
+    avatarUrl: (profile as { avatar_url?: string | null }).avatar_url ?? null,
+    role: ((profile as { role?: string | null }).role ?? "user") as CommunityUserRole,
+    stats,
   };
 }
 

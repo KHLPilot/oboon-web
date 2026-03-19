@@ -1,12 +1,8 @@
 // features/briefing/BriefingCardGrid.tsx
-"use client";
-
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
 
 import Card from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import Button from "@/components/ui/Button";
 import { Cover, cx } from "@/features/briefing/components/briefing.ui";
 
 export type BriefingCardGridItem = {
@@ -46,67 +42,99 @@ function excerpt(md: string | null, max = 70) {
   return s.length > max ? `${s.slice(0, max)}…` : s;
 }
 
+type PaginationProps = {
+  currentPage: number;
+  totalCount: number;
+  pageSize: number;
+};
+
+function Pagination({ currentPage, totalCount, pageSize }: PaginationProps) {
+  const totalPages = Math.ceil(totalCount / pageSize);
+  if (totalPages <= 1) return null;
+
+  // 최대 5개 페이지 번호 노출
+  const delta = 2;
+  const start = Math.max(1, currentPage - delta);
+  const end = Math.min(totalPages, currentPage + delta);
+  const pages: (number | "…")[] = [];
+
+  if (start > 1) {
+    pages.push(1);
+    if (start > 2) pages.push("…");
+  }
+  for (let i = start; i <= end; i++) pages.push(i);
+  if (end < totalPages) {
+    if (end < totalPages - 1) pages.push("…");
+    pages.push(totalPages);
+  }
+
+  const btnBase = cx(
+    "inline-flex items-center justify-center",
+    "h-9 w-9 rounded-lg border border-(--oboon-border-default)",
+    "bg-(--oboon-bg-surface) ob-typo-caption text-(--oboon-text-body)",
+    "transition-colors"
+  );
+  const btnActive = "!bg-(--oboon-primary) !text-white !border-(--oboon-primary) font-semibold";
+  const btnHover = "hover:border-(--oboon-primary) hover:text-(--oboon-primary)";
+  const btnDisabled = "opacity-40 pointer-events-none";
+
+  return (
+    <div className="mt-8 flex items-center justify-center gap-1">
+      {/* prev */}
+      {currentPage > 1 ? (
+        <Link href={`?page=${currentPage - 1}`} className={cx(btnBase, btnHover)}>
+          ‹
+        </Link>
+      ) : (
+        <span className={cx(btnBase, btnDisabled)}>‹</span>
+      )}
+
+      {pages.map((p, i) =>
+        p === "…" ? (
+          <span key={`ellipsis-${i}`} className="px-1 ob-typo-caption text-(--oboon-text-muted)">
+            …
+          </span>
+        ) : (
+          <Link
+            key={p}
+            href={`?page=${p}`}
+            className={cx(btnBase, btnHover, p === currentPage ? btnActive : "")}
+          >
+            {p}
+          </Link>
+        )
+      )}
+
+      {/* next */}
+      {currentPage < totalPages ? (
+        <Link href={`?page=${currentPage + 1}`} className={cx(btnBase, btnHover)}>
+          ›
+        </Link>
+      ) : (
+        <span className={cx(btnBase, btnDisabled)}>›</span>
+      )}
+    </div>
+  );
+}
+
 export default function BriefingCardGrid({
   posts,
   className,
-  initialCount = 4,
-  step = 4,
-  loadMoreLabel = "더보기",
+  pagination,
 }: {
   posts: BriefingCardGridItem[];
   className?: string;
-  initialCount?: number;
-  step?: number;
-  loadMoreLabel?: string;
+  pagination?: PaginationProps;
 }) {
-  const [visible, setVisible] = useState(initialCount);
-  const pendingScrollIndexRef = useRef<number | null>(null);
-  const prevVisibleRef = useRef<number>(initialCount);
-
-  const visiblePosts = useMemo(() => {
-    return posts.slice(0, Math.max(0, visible));
-  }, [posts, visible]);
-
-  const hasMore = visible < posts.length;
-
-  useEffect(() => {
-    const prev = prevVisibleRef.current;
-    if (visible > prev && pendingScrollIndexRef.current != null) {
-      const idx = pendingScrollIndexRef.current;
-      pendingScrollIndexRef.current = null;
-      requestAnimationFrame(() => {
-        const el = document.querySelector(
-          `[data-briefing-card-index="${idx}"]`
-        ) as HTMLElement | null;
-        if (!el) return;
-        const top = el.getBoundingClientRect().top + window.scrollY - 16;
-        window.scrollTo({ top, behavior: "smooth" });
-      });
-    }
-    prevVisibleRef.current = visible;
-  }, [visible]);
-
-  const handleLoadMore = () => {
-    if (!hasMore) return;
-    pendingScrollIndexRef.current = visible;
-    setVisible((v) => Math.min(posts.length, v + step));
-  };
-
   return (
     <div className={cx("space-y-8", className)}>
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        {visiblePosts.map((p, idx) => {
+        {posts.map((p) => {
           const createdAt = (p.published_at ?? p.created_at) as string;
           const badge = p.badgeLabel ?? "브리핑";
-          const href = p.href;
 
           return (
-            <Link
-              key={p.id}
-              href={href}
-              className="group block"
-              data-briefing-card-index={idx}
-            >
+            <Link key={p.id} href={p.href} className="group block">
               <Card
                 className={cx(
                   "p-5 overflow-hidden shadow-none",
@@ -149,19 +177,7 @@ export default function BriefingCardGrid({
         })}
       </div>
 
-      {hasMore ? (
-        <div className="flex justify-center">
-          <Button
-            variant="secondary"
-            size="sm"
-            shape="pill"
-            onClick={handleLoadMore}
-            disabled={!hasMore}
-          >
-            {loadMoreLabel}
-          </Button>
-        </div>
-      ) : null}
+      {pagination && <Pagination {...pagination} />}
     </div>
   );
 }

@@ -3,12 +3,15 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Bookmark,
-  Clock,
   Heart,
+  MapPin,
   MessageCircle,
   MoreVertical,
+  Repeat2,
 } from "lucide-react";
 import Image from "next/image";
+
+import Link from "next/link";
 
 import { Badge } from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
@@ -16,6 +19,12 @@ import Card from "@/components/ui/Card";
 import { getAvatarUrlOrDefault } from "@/shared/imageUrl";
 
 import type { CommunityPostViewModel } from "../../domain/community";
+
+const STATUS_ICON = {
+  visited: MapPin,
+  thinking: MessageCircle,
+  agent_only: MessageCircle,
+} satisfies Record<CommunityPostViewModel["status"], typeof MapPin>;
 
 export default function CommunityPostCard({
   post,
@@ -26,6 +35,7 @@ export default function CommunityPostCard({
   onToggleLike,
   onToggleBookmark,
   onToggleComments,
+  onRepost,
   likeLoading = false,
   bookmarkLoading = false,
   commentsExpanded = false,
@@ -39,6 +49,7 @@ export default function CommunityPostCard({
   onToggleLike?: () => void;
   onToggleBookmark?: () => void;
   onToggleComments?: () => void;
+  onRepost?: () => void;
   likeLoading?: boolean;
   bookmarkLoading?: boolean;
   commentsExpanded?: boolean;
@@ -63,19 +74,20 @@ export default function CommunityPostCard({
     };
   }, [menuOpen]);
 
+  const StatusIcon = STATUS_ICON[post.status];
+
   return (
-    <Card className="p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            {post.propertyName?.trim() ? (
-              <Badge variant="status">{post.propertyName}</Badge>
-            ) : null}
-            <Badge variant="status">{post.statusLabel}</Badge>
-          </div>
-          <div className="mt-3 ob-typo-h3 text-(--oboon-text-title) truncate">
-            {post.title}
-          </div>
+    <Card className="p-4 space-y-3">
+      {/* 상단: 뱃지 + 메뉴 버튼 */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+          <Badge variant="status" className="inline-flex items-center gap-1">
+            <StatusIcon className="h-3 w-3" />
+            {post.statusLabel}
+          </Badge>
+          {post.propertyName?.trim() ? (
+            <Badge variant="status">{post.propertyName}</Badge>
+          ) : null}
         </div>
         {canEdit || canDelete ? (
           <div ref={menuRef} className="relative shrink-0">
@@ -85,12 +97,12 @@ export default function CommunityPostCard({
               shape="pill"
               aria-label="게시글 메뉴"
               onClick={() => setMenuOpen((prev) => !prev)}
-              className="h-8 w-8 border border-(--oboon-border-default) p-0 text-(--oboon-text-muted) hover:text-(--oboon-text-title)"
+              className="h-9 w-9 border border-(--oboon-border-default) p-0 text-(--oboon-text-muted) hover:text-(--oboon-text-title)"
             >
               <MoreVertical className="h-4 w-4" />
             </Button>
             {menuOpen ? (
-              <div className="absolute right-0 top-9 z-10 w-24 overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) shadow-lg">
+              <div className="absolute right-0 top-10 z-10 w-24 overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) shadow-lg">
                 {canEdit ? (
                   <Button
                     variant="ghost"
@@ -123,29 +135,89 @@ export default function CommunityPostCard({
         ) : null}
       </div>
 
-      <p className="mt-2 ob-typo-body text-(--oboon-text-muted) line-clamp-2">
-        {post.body}
-      </p>
+      {/* 리포스트 배지 */}
+      {post.isRepost && (
+        <div className="flex items-center gap-1 ob-typo-caption text-(--oboon-text-muted)">
+          <Repeat2 className="h-3.5 w-3.5" />
+          <span>리포스트</span>
+        </div>
+      )}
 
-      <div className="mt-4 h-px bg-(--oboon-border-default)" />
+      {/* 제목: line-clamp-2 */}
+      <h3 className="ob-typo-h3 text-(--oboon-text-title) line-clamp-2">
+        {post.title}
+      </h3>
 
-      <div className="mt-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="h-7 w-7 rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle) overflow-hidden flex items-center justify-center">
-            <Image
-              src={getAvatarUrlOrDefault(post.authorAvatarUrl)}
-              alt={post.authorName}
-              width={28}
-              height={28}
-              className="h-full w-full object-cover"
-            />
+      {/* 본문: line-clamp-3, text-body */}
+      {post.body ? (
+        <p className="ob-typo-body text-(--oboon-text-body) line-clamp-3">
+          {post.body}
+        </p>
+      ) : null}
+
+      {/* 원본 글 인용 박스 */}
+      {post.isRepost && post.originalPost ? (
+        <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-3 space-y-1">
+          <div className="ob-typo-caption text-(--oboon-text-muted)">
+            {post.originalPost.authorName}님의 글
+            {post.originalPost.propertyName ? ` · ${post.originalPost.propertyName}` : ""}
           </div>
-          <span className="ob-typo-subtitle text-(--oboon-text-body)">
-            {post.authorName}
+          <p className="ob-typo-body2 text-(--oboon-text-title) line-clamp-2 font-medium">
+            {post.originalPost.title}
+          </p>
+          {post.originalPost.body ? (
+            <p className="ob-typo-caption text-(--oboon-text-body) line-clamp-2">
+              {post.originalPost.body}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* 푸터: 아바타+이름+시간+팔로우 / 좋아요+댓글+북마크+리포스트 */}
+      <div className="flex items-center justify-between gap-2 pt-0.5">
+        <div className="flex items-center gap-1.5 min-w-0">
+          {post.authorId ? (
+            <Link
+              href={`/community/profile/${post.authorId}`}
+              className="flex items-center gap-1.5 min-w-0 hover:opacity-80 transition-opacity"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="h-6 w-6 rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle) overflow-hidden flex-shrink-0 flex items-center justify-center">
+                <Image
+                  src={getAvatarUrlOrDefault(post.authorAvatarUrl)}
+                  alt={post.authorName}
+                  width={24}
+                  height={24}
+                  className="h-full w-full object-cover"
+                />
+              </div>
+              <span className="ob-typo-caption text-(--oboon-text-body) truncate">
+                {post.authorName}
+              </span>
+            </Link>
+          ) : (
+            <>
+              <div className="h-6 w-6 rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle) overflow-hidden flex-shrink-0 flex items-center justify-center">
+                <Image
+                  src={getAvatarUrlOrDefault(post.authorAvatarUrl)}
+                  alt={post.authorName}
+                  width={24}
+                  height={24}
+                  className="h-full w-full object-cover"
+                />
+              </div>
+              <span className="ob-typo-caption text-(--oboon-text-body) truncate">
+                {post.authorName}
+              </span>
+            </>
+          )}
+          <span className="ob-typo-caption text-(--oboon-text-muted) shrink-0">
+            · {post.timeLabel}
           </span>
         </div>
 
-        <div className="flex items-center gap-3 text-(--oboon-text-muted)">
+        <div className="flex items-center gap-3 text-(--oboon-text-muted) shrink-0">
+          {/* 좋아요 */}
           {onToggleLike ? (
             <button
               type="button"
@@ -177,6 +249,27 @@ export default function CommunityPostCard({
               {post.likes}
             </span>
           )}
+
+          {/* 댓글 */}
+          {onToggleComments ? (
+            <button
+              type="button"
+              onClick={onToggleComments}
+              className="inline-flex items-center gap-1 ob-typo-caption"
+              aria-expanded={commentsExpanded}
+              aria-label="댓글 펼치기"
+            >
+              <MessageCircle className="h-4 w-4" />
+              {post.comments}
+            </button>
+          ) : (
+            <span className="inline-flex items-center gap-1 ob-typo-caption">
+              <MessageCircle className="h-4 w-4" />
+              {post.comments}
+            </span>
+          )}
+
+          {/* 북마크 */}
           {onToggleBookmark ? (
             <button
               type="button"
@@ -206,32 +299,30 @@ export default function CommunityPostCard({
               />
             </span>
           )}
-          {onToggleComments ? (
+
+          {/* 리포스트 */}
+          {onRepost && !post.isMine && !post.isRepost ? (
             <button
               type="button"
-              onClick={onToggleComments}
+              onClick={onRepost}
               className="inline-flex items-center gap-1 ob-typo-caption"
-              aria-expanded={commentsExpanded}
-              aria-label="댓글 펼치기"
+              aria-label="리포스트"
             >
-              <MessageCircle className="h-4 w-4" />
-              {post.comments}
+              <Repeat2 className="h-4 w-4" />
+              {post.repostCount > 0 ? post.repostCount : null}
             </button>
-          ) : (
+          ) : post.repostCount > 0 ? (
             <span className="inline-flex items-center gap-1 ob-typo-caption">
-              <MessageCircle className="h-4 w-4" />
-              {post.comments}
+              <Repeat2 className="h-4 w-4" />
+              {post.repostCount}
             </span>
-          )}
-          <span className="inline-flex items-center gap-1 ob-typo-caption">
-            <Clock className="h-4 w-4" />
-            {post.timeLabel}
-          </span>
+          ) : null}
         </div>
       </div>
 
+      {/* 댓글 패널 */}
       {commentsExpanded && commentsPanel ? (
-        <div className="mt-3 border-t border-(--oboon-border-default) pt-3">
+        <div className="border-t border-(--oboon-border-default) pt-3">
           {commentsPanel}
         </div>
       ) : null}

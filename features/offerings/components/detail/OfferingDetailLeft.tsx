@@ -50,6 +50,7 @@ import {
   HIGH_SPEED_RAIL_ICON_PATH,
 } from "@/features/offerings/utils/infraSections";
 import { normalizeRetailPoiName } from "@/features/reco/utils/poiDisplay";
+import PropertyCommunityWidget from "@/features/community/components/PropertyCommunityWidget";
 
 /* ---------------- Utils ---------------- */
 
@@ -152,6 +153,15 @@ function fmtAmenities(value: string | string[] | null | undefined) {
     return items.length > 0 ? items.join(", ") : "";
   }
   return fmtText(value);
+}
+
+type DetailInfoItem = {
+  label: string;
+  value: string;
+};
+
+function filterFilledInfoItems(items: DetailInfoItem[]) {
+  return items.filter((item) => item.value.trim().length > 0);
 }
 
 function toNumberOrNull(value: number | string | null | undefined) {
@@ -462,6 +472,9 @@ export default function OfferingDetailLeft({
     { label: "난방방식", value: fmtText(specs0?.heating_type) },
     { label: "어메니티", value: fmtAmenities(specs0?.amenities) },
   ];
+  const visibleBusinessInfoItems = filterFilledInfoItems(businessInfoItems);
+  const visibleAreaRatioItems = filterFilledInfoItems(areaRatioItems);
+  const visibleScaleEtcItems = filterFilledInfoItems(scaleEtcItems);
 
   const siteCoords = normalizeKoreaCoords(
     toNumberOrNull(loc0?.lat),
@@ -1054,60 +1067,71 @@ export default function OfferingDetailLeft({
         />
 
         <div className="mt-3 space-y-3">
-          <Card className="px-5 py-3">
-            <div className="ob-typo-subtitle text-(--oboon-text-title)">
-              분양·사업 정보
-            </div>
-            <div className="mt-3 grid grid-cols-1 gap-y-4 md:grid-cols-2 md:gap-x-10">
-              {businessInfoItems.map((item) => (
-                <div key={item.label}>
-                  <div className="ob-typo-caption text-(--oboon-text-muted)">
-                    {item.label}
+          {visibleBusinessInfoItems.length > 0 ? (
+            <Card className="px-5 py-3">
+              <div className="ob-typo-subtitle text-(--oboon-text-title)">
+                분양·사업 정보
+              </div>
+              <div className="mt-3 grid grid-cols-1 gap-y-4 md:grid-cols-2 md:gap-x-10">
+                {visibleBusinessInfoItems.map((item) => (
+                  <div key={item.label}>
+                    <div className="ob-typo-caption text-(--oboon-text-muted)">
+                      {item.label}
+                    </div>
+                    <div className="mt-1 ob-typo-h4 text-(--oboon-text-title)">
+                      {item.value}
+                    </div>
                   </div>
-                  <div className="mt-1 ob-typo-h4 text-(--oboon-text-title)">
-                    {item.value}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
+                ))}
+              </div>
+            </Card>
+          ) : null}
 
-          <Card className="px-5 py-3">
-            <div className="ob-typo-subtitle text-(--oboon-text-title)">
-              면적·비율
-            </div>
-            <div className="mt-3 grid grid-cols-1 gap-y-4 md:grid-cols-2 md:gap-x-10">
-              {areaRatioItems.map((item) => (
-                <div key={item.label}>
-                  <div className="ob-typo-caption text-(--oboon-text-muted)">
-                    {item.label}
+          {visibleAreaRatioItems.length > 0 ? (
+            <Card className="px-5 py-3">
+              <div className="ob-typo-subtitle text-(--oboon-text-title)">
+                면적·비율
+              </div>
+              <div className="mt-3 grid grid-cols-1 gap-y-4 md:grid-cols-2 md:gap-x-10">
+                {visibleAreaRatioItems.map((item) => (
+                  <div key={item.label}>
+                    <div className="ob-typo-caption text-(--oboon-text-muted)">
+                      {item.label}
+                    </div>
+                    <div className="mt-1 ob-typo-h4 text-(--oboon-text-title)">
+                      {item.value}
+                    </div>
                   </div>
-                  <div className="mt-1 ob-typo-h4 text-(--oboon-text-title)">
-                    {item.value}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
+                ))}
+              </div>
+            </Card>
+          ) : null}
 
-          <Card className="px-5 py-3">
-            <div className="ob-typo-subtitle text-(--oboon-text-title)">
-              규모·주차·난방·기타
-            </div>
-            <div className="mt-3 grid grid-cols-1 gap-y-4 md:grid-cols-2 md:gap-x-10">
-              {scaleEtcItems.map((item) => (
-                <div key={item.label}>
-                  <div className="ob-typo-caption text-(--oboon-text-muted)">
-                    {item.label}
+          {visibleScaleEtcItems.length > 0 ? (
+            <Card className="px-5 py-3">
+              <div className="ob-typo-subtitle text-(--oboon-text-title)">
+                규모·주차·난방·기타
+              </div>
+              <div className="mt-3 grid grid-cols-1 gap-y-4 md:grid-cols-2 md:gap-x-10">
+                {visibleScaleEtcItems.map((item) => (
+                  <div key={item.label}>
+                    <div className="ob-typo-caption text-(--oboon-text-muted)">
+                      {item.label}
+                    </div>
+                    <div className="mt-1 ob-typo-h4 text-(--oboon-text-title)">
+                      {item.value}
+                    </div>
                   </div>
-                  <div className="mt-1 ob-typo-h4 text-(--oboon-text-title)">
-                    {item.value}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
+                ))}
+              </div>
+            </Card>
+          ) : null}
         </div>
+      </div>
+
+      {/* Community Widget */}
+      <div id="community" className="mt-10 scroll-mt-30 lg:scroll-mt-30">
+        <PropertyCommunityWidget propertyId={p.id} propertyName={p.name} />
       </div>
     </div>
   );

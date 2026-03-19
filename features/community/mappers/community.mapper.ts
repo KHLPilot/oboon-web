@@ -31,6 +31,7 @@ export function mapCommunityPost(
     propertyName: row.propertyName,
     title: row.title,
     body: row.body,
+    authorId: row.authorId ?? null,
     authorName: row.authorName,
     authorAvatarUrl: row.authorAvatarUrl,
     likes: row.likes,
@@ -38,6 +39,12 @@ export function mapCommunityPost(
     isLiked: row.isLiked,
     isBookmarked: row.isBookmarked,
     isMine: row.isMine,
+    isFollowingAuthor: row.isFollowingAuthor,
+    propertyId: row.propertyId ?? null,
+    isRepost: row.isRepost,
+    repostCount: row.repostCount,
+    isPropertyQna: row.isPropertyQna,
+    originalPost: row.originalPost,
     timeLabel: formatTimeLabel(row.createdAt),
   };
 }

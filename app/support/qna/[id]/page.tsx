@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { QnADetail } from "@/features/support/components/qna/QnADetail";
+import { QnADetailSkeleton } from "@/features/support/components/qna/QnADetailSkeleton";
 import { QnAPasswordModal } from "@/features/support/components/qna/QnAPasswordModal";
 import type { QnADetailViewModel } from "@/features/support/domain/support";
 
@@ -119,11 +120,7 @@ export default function QnADetailPage({ params }: { params: { id: string } }) {
   };
 
   if (loading) {
-    return (
-      <div className="py-12 text-center text-(--oboon-text-muted)">
-        로딩 중...
-      </div>
-    );
+    return <QnADetailSkeleton />;
   }
 
   // 비밀번호 입력 필요

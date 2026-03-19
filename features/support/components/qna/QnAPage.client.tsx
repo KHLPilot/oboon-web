@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { QnAList } from "@/features/support/components/qna/QnAList";
+import { QnAListSkeleton } from "@/features/support/components/qna/QnAListSkeleton";
 import { QnAWriteModal } from "@/features/support/components/qna/QnAWriteModal";
 import type { QnAListItemViewModel } from "@/features/support/domain/support";
 
@@ -65,18 +66,10 @@ export default function QnAPageClient() {
     router.push(`/support/qna/${result.id}`);
   };
 
-  if (loading) {
-    return (
-      <div className="py-12 text-center text-(--oboon-text-muted)">
-        로딩 중...
-      </div>
-    );
-  }
-
   return (
     <div>
       {/* 목록 */}
-      <QnAList items={items} />
+      {loading ? <QnAListSkeleton /> : <QnAList items={items} />}
 
       {/* 글쓰기 모달 */}
       <QnAWriteModal

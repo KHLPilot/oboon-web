@@ -1,0 +1,1260 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>브리핑 페이지 재설계 목업</title>
+  <style>
+    /* ── Design Tokens (OBOON) ── */
+    :root {
+      --oboon-bg-page:       #f8f8f8;
+      --oboon-bg-surface:    #ffffff;
+      --oboon-bg-subtle:     #f0f0f2;
+      --oboon-border-default:#e4e4e7;
+      --oboon-text-title:    #18181b;
+      --oboon-text-body:     #3f3f46;
+      --oboon-text-muted:    #a1a1aa;
+      --oboon-primary:       #5046e5;
+      --oboon-primary-fg:    #ffffff;
+      --oboon-danger:        #ef4444;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR", sans-serif;
+      background: var(--oboon-bg-page);
+      color: var(--oboon-text-body);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* ── Typography ── */
+    .typo-display { font-size: 36px; font-weight: 800; line-height: 1.1; letter-spacing: -0.02em; }
+    .typo-h1 { font-size: 26px; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; }
+    .typo-h2 { font-size: 20px; font-weight: 700; line-height: 1.3; }
+    .typo-h3 { font-size: 16px; font-weight: 600; line-height: 1.4; }
+    .typo-body { font-size: 14px; font-weight: 400; }
+    .typo-caption { font-size: 12px; font-weight: 400; }
+
+    .text-title { color: var(--oboon-text-title); }
+    .text-body  { color: var(--oboon-text-body); }
+    .text-muted { color: var(--oboon-text-muted); }
+    .text-primary { color: var(--oboon-primary); }
+
+    /* ── Layout ── */
+    .page-wrapper { max-width: 1100px; margin: 0 auto; padding: 24px 16px 80px; }
+
+    /* ── Tab Nav ── */
+    .tab-nav {
+      display: flex;
+      gap: 4px;
+      background: var(--oboon-bg-surface);
+      border: 1px solid var(--oboon-border-default);
+      border-radius: 9999px;
+      padding: 4px;
+      width: fit-content;
+      margin-bottom: 32px;
+    }
+    .tab-btn {
+      padding: 7px 20px;
+      border-radius: 9999px;
+      border: none;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      background: transparent;
+      color: var(--oboon-text-muted);
+      transition: all 0.15s;
+    }
+    .tab-btn.active {
+      background: var(--oboon-primary);
+      color: #fff;
+      font-weight: 600;
+    }
+
+    /* ── Hero ── */
+    .hero {
+      position: relative;
+      width: 100%;
+      height: 480px;
+      border-radius: 20px;
+      overflow: hidden;
+      margin-bottom: 40px;
+      background: #1a1a2e;
+      cursor: pointer;
+    }
+    .hero-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .hero-img-placeholder {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, #1a1a2e 0%, #2d2d5c 40%, #4a3f7a 70%, #6b5ca5 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 48px;
+      opacity: 0.6;
+    }
+    .hero-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, rgba(0,0,0,0.80) 0%, rgba(0,0,0,0.35) 45%, transparent 75%);
+      pointer-events: none;
+    }
+    .hero-content {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 32px 36px;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(80,70,229,0.9);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      margin-bottom: 12px;
+      letter-spacing: 0.02em;
+    }
+    .hero-title {
+      font-size: 28px;
+      font-weight: 800;
+      color: #ffffff;
+      line-height: 1.25;
+      letter-spacing: -0.02em;
+      margin-bottom: 10px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .hero-excerpt {
+      font-size: 14px;
+      color: rgba(255,255,255,0.75);
+      line-height: 1.6;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      margin-bottom: 20px;
+      max-width: 640px;
+    }
+    .hero-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .hero-date {
+      font-size: 12px;
+      color: rgba(255,255,255,0.55);
+    }
+    .hero-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #fff;
+      color: var(--oboon-text-title);
+      font-size: 13px;
+      font-weight: 600;
+      padding: 9px 20px;
+      border-radius: 9999px;
+      text-decoration: none;
+      cursor: pointer;
+      border: none;
+    }
+
+    /* ── Section Header ── */
+    .section-header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .section-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--oboon-text-title);
+    }
+    .section-sub {
+      font-size: 12px;
+      color: var(--oboon-text-muted);
+      margin-top: 2px;
+    }
+    .view-all {
+      font-size: 12px;
+      color: var(--oboon-primary);
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    /* ── Search Bar ── */
+    .search-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--oboon-bg-surface);
+      border: 1.5px solid var(--oboon-border-default);
+      border-radius: 12px;
+      padding: 10px 16px;
+      margin-bottom: 32px;
+      transition: border-color 0.15s;
+    }
+    .search-bar:focus-within {
+      border-color: var(--oboon-primary);
+    }
+    .search-icon {
+      color: var(--oboon-text-muted);
+      flex-shrink: 0;
+    }
+    .search-input {
+      flex: 1;
+      border: none;
+      outline: none;
+      font-size: 14px;
+      background: transparent;
+      color: var(--oboon-text-title);
+    }
+    .search-input::placeholder { color: var(--oboon-text-muted); }
+    .search-kbd {
+      font-size: 11px;
+      color: var(--oboon-text-muted);
+      background: var(--oboon-bg-subtle);
+      border: 1px solid var(--oboon-border-default);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-family: monospace;
+    }
+
+    /* ── Card Grid ── */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .card-grid.col3 {
+      grid-template-columns: repeat(3, 1fr);
+    }
+    @media (max-width: 860px) {
+      .card-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .post-card {
+      background: var(--oboon-bg-surface);
+      border: 1px solid var(--oboon-border-default);
+      border-radius: 16px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .post-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 24px rgba(0,0,0,0.08);
+    }
+    .post-card-cover {
+      aspect-ratio: 4/5;
+      background: linear-gradient(135deg, #e8e4ff 0%, #c7d2fe 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      color: #a5b4fc;
+      position: relative;
+    }
+    .post-card-cover.green {
+      background: linear-gradient(135deg, #d1fae5 0%, #6ee7b7 100%);
+      color: #34d399;
+    }
+    .post-card-cover.orange {
+      background: linear-gradient(135deg, #fef3c7 0%, #fcd34d 100%);
+      color: #f59e0b;
+    }
+    .post-card-cover.red {
+      background: linear-gradient(135deg, #fee2e2 0%, #fca5a5 100%);
+      color: #ef4444;
+    }
+    .post-card-cover.blue {
+      background: linear-gradient(135deg, #dbeafe 0%, #93c5fd 100%);
+      color: #60a5fa;
+    }
+    .post-card-cover.purple2 {
+      background: linear-gradient(135deg, #f3e8ff 0%, #d8b4fe 100%);
+      color: #a855f7;
+    }
+    .post-card-badge {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(255,255,255,0.9);
+      color: var(--oboon-primary);
+      font-size: 10px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      backdrop-filter: blur(4px);
+    }
+    .post-card-body {
+      padding: 12px 14px 14px;
+    }
+    .post-card-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--oboon-text-title);
+      line-height: 1.45;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+    .post-card-date {
+      font-size: 11px;
+      color: var(--oboon-text-muted);
+    }
+
+    /* ── Pagination ── */
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      margin-top: 24px;
+    }
+    .page-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      border: 1px solid var(--oboon-border-default);
+      background: var(--oboon-bg-surface);
+      font-size: 13px;
+      color: var(--oboon-text-body);
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    .page-btn:hover { border-color: var(--oboon-primary); color: var(--oboon-primary); }
+    .page-btn.active {
+      background: var(--oboon-primary);
+      color: #fff;
+      border-color: var(--oboon-primary);
+      font-weight: 600;
+    }
+    .page-btn.arrow { font-size: 16px; color: var(--oboon-text-muted); }
+    .page-btn.arrow:hover { color: var(--oboon-primary); }
+
+    /* ── Category Cards (Original) ── */
+    .cat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+    .cat-card {
+      background: var(--oboon-bg-surface);
+      border: 1px solid var(--oboon-border-default);
+      border-radius: 16px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.15s;
+    }
+    .cat-card:hover { transform: translateY(-2px); }
+    .cat-cover {
+      height: 120px;
+      background: linear-gradient(135deg, #e8e4ff 0%, #c7d2fe 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      color: #a5b4fc;
+    }
+    .cat-cover.v2 { background: linear-gradient(135deg, #d1fae5 0%, #6ee7b7 100%); color: #34d399; }
+    .cat-cover.v3 { background: linear-gradient(135deg, #fef3c7 0%, #fcd34d 100%); color: #f59e0b; }
+    .cat-body { padding: 12px 14px; }
+    .cat-name { font-size: 15px; font-weight: 700; color: var(--oboon-text-title); margin-bottom: 4px; }
+    .cat-desc { font-size: 12px; color: var(--oboon-text-muted); margin-bottom: 8px; line-height: 1.5; }
+    .cat-count { font-size: 11px; color: var(--oboon-primary); font-weight: 500; }
+
+    /* ── Post Detail ── */
+    .detail-layout {
+      display: grid;
+      grid-template-columns: 1fr 280px;
+      gap: 32px;
+      align-items: start;
+    }
+    .detail-hero {
+      width: 100%;
+      aspect-ratio: 16/7;
+      background: linear-gradient(135deg, #1a1a2e 0%, #4a3f7a 100%);
+      border-radius: 16px;
+      margin-bottom: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 48px;
+      opacity: 0.5;
+    }
+    .detail-category {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--oboon-primary);
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+    .detail-title {
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--oboon-text-title);
+      line-height: 1.3;
+      letter-spacing: -0.02em;
+      margin-bottom: 14px;
+    }
+    .detail-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 0;
+      border-top: 1px solid var(--oboon-border-default);
+      border-bottom: 1px solid var(--oboon-border-default);
+      margin-bottom: 28px;
+    }
+    .author-avatar {
+      width: 36px;
+      height: 36px;
+      background: var(--oboon-bg-subtle);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--oboon-primary);
+      flex-shrink: 0;
+    }
+    .detail-content {
+      color: var(--oboon-text-body);
+      font-size: 15px;
+      line-height: 1.8;
+    }
+    .detail-content p { margin-bottom: 16px; }
+    .detail-content h3 { font-size: 18px; font-weight: 700; margin: 28px 0 12px; color: var(--oboon-text-title); }
+
+    /* ── Reactions ── */
+    .reactions-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 16px 0;
+      border-top: 1px solid var(--oboon-border-default);
+      margin-top: 32px;
+    }
+    .react-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: 9999px;
+      border: 1.5px solid var(--oboon-border-default);
+      background: var(--oboon-bg-surface);
+      font-size: 13px;
+      color: var(--oboon-text-muted);
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.12s;
+    }
+    .react-btn:hover { border-color: var(--oboon-primary); color: var(--oboon-primary); }
+    .react-btn.liked { border-color: #ef4444; color: #ef4444; background: #fff5f5; }
+    .react-btn.bookmarked { border-color: var(--oboon-primary); color: var(--oboon-primary); background: #f0f0ff; }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      position: sticky;
+      top: 80px;
+    }
+    .sidebar-card {
+      background: var(--oboon-bg-surface);
+      border: 1px solid var(--oboon-border-default);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .sidebar-card-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--oboon-text-title);
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .related-post {
+      display: flex;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--oboon-bg-subtle);
+      cursor: pointer;
+    }
+    .related-post:last-child { border-bottom: none; }
+    .related-thumb {
+      width: 52px;
+      height: 52px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #e8e4ff, #c7d2fe);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      color: #a5b4fc;
+    }
+    .related-thumb.g2 { background: linear-gradient(135deg, #d1fae5, #6ee7b7); color: #34d399; }
+    .related-thumb.g3 { background: linear-gradient(135deg, #fef3c7, #fcd34d); color: #f59e0b; }
+    .related-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--oboon-text-title);
+      line-height: 1.4;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .related-date { font-size: 11px; color: var(--oboon-text-muted); margin-top: 4px; }
+
+    /* ── Search Results ── */
+    .search-results-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .search-query-badge {
+      background: var(--oboon-bg-subtle);
+      border: 1px solid var(--oboon-border-default);
+      border-radius: 8px;
+      padding: 4px 12px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--oboon-text-title);
+    }
+    .search-count { font-size: 13px; color: var(--oboon-text-muted); }
+
+    /* ── Page Section Divider ── */
+    .page-section {
+      background: var(--oboon-bg-surface);
+      border-radius: 20px;
+      padding: 28px 24px;
+      margin-bottom: 20px;
+      border: 1px solid var(--oboon-border-default);
+    }
+    .page-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--oboon-text-muted);
+      background: var(--oboon-bg-subtle);
+      border: 1px solid var(--oboon-border-default);
+      border-radius: 9999px;
+      padding: 3px 10px;
+      display: inline-flex;
+      margin-bottom: 20px;
+    }
+
+    /* ── Tab Pages ── */
+    .tab-page { display: none; }
+    .tab-page.active { display: block; }
+
+    /* ── Annotation ── */
+    .annotation {
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 12px;
+      color: #92400e;
+      margin-bottom: 16px;
+      display: flex;
+      gap: 8px;
+    }
+    .annotation::before { content: "💡"; flex-shrink: 0; }
+
+    /* ── Divider ── */
+    hr { border: none; border-top: 1px solid var(--oboon-border-default); margin: 32px 0; }
+
+    /* ── FeaturedHero (Original page) ── */
+    .featured-hero {
+      background: var(--oboon-bg-surface);
+      border: 1px solid var(--oboon-border-default);
+      border-radius: 20px;
+      padding: 20px;
+      margin-bottom: 32px;
+      display: grid;
+      grid-template-columns: 400px 1fr;
+      gap: 20px;
+      min-height: 420px;
+      overflow: hidden;
+    }
+    .featured-hero-left {
+      position: relative;
+      border-radius: 14px;
+      overflow: hidden;
+      background: linear-gradient(135deg, #1a1a2e 0%, #4a3f7a 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 48px;
+      opacity: 0.7;
+    }
+    .featured-hero-brand {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      font-size: 32px;
+      font-weight: 800;
+      color: #fff;
+      line-height: 1.1;
+    }
+    .featured-hero-nav {
+      position: absolute;
+      bottom: 16px;
+      right: 16px;
+      display: flex;
+      gap: 4px;
+      background: rgba(255,255,255,0.15);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 9999px;
+      padding: 2px;
+    }
+    .nav-circle {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.4);
+      cursor: pointer;
+    }
+    .nav-circle.active { background: #fff; }
+    .featured-hero-right {
+      display: flex;
+      align-items: center;
+    }
+    .featured-text-block { flex: 1; }
+    .featured-badge {
+      display: inline-flex;
+      background: var(--oboon-bg-subtle);
+      border: 1px solid var(--oboon-border-default);
+      border-radius: 9999px;
+      padding: 3px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--oboon-primary);
+      margin-bottom: 12px;
+    }
+    .featured-title {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--oboon-text-title);
+      line-height: 1.3;
+      letter-spacing: -0.01em;
+      margin-bottom: 10px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .featured-excerpt {
+      font-size: 13px;
+      color: var(--oboon-text-muted);
+      line-height: 1.6;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+    .featured-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .featured-date { font-size: 12px; color: var(--oboon-text-muted); }
+    .featured-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: var(--oboon-primary);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 7px 14px;
+      border-radius: 9999px;
+      cursor: pointer;
+      border: none;
+    }
+
+    /* ── Tag Chips ── */
+    .tag-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 28px;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 5px 14px;
+      border-radius: 9999px;
+      border: 1.5px solid var(--oboon-border-default);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--oboon-text-muted);
+      background: var(--oboon-bg-surface);
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    .chip.active {
+      border-color: var(--oboon-primary);
+      color: var(--oboon-primary);
+      background: rgba(80,70,229,0.06);
+      font-weight: 600;
+    }
+    .chip:hover { border-color: var(--oboon-primary); color: var(--oboon-primary); }
+
+    /* ── Top Nav mockup ── */
+    .mock-nav {
+      background: var(--oboon-bg-surface);
+      border-bottom: 1px solid var(--oboon-border-default);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .mock-logo { font-size: 18px; font-weight: 800; color: var(--oboon-primary); letter-spacing: -0.02em; }
+    .mock-nav-links { display: flex; gap: 20px; font-size: 13px; color: var(--oboon-text-muted); }
+    .mock-nav-links span { cursor: pointer; }
+    .mock-nav-links span.active { color: var(--oboon-text-title); font-weight: 600; }
+    .mock-nav-right { display: flex; gap: 10px; align-items: center; }
+    .nav-avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: var(--oboon-primary);
+      color: #fff; display: flex; align-items: center;
+      justify-content: center; font-size: 12px; font-weight: 700;
+      cursor: pointer;
+    }
+
+    /* ── Mobile note ── */
+    .mobile-note {
+      display: none;
+      background: var(--oboon-bg-subtle);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 12px;
+      color: var(--oboon-text-muted);
+      text-align: center;
+      margin-bottom: 16px;
+    }
+
+    /* Section tag (like a label) */
+    .tag-section-header {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--oboon-text-title);
+      padding: 8px 0 12px;
+      border-bottom: 2px solid var(--oboon-border-default);
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .tag-section-count {
+      font-size: 11px;
+      color: var(--oboon-text-muted);
+      font-weight: 400;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ───── Mock Nav ───── -->
+<nav class="mock-nav">
+  <div class="mock-logo">OBOON</div>
+  <div class="mock-nav-links">
+    <span>홈</span>
+    <span>분양지도</span>
+    <span class="active">브리핑</span>
+    <span>커뮤니티</span>
+    <span>고객지원</span>
+  </div>
+  <div class="mock-nav-right">
+    <div class="nav-avatar">김</div>
+  </div>
+</nav>
+
+<div class="page-wrapper">
+
+  <!-- ───── Tab Nav ───── -->
+  <div class="tab-nav">
+    <button class="tab-btn active" onclick="showTab('home')">브리핑 홈</button>
+    <button class="tab-btn" onclick="showTab('original')">오분 오리지널</button>
+    <button class="tab-btn" onclick="showTab('detail')">글 상세</button>
+    <button class="tab-btn" onclick="showTab('search')">검색</button>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       TAB 1: 브리핑 홈
+  ═══════════════════════════════════════════════ -->
+  <div class="tab-page active" id="tab-home">
+    <div class="annotation">
+      Phase 1 변경 — 히어로를 "언론사 스타일 풀 이미지"로 교체. 현재 OBOON Original 브랜드 배너 구조에서 최신 글을 즉시 전달하는 방식으로 전환.
+    </div>
+
+    <!-- Hero: Editorial Style -->
+    <div class="hero">
+      <div class="hero-img-placeholder">🏙️</div>
+      <div class="hero-overlay"></div>
+      <div class="hero-content">
+        <div class="hero-badge">
+          <span>★</span>
+          <span>OBOON Original · 리조트 분양</span>
+        </div>
+        <div class="hero-title">2025년 상반기 분양 트렌드 완전 정리 — 리조트·오피스텔 쏠림 현상과 그 배경</div>
+        <div class="hero-excerpt">
+          최근 3개월간 청약 데이터를 분석한 결과, 수익형 부동산 시장에서 주목할 만한 변화가 감지됩니다. 리조트 분양과 도심 오피스텔에 청약이 집중되는 현상의 원인과 투자자 시각에서의 체크포인트를 정리했습니다.
+        </div>
+        <div class="hero-meta">
+          <span class="hero-date">2025.06.15</span>
+          <button class="hero-cta">읽어보기 →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Search Bar -->
+    <div class="search-bar">
+      <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      </svg>
+      <input class="search-input" placeholder="브리핑 글 검색 (제목·내용)" readonly />
+      <span class="search-kbd">⌘K</span>
+    </div>
+
+    <!-- 일반 브리핑 Section -->
+    <div class="section-header">
+      <div>
+        <div class="section-title">일반 브리핑</div>
+        <div class="section-sub">단일 주제로 정리된 최신 브리핑 글입니다.</div>
+      </div>
+      <a class="view-all" href="#">전체보기</a>
+    </div>
+
+    <div class="card-grid">
+      <div class="post-card">
+        <div class="post-card-cover blue">🏢
+          <span class="post-card-badge">뉴스</span>
+        </div>
+        <div class="post-card-body">
+          <div class="post-card-title">서울 강남 도심 복합 개발지구 사업 승인 임박</div>
+          <div class="post-card-date">2025.06.14</div>
+        </div>
+      </div>
+      <div class="post-card">
+        <div class="post-card-cover orange">🌿
+          <span class="post-card-badge">트렌드</span>
+        </div>
+        <div class="post-card-body">
+          <div class="post-card-title">친환경 단지 인증 기준 강화, 분양가에 미치는 영향</div>
+          <div class="post-card-date">2025.06.12</div>
+        </div>
+      </div>
+      <div class="post-card">
+        <div class="post-card-cover green">📊
+          <span class="post-card-badge">실거래가</span>
+        </div>
+        <div class="post-card-body">
+          <div class="post-card-title">2025 5월 수도권 분양 실거래가 정리</div>
+          <div class="post-card-date">2025.06.10</div>
+        </div>
+      </div>
+      <div class="post-card">
+        <div class="post-card-cover purple2">🏖️
+          <span class="post-card-badge">뉴스</span>
+        </div>
+        <div class="post-card-body">
+          <div class="post-card-title">동해안 리조트 분양 러시, 분산 투자 전략은?</div>
+          <div class="post-card-date">2025.06.09</div>
+        </div>
+      </div>
+      <div class="post-card">
+        <div class="post-card-cover red">📋
+          <span class="post-card-badge">규제</span>
+        </div>
+        <div class="post-card-body">
+          <div class="post-card-title">분양가 상한제 완화안 국회 통과 — 내용 요약</div>
+          <div class="post-card-date">2025.06.07</div>
+        </div>
+      </div>
+      <div class="post-card">
+        <div class="post-card-cover blue">🏗️
+          <span class="post-card-badge">트렌드</span>
+        </div>
+        <div class="post-card-body">
+          <div class="post-card-title">브랜드 아파트 프리미엄, 실제 데이터로 검증</div>
+          <div class="post-card-date">2025.06.06</div>
+        </div>
+      </div>
+      <div class="post-card">
+        <div class="post-card-cover orange">🗺️
+          <span class="post-card-badge">뉴스</span>
+        </div>
+        <div class="post-card-body">
+          <div class="post-card-title">GTX-B 노선 예정지 주변 분양 현황 분석</div>
+          <div class="post-card-date">2025.06.04</div>
+        </div>
+      </div>
+      <div class="post-card">
+        <div class="post-card-cover green">💡
+          <span class="post-card-badge">가이드</span>
+        </div>
+        <div class="post-card-body">
+          <div class="post-card-title">초보자를 위한 분양 계약서 체크리스트 10가지</div>
+          <div class="post-card-date">2025.06.02</div>
+        </div>
+      </div>
+      <div class="post-card">
+        <div class="post-card-cover purple2">📰
+          <span class="post-card-badge">뉴스</span>
+        </div>
+        <div class="post-card-body">
+          <div class="post-card-title">청약홈 개편 이후 달라진 점 — 필독 사항 정리</div>
+          <div class="post-card-date">2025.05.30</div>
+        </div>
+      </div>
+      <div class="post-card">
+        <div class="post-card-cover red">🏙️
+          <span class="post-card-badge">실거래가</span>
+        </div>
+        <div class="post-card-body">
+          <div class="post-card-title">인천 송도 3구역 최신 분양 및 실거래 동향</div>
+          <div class="post-card-date">2025.05.28</div>
+        </div>
+      </div>
+      <div class="post-card">
+        <div class="post-card-cover blue">📈
+          <span class="post-card-badge">트렌드</span>
+        </div>
+        <div class="post-card-body">
+          <div class="post-card-title">금리 인하 기대감, 분양 시장에 선반영 됐을까</div>
+          <div class="post-card-date">2025.05.26</div>
+        </div>
+      </div>
+      <div class="post-card">
+        <div class="post-card-cover orange">🌆
+          <span class="post-card-badge">뉴스</span>
+        </div>
+        <div class="post-card-body">
+          <div class="post-card-title">부산 원도심 재개발 분양 일정 총정리 2025</div>
+          <div class="post-card-date">2025.05.24</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- URL-based Pagination (Phase 2) -->
+    <div style="margin-bottom: 8px;">
+      <div class="annotation" style="margin-bottom: 12px;">
+        Phase 2 변경 — 더보기(useState) → URL 페이지네이션(?page=N). 현재 4개씩 더보기 방식에서 12개 페이지 단위 URL 이동으로 전환. SEO 개선 + 링크 공유 가능.
+      </div>
+    </div>
+    <div class="pagination">
+      <button class="page-btn arrow">‹</button>
+      <button class="page-btn active">1</button>
+      <button class="page-btn">2</button>
+      <button class="page-btn">3</button>
+      <span style="color:var(--oboon-text-muted);font-size:13px;padding:0 4px;">…</span>
+      <button class="page-btn">8</button>
+      <button class="page-btn arrow">›</button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       TAB 2: 오분 오리지널 (현행 유지 + 개선 포인트)
+  ═══════════════════════════════════════════════ -->
+  <div class="tab-page" id="tab-original">
+    <div class="annotation">
+      오분 오리지널 페이지는 현행 FeaturedHero 구조 유지. 태그 칩 필터와 카테고리 카드 섹션은 그대로. URL 페이지네이션은 카테고리 내 글 목록에 적용.
+    </div>
+
+    <!-- Featured Hero (현행 유지) -->
+    <div class="featured-hero">
+      <div class="featured-hero-left">
+        <div class="featured-hero-brand">OBOON<br/>Original</div>
+        🏙️
+        <div class="featured-hero-nav">
+          <div class="nav-circle active"></div>
+          <div class="nav-circle"></div>
+          <div class="nav-circle"></div>
+        </div>
+      </div>
+      <div class="featured-hero-right">
+        <div class="featured-text-block">
+          <div class="featured-badge">리조트 분양</div>
+          <div class="featured-title">2025년 상반기 분양 트렌드 완전 정리 — 리조트·오피스텔 쏠림 현상</div>
+          <div class="featured-excerpt">최근 3개월간 청약 데이터를 분석한 결과, 수익형 부동산 시장에서 주목할 만한 변화가 감지됩니다. 리조트 분양과 도심 오피스텔에 청약이 집중되는 현상의 원인과 투자자 시각에서의 체크포인트를 정리했습니다.</div>
+          <div class="featured-meta">
+            <span class="featured-date">2025.06.15 · 1 / 3</span>
+            <button class="featured-cta">보러가기 →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tag Chips -->
+    <div class="tag-chips">
+      <div class="chip active">전체</div>
+      <div class="chip">아파트</div>
+      <div class="chip">리조트</div>
+      <div class="chip">오피스텔</div>
+      <div class="chip">상가</div>
+      <div class="chip">트렌드</div>
+      <div class="chip">규제</div>
+      <div class="chip">실거래가</div>
+    </div>
+
+    <!-- Category Cards -->
+    <div class="section-header">
+      <div class="section-title">전체 카테고리</div>
+    </div>
+    <div class="cat-grid">
+      <div class="cat-card">
+        <div class="cat-cover">🏖️</div>
+        <div class="cat-body">
+          <div class="cat-name">리조트 분양</div>
+          <div class="cat-desc">해양·산악 리조트 분양 현황과 수익형 부동산 분석</div>
+          <div class="cat-count">글 14개</div>
+        </div>
+      </div>
+      <div class="cat-card">
+        <div class="cat-cover v2">🏢</div>
+        <div class="cat-body">
+          <div class="cat-name">아파트 트렌드</div>
+          <div class="cat-desc">수도권·지방 신규 아파트 분양 트렌드와 시세 분석</div>
+          <div class="cat-count">글 22개</div>
+        </div>
+      </div>
+      <div class="cat-card">
+        <div class="cat-cover v3">📊</div>
+        <div class="cat-body">
+          <div class="cat-name">분양 데이터</div>
+          <div class="cat-desc">청약 경쟁률·실거래가 데이터 기반 시장 분석</div>
+          <div class="cat-count">글 9개</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       TAB 3: 글 상세 (Phase 4 — 좋아요/북마크)
+  ═══════════════════════════════════════════════ -->
+  <div class="tab-page" id="tab-detail">
+    <div class="annotation">
+      Phase 4 변경 — 현재 플레이스홀더인 좋아요/공유 버튼을 실제 동작하는 Optimistic UI로 교체. DB 테이블(briefing_post_likes, briefing_post_bookmarks) 신설 필요.
+    </div>
+
+    <div class="detail-layout">
+      <!-- Main Content -->
+      <div>
+        <!-- Cover Image -->
+        <div class="detail-hero">🏙️</div>
+
+        <!-- Category -->
+        <div class="detail-category">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+          OBOON Original · 리조트 분양
+        </div>
+
+        <!-- Title -->
+        <h1 class="detail-title">2025년 상반기 분양 트렌드 완전 정리 — 리조트·오피스텔 쏠림 현상과 그 배경</h1>
+
+        <!-- Meta -->
+        <div class="detail-meta">
+          <div class="author-avatar">O</div>
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--oboon-text-title);">OBOON 편집팀</div>
+            <div style="font-size:11px;color:var(--oboon-text-muted);">2025.06.15 발행</div>
+          </div>
+        </div>
+
+        <!-- Content Preview -->
+        <div class="detail-content">
+          <p>최근 3개월간 청약 데이터를 분석한 결과, 수익형 부동산 시장에서 주목할 만한 변화가 감지됩니다. 특히 리조트 분양과 도심 오피스텔에 청약이 집중되는 현상이 뚜렷합니다.</p>
+          <h3>리조트 분양 쏠림의 배경</h3>
+          <p>금리 인상 사이클이 마무리 국면에 접어들면서 투자자들의 관심이 수익형 부동산으로 이동하고 있습니다. 특히 강원·제주 지역의 리조트 분양은 청약 경쟁률이 전년 대비 3배 이상 증가했습니다.</p>
+          <p>이러한 현상의 주요 원인으로는 ① 레저 수요 증가 ② 임대 수익 기대감 ③ 공급 부족 등이 꼽힙니다. 다만 실제 수익률은 입지와 운영사에 따라 크게 달라질 수 있습니다…</p>
+        </div>
+
+        <!-- Reactions Bar (Phase 4) -->
+        <div class="reactions-bar">
+          <button class="react-btn liked">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+            좋아요 <span style="font-weight:700;color:#ef4444;">24</span>
+          </button>
+          <button class="react-btn bookmarked">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/></svg>
+            북마크
+          </button>
+          <div style="flex:1;"></div>
+          <button class="react-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+            공유
+          </button>
+        </div>
+      </div>
+
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <div class="sidebar-card">
+          <div class="sidebar-card-title">
+            📌 같은 카테고리 글
+          </div>
+          <div class="related-post">
+            <div class="related-thumb">🏖️</div>
+            <div>
+              <div class="related-title">제주 애월 리조트 분양 완전 분석</div>
+              <div class="related-date">2025.06.10</div>
+            </div>
+          </div>
+          <div class="related-post">
+            <div class="related-thumb g2">🏔️</div>
+            <div>
+              <div class="related-title">강원 평창 스키 리조트 수익률 3년 추적기</div>
+              <div class="related-date">2025.05.28</div>
+            </div>
+          </div>
+          <div class="related-post">
+            <div class="related-thumb g3">🌊</div>
+            <div>
+              <div class="related-title">동해 해변 리조트 임대 수익 현실</div>
+              <div class="related-date">2025.05.15</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sidebar-card">
+          <div class="sidebar-card-title">🔖 다른 카테고리 추천</div>
+          <div class="tag-chips" style="margin-bottom:0;">
+            <div class="chip">아파트 트렌드</div>
+            <div class="chip">분양 데이터</div>
+            <div class="chip">규제 가이드</div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       TAB 4: 검색 (Phase 3)
+  ═══════════════════════════════════════════════ -->
+  <div class="tab-page" id="tab-search">
+    <div class="annotation">
+      Phase 3 신규 — /briefing/search?q= 페이지 신설. URL 기반이므로 검색 결과 링크 공유 가능. Supabase ilike 쿼리 사용 (title + content_md).
+    </div>
+
+    <!-- Search Bar (Active State) -->
+    <div class="search-bar" style="border-color: var(--oboon-primary); margin-bottom: 20px;">
+      <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--oboon-primary)" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      </svg>
+      <input class="search-input" value="리조트 분양" readonly />
+      <button style="border:none;background:var(--oboon-primary);color:#fff;font-size:12px;padding:5px 12px;border-radius:8px;cursor:pointer;font-weight:600;">검색</button>
+    </div>
+
+    <!-- Search Results Header -->
+    <div class="search-results-header">
+      <div class="search-query-badge">"리조트 분양"</div>
+      <div class="search-count">검색 결과 <strong>7개</strong></div>
+    </div>
+
+    <!-- Results Grid -->
+    <div class="card-grid">
+      <div class="post-card">
+        <div class="post-card-cover" style="background:linear-gradient(135deg,#1a1a2e,#4a3f7a);color:#a5b4fc;">🏙️
+          <span class="post-card-badge">리조트 분양</span>
+        </div>
+        <div class="post-card-body">
+          <div class="post-card-title"><mark style="background:#fef08a;border-radius:2px;">리조트 분양</mark> 트렌드 완전 정리</div>
+          <div class="post-card-date">2025.06.15</div>
+        </div>
+      </div>
+      <div class="post-card">
+        <div class="post-card-cover blue">🏖️
+          <span class="post-card-badge">리조트 분양</span>
+        </div>
+        <div class="post-card-body">
+          <div class="post-card-title">제주 애월 <mark style="background:#fef08a;border-radius:2px;">리조트 분양</mark> 완전 분석</div>
+          <div class="post-card-date">2025.06.10</div>
+        </div>
+      </div>
+      <div class="post-card">
+        <div class="post-card-cover orange">🏔️
+          <span class="post-card-badge">뉴스</span>
+        </div>
+        <div class="post-card-body">
+          <div class="post-card-title">동해안 <mark style="background:#fef08a;border-radius:2px;">리조트</mark> <mark style="background:#fef08a;border-radius:2px;">분양</mark> 러시, 분산 투자 전략은?</div>
+          <div class="post-card-date">2025.06.09</div>
+        </div>
+      </div>
+      <div class="post-card">
+        <div class="post-card-cover green">🌊
+          <span class="post-card-badge">리조트 분양</span>
+        </div>
+        <div class="post-card-body">
+          <div class="post-card-title">동해 해변 <mark style="background:#fef08a;border-radius:2px;">리조트 분양</mark> 임대 수익 현실</div>
+          <div class="post-card-date">2025.05.15</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pagination -->
+    <div class="pagination" style="margin-top:16px;">
+      <button class="page-btn arrow">‹</button>
+      <button class="page-btn active">1</button>
+      <button class="page-btn arrow">›</button>
+    </div>
+
+    <!-- Empty State (for reference) -->
+    <hr style="margin: 40px 0 24px;" />
+    <div style="text-align:center; padding: 40px; background:var(--oboon-bg-surface); border-radius:16px; border:1px solid var(--oboon-border-default);">
+      <div style="font-size:32px;margin-bottom:12px;">🔍</div>
+      <div style="font-size:15px;font-weight:600;color:var(--oboon-text-title);margin-bottom:6px;">"검색어 없음" 검색 결과</div>
+      <div style="font-size:13px;color:var(--oboon-text-muted);">검색어와 일치하는 브리핑 글이 없습니다.<br/>다른 키워드로 시도해 보세요.</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  function showTab(id) {
+    document.querySelectorAll('.tab-page').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+    document.getElementById('tab-' + id).classList.add('active');
+    event.target.classList.add('active');
+  }
+</script>
+</body>
+</html>

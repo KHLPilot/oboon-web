@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { FAQCategoryTabs } from "@/features/support/components/faq/FAQCategoryTabs";
 import { FAQAccordion } from "@/features/support/components/faq/FAQAccordion";
+import { FAQListSkeleton } from "@/features/support/components/faq/FAQListSkeleton";
 import type { FAQItemViewModel, FAQCategoryKey } from "@/features/support/domain/support";
 
 export default function SupportFAQPage() {
@@ -32,21 +33,17 @@ export default function SupportFAQPage() {
       ? items
       : items.filter((item) => item.categoryKey === selectedCategory);
 
-  if (loading) {
-    return (
-      <div className="py-12 text-center text-(--oboon-text-muted)">
-        로딩 중...
-      </div>
-    );
-  }
-
   return (
     <div>
       <div className="mb-6">
         <FAQCategoryTabs value={selectedCategory} onChange={setSelectedCategory} />
       </div>
 
-      <FAQAccordion items={filteredItems} />
+      {loading ? (
+        <FAQListSkeleton />
+      ) : (
+        <FAQAccordion items={filteredItems} />
+      )}
     </div>
   );
 }
