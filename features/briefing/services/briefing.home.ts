@@ -1,6 +1,53 @@
+import { createClient } from "@supabase/supabase-js";
 import { createSupabaseServer } from "@/lib/supabaseServer";
 
 export const BRIEFING_HOME_PAGE_SIZE = 8;
+
+type BoardRow = { key?: string } | { key?: string }[] | null;
+type CategoryRow = { key?: string } | { key?: string }[] | null;
+
+export type BriefingSitemapPostRow = {
+  slug: string | null;
+  created_at: string | null;
+  published_at: string | null;
+  board: BoardRow;
+  category: CategoryRow;
+};
+
+function createPublicSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !anonKey) return null;
+
+  return createClient(url, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
+export async function fetchPublishedBriefingPostsForSitemap(
+  limit = 500
+): Promise<BriefingSitemapPostRow[]> {
+  const supabase = createPublicSupabaseClient();
+  if (!supabase) return [];
+
+  const { data, error } = await supabase
+    .from("briefing_posts")
+    .select(
+      `
+        slug, created_at, published_at,
+        board:briefing_boards!inner(key),
+        category:briefing_categories(key)
+      `,
+    )
+    .eq("status", "published")
+    .order("published_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) return [];
+  return (data ?? []) as BriefingSitemapPostRow[];
+}
 
 export async function fetchBriefingHomeData(page = 1) {
   const supabase = await createSupabaseServer();

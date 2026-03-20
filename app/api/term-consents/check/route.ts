@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
+import {
+  fetchRequiredSignupTerms,
+  fetchUserConsentsForTypes,
+} from "@/features/auth/services/term-consents.service";
 
 export const dynamic = 'force-dynamic';
 
@@ -57,12 +61,8 @@ export async function GET() {
     }
 
     // 1. 활성화된 필수 약관 조회 (signup_ 으로 시작하는 것만)
-    const { data: requiredTerms, error: termsError } = await supabase
-      .from('terms')
-      .select('type, version')
-      .eq('is_active', true)
-      .eq('is_required', true)
-      .like('type', 'signup_%');
+    const { data: requiredTerms, error: termsError } =
+      await fetchRequiredSignupTerms();
 
     if (termsError) {
       console.error('약관 조회 실패:', termsError);
@@ -75,11 +75,11 @@ export async function GET() {
     }
 
     // 2. 유저의 동의 기록 조회 (각 타입별 최신 버전만)
-    const { data: userConsents, error: consentsError } = await supabase
-      .from('term_consents')
-      .select('term_type, term_version')
-      .eq('user_id', user.id)
-      .in('term_type', requiredTerms.map(t => t.type));
+    const { data: userConsents, error: consentsError } =
+      await fetchUserConsentsForTypes(
+        user.id,
+        requiredTerms.map((t) => t.type),
+      );
 
     if (consentsError) {
       console.error('동의 기록 조회 실패:', consentsError);

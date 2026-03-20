@@ -21,16 +21,29 @@ function formatTimeLabel(createdAt: string): string {
   return `${diffDays}일 전`;
 }
 
+function normalizeText(value: string | null | undefined) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
 export function mapCommunityPost(
   row: CommunityPostRow,
 ): CommunityPostViewModel {
+  const title = normalizeText(row.title);
+  const body = normalizeText(row.body);
+  const originalTitle = normalizeText(row.originalPost?.title);
+  const originalBody = normalizeText(row.originalPost?.body);
+  const displayTitle = row.isRepost
+    ? body || originalTitle || originalBody || title || "리포스트"
+    : title || body || "제목 없음";
+
   return {
     id: row.id,
     status: row.status,
     statusLabel: COMMUNITY_STATUS_LABELS[row.status],
     propertyName: row.propertyName,
-    title: row.title,
-    body: row.body,
+    title,
+    displayTitle,
+    body,
     authorId: row.authorId ?? null,
     authorName: row.authorName,
     authorAvatarUrl: row.authorAvatarUrl,

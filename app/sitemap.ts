@@ -1,5 +1,12 @@
 import type { MetadataRoute } from "next";
-import { createClient } from "@supabase/supabase-js";
+import {
+  fetchPublishedBriefingPostsForSitemap,
+  type BriefingSitemapPostRow,
+} from "@/features/briefing/services/briefing.home";
+import {
+  fetchOfferingSnapshotsForSitemap,
+  type OfferingSitemapSnapshotRow,
+} from "@/features/offerings/services/offering.query";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://oboon.co.kr";
 
@@ -14,20 +21,6 @@ const publicPaths = [
   "/support/faq",
   "/support/qna",
 ] as const;
-
-type BoardRow = { key?: string } | { key?: string }[] | null;
-type CategoryRow = { key?: string } | { key?: string }[] | null;
-type OfferingSnapshotRow = {
-  property_id: number | string | null;
-  published_at: string | null;
-};
-type BriefingPostRow = {
-  slug: string | null;
-  created_at: string | null;
-  published_at: string | null;
-  board: BoardRow;
-  category: CategoryRow;
-};
 
 function pickFirst<T>(value: T | T[] | null | undefined): T | null {
   if (!value) return null;
@@ -54,48 +47,18 @@ async function fetchDynamicUrls(): Promise<{
   latestOfferingModified: Date | null;
   latestBriefingModified: Date | null;
 }> {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !supabaseAnonKey) {
-    return {
-      urls: [],
-      latestOfferingModified: null,
-      latestBriefingModified: null,
-    };
-  }
-
-  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-
-  const [offeringsRes, briefingRes] = await Promise.all([
-    supabase
-      .from("property_public_snapshots")
-      .select("property_id, published_at")
-      .order("published_at", { ascending: false })
-      .limit(500),
-    supabase
-      .from("briefing_posts")
-      .select(
-        `
-          slug, created_at, published_at,
-          board:briefing_boards!inner(key),
-          category:briefing_categories(key)
-        `,
-      )
-      .eq("status", "published")
-      .order("published_at", { ascending: false, nullsFirst: false })
-      .order("created_at", { ascending: false })
-      .limit(500),
+  const [offeringSnapshots, briefingPosts] = await Promise.all([
+    fetchOfferingSnapshotsForSitemap(500),
+    fetchPublishedBriefingPostsForSitemap(500),
   ]);
 
   const dynamic: MetadataRoute.Sitemap = [];
   let latestOfferingModified: Date | null = null;
   let latestBriefingModified: Date | null = null;
 
-  if (!offeringsRes.error && offeringsRes.data) {
+  if (offeringSnapshots.length > 0) {
     const seenPropertyIds = new Set<number>();
-    for (const row of offeringsRes.data as OfferingSnapshotRow[]) {
+    for (const row of offeringSnapshots as OfferingSitemapSnapshotRow[]) {
       const propertyId = Number(row.property_id);
       if (!Number.isFinite(propertyId) || seenPropertyIds.has(propertyId)) continue;
       seenPropertyIds.add(propertyId);
@@ -111,8 +74,8 @@ async function fetchDynamicUrls(): Promise<{
     }
   }
 
-  if (!briefingRes.error && briefingRes.data) {
-    for (const row of briefingRes.data as BriefingPostRow[]) {
+  if (briefingPosts.length > 0) {
+    for (const row of briefingPosts as BriefingSitemapPostRow[]) {
       const slug = row.slug ? String(row.slug).trim() : "";
       if (!slug) continue;
 

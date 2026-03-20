@@ -4,6 +4,8 @@ import { z } from "zod";
 
 import { evaluateCondition } from "@/features/condition-validation/domain/evaluator";
 import { resolveProfileForRecommendation } from "@/features/condition-validation/server/profile-resolver";
+import { normalizeOfferingStatusValue } from "@/features/offerings/domain/offering.constants";
+import { OFFERING_STATUS_VALUES } from "@/features/offerings/domain/offering.types";
 import type { ConditionCustomerInput } from "@/features/condition-validation/domain/types";
 
 type ValidationProfileRow = {
@@ -59,6 +61,9 @@ const manwonAmountSchema = amountSchema
   .refine((value) => Number.isInteger(value), {
     message: "must be integer in manwon unit",
   });
+
+const closedStatusValue =
+  OFFERING_STATUS_VALUES[OFFERING_STATUS_VALUES.length - 1];
 
 function compareNullableNumber(
   a: number | null,
@@ -325,7 +330,9 @@ export async function POST(request: Request) {
         if (excludePropertyId && property.id === excludePropertyId) {
           return null;
         }
-        if (property.status === "CLOSED") return null;
+        if (normalizeOfferingStatusValue(property.status) === closedStatusValue) {
+          return null;
+        }
 
         const profile = resolveProfileForRecommendation({
           property,

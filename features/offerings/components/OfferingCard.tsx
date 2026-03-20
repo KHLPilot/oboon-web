@@ -63,6 +63,8 @@ export default function OfferingCard({
   cardAriaLabel,
   disableHover = false,
   compactLayout = false,
+  mobileRecommendationLayout = false,
+  isConsultable = false,
 }: {
   offering: Offering;
   conditionCategories?: ConditionCategoryGrades | null;
@@ -74,6 +76,8 @@ export default function OfferingCard({
   cardAriaLabel?: string;
   disableHover?: boolean;
   compactLayout?: boolean;
+  mobileRecommendationLayout?: boolean;
+  isConsultable?: boolean;
 }) {
   const priceRange = formatPriceRange(
     offering.priceMin억,
@@ -94,6 +98,9 @@ export default function OfferingCard({
   const regionBadge =
     offering.regionLabel ?? offering.region ?? UXCopy.regionShort;
   const isConditionMatchedCard = Boolean(conditionCategories);
+  const mobileMetaLabel = [regionBadge, offering.status].filter(Boolean).join(" · ");
+  const statusBadgeValue = offering.statusValue ?? undefined;
+  const subtlePrimaryBadgeClassName = "border-(--oboon-primary)/40";
   const cardContent = (
     <Card
       className={cn(
@@ -107,10 +114,12 @@ export default function OfferingCard({
     >
       <div className={isConditionMatchedCard ? "flex h-full flex-col" : ""}>
         <div
-          className={[
-            "relative w-full bg-(--oboon-bg-subtle)",
-            "aspect-video",
-          ].join(" ")}
+          className={cn(
+            "relative w-full bg-(--oboon-bg-subtle) aspect-video",
+            mobileRecommendationLayout &&
+              !isConditionMatchedCard &&
+              "hidden sm:block",
+          )}
         >
           {hasValidImage ? (
             <Image
@@ -148,7 +157,7 @@ export default function OfferingCard({
               value={offering.statusValue ?? undefined}
             />
             {!isConditionMatchedCard && offering.hasAppraiserComment ? (
-              <Badge variant="primary" className="border-(--oboon-primary)">
+              <Badge variant="primary">
                 감정 평가
               </Badge>
             ) : null}
@@ -232,6 +241,108 @@ export default function OfferingCard({
               </div>
             </div>
           </div>
+        ) : mobileRecommendationLayout ? (
+          <>
+            <div className="space-y-3 p-3 sm:hidden">
+              <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3">
+                <div className="relative aspect-square w-[72px] shrink-0 overflow-hidden rounded-xl bg-(--oboon-bg-subtle)">
+                  {hasValidImage ? (
+                    <Image
+                      src={normalizedImageUrl}
+                      alt={offering.title || "offering"}
+                      fill
+                      sizes="72px"
+                      className={cn(
+                        "object-cover",
+                        !disableHover &&
+                          "transition-transform duration-300 group-hover:scale-[1.03]",
+                      )}
+                      priority={false}
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="absolute inset-0 bg-linear-to-br from-(--oboon-bg-subtle) to-(--oboon-border-default) opacity-40" />
+                      <span className="relative ob-typo-caption text-(--oboon-text-muted)">
+                        {UXCopy.imagePlaceholder}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="min-w-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="line-clamp-1 ob-typo-subtitle leading-tight text-(--oboon-text-title)">
+                        {offering.title}
+                      </h3>
+                      <p className="mt-px line-clamp-1 ob-typo-caption text-(--oboon-text-muted)">
+                        {mobileMetaLabel}
+                      </p>
+                      <div className="mt-2 ob-typo-body2 text-(--oboon-text-title)">
+                        {priceRange}
+                      </div>
+                    </div>
+
+                    <OfferingBadge
+                      type="status"
+                      value={statusBadgeValue}
+                      className="shrink-0 self-start"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="h-px bg-(--oboon-border-default)" />
+
+              <div className="flex flex-wrap gap-1.5">
+                <OfferingBadge
+                  type="region"
+                  value={regionBadge}
+                />
+                {offering.propertyType ? (
+                  <OfferingBadge
+                    type="propertyType"
+                    value={offering.propertyType}
+                  />
+                ) : null}
+                {isConsultable ? (
+                  <Badge className={subtlePrimaryBadgeClassName}>
+                    상담 가능
+                  </Badge>
+                ) : null}
+                {offering.hasAppraiserComment ? (
+                  <Badge className={subtlePrimaryBadgeClassName}>
+                    감정 평가
+                  </Badge>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="hidden sm:block">
+              <div className="px-4 pt-4 pb-4 sm:px-4 sm:pt-4 sm:pb-4">
+                <div className="min-h-[76px]">
+                  <h3 className="ob-typo-h3 text-(--oboon-text-title) line-clamp-2">
+                    {offering.title}
+                  </h3>
+
+                  <p className="mt-0.5 sm:mt-1 line-clamp-1 ob-typo-body text-(--oboon-text-muted)">
+                    {offering.addressShort}
+                  </p>
+                </div>
+
+                <div className="mt-3 sm:mt-4 flex items-end justify-between gap-3">
+                  <div>
+                    <p className="ob-typo-subtitle text-(--oboon-text-title)">
+                      {priceRange}
+                    </p>
+                    <p className="mt-0.5 ob-typo-caption text-(--oboon-text-muted)">
+                      분양가 기준
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
         ) : (
           <div className="px-4 pt-4 pb-4 sm:px-4 sm:pt-4 sm:pb-4">
             <div className="min-h-[76px]">

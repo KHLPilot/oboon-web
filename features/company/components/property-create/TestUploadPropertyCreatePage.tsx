@@ -14,6 +14,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/DropdownMenu";
 import { Upload } from "lucide-react";
+import {
+  normalizeOfferingStatusValue,
+  OFFERING_STATUS_LABEL,
+} from "@/features/offerings/domain/offering.constants";
+import {
+  OFFERING_STATUS_VALUES,
+  type OfferingStatusValue,
+} from "@/features/offerings/domain/offering.types";
 import type { PropertyExtractionData } from "@/lib/schema/property-schema";
 import NaverMap, { type MapMarker } from "@/features/map/components/NaverMap";
 import { createSupabaseClient } from "@/lib/supabaseClient";
@@ -211,11 +219,20 @@ type ExistingSnapshotImageCard = {
   dctPHash: string | null;
 };
 
-const STATUS_LABEL: Record<string, string> = {
-  READY: "분양 예정",
-  OPEN: "분양 중",
-  ONGOING: "분양 중",
-  CLOSED: "분양 종료",
+const [readyStatusValue, openStatusValue, closedStatusValue] =
+  OFFERING_STATUS_VALUES;
+
+const compactStatusAliasMap: Record<string, OfferingStatusValue> = {
+  [OFFERING_STATUS_LABEL[readyStatusValue].replace(/\s+/g, "")]:
+    readyStatusValue,
+  예정: readyStatusValue,
+  [OFFERING_STATUS_LABEL[openStatusValue].replace(/\s+/g, "")]:
+    openStatusValue,
+  진행중: openStatusValue,
+  중: openStatusValue,
+  [OFFERING_STATUS_LABEL[closedStatusValue].replace(/\s+/g, "")]:
+    closedStatusValue,
+  종료: closedStatusValue,
 };
 
 const tableHeaders = [
@@ -427,20 +444,12 @@ function normalizeKoreaCoords(
 
 function normalizeStatusForDb(
   status: string | null | undefined,
-): string | null {
-  if (!status) return null;
-  const upper = status.trim().toUpperCase();
-  const noSpace = status.replace(/\s+/g, "");
-  if (noSpace === "분양예정" || noSpace === "예정") return "READY";
-  if (noSpace === "분양중" || noSpace === "진행중" || noSpace === "중") {
-    return "OPEN";
-  }
-  if (noSpace === "분양종료" || noSpace === "종료") return "CLOSED";
-  if (upper === "ONGOING") return "OPEN";
-  if (upper === "OPEN" || upper === "READY" || upper === "CLOSED") {
-    return upper;
-  }
-  return null;
+): OfferingStatusValue | null {
+  const normalized = normalizeOfferingStatusValue(status);
+  if (normalized) return normalized;
+
+  const compact = String(status ?? "").replace(/\s+/g, "");
+  return compactStatusAliasMap[compact] ?? null;
 }
 
 function mapFacilityTypeToDb(value: string | null | undefined) {
@@ -610,8 +619,8 @@ function isSameValue(a: unknown, b: unknown) {
 function displayValue(value: unknown, key?: string) {
   if (value == null || value === "") return "-";
   if (key?.endsWith("status")) {
-    const status = String(value).toUpperCase();
-    return STATUS_LABEL[status] ?? status;
+    const status = normalizeStatusForDb(String(value));
+    return status ? OFFERING_STATUS_LABEL[status] : String(value).toUpperCase();
   }
   if (typeof value === "number") return value.toLocaleString();
   if (Array.isArray(value)) return value.join(", ") || "-";

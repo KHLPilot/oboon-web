@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
+import {
+  fetchPropertyRequestById,
+  fetchPropertyRequestProfile,
+  updatePropertyRequestById,
+} from "@/features/company/services/property.request";
 
 const adminSupabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -44,11 +49,8 @@ export async function PATCH(
       );
     }
 
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
+    const { data: profile, error: profileError } =
+      await fetchPropertyRequestProfile(supabase, user.id);
 
     if (profileError || !profile) {
       return NextResponse.json(
@@ -76,11 +78,8 @@ export async function PATCH(
 
     const { id: requestId } = await params;
 
-    const { data: existingRequest, error: fetchError } = await supabase
-      .from("property_requests")
-      .select("*")
-      .eq("id", requestId)
-      .single();
+    const { data: existingRequest, error: fetchError } =
+      await fetchPropertyRequestById(supabase, requestId);
 
     if (fetchError || !existingRequest) {
       return NextResponse.json(
@@ -110,17 +109,19 @@ export async function PATCH(
       updatePayload.rejection_reason = null;
     }
 
-    const { data: updatedRequest, error: updateError } = await supabase
-      .from("property_requests")
-      .update(updatePayload)
-      .eq("id", requestId)
-      .select("id, status, request_type, reason, requested_at, property_id, agent_id, rejection_reason")
-      .single();
+    const { data: updatedRequest, error: updateError } =
+      await updatePropertyRequestById(supabase, requestId, updatePayload);
 
     if (updateError) {
       console.error("게시 요청 업데이트 오류:", updateError);
       return NextResponse.json(
         { error: "게시 요청 처리에 실패했습니다" },
+        { status: 500 },
+      );
+    }
+    if (!updatedRequest) {
+      return NextResponse.json(
+        { error: "게시 요청 처리 결과를 찾을 수 없습니다" },
         { status: 500 },
       );
     }
@@ -206,11 +207,8 @@ export async function DELETE(
       );
     }
 
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
+    const { data: profile, error: profileError } =
+      await fetchPropertyRequestProfile(supabase, user.id);
 
     if (profileError || !profile) {
       return NextResponse.json(

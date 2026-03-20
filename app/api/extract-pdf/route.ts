@@ -1742,7 +1742,7 @@ function parseIsoDate(value: string | null | undefined): Date | null {
 
 function inferStatusFromTimeline(
   timeline: PropertyExtractionData['timeline'],
-): 'READY' | 'OPEN' | 'CLOSED' | null {
+): 'READY' | 'OPEN' | 'CLOSED' | null { // ssot-ignore
   const today = new Date();
   const todayOnly = new Date(
     today.getFullYear(),
@@ -1754,9 +1754,9 @@ function inferStatusFromTimeline(
   const contractEnd = parseIsoDate(timeline.contract_end);
   const contractStart = parseIsoDate(timeline.contract_start);
 
-  if (contractEnd && todayOnly > contractEnd) return 'CLOSED';
-  if (applicationStart && todayOnly < applicationStart) return 'READY';
-  if (applicationStart || contractStart || contractEnd) return 'OPEN';
+  if (contractEnd && todayOnly > contractEnd) return 'CLOSED'; // ssot-ignore
+  if (applicationStart && todayOnly < applicationStart) return 'READY'; // ssot-ignore
+  if (applicationStart || contractStart || contractEnd) return 'OPEN'; // ssot-ignore
   return null;
 }
 

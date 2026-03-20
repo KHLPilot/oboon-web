@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createSupabaseServer } from "@/lib/supabaseServer";
-import { createQnAQuestionServer } from "@/features/support/services/qna.server";
-import { QNA_STATUS, formatSupportDate } from "@/features/support/domain/support";
+import {
+  createQnAQuestionServer,
+  fetchQnAListServer,
+} from "@/features/support/services/qna.server";
 import { NOTIFICATION_TYPES } from "@/features/notifications/domain/notification.types";
 
 const adminSupabase = createClient(
@@ -16,88 +18,14 @@ const adminSupabase = createClient(
  */
 export async function GET(request: Request) {
   try {
-    const supabase = await createSupabaseServer();
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") ?? "1", 10);
     const limit = parseInt(searchParams.get("limit") ?? "20", 10);
-    const offset = (page - 1) * limit;
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    let isAdmin = false;
-    if (user?.id) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .maybeSingle();
-      isAdmin = profile?.role === "admin";
-    }
-
-    // 전체 개수 조회
-    const { count } = await supabase
-      .from("qna_questions")
-      .select("id", { count: "exact", head: true })
-      .is("deleted_at", null);
-
-    // 목록 조회
-    const { data, error } = await supabase
-      .from("qna_questions")
-      .select(`
-        id,
-        author_profile_id,
-        title,
-        is_secret,
-        is_anonymous,
-        anonymous_nickname,
-        status,
-        created_at,
-        profiles!inner (
-          name
-        )
-      `)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1);
-
-    if (error) {
-      console.error("QnA 목록 조회 실패:", error);
-      return NextResponse.json(
-        { error: "목록 조회에 실패했습니다." },
-        { status: 500 }
-      );
-    }
-
-    const items = (data ?? []).map((row) => {
-      const profilesRaw = row.profiles as
-        | { name: string | null }
-        | Array<{ name: string | null }>
-        | null;
-      const profiles = Array.isArray(profilesRaw) ? profilesRaw[0] : profilesRaw;
-      const authorName = profiles?.name ?? "알 수 없음";
-      const displayAuthor = row.is_anonymous
-        ? row.anonymous_nickname || "익명"
-        : authorName;
-      const canViewSecretTitle =
-        !row.is_secret || row.author_profile_id === user?.id || isAdmin;
-
-      return {
-        id: row.id,
-        title: canViewSecretTitle ? row.title : "비밀글입니다",
-        displayAuthor,
-        isSecret: row.is_secret,
-        statusKey: row.status,
-        statusLabel: QNA_STATUS[row.status as keyof typeof QNA_STATUS],
-        createdAt: row.created_at,
-        formattedDate: formatSupportDate(row.created_at),
-      };
-    });
+    const { items, total } = await fetchQnAListServer({ page, limit });
 
     return NextResponse.json({
       items,
-      total: count ?? 0,
+      total,
       page,
       limit,
     });

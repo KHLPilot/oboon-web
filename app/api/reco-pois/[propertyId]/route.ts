@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { fetchRecoPoisByPropertyId } from "@/features/reco/services/recoPoi.server";
 
 type SchoolLevel = "ELEMENTARY" | "MIDDLE" | "HIGH" | "UNIVERSITY" | "OTHER";
 
@@ -33,21 +33,7 @@ export async function GET(
     return NextResponse.json({ error: "Invalid property id" }, { status: 400 });
   }
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !anonKey) {
-    return NextResponse.json({ error: "Missing Supabase env" }, { status: 500 });
-  }
-
-  const supabase = createClient(url, anonKey);
-  const { data, error } = await supabase
-    .from("property_reco_pois")
-    .select(
-      "category, rank, name, distance_m, subway_lines, school_level, fetched_at",
-    )
-    .eq("property_id", propertyId)
-    .order("category", { ascending: true })
-    .order("rank", { ascending: true });
+  const { data, error } = await fetchRecoPoisByPropertyId(propertyId);
 
   if (error) {
     return NextResponse.json(
@@ -100,7 +86,7 @@ export async function GET(
       const key = level.toLowerCase() as Lowercase<SchoolLevel>;
       const distance = toFiniteNumber(r.distance_m) ?? 0;
       schoolTabs[key].push({
-        name: r.name,
+        name: r.name ?? "",
         distance_m: distance,
       });
     });

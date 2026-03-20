@@ -52,6 +52,78 @@ export async function fetchFAQCategoriesServer(): Promise<FAQCategoryRow[]> {
 }
 
 /**
+ * 공개 FAQ 카테고리 목록 조회 (API route용)
+ */
+export async function fetchPublicFAQCategoriesServer(): Promise<FAQCategoryRow[]> {
+  const supabase = await createSupabaseServer();
+
+  const { data, error } = await supabase
+    .from("faq_categories")
+    .select("id, key, name, description, sort_order, is_active")
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return data ?? [];
+}
+
+/**
+ * 공개 FAQ 아이템 목록 조회 (API route용)
+ */
+export async function fetchPublicFAQItemsServer(
+  categoryKey?: string | null
+): Promise<FAQItemViewModel[]> {
+  const supabase = await createSupabaseServer();
+
+  let query = supabase
+    .from("faq_items")
+    .select(`
+      id,
+      category_id,
+      question,
+      answer,
+      sort_order,
+      faq_categories!inner (
+        key,
+        name,
+        sort_order
+      )
+    `)
+    .eq("is_active", true);
+
+  if (categoryKey) {
+    query = query.eq("faq_categories.key", categoryKey);
+  }
+
+  const { data, error } = await query.order("sort_order", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data) return [];
+
+  return data.map((item) => {
+    const categoryRaw = item.faq_categories as
+      | { key: string; name: string }
+      | Array<{ key: string; name: string }>
+      | null;
+    const category = Array.isArray(categoryRaw) ? categoryRaw[0] : categoryRaw;
+
+    return {
+      id: item.id,
+      categoryKey: category?.key ?? "",
+      categoryName: category?.name ?? "",
+      question: item.question,
+      answer: item.answer,
+    };
+  });
+}
+
+/**
  * FAQ 아이템 목록 조회 (서버, 관리자용 - 비활성 포함)
  */
 export async function fetchFAQItemsServer(): Promise<FAQAdminItemViewModel[]> {

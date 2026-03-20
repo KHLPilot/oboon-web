@@ -102,6 +102,15 @@ type CreateCommunityPostResult =
   | { ok: true; id: string }
   | { ok: false; message: string };
 
+const TRENDING_SCORE_WEIGHTS = {
+  likes: 1,
+  comments: 3,
+  reposts: 2,
+} as const;
+
+const TRENDING_CANDIDATE_MULTIPLIER = 12;
+const TRENDING_CANDIDATE_FLOOR = 24;
+
 const mapPostRow = (row: CommunityPostWithAuthorDbRow): CommunityPostRow => {
   const isAnonymous = row.is_anonymous === true;
   const uiStatus: CommunityPostStatus =
@@ -161,6 +170,37 @@ const postBaseSelect = `
   repost_count,
   is_property_qna
 `;
+
+function getTrendingScore(
+  row: Pick<CommunityPostBaseDbRow, "like_count" | "comment_count" | "repost_count">,
+) {
+  return (
+    (row.like_count ?? 0) * TRENDING_SCORE_WEIGHTS.likes +
+    (row.comment_count ?? 0) * TRENDING_SCORE_WEIGHTS.comments +
+    (row.repost_count ?? 0) * TRENDING_SCORE_WEIGHTS.reposts
+  );
+}
+
+function compareRowsByTrendingScore(
+  a: CommunityPostBaseDbRow,
+  b: CommunityPostBaseDbRow,
+) {
+  const scoreDiff = getTrendingScore(b) - getTrendingScore(a);
+  if (scoreDiff !== 0) return scoreDiff;
+
+  const commentDiff = (b.comment_count ?? 0) - (a.comment_count ?? 0);
+  if (commentDiff !== 0) return commentDiff;
+
+  const likeDiff = (b.like_count ?? 0) - (a.like_count ?? 0);
+  if (likeDiff !== 0) return likeDiff;
+
+  const repostDiff = (b.repost_count ?? 0) - (a.repost_count ?? 0);
+  if (repostDiff !== 0) return repostDiff;
+
+  const createdAtA = new Date(a.created_at ?? 0).getTime();
+  const createdAtB = new Date(b.created_at ?? 0).getTime();
+  return createdAtB - createdAtA;
+}
 
 function canReadAgentOnlyRole(role: CommunityUserRole | null | undefined) {
   return role === "agent" || role === "admin";
@@ -593,28 +633,62 @@ export async function getCommunityTrendingPosts(
   const viewerRole = await getViewerRole(supabase);
   const canViewAgentOnly = canReadAgentOnlyRole(viewerRole);
 
-  let query = supabase
-    .from("community_posts")
-    .select(postBaseSelect)
-    .order("comment_count", { ascending: false })
-    .order("created_at", { ascending: false })
-    .limit(limit);
+  const candidateLimit = Math.max(
+    limit * TRENDING_CANDIDATE_MULTIPLIER,
+    TRENDING_CANDIDATE_FLOOR,
+  );
 
-  if (!canViewAgentOnly) {
-    query = query.eq("is_agent_only", false);
-  }
+  const createTrendingQuery = () => {
+    let query = supabase.from("community_posts").select(postBaseSelect);
+    if (!canViewAgentOnly) {
+      query = query.eq("is_agent_only", false);
+    }
+    return query;
+  };
 
-  const { data, error } = await query;
+  const [commentRes, likeRes, repostRes] = await Promise.all([
+    createTrendingQuery()
+      .order("comment_count", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(candidateLimit),
+    createTrendingQuery()
+      .order("like_count", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(candidateLimit),
+    createTrendingQuery()
+      .order("repost_count", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(candidateLimit),
+  ]);
 
-  if (error) {
-    console.error("community trending load error:", error.message);
+  const errors = [commentRes.error, likeRes.error, repostRes.error].filter(Boolean);
+  if (errors.length === 3) {
+    console.error("community trending load error:", errors[0]?.message);
     return [];
   }
 
-  const visibleRows = ((data ?? []) as CommunityPostBaseDbRow[]).filter((row) =>
-    isVisiblePostStatus(row.status),
-  );
-  const enriched = await enrichPostRows(visibleRows);
+  errors.forEach((error) => {
+    if (!error) return;
+    console.error("community trending partial load error:", error.message);
+  });
+
+  const candidateRows = [
+    ...((commentRes.data ?? []) as CommunityPostBaseDbRow[]),
+    ...((likeRes.data ?? []) as CommunityPostBaseDbRow[]),
+    ...((repostRes.data ?? []) as CommunityPostBaseDbRow[]),
+  ];
+
+  const byId = new Map<string, CommunityPostBaseDbRow>();
+  candidateRows.forEach((row) => {
+    if (!isVisiblePostStatus(row.status)) return;
+    byId.set(row.id, row);
+  });
+
+  const rankedRows = Array.from(byId.values())
+    .sort(compareRowsByTrendingScore)
+    .slice(0, limit);
+
+  const enriched = await enrichPostRows(rankedRows);
   return attachViewerReactions(enriched.map((row) => mapPostRow(row)));
 }
 

@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
-
-const adminSupabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-);
+import {
+  fetchApprovedPropertyAgentsForUser,
+  fetchPropertyAgentProfileRole,
+  withdrawPropertyAgents,
+} from "@/features/agent/services/agent.propertyAgents";
 
 function isWithdrawnSchemaIssue(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
@@ -53,11 +52,8 @@ export async function POST() {
       return NextResponse.json({ error: "로그인이 필요합니다" }, { status: 401 });
     }
 
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
+    const { data: profile, error: profileError } =
+      await fetchPropertyAgentProfileRole(user.id);
 
     if (profileError || !profile) {
       return NextResponse.json(
@@ -73,13 +69,8 @@ export async function POST() {
       );
     }
 
-    const { data: approvedRows, error: approvedError } = await adminSupabase
-      .from("property_agents")
-      .select("id, property_id")
-      .eq("agent_id", user.id)
-      .eq("status", "approved")
-      .order("approved_at", { ascending: false, nullsFirst: false })
-      .order("requested_at", { ascending: false, nullsFirst: false });
+    const { data: approvedRows, error: approvedError } =
+      await fetchApprovedPropertyAgentsForUser(user.id);
 
     if (approvedError) {
       console.error("승인 소속 조회 오류:", approvedError);
@@ -99,16 +90,8 @@ export async function POST() {
     const approvedIds = approvedRows.map((row) => row.id);
     const withdrawnAt = new Date().toISOString();
 
-    const { data: updatedRows, error: updateError } = await adminSupabase
-      .from("property_agents")
-      .update({
-        status: "withdrawn",
-        withdrawn_at: withdrawnAt,
-        approved_at: null,
-        approved_by: null,
-      })
-      .in("id", approvedIds)
-      .select("id");
+    const { data: updatedRows, error: updateError } =
+      await withdrawPropertyAgents(approvedIds, withdrawnAt);
 
     const finalUpdatedRows = updatedRows;
     if (updateError) {

@@ -57,6 +57,7 @@ export default function CommunityPostCard({
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const showStandaloneTitle = !post.isRepost && post.title.trim().length > 0;
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -85,6 +86,12 @@ export default function CommunityPostCard({
             <StatusIcon className="h-3 w-3" />
             {post.statusLabel}
           </Badge>
+          {post.isRepost ? (
+            <Badge variant="status" className="inline-flex items-center gap-1">
+              <Repeat2 className="h-[0.875rem] w-[0.875rem]" />
+              리포스트
+            </Badge>
+          ) : null}
           {post.propertyName?.trim() ? (
             <Badge variant="status">{post.propertyName}</Badge>
           ) : null}
@@ -135,18 +142,12 @@ export default function CommunityPostCard({
         ) : null}
       </div>
 
-      {/* 리포스트 배지 */}
-      {post.isRepost && (
-        <div className="flex items-center gap-1 ob-typo-caption text-(--oboon-text-muted)">
-          <Repeat2 className="h-3.5 w-3.5" />
-          <span>리포스트</span>
-        </div>
-      )}
-
       {/* 제목: line-clamp-2 */}
-      <h3 className="ob-typo-h3 text-(--oboon-text-title) line-clamp-2">
-        {post.title}
-      </h3>
+      {showStandaloneTitle ? (
+        <h3 className="ob-typo-h3 text-(--oboon-text-title) line-clamp-2">
+          {post.title}
+        </h3>
+      ) : null}
 
       {/* 본문: line-clamp-3, text-body */}
       {post.body ? (
@@ -305,15 +306,15 @@ export default function CommunityPostCard({
             <button
               type="button"
               onClick={onRepost}
-              className="inline-flex items-center gap-1 ob-typo-caption"
+              className="inline-flex translate-y-[1px] items-center gap-1 ob-typo-caption"
               aria-label="리포스트"
             >
-              <Repeat2 className="h-4 w-4" />
+              <Repeat2 className="h-[1.125rem] w-[1.125rem]" />
               {post.repostCount > 0 ? post.repostCount : null}
             </button>
           ) : post.repostCount > 0 ? (
-            <span className="inline-flex items-center gap-1 ob-typo-caption">
-              <Repeat2 className="h-4 w-4" />
+            <span className="inline-flex translate-y-[1px] items-center gap-1 ob-typo-caption">
+              <Repeat2 className="h-[1.125rem] w-[1.125rem]" />
               {post.repostCount}
             </span>
           ) : null}

@@ -104,7 +104,7 @@ export default function PropertyCommunityWidget({
             className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-2.5 space-y-0.5"
           >
             <p className="ob-typo-body2 text-(--oboon-text-title) line-clamp-1 font-medium">
-              {post.title}
+              {post.displayTitle}
             </p>
             <div className="ob-typo-caption text-(--oboon-text-muted) flex items-center gap-1.5">
               <span>{post.authorName}</span>

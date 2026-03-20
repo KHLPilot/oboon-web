@@ -12,6 +12,8 @@ import { Badge } from "@/components/ui/Badge";
 import { ROUTES, type Offering } from "@/types/index";
 import { formatPriceRange } from "@/shared/price";
 import { UXCopy } from "@/shared/uxCopy";
+import { Copy } from "@/shared/copy";
+import { getGyeonggiSubRegionConfig } from "@/features/offerings/domain/offering.constants";
 import NaverMap, {
   type MapFocusBounds,
   type MapMarker,
@@ -248,6 +250,9 @@ export default function OfferingsMapView({
     }
     if (region === "경기" && subRegion === "north") return "gyeonggi_north";
     if (region === "경기" && subRegion === "south") return "gyeonggi_south";
+    if (region === "경기" && subRegion && subRegion !== "전체") {
+      return getGyeonggiSubRegionConfig(subRegion)?.boundaryKey ?? "gyeonggi";
+    }
     if (region === "서울") return "seoul";
     if (region === "경기") return "gyeonggi";
     if (region === "인천") return "incheon";
@@ -355,7 +360,7 @@ export default function OfferingsMapView({
     return (
       <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-6">
         <p className="ob-typo-body text-(--oboon-text-muted)">
-          지도에 표시할 좌표 정보가 있는 현장이 아직 없어요.
+          {Copy.offerings.map.empty}
         </p>
       </div>
     );
@@ -365,7 +370,7 @@ export default function OfferingsMapView({
     <div className="flex flex-col gap-3">
       <div className="relative">
         <div className="overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)">
-          <div className="relative h-[420px] sm:h-[520px] md:h-[620px]">
+          <div className="relative h-[500px] sm:h-[520px] md:h-[620px]">
             <div className="absolute inset-0">
               <NaverMap
                 ref={mapApiRef}
@@ -497,7 +502,7 @@ export default function OfferingsMapView({
 
       <FullscreenMapOverlay
         open={overlayOpen}
-        title="분양 지도"
+        title={Copy.offerings.map.title}
         markers={markers}
         offerings={overlayOfferings}
         hoveredId={hoveredId}

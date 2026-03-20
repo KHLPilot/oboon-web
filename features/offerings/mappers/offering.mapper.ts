@@ -127,6 +127,7 @@ export function mapPropertyRowToOffering(
     addressFull: addr ?? fallback.addressShort,
     region: regionTab,
     regionLabel,
+    propertyType: row.property_type ?? null,
     status,
     statusValue,
     hasAppraiserComment: hasAppraiserComment(row),

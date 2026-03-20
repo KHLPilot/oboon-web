@@ -2,6 +2,12 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { NextResponse } from "next/server";
 
+import { GYEONGGI_SUB_REGION_CONFIGS } from "@/features/offerings/domain/offering.constants";
+
+const GYEONGGI_REGION_NAME_CANDIDATES = Object.fromEntries(
+  GYEONGGI_SUB_REGION_CONFIGS.map((item) => [item.boundaryKey, item.boundaryNames]),
+) as Record<string, string[]>;
+
 const REGION_NAME_CANDIDATES: Record<string, string[]> = {
   seoul: ["서울특별시"],
   seoul_gangnam: ["서울특별시 강남구"],
@@ -47,6 +53,7 @@ const REGION_NAME_CANDIDATES: Record<string, string[]> = {
   gyeongbuk: ["경상북도"],
   gyeongnam: ["경상남도"],
   jeju: ["제주특별자치도"],
+  ...GYEONGGI_REGION_NAME_CANDIDATES,
 };
 
 const NAME_OPTIMIZE_RULE_KEYS: Array<{ prefix: string; optimizeKey: string }> = [
@@ -250,19 +257,17 @@ async function loadFeatureCollection() {
   return parsed;
 }
 
-function findFeatureForRegion(
+function findFeaturesForRegion(
   featureCollection: RegionFeatureCollection,
   region: string,
 ) {
   const names = REGION_NAME_CANDIDATES[region] ?? [];
-  if (names.length === 0) return null;
+  if (names.length === 0) return [] as RegionFeature[];
   const features = featureCollection.features ?? [];
-  return (
-    features.find((feature) => {
+  return features.filter((feature) => {
       const name = feature.properties?.name?.trim();
       return Boolean(name && names.includes(name));
-    }) ?? null
-  );
+    });
 }
 
 export async function GET(req: Request) {
@@ -281,22 +286,24 @@ export async function GET(req: Request) {
 
   try {
     const featureCollection = await loadFeatureCollection();
-    const feature = regionName
-      ? (featureCollection.features ?? []).find(
+    const features = regionName
+      ? (featureCollection.features ?? []).filter(
           (item) => item?.properties?.name?.trim() === regionName,
-        ) ?? null
-      : findFeatureForRegion(featureCollection, region);
-    if (!feature?.geometry) {
+        )
+      : findFeaturesForRegion(featureCollection, region);
+    if (features.length === 0) {
       return NextResponse.json({ error: "boundary not found" }, { status: 404 });
     }
 
     const optimizeKey = region
-      ? region
+      ? region.startsWith("gyeonggi_")
+        ? "gyeonggi"
+        : region
       : NAME_OPTIMIZE_RULE_KEYS.find((item) => regionName.startsWith(item.prefix))
           ?.optimizeKey ?? "default";
     const polygons = optimizePolygons(
       optimizeKey,
-      collectPolygonPaths(feature.geometry),
+      features.flatMap((feature) => collectPolygonPaths(feature.geometry)),
     );
     const bounds = computeBounds(polygons);
     if (!bounds || polygons.length === 0) {

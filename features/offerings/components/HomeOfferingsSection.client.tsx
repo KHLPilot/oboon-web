@@ -29,6 +29,7 @@ const OWNED_HOUSE_OPTIONS = [
   { label: "2채 이상", value: "2" },
 ] as const;
 import { UXCopy } from "@/shared/uxCopy";
+import { Copy } from "@/shared/copy";
 
 import type { ConditionCategoryGrades } from "@/features/condition-validation/domain/types";
 import {
@@ -715,8 +716,8 @@ export default function HomeOfferingsSection() {
           {/* 상담 신청 가능 현장 */}
           <section className="mt-3 flex flex-col gap-2">
             <SectionHeader
-              title="상담 신청 가능 현장"
-              caption="상담사 연결이 완료되어 바로 상담 예약이 가능한 현장입니다."
+              title={Copy.home.consultable.title}
+              caption={Copy.home.consultable.subtitle}
               rightLink={{ href: consultableOfferingsHref, label: "전체보기" }}
             />
 
@@ -726,8 +727,8 @@ export default function HomeOfferingsSection() {
               </div>
             ) : consultableOfferings.length === 0 ? (
               <EmptyState
-                title="상담 신청 가능한 현장이 없어요"
-                description="곧 새로운 현장이 등록될 예정이에요."
+                title={Copy.home.consultable.empty.title}
+                description={Copy.home.consultable.empty.subtitle}
               />
             ) : (
               <ResponsiveOfferingRow items={consultableOfferings} />
@@ -737,8 +738,8 @@ export default function HomeOfferingsSection() {
           {/* 지역별 인기 분양 */}
           <section className="mt-8 sm:mt-10 flex flex-col gap-2">
             <SectionHeader
-              title="지역별 인기 분양"
-              caption="지역별로 인기있는 분양 현장을 확인해보세요."
+              title={Copy.home.regional.title}
+              caption={Copy.home.regional.subtitle}
               rightLink={{ href: popularOfferingsHref, label: "전체보기" }}
             />
             {loadError && (
@@ -760,8 +761,8 @@ export default function HomeOfferingsSection() {
               </div>
             ) : popularOfferings.length === 0 ? (
               <EmptyState
-                title="선택한 지역에 분양이 없어요"
-                description="다른 지역을 선택하거나 전체를 확인해보세요."
+                title={Copy.home.regional.empty.title}
+                description={Copy.home.regional.empty.subtitle}
               />
             ) : (
               <ResponsiveOfferingRow items={popularOfferings} />
@@ -794,33 +795,33 @@ export default function HomeOfferingsSection() {
                       className="mt-5 h-11 px-5 !bg-(--oboon-primary) !text-(--oboon-on-primary) shadow-(--oboon-shadow-card)"
                       onClick={() => setConditionModalOpen(true)}
                     >
-                      현장 조건 검증하기
+                      {Copy.home.customMatch.cta}
                       <ArrowRight className="h-4 w-4 text-(--oboon-on-primary)" />
                     </Button>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-1">
                     <ConditionFeatureItem
-                      title="교통 접근성"
-                      description="지하철·버스 접근성과 이동 편의 기준을 확인합니다."
+                      title={Copy.home.customMatch.conditions.traffic.label}
+                      description={Copy.home.customMatch.conditions.traffic.description}
                       icon={<BusFront className="h-5 w-5" />}
                       iconToneClass="bg-[color-mix(in_srgb,var(--oboon-primary)_16%,transparent)] text-(--oboon-primary)"
                     />
                     <ConditionFeatureItem
-                      title="학군 정보"
-                      description="학군 배정·통학 생활권 관련 기준을 반영합니다."
+                      title={Copy.home.customMatch.conditions.school.label}
+                      description={Copy.home.customMatch.conditions.school.description}
                       icon={<GraduationCap className="h-5 w-5" />}
                       iconToneClass="bg-(--oboon-safe-bg) text-(--oboon-safe-text)"
                     />
                     <ConditionFeatureItem
-                      title="개발 호재"
-                      description="주요 개발 계획과 생활 인프라 변화 요소를 반영합니다."
+                      title={Copy.home.customMatch.conditions.development.label}
+                      description={Copy.home.customMatch.conditions.development.description}
                       icon={<Pickaxe className="h-5 w-5" />}
                       iconToneClass="bg-[color-mix(in_srgb,var(--oboon-warning-text)_16%,transparent)] text-(--oboon-warning-text)"
                     />
                     <ConditionFeatureItem
-                      title="반려동물"
-                      description="반려동물 생활 적합성 관련 조건을 함께 검토합니다."
+                      title={Copy.home.customMatch.conditions.pets.label}
+                      description={Copy.home.customMatch.conditions.pets.description}
                       icon={<PawPrint className="h-5 w-5" />}
                       iconToneClass="bg-[color-mix(in_srgb,var(--oboon-text-muted)_14%,transparent)] text-(--oboon-text-muted)"
                     />
@@ -833,14 +834,14 @@ export default function HomeOfferingsSection() {
             <section className="mt-1 flex flex-col gap-2">
               <div className="mb-3 sm:mb-4 flex items-start justify-between gap-4">
                 <div className="flex flex-col gap-1 min-w-0">
-                  <h2 className="ob-typo-h2 text-(--oboon-text-title)">맞춤 현장 리스트</h2>
+                  <h2 className="ob-typo-h2 text-(--oboon-text-title)">{Copy.home.customMatch.listTitle}</h2>
                   {appliedCustomerSummary ? (
                     <p className="ob-typo-caption text-(--oboon-text-muted) truncate">
                       {appliedCustomerSummary}
                     </p>
                   ) : (
                     <p className="ob-typo-caption text-(--oboon-text-muted)">
-                      조건 검증과 함께 확인하기 좋은 현장을 모아봤어요.
+                      {Copy.home.customMatch.listSubtitle}
                     </p>
                   )}
                 </div>

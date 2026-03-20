@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 
 import { updatePropertyBasicInfo } from "@/features/company/services/property.detail";
+import { fetchUnitTypePriceRanges } from "@/features/company/services/unitTypes.service";
 import { validateRequiredOrShowModal } from "@/shared/validationMessage";
 
 import Button from "@/components/ui/Button";
@@ -27,7 +28,6 @@ import { ToastProvider, useToast } from "@/components/ui/Toast";
 import { showAlert } from "@/shared/alert";
 import { useRequirePropertyEditAccess } from "@/features/company/hooks/useRequirePropertyEditAccess";
 import { updatePropertyImage } from "@/features/company/services/property.create";
-import { createSupabaseClient } from "@/lib/supabaseClient";
 import LocationEditorCard from "@/features/company/components/property-editor/LocationEditorCard";
 import SpecsEditorCard from "@/features/company/components/property-editor/SpecsEditorCard";
 import TimelineEditorCard from "@/features/company/components/property-editor/TimelineEditorCard";
@@ -145,7 +145,6 @@ function PropertyDetailPageInner() {
   const params = useParams();
   const router = useRouter();
   const toast = useToast();
-  const supabase = createSupabaseClient();
   const id = Number(params.id);
   const isValidPropertyId = Number.isFinite(id) && id > 0;
   const { loading: accessLoading, allowed: canAccessProperty } =
@@ -315,10 +314,7 @@ function PropertyDetailPageInner() {
       }
     }
 
-    const { data: unitTypeRows } = await supabase
-      .from("property_unit_types")
-      .select("price_min, price_max")
-      .eq("properties_id", id);
+    const { data: unitTypeRows } = await fetchUnitTypePriceRanges(id);
 
     const validationProfileResponse = await fetch(
       "/api/condition-validation/profiles/upsert",

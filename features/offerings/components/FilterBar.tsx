@@ -17,6 +17,7 @@ import {
 import Input from "@/components/ui/Input";
 import Label from "@/components/ui/Label";
 import {
+  GYEONGGI_SUB_REGION_OPTIONS,
   OFFERING_REGION_TABS,
   OFFERING_STATUS_LABEL,
   OFFERING_STATUS_VALUES,
@@ -25,6 +26,7 @@ import {
 import { formatEokPreview, parseEok } from "@/lib/format/currency";
 import { cn } from "@/lib/utils/cn";
 import OfferingsViewToggle from "@/features/offerings/components/OfferingsViewToggle";
+import { Copy } from "@/shared/copy";
 
 const REGIONS: OfferingRegionTab[] = [...OFFERING_REGION_TABS];
 const SEOUL_SUB_REGIONS = [
@@ -55,12 +57,6 @@ const SEOUL_SUB_REGIONS = [
   "중구",
   "중랑구",
 ] as const;
-const GYEONGGI_SUB_REGIONS = [
-  { label: "전체", value: "전체" },
-  { label: "경기 북부", value: "north" },
-  { label: "경기 남부", value: "south" },
-] as const;
-
 const STATUSES: Array<OfferingStatusValue | "전체"> = [
   "전체",
   ...OFFERING_STATUS_VALUES,
@@ -122,6 +118,21 @@ function formatBudgetSummary(min: number | null, max: number | null) {
 
 type ToggleSetter = (value: boolean | ((prev: boolean) => boolean)) => void;
 type OfferingsView = "list" | "map";
+type OfferingsSortKey = "latest" | "priceLow" | "priceHigh";
+
+const SORT_OPTIONS: Array<{
+  value: OfferingsSortKey;
+  label: string;
+  mobileLabel: string;
+}> = [
+  { value: "latest", label: "최신순", mobileLabel: "최신순" },
+  { value: "priceLow", label: "낮은 분양가순", mobileLabel: "낮은가격" },
+  { value: "priceHigh", label: "높은 분양가순", mobileLabel: "높은가격" },
+];
+
+function isOfferingsSortKey(v: string): v is OfferingsSortKey {
+  return v === "latest" || v === "priceLow" || v === "priceHigh";
+}
 
 function FilterDropdown<T extends string>({
   label,
@@ -180,6 +191,81 @@ function FilterDropdown<T extends string>({
   );
 }
 
+function SortDropdown(props: {
+  value: OfferingsSortKey;
+  onChange: (value: OfferingsSortKey) => void;
+}) {
+  const { value, onChange } = props;
+  const selectedOption =
+    SORT_OPTIONS.find((option) => option.value === value) ?? null;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "flex h-9 w-[6.75rem] items-center justify-between gap-1.5 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-page) px-3 text-left",
+            "text-[13px] leading-none font-medium text-(--oboon-text-title) sm:h-10 sm:w-auto sm:min-w-[9rem] sm:gap-2 sm:px-4 sm:text-sm sm:leading-normal",
+          )}
+          aria-label="정렬 선택"
+        >
+          <span className="truncate sm:hidden">
+            {selectedOption?.mobileLabel ?? "정렬"}
+          </span>
+          <span className="hidden truncate sm:inline">
+            {selectedOption?.label ?? "정렬"}
+          </span>
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-(--oboon-text-muted) sm:h-4 sm:w-4" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" matchTriggerWidth>
+        {SORT_OPTIONS.map((option) => (
+          <DropdownMenuItem
+            key={option.value}
+            className={cn(
+              "flex items-center justify-between gap-2 whitespace-nowrap",
+              option.value === value ? "bg-(--oboon-bg-subtle)" : "",
+            )}
+            onClick={() => onChange(option.value)}
+          >
+            <span className="sm:hidden">{option.mobileLabel}</span>
+            <span className="hidden sm:inline">{option.label}</span>
+            {option.value === value ? (
+              <Check className="h-4 w-4 text-(--oboon-primary)" />
+            ) : null}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function MobileSummaryChip(props: {
+  label: string;
+  tone?: "default" | "green" | "amber";
+}) {
+  const { label, tone = "default" } = props;
+
+  const toneClassName =
+    tone === "green"
+      ? "bg-(--oboon-safe)/15 text-(--oboon-safe)"
+      : tone === "amber"
+        ? "bg-(--oboon-warning)/15 text-(--oboon-warning-text)"
+        : "bg-(--oboon-bg-subtle) text-(--oboon-text-muted)";
+
+  return (
+    <span
+      className={cn(
+        "inline-flex h-7 items-center rounded-full px-3 ob-typo-caption whitespace-nowrap",
+        toneClassName,
+      )}
+    >
+      {label}
+    </span>
+  );
+}
+
 type FilterBarBodyProps = {
   sp: ReturnType<typeof useSearchParams>;
   open: boolean;
@@ -211,6 +297,9 @@ function FilterBarBody({
   const rawStatus = sp.get("status");
   const status: OfferingStatusValue | "전체" =
     rawStatus && isOfferingStatusValue(rawStatus) ? rawStatus : "전체";
+  const rawSort = sp.get("sort");
+  const sortKey: OfferingsSortKey =
+    rawSort && isOfferingsSortKey(rawSort) ? rawSort : "latest";
   const subRegion = sp.get("subRegion") ?? "전체";
   const rawAgent = sp.get("agent");
   const agentFilter: AgentFilterValue = rawAgent === "has" ? "has" : "전체";
@@ -259,6 +348,31 @@ function FilterBarBody({
     (appraisalFilter !== "전체" ? 1 : 0) +
     (urlBudgetMin || urlBudgetMax ? 1 : 0);
 
+  const appliedBudgetMin = parseEok(urlBudgetMin);
+  const appliedBudgetMax = parseEok(urlBudgetMax);
+  const subRegionLabel =
+    subRegion === "north"
+      ? "경기 북부"
+      : subRegion === "south"
+        ? "경기 남부"
+        : subRegion;
+  const summaryParts = [
+    region !== "전체"
+      ? subRegion !== "전체"
+        ? `${region} ${subRegionLabel}`
+        : region
+      : null,
+    status !== "전체" ? OFFERING_STATUS_LABEL[status] : null,
+    agentFilter === "has" ? "상담 가능" : null,
+    appraisalFilter === "done" ? "감정평가 완료" : null,
+    urlBudgetMin || urlBudgetMax
+      ? formatBudgetSummary(appliedBudgetMin, appliedBudgetMax)
+      : null,
+  ].filter(Boolean) as string[];
+  const mobileSummaryLabel =
+    summaryParts.length > 0
+      ? summaryParts.join(" · ")
+      : "지역, 분양 상태, 예산으로 빠르게 좁혀보세요.";
   const minVal = parseEok(budgetMin);
   const maxVal = parseEok(budgetMax);
   const effectiveMaxVal = budgetMaxUnlimited ? null : maxVal;
@@ -289,7 +403,7 @@ function FilterBarBody({
     region === "서울"
       ? SEOUL_SUB_REGIONS.map((item) => ({ label: item, value: item }))
       : region === "경기"
-        ? GYEONGGI_SUB_REGIONS.map((item) => ({
+        ? GYEONGGI_SUB_REGION_OPTIONS.map((item) => ({
             label: item.label,
             value: item.value,
           }))
@@ -491,66 +605,83 @@ function FilterBarBody({
 
   return (
     <div className="space-y-4">
-      {/* ---------------- Mobile: Search bar + icon buttons ---------------- */}
+      {/* ---------------- Mobile ---------------- */}
       <div className="sm:hidden">
-        <div className="flex items-center gap-3">
-          <div className="flex-1">
-            <Label className="sr-only" htmlFor="q_mobile">
-              검색
-            </Label>
-            <Input
-              id="q_mobile"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="지역, 단지명으로 검색"
-              className={cn(
-                "h-10 w-full rounded-xl px-5 ob-typo-body",
-                "outline-none focus:ring-2 focus:ring-(--oboon-primary)/30"
-              )}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  pushParams({ q });
-                }
-              }}
-            />
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="flex-1">
+              <Label className="sr-only" htmlFor="q_mobile">
+                검색
+              </Label>
+              <Input
+                id="q_mobile"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder={Copy.offerings.search.placeholder}
+                className={cn(
+                  "h-10 w-full rounded-xl px-5 ob-typo-body",
+                  "outline-none focus:ring-2 focus:ring-(--oboon-primary)/30"
+                )}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    pushParams({ q });
+                  }
+                }}
+              />
+            </div>
+
+            <Button
+              type="button"
+              variant="secondary"
+              shape="pill"
+              size="md"
+              className="h-10 w-10 rounded-full p-0"
+              onClick={() => pushParams({ q })}
+              aria-label="검색"
+            >
+              <Search className="h-4 w-4" />
+            </Button>
           </div>
 
-          <Button
+          <button
             type="button"
-            variant="secondary"
-            shape="pill"
-            size="md"
-            className="h-10 w-10 rounded-full p-0"
-            onClick={() => pushParams({ q })}
-            aria-label="검색"
+            onClick={() => setOpen(true)}
+            className="flex w-full items-center gap-3 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-4 py-3 text-left"
           >
-            <Search className="h-4 w-4" />
-          </Button>
+            <div className="min-w-0 flex-1">
+              <div className="ob-typo-body2 text-(--oboon-text-title)">
+                필터 조건
+              </div>
+              <p className="mt-1 line-clamp-2 ob-typo-caption text-(--oboon-text-muted)">
+                {mobileSummaryLabel}
+              </p>
+            </div>
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-page)">
+              <SlidersHorizontal className="h-4 w-4 text-(--oboon-text-muted)" />
+            </span>
+          </button>
 
-          <OfferingsViewToggle value={view} onChange={onViewChange} />
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              {activeCount > 0 ? (
+                <MobileSummaryChip
+                  label={`필터 ${activeCount}개`}
+                  tone="green"
+                />
+              ) : null}
+            </div>
 
-          <Button
-            type="button"
-            variant={open ? "primary" : "secondary"}
-            shape="pill"
-            size="md"
-            className="h-10 w-10 rounded-full p-0"
-            onClick={() => setOpen((v) => !v)}
-            aria-expanded={open}
-            aria-label="필터"
-          >
-            <SlidersHorizontal
-              className={cn(
-                "h-4 w-4 transition-colors",
-                open
-                  ? "text-(--oboon-on-primary)"
-                  : activeCount > 0
-                  ? "text-(--oboon-primary)"
-                  : "text-(--oboon-text-muted)"
-              )}
-            />
-          </Button>
+            <div className="flex shrink-0 items-center gap-2">
+              <SortDropdown
+                value={sortKey}
+                onChange={(next) =>
+                  pushParams({ sort: next === "latest" ? null : next })
+                }
+              />
+              <OfferingsViewToggle value={view} onChange={onViewChange} />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -565,7 +696,7 @@ function FilterBarBody({
               id="q"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="지역, 단지명으로 검색"
+              placeholder={Copy.offerings.search.placeholder}
               className={cn(
                 "h-10 w-full rounded-xl px-5 ob-typo-body",
                 "outline-none focus:ring-2 focus:ring-(--oboon-primary)/30"
@@ -590,6 +721,13 @@ function FilterBarBody({
           >
             <Search className="h-4 w-4" />
           </Button>
+
+          <SortDropdown
+            value={sortKey}
+            onChange={(next) =>
+              pushParams({ sort: next === "latest" ? null : next })
+            }
+          />
 
           <OfferingsViewToggle value={view} onChange={onViewChange} />
 

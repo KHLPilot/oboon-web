@@ -17,20 +17,31 @@ import Interest from "./Interest";
 
 function ProfileSummarySkeleton() {
   return (
-    <Card className="p-5 space-y-4">
-      <div className="flex items-center gap-3">
-        <Skeleton className="h-12 w-12 rounded-full flex-shrink-0" />
-        <div className="flex-1 space-y-2">
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="h-3.5 w-16" />
+    <Card className="p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <Skeleton className="h-12 w-12 rounded-full flex-shrink-0" />
+          <div className="min-w-0 space-y-2">
+            <Skeleton className="h-5 w-28 rounded-md" />
+            <Skeleton className="h-3.5 w-18 rounded-md" />
+          </div>
         </div>
+        <Skeleton className="h-4 w-4 rounded-sm flex-shrink-0" />
       </div>
-      <div className="h-px bg-(--oboon-border-default)" />
-      <div className="grid grid-cols-3 gap-2 text-center">
+
+      <div className="my-4 h-px bg-(--oboon-border-default)" />
+
+      <div className="grid grid-cols-3 text-center">
         {[0, 1, 2].map((i) => (
-          <div key={i} className="flex flex-col items-center gap-1.5">
-            <Skeleton className="h-6 w-8" />
-            <Skeleton className="h-3 w-10" />
+          <div
+            key={i}
+            className={[
+              "flex flex-col items-center gap-1 px-2",
+              i === 1 ? "border-x border-(--oboon-border-default)" : "",
+            ].join(" ")}
+          >
+            <Skeleton className="h-7 w-10 rounded-md" />
+            <Skeleton className="h-3 w-11 rounded-md" />
           </div>
         ))}
       </div>

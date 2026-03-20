@@ -9,6 +9,7 @@ import NaverMap, {
   type NaverMapHandle,
 } from "@/features/map/components/NaverMap";
 import type { RecommendationItem } from "@/features/recommendations/hooks/useRecommendations";
+import { Copy } from "@/shared/copy";
 
 type MiniMapProps = {
   items: RecommendationItem[];
@@ -92,7 +93,7 @@ export default function MiniMap(props: MiniMapProps) {
         <div className="flex h-full items-center justify-center px-8 text-center">
           <div className="space-y-2">
             <div className="ob-typo-h3 text-(--oboon-text-title)">
-              지도에 표시할 좌표가 아직 없어요.
+              {Copy.offerings.map.empty}
             </div>
             <p className="ob-typo-body text-(--oboon-text-muted)">
               현장 상세 페이지에서 더 많은 위치 정보를 확인할 수 있습니다.

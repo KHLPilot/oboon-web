@@ -6,8 +6,19 @@ import {
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
+import {
+  fetchPropertyGalleryExistingRows,
+  fetchPropertyGalleryImages,
+  fetchPropertyGalleryMembership,
+  fetchPropertyGalleryProfileRole,
+  fetchPropertyGalleryProperty,
+  fetchPropertyGallerySortRows,
+  fetchPropertyGalleryTarget,
+  insertPropertyGalleryRows,
+  softDeletePropertyGalleryImage,
+  updatePropertyGalleryRow,
+} from "@/features/company/services/property.gallery";
 
-const TABLE_NAME = "property_image_assets";
 const GALLERY_KIND = "gallery";
 const MAX_IMAGES = 10;
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
@@ -85,22 +96,14 @@ async function canManageProperty(
     return { ok: false as const, error: "로그인이 필요합니다", status: 401 };
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
+  const { data: profile } = await fetchPropertyGalleryProfileRole(user.id);
   const role = profile?.role ?? null;
 
   if (role === "admin") {
     return { ok: true as const, userId: user.id, role };
   }
 
-  const { data: property } = await supabase
-    .from("properties")
-    .select("created_by")
-    .eq("id", propertyId)
-    .single();
+  const { data: property } = await fetchPropertyGalleryProperty(propertyId);
 
   if (!property) {
     return { ok: false as const, error: "현장을 찾을 수 없습니다", status: 404 };
@@ -111,13 +114,10 @@ async function canManageProperty(
   }
 
   if (role === "agent") {
-    const { data: memberships } = await supabase
-      .from("property_agents")
-      .select("id")
-      .eq("property_id", propertyId)
-      .eq("agent_id", user.id)
-      .eq("status", "approved")
-      .limit(1);
+    const { data: memberships } = await fetchPropertyGalleryMembership(
+      propertyId,
+      user.id,
+    );
 
     if ((memberships?.length ?? 0) > 0) {
       return { ok: true as const, userId: user.id, role };
@@ -141,14 +141,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
-    const { data, error } = await supabase
-      .from(TABLE_NAME)
-      .select("id, property_id, storage_path, image_url, sort_order, caption, created_at")
-      .eq("property_id", propertyId)
-      .eq("kind", GALLERY_KIND)
-      .eq("is_active", true)
-      .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: true });
+    const { data, error } = await fetchPropertyGalleryImages(propertyId);
 
     if (error) {
       return NextResponse.json(
@@ -210,12 +203,8 @@ export async function POST(req: Request) {
       }
     }
 
-    const { data: existingRows, error: countError } = await supabase
-      .from(TABLE_NAME)
-      .select("id, sort_order")
-      .eq("property_id", propertyId)
-      .eq("kind", GALLERY_KIND)
-      .eq("is_active", true);
+    const { data: existingRows, error: countError } =
+      await fetchPropertyGallerySortRows(propertyId);
 
     if (countError) {
       return NextResponse.json(
@@ -305,7 +294,7 @@ export async function POST(req: Request) {
       });
     }
 
-    const { error: insertError } = await supabase.from(TABLE_NAME).insert(insertRows);
+    const { error: insertError } = await insertPropertyGalleryRows(insertRows);
     if (insertError) {
       if (uploadedKeys.length > 0) {
         await r2.send(
@@ -324,14 +313,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const { data: refreshed } = await supabase
-      .from(TABLE_NAME)
-      .select("id, property_id, storage_path, image_url, sort_order, caption, created_at")
-      .eq("property_id", propertyId)
-      .eq("kind", GALLERY_KIND)
-      .eq("is_active", true)
-      .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: true });
+    const { data: refreshed } = await fetchPropertyGalleryImages(propertyId);
 
     return NextResponse.json({ images: refreshed || [] });
   } catch (error) {
@@ -363,13 +345,8 @@ export async function PATCH(req: Request) {
     }
 
     const ids = updates.map((item) => item.id);
-    const { data: existingRows, error: existingError } = await supabase
-      .from(TABLE_NAME)
-      .select("id")
-      .eq("property_id", propertyId)
-      .eq("kind", GALLERY_KIND)
-      .eq("is_active", true)
-      .in("id", ids);
+    const { data: existingRows, error: existingError } =
+      await fetchPropertyGalleryExistingRows(propertyId, ids);
 
     if (existingError) {
       return NextResponse.json(
@@ -386,16 +363,14 @@ export async function PATCH(req: Request) {
     }
 
     for (const update of updates) {
-      const { error: updateError } = await supabase
-        .from(TABLE_NAME)
-        .update({
+      const { error: updateError } = await updatePropertyGalleryRow(
+        propertyId,
+        update.id,
+        {
           sort_order: update.sort_order,
           caption: update.caption ?? null,
-        })
-        .eq("id", update.id)
-        .eq("property_id", propertyId)
-        .eq("kind", GALLERY_KIND)
-        .eq("is_active", true);
+        },
+      );
 
       if (updateError) {
         return NextResponse.json(
@@ -405,14 +380,7 @@ export async function PATCH(req: Request) {
       }
     }
 
-    const { data: refreshed } = await supabase
-      .from(TABLE_NAME)
-      .select("id, property_id, storage_path, image_url, sort_order, caption, created_at")
-      .eq("property_id", propertyId)
-      .eq("kind", GALLERY_KIND)
-      .eq("is_active", true)
-      .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: true });
+    const { data: refreshed } = await fetchPropertyGalleryImages(propertyId);
 
     return NextResponse.json({ images: refreshed || [] });
   } catch (error) {
@@ -443,14 +411,10 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
-    const { data: target, error: targetError } = await supabase
-      .from(TABLE_NAME)
-      .select("id, storage_path")
-      .eq("id", imageId)
-      .eq("property_id", propertyId)
-      .eq("kind", GALLERY_KIND)
-      .eq("is_active", true)
-      .maybeSingle();
+    const { data: target, error: targetError } = await fetchPropertyGalleryTarget(
+      propertyId,
+      imageId,
+    );
 
     if (targetError) {
       return NextResponse.json(
@@ -462,13 +426,10 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: "사진을 찾을 수 없습니다" }, { status: 404 });
     }
 
-    const { error: deleteError } = await supabase
-      .from(TABLE_NAME)
-      .update({ is_active: false })
-      .eq("id", imageId)
-      .eq("property_id", propertyId)
-      .eq("kind", GALLERY_KIND)
-      .eq("is_active", true);
+    const { error: deleteError } = await softDeletePropertyGalleryImage(
+      propertyId,
+      imageId,
+    );
 
     if (deleteError) {
       return NextResponse.json({ error: "사진 삭제에 실패했습니다" }, { status: 500 });
@@ -487,14 +448,7 @@ export async function DELETE(req: Request) {
       }
     }
 
-    const { data: refreshed } = await supabase
-      .from(TABLE_NAME)
-      .select("id, property_id, storage_path, image_url, sort_order, caption, created_at")
-      .eq("property_id", propertyId)
-      .eq("kind", GALLERY_KIND)
-      .eq("is_active", true)
-      .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: true });
+    const { data: refreshed } = await fetchPropertyGalleryImages(propertyId);
 
     return NextResponse.json({ images: refreshed || [] });
   } catch (error) {

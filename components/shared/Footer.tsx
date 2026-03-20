@@ -46,6 +46,14 @@ export default function Footer() {
                 </li>
                 <li>
                   <Link
+                    href="/recommendations"
+                    className="hover:text-(--oboon-text-default)"
+                  >
+                    맞춤현장
+                  </Link>
+                </li>
+                <li>
+                  <Link
                     href="/community"
                     className="hover:text-(--oboon-text-default)"
                   >

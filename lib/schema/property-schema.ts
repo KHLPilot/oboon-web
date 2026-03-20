@@ -1,10 +1,11 @@
 import { z } from 'zod';
+import { OFFERING_STATUS_VALUES } from '@/features/offerings/domain/offering.types';
 
 // properties 테이블
 const propertiesSchema = z.object({
   name: z.string().describe("분양 현장명/단지명 (예: 힐스테이트 광안)"),
   property_type: z.string().nullable().describe("분양 유형 (예: 아파트, 오피스텔, 상업시설, 주상복합)"),
-  status: z.enum(["READY", "OPEN", "CLOSED"]).nullable().describe("분양 상태: READY(분양 예정), OPEN(분양 중), CLOSED(분양 종료). 모집공고 전이면 READY, 청약접수 중이면 OPEN, 계약 종료 후면 CLOSED"),
+  status: z.enum(OFFERING_STATUS_VALUES).nullable().describe("분양 상태 코드. 모집공고 전이면 분양 예정, 청약접수 중이면 분양 중, 계약 종료 후면 분양 종료로 기록합니다."),
   description: z.string().nullable().describe("현장에 대한 간단 설명/특징"),
 });
 

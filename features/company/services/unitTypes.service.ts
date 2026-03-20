@@ -213,6 +213,21 @@ export async function fetchUnitTypes(propertyId: number): Promise<UnitRow[]> {
   return patchFloorPlanUrls(rows, floorPlanUrlsMap);
 }
 
+export async function fetchUnitTypePriceRanges(propertyId: number) {
+  const supabase = createSupabaseClient();
+  const { data, error } = await supabase
+    .from("property_unit_types")
+    .select("price_min, price_max")
+    .eq("properties_id", propertyId);
+
+  return {
+    data:
+      (data as Array<{ price_min: number | null; price_max: number | null }> | null) ??
+      null,
+    error: error ? new Error(error.message) : null,
+  };
+}
+
 export async function createUnitType(
   propertyId: number,
   draft: UnitDraft,

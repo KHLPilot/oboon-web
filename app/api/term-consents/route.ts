@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
+import {
+  deleteUserTermConsent,
+  fetchActiveTermsByTypes,
+  fetchUserTermConsents,
+  insertTermConsents,
+} from "@/features/auth/services/term-consents.service";
 
 /**
  * POST /api/term-consents
@@ -74,11 +80,9 @@ export async function POST(request: NextRequest) {
     const userAgent = request.headers.get('user-agent') || null;
 
     // 각 termType의 활성 버전 조회
-    const { data: terms, error: termsError } = await supabase
-      .from('terms')
-      .select('id, type, version, title, content')
-      .in('type', termTypes)
-      .eq('is_active', true);
+    const { data: terms, error: termsError } = await fetchActiveTermsByTypes(
+      termTypes,
+    );
 
     if (termsError) {
       console.error('약관 조회 실패:', termsError);
@@ -117,10 +121,8 @@ export async function POST(request: NextRequest) {
     }));
 
     // 동의 기록 저장
-    const { data: insertedConsents, error: insertError } = await supabase
-      .from('term_consents')
-      .insert(consentsToInsert)
-      .select('id, term_type');
+    const { data: insertedConsents, error: insertError } =
+      await insertTermConsents(consentsToInsert);
 
     if (insertError) {
       console.error('동의 기록 저장 실패:', insertError);
@@ -183,23 +185,14 @@ export async function GET(request: NextRequest) {
     const contextId = searchParams.get('contextId');
     const termType = searchParams.get('termType');
 
-    let query = supabase
-      .from('term_consents')
-      .select('id, term_type, term_version, consented_at, context, context_id')
-      .eq('user_id', user.id)
-      .order('consented_at', { ascending: false });
-
-    if (context) {
-      query = query.eq('context', context);
-    }
-    if (contextId) {
-      query = query.eq('context_id', contextId);
-    }
-    if (termType) {
-      query = query.eq('term_type', termType);
-    }
-
-    const { data: consents, error: queryError } = await query;
+    const { data: consents, error: queryError } = await fetchUserTermConsents(
+      user.id,
+      {
+        context,
+        contextId,
+        termType,
+      },
+    );
 
     if (queryError) {
       console.error('동의 기록 조회 실패:', queryError);
@@ -269,11 +262,10 @@ export async function DELETE(request: NextRequest) {
     }
 
     // 해당 타입의 동의 기록 삭제
-    const { error: deleteError } = await supabase
-      .from('term_consents')
-      .delete()
-      .eq('user_id', user.id)
-      .eq('term_type', termType);
+    const { error: deleteError } = await deleteUserTermConsent(
+      user.id,
+      termType,
+    );
 
     if (deleteError) {
       console.error('동의 기록 삭제 실패:', deleteError);

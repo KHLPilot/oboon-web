@@ -1,10 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, Search, SlidersHorizontal } from "lucide-react";
 
 import PageContainer from "@/components/shared/PageContainer";
+import Button from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
+import Input from "@/components/ui/Input";
+import Label from "@/components/ui/Label";
 import { Skeleton } from "@/components/ui/Skeleton";
 import {
   DropdownMenu,
@@ -23,6 +26,7 @@ import {
   useRecommendations,
 } from "@/features/recommendations/hooks/useRecommendations";
 import { cn } from "@/lib/utils/cn";
+import { Copy } from "@/shared/copy";
 
 type SortKey = "default" | "burden" | "cash";
 
@@ -210,6 +214,9 @@ export default function RecommendationsPage() {
   const cardRefs = useRef(new Map<number, HTMLDivElement>());
   const [sortKey, setSortKey] = useState<SortKey>("default");
   const [desktopView, setDesktopView] = useState<"list" | "map">("list");
+  const [desktopFilterOpen, setDesktopFilterOpen] = useState(true);
+  const [searchInput, setSearchInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [flipState, setFlipState] = useState<{
     id: number | null;
     scope: string;
@@ -223,7 +230,6 @@ export default function RecommendationsPage() {
     mode,
     results,
     selectedId,
-    selectedItem,
     isBootstrapping,
     isEvaluating,
     catalogError,
@@ -278,8 +284,35 @@ export default function RecommendationsPage() {
     [scrollToCard, setSelectedId],
   );
 
+  const applySearchQuery = useCallback(() => {
+    setSearchQuery(searchInput);
+  }, [searchInput]);
+
+  const handleEvaluate = useCallback(async () => {
+    const ok = await evaluate();
+    if (ok) {
+      setDesktopFilterOpen(false);
+    }
+    return ok;
+  }, [evaluate]);
+
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const searchedResults = useMemo(() => {
+    if (!normalizedSearchQuery) return results;
+
+    return results.filter((item) =>
+      [
+        item.property.name,
+        item.property.addressShort,
+        item.property.regionLabel,
+        item.property.propertyType ?? "",
+        item.property.statusLabel,
+      ].some((value) => value.toLowerCase().includes(normalizedSearchQuery)),
+    );
+  }, [normalizedSearchQuery, results]);
+
   const sortedResults = useMemo(() => {
-    const next = [...results];
+    const next = [...searchedResults];
 
     if (sortKey === "burden") {
       return next.sort(
@@ -324,7 +357,7 @@ export default function RecommendationsPage() {
     }
 
     return next.sort(compareByDefault);
-  }, [results, sortKey]);
+  }, [searchedResults, sortKey]);
 
   const gradeCounts = useMemo(
     () =>
@@ -345,6 +378,15 @@ export default function RecommendationsPage() {
     [desktopView, sortKey, sortedResults],
   );
   const flippedId = flipState.scope === flipScope ? flipState.id : null;
+  const visibleSelectedId = sortedResults.some(
+    (item) => item.property.id === selectedId,
+  )
+    ? selectedId
+    : null;
+  const visibleSelectedItem =
+    visibleSelectedId === null
+      ? null
+      : sortedResults.find((item) => item.property.id === visibleSelectedId) ?? null;
 
   const handleFlipFromCard = useCallback(
     (id: number) => {
@@ -361,6 +403,13 @@ export default function RecommendationsPage() {
   const showSkeleton = isBootstrapping || (isEvaluating && results.length === 0);
   const shouldShowEmpty =
     !showSkeleton && !activeError && !catalogError && results.length === 0;
+  const shouldShowSearchEmpty =
+    !showSkeleton &&
+    !activeError &&
+    !catalogError &&
+    results.length > 0 &&
+    sortedResults.length === 0;
+  const showSearchBar = results.length > 0;
   const showResultToolbar = sortedResults.length > 0;
 
   return (
@@ -377,51 +426,149 @@ export default function RecommendationsPage() {
             </p>
           </div>
 
-          <MobileConditionSheet
-            condition={condition}
-            mode={mode}
-            errorMessage={activeError}
-            isLoading={isEvaluating}
-            onChange={updateCondition}
-            onEvaluate={evaluate}
-            onModeChange={changeMode}
-          />
+          <div className="space-y-3 sm:hidden">
+            {showSearchBar ? (
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <Label className="sr-only" htmlFor="recommendation-search-mobile">
+                    검색
+                  </Label>
+                  <Input
+                    id="recommendation-search-mobile"
+                    value={searchInput}
+                    onChange={(event) => setSearchInput(event.target.value)}
+                    placeholder={Copy.offerings.search.placeholder}
+                    className={cn(
+                      "h-10 w-full rounded-xl px-5 ob-typo-body",
+                      "outline-none focus:ring-2 focus:ring-(--oboon-primary)/30",
+                    )}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        applySearchQuery();
+                      }
+                    }}
+                    aria-label="맞춤 현장 검색"
+                  />
+                </div>
 
-          <div className="hidden rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-5 sm:block">
-            <RecommendationConditionPanel
+                <Button
+                  type="button"
+                  variant="secondary"
+                  shape="pill"
+                  size="md"
+                  className="h-10 w-10 rounded-full p-0"
+                  onClick={applySearchQuery}
+                  aria-label="검색"
+                >
+                  <Search className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : null}
+
+            <MobileConditionSheet
               condition={condition}
               mode={mode}
+              errorMessage={activeError}
               isLoading={isEvaluating}
               onChange={updateCondition}
-              onEvaluate={() => void evaluate()}
+              onEvaluate={handleEvaluate}
               onModeChange={changeMode}
             />
+
+            {showSearchBar ? (
+              showResultToolbar ? (
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+                  <div className="flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap">
+                    <ResultChip
+                      label="충족"
+                      count={gradeCounts.GREEN}
+                      tone="GREEN"
+                    />
+                    <ResultChip
+                      label="검토"
+                      count={gradeCounts.YELLOW}
+                      tone="YELLOW"
+                    />
+                  </div>
+
+                  <div className="flex shrink-0 items-center gap-2">
+                    <SortDropdown
+                      value={sortKey}
+                      onChange={(nextSortKey) => {
+                        setSortKey(nextSortKey);
+                        setFlipState({ id: null, scope: "" });
+                      }}
+                    />
+                    <OfferingsViewToggle
+                      value={desktopView}
+                      onChange={(nextView) => {
+                        setDesktopView(nextView);
+                        setFlipState({ id: null, scope: "" });
+                      }}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <p className="ob-typo-caption text-(--oboon-text-muted)">
+                  검색 조건에 맞는 현장을 찾지 못했어요.
+                </p>
+              )
+            ) : null}
           </div>
 
-          {showResultToolbar ? (
-            <div className="mb-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 sm:mb-5">
-              <div className="flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap">
-                <ResultChip
-                  label="충족"
-                  count={gradeCounts.GREEN}
-                  tone="GREEN"
-                />
-                <ResultChip
-                  label="검토"
-                  count={gradeCounts.YELLOW}
-                  tone="YELLOW"
-                />
-              </div>
+          <div className="hidden sm:block">
+            <div
+              className={cn(
+                "flex items-center gap-3",
+                showSearchBar ? "" : "justify-end",
+              )}
+            >
+              {showSearchBar ? (
+                <>
+                  <div className="flex-1">
+                    <Label className="sr-only" htmlFor="recommendation-search">
+                      검색
+                    </Label>
+                    <Input
+                      id="recommendation-search"
+                      value={searchInput}
+                      onChange={(event) => setSearchInput(event.target.value)}
+                      placeholder={Copy.offerings.search.placeholder}
+                      className={cn(
+                        "h-10 w-full rounded-xl px-5 ob-typo-body",
+                        "outline-none focus:ring-2 focus:ring-(--oboon-primary)/30",
+                      )}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          applySearchQuery();
+                        }
+                      }}
+                      aria-label="맞춤 현장 검색"
+                    />
+                  </div>
 
-              <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-                <SortDropdown
-                  value={sortKey}
-                  onChange={(nextSortKey) => {
-                    setSortKey(nextSortKey);
-                    setFlipState({ id: null, scope: "" });
-                  }}
-                />
-                <div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    shape="pill"
+                    size="md"
+                    className="h-10 w-10 rounded-full p-0"
+                    onClick={applySearchQuery}
+                    aria-label="검색"
+                  >
+                    <Search className="h-4 w-4" />
+                  </Button>
+
+                  <SortDropdown
+                    value={sortKey}
+                    onChange={(nextSortKey) => {
+                      setSortKey(nextSortKey);
+                      setFlipState({ id: null, scope: "" });
+                    }}
+                  />
+
                   <OfferingsViewToggle
                     value={desktopView}
                     onChange={(nextView) => {
@@ -429,10 +576,49 @@ export default function RecommendationsPage() {
                       setFlipState({ id: null, scope: "" });
                     }}
                   />
-                </div>
-              </div>
+                </>
+              ) : null}
+
+              <Button
+                type="button"
+                variant={desktopFilterOpen ? "primary" : "secondary"}
+                shape="pill"
+                size="md"
+                className="h-10 w-10 rounded-full p-0"
+                onClick={() => setDesktopFilterOpen((prev) => !prev)}
+                aria-expanded={desktopFilterOpen}
+                aria-label="필터"
+              >
+                <SlidersHorizontal
+                  className={cn(
+                    "h-4 w-4 transition-colors",
+                    desktopFilterOpen
+                      ? "text-(--oboon-on-primary)"
+                      : "text-(--oboon-text-muted)",
+                  )}
+                />
+              </Button>
             </div>
-          ) : null}
+
+            {desktopFilterOpen ? (
+              <div className="mt-4 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-5">
+                <RecommendationConditionPanel
+                  condition={condition}
+                  mode={mode}
+                  isLoading={isEvaluating}
+                  onChange={updateCondition}
+                  onEvaluate={() => void handleEvaluate()}
+                  onModeChange={changeMode}
+                />
+              </div>
+            ) : null}
+
+            {showSearchBar && !showResultToolbar ? (
+              <p className="mt-3 ob-typo-caption text-(--oboon-text-muted)">
+                검색 조건에 맞는 현장을 찾지 못했어요.
+              </p>
+            ) : null}
+          </div>
 
           {activeError ? (
             <div className="rounded-2xl border border-(--oboon-danger-border) bg-(--oboon-danger-bg) px-4 py-3">
@@ -483,6 +669,19 @@ export default function RecommendationsPage() {
                   />
                 ) : null}
 
+                {shouldShowSearchEmpty ? (
+                  <EmptyState
+                    icon={
+                      <svg viewBox="0 0 56 56" fill="none" aria-hidden="true" className="h-14 w-14">
+                        <circle cx="24" cy="24" r="14" stroke="currentColor" strokeWidth="2.5" />
+                        <line x1="34.8" y1="34.8" x2="48" y2="48" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+                      </svg>
+                    }
+                    title="검색 결과가 없어요"
+                    description="다른 검색어로 다시 찾아보세요."
+                  />
+                ) : null}
+
                 {!showSkeleton && sortedResults.length > 0
                   ? (
                     <div className="space-y-3 sm:grid sm:grid-cols-2 sm:gap-4 sm:space-y-0 lg:grid-cols-3">
@@ -495,14 +694,14 @@ export default function RecommendationsPage() {
                           <div className="sm:hidden">
                             <RecommendationOfferingCard
                               property={item}
-                              isSelected={selectedId === item.property.id}
+                              isSelected={visibleSelectedId === item.property.id}
                               onClick={() => handleSelectFromCard(item.property.id)}
                             />
                           </div>
                           <div className="hidden sm:block">
                             <FlippableRecommendationCard
                               item={item}
-                              isSelected={selectedId === item.property.id}
+                              isSelected={visibleSelectedId === item.property.id}
                               isFlipped={flippedId === item.property.id}
                               disableFlip={item.evalResult.isMasked}
                               onFlip={() => handleFlipFromCard(item.property.id)}
@@ -517,23 +716,32 @@ export default function RecommendationsPage() {
               </div>
             </section>
           ) : (
-            <aside className="h-[420px] sm:h-[520px] md:h-[620px]">
+            <aside className="h-[500px] sm:h-[520px] md:h-[620px]">
               <div className="relative h-full">
                 <MiniMap
                   items={sortedResults}
-                  selectedId={selectedId}
+                  selectedId={visibleSelectedId}
                   onSelect={handleSelectFromMap}
                 />
 
-                {selectedItem ? (
+                {visibleSelectedItem ? (
                   <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 p-4">
                     <div className="pointer-events-auto mx-auto w-full max-w-2xl">
-                      <RecommendationOfferingCard
-                        property={selectedItem}
-                        isSelected
-                        onClick={() => handleSelectFromCard(selectedItem.property.id)}
-                        flushImageToEdge
-                      />
+                      <div className="sm:hidden">
+                        <RecommendationOfferingCard
+                          property={visibleSelectedItem}
+                          isSelected
+                          onClick={() => handleSelectFromCard(visibleSelectedItem.property.id)}
+                        />
+                      </div>
+                      <div className="hidden sm:block">
+                        <RecommendationOfferingCard
+                          property={visibleSelectedItem}
+                          isSelected
+                          onClick={() => handleSelectFromCard(visibleSelectedItem.property.id)}
+                          flushImageToEdge
+                        />
+                      </div>
                     </div>
                   </div>
                 ) : null}

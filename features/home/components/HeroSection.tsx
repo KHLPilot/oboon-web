@@ -23,6 +23,7 @@ import HeroCounselorPreview from "@/features/home/components/HeroCounselorPrevie
 import { HeroCounselorPreviewSkeleton } from "@/features/home/components/HeroCounselorPreviewSkeleton";
 import ConditionMapSvgBackground from "@/features/home/components/ConditionMapSvgBackground";
 import { HERO_SIDE_PANEL_HEIGHT_CLASS } from "@/features/home/components/heroPreview.constants";
+import { Copy } from "@/shared/copy";
 
 export type HomeHeroSlide = "agent" | "condition";
 
@@ -581,7 +582,7 @@ export default function HeroSection() {
                   aria-hidden="true"
                 />
                 <span className="ob-typo-body text-(--oboon-text-title)">
-                  1:1 상담사 매칭 시스템
+                  {Copy.hero.agentMatch.badge}
                 </span>
               </Badge>
 
@@ -593,7 +594,7 @@ export default function HeroSection() {
               </h1>
 
               <p className="mt-2 max-w-[40rem] ob-typo-subtitle text-(--oboon-text-body)">
-                전문성과 경험을 공개하고 선택의 기준을 제공합니다.
+                {Copy.hero.agentMatch.subtitle}
               </p>
 
               <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 md:flex md:flex-wrap">
@@ -608,7 +609,7 @@ export default function HeroSection() {
                     aria-label="분양 리스트 보기"
                     className="!text-(--oboon-on-primary)"
                   >
-                    분양 리스트 보기
+                    {Copy.hero.agentMatch.cta.primary}
                     <ArrowRight
                       className="h-4 w-4 text-(--oboon-on-primary)"
                       aria-hidden="true"
@@ -626,7 +627,7 @@ export default function HeroSection() {
                     href="/offerings?view=map"
                     aria-label="분양 리스트를 지도 모드로 보기"
                   >
-                    지도로 현장 찾기
+                    {Copy.hero.agentMatch.cta.secondary}
                     <MapPin className="h-4 w-4" aria-hidden="true" />
                   </Link>
                 </Button>
@@ -683,7 +684,7 @@ export default function HeroSection() {
                 className="mb-4 inline-flex items-center gap-2 px-3 py-1.5 bg-(--oboon-bg-surface)"
               >
                 <Sparkles className="h-4 w-4 text-(--oboon-primary)" aria-hidden="true" />
-                <span className="ob-typo-body text-(--oboon-text-title)">AI 맞춤 현장 추천</span>
+                <span className="ob-typo-body text-(--oboon-text-title)">{Copy.hero.aiMatch.badge}</span>
               </Badge>
 
               <h2 className="ob-typo-h1 text-(--oboon-text-title)">
@@ -693,13 +694,13 @@ export default function HeroSection() {
               </h2>
 
               <p className="mt-2 max-w-[40rem] ob-typo-subtitle text-(--oboon-text-body)">
-                교통, 학군, 개발호재, 반려동물 조건까지 한 번에 검증해 즉시 비교할 수 있어요.
+                {Copy.hero.aiMatch.subtitle}
               </p>
 
               <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 md:flex md:flex-wrap">
                 <Button asChild size="lg" variant="primary" className="w-full md:w-auto">
                   <Link href="/offerings" aria-label="맞춤 현장 보기" className="!text-(--oboon-on-primary)">
-                    맞춤 현장 보기
+                    {Copy.hero.aiMatch.cta.primary}
                     <ArrowRight className="h-4 w-4 text-(--oboon-on-primary)" aria-hidden="true" />
                   </Link>
                 </Button>
@@ -711,7 +712,7 @@ export default function HeroSection() {
                   className="w-full md:w-auto border-transparent bg-transparent text-(--oboon-text-body) hover:bg-(--oboon-bg-subtle) hover:text-(--oboon-text-title)"
                 >
                   <Link href="/offerings" aria-label="조건 상세 설정">
-                    조건 상세 설정
+                    {Copy.hero.aiMatch.cta.secondary}
                     <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
                   </Link>
                 </Button>
@@ -720,7 +721,7 @@ export default function HeroSection() {
               <div className="mt-5 flex min-h-9 items-center">
                 <p className="inline-flex items-center gap-2 rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-1 ob-typo-caption text-(--oboon-text-muted)">
                   <span>🏆</span>
-                  평균 3.2개 현장 매칭
+                  {Copy.hero.aiMatch.stat}
                 </p>
               </div>
             </div>
@@ -786,10 +787,10 @@ function ConditionHeroPanel({ cards }: { cards: ConditionMapCard[] }) {
       <div className="relative h-full p-4 sm:p-5">
         <div className="relative z-30 mb-4 sm:mb-5">
           <p className="ob-typo-caption text-(--oboon-text-title)">
-            맞춤 현장 미리보기
+            {Copy.hero.aiMatch.preview.title}
           </p>
           <h3 className="mt-1 ob-typo-h3 text-(--oboon-text-title)">
-            광고 매물 말고, 조건이 맞는 현장만
+            {Copy.hero.aiMatch.preview.subtitle}
           </h3>
         </div>
 

@@ -8,6 +8,7 @@ import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Label from "@/components/ui/Label";
 import { oboonFieldBaseClass } from "@/lib/ui/formFieldStyles";
+import { Copy } from "@/shared/copy";
 import { getAvatarUrlOrDefault } from "@/shared/imageUrl";
 
 import ConsultationsShortcutCard from "./ConsultationsShortcutCard";
@@ -106,7 +107,7 @@ export default function UserProfileSection({
                     (e.nativeEvent as InputEvent).isComposing ?? false,
                   )
                 }
-                placeholder="김오분 (한글/영문 2-20자)"
+                placeholder={Copy.auth.placeholder.name}
                 maxLength={20}
                 className={[
                   oboonFieldBaseClass,
@@ -131,7 +132,7 @@ export default function UserProfileSection({
                     (e.nativeEvent as InputEvent).isComposing ?? false,
                   )
                 }
-                placeholder="01012345678"
+                placeholder={Copy.auth.placeholder.phone}
                 maxLength={13}
                 className={[
                   oboonFieldBaseClass,
@@ -159,7 +160,7 @@ export default function UserProfileSection({
                       (e.nativeEvent as InputEvent).isComposing ?? false,
                     )
                   }
-                  placeholder="오분이 (선택, 2-15자)"
+                  placeholder={Copy.auth.placeholder.nickname}
                   maxLength={15}
                   className={[
                     "flex-1",
@@ -209,7 +210,7 @@ export default function UserProfileSection({
                     (e.nativeEvent as InputEvent).isComposing ?? false,
                   )
                 }
-                placeholder="예: 토스뱅크"
+                placeholder={Copy.booking.account.bankPlaceholder}
                 maxLength={30}
                 className={[
                   oboonFieldBaseClass,
@@ -229,7 +230,7 @@ export default function UserProfileSection({
                 value={bankAccountNumber}
                 disabled={!isEditing}
                 onChange={(e) => onBankAccountChange(e.target.value)}
-                placeholder="숫자와 -만 입력"
+                placeholder={Copy.booking.account.numberPlaceholder}
                 maxLength={40}
                 className={[
                   oboonFieldBaseClass,
@@ -253,7 +254,7 @@ export default function UserProfileSection({
                     (e.nativeEvent as InputEvent).isComposing ?? false,
                   )
                 }
-                placeholder="예금주 이름"
+                placeholder={Copy.booking.account.holderPlaceholder}
                 maxLength={50}
                 className={[
                   oboonFieldBaseClass,

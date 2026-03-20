@@ -13,6 +13,33 @@ function isBlockedPostStatus(status: string | null | undefined) {
   return normalized === "hidden" || normalized === "deleted" || normalized === "draft";
 }
 
+function isInvalidCommunityStatusError(error: unknown) {
+  const message = String(
+    (error as { message?: unknown })?.message ??
+      (error as { details?: unknown })?.details ??
+      "",
+  ).toLowerCase();
+  return (
+    message.includes("invalid input value for enum") &&
+    message.includes("community_post_status")
+  );
+}
+
+async function syncRepostCount(originalPostId: string | null | undefined) {
+  if (!originalPostId) return;
+
+  const { count } = await adminSupabase
+    .from("community_posts")
+    .select("id", { count: "exact", head: true })
+    .eq("repost_original_post_id", originalPostId)
+    .not("status", "in", '("hidden","deleted","draft")');
+
+  await adminSupabase
+    .from("community_posts")
+    .update({ repost_count: count ?? 0 })
+    .eq("id", originalPostId);
+}
+
 type RouteParams = { params: Promise<{ postId: string }> };
 
 async function getProfileRole(profileId: string) {
@@ -67,7 +94,7 @@ export async function PATCH(req: Request, { params }: RouteParams) {
 
     const { data: postRow, error: postError } = await adminSupabase
       .from("community_posts")
-      .select("id, author_profile_id, status")
+      .select("id, author_profile_id, status, repost_original_post_id")
       .eq("id", postId)
       .maybeSingle();
 
@@ -144,7 +171,7 @@ export async function DELETE(_req: Request, { params }: RouteParams) {
 
     const { data: postRow, error: postError } = await adminSupabase
       .from("community_posts")
-      .select("id, author_profile_id, status")
+      .select("id, author_profile_id, status, repost_original_post_id")
       .eq("id", postId)
       .maybeSingle();
 
@@ -172,17 +199,48 @@ export async function DELETE(_req: Request, { params }: RouteParams) {
       }
     }
 
-    const { error: deleteError } = await adminSupabase.from("community_posts").update({
-      status: "deleted",
-      updated_at: new Date().toISOString(),
-    }).eq("id", postId);
+    const repostOriginalPostId =
+      (postRow as { repost_original_post_id?: string | null }).repost_original_post_id ?? null;
 
-    if (deleteError) {
-      return NextResponse.json(
-        { error: "게시글 삭제에 실패했습니다." },
-        { status: 500 },
+    const { error: softDeleteError } = await adminSupabase
+      .from("community_posts")
+      .update({
+        status: "deleted",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", postId);
+
+    if (softDeleteError) {
+      console.error(
+        "community post soft delete failed:",
+        softDeleteError.message,
       );
+
+      if (!isInvalidCommunityStatusError(softDeleteError)) {
+        return NextResponse.json(
+          { error: "게시글 삭제에 실패했습니다." },
+          { status: 500 },
+        );
+      }
+
+      const { error: hardDeleteError } = await adminSupabase
+        .from("community_posts")
+        .delete()
+        .eq("id", postId);
+
+      if (hardDeleteError) {
+        console.error(
+          "community post hard delete fallback failed:",
+          hardDeleteError.message,
+        );
+        return NextResponse.json(
+          { error: "게시글 삭제에 실패했습니다." },
+          { status: 500 },
+        );
+      }
     }
+
+    await syncRepostCount(repostOriginalPostId);
 
     return NextResponse.json({ success: true });
   } catch (error) {

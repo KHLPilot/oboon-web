@@ -21,6 +21,7 @@ import {
   formatManwonWithEok,
   formatPercent,
 } from "@/lib/format/currency";
+import { Copy } from "@/shared/copy";
 const CREDIT_OPTIONS = [
   { label: "양호", value: "good" },
   { label: "보통", value: "normal" },
@@ -314,7 +315,7 @@ export default function ConditionValidationCard({
                   value={availableCash}
                   onChange={(e) => setAvailableCash(formatNumericInput(e.target.value))}
                   inputMode="numeric"
-                  placeholder="예: 8,000"
+                  placeholder={Copy.offerings.detail.condition.placeholder.price}
                   className={availableCashPreview ? "pr-28" : undefined}
                 />
                 {availableCashPreview ? (
@@ -334,7 +335,7 @@ export default function ConditionValidationCard({
                   value={monthlyIncome}
                   onChange={(e) => setMonthlyIncome(formatNumericInput(e.target.value))}
                   inputMode="numeric"
-                  placeholder="예: 400"
+                  placeholder={Copy.offerings.detail.condition.placeholder.area}
                   className={monthlyIncomePreview ? "pr-28" : undefined}
                 />
                 {monthlyIncomePreview ? (
@@ -383,7 +384,7 @@ export default function ConditionValidationCard({
 
           <div className="mt-3 flex gap-2">
             <Button className="flex-1" loading={loading} onClick={() => void handleEvaluate()}>
-              조건 확인
+              {Copy.offerings.detail.condition.cta}
             </Button>
           </div>
         </>
@@ -393,11 +394,11 @@ export default function ConditionValidationCard({
         <div className="mt-3 space-y-2">
           <div className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-2.5">
             <p className="ob-typo-caption text-(--oboon-text-muted)">
-              맞춤 정보가 적용되었습니다. 바로 조건 확인을 진행할 수 있습니다.
+              {Copy.offerings.detail.condition.applied}
             </p>
           </div>
           <Button className="w-full" loading={loading} onClick={() => void handleEvaluate()}>
-            조건 확인
+            {Copy.offerings.detail.condition.cta}
           </Button>
         </div>
       ) : null}
@@ -469,7 +470,7 @@ export default function ConditionValidationCard({
                         </div>
                       </div>
                       <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
-                        {categories.cash.reason_message ?? "로그인 후 자금 분석을 확인할 수 있어요."}
+                        {categories.cash.reason_message ?? Copy.offerings.detail.condition.loginRequired.cash}
                       </p>
                     </div>
 
@@ -486,7 +487,7 @@ export default function ConditionValidationCard({
                         </div>
                       </div>
                       <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
-                        {categories.burden.reason_message ?? "로그인 후 월부담 분석을 확인할 수 있어요."}
+                        {categories.burden.reason_message ?? Copy.offerings.detail.condition.loginRequired.monthly}
                       </p>
                     </div>
 
@@ -503,7 +504,7 @@ export default function ConditionValidationCard({
                         </div>
                       </div>
                       <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
-                        {categories.risk.reason_message ?? "로그인 후 리스크 분석을 확인할 수 있어요."}
+                        {categories.risk.reason_message ?? Copy.offerings.detail.condition.loginRequired.risk}
                       </p>
                     </div>
                   </div>
@@ -615,7 +616,7 @@ export default function ConditionValidationCard({
       ) : null}
 
       <p className="mt-3 ob-typo-caption text-(--oboon-text-muted)">
-        조건 검증 결과는 참고용이며, 최종 진행 가능 여부는 실제 상담에서 재확인됩니다.
+        {Copy.offerings.detail.condition.disclaimer}
       </p>
     </Card>
   );

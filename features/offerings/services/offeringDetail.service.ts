@@ -1,7 +1,12 @@
+import { createClient } from "@supabase/supabase-js";
 import { createSupabaseServer } from "@/lib/supabaseServer";
 import type { PropertyRow } from "@/features/offerings/domain/offeringDetail.types";
 
 type RecordValue = Record<string, unknown>;
+type ServiceResult<T> = {
+  data: T | null;
+  error: Error | null;
+};
 
 const isRecord = (value: unknown): value is RecordValue =>
   typeof value === "object" && value !== null;
@@ -119,6 +124,17 @@ const isPropertyRow = (value: unknown): value is PropertyRow =>
   isRowOrArray(value.property_timeline, isTimelineRow) &&
   isRowOrArray(value.property_unit_types, isUnitTypeRow);
 
+function createOfferingAdminClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !serviceRoleKey) {
+    return null;
+  }
+
+  return createClient(url, serviceRoleKey);
+}
+
 export async function fetchOfferingDetail(
   id: number,
 ): Promise<PropertyRow | null> {
@@ -224,4 +240,49 @@ export async function hasApprovedAgent(propertyId: number): Promise<boolean> {
 
   if (error) return false;
   return (count ?? 0) > 0;
+}
+
+export async function fetchOfferingViewSnapshot(
+  propertyId: number,
+): Promise<ServiceResult<{ property_id: number }>> {
+  const supabase = createOfferingAdminClient();
+  if (!supabase) {
+    return {
+      data: null,
+      error: new Error("missing supabase env"),
+    };
+  }
+
+  const { data, error } = await supabase
+    .from("property_public_snapshots")
+    .select("property_id")
+    .eq("property_id", propertyId)
+    .maybeSingle();
+
+  return {
+    data: (data as { property_id: number } | null) ?? null,
+    error: error ? new Error(error.message) : null,
+  };
+}
+
+export async function incrementOfferingViewCount(
+  propertyId: number,
+): Promise<ServiceResult<number>> {
+  const supabase = createOfferingAdminClient();
+  if (!supabase) {
+    return {
+      data: null,
+      error: new Error("missing supabase env"),
+    };
+  }
+
+  const { data, error } = await supabase.rpc(
+    "increment_property_view_count",
+    { p_property_id: propertyId },
+  );
+
+  return {
+    data: typeof data === "number" ? data : null,
+    error: error ? new Error(error.message) : null,
+  };
 }

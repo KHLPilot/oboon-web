@@ -6,8 +6,16 @@ import {
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
+import {
+  deleteProfileGalleryRows,
+  fetchOwnedProfileGalleryRows,
+  fetchProfileGalleryDeleteRows,
+  fetchProfileGalleryImages,
+  fetchProfileGallerySortRows,
+  insertProfileGalleryRows,
+  updateProfileGalleryRow,
+} from "@/features/profile/services/profile.gallery";
 
-const TABLE_NAME = "profile_gallery_images";
 const MAX_IMAGES = 5;
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -98,12 +106,7 @@ export async function GET(req: Request) {
       targetUserId = user.id;
     }
 
-    const { data, error } = await supabase
-      .from(TABLE_NAME)
-      .select("id, user_id, storage_path, image_url, sort_order, caption, created_at")
-      .eq("user_id", targetUserId)
-      .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: true });
+    const { data, error } = await fetchProfileGalleryImages(targetUserId);
 
     if (error) {
       if (isMissingSchemaError(error)) {
@@ -166,10 +169,8 @@ export async function POST(req: Request) {
       }
     }
 
-    const { data: existingRows, error: countError } = await supabase
-      .from(TABLE_NAME)
-      .select("id, sort_order")
-      .eq("user_id", user.id);
+    const { data: existingRows, error: countError } =
+      await fetchProfileGallerySortRows(user.id);
 
     if (countError) {
       return NextResponse.json(
@@ -252,11 +253,8 @@ export async function POST(req: Request) {
       });
     }
 
-    const { data: inserted, error: insertError } = await supabase
-      .from(TABLE_NAME)
-      .insert(insertRows)
-      .select("id, user_id, storage_path, image_url, sort_order, caption, created_at")
-      .order("sort_order", { ascending: true });
+    const { data: inserted, error: insertError } =
+      await insertProfileGalleryRows(insertRows);
 
     if (insertError) {
       if (uploadedKeys.length > 0) {
@@ -309,11 +307,8 @@ export async function PATCH(req: Request) {
     }
 
     const ids = updates.map((item) => item.id).filter(Boolean);
-    const { data: ownedRows, error: ownedError } = await supabase
-      .from(TABLE_NAME)
-      .select("id")
-      .eq("user_id", user.id)
-      .in("id", ids);
+    const { data: ownedRows, error: ownedError } =
+      await fetchOwnedProfileGalleryRows(user.id, ids);
 
     if (ownedError) {
       return NextResponse.json(
@@ -330,14 +325,11 @@ export async function PATCH(req: Request) {
     }
 
     for (const item of updates) {
-      const { error: updateError } = await supabase
-        .from(TABLE_NAME)
-        .update({
-          sort_order: item.sort_order,
-          caption: item.caption ?? null,
-        })
-        .eq("id", item.id)
-        .eq("user_id", user.id);
+      const { error: updateError } = await updateProfileGalleryRow(user.id, {
+        id: item.id,
+        sort_order: item.sort_order,
+        caption: item.caption ?? null,
+      });
 
       if (updateError) {
         return NextResponse.json(
@@ -347,12 +339,8 @@ export async function PATCH(req: Request) {
       }
     }
 
-    const { data: refreshed, error: refreshError } = await supabase
-      .from(TABLE_NAME)
-      .select("id, user_id, storage_path, image_url, sort_order, caption, created_at")
-      .eq("user_id", user.id)
-      .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: true });
+    const { data: refreshed, error: refreshError } =
+      await fetchProfileGalleryImages(user.id);
 
     if (refreshError) {
       return NextResponse.json(
@@ -399,11 +387,10 @@ export async function DELETE(req: Request) {
       );
     }
 
-    const { data: rows, error: fetchError } = await supabase
-      .from(TABLE_NAME)
-      .select("id, storage_path")
-      .eq("user_id", user.id)
-      .in("id", ids);
+    const { data: rows, error: fetchError } = await fetchProfileGalleryDeleteRows(
+      user.id,
+      ids,
+    );
 
     if (fetchError) {
       return NextResponse.json(
@@ -421,7 +408,7 @@ export async function DELETE(req: Request) {
 
     const storagePaths = (rows || [])
       .map((row) => row.storage_path)
-      .filter(Boolean);
+      .filter((path): path is string => Boolean(path));
 
     if (storagePaths.length > 0) {
       try {
@@ -442,11 +429,7 @@ export async function DELETE(req: Request) {
       }
     }
 
-    const { error: deleteError } = await supabase
-      .from(TABLE_NAME)
-      .delete()
-      .eq("user_id", user.id)
-      .in("id", ids);
+    const { error: deleteError } = await deleteProfileGalleryRows(user.id, ids);
 
     if (deleteError) {
       return NextResponse.json(
@@ -455,12 +438,7 @@ export async function DELETE(req: Request) {
       );
     }
 
-    const { data: refreshed } = await supabase
-      .from(TABLE_NAME)
-      .select("id, user_id, storage_path, image_url, sort_order, caption, created_at")
-      .eq("user_id", user.id)
-      .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: true });
+    const { data: refreshed } = await fetchProfileGalleryImages(user.id);
 
     return NextResponse.json({ images: refreshed || [] });
   } catch (error) {

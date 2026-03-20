@@ -247,14 +247,6 @@ function normalizeSimulatorCondition(
   };
 }
 
-function getStatusLabel(status: string | null): string {
-  const normalized = String(status ?? "").trim().toUpperCase();
-  if (normalized === "OPEN" || normalized === "ONGOING") return "분양 중";
-  if (normalized === "READY") return "분양 예정";
-  if (normalized === "CLOSED") return "분양 종료";
-  return "확인 중";
-}
-
 function buildPriceLabel(args: {
   offering: Offering | null;
   listPrice: number | null;
@@ -424,7 +416,7 @@ function mergeRecommendationItem(
   const addressFull = offering?.addressFull ?? offering?.addressShort ?? UXCopy.addressShort;
   const regionLabel = offering?.regionLabel ?? offering?.region ?? UXCopy.regionShort;
   const rawStatus = metadata?.rawStatus ?? item.status ?? null;
-  const statusLabel = getStatusLabel(rawStatus);
+  const statusLabel = statusLabelOf(normalizeOfferingStatusValue(rawStatus));
   const cashGrade = item.categories?.cash?.grade ?? finalGrade;
   const burdenGrade = item.categories?.burden?.grade ?? finalGrade;
   const riskGrade = item.categories?.risk?.grade ?? finalGrade;

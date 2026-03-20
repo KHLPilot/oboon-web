@@ -800,7 +800,7 @@ export default function CommunityFeed() {
             <CommunityPostCard
               key={post.id}
               post={post}
-              canEdit={post.isMine}
+              canEdit={post.isMine && !post.isRepost}
               canDelete={post.isMine || userRole === "admin"}
               onEdit={() => void handleEditPost(post.id)}
               onDelete={() => void handleDeletePost(post.id)}

@@ -80,6 +80,7 @@ export type CommunityPostViewModel = {
   propertyName: string;
   propertyId?: number | null;
   title: string;
+  displayTitle: string;
   body: string;
   authorId?: string | null;
   authorName: string;

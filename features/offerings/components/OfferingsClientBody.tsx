@@ -12,6 +12,7 @@ import type { Offering } from "@/types/index";
 import PageContainer from "@/components/shared/PageContainer";
 import { UXCopy } from "@/shared/uxCopy";
 import { toKoreanErrorMessage } from "@/shared/errorMessage";
+import { Copy } from "@/shared/copy";
 import { fetchPropertiesForOfferings } from "@/features/offerings/services/offering.query";
 import {
   mapPropertyRowToOffering,
@@ -20,14 +21,33 @@ import {
 import { OfferingCardSkeleton } from "@/features/offerings/components/OfferingCardSkeleton";
 import {
   GYEONGGI_NORTH_CITIES,
+  getGyeonggiSubRegionConfig,
+  OFFERING_STATUS_LABEL,
   OFFERING_REGION_TABS,
   isOfferingStatusValue,
   normalizeOfferingStatusValue,
 } from "@/features/offerings/domain/offering.constants";
-import type {
-  OfferingRegionTab,
-  OfferingStatusValue,
+import {
+  OFFERING_STATUS_VALUES,
+  type OfferingRegionTab,
+  type OfferingStatusValue,
 } from "@/features/offerings/domain/offering.types";
+
+const [readyStatusValue, openStatusValue, closedStatusValue] =
+  OFFERING_STATUS_VALUES;
+
+const compactOfferingStatusAliasMap: Record<string, OfferingStatusValue> = {
+  [OFFERING_STATUS_LABEL[readyStatusValue].replace(/\s+/g, "")]:
+    readyStatusValue,
+  예정: readyStatusValue,
+  [OFFERING_STATUS_LABEL[openStatusValue].replace(/\s+/g, "")]:
+    openStatusValue,
+  진행중: openStatusValue,
+  모집중: openStatusValue,
+  [OFFERING_STATUS_LABEL[closedStatusValue].replace(/\s+/g, "")]:
+    closedStatusValue,
+  종료: closedStatusValue,
+};
 
 /* ================================
  * Search / Filter
@@ -35,6 +55,7 @@ import type {
 
 type SearchParams = {
   view?: string;
+  sort?: string;
   region?: string;
   subRegion?: string;
   status?: string;
@@ -48,8 +69,28 @@ type SearchParams = {
   recommendedIds?: string;
 };
 
+type OfferingsSortKey = "latest" | "priceLow" | "priceHigh";
+
 function isRegionTab(v: string): v is OfferingRegionTab {
   return (OFFERING_REGION_TABS as readonly string[]).includes(v);
+}
+
+function isOfferingsSortKey(v: string): v is OfferingsSortKey {
+  return v === "latest" || v === "priceLow" || v === "priceHigh";
+}
+
+function compareNullableNumber(
+  a: number | null | undefined,
+  b: number | null | undefined,
+  direction: "asc" | "desc" = "asc",
+) {
+  const left = typeof a === "number" && Number.isFinite(a) ? a : null;
+  const right = typeof b === "number" && Number.isFinite(b) ? b : null;
+
+  if (left === null && right === null) return 0;
+  if (left === null) return 1;
+  if (right === null) return -1;
+  return direction === "asc" ? left - right : right - left;
 }
 
 function toUnknownRecord(value: unknown): Record<string, unknown> {
@@ -85,13 +126,7 @@ function pickOfferingStatus(o: Offering): string | null {
   if (normalized) return normalized;
 
   const compact = s.replace(/\s+/g, "");
-  if (compact === "분양예정" || compact === "예정") return "READY";
-  if (compact === "분양중" || compact === "진행중" || compact === "모집중") {
-    return "OPEN";
-  }
-  if (compact === "분양종료" || compact === "종료") return "CLOSED";
-
-  return s.trim();
+  return compactOfferingStatusAliasMap[compact] ?? s.trim();
 }
 
 function passesExcludeAndRecommended(
@@ -125,6 +160,13 @@ function passesRegion(
   }
 
   if (region === "경기") {
+    const gyeonggiSubRegion = getGyeonggiSubRegionConfig(subRegion);
+    if (gyeonggiSubRegion) {
+      return gyeonggiSubRegion.matchers.some((matcher) =>
+        addressSource.includes(matcher),
+      );
+    }
+
     const isNorth = GYEONGGI_NORTH_CITIES.some((matcher) =>
       addressSource.includes(matcher),
     );
@@ -253,6 +295,24 @@ function filterOfferings(
   );
 }
 
+function sortOfferings(items: Offering[], sortKey: OfferingsSortKey) {
+  if (sortKey === "latest") return items;
+
+  const next = [...items];
+
+  if (sortKey === "priceLow") {
+    return next.sort((a, b) =>
+      compareNullableNumber(a.priceMin억, b.priceMin억, "asc") ||
+      compareNullableNumber(a.priceMax억, b.priceMax억, "asc"),
+    );
+  }
+
+  return next.sort((a, b) =>
+    compareNullableNumber(a.priceMax억, b.priceMax억, "desc") ||
+    compareNullableNumber(a.priceMin억, b.priceMin억, "desc"),
+  );
+}
+
 /* ================================
  * Page
  * ================================ */
@@ -265,6 +325,7 @@ export default function OfferingsClientBody() {
   const searchParams: SearchParams = useMemo(() => {
     return {
       view: sp.get("view") ?? undefined,
+      sort: sp.get("sort") ?? undefined,
       region: sp.get("region") ?? undefined,
       subRegion: sp.get("subRegion") ?? undefined,
       status: sp.get("status") ?? undefined,
@@ -354,6 +415,14 @@ export default function OfferingsClientBody() {
     () => filterOfferings(offerings, searchParams, approvedAgentPropertyIds),
     [offerings, searchParams, approvedAgentPropertyIds],
   );
+  const sortKey: OfferingsSortKey =
+    searchParams.sort && isOfferingsSortKey(searchParams.sort)
+      ? searchParams.sort
+      : "latest";
+  const sortedOfferings = useMemo<Offering[]>(
+    () => sortOfferings(filtered, sortKey),
+    [filtered, sortKey],
+  );
   const isRecommendedMode = searchParams.recommended === "1";
   const view = searchParams.view === "map" ? "map" : "list";
 
@@ -397,7 +466,7 @@ export default function OfferingsClientBody() {
                 <OfferingCardSkeleton key={i} />
               ))}
             </div>
-          ) : filtered.length === 0 ? (
+          ) : sortedOfferings.length === 0 ? (
             <EmptyState
               icon={
                 <svg viewBox="0 0 56 56" fill="none" aria-hidden="true" className="h-14 w-14">
@@ -411,19 +480,24 @@ export default function OfferingsClientBody() {
                   )}
                 </svg>
               }
-              title={isRecommendedMode ? "조건에 맞는 현장이 없어요" : "아직 등록된 분양이 없어요"}
-              description={isRecommendedMode ? "필터를 조정하거나 전체 현장을 확인해보세요." : "곧 새로운 분양 현장이 등록될 예정이에요."}
+              title={isRecommendedMode ? Copy.offerings.list.empty.recommended.title : Copy.offerings.list.empty.general.title}
+              description={isRecommendedMode ? Copy.offerings.list.empty.recommended.subtitle : Copy.offerings.list.empty.general.subtitle}
               actions={isRecommendedMode ? [
                 { label: "필터 초기화", onClick: () => router.replace(pathname), variant: "secondary" },
                 { label: "전체 보기", onClick: () => router.push("/offerings"), variant: "primary" },
               ] : undefined}
             />
           ) : view === "map" ? (
-            <OfferingsMapView offerings={filtered} />
+            <OfferingsMapView offerings={sortedOfferings} />
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {filtered.map((offering) => (
-                <OfferingCard key={offering.id} offering={offering} />
+              {sortedOfferings.map((offering) => (
+                <OfferingCard
+                  key={offering.id}
+                  offering={offering}
+                  mobileRecommendationLayout
+                  isConsultable={approvedAgentPropertyIds.has(String(offering.id))}
+                />
               ))}
             </div>
           )}

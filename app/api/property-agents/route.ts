@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
-
-const adminSupabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-);
+import {
+  fetchExistingPropertyAgent,
+  fetchPropertyAgentProfileRole,
+  fetchPropertyAgentProperty,
+  fetchPropertyAgentsList,
+  fetchPropertyMainAssets,
+  insertApprovedPropertyAgentMembership,
+  reactivatePropertyAgentMembership,
+} from "@/features/agent/services/agent.propertyAgents";
 
 function normalizeUrl(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
@@ -47,11 +50,8 @@ export async function POST(request: NextRequest) {
     }
 
     // 사용자 프로필 조회
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
+    const { data: profile, error: profileError } =
+      await fetchPropertyAgentProfileRole(user.id);
 
     if (profileError || !profile) {
       return NextResponse.json(
@@ -80,11 +80,8 @@ export async function POST(request: NextRequest) {
     }
 
     // 현장 존재 여부 확인
-    const { data: property, error: propertyError } = await supabase
-      .from("properties")
-      .select("id, name")
-      .eq("id", property_id)
-      .single();
+    const { data: property, error: propertyError } =
+      await fetchPropertyAgentProperty(property_id);
 
     if (propertyError || !property) {
       return NextResponse.json(
@@ -94,12 +91,8 @@ export async function POST(request: NextRequest) {
     }
 
     // 이미 신청/소속했는지 확인
-    const { data: existing, error: existingError } = await adminSupabase
-      .from("property_agents")
-      .select("id, status")
-      .eq("property_id", property_id)
-      .eq("agent_id", user.id)
-      .maybeSingle();
+    const { data: existing, error: existingError } =
+      await fetchExistingPropertyAgent(property_id, user.id);
 
     if (existingError) {
       console.error("기존 신청 조회 오류:", existingError);
@@ -122,37 +115,15 @@ export async function POST(request: NextRequest) {
 
     if (existing && existing.status !== "approved") {
       // withdrawn/rejected/pending 기존 행을 재활성화해 중복 키를 피함
-      const { data: updatedRow, error: updateError } = await adminSupabase
-        .from("property_agents")
-        .update({
-          status: "approved",
-          requested_at: nowIso,
-          approved_at: nowIso,
-          approved_by: user.id,
-          rejected_at: null,
-          rejection_reason: null,
-          withdrawn_at: null,
-        })
-        .eq("id", existing.id)
-        .select()
-        .single();
+      const { data: updatedRow, error: updateError } =
+        await reactivatePropertyAgentMembership(existing.id, user.id, nowIso);
 
       propertyAgent = updatedRow;
       saveError = updateError;
     } else {
       // 신규 소속 즉시 승인 생성
-      const { data: insertedRow, error: insertError } = await adminSupabase
-        .from("property_agents")
-        .insert({
-          property_id,
-          agent_id: user.id,
-          status: "approved",
-          requested_at: nowIso,
-          approved_at: nowIso,
-          approved_by: user.id,
-        })
-        .select()
-        .single();
+      const { data: insertedRow, error: insertError } =
+        await insertApprovedPropertyAgentMembership(property_id, user.id, nowIso);
 
       propertyAgent = insertedRow;
       saveError = insertError;
@@ -215,11 +186,8 @@ export async function GET(request: NextRequest) {
     }
 
     // 사용자 프로필 조회
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
+    const { data: profile, error: profileError } =
+      await fetchPropertyAgentProfileRole(user.id);
 
     if (profileError || !profile) {
       return NextResponse.json(
@@ -229,49 +197,15 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const role = searchParams.get("role") || profile.role;
+    const role = searchParams.get("role") || profile.role || "";
     const status = searchParams.get("status");
 
-    let query = supabase
-      .from("property_agents")
-      .select(
-        `
-        id,
-        property_id,
-        agent_id,
+    const { data: propertyAgents, error: fetchError } =
+      await fetchPropertyAgentsList({
+        userId: user.id,
+        role,
         status,
-        requested_at,
-        approved_at,
-        approved_by,
-        rejected_at,
-        rejection_reason,
-        created_at,
-        properties:property_id (
-          id,
-          name,
-          property_type
-        ),
-        profiles:agent_id (
-          id,
-          name,
-          email,
-          phone_number
-        )
-      `
-      )
-      .order("requested_at", { ascending: false });
-
-    // 관리자가 아니면 본인 신청만 조회
-    if (role !== "admin") {
-      query = query.eq("agent_id", user.id);
-    }
-
-    // status 필터
-    if (status) {
-      query = query.eq("status", status);
-    }
-
-    const { data: propertyAgents, error: fetchError } = await query;
+      });
 
     if (fetchError) {
       console.error("소속 신청 조회 오류:", fetchError);
@@ -291,16 +225,7 @@ export async function GET(request: NextRequest) {
           .filter((id): id is number => typeof id === "number")
       )
     );
-    const { data: propertyMainAssets } = propertyIds.length
-      ? await adminSupabase
-          .from("property_image_assets")
-          .select("property_id, image_url, sort_order, created_at")
-          .in("property_id", propertyIds)
-          .eq("kind", "main")
-          .eq("is_active", true)
-          .order("sort_order", { ascending: true })
-          .order("created_at", { ascending: true })
-      : { data: [] };
+    const { data: propertyMainAssets } = await fetchPropertyMainAssets(propertyIds);
     const propertyMainImageMap = new Map<number, string>();
     for (const row of propertyMainAssets ?? []) {
       const url = normalizeUrl(row.image_url);

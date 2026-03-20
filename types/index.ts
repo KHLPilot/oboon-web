@@ -18,6 +18,7 @@ export interface Offering {
   addressFull?: string;
   region: OfferingRegionTab;
   regionLabel?: string;
+  propertyType?: string | null;
   status: OfferingStatusLabel;
   statusValue?: OfferingStatusValue | null;
   hasAppraiserComment?: boolean;

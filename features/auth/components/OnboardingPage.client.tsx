@@ -21,6 +21,7 @@ import Modal from "@/components/ui/Modal";
 import FieldErrorBubble, {
   FieldErrorState,
 } from "@/components/ui/FieldErrorBubble";
+import { Copy } from "@/shared/copy";
 
 type FieldKey = "name" | "nickname" | "phone" | "generic";
 type FieldErrors = { name?: string; nickname?: string; phone?: string };
@@ -428,7 +429,7 @@ export default function OnboardingPage() {
                       )
                     }
                     onFocus={clearFieldError}
-                    placeholder="김오분"
+                    placeholder={Copy.auth.placeholder.name}
                     maxLength={20}
                     disabled={!canSubmit || loading}
                     className={cx(
@@ -456,7 +457,7 @@ export default function OnboardingPage() {
                         )
                       }
                       onFocus={clearFieldError}
-                      placeholder="오분이"
+                      placeholder={Copy.auth.placeholder.nickname}
                       maxLength={15}
                       disabled={!canSubmit || loading}
                       className={cx(
@@ -518,7 +519,7 @@ export default function OnboardingPage() {
                       )
                     }
                     onFocus={clearFieldError}
-                    placeholder="01012345678"
+                    placeholder={Copy.auth.placeholder.phone}
                     maxLength={13}
                     disabled={!canSubmit || loading}
                     className={cx(

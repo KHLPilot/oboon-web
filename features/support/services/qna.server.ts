@@ -10,6 +10,7 @@ import {
   formatSupportDate,
   type QnADetailViewModel,
   type QnAAnswerViewModel,
+  type QnAListItemViewModel,
   type QnAStatusKey,
 } from "../domain/support";
 
@@ -62,6 +63,98 @@ export async function getCurrentUser(): Promise<{
   return {
     userId: authData.user.id,
     isAdmin: profile.role === "admin",
+  };
+}
+
+/**
+ * QnA 목록 조회 (서버, API route용)
+ */
+export async function fetchQnAListServer(options?: {
+  page?: number;
+  limit?: number;
+}): Promise<{
+  items: QnAListItemViewModel[];
+  total: number;
+}> {
+  const supabase = await createSupabaseServer();
+  const page = options?.page ?? 1;
+  const limit = options?.limit ?? 20;
+  const offset = (page - 1) * limit;
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  let isAdmin = false;
+  if (user?.id) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+    isAdmin = profile?.role === "admin";
+  }
+
+  const { count, error: countError } = await supabase
+    .from("qna_questions")
+    .select("id", { count: "exact", head: true })
+    .is("deleted_at", null);
+
+  if (countError) {
+    throw countError;
+  }
+
+  const { data, error } = await supabase
+    .from("qna_questions")
+    .select(`
+      id,
+      author_profile_id,
+      title,
+      is_secret,
+      is_anonymous,
+      anonymous_nickname,
+      status,
+      created_at,
+      profiles!inner (
+        name
+      )
+    `)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (error) {
+    throw error;
+  }
+
+  const items: QnAListItemViewModel[] = (data ?? []).map((row) => {
+    const profilesRaw = row.profiles as
+      | { name: string | null }
+      | Array<{ name: string | null }>
+      | null;
+    const profiles = Array.isArray(profilesRaw) ? profilesRaw[0] : profilesRaw;
+    const authorName = profiles?.name ?? "알 수 없음";
+    const displayAuthor = row.is_anonymous
+      ? row.anonymous_nickname || "익명"
+      : authorName;
+    const canViewSecretTitle =
+      !row.is_secret || row.author_profile_id === user?.id || isAdmin;
+
+    return {
+      id: row.id,
+      title: canViewSecretTitle ? row.title : "비밀글입니다",
+      displayAuthor,
+      isSecret: row.is_secret,
+      statusKey: row.status as QnAStatusKey,
+      statusLabel: QNA_STATUS[row.status as keyof typeof QNA_STATUS],
+      createdAt: row.created_at,
+      formattedDate: formatSupportDate(row.created_at),
+    };
+  });
+
+  return {
+    items,
+    total: count ?? 0,
   };
 }
 

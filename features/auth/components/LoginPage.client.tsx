@@ -20,6 +20,7 @@ import { validationMessageFor } from "@/shared/validationMessage";
 import { AlertCircle, ExternalLink } from "lucide-react";
 import { showAlert } from "@/shared/alert";
 import { toKoreanErrorMessage } from "@/shared/errorMessage";
+import { Copy } from "@/shared/copy";
 import RestoreAccountModal from "./RestoreAccountModal";
 
 type LoginField = "email" | "password" | "generic";
@@ -94,7 +95,7 @@ export default function LoginPage() {
       } else if (data.isBanned && data.userId) {
         // banned지만 deleted가 아닌 경우 (관리자 밴)
         setBannedEmailModalOpen(false);
-        setError("계정이 비활성화되었습니다. 관리자에게 문의하세요.");
+        setError(Copy.auth.error.deactivated);
       } else {
         showAlert("해당 이메일로 탈퇴한 계정이 없습니다.");
       }
@@ -194,7 +195,7 @@ export default function LoginPage() {
             setLoading(false);
             return;
           }
-          throw new Error("계정이 비활성화되었습니다. 관리자에게 문의하세요.");
+          throw new Error(Copy.auth.error.deactivated);
         } else {
           throw loginError;
         }
@@ -441,7 +442,7 @@ export default function LoginPage() {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="name@example.com"
+                    placeholder={Copy.auth.placeholder.email}
                     autoComplete="email"
                     onFocus={clearFieldError}
                     
@@ -462,7 +463,7 @@ export default function LoginPage() {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
+                    placeholder={Copy.auth.placeholder.passwordConfirm}
                     autoComplete="current-password"
                     onFocus={clearFieldError}
                     
@@ -649,7 +650,7 @@ export default function LoginPage() {
                   type="email"
                   value={bannedEmail}
                   onChange={(e) => setBannedEmail(e.target.value)}
-                  placeholder="탈퇴한 계정의 이메일"
+                  placeholder={Copy.auth.placeholder.recoveryEmail}
                   autoComplete="email"
                 />
               </div>

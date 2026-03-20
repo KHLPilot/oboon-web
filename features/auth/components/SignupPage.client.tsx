@@ -19,6 +19,7 @@ import Modal from "@/components/ui/Modal";
 import FieldErrorBubble, {
   FieldErrorState,
 } from "@/components/ui/FieldErrorBubble";
+import { Copy } from "@/shared/copy";
 
 type VerificationState = {
   isEmailSent: boolean;
@@ -408,7 +409,7 @@ export default function SignupPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     onFocus={clearFieldError}
-                    placeholder="example@email.com"
+                    placeholder={Copy.auth.placeholder.emailSignup}
                     autoComplete="email"
                     disabled={lockInputs}
                     
@@ -436,7 +437,7 @@ export default function SignupPage() {
                       onKeyDown={handleKeyEvent}
                       onKeyUp={handleKeyEvent}
                       onFocus={clearFieldError}
-                      placeholder="대소문자 + 숫자 + 특수문자 포함 8자 이상"
+                      placeholder={Copy.auth.placeholder.password}
                       autoComplete="new-password"
                       disabled={lockInputs}
                       
@@ -494,7 +495,7 @@ export default function SignupPage() {
                       onKeyDown={handleKeyEvent}
                       onKeyUp={handleKeyEvent}
                       onFocus={clearFieldError}
-                      placeholder="••••••••"
+                      placeholder={Copy.auth.placeholder.passwordConfirm}
                       autoComplete="new-password"
                       disabled={lockInputs}
                       className={cx(

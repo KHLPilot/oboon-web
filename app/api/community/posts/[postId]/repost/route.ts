@@ -8,6 +8,18 @@ const adminSupabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
+function isInvalidCommunityStatusError(error: unknown) {
+  const message = String(
+    (error as { message?: unknown })?.message ??
+      (error as { details?: unknown })?.details ??
+      "",
+  ).toLowerCase();
+  return (
+    message.includes("invalid input value for enum") &&
+    message.includes("community_post_status")
+  );
+}
+
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ postId: string }> },
@@ -101,22 +113,42 @@ export async function POST(
       // body 없음 허용
     }
 
-    const originalTitle = (originalPost as { title?: string | null }).title ?? "";
+    let repost: { id?: string } | null = null;
+    let insertError: { message?: string } | null = null;
 
-    // 리포스트 글 생성
-    const { data: repost, error: insertError } = await adminSupabase
-      .from("community_posts")
-      .insert({
-        author_profile_id: user.id,
-        status: "thinking",
-        title: originalTitle,
-        body: body ?? "",
-        repost_original_post_id: postId,
-      })
-      .select("id")
-      .single();
+    {
+      const result = await adminSupabase
+        .from("community_posts")
+        .insert({
+          author_profile_id: user.id,
+          status: "thinking",
+          title: "",
+          body: body ?? "",
+          repost_original_post_id: postId,
+        })
+        .select("id")
+        .single();
+      repost = result.data as { id?: string } | null;
+      insertError = (result.error as { message?: string } | null) ?? null;
+    }
 
-    if (insertError || !repost) {
+    if ((!repost?.id || insertError) && isInvalidCommunityStatusError(insertError)) {
+      const result = await adminSupabase
+        .from("community_posts")
+        .insert({
+          author_profile_id: user.id,
+          status: "published",
+          title: "",
+          body: body ?? "",
+          repost_original_post_id: postId,
+        })
+        .select("id")
+        .single();
+      repost = result.data as { id?: string } | null;
+      insertError = (result.error as { message?: string } | null) ?? null;
+    }
+
+    if (insertError || !repost?.id) {
       return NextResponse.json({ error: "리포스트에 실패했습니다." }, { status: 500 });
     }
 
@@ -131,7 +163,7 @@ export async function POST(
       .update({ repost_count: repostCount ?? 0 })
       .eq("id", postId);
 
-    return NextResponse.json({ id: (repost as { id: string }).id }, { status: 201 });
+    return NextResponse.json({ id: repost.id }, { status: 201 });
   } catch (error) {
     console.error("POST /api/community/posts/[postId]/repost 오류:", error);
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });

@@ -25,6 +25,7 @@ import { trackEvent } from "@/lib/analytics";
 import { showAlert } from "@/shared/alert";
 import { getAvatarUrlOrDefault } from "@/shared/imageUrl";
 import { toKoreanErrorMessage } from "@/shared/errorMessage";
+import { Copy } from "@/shared/copy";
 
 interface Agent {
   id: string;
@@ -139,12 +140,12 @@ export default function BookingModal({
 
   function formatResponseTimeLabel(value: number | null | undefined) {
     if (typeof value !== "number" || !Number.isFinite(value)) return "응답 시간 정보 없음";
-    if (value <= 10) return "보통 10분 이내 응답";
-    if (value <= 30) return "보통 30분 이내 응답";
-    if (value <= 60) return "보통 1시간 이내 응답";
-    if (value <= 120) return "보통 2시간 이내 응답";
-    if (value <= 24 * 60) return "보통 하루 이내 응답";
-    return "보통 하루 이상 소요";
+    if (value <= 10) return Copy.booking.agent.responseTime.within10min;
+    if (value <= 30) return Copy.booking.agent.responseTime.within30min;
+    if (value <= 60) return Copy.booking.agent.responseTime.within1hr;
+    if (value <= 120) return Copy.booking.agent.responseTime.within2hr;
+    if (value <= 24 * 60) return Copy.booking.agent.responseTime.within1day;
+    return Copy.booking.agent.responseTime.over1day;
   }
 
   // 사용자 정보 및 상담사 목록 조회
@@ -254,7 +255,7 @@ export default function BookingModal({
 
         if (agentError) {
           console.error("상담사 목록 조회 오류:", agentError);
-          setError("상담사 목록을 불러오는데 실패했습니다");
+          setError(Copy.booking.errors.loadFail);
         } else {
           // property_agents에서 profiles 정보만 추출
           const baseAgentList = (propertyAgents || [])
@@ -451,7 +452,7 @@ export default function BookingModal({
   async function handleSubmit() {
     trackEvent("reservation_click", buildReservationEventParams());
     if (!selectedAgent) {
-      showAlert("상담사를 선택해주세요");
+      showAlert(Copy.booking.errors.noAgent);
       return;
     }
 
@@ -545,12 +546,12 @@ export default function BookingModal({
         .eq("id", currentUser.id);
 
       if (updateError) {
-        throw new Error("계좌 정보 저장에 실패했습니다");
+        throw new Error(Copy.booking.account.saveFail);
       }
 
       await handleSubmit();
     } catch (err: unknown) {
-      setError(toKoreanErrorMessage(err, "계좌 정보 저장에 실패했습니다"));
+      setError(toKoreanErrorMessage(err, Copy.booking.account.saveFail));
     } finally {
       setBankSaving(false);
     }
@@ -577,7 +578,7 @@ export default function BookingModal({
       {/* Title */}
       <div className="flex items-center justify-between">
         <div className="ob-typo-h2 text-(--oboon-text-title)">
-          {step === "confirm" ? "예약금 안내 및 동의" : "상담 예약"}
+          {step === "confirm" ? Copy.booking.title.confirm : Copy.booking.title.selectAgent}
         </div>
       </div>
 
@@ -789,7 +790,7 @@ export default function BookingModal({
               {availableSlots.length === 0 && !slotsLoading ? (
                 <div className="text-center py-4 ob-typo-caption text-(--oboon-text-muted)">
                   {selectedAgent
-                    ? "선택한 날짜에 예약 가능한 시간이 없습니다"
+                    ? Copy.booking.errors.noSlot
                     : "상담사를 먼저 선택해주세요"}
                 </div>
               ) : (
@@ -875,19 +876,19 @@ export default function BookingModal({
                 <Input
                   value={bankName}
                   onChange={(e) => setBankName(e.target.value)}
-                  placeholder="은행명"
+                  placeholder={Copy.booking.account.bankPlaceholder}
                   disabled={bankSaving}
                 />
                 <Input
                   value={bankAccountNumber}
                   onChange={(e) => setBankAccountNumber(e.target.value)}
-                  placeholder="계좌번호"
+                  placeholder={Copy.booking.account.numberPlaceholder}
                   disabled={bankSaving}
                 />
                 <Input
                   value={bankAccountHolder}
                   onChange={(e) => setBankAccountHolder(e.target.value)}
-                  placeholder="입금자명"
+                  placeholder={Copy.booking.account.holderPlaceholder}
                   disabled={bankSaving}
                 />
               </div>
@@ -925,7 +926,7 @@ export default function BookingModal({
                   처리 중...
                 </span>
               ) : (
-                "저장하고 예약"
+                Copy.booking.cta.save
               )}
             </Button>
           </div>
@@ -1002,7 +1003,7 @@ export default function BookingModal({
           <div className="mt-3">
             <div className="mt-3 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-4 py-3">
               <div className="ob-typo-subtitle text-(--oboon-text-title)">
-                예약금 입금 안내
+                {Copy.booking.deposit.title}
               </div>
               <div className="mt-4 ob-typo-h3 text-(--oboon-text-title) text-center">
                 토스뱅크 1002-3131-0563
@@ -1028,8 +1029,8 @@ export default function BookingModal({
                 포인트 예약 안내
               </div>
               <ul className="mt-2 list-disc space-y-1 pl-5 ob-typo-body text-(--oboon-text-muted)">
-                <li>포인트로 예약하면 관리자 승인 없이 즉시 예약이 진행됩니다.</li>
-                <li>고객 사유 취소 시 결제된 예약금 1,000원은 1,000P로 전환됩니다.</li>
+                <li>{Copy.booking.deposit.pointNote}</li>
+                <li>{Copy.booking.deposit.cancelPolicy}</li>
               </ul>
             </div>
 
@@ -1073,7 +1074,7 @@ export default function BookingModal({
                 onChange={(e) => setAgreedToTerms(e.target.checked)}
                 className="w-5 h-5 rounded border-(--oboon-border-default) accent-(--oboon-primary)"
               />
-                <span>위 내용을 확인하였으며 동의합니다</span>
+                <span>{Copy.booking.deposit.agree}</span>
               </label>
             </div>
           </div>
@@ -1159,7 +1160,7 @@ export default function BookingModal({
                 상담사 소개
               </div>
               <div className="mt-2 whitespace-pre-line ob-typo-body text-(--oboon-text-title)">
-                {previewAgent.agent_bio?.trim() || "등록된 상담사 소개가 없습니다."}
+                {previewAgent.agent_bio?.trim() || Copy.booking.agent.noIntro}
               </div>
             </div>
 

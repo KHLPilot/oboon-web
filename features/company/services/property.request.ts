@@ -1,4 +1,5 @@
 import { createSupabaseClient } from "@/lib/supabaseClient";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type PropertyRequestStatus = "pending" | "approved" | "rejected";
 export type PropertyRequestType = "publish" | "delete";
@@ -16,6 +17,58 @@ type PropertyRequestResult<T> = {
   data: T | null;
   error: Error | null;
 };
+
+export async function fetchPropertyRequestProfile(
+  supabase: SupabaseClient,
+  userId: string,
+) {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .single();
+
+  return {
+    data: (data as { role: string | null } | null) ?? null,
+    error: error ? new Error(error.message) : null,
+  } as PropertyRequestResult<{ role: string | null }>;
+}
+
+export async function fetchPropertyRequestById(
+  supabase: SupabaseClient,
+  requestId: string,
+) {
+  const { data, error } = await supabase
+    .from("property_requests")
+    .select("*")
+    .eq("id", requestId)
+    .single();
+
+  return {
+    data: (data as Record<string, unknown> | null) ?? null,
+    error: error ? new Error(error.message) : null,
+  } as PropertyRequestResult<Record<string, unknown>>;
+}
+
+export async function updatePropertyRequestById(
+  supabase: SupabaseClient,
+  requestId: string,
+  updatePayload: Record<string, unknown>,
+) {
+  const { data, error } = await supabase
+    .from("property_requests")
+    .update(updatePayload)
+    .eq("id", requestId)
+    .select(
+      "id, status, request_type, reason, requested_at, property_id, agent_id, rejection_reason",
+    )
+    .single();
+
+  return {
+    data: (data as Record<string, unknown> | null) ?? null,
+    error: error ? new Error(error.message) : null,
+  } as PropertyRequestResult<Record<string, unknown>>;
+}
 
 export async function fetchMyPropertyRequest(propertyId: number) {
   return fetchMyPropertyRequestByType(propertyId, "publish");

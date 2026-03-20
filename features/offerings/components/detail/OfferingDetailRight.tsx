@@ -16,6 +16,10 @@ import type { ConditionRecommendationItem } from "@/features/condition-validatio
 import { formatManwonWithEok, formatPercent } from "@/lib/format/currency";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { trackEvent } from "@/lib/analytics";
+import {
+  normalizeOfferingStatusValue,
+  statusLabelOf,
+} from "@/features/offerings/domain/offering.constants";
 
 interface OfferingDetailRightProps {
   propertyId?: number;
@@ -78,11 +82,7 @@ function gradeMeta(grade: ConditionRecommendationItem["final_grade"]): {
 }
 
 function statusLabel(status: string | null): string {
-  const normalized = String(status ?? "").trim().toUpperCase();
-  if (normalized === "OPEN" || normalized === "ONGOING") return "분양 중";
-  if (normalized === "READY") return "분양 예정";
-  if (normalized === "CLOSED") return "분양 종료";
-  return "확인 중";
+  return statusLabelOf(normalizeOfferingStatusValue(status));
 }
 
 function isLikelyImageUrl(url: string | null | undefined) {

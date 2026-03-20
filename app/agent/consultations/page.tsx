@@ -24,7 +24,11 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import Input from "@/components/ui/Input";
-import { fetchAgentAccess } from "@/features/agent/services/agent.auth";
+import {
+  fetchAgentAccess,
+  fetchAgentRefundAccountProfile,
+} from "@/features/agent/services/agent.auth";
+import { updateAgentRefundAccount } from "@/features/agent/services/agent.consultations";
 import AgentScheduleSettings from "@/features/agent/components/AgentScheduleSettings.client";
 import ConsultationCard from "@/features/consultations/components/ConsultationCard.client";
 import AgentBaseScheduleModal from "@/features/agent/components/AgentBaseScheduleModal.client";
@@ -344,16 +348,8 @@ function AgentConsultationsPageContent() {
     setTermsModalOpen(true);
 
     try {
-      const supabase = createSupabaseClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("bank_name, bank_account_number, bank_account_holder")
-          .eq("id", user.id)
-          .maybeSingle();
+      const { data: profile } = await fetchAgentRefundAccountProfile();
+      if (profile) {
         const fetchedBankName = profile?.bank_name ?? "";
         const fetchedBankAccountNumber = profile?.bank_account_number ?? "";
         const fetchedBankAccountHolder = profile?.bank_account_holder ?? "";
@@ -419,14 +415,11 @@ function AgentConsultationsPageContent() {
       }
 
       if (trimmedBankName && trimmedAccountNumber && trimmedAccountHolder) {
-        const { error: bankUpdateError } = await supabase
-          .from("profiles")
-          .update({
-            bank_name: trimmedBankName,
-            bank_account_number: trimmedAccountNumber,
-            bank_account_holder: trimmedAccountHolder,
-          })
-          .eq("id", user.id);
+        const { error: bankUpdateError } = await updateAgentRefundAccount({
+          bankName: trimmedBankName,
+          bankAccountNumber: trimmedAccountNumber,
+          bankAccountHolder: trimmedAccountHolder,
+        });
         if (bankUpdateError) {
           showAlert("환불 계좌 저장에 실패했습니다");
           return;

@@ -160,10 +160,10 @@ export default function OfferingCard(props: OfferingCardProps) {
             <div className="space-y-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h2 className="line-clamp-2 ob-typo-subtitle text-(--oboon-text-title)">
+                  <h2 className="line-clamp-1 leading-tight sm:line-clamp-2 sm:leading-normal ob-typo-subtitle text-(--oboon-text-title)">
                     {meta.name}
                   </h2>
-                  <p className="mt-1 line-clamp-2 ob-typo-caption text-(--oboon-text-muted)">
+                  <p className="mt-px sm:mt-1 line-clamp-2 ob-typo-caption text-(--oboon-text-muted)">
                     {meta.regionLabel}
                     {meta.propertyType ? ` · ${meta.propertyType}` : ""}
                     {` · ${meta.statusLabel}`}
@@ -176,7 +176,8 @@ export default function OfferingCard(props: OfferingCardProps) {
                 <Badge
                   className={cn("shrink-0 border ob-typo-caption", finalMeta.badgeClassName)}
                 >
-                  {finalMeta.badgeLabel}
+                  <span className="sm:hidden">{finalMeta.detailLabel}</span>
+                  <span className="hidden sm:inline">{finalMeta.badgeLabel}</span>
                 </Badge>
               </div>
 
@@ -239,46 +240,57 @@ export default function OfferingCard(props: OfferingCardProps) {
         </>
       ) : (
         <div className="space-y-3">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex min-w-0 flex-1 items-start gap-3">
-              {shouldRenderImage ? (
-                <div className="relative aspect-square w-[72px] shrink-0 overflow-hidden rounded-xl bg-(--oboon-bg-subtle)">
-                  {hasImage && meta.imageUrl ? (
-                    <Image
-                      src={meta.imageUrl}
-                      alt={meta.name}
-                      fill
-                      sizes="72px"
-                      className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center bg-linear-to-br from-(--oboon-bg-subtle) to-(--oboon-bg-surface)">
-                      <Building2 className="h-7 w-7 text-(--oboon-text-muted)" />
-                    </div>
-                  )}
-                </div>
-              ) : null}
+          <div
+            className={cn(
+              "grid items-start gap-3",
+              shouldRenderImage ? "grid-cols-[auto_minmax(0,1fr)]" : "grid-cols-1",
+            )}
+          >
+            {shouldRenderImage ? (
+              <div className="relative aspect-square w-[72px] shrink-0 overflow-hidden rounded-xl bg-(--oboon-bg-subtle)">
+                {hasImage && meta.imageUrl ? (
+                  <Image
+                    src={meta.imageUrl}
+                    alt={meta.name}
+                    fill
+                    sizes="72px"
+                    className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center bg-linear-to-br from-(--oboon-bg-subtle) to-(--oboon-bg-surface)">
+                    <Building2 className="h-7 w-7 text-(--oboon-text-muted)" />
+                  </div>
+                )}
+              </div>
+            ) : null}
 
-              <div className="min-w-0 flex-1">
-                <h2 className="line-clamp-2 ob-typo-subtitle text-(--oboon-text-title)">
-                  {meta.name}
-                </h2>
-                <p className="mt-1 line-clamp-2 ob-typo-caption text-(--oboon-text-muted)">
-                  {meta.regionLabel}
-                  {meta.propertyType ? ` · ${meta.propertyType}` : ""}
-                  {` · ${meta.statusLabel}`}
-                </p>
-                <div className="mt-2 ob-typo-body2 text-(--oboon-text-title)">
-                  {meta.priceLabel}
+            <div className="min-w-0">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <h2 className="line-clamp-1 leading-tight sm:line-clamp-2 sm:leading-normal ob-typo-subtitle text-(--oboon-text-title)">
+                    {meta.name}
+                  </h2>
+                  <p className="mt-px sm:mt-1 line-clamp-2 ob-typo-caption text-(--oboon-text-muted)">
+                    {meta.regionLabel}
+                    {meta.propertyType ? ` · ${meta.propertyType}` : ""}
+                    {` · ${meta.statusLabel}`}
+                  </p>
+                  <div className="mt-2 ob-typo-body2 text-(--oboon-text-title)">
+                    {meta.priceLabel}
+                  </div>
                 </div>
+
+                <Badge
+                  className={cn(
+                    "shrink-0 self-start border ob-typo-caption",
+                    finalMeta.badgeClassName,
+                  )}
+                >
+                  <span className="sm:hidden">{finalMeta.detailLabel}</span>
+                  <span className="hidden sm:inline">{finalMeta.badgeLabel}</span>
+                </Badge>
               </div>
             </div>
-
-            <Badge
-              className={cn("shrink-0 border ob-typo-caption", finalMeta.badgeClassName)}
-            >
-              {finalMeta.badgeLabel}
-            </Badge>
           </div>
 
           <div className="h-px bg-(--oboon-border-default)" />
