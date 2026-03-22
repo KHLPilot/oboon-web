@@ -1,63 +1,106 @@
 "use client";
 
+import { useState, useId } from "react"; // useState: ltvModalOpen용
+import { cn } from "@/lib/utils/cn";
 import Button from "@/components/ui/Button";
 import Select, { type SelectOption } from "@/components/ui/Select";
+import { useToast } from "@/components/ui/Toast";
+import { MultiSelect } from "@/components/ui/MultiSelect";
 import type {
-  CreditGrade,
-  PurchasePurpose,
+  EmploymentType,
+  FullPurchasePurpose,
+  MoveinTiming,
+  PurchaseTiming,
 } from "@/features/condition-validation/domain/types";
+import LtvDsrModal from "@/features/condition-validation/components/LtvDsrModal";
 import { formatManwonPreview } from "@/lib/format/currency";
-import type {
-  OwnedHouseCount,
-  RecommendationCondition,
-} from "@/features/recommendations/hooks/useRecommendations";
+import type { RecommendationCondition } from "@/features/recommendations/hooks/useRecommendations";
+import { OFFERING_REGION_TABS, type OfferingRegionTab } from "@/features/offerings/domain/offering.types";
 
 type ConditionBarProps = {
   condition: RecommendationCondition;
   onChange: (patch: Partial<RecommendationCondition>) => void;
-  onEvaluate: () => void | Promise<boolean>;
+  onEvaluate: (override?: RecommendationCondition) => void | Promise<boolean>;
+  onSave?: () => void | Promise<boolean>;
   isLoading?: boolean;
+  isSaving?: boolean;
 };
 
 const FIELD_LABEL_CLASSNAME =
-  "mb-2 block ob-typo-caption text-(--oboon-text-muted)";
+  "mb-1.5 block ob-typo-caption text-(--oboon-text-muted)";
 const INPUT_CLASSNAME = [
   "h-11 w-full rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-page)",
-  "px-3 pr-36 ob-typo-body text-(--oboon-text-body) outline-none",
+  "px-3 ob-typo-body text-(--oboon-text-body) outline-none",
   "focus-visible:ring-2 focus-visible:ring-(--oboon-primary)/30",
 ].join(" ");
 
-const DEFAULT_CONDITION: RecommendationCondition = {
-  availableCash: 8_000,
-  monthlyIncome: 400,
+// 초기화: 모든 입력을 "선택" 상태로 리셋
+const RESET_CONDITION: RecommendationCondition = {
+  availableCash: 0,
+  monthlyIncome: 0,
   ownedHouseCount: 0,
   creditGrade: "good",
   purchasePurpose: "residence",
+  employmentType: null,
+  monthlyExpenses: 0,
+  houseOwnership: null,
+  purchasePurposeV2: null,
+  purchaseTiming: null,
+  moveinTiming: null,
+  ltvInternalScore: 0,
+  existingMonthlyRepayment: "none",
+  regions: [],
 };
 
-const HOUSE_OPTIONS: Array<SelectOption<OwnedHouseCount>> = [
-  { value: 0, label: "무주택" },
-  { value: 1, label: "1채" },
-  { value: 2, label: "2채 이상" },
+const EMPLOYMENT_OPTIONS: Array<{ value: EmploymentType; label: string }> = [
+  { value: "employee", label: "직장인" },
+  { value: "self_employed", label: "자영업" },
+  { value: "freelancer", label: "프리랜서" },
+  { value: "other", label: "기타" },
 ];
 
-const CREDIT_OPTIONS: Array<SelectOption<CreditGrade>> = [
-  { value: "good", label: "우수" },
-  { value: "normal", label: "보통" },
-  { value: "unstable", label: "불안정" },
+const HOUSE_OWNERSHIP_OPTIONS: Array<{
+  value: "none" | "one" | "two_or_more";
+  label: string;
+}> = [
+  { value: "none", label: "무주택" },
+  { value: "one", label: "1주택" },
+  { value: "two_or_more", label: "2주택이상" },
 ];
 
-const PURPOSE_OPTIONS: Array<SelectOption<PurchasePurpose>> = [
+const PURPOSE_V2_OPTIONS: Array<{ value: FullPurchasePurpose; label: string }> = [
   { value: "residence", label: "실거주" },
-  { value: "investment", label: "투자" },
-  { value: "both", label: "실거주 + 투자" },
+  { value: "investment_rent", label: "투자(임대)" },
+  { value: "investment_capital", label: "투자(시세)" },
+  { value: "long_term", label: "실거주+투자" },
 ];
+
+const PURCHASE_TIMING_OPTIONS: Array<SelectOption<PurchaseTiming>> = [
+  { value: "within_3months", label: "3개월 이내" },
+  { value: "within_6months", label: "6개월 이내" },
+  { value: "within_1year", label: "1년 이내" },
+  { value: "over_1year", label: "1년 이상" },
+  { value: "by_property", label: "현장에 따라" },
+];
+
+const MOVEIN_TIMING_OPTIONS: Array<SelectOption<MoveinTiming>> = [
+  { value: "immediate", label: "즉시입주" },
+  { value: "within_1year", label: "1년 이내" },
+  { value: "within_2years", label: "2년 이내" },
+  { value: "within_3years", label: "3년 이내" },
+  { value: "anytime", label: "언제든지" },
+];
+
+const REGION_OPTIONS = OFFERING_REGION_TABS.filter((r) => r !== "전체").map(
+  (r) => ({ value: r as OfferingRegionTab, label: r }),
+);
 
 function formatNumericInput(value: string): string {
   const digitsOnly = value.replace(/[^\d]/g, "");
   if (!digitsOnly) return "";
   return Number(digitsOnly).toLocaleString("ko-KR");
 }
+
 
 function NumberField(props: {
   label: string;
@@ -66,119 +109,231 @@ function NumberField(props: {
   onChange: (value: number) => void;
 }) {
   const { label, value, placeholder, onChange } = props;
-  const previewLabel = formatManwonPreview(value);
-  const displayValue = value.toLocaleString("ko-KR");
+  const id = useId();
+  const isEmpty = value === 0;
+  const previewLabel = isEmpty ? "" : formatManwonPreview(value);
+  const displayValue = isEmpty ? "" : value.toLocaleString("ko-KR");
 
   return (
-    <label className="space-y-0">
+    <label htmlFor={id} className="space-y-0">
       <span className={FIELD_LABEL_CLASSNAME}>{label}</span>
       <div className="relative">
         <input
+          id={id}
           type="text"
           value={displayValue}
           inputMode="numeric"
           placeholder={placeholder}
           onChange={(event) => {
             const formattedValue = formatNumericInput(event.currentTarget.value);
-            if (!formattedValue) return;
-
+            if (!formattedValue) {
+              onChange(0);
+              return;
+            }
             const nextValue = Number(formattedValue.replaceAll(",", ""));
             onChange(nextValue);
           }}
           onKeyDown={(event) => {
             if (event.key === "Enter") event.preventDefault();
           }}
-          className={INPUT_CLASSNAME}
+          className={cn(INPUT_CLASSNAME, previewLabel ? "pr-[4.5rem]" : "pr-3")}
         />
-        <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center ob-typo-caption text-(--oboon-text-muted)">
-          {previewLabel}
-        </div>
+        {previewLabel && (
+          <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center ob-typo-caption text-(--oboon-text-muted)">
+            {previewLabel}
+          </div>
+        )}
       </div>
     </label>
   );
 }
 
-function SelectField<T extends string | number>(props: {
-  label: string;
-  value: T;
-  options: Array<{ label: string; value: T }>;
-  onChange: (value: T) => void;
-}) {
-  const { label, value, options, onChange } = props;
-
-  return (
-    <div className="space-y-0">
-      <div className={FIELD_LABEL_CLASSNAME}>{label}</div>
-      <Select value={value} onChange={onChange} options={options} />
-    </div>
-  );
-}
-
 export default function ConditionBar(props: ConditionBarProps) {
-  const { condition, onChange, onEvaluate, isLoading = false } = props;
+  const { condition, onChange, onEvaluate, onSave, isLoading = false, isSaving = false } = props;
+  const [ltvModalOpen, setLtvModalOpen] = useState(false);
+  const toast = useToast();
+
+  const handleSave = async () => {
+    if (!onSave) return;
+    const ok = await onSave();
+    if (ok) {
+      toast.success("조건이 저장되었습니다.");
+    } else {
+      toast.error("저장에 실패했습니다. 다시 시도해주세요.");
+    }
+  };
+
+  const isReadyToEvaluate =
+    condition.availableCash > 0 &&
+    condition.monthlyIncome > 0 &&
+    condition.houseOwnership !== null &&
+    condition.purchasePurposeV2 !== null &&
+    condition.ltvInternalScore > 0;
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <NumberField
-          label="가용 현금"
-          value={condition.availableCash}
-          placeholder="8,000"
-          onChange={(availableCash) => onChange({ availableCash })}
-        />
+      {/* 필드 그리드: mobile 2열 → lg 4열 */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {/* 직업 */}
+        <div>
+          <div className={FIELD_LABEL_CLASSNAME}>직업</div>
+          <Select<EmploymentType>
+            value={(condition.employmentType ?? "") as EmploymentType}
+            onChange={(employmentType) => onChange({ employmentType })}
+            options={EMPLOYMENT_OPTIONS}
+          />
+        </div>
 
-        <NumberField
-          label="월 소득"
-          value={condition.monthlyIncome}
-          placeholder="400"
-          onChange={(monthlyIncome) => onChange({ monthlyIncome })}
-        />
-      </div>
+        {/* 가용 현금 */}
+        <div>
+          <NumberField
+            label="가용 현금"
+            value={condition.availableCash}
+            placeholder="8,000"
+            onChange={(availableCash) => onChange({ availableCash })}
+          />
+        </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <SelectField
-          label="보유 주택"
-          value={condition.ownedHouseCount}
-          options={HOUSE_OPTIONS}
-          onChange={(ownedHouseCount) => onChange({ ownedHouseCount })}
-        />
+        {/* 월 소득 */}
+        <div>
+          <NumberField
+            label="월 소득"
+            value={condition.monthlyIncome}
+            placeholder="400"
+            onChange={(monthlyIncome) => onChange({ monthlyIncome })}
+          />
+        </div>
 
-        <SelectField
-          label="신용 등급"
-          value={condition.creditGrade}
-          options={CREDIT_OPTIONS}
-          onChange={(creditGrade) => onChange({ creditGrade })}
-        />
+        {/* 월 고정지출 */}
+        <div>
+          <NumberField
+            label="월 지출"
+            value={condition.monthlyExpenses}
+            placeholder="150"
+            onChange={(monthlyExpenses) => onChange({ monthlyExpenses })}
+          />
+        </div>
 
-        <SelectField
-          label="구매 목적"
-          value={condition.purchasePurpose}
-          options={PURPOSE_OPTIONS}
-          onChange={(purchasePurpose) => onChange({ purchasePurpose })}
-        />
+        {/* 신용 상태 — 2칸 */}
+        <div className="col-span-2">
+          <div className={FIELD_LABEL_CLASSNAME}>신용 상태</div>
+          <button
+            type="button"
+            onClick={() => setLtvModalOpen(true)}
+            className="flex w-full items-center justify-between rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-2.5 hover:border-(--oboon-primary) transition-colors"
+          >
+            <span className="ob-typo-caption text-(--oboon-text-muted)">대출 가능성 평가</span>
+            <div className="flex items-center gap-1.5">
+              {condition.ltvInternalScore > 0 ? (
+                <span className="ob-typo-body font-semibold text-(--oboon-primary)">
+                  {condition.ltvInternalScore}점
+                </span>
+              ) : (
+                <span className="ob-typo-caption text-(--oboon-text-muted)">미평가</span>
+              )}
+              <span className="ob-typo-caption text-(--oboon-text-muted)">수정 →</span>
+            </div>
+          </button>
+        </div>
+
+        {/* 보유 주택 */}
+        <div>
+          <div className={FIELD_LABEL_CLASSNAME}>보유 주택</div>
+          <Select<"none" | "one" | "two_or_more">
+            value={(condition.houseOwnership ?? "") as "none" | "one" | "two_or_more"}
+            onChange={(houseOwnership) => onChange({ houseOwnership })}
+            options={HOUSE_OWNERSHIP_OPTIONS}
+          />
+        </div>
+
+        {/* 분양 목적 */}
+        <div>
+          <div className={FIELD_LABEL_CLASSNAME}>분양 목적</div>
+          <Select<FullPurchasePurpose>
+            value={(condition.purchasePurposeV2 ?? "") as FullPurchasePurpose}
+            onChange={(purchasePurposeV2) => onChange({ purchasePurposeV2 })}
+            options={PURPOSE_V2_OPTIONS}
+          />
+        </div>
+
+        {/* 분양 시점 */}
+        <div>
+          <div className={FIELD_LABEL_CLASSNAME}>분양 시점</div>
+          <Select<PurchaseTiming>
+            value={(condition.purchaseTiming ?? "") as PurchaseTiming}
+            onChange={(purchaseTiming) => onChange({ purchaseTiming })}
+            options={PURCHASE_TIMING_OPTIONS}
+          />
+        </div>
+
+        {/* 희망 입주 */}
+        <div>
+          <div className={FIELD_LABEL_CLASSNAME}>희망 입주</div>
+          <Select<MoveinTiming>
+            value={(condition.moveinTiming ?? "") as MoveinTiming}
+            onChange={(moveinTiming) => onChange({ moveinTiming })}
+            options={MOVEIN_TIMING_OPTIONS}
+          />
+        </div>
+
+        {/* 지역 */}
+        <div className="col-span-2 lg:col-span-1">
+          <div className={FIELD_LABEL_CLASSNAME}>지역</div>
+          <MultiSelect<OfferingRegionTab>
+            values={condition.regions}
+            onChange={(regions) => onChange({ regions })}
+            options={REGION_OPTIONS}
+            placeholder="전체"
+          />
+        </div>
       </div>
 
       <div className="flex items-center justify-end gap-3 pt-2">
         <Button
           type="button"
-          onClick={() => onChange(DEFAULT_CONDITION)}
+          onClick={() => onChange(RESET_CONDITION)}
           variant="ghost"
           size="sm"
           className="h-8 px-2 ob-typo-button text-(--oboon-text-muted)"
         >
           초기화
         </Button>
+        {onSave && (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            shape="pill"
+            className="h-8 px-4 shrink-0"
+            loading={isSaving}
+            disabled={!isReadyToEvaluate}
+            onClick={() => void handleSave()}
+          >
+            조건 저장하기
+          </Button>
+        )}
         <Button
           variant="primary"
           size="sm"
           shape="pill"
           className="h-8 px-4 shrink-0"
           loading={isLoading}
-          onClick={onEvaluate}
+          disabled={!isReadyToEvaluate}
+          onClick={() => void onEvaluate()}
         >
           평가하기
         </Button>
       </div>
+
+      <LtvDsrModal
+        open={ltvModalOpen}
+        onClose={() => setLtvModalOpen(false)}
+        onConfirm={({ ltvInternalScore, existingMonthlyRepayment }) => {
+          onChange({ ltvInternalScore, existingMonthlyRepayment });
+        }}
+        initialEmploymentType={condition.employmentType ?? "employee"}
+        initialHouseOwnership={condition.houseOwnership ?? "none"}
+      />
     </div>
   );
 }

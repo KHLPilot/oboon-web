@@ -22,45 +22,52 @@ type RecommendationPreviewContentProps = GaugeOverlayProps & {
   showSummary?: boolean;
 };
 
+// 5단계 등급 CSS 토큰
+const GRADE5_TOKEN = {
+  GREEN:  "var(--oboon-grade-green)",
+  LIME:   "var(--oboon-grade-lime)",
+  YELLOW: "var(--oboon-grade-yellow)",
+  ORANGE: "var(--oboon-grade-orange)",
+  RED:    "var(--oboon-grade-red)",
+} as const;
+
+const GRADE5_TEXT_TOKEN = {
+  GREEN:  "var(--oboon-grade-green-text)",
+  LIME:   "var(--oboon-grade-lime-text)",
+  YELLOW: "var(--oboon-grade-yellow-text)",
+  ORANGE: "var(--oboon-grade-orange-text)",
+  RED:    "var(--oboon-grade-red-text)",
+} as const;
+
 type GradeMeta = {
   label: string;
-  barClassName: string;
-  textClassName: string;
+  barColor: string;
+  textColor: string;
 };
 
 function badgeVariant(grade: RecommendationEvalResult["finalGrade"]) {
-  if (grade === "GREEN") return "success" as const;
-  if (grade === "YELLOW") return "warning" as const;
-  return "danger" as const;
+  if (grade === "GREEN" || grade === "LIME") return "success" as const;
+  if (grade === "RED") return "danger" as const;
+  return "warning" as const;
 }
 
 function badgeLabel(grade: RecommendationEvalResult["finalGrade"]) {
   if (grade === "GREEN") return "조건 충족";
+  if (grade === "LIME") return "거의 충족";
   if (grade === "YELLOW") return "검토 필요";
+  if (grade === "ORANGE") return "어려울 수 있음";
   return "미충족";
 }
 
 function gradeMeta(grade: RecommendationEvalResult["finalGrade"]): GradeMeta {
-  if (grade === "GREEN") {
-    return {
-      label: "충족",
-      barClassName: "bg-(--oboon-safe)",
-      textClassName: "text-(--oboon-safe)",
-    };
-  }
-
-  if (grade === "YELLOW") {
-    return {
-      label: "검토",
-      barClassName: "bg-(--oboon-warning)",
-      textClassName: "text-(--oboon-warning-text)",
-    };
-  }
-
+  const labels: Record<typeof grade, string> = {
+    GREEN: "충족", LIME: "거의 충족", YELLOW: "검토",
+    ORANGE: "어려울 수 있음", RED: "미충족",
+  };
   return {
-    label: "미충족",
-    barClassName: "bg-(--oboon-danger)",
-    textClassName: "text-(--oboon-danger-text)",
+    label: labels[grade],
+    barColor: GRADE5_TOKEN[grade],
+    textColor: GRADE5_TEXT_TOKEN[grade],
   };
 }
 
@@ -97,10 +104,8 @@ function GaugeRow(props: {
         </div>
 
         <span
-          className={cn(
-            compact ? "text-[11px] leading-4" : "ob-typo-caption",
-            value === null ? "text-(--oboon-text-muted)" : meta.textClassName,
-          )}
+          className={cn(compact ? "text-[11px] leading-4" : "ob-typo-caption")}
+          style={{ color: value === null ? undefined : meta.textColor }}
         >
           {value === null ? "비공개" : `${Math.round(value)} / ${max} · ${meta.label}`}
         </span>
@@ -113,8 +118,8 @@ function GaugeRow(props: {
         )}
       >
         <div
-          className={cn("h-full rounded-full transition-[width]", meta.barClassName)}
-          style={{ width: `${percent}%` }}
+          className="h-full rounded-full transition-[width]"
+          style={{ width: `${percent}%`, backgroundColor: meta.barColor }}
         />
       </div>
     </div>
@@ -283,7 +288,7 @@ export function RecommendationPreviewContent(
         <GaugeRow
           label="현금 여력"
           value={evalResult.categories.cash.score}
-          max={40}
+          max={30}
           grade={evalResult.categories.cash.grade}
           note={
             evalResult.metrics.recommendedCash !== null
@@ -294,9 +299,9 @@ export function RecommendationPreviewContent(
         />
         <GaugeRow
           label="월 부담률"
-          value={evalResult.categories.burden.score}
-          max={35}
-          grade={evalResult.categories.burden.grade}
+          value={evalResult.categories.income.score}
+          max={25}
+          grade={evalResult.categories.income.grade}
           note={
             evalResult.metrics.monthlyBurdenPercent !== null
               ? `예상 부담률 ${formatPercent(evalResult.metrics.monthlyBurdenPercent)}`
@@ -306,9 +311,9 @@ export function RecommendationPreviewContent(
         />
         <GaugeRow
           label="리스크"
-          value={evalResult.categories.risk.score}
-          max={25}
-          grade={evalResult.categories.risk.grade}
+          value={evalResult.categories.ltvDsr.score}
+          max={20}
+          grade={evalResult.categories.ltvDsr.grade}
           compact={compact}
           note={riskNote}
         />

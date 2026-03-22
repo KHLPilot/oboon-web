@@ -4,7 +4,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import type { FocusEventHandler, MouseEventHandler } from "react";
+import type { CSSProperties, FocusEventHandler, MouseEventHandler } from "react";
 
 import type { Offering } from "@/types/index";
 import { ROUTES } from "@/types/index";
@@ -40,16 +40,37 @@ function riskGradeText(grade: FinalGrade): "안전" | "경계" | "위험" {
   return "위험";
 }
 
-function gradeClass(grade: FinalGrade): string {
-  if (grade === "GREEN") return "border-(--oboon-safe-border) bg-(--oboon-safe-bg) text-(--oboon-safe-text)";
-  if (grade === "YELLOW") return "border-(--oboon-warning-border) bg-(--oboon-warning-bg) text-(--oboon-warning-text)";
-  return "border-(--oboon-danger-border) bg-(--oboon-danger-bg) text-(--oboon-danger-text)";
+// 배지 인라인 스타일 (CSS 토큰 사용)
+function gradeBadgeStyle(grade: FinalGrade): CSSProperties {
+  if (grade === "GREEN") {
+    return {
+      borderColor: "var(--oboon-grade-green-border)",
+      backgroundColor: "var(--oboon-grade-green-bg)",
+      color: "var(--oboon-grade-green-text)",
+    };
+  }
+  if (grade === "YELLOW") {
+    return {
+      borderColor: "var(--oboon-grade-yellow-border)",
+      backgroundColor: "var(--oboon-grade-yellow-bg)",
+      color: "var(--oboon-grade-yellow-text)",
+    };
+  }
+  return {
+    borderColor: "var(--oboon-grade-red-border)",
+    backgroundColor: "var(--oboon-grade-red-bg)",
+    color: "var(--oboon-grade-red-text)",
+  };
 }
 
-function matchRateBarClass(totalScore?: number): string {
-  if ((totalScore ?? 0) >= 80) return "bg-(--oboon-safe)";
-  if ((totalScore ?? 0) >= 50) return "bg-(--oboon-warning)";
-  return "bg-(--oboon-danger)";
+// 왼쪽 바 색상 — 100점 기준 5단계 (CSS 토큰 사용)
+function matchRateBarColor(totalScore?: number): string {
+  const s = totalScore ?? 0;
+  if (s >= 80) return "var(--oboon-grade-green)";
+  if (s >= 60) return "var(--oboon-grade-lime)";
+  if (s >= 40) return "var(--oboon-grade-yellow)";
+  if (s >= 20) return "var(--oboon-grade-orange)";
+  return "var(--oboon-grade-red)";
 }
 
 export default function OfferingCard({
@@ -172,10 +193,8 @@ export default function OfferingCard({
             )}
           >
             <div
-              className={[
-                "w-[3px] shrink-0 rounded-full",
-                matchRateBarClass(conditionCategories.totalScore),
-              ].join(" ")}
+              className="w-[3px] shrink-0 rounded-full"
+              style={{ backgroundColor: matchRateBarColor(conditionCategories.totalScore) }}
             />
             <div className="min-w-0 flex-1">
               <div className="flex items-end gap-1.5">
@@ -229,14 +248,14 @@ export default function OfferingCard({
                   compactLayout ? "mt-2" : "mt-3",
                 )}
               >
-                <span className={["rounded-full border px-2 py-0.5 ob-typo-caption", gradeClass(conditionCategories.cash.grade)].join(" ")}>
+                <span className="rounded-full border px-2 py-0.5 ob-typo-caption" style={gradeBadgeStyle(conditionCategories.cash.grade)}>
                   자금 {gradeText(conditionCategories.cash.grade)}
                 </span>
-                <span className={["rounded-full border px-2 py-0.5 ob-typo-caption", gradeClass(conditionCategories.burden.grade)].join(" ")}>
+                <span className="rounded-full border px-2 py-0.5 ob-typo-caption" style={gradeBadgeStyle(conditionCategories.burden.grade)}>
                   부담 {gradeText(conditionCategories.burden.grade)}
                 </span>
-                <span className={["rounded-full border px-2 py-0.5 ob-typo-caption", gradeClass(conditionCategories.risk.grade)].join(" ")}>
-                  리스크 {riskGradeText(conditionCategories.risk.grade)}
+                <span className="rounded-full border px-2 py-0.5 ob-typo-caption" style={gradeBadgeStyle(conditionCategories.risk.grade)}>
+                  신용 {riskGradeText(conditionCategories.risk.grade)}
                 </span>
               </div>
             </div>
@@ -368,14 +387,14 @@ export default function OfferingCard({
 
             {conditionCategories ? (
               <div className="mt-3 flex flex-wrap gap-1.5">
-                <span className={["rounded-full border px-2 py-0.5 ob-typo-caption", gradeClass(conditionCategories.cash.grade)].join(" ")}>
+                <span className="rounded-full border px-2 py-0.5 ob-typo-caption" style={gradeBadgeStyle(conditionCategories.cash.grade)}>
                   자금 {gradeText(conditionCategories.cash.grade)}
                 </span>
-                <span className={["rounded-full border px-2 py-0.5 ob-typo-caption", gradeClass(conditionCategories.burden.grade)].join(" ")}>
+                <span className="rounded-full border px-2 py-0.5 ob-typo-caption" style={gradeBadgeStyle(conditionCategories.burden.grade)}>
                   부담 {gradeText(conditionCategories.burden.grade)}
                 </span>
-                <span className={["rounded-full border px-2 py-0.5 ob-typo-caption", gradeClass(conditionCategories.risk.grade)].join(" ")}>
-                  리스크 {riskGradeText(conditionCategories.risk.grade)}
+                <span className="rounded-full border px-2 py-0.5 ob-typo-caption" style={gradeBadgeStyle(conditionCategories.risk.grade)}>
+                  신용 {riskGradeText(conditionCategories.risk.grade)}
                 </span>
               </div>
             ) : null}

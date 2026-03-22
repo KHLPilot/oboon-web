@@ -102,6 +102,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       type = "button",
       onClick,
       children,
+      style: propStyle,
       ...props
     },
     ref
@@ -120,7 +121,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       getVariantClass(variant),
       getSizeClass(size),
       getShapeClass(shape),
-      className
+      className,
     );
 
     const handleClick: React.MouseEventHandler<HTMLButtonElement> = (e) => {
@@ -131,10 +132,14 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       }
       onClick?.(e);
     };
+    const variantStyle: React.CSSProperties =
+      variant === "primary" ? { color: "var(--oboon-on-primary)" } : {};
+
     return (
       <Comp
         ref={ref}
         className={sharedClassName}
+        style={{ ...variantStyle, ...propStyle }}
         {...(!asChild ? { type, disabled: isDisabled } : {})}
         {...(asChild
           ? { "aria-disabled": isDisabled, "aria-busy": loading }

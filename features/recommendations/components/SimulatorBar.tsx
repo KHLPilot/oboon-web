@@ -1,61 +1,106 @@
 "use client";
 
-import Select, { type SelectOption } from "@/components/ui/Select";
+import { useState } from "react";
+import Select from "@/components/ui/Select";
+import { MultiSelect } from "@/components/ui/MultiSelect";
+import Button from "@/components/ui/Button";
 import type {
-  CreditGrade,
-  PurchasePurpose,
+  EmploymentType,
+  FullPurchasePurpose,
+  MoveinTiming,
+  PurchaseTiming,
 } from "@/features/condition-validation/domain/types";
+import LtvDsrModal from "@/features/condition-validation/components/LtvDsrModal";
 import { formatManwonPreview } from "@/lib/format/currency";
 import { cn } from "@/lib/utils/cn";
-import type {
-  OwnedHouseCount,
-  RecommendationCondition,
-} from "@/features/recommendations/hooks/useRecommendations";
+import type { RecommendationCondition } from "@/features/recommendations/hooks/useRecommendations";
+import { OFFERING_REGION_TABS } from "@/features/offerings/domain/offering.types";
+import type { OfferingRegionTab } from "@/features/offerings/domain/offering.types";
 
 type SimulatorBarProps = {
   condition: RecommendationCondition;
-  onChange: (patch: Partial<RecommendationCondition>) => void;
+  onEvaluate: (sim: RecommendationCondition) => void | Promise<boolean>;
+  isLoading?: boolean;
 };
 
-const FIELD_LABEL_CLASSNAME =
-  "mb-2 block ob-typo-caption text-(--oboon-text-muted)";
+const FIELD_LABEL_CLASSNAME = "mb-2 block ob-typo-caption text-(--oboon-text-muted)";
 
-const DEFAULT_CONDITION: RecommendationCondition = {
-  availableCash: 8_000,
-  monthlyIncome: 400,
+const RESET_CONDITION: RecommendationCondition = {
+  availableCash: 0,
+  monthlyIncome: 0,
   ownedHouseCount: 0,
   creditGrade: "good",
   purchasePurpose: "residence",
+  employmentType: null,
+  monthlyExpenses: 0,
+  houseOwnership: null,
+  purchasePurposeV2: null,
+  purchaseTiming: null,
+  moveinTiming: null,
+  ltvInternalScore: 0,
+  existingMonthlyRepayment: "none",
+  regions: [],
 };
 
-const HOUSE_OPTIONS: Array<SelectOption<OwnedHouseCount>> = [
-  { value: 0, label: "무주택" },
-  { value: 1, label: "1채" },
-  { value: 2, label: "2채 이상" },
+const EMPLOYMENT_OPTIONS: Array<{ value: EmploymentType; label: string }> = [
+  { value: "employee", label: "직장인" },
+  { value: "self_employed", label: "자영업" },
+  { value: "freelancer", label: "프리랜서" },
+  { value: "other", label: "기타" },
 ];
 
-const CREDIT_OPTIONS: Array<SelectOption<CreditGrade>> = [
-  { value: "good", label: "우수" },
-  { value: "normal", label: "보통" },
-  { value: "unstable", label: "불안정" },
+const HOUSE_OWNERSHIP_OPTIONS: Array<{
+  value: "none" | "one" | "two_or_more";
+  label: string;
+}> = [
+  { value: "none", label: "무주택" },
+  { value: "one", label: "1주택" },
+  { value: "two_or_more", label: "2주택 이상" },
 ];
 
-const PURPOSE_OPTIONS: Array<SelectOption<PurchasePurpose>> = [
+const PURPOSE_V2_OPTIONS: Array<{ value: FullPurchasePurpose; label: string }> = [
   { value: "residence", label: "실거주" },
-  { value: "investment", label: "투자" },
-  { value: "both", label: "실거주 + 투자" },
+  { value: "investment_rent", label: "투자(임대)" },
+  { value: "investment_capital", label: "투자(시세)" },
+  { value: "long_term", label: "실거주+투자" },
 ];
+
+const PURCHASE_TIMING_OPTIONS: Array<{ value: PurchaseTiming; label: string }> = [
+  { value: "within_3months", label: "3개월 이내" },
+  { value: "within_6months", label: "6개월 이내" },
+  { value: "within_1year", label: "1년 이내" },
+  { value: "over_1year", label: "1년 이상" },
+  { value: "by_property", label: "현장에 따라" },
+];
+
+const MOVEIN_TIMING_OPTIONS: Array<{ value: MoveinTiming; label: string }> = [
+  { value: "immediate", label: "즉시입주" },
+  { value: "within_1year", label: "1년 이내" },
+  { value: "within_2years", label: "2년 이내" },
+  { value: "within_3years", label: "3년 이내" },
+  { value: "anytime", label: "언제든지" },
+];
+
+const REGION_OPTIONS = OFFERING_REGION_TABS.filter((r) => r !== "전체").map(
+  (r) => ({ value: r as OfferingRegionTab, label: r }),
+);
 
 const AVAILABLE_CASH_STEPS = [
-  ...Array.from({ length: 11 }, (_, index) => index * 1_000),
-  ...Array.from({ length: 9 }, (_, index) => (index + 2) * 10_000),
-  ...Array.from({ length: 9 }, (_, index) => (index + 2) * 100_000),
+  ...Array.from({ length: 11 }, (_, i) => i * 1_000),
+  ...Array.from({ length: 9 }, (_, i) => (i + 2) * 10_000),
+  ...Array.from({ length: 9 }, (_, i) => (i + 2) * 100_000),
 ];
 
 const MONTHLY_INCOME_STEPS = [
-  ...Array.from({ length: 11 }, (_, index) => index * 100),
-  ...Array.from({ length: 8 }, (_, index) => 1_500 + index * 500),
-  ...Array.from({ length: 5 }, (_, index) => 6_000 + index * 1_000),
+  ...Array.from({ length: 11 }, (_, i) => i * 100),
+  ...Array.from({ length: 8 }, (_, i) => 1_500 + i * 500),
+  ...Array.from({ length: 5 }, (_, i) => 6_000 + i * 1_000),
+];
+
+const MONTHLY_EXPENSES_STEPS = [
+  ...Array.from({ length: 11 }, (_, i) => i * 10),
+  ...Array.from({ length: 9 }, (_, i) => 150 + i * 50),
+  ...Array.from({ length: 5 }, (_, i) => 600 + i * 100),
 ];
 
 function SliderField(props: {
@@ -97,14 +142,13 @@ function SliderField(props: {
       : ((currentRangeValue - rangeMin) / (rangeMax - rangeMin)) * 100;
 
   return (
-    <div className="space-y-0">
+    <div>
       <div className="mb-1 flex items-center justify-between gap-3">
         <span className="ob-typo-caption text-(--oboon-text-muted)">{label}</span>
         <span className="ob-typo-caption font-medium text-(--oboon-text-title)">
           {valueLabel}
         </span>
       </div>
-
       <div className="relative h-6">
         <div className="absolute top-1/2 h-1.5 w-full -translate-y-1/2 rounded-full bg-(--oboon-bg-subtle)" />
         <div
@@ -117,13 +161,13 @@ function SliderField(props: {
           max={rangeMax}
           step={rangeStep}
           value={currentRangeValue}
-          onChange={(event) => {
-            const nextValue = Number(event.currentTarget.value);
+          onChange={(e) => {
+            const next = Number(e.currentTarget.value);
             if (resolvedPositions) {
-              onChange(resolvedPositions[nextValue] ?? resolvedPositions[0] ?? 0);
+              onChange(resolvedPositions[next] ?? resolvedPositions[0] ?? 0);
               return;
             }
-            onChange(nextValue);
+            onChange(next);
           }}
           className={cn(
             "absolute inset-0 h-full w-full appearance-none bg-transparent",
@@ -135,7 +179,6 @@ function SliderField(props: {
           )}
         />
       </div>
-
       <div className="grid grid-cols-3 text-xs text-(--oboon-text-muted)">
         <span>{minLabel}</span>
         <span className="text-center">{midLabel}</span>
@@ -145,83 +188,178 @@ function SliderField(props: {
   );
 }
 
-function SelectField<T extends string | number>(props: {
-  label: string;
-  value: T;
-  options: Array<{ label: string; value: T }>;
-  onChange: (value: T) => void;
-}) {
-  const { label, value, options, onChange } = props;
+export default function SimulatorBar({ condition, onEvaluate, isLoading = false }: SimulatorBarProps) {
+  // 로컬 state — 슬라이더 변경이 "직접 입력" 탭에 영향을 주지 않도록 분리
+  const [simCondition, setSimCondition] = useState<RecommendationCondition>(condition);
+  const [ltvModalOpen, setLtvModalOpen] = useState(false);
 
-  return (
-    <div className="space-y-0">
-      <div className={FIELD_LABEL_CLASSNAME}>{label}</div>
-      <Select value={value} onChange={onChange} options={options} />
-    </div>
-  );
-}
+  function patch(update: Partial<RecommendationCondition>) {
+    setSimCondition((prev) => ({ ...prev, ...update }));
+  }
 
-export default function SimulatorBar(props: SimulatorBarProps) {
-  const { condition, onChange } = props;
+  const isReadyToEvaluate =
+    simCondition.availableCash > 0 &&
+    simCondition.monthlyIncome > 0 &&
+    simCondition.houseOwnership !== null &&
+    simCondition.purchasePurposeV2 !== null &&
+    simCondition.ltvInternalScore > 0;
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <SliderField
-          label="가용 현금"
-          valueLabel={formatManwonPreview(condition.availableCash)}
-          minLabel="0만"
-          midLabel="10억"
-          maxLabel="100억"
-          value={condition.availableCash}
-          positions={AVAILABLE_CASH_STEPS}
-          onChange={(availableCash) => onChange({ availableCash })}
-        />
+      {/* 가용 현금 */}
+      <SliderField
+        label="가용 현금"
+        valueLabel={formatManwonPreview(simCondition.availableCash)}
+        minLabel="0만"
+        midLabel="10억"
+        maxLabel="100억"
+        value={simCondition.availableCash}
+        positions={AVAILABLE_CASH_STEPS}
+        onChange={(availableCash) => patch({ availableCash })}
+      />
 
+      {/* 월 소득 + 월 고정지출 */}
+      <div className="grid grid-cols-2 gap-2 sm:gap-3">
         <SliderField
           label="월 소득"
-          valueLabel={formatManwonPreview(condition.monthlyIncome)}
+          valueLabel={formatManwonPreview(simCondition.monthlyIncome)}
           minLabel="0만"
           midLabel="5,000만"
           maxLabel="1억"
-          value={condition.monthlyIncome}
+          value={simCondition.monthlyIncome}
           positions={MONTHLY_INCOME_STEPS}
-          onChange={(monthlyIncome) => onChange({ monthlyIncome })}
+          onChange={(monthlyIncome) => patch({ monthlyIncome })}
+        />
+        <SliderField
+          label="월 고정지출"
+          valueLabel={formatManwonPreview(simCondition.monthlyExpenses)}
+          minLabel="0만"
+          midLabel="300만"
+          maxLabel="1,000만"
+          value={simCondition.monthlyExpenses}
+          positions={MONTHLY_EXPENSES_STEPS}
+          onChange={(monthlyExpenses) => patch({ monthlyExpenses })}
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <SelectField
-          label="보유 주택"
-          value={condition.ownedHouseCount}
-          options={HOUSE_OPTIONS}
-          onChange={(ownedHouseCount) => onChange({ ownedHouseCount })}
-        />
+      {/* 셀렉트 그리드 */}
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
+        {/* 직업 */}
+        <div>
+          <div className={FIELD_LABEL_CLASSNAME}>직업</div>
+          <Select<EmploymentType>
+            value={(simCondition.employmentType ?? "") as EmploymentType}
+            onChange={(employmentType) => patch({ employmentType })}
+            options={EMPLOYMENT_OPTIONS}
+          />
+        </div>
 
-        <SelectField
-          label="신용 등급"
-          value={condition.creditGrade}
-          options={CREDIT_OPTIONS}
-          onChange={(creditGrade) => onChange({ creditGrade })}
-        />
+        {/* 보유 주택 */}
+        <div>
+          <div className={FIELD_LABEL_CLASSNAME}>보유 주택</div>
+          <Select<"none" | "one" | "two_or_more">
+            value={(simCondition.houseOwnership ?? "") as "none" | "one" | "two_or_more"}
+            onChange={(houseOwnership) => patch({ houseOwnership })}
+            options={HOUSE_OWNERSHIP_OPTIONS}
+          />
+        </div>
 
-        <SelectField
-          label="구매 목적"
-          value={condition.purchasePurpose}
-          options={PURPOSE_OPTIONS}
-          onChange={(purchasePurpose) => onChange({ purchasePurpose })}
-        />
+        {/* 신용 상태 — 2칸 */}
+        <div className="col-span-2">
+          <div className={FIELD_LABEL_CLASSNAME}>신용 상태 (LTV+DSR)</div>
+          <button
+            type="button"
+            onClick={() => setLtvModalOpen(true)}
+            className="flex w-full items-center justify-between rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-2.5 hover:border-(--oboon-primary) transition-colors"
+          >
+            <span className="ob-typo-caption text-(--oboon-text-muted)">대출 가능성 평가</span>
+            <div className="flex items-center gap-1.5">
+              {simCondition.ltvInternalScore > 0 ? (
+                <span className="ob-typo-body font-semibold text-(--oboon-primary)">
+                  {simCondition.ltvInternalScore}점
+                </span>
+              ) : (
+                <span className="ob-typo-caption text-(--oboon-text-muted)">미평가</span>
+              )}
+              <span className="ob-typo-caption text-(--oboon-text-muted)">수정 →</span>
+            </div>
+          </button>
+        </div>
+
+        {/* 분양 목적 */}
+        <div>
+          <div className={FIELD_LABEL_CLASSNAME}>분양 목적</div>
+          <Select<FullPurchasePurpose>
+            value={(simCondition.purchasePurposeV2 ?? "") as FullPurchasePurpose}
+            onChange={(purchasePurposeV2) => patch({ purchasePurposeV2 })}
+            options={PURPOSE_V2_OPTIONS}
+          />
+        </div>
+
+        {/* 분양 시점 */}
+        <div>
+          <div className={FIELD_LABEL_CLASSNAME}>분양 시점</div>
+          <Select<PurchaseTiming>
+            value={(simCondition.purchaseTiming ?? "") as PurchaseTiming}
+            onChange={(purchaseTiming) => patch({ purchaseTiming })}
+            options={PURCHASE_TIMING_OPTIONS}
+          />
+        </div>
+
+        {/* 희망 입주 */}
+        <div>
+          <div className={FIELD_LABEL_CLASSNAME}>희망 입주</div>
+          <Select<MoveinTiming>
+            value={(simCondition.moveinTiming ?? "") as MoveinTiming}
+            onChange={(moveinTiming) => patch({ moveinTiming })}
+            options={MOVEIN_TIMING_OPTIONS}
+          />
+        </div>
+
+        {/* 지역 */}
+        <div>
+          <div className={FIELD_LABEL_CLASSNAME}>지역</div>
+          <MultiSelect<OfferingRegionTab>
+            values={simCondition.regions}
+            onChange={(regions) => patch({ regions })}
+            options={REGION_OPTIONS}
+            placeholder="전체"
+          />
+        </div>
       </div>
 
-      <div className="flex items-center justify-end pt-2">
-        <button
+      <div className="flex items-center justify-end gap-3 pt-2">
+        <Button
           type="button"
-          onClick={() => onChange(DEFAULT_CONDITION)}
-          className="ob-typo-caption text-(--oboon-text-muted) transition-colors hover:text-(--oboon-text-body)"
+          onClick={() => setSimCondition(RESET_CONDITION)}
+          variant="ghost"
+          size="sm"
+          className="h-8 px-2 ob-typo-button text-(--oboon-text-muted)"
         >
           초기화
-        </button>
+        </Button>
+        <Button
+          variant="primary"
+          size="sm"
+          shape="pill"
+          className="h-8 px-4 shrink-0"
+          loading={isLoading}
+          disabled={!isReadyToEvaluate}
+          onClick={() => void onEvaluate(simCondition)}
+        >
+          평가하기
+        </Button>
       </div>
+
+      <LtvDsrModal
+        open={ltvModalOpen}
+        onClose={() => setLtvModalOpen(false)}
+        onConfirm={({ ltvInternalScore, existingMonthlyRepayment }) => {
+          patch({ ltvInternalScore, existingMonthlyRepayment });
+        }}
+        initialEmploymentType={simCondition.employmentType ?? "employee"}
+        initialHouseOwnership={simCondition.houseOwnership ?? "none"}
+      />
     </div>
   );
 }

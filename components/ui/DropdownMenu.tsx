@@ -155,9 +155,11 @@ export function DropdownMenuContent({
   const { open, setOpen, triggerRef } = useDropdownMenu();
   const panelRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{
-    top: number;
+    top?: number;
+    bottom?: number;
     left: number;
     width: number;
+    maxHeight: number;
   } | null>(null);
 
   // click outside to close
@@ -191,16 +193,30 @@ export function DropdownMenuContent({
 
       const r = el.getBoundingClientRect();
       const gap = 8;
-
-      // 기본: 트리거 아래로
-      const top = r.bottom + gap;
+      const spaceBelow = window.innerHeight - r.bottom - gap;
+      const spaceAbove = r.top - gap;
+      const openUpward = spaceBelow < 160 && spaceAbove > spaceBelow;
 
       // align 처리: end는 우측 정렬, start는 좌측 정렬, center는 중앙
       let left = r.left;
       if (align === "end") left = r.right;
       else if (align === "center") left = r.left + r.width / 2;
 
-      setPos({ top, left, width: r.width });
+      if (openUpward) {
+        setPos({
+          bottom: window.innerHeight - r.top + gap,
+          left,
+          width: r.width,
+          maxHeight: Math.min(spaceAbove, 240),
+        });
+      } else {
+        setPos({
+          top: r.bottom + gap,
+          left,
+          width: r.width,
+          maxHeight: Math.min(spaceBelow, 240),
+        });
+      }
     };
 
     calc();
@@ -227,18 +243,23 @@ export function DropdownMenuContent({
     : {};
 
   // 실제 좌표: end는 right 정렬이므로 transform으로 당김
+  const verticalPos: React.CSSProperties =
+    pos.bottom !== undefined
+      ? { bottom: pos.bottom }
+      : { top: pos.top };
+
   const style: React.CSSProperties =
     align === "start"
-      ? { top: pos.top, left: pos.left, ...sizeStyle }
+      ? { ...verticalPos, left: pos.left, ...sizeStyle }
       : align === "center"
       ? {
-          top: pos.top,
+          ...verticalPos,
           left: pos.left,
           transform: "translateX(-50%)",
           ...sizeStyle,
         }
       : {
-          top: pos.top,
+          ...verticalPos,
           left: pos.left,
           transform: "translateX(-100%)",
           ...sizeStyle,
@@ -248,7 +269,7 @@ export function DropdownMenuContent({
     <div
       ref={panelRef}
       role="menu"
-      style={style}
+      style={{ ...style, "--dropdown-max-h": `${pos.maxHeight}px` } as React.CSSProperties}
       className={[base, matchTriggerWidth ? "p-1" : "min-w-40 p-1", className].join(" ")}
     >
       {children}

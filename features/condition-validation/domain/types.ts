@@ -216,3 +216,137 @@ export type ConditionRecommendationItem = {
     monthly_burden_percent: number | null;
   };
 };
+
+// ===== New System Types (v2) =====
+
+export type EmploymentType = "employee" | "self_employed" | "freelancer" | "other";
+
+export type FullPurchasePurpose =
+  | "residence"
+  | "investment_rent"
+  | "investment_capital"
+  | "long_term";
+
+export type PurchaseTiming =
+  | "by_property"
+  | "over_1year"
+  | "within_1year"
+  | "within_6months"
+  | "within_3months";
+
+export type MoveinTiming =
+  | "anytime"
+  | "within_3years"
+  | "within_2years"
+  | "within_1year"
+  | "immediate";
+
+export type FinalGrade5 = "GREEN" | "LIME" | "YELLOW" | "ORANGE" | "RED";
+
+export type ExistingLoanAmount = "none" | "under_1eok" | "1to3eok" | "over_3eok";
+export type MonthlyLoanRepayment = "none" | "under_50" | "50to100" | "100to200" | "over_200";
+export type MonthlyIncomeRange =
+  | "under_200"
+  | "200to300"
+  | "300to500"
+  | "500to700"
+  | "over_700";
+export type DelinquencyCount = "none" | "once" | "twice_or_more";
+export type CardLoanUsage = "none" | "1to2" | "3_or_more";
+
+export type LtvDsrInput = {
+  houseOwnership: "none" | "one" | "two_or_more";
+  existingLoan: ExistingLoanAmount;
+  recentDelinquency: DelinquencyCount;
+  cardLoanUsage: CardLoanUsage;
+  loanRejection: "none" | "yes";
+  employmentType: EmploymentType;
+  monthlyIncomeRange: MonthlyIncomeRange;
+  existingMonthlyRepayment: MonthlyLoanRepayment;
+};
+
+export type LtvDsrPreview = {
+  ltvInternalScore: number;
+  ltvPoints: number;
+  ltvLabel: string;
+  dsrEstimate: number | null;
+  dsrPoints: number;
+  dsrLabel: string;
+  totalPoints: number;
+};
+
+export type FullCustomerInput = {
+  employmentType: EmploymentType;
+  availableCash: number;
+  monthlyIncome: number;
+  monthlyExpenses: number;
+  houseOwnership: "none" | "one" | "two_or_more";
+  purchasePurpose: FullPurchasePurpose;
+  purchaseTiming: PurchaseTiming;
+  moveinTiming: MoveinTiming;
+  ltvInternalScore: number;
+  existingMonthlyRepayment: MonthlyLoanRepayment;
+};
+
+export type FullEvaluationCategoryResult = {
+  grade: FinalGrade5;
+  score: number;
+  maxScore: number;
+  reasonMessage: string;
+};
+
+export type FullEvaluationResult = {
+  finalGrade: FinalGrade5;
+  totalScore: number;
+  maxScore: 100;
+  summaryMessage: string;
+  gradeLabel: string;
+  categories: {
+    cash: FullEvaluationCategoryResult;
+    income: FullEvaluationCategoryResult;
+    ltvDsr: FullEvaluationCategoryResult;
+    ownership: FullEvaluationCategoryResult;
+    purpose: FullEvaluationCategoryResult;
+    timing: FullEvaluationCategoryResult;
+  };
+  metrics: {
+    contractAmount: number;
+    loanAmount: number;
+    monthlyPaymentEst: number;
+    monthlySurplus: number;
+    dsrPercent: number | null;
+    dsrPoints: number;
+    ltvPoints: number;
+  };
+};
+
+export type FullEvaluationResponse = {
+  ok: boolean;
+  result?: {
+    final_grade: FinalGrade5;
+    total_score: number;
+    max_score: number;
+    summary_message: string;
+    grade_label: string;
+  };
+  categories?: {
+    cash: { grade: FinalGrade5; score: number; max_score: number; reason: string };
+    income: { grade: FinalGrade5; score: number; max_score: number; reason: string };
+    ltv_dsr: { grade: FinalGrade5; score: number; max_score: number; reason: string };
+    ownership: { grade: FinalGrade5; score: number; max_score: number; reason: string };
+    purpose: { grade: FinalGrade5; score: number; max_score: number; reason: string };
+    timing: { grade: FinalGrade5; score: number; max_score: number; reason: string };
+  };
+  metrics?: {
+    contract_amount: number;
+    loan_amount: number;
+    monthly_payment_est: number;
+    monthly_surplus: number;
+    dsr_percent: number | null;
+  };
+  error?: {
+    code?: string;
+    message?: string;
+    field_errors?: Record<string, string[] | undefined>;
+  };
+};

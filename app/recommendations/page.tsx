@@ -16,12 +16,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/DropdownMenu";
 import OfferingsViewToggle from "@/features/offerings/components/OfferingsViewToggle";
+import Link from "next/link";
+import { X } from "lucide-react";
 import FlippableRecommendationCard from "@/features/recommendations/components/FlippableRecommendationCard";
 import MiniMap from "@/features/recommendations/components/MiniMap";
 import MobileConditionSheet from "@/features/recommendations/components/MobileConditionSheet";
 import RecommendationOfferingCard from "@/features/recommendations/components/OfferingCard";
 import RecommendationConditionPanel from "@/features/recommendations/components/RecommendationConditionPanel";
+import { RecommendationPreviewContent } from "@/features/recommendations/components/GaugeOverlay";
 import type { RecommendationItem } from "@/features/recommendations/hooks/useRecommendations";
+import { ROUTES } from "@/types/index";
 import {
   useRecommendations,
 } from "@/features/recommendations/hooks/useRecommendations";
@@ -71,19 +75,76 @@ function compareByDefault(a: RecommendationItem, b: RecommendationItem) {
   );
 }
 
+function MobileCardDetailSheet(props: {
+  item: RecommendationItem | null;
+  onClose: () => void;
+}) {
+  const { item, onClose } = props;
+  if (!item) return null;
+
+  return (
+    <div className="sm:hidden">
+      <div
+        className="fixed inset-0 z-(--oboon-z-modal) bg-(--oboon-overlay) backdrop-blur-sm"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <div className="fixed inset-x-0 bottom-0 z-(--oboon-z-modal) flex max-h-[88dvh] flex-col rounded-t-xl border border-b-0 border-(--oboon-border-default) bg-(--oboon-bg-surface) shadow-(--oboon-shadow-card)">
+        {/* 헤더 (고정) */}
+        <div className="flex shrink-0 items-center justify-between px-5 py-4">
+          <p className="line-clamp-1 ob-typo-subtitle text-(--oboon-text-title)">
+            {item.property.name}
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-page)"
+            aria-label="닫기"
+          >
+            <X className="h-4 w-4 text-(--oboon-text-muted)" />
+          </button>
+        </div>
+
+        <div className="shrink-0 border-t border-(--oboon-border-default)" />
+
+        {/* 콘텐츠 (스크롤) */}
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          <RecommendationPreviewContent
+            property={item.property}
+            evalResult={item.evalResult}
+            showFinalBadge
+            showSummary
+          />
+        </div>
+
+        {/* CTA (고정) */}
+        <div className="shrink-0 border-t border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-5 py-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
+          <Button asChild variant="primary" shape="pill" className="w-full">
+            <Link href={ROUTES.offerings.detail(item.property.id)}>
+              현장 상세 보기
+            </Link>
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ResultChip(props: {
   label: string;
   count: number;
-  tone: "GREEN" | "YELLOW" | "RED";
+  tone: "GREEN" | "LIME" | "YELLOW";
 }) {
   const { label, count, tone } = props;
 
   const toneClassName =
     tone === "GREEN"
-      ? "bg-(--oboon-safe)/15 text-(--oboon-safe)"
-      : tone === "YELLOW"
-      ? "bg-(--oboon-warning)/15 text-(--oboon-warning)"
-      : "bg-(--oboon-danger)/15 text-(--oboon-danger)";
+      ? "bg-(--oboon-grade-green-bg) text-(--oboon-grade-green-text)"
+      : tone === "LIME"
+      ? "bg-(--oboon-grade-lime-bg) text-(--oboon-grade-lime-text)"
+      : "bg-(--oboon-grade-yellow-bg) text-(--oboon-grade-yellow-text)";
+
+  if (count === 0) return null;
 
   return (
     <span
@@ -224,6 +285,7 @@ export default function RecommendationsPage() {
     id: null,
     scope: "",
   });
+  const [mobileDetailItem, setMobileDetailItem] = useState<RecommendationItem | null>(null);
 
   const {
     condition,
@@ -232,12 +294,15 @@ export default function RecommendationsPage() {
     selectedId,
     isBootstrapping,
     isEvaluating,
+    isLoggedIn,
     catalogError,
     requestError,
     validationError,
     changeMode,
     updateCondition,
     evaluate,
+    saveCondition,
+    isSavingCondition,
     setSelectedId,
   } = useRecommendations();
 
@@ -363,12 +428,13 @@ export default function RecommendationsPage() {
     () =>
       sortedResults.reduce(
         (acc, item) => {
-          if (item.evalResult.finalGrade === "GREEN") acc.GREEN += 1;
-          else if (item.evalResult.finalGrade === "YELLOW") acc.YELLOW += 1;
-          else acc.RED += 1;
+          const grade = item.evalResult.finalGrade;
+          if (grade === "GREEN") acc.GREEN += 1;
+          else if (grade === "LIME") acc.LIME += 1;
+          else if (grade === "YELLOW" || grade === "ORANGE") acc.YELLOW += 1;
           return acc;
         },
-        { GREEN: 0, YELLOW: 0, RED: 0 },
+        { GREEN: 0, LIME: 0, YELLOW: 0 },
       ),
     [sortedResults],
   );
@@ -469,21 +535,29 @@ export default function RecommendationsPage() {
             <MobileConditionSheet
               condition={condition}
               mode={mode}
+              isLoggedIn={isLoggedIn}
               errorMessage={activeError}
               isLoading={isEvaluating}
+              isSaving={isSavingCondition}
               onChange={updateCondition}
               onEvaluate={handleEvaluate}
+              onSave={saveCondition}
               onModeChange={changeMode}
             />
 
             {showSearchBar ? (
               showResultToolbar ? (
                 <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-                  <div className="flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap">
+                  <div className="flex min-w-0 items-center gap-1 sm:gap-2 overflow-hidden whitespace-nowrap">
                     <ResultChip
                       label="충족"
                       count={gradeCounts.GREEN}
                       tone="GREEN"
+                    />
+                    <ResultChip
+                      label="근접"
+                      count={gradeCounts.LIME}
+                      tone="LIME"
                     />
                     <ResultChip
                       label="검토"
@@ -605,9 +679,12 @@ export default function RecommendationsPage() {
                 <RecommendationConditionPanel
                   condition={condition}
                   mode={mode}
+                  isLoggedIn={isLoggedIn}
                   isLoading={isEvaluating}
+                  isSaving={isSavingCondition}
                   onChange={updateCondition}
                   onEvaluate={() => void handleEvaluate()}
+                  onSave={saveCondition}
                   onModeChange={changeMode}
                 />
               </div>
@@ -695,7 +772,10 @@ export default function RecommendationsPage() {
                             <RecommendationOfferingCard
                               property={item}
                               isSelected={visibleSelectedId === item.property.id}
-                              onClick={() => handleSelectFromCard(item.property.id)}
+                              onClick={() => {
+                                handleSelectFromCard(item.property.id);
+                                setMobileDetailItem(item);
+                              }}
                             />
                           </div>
                           <div className="hidden sm:block">
@@ -750,6 +830,11 @@ export default function RecommendationsPage() {
           )}
         </div>
       </PageContainer>
+
+      <MobileCardDetailSheet
+        item={mobileDetailItem}
+        onClose={() => setMobileDetailItem(null)}
+      />
     </main>
   );
 }

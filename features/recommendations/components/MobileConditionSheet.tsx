@@ -5,7 +5,6 @@ import { useEffect, useMemo, useState } from "react";
 
 import RecommendationConditionPanel from "@/features/recommendations/components/RecommendationConditionPanel";
 import type {
-  OwnedHouseCount,
   RecommendationCondition,
   RecommendationMode,
 } from "@/features/recommendations/hooks/useRecommendations";
@@ -14,43 +13,101 @@ import { formatManwonPreview } from "@/lib/format/currency";
 type MobileConditionSheetProps = {
   condition: RecommendationCondition;
   mode: RecommendationMode;
+  isLoggedIn?: boolean;
   errorMessage?: string | null;
   isLoading?: boolean;
+  isSaving?: boolean;
   onChange: (patch: Partial<RecommendationCondition>) => void;
-  onEvaluate: () => Promise<boolean>;
+  onEvaluate: (override?: RecommendationCondition) => Promise<boolean>;
+  onSave?: () => void | Promise<boolean>;
   onModeChange: (mode: RecommendationMode) => void;
 };
 
-function ownedHouseCountLabel(value: OwnedHouseCount) {
-  if (value === 0) return "무주택";
-  if (value === 1) return "1주택";
-  return "2주택 이상";
-}
-
 function modeLabel(value: RecommendationMode) {
   return value === "input" ? "직접 입력" : "시뮬레이터";
+}
+
+function buildConditionChips(condition: RecommendationCondition): string[] {
+  const chips: string[] = [];
+
+  if (condition.availableCash > 0)
+    chips.push(`현금 ${formatManwonPreview(condition.availableCash)}`);
+  if (condition.monthlyIncome > 0)
+    chips.push(`소득 ${formatManwonPreview(condition.monthlyIncome)}`);
+  if (condition.monthlyExpenses > 0)
+    chips.push(`지출 ${formatManwonPreview(condition.monthlyExpenses)}`);
+  if (condition.ltvInternalScore > 0)
+    chips.push(`신용 ${condition.ltvInternalScore}점`);
+
+  const ownershipMap = { none: "무주택", one: "1주택", two_or_more: "2주택+" };
+  if (condition.houseOwnership)
+    chips.push(ownershipMap[condition.houseOwnership]);
+
+  const purposeMap: Record<string, string> = {
+    residence: "실거주",
+    investment_rent: "투자(임대)",
+    investment_capital: "투자(시세)",
+    long_term: "실거주+투자",
+  };
+  if (condition.purchasePurposeV2)
+    chips.push(purposeMap[condition.purchasePurposeV2] ?? condition.purchasePurposeV2);
+
+  const timingMap: Record<string, string> = {
+    within_3months: "3개월내",
+    within_6months: "6개월내",
+    within_1year: "1년내",
+    over_1year: "1년이상",
+    by_property: "현장따라",
+  };
+  if (condition.purchaseTiming)
+    chips.push(timingMap[condition.purchaseTiming] ?? condition.purchaseTiming);
+
+  const moveinMap: Record<string, string> = {
+    immediate: "즉시입주",
+    within_1year: "입주 1년내",
+    within_2years: "입주 2년내",
+    within_3years: "입주 3년내",
+    anytime: "언제든지",
+  };
+  if (condition.moveinTiming)
+    chips.push(moveinMap[condition.moveinTiming] ?? condition.moveinTiming);
+
+  if (condition.regions.length === 1) chips.push(condition.regions[0]);
+  else if (condition.regions.length > 1)
+    chips.push(`${condition.regions[0]} 외 ${condition.regions.length - 1}개`);
+
+  return chips;
 }
 
 export default function MobileConditionSheet(props: MobileConditionSheetProps) {
   const {
     condition,
     mode,
+    isLoggedIn = true,
     errorMessage = null,
     isLoading = false,
+    isSaving = false,
     onChange,
     onEvaluate,
+    onSave,
     onModeChange,
   } = props;
   const [open, setOpen] = useState(false);
 
-  const summaryLabel = useMemo(
-    () =>
-      [
-        `현금 ${formatManwonPreview(condition.availableCash)}`,
-        `소득 ${formatManwonPreview(condition.monthlyIncome)}`,
-        ownedHouseCountLabel(condition.ownedHouseCount),
-      ].join(" · "),
-    [condition.availableCash, condition.monthlyIncome, condition.ownedHouseCount],
+  const conditionChips = useMemo(
+    () => buildConditionChips(condition),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      condition.availableCash,
+      condition.monthlyIncome,
+      condition.monthlyExpenses,
+      condition.ltvInternalScore,
+      condition.houseOwnership,
+      condition.purchasePurposeV2,
+      condition.purchaseTiming,
+      condition.moveinTiming,
+      condition.regions,
+    ],
   );
 
   useEffect(() => {
@@ -99,7 +156,9 @@ export default function MobileConditionSheet(props: MobileConditionSheetProps) {
             </span>
           </div>
           <p className="mt-1 line-clamp-2 ob-typo-caption text-(--oboon-text-muted)">
-            {summaryLabel}
+            {conditionChips.length > 0
+              ? conditionChips.join(" · ")
+              : "조건을 설정해주세요"}
           </p>
         </div>
         <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-page)">
@@ -130,10 +189,13 @@ export default function MobileConditionSheet(props: MobileConditionSheetProps) {
             <RecommendationConditionPanel
               condition={condition}
               mode={mode}
+              isLoggedIn={isLoggedIn}
               errorMessage={errorMessage}
               isLoading={isLoading}
+              isSaving={isSaving}
               onChange={onChange}
               onEvaluate={handleEvaluate}
+              onSave={onSave}
               onModeChange={onModeChange}
             />
           </div>

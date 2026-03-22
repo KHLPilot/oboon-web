@@ -35,10 +35,14 @@ export default function MiniMap(props: MiniMapProps) {
           id: item.property.id,
           type:
             item.evalResult.finalGrade === "GREEN"
-              ? ("modelhouse" as const)
-              : item.evalResult.finalGrade === "YELLOW"
-                ? ("all" as const)
-                : ("valuation" as const),
+              ? ("grade-green" as const)
+              : item.evalResult.finalGrade === "LIME"
+                ? ("grade-lime" as const)
+                : item.evalResult.finalGrade === "YELLOW"
+                  ? ("grade-yellow" as const)
+                  : item.evalResult.finalGrade === "ORANGE"
+                    ? ("grade-orange" as const)
+                    : ("grade-red" as const),
           label: item.property.name,
           lat: item.property.lat as number,
           lng: item.property.lng as number,

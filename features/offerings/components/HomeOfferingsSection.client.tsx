@@ -8,34 +8,60 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import Input from "@/components/ui/Input";
-import Select from "@/components/ui/Select";
+import Select, { type SelectOption } from "@/components/ui/Select";
 import { ArrowRight, BusFront, GraduationCap, PawPrint, Pickaxe, SlidersHorizontal } from "lucide-react";
+import LtvDsrModal from "@/features/condition-validation/components/LtvDsrModal";
+import type {
+  EmploymentType,
+  FullPurchasePurpose,
+  MonthlyLoanRepayment,
+  MoveinTiming,
+  PurchaseTiming,
+} from "@/features/condition-validation/domain/types";
 
-const CREDIT_OPTIONS = [
-  { label: "양호", value: "good" },
-  { label: "보통", value: "normal" },
-  { label: "불안", value: "unstable" },
-] as const;
+const EMPLOYMENT_TYPE_OPTIONS: Array<{ value: EmploymentType; label: string }> = [
+  { value: "employee", label: "직장인" },
+  { value: "self_employed", label: "자영업" },
+  { value: "freelancer", label: "프리랜서" },
+  { value: "other", label: "기타" },
+];
 
-const PURPOSE_OPTIONS = [
-  { label: "실거주", value: "residence" },
-  { label: "투자", value: "investment" },
-  { label: "둘다", value: "both" },
-] as const;
+const HOUSE_OWNERSHIP_OPTIONS: Array<{
+  value: "none" | "one" | "two_or_more";
+  label: string;
+}> = [
+  { value: "none", label: "무주택" },
+  { value: "one", label: "1주택" },
+  { value: "two_or_more", label: "2주택이상" },
+];
 
-const OWNED_HOUSE_OPTIONS = [
-  { label: "무주택", value: "0" },
-  { label: "1채", value: "1" },
-  { label: "2채 이상", value: "2" },
-] as const;
+const PURPOSE_V2_OPTIONS: Array<{ value: FullPurchasePurpose; label: string }> = [
+  { value: "residence", label: "실거주" },
+  { value: "investment_rent", label: "투자(임대)" },
+  { value: "investment_capital", label: "투자(시세)" },
+  { value: "long_term", label: "실거주+투자" },
+];
+
+const PURCHASE_TIMING_OPTIONS: Array<SelectOption<PurchaseTiming>> = [
+  { value: "within_3months", label: "3개월 이내" },
+  { value: "within_6months", label: "6개월 이내" },
+  { value: "within_1year", label: "1년 이내" },
+  { value: "over_1year", label: "1년 이상" },
+  { value: "by_property", label: "현장에 따라" },
+];
+
+const MOVEIN_TIMING_OPTIONS: Array<SelectOption<MoveinTiming>> = [
+  { value: "immediate", label: "즉시입주" },
+  { value: "within_1year", label: "1년 이내" },
+  { value: "within_2years", label: "2년 이내" },
+  { value: "within_3years", label: "3년 이내" },
+  { value: "anytime", label: "언제든지" },
+];
 import { UXCopy } from "@/shared/uxCopy";
 import { Copy } from "@/shared/copy";
 
 import type { ConditionCategoryGrades } from "@/features/condition-validation/domain/types";
-import {
-  parseCustomerInput,
-  type ParsedCustomerInput,
-} from "@/features/condition-validation/domain/validation";
+import type { ParsedCustomerInput } from "@/features/condition-validation/domain/validation";
 import OfferingCard from "@/features/offerings/components/OfferingCard";
 import { OfferingCardSkeleton } from "@/features/offerings/components/OfferingCardSkeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -71,7 +97,17 @@ type ConditionValidationProfilePresetRow = {
   cv_owned_house_count: number | null;
   cv_credit_grade: "good" | "normal" | "unstable" | null;
   cv_purchase_purpose: "residence" | "investment" | "both" | null;
+  // New v2 fields
+  cv_employment_type: EmploymentType | null;
+  cv_monthly_expenses_manwon: number | null;
+  cv_house_ownership: "none" | "one" | "two_or_more" | null;
+  cv_purchase_purpose_v2: FullPurchasePurpose | null;
+  cv_purchase_timing: PurchaseTiming | null;
+  cv_movein_timing: MoveinTiming | null;
+  cv_ltv_internal_score: number | null;
+  cv_existing_monthly_repayment: MonthlyLoanRepayment | null;
 };
+
 
 function formatNumericInput(value: string): string {
   const digitsOnly = value.replace(/[^\d]/g, "");
@@ -159,11 +195,15 @@ export default function HomeOfferingsSection() {
   const [conditionModalOpen, setConditionModalOpen] = useState(false);
   const [availableCash, setAvailableCash] = useState("");
   const [monthlyIncome, setMonthlyIncome] = useState("");
-  const [ownedHouseCount, setOwnedHouseCount] = useState("0");
-  const [creditGrade, setCreditGrade] = useState<"good" | "normal" | "unstable">("good");
-  const [purchasePurpose, setPurchasePurpose] = useState<
-    "residence" | "investment" | "both"
-  >("residence");
+  const [monthlyExpenses, setMonthlyExpenses] = useState("");
+  const [employmentType, setEmploymentType] = useState<EmploymentType | null>(null);
+  const [houseOwnership, setHouseOwnership] = useState<"none" | "one" | "two_or_more" | null>(null);
+  const [purchasePurposeV2, setPurchasePurposeV2] = useState<FullPurchasePurpose | null>(null);
+  const [purchaseTiming, setPurchaseTiming] = useState<PurchaseTiming | null>(null);
+  const [moveinTiming, setMoveinTiming] = useState<MoveinTiming | null>(null);
+  const [ltvInternalScore, setLtvInternalScore] = useState(0);
+  const [existingMonthlyRepayment, setExistingMonthlyRepayment] = useState<MonthlyLoanRepayment>("none");
+  const [ltvModalOpen, setLtvModalOpen] = useState(false);
   const [conditionError, setConditionError] = useState<string | null>(null);
   const [conditionNotice, setConditionNotice] = useState<string | null>(null);
   const [conditionApplyLoading, setConditionApplyLoading] = useState(false);
@@ -185,6 +225,10 @@ export default function HomeOfferingsSection() {
     const parsed = parseNullableNumericInput(monthlyIncome);
     return parsed === null ? "" : formatManwonPreview(parsed);
   }, [monthlyIncome]);
+  const monthlyExpensesPreview = useMemo(() => {
+    const parsed = parseNullableNumericInput(monthlyExpenses);
+    return parsed === null ? "" : formatManwonPreview(parsed);
+  }, [monthlyExpenses]);
 
   useEffect(() => {
     let mounted = true;
@@ -364,36 +408,41 @@ export default function HomeOfferingsSection() {
   }, [effectiveSelectedRegion]);
 
   const parseCustomerInputFromState = useCallback((): ParsedCustomerInput | null => {
-    const parsed = parseCustomerInput(
-      {
-        availableCash,
-        monthlyIncome,
-        ownedHouseCount,
-        creditGrade,
-        purchasePurpose,
-      },
-      {
-        availableCash: {
-          invalid: "가용 현금은 만원 단위 정수로 입력해주세요.",
-          nonInteger: "가용 현금은 만원 단위 정수로 입력해주세요.",
-        },
-        monthlyIncome: {
-          invalid: "월 소득은 만원 단위 정수로 입력해주세요.",
-          nonInteger: "월 소득은 만원 단위 정수로 입력해주세요.",
-        },
-        ownedHouseCount: {
-          invalid: "보유 주택 수는 0 이상의 정수로 입력해주세요.",
-        },
-      },
-    );
-
-    if (!parsed.ok) {
-      setConditionError(parsed.error);
+    const parsedCash = parseNullableNumericInput(availableCash);
+    if (parsedCash === null) {
+      setConditionError("가용 현금은 만원 단위 정수로 입력해주세요.");
+      return null;
+    }
+    const parsedIncome = parseNullableNumericInput(monthlyIncome);
+    if (parsedIncome === null) {
+      setConditionError("월 소득은 만원 단위 정수로 입력해주세요.");
       return null;
     }
 
-    return parsed.data;
-  }, [availableCash, creditGrade, monthlyIncome, ownedHouseCount, purchasePurpose]);
+    // Derive creditGrade from ltvInternalScore
+    const derivedCreditGrade: "good" | "normal" | "unstable" =
+      ltvInternalScore >= 70 ? "good" : ltvInternalScore >= 40 ? "normal" : "unstable";
+
+    // Map houseOwnership to count
+    const derivedOwnedHouseCount =
+      houseOwnership === "one" ? 1 : houseOwnership === "two_or_more" ? 2 : 0;
+
+    // Map purchasePurposeV2 to old format
+    const derivedPurchasePurpose: "residence" | "investment" | "both" =
+      purchasePurposeV2 === "long_term"
+        ? "both"
+        : purchasePurposeV2 === "investment_rent" || purchasePurposeV2 === "investment_capital"
+          ? "investment"
+          : "residence";
+
+    return {
+      available_cash: Math.max(0, Math.round(parsedCash)),
+      monthly_income: Math.max(0, Math.round(parsedIncome)),
+      owned_house_count: derivedOwnedHouseCount,
+      credit_grade: derivedCreditGrade,
+      purchase_purpose: derivedPurchasePurpose,
+    };
+  }, [availableCash, houseOwnership, ltvInternalScore, monthlyIncome, purchasePurposeV2]);
 
   const applyRecommendationByCustomer = useCallback(
     async (customer: ParsedCustomerInput, options?: { closeModal?: boolean }) => {
@@ -415,15 +464,22 @@ export default function HomeOfferingsSection() {
           }),
         });
 
+        type RawCategory = { grade?: string; score?: number } | null | undefined;
+        type RawRecommendation = {
+          property_id?: number | string;
+          total_score?: number;
+          categories?: {
+            cash?: RawCategory;
+            income?: RawCategory;
+            ltv_dsr?: RawCategory;
+            [key: string]: RawCategory | undefined;
+          } | null;
+        };
         const payload = (await response.json().catch(() => null)) as
         | {
             ok?: boolean;
             property_ids?: Array<number | string>;
-            recommendations?: Array<{
-              property_id?: number | string;
-              categories?: ConditionCategoryGrades;
-              total_score?: number;
-            }>;
+            recommendations?: RawRecommendation[];
             error?: { message?: string };
           }
         | null;
@@ -440,28 +496,27 @@ export default function HomeOfferingsSection() {
         for (const item of payload.recommendations ?? []) {
           const id = Number(item.property_id);
           if (!Number.isFinite(id) || !item.categories) continue;
+          const cats = item.categories;
+          const toGrade = (g?: string): "GREEN" | "YELLOW" | "RED" =>
+            g === "GREEN" ? "GREEN" : g === "YELLOW" ? "YELLOW" : "RED";
           nextCategories.set(id, {
-            ...item.categories,
+            cash: { grade: toGrade(cats.cash?.grade), score: cats.cash?.score },
+            burden: { grade: toGrade(cats.income?.grade), score: cats.income?.score },
+            risk: { grade: toGrade(cats.ltv_dsr?.grade), score: cats.ltv_dsr?.score },
             totalScore: item.total_score,
           });
         }
         setRecommendedPropertyIds(ids);
         setRecommendedCategoriesById(nextCategories);
         setShowConditionSetupCard(false);
-        const creditLabel =
-          customer.credit_grade === "good"
-            ? "양호"
-            : customer.credit_grade === "normal"
-              ? "보통"
-              : "불안";
-        const purposeLabel =
-          customer.purchase_purpose === "residence"
-            ? "실거주"
-            : customer.purchase_purpose === "investment"
-              ? "투자"
-              : "둘다";
+        const houseLabel =
+          customer.owned_house_count === 0
+            ? "무주택"
+            : customer.owned_house_count === 1
+              ? "1주택"
+              : "2주택이상";
         setAppliedCustomerSummary(
-          `가용 현금 ${Number(customer.available_cash).toLocaleString("ko-KR")}만원 · 월 소득 ${Number(customer.monthly_income).toLocaleString("ko-KR")}만원 · 보유 주택 ${customer.owned_house_count}채 · 신용 ${creditLabel} · 목적 ${purposeLabel}`,
+          `현금 ${Number(customer.available_cash).toLocaleString("ko-KR")}만원 · 소득 ${Number(customer.monthly_income).toLocaleString("ko-KR")}만원 · ${houseLabel}`,
         );
         if (options?.closeModal !== false) {
           setConditionModalOpen(false);
@@ -509,6 +564,7 @@ export default function HomeOfferingsSection() {
     if (!customer || !homeUserId) return;
 
     setConditionSaveLoading(true);
+    const parsedExpenses = parseNullableNumericInput(monthlyExpenses);
     try {
       const { error } = await supabase
         .from("profiles")
@@ -518,6 +574,15 @@ export default function HomeOfferingsSection() {
           cv_owned_house_count: customer.owned_house_count,
           cv_credit_grade: customer.credit_grade,
           cv_purchase_purpose: customer.purchase_purpose,
+          // New v2 fields
+          cv_employment_type: employmentType,
+          cv_monthly_expenses_manwon: parsedExpenses !== null ? Math.max(0, Math.round(parsedExpenses)) : null,
+          cv_house_ownership: houseOwnership,
+          cv_purchase_purpose_v2: purchasePurposeV2,
+          cv_purchase_timing: purchaseTiming,
+          cv_movein_timing: moveinTiming,
+          cv_ltv_internal_score: ltvInternalScore,
+          cv_existing_monthly_repayment: existingMonthlyRepayment,
         })
         .eq("id", homeUserId);
 
@@ -533,7 +598,7 @@ export default function HomeOfferingsSection() {
     } finally {
       setConditionSaveLoading(false);
     }
-  }, [homeUserId, parseCustomerInputFromState, supabase]);
+  }, [employmentType, existingMonthlyRepayment, homeUserId, houseOwnership, ltvInternalScore, monthlyExpenses, moveinTiming, parseCustomerInputFromState, purchasePurposeV2, purchaseTiming, supabase]);
 
   useEffect(() => {
     let mounted = true;
@@ -590,9 +655,6 @@ export default function HomeOfferingsSection() {
       if (draftCustomer) {
         setAvailableCash(draftCustomer.available_cash.toLocaleString("ko-KR"));
         setMonthlyIncome(draftCustomer.monthly_income.toLocaleString("ko-KR"));
-        setOwnedHouseCount(String(draftCustomer.owned_house_count));
-        setCreditGrade(draftCustomer.credit_grade);
-        setPurchasePurpose(draftCustomer.purchase_purpose);
         setShowConditionSetupCard(false);
         await applyRecommendationByCustomer(draftCustomer, { closeModal: false });
         try {
@@ -615,7 +677,7 @@ export default function HomeOfferingsSection() {
         supabase
           .from("profiles")
           .select(
-            "cv_available_cash_manwon, cv_monthly_income_manwon, cv_owned_house_count, cv_credit_grade, cv_purchase_purpose",
+            "cv_available_cash_manwon, cv_monthly_income_manwon, cv_owned_house_count, cv_credit_grade, cv_purchase_purpose, cv_employment_type, cv_monthly_expenses_manwon, cv_house_ownership, cv_purchase_purpose_v2, cv_purchase_timing, cv_movein_timing, cv_ltv_internal_score, cv_existing_monthly_repayment",
           )
           .eq("id", user.id)
           .maybeSingle(),
@@ -635,9 +697,6 @@ export default function HomeOfferingsSection() {
         if (latestCustomer) {
           setAvailableCash(latestCustomer.available_cash.toLocaleString("ko-KR"));
           setMonthlyIncome(latestCustomer.monthly_income.toLocaleString("ko-KR"));
-          setOwnedHouseCount(String(latestCustomer.owned_house_count));
-          setCreditGrade(latestCustomer.credit_grade);
-          setPurchasePurpose(latestCustomer.purchase_purpose);
           setShowConditionSetupCard(false);
           await applyRecommendationByCustomer(latestCustomer, { closeModal: false });
           return;
@@ -657,9 +716,21 @@ export default function HomeOfferingsSection() {
 
       setAvailableCash(presetCustomer.available_cash.toLocaleString("ko-KR"));
       setMonthlyIncome(presetCustomer.monthly_income.toLocaleString("ko-KR"));
-      setOwnedHouseCount(String(presetCustomer.owned_house_count));
-      setCreditGrade(presetCustomer.credit_grade);
-      setPurchasePurpose(presetCustomer.purchase_purpose);
+      const profileData = profileResult.data as ConditionValidationProfilePresetRow | null;
+      if (profileData) {
+        if (profileData.cv_employment_type) setEmploymentType(profileData.cv_employment_type);
+        if (profileData.cv_monthly_expenses_manwon !== null && profileData.cv_monthly_expenses_manwon !== undefined) {
+          setMonthlyExpenses(profileData.cv_monthly_expenses_manwon.toLocaleString("ko-KR"));
+        }
+        if (profileData.cv_house_ownership) setHouseOwnership(profileData.cv_house_ownership);
+        if (profileData.cv_purchase_purpose_v2) setPurchasePurposeV2(profileData.cv_purchase_purpose_v2);
+        if (profileData.cv_purchase_timing) setPurchaseTiming(profileData.cv_purchase_timing);
+        if (profileData.cv_movein_timing) setMoveinTiming(profileData.cv_movein_timing);
+        if (profileData.cv_ltv_internal_score !== null && profileData.cv_ltv_internal_score !== undefined) {
+          setLtvInternalScore(profileData.cv_ltv_internal_score);
+        }
+        if (profileData.cv_existing_monthly_repayment) setExistingMonthlyRepayment(profileData.cv_existing_monthly_repayment);
+      }
       setShowConditionSetupCard(false);
       await applyRecommendationByCustomer(presetCustomer, { closeModal: false });
     })();
@@ -894,31 +965,43 @@ export default function HomeOfferingsSection() {
         <div>
           <h3 className="ob-typo-h3 text-(--oboon-text-title)">맞춤 조건 설정</h3>
           <p className="mt-1 ob-typo-subtitle text-(--oboon-text-muted)">
-            기존 조건 검증과 같은 항목을 입력하면 맞춤 현장을 다시 계산해요.
+            조건을 입력하면 맞춤 현장을 계산해요.
           </p>
 
-          <div className="mt-4 grid grid-cols-1 gap-3">
-            {/* 가용 현금 + 월 소득 */}
-            <div className="grid grid-cols-2 gap-2.5">
-              <div>
-                <label className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
-                  가용 현금 (만원)
-                </label>
-                <div className="relative">
-                  <Input
-                    value={availableCash}
-                    onChange={(e) => setAvailableCash(formatNumericInput(e.target.value))}
-                    inputMode="numeric"
-                    placeholder="예: 8,000"
-                    className={availableCashPreview ? "pr-24" : undefined}
-                  />
-                  {availableCashPreview ? (
-                    <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center ob-typo-caption text-(--oboon-text-muted)">
-                      {availableCashPreview}
-                    </div>
-                  ) : null}
-                </div>
+          <div className="mt-4 grid grid-cols-1 gap-4">
+            {/* 직업 */}
+            <div>
+              <div className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">직업</div>
+              <Select<EmploymentType>
+                value={(employmentType ?? "") as EmploymentType}
+                onChange={setEmploymentType}
+                options={EMPLOYMENT_TYPE_OPTIONS}
+              />
+            </div>
+
+            {/* 가용 현금 */}
+            <div>
+              <label className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
+                가용 현금 (만원)
+              </label>
+              <div className="relative">
+                <Input
+                  value={availableCash}
+                  onChange={(e) => setAvailableCash(formatNumericInput(e.target.value))}
+                  inputMode="numeric"
+                  placeholder="예: 8,000"
+                  className={availableCashPreview ? "pr-24" : undefined}
+                />
+                {availableCashPreview ? (
+                  <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center ob-typo-caption text-(--oboon-text-muted)">
+                    {availableCashPreview}
+                  </div>
+                ) : null}
               </div>
+            </div>
+
+            {/* 월 소득 + 월 고정지출 */}
+            <div className="grid grid-cols-2 gap-2.5">
               <div>
                 <label className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
                   월 소득 (만원)
@@ -938,40 +1021,89 @@ export default function HomeOfferingsSection() {
                   ) : null}
                 </div>
               </div>
+              <div>
+                <label className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
+                  월 고정지출 (만원)
+                </label>
+                <div className="relative">
+                  <Input
+                    value={monthlyExpenses}
+                    onChange={(e) => setMonthlyExpenses(formatNumericInput(e.target.value))}
+                    inputMode="numeric"
+                    placeholder="예: 150"
+                    className={monthlyExpensesPreview ? "pr-24" : undefined}
+                  />
+                  {monthlyExpensesPreview ? (
+                    <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center ob-typo-caption text-(--oboon-text-muted)">
+                      {monthlyExpensesPreview}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
             </div>
 
-            {/* 보유 주택 수 */}
+            {/* 신용 상태 (LTV+DSR) */}
             <div>
-              <label className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
-                보유 주택 수
-              </label>
-              <Select
-                value={ownedHouseCount}
-                onChange={setOwnedHouseCount}
-                options={OWNED_HOUSE_OPTIONS}
-              />
+              <div className="mb-1 ob-typo-caption text-(--oboon-text-muted)">신용 상태 (LTV+DSR)</div>
+              <button
+                type="button"
+                onClick={() => setLtvModalOpen(true)}
+                className="flex w-full items-center justify-between rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-2.5 hover:border-(--oboon-primary) transition-colors"
+              >
+                <span className="ob-typo-caption text-(--oboon-text-muted)">대출 가능성 평가</span>
+                <div className="flex items-center gap-2">
+                  {ltvInternalScore > 0 ? (
+                    <span className="ob-typo-body font-semibold text-(--oboon-primary)">
+                      {ltvInternalScore}점
+                    </span>
+                  ) : (
+                    <span className="ob-typo-caption text-(--oboon-text-muted)">미평가</span>
+                  )}
+                  <span className="ob-typo-caption text-(--oboon-text-muted)">수정 →</span>
+                </div>
+              </button>
             </div>
 
-            {/* 신용 + 목적 */}
+            {/* 보유 주택 / 분양 목적 */}
+            <div className="grid grid-cols-2 gap-2.5">
+              <div>
+                <div className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">보유 주택</div>
+                <Select<"none" | "one" | "two_or_more">
+                  value={(houseOwnership ?? "") as "none" | "one" | "two_or_more"}
+                  onChange={setHouseOwnership}
+                  options={HOUSE_OWNERSHIP_OPTIONS}
+                />
+              </div>
+              <div>
+                <div className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">분양 목적</div>
+                <Select<FullPurchasePurpose>
+                  value={(purchasePurposeV2 ?? "") as FullPurchasePurpose}
+                  onChange={setPurchasePurposeV2}
+                  options={PURPOSE_V2_OPTIONS}
+                />
+              </div>
+            </div>
+
+            {/* 분양 시점 + 희망 입주 */}
             <div className="grid grid-cols-2 gap-2.5">
               <div>
                 <label className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
-                  신용
+                  분양 시점
                 </label>
-                <Select
-                  value={creditGrade}
-                  onChange={setCreditGrade}
-                  options={CREDIT_OPTIONS}
+                <Select<PurchaseTiming>
+                  value={(purchaseTiming ?? "") as PurchaseTiming}
+                  onChange={setPurchaseTiming}
+                  options={PURCHASE_TIMING_OPTIONS}
                 />
               </div>
               <div>
                 <label className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
-                  목적
+                  희망 입주
                 </label>
-                <Select
-                  value={purchasePurpose}
-                  onChange={setPurchasePurpose}
-                  options={PURPOSE_OPTIONS}
+                <Select<MoveinTiming>
+                  value={(moveinTiming ?? "") as MoveinTiming}
+                  onChange={setMoveinTiming}
+                  options={MOVEIN_TIMING_OPTIONS}
                 />
               </div>
             </div>
@@ -995,9 +1127,14 @@ export default function HomeOfferingsSection() {
                 onClick={() => {
                   setAvailableCash("");
                   setMonthlyIncome("");
-                  setOwnedHouseCount("0");
-                  setCreditGrade("good");
-                  setPurchasePurpose("residence");
+                  setMonthlyExpenses("");
+                  setEmploymentType(null);
+                  setHouseOwnership(null);
+                  setPurchasePurposeV2(null);
+                  setPurchaseTiming(null);
+                  setMoveinTiming(null);
+                  setLtvInternalScore(0);
+                  setExistingMonthlyRepayment("none");
                   setConditionError(null);
                   setConditionNotice(null);
                   setRecommendedPropertyIds(null);
@@ -1033,6 +1170,12 @@ export default function HomeOfferingsSection() {
               size="md"
               variant="primary"
               loading={conditionApplyLoading}
+              disabled={
+                parseNullableNumericInput(availableCash) === null ||
+                parseNullableNumericInput(monthlyIncome) === null ||
+                houseOwnership === null ||
+                purchasePurposeV2 === null
+              }
               onClick={() => void handleApplyCondition()}
               className="w-full"
             >
@@ -1041,6 +1184,17 @@ export default function HomeOfferingsSection() {
           </div>
         </div>
       </Modal>
+
+      <LtvDsrModal
+        open={ltvModalOpen}
+        onClose={() => setLtvModalOpen(false)}
+        onConfirm={({ ltvInternalScore: score, existingMonthlyRepayment: repayment }) => {
+          setLtvInternalScore(score);
+          setExistingMonthlyRepayment(repayment);
+        }}
+        initialEmploymentType={employmentType ?? "employee"}
+        initialHouseOwnership={houseOwnership ?? "none"}
+      />
     </>
   );
 }

@@ -66,8 +66,11 @@ function getErrorMessage(error: unknown, fallback: string) {
   return toKoreanErrorMessage(error, fallback);
 }
 
-type ValidationCreditGrade = "good" | "normal" | "unstable";
-type ValidationPurchasePurpose = "residence" | "investment" | "both";
+type EmploymentType = "employee" | "self_employed" | "freelancer" | "other";
+type HouseOwnership = "none" | "one" | "two_or_more";
+type PurchasePurposeV2 = "residence" | "investment_rent" | "investment_capital" | "long_term";
+type PurchaseTiming = "within_3months" | "within_6months" | "within_1year" | "over_1year" | "by_property";
+type MoveinTiming = "immediate" | "within_1year" | "within_2years" | "within_3years" | "anytime";
 
 function parseRequiredNonNegativeInteger(value: string): number | null {
   const normalized = value.replaceAll(",", "").trim();
@@ -214,15 +217,16 @@ export default function ProfilePage({
   const [personalizationSaving, setPersonalizationSaving] = useState(false);
   const [availableCashManwon, setAvailableCashManwon] = useState("");
   const [monthlyIncomeManwon, setMonthlyIncomeManwon] = useState("");
-  const [ownedHouseCount, setOwnedHouseCount] = useState("0");
-  const [personalCreditGrade, setPersonalCreditGrade] =
-    useState<ValidationCreditGrade>("good");
-  const [personalPurchasePurpose, setPersonalPurchasePurpose] =
-    useState<ValidationPurchasePurpose>("residence");
+  const [monthlyExpensesManwon, setMonthlyExpensesManwon] = useState("");
+  const [employmentType, setEmploymentType] = useState<EmploymentType | null>(null);
+  const [houseOwnership, setHouseOwnership] = useState<HouseOwnership | null>(null);
+  const [purchasePurposeV2, setPurchasePurposeV2] = useState<PurchasePurposeV2 | null>(null);
+  const [purchaseTiming, setPurchaseTiming] = useState<PurchaseTiming | null>(null);
+  const [moveinTiming, setMoveinTiming] = useState<MoveinTiming | null>(null);
+  const [ltvInternalScore, setLtvInternalScore] = useState(0);
   const [personalizationErrors, setPersonalizationErrors] = useState<{
     availableCashManwon?: string;
     monthlyIncomeManwon?: string;
-    ownedHouseCount?: string;
   }>({});
   const [registeredPropertyRows, setRegisteredPropertyRows] = useState<
     PropertyListRow[]
@@ -288,7 +292,7 @@ export default function ProfilePage({
       const { data: loadedProfile, error: loadProfileError } = await supabase
         .from("profiles")
         .select(
-          `${baseProfileSelect}, cv_available_cash_manwon, cv_monthly_income_manwon, cv_owned_house_count, cv_credit_grade, cv_purchase_purpose`,
+          `${baseProfileSelect}, cv_available_cash_manwon, cv_monthly_income_manwon, cv_employment_type, cv_monthly_expenses_manwon, cv_house_ownership, cv_purchase_purpose_v2, cv_purchase_timing, cv_movein_timing, cv_ltv_internal_score, cv_existing_monthly_repayment`,
         )
         .eq("id", user.id)
         .single();
@@ -325,8 +329,9 @@ export default function ProfilePage({
         const loadedMonthlyIncome = parseOptionalInteger(
           profile.cv_monthly_income_manwon,
         );
-        const loadedOwnedHouseCount =
-          parseOptionalInteger(profile.cv_owned_house_count) ?? 0;
+        const loadedMonthlyExpenses = parseOptionalInteger(
+          profile.cv_monthly_expenses_manwon,
+        );
         setAvailableCashManwon(
           loadedAvailableCash !== null && loadedAvailableCash >= 0
             ? loadedAvailableCash.toLocaleString("ko-KR")
@@ -337,22 +342,43 @@ export default function ProfilePage({
             ? loadedMonthlyIncome.toLocaleString("ko-KR")
             : "",
         );
-        setOwnedHouseCount(
-          loadedOwnedHouseCount >= 0
-            ? String(loadedOwnedHouseCount)
-            : "0",
+        setMonthlyExpensesManwon(
+          loadedMonthlyExpenses !== null && loadedMonthlyExpenses >= 0
+            ? loadedMonthlyExpenses.toLocaleString("ko-KR")
+            : "",
         );
-        setPersonalCreditGrade(
-          profile.cv_credit_grade === "normal" || profile.cv_credit_grade === "unstable"
-            ? profile.cv_credit_grade
-            : "good",
+        const validEmploymentTypes: EmploymentType[] = ["employee", "self_employed", "freelancer", "other"];
+        setEmploymentType(
+          validEmploymentTypes.includes(profile.cv_employment_type as EmploymentType)
+            ? (profile.cv_employment_type as EmploymentType)
+            : null,
         );
-        setPersonalPurchasePurpose(
-          profile.cv_purchase_purpose === "investment" ||
-            profile.cv_purchase_purpose === "both"
-            ? profile.cv_purchase_purpose
-            : "residence",
+        const validHouseOwnerships: HouseOwnership[] = ["none", "one", "two_or_more"];
+        setHouseOwnership(
+          validHouseOwnerships.includes(profile.cv_house_ownership as HouseOwnership)
+            ? (profile.cv_house_ownership as HouseOwnership)
+            : null,
         );
+        const validPurchasePurposesV2: PurchasePurposeV2[] = ["residence", "investment_rent", "investment_capital", "long_term"];
+        setPurchasePurposeV2(
+          validPurchasePurposesV2.includes(profile.cv_purchase_purpose_v2 as PurchasePurposeV2)
+            ? (profile.cv_purchase_purpose_v2 as PurchasePurposeV2)
+            : null,
+        );
+        const validPurchaseTimings: PurchaseTiming[] = ["within_3months", "within_6months", "within_1year", "over_1year", "by_property"];
+        setPurchaseTiming(
+          validPurchaseTimings.includes(profile.cv_purchase_timing as PurchaseTiming)
+            ? (profile.cv_purchase_timing as PurchaseTiming)
+            : null,
+        );
+        const validMoveinTimings: MoveinTiming[] = ["immediate", "within_1year", "within_2years", "within_3years", "anytime"];
+        setMoveinTiming(
+          validMoveinTimings.includes(profile.cv_movein_timing as MoveinTiming)
+            ? (profile.cv_movein_timing as MoveinTiming)
+            : null,
+        );
+        const loadedLtvScore = parseOptionalInteger(profile.cv_ltv_internal_score);
+        setLtvInternalScore(loadedLtvScore !== null && loadedLtvScore > 0 ? loadedLtvScore : 0);
         if ((profile.role as Role) === "agent") {
           await fetchGalleryImages(user.id, profile.role as Role);
         } else {
@@ -501,26 +527,19 @@ export default function ProfilePage({
     }
   };
 
-  const handleOwnedHouseCountChange = (value: string) => {
-    setOwnedHouseCount(value.replace(/[^\d]/g, ""));
-    if (personalizationErrors.ownedHouseCount) {
-      setPersonalizationErrors((prev) => ({
-        ...prev,
-        ownedHouseCount: undefined,
-      }));
-    }
+  const handleMonthlyExpensesManwonChange = (value: string) => {
+    setMonthlyExpensesManwon(value.replace(/[^\d,]/g, ""));
   };
 
   const savePersonalization = async () => {
     const nextErrors: {
       availableCashManwon?: string;
       monthlyIncomeManwon?: string;
-      ownedHouseCount?: string;
     } = {};
 
     const parsedAvailableCash = parseRequiredNonNegativeInteger(availableCashManwon);
     const parsedMonthlyIncome = parseRequiredNonNegativeInteger(monthlyIncomeManwon);
-    const parsedOwnedHouseCount = parseNonNegativeInteger(ownedHouseCount ?? "0");
+    const parsedMonthlyExpenses = parseNonNegativeInteger(monthlyExpensesManwon);
 
     if (parsedAvailableCash === null) {
       nextErrors.availableCashManwon = "가용 현금은 만원 단위 정수로 입력해주세요.";
@@ -528,20 +547,13 @@ export default function ProfilePage({
     if (parsedMonthlyIncome === null) {
       nextErrors.monthlyIncomeManwon = "월 소득은 만원 단위 정수로 입력해주세요.";
     }
-    if (parsedOwnedHouseCount === null) {
-      nextErrors.ownedHouseCount = "보유 주택 수는 0 이상의 정수로 입력해주세요.";
-    }
 
     if (Object.keys(nextErrors).length > 0) {
       setPersonalizationErrors(nextErrors);
       showAlert("맞춤 정보 입력값을 확인해주세요.");
       return;
     }
-    if (
-      parsedAvailableCash === null ||
-      parsedMonthlyIncome === null ||
-      parsedOwnedHouseCount === null
-    ) {
+    if (parsedAvailableCash === null || parsedMonthlyIncome === null) {
       return;
     }
 
@@ -552,9 +564,13 @@ export default function ProfilePage({
         .update({
           cv_available_cash_manwon: parsedAvailableCash,
           cv_monthly_income_manwon: parsedMonthlyIncome,
-          cv_owned_house_count: parsedOwnedHouseCount,
-          cv_credit_grade: personalCreditGrade,
-          cv_purchase_purpose: personalPurchasePurpose,
+          cv_monthly_expenses_manwon: parsedMonthlyExpenses,
+          cv_employment_type: employmentType,
+          cv_house_ownership: houseOwnership,
+          cv_purchase_purpose_v2: purchasePurposeV2,
+          cv_purchase_timing: purchaseTiming,
+          cv_movein_timing: moveinTiming,
+          cv_ltv_internal_score: ltvInternalScore > 0 ? ltvInternalScore : null,
         })
         .eq("id", userId);
 
@@ -565,7 +581,9 @@ export default function ProfilePage({
 
       setAvailableCashManwon(parsedAvailableCash.toLocaleString("ko-KR"));
       setMonthlyIncomeManwon(parsedMonthlyIncome.toLocaleString("ko-KR"));
-      setOwnedHouseCount(String(parsedOwnedHouseCount));
+      setMonthlyExpensesManwon(
+        parsedMonthlyExpenses !== null ? parsedMonthlyExpenses.toLocaleString("ko-KR") : "",
+      );
       setPersonalizationEditing(false);
       setPersonalizationErrors({});
       showAlert("맞춤 정보가 저장되었습니다.");
@@ -1324,19 +1342,26 @@ export default function ProfilePage({
                 <PersonalizationSection
                   availableCashManwon={availableCashManwon}
                   monthlyIncomeManwon={monthlyIncomeManwon}
-                  ownedHouseCount={ownedHouseCount}
+                  monthlyExpensesManwon={monthlyExpensesManwon}
+                  employmentType={employmentType}
+                  houseOwnership={houseOwnership}
+                  purchasePurposeV2={purchasePurposeV2}
+                  purchaseTiming={purchaseTiming}
+                  moveinTiming={moveinTiming}
+                  ltvInternalScore={ltvInternalScore}
                   personalizationEditing={personalizationEditing}
                   personalizationSaving={personalizationSaving}
-                  personalCreditGrade={personalCreditGrade}
-                  personalPurchasePurpose={personalPurchasePurpose}
                   personalizationErrors={personalizationErrors}
                   marketingConsent={marketingConsent}
                   marketingConsentLoading={marketingConsentLoading}
                   onAvailableCashChange={handleAvailableCashManwonChange}
                   onMonthlyIncomeChange={handleMonthlyIncomeManwonChange}
-                  onOwnedHouseCountChange={handleOwnedHouseCountChange}
-                  onCreditGradeChange={setPersonalCreditGrade}
-                  onPurchasePurposeChange={setPersonalPurchasePurpose}
+                  onMonthlyExpensesChange={handleMonthlyExpensesManwonChange}
+                  onEmploymentTypeChange={setEmploymentType}
+                  onHouseOwnershipChange={setHouseOwnership}
+                  onPurchasePurposeV2Change={setPurchasePurposeV2}
+                  onPurchaseTimingChange={setPurchaseTiming}
+                  onMoveinTimingChange={setMoveinTiming}
                   onEditStart={() => setPersonalizationEditing(true)}
                   onSave={savePersonalization}
                   onCancel={() => {

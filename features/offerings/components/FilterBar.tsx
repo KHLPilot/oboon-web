@@ -156,7 +156,7 @@ function FilterDropdown<T extends string>({
           <button
             type="button"
             className={cn(
-              "flex h-11 w-full items-center justify-between rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-page) px-4 text-left",
+              "flex h-11 w-full items-center justify-between rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-4 text-left",
               "ob-typo-body text-(--oboon-text-title)"
             )}
             aria-label={`${label} 선택`}
@@ -205,7 +205,7 @@ function SortDropdown(props: {
         <button
           type="button"
           className={cn(
-            "flex h-9 w-[6.75rem] items-center justify-between gap-1.5 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-page) px-3 text-left",
+            "flex h-9 w-[6.75rem] items-center justify-between gap-1.5 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 text-left",
             "text-[13px] leading-none font-medium text-(--oboon-text-title) sm:h-10 sm:w-auto sm:min-w-[9rem] sm:gap-2 sm:px-4 sm:text-sm sm:leading-normal",
           )}
           aria-label="정렬 선택"
@@ -498,7 +498,7 @@ function FilterBarBody({
 
       <div className="mt-5 space-y-2">
         <div className="ob-typo-subtitle text-(--oboon-text-title)">예산</div>
-        <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-page) p-4">
+        <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-4">
           {/* 헤더: 범위 요약 + 전체 버튼 */}
           <div className="mb-4 flex items-center justify-between gap-3">
             <div className="ob-typo-subtitle text-(--oboon-text-title)">
@@ -657,7 +657,7 @@ function FilterBarBody({
                 {mobileSummaryLabel}
               </p>
             </div>
-            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-page)">
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-surface)">
               <SlidersHorizontal className="h-4 w-4 text-(--oboon-text-muted)" />
             </span>
           </button>
@@ -769,7 +769,7 @@ function FilterBarBody({
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-page)"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-surface)"
                 aria-label="필터 닫기"
               >
                 <X className="h-4 w-4 text-(--oboon-text-muted)" />

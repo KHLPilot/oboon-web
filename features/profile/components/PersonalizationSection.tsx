@@ -7,43 +7,65 @@ import Label from "@/components/ui/Label";
 import Select from "@/components/ui/Select";
 import { oboonFieldBaseClass } from "@/lib/ui/formFieldStyles";
 
-const CREDIT_OPTIONS = [
-  { label: "양호", value: "good" },
-  { label: "보통", value: "normal" },
-  { label: "불안", value: "unstable" },
+const EMPLOYMENT_TYPE_OPTIONS = [
+  { label: "직장인", value: "employee" },
+  { label: "자영업", value: "self_employed" },
+  { label: "프리랜서", value: "freelancer" },
+  { label: "기타", value: "other" },
 ] as const;
 
-const PURPOSE_OPTIONS = [
+const HOUSE_OWNERSHIP_OPTIONS = [
+  { label: "무주택", value: "none" },
+  { label: "1주택", value: "one" },
+  { label: "2주택이상", value: "two_or_more" },
+] as const;
+
+const PURCHASE_PURPOSE_V2_OPTIONS = [
   { label: "실거주", value: "residence" },
-  { label: "투자", value: "investment" },
-  { label: "둘다", value: "both" },
+  { label: "투자(임대)", value: "investment_rent" },
+  { label: "투자(시세)", value: "investment_capital" },
+  { label: "실거주+투자", value: "long_term" },
 ] as const;
 
-type ValidationCreditGrade = "good" | "normal" | "unstable";
-type ValidationPurchasePurpose = "residence" | "investment" | "both";
+const PURCHASE_TIMING_OPTIONS = [
+  { label: "3개월 이내", value: "within_3months" },
+  { label: "6개월 이내", value: "within_6months" },
+  { label: "1년 이내", value: "within_1year" },
+  { label: "1년 이상", value: "over_1year" },
+  { label: "현장에 따라", value: "by_property" },
+] as const;
 
-type PersonalizationErrors = {
-  availableCashManwon?: string;
-  monthlyIncomeManwon?: string;
-  ownedHouseCount?: string;
-};
+const MOVEIN_TIMING_OPTIONS = [
+  { label: "즉시입주", value: "immediate" },
+  { label: "1년 이내", value: "within_1year" },
+  { label: "2년 이내", value: "within_2years" },
+  { label: "3년 이내", value: "within_3years" },
+  { label: "언제든지", value: "anytime" },
+] as const;
 
 type PersonalizationSectionProps = {
   availableCashManwon: string;
   monthlyIncomeManwon: string;
-  ownedHouseCount: string;
+  monthlyExpensesManwon: string;
+  employmentType: "employee" | "self_employed" | "freelancer" | "other" | null;
+  houseOwnership: "none" | "one" | "two_or_more" | null;
+  purchasePurposeV2: "residence" | "investment_rent" | "investment_capital" | "long_term" | null;
+  purchaseTiming: "within_3months" | "within_6months" | "within_1year" | "over_1year" | "by_property" | null;
+  moveinTiming: "immediate" | "within_1year" | "within_2years" | "within_3years" | "anytime" | null;
+  ltvInternalScore: number;
   personalizationEditing: boolean;
   personalizationSaving: boolean;
-  personalCreditGrade: ValidationCreditGrade;
-  personalPurchasePurpose: ValidationPurchasePurpose;
-  personalizationErrors: PersonalizationErrors;
+  personalizationErrors: { availableCashManwon?: string; monthlyIncomeManwon?: string };
   marketingConsent: boolean;
   marketingConsentLoading: boolean;
   onAvailableCashChange: (value: string) => void;
   onMonthlyIncomeChange: (value: string) => void;
-  onOwnedHouseCountChange: (value: string) => void;
-  onCreditGradeChange: (value: ValidationCreditGrade) => void;
-  onPurchasePurposeChange: (value: ValidationPurchasePurpose) => void;
+  onMonthlyExpensesChange: (value: string) => void;
+  onEmploymentTypeChange: (value: "employee" | "self_employed" | "freelancer" | "other") => void;
+  onHouseOwnershipChange: (value: "none" | "one" | "two_or_more") => void;
+  onPurchasePurposeV2Change: (value: "residence" | "investment_rent" | "investment_capital" | "long_term") => void;
+  onPurchaseTimingChange: (value: "within_3months" | "within_6months" | "within_1year" | "over_1year" | "by_property") => void;
+  onMoveinTimingChange: (value: "immediate" | "within_1year" | "within_2years" | "within_3years" | "anytime") => void;
   onEditStart: () => void;
   onSave: () => void;
   onCancel: () => void;
@@ -83,19 +105,26 @@ function formatManwonPreview(value: string): string {
 export default function PersonalizationSection({
   availableCashManwon,
   monthlyIncomeManwon,
-  ownedHouseCount,
+  monthlyExpensesManwon,
+  employmentType,
+  houseOwnership,
+  purchasePurposeV2,
+  purchaseTiming,
+  moveinTiming,
+  ltvInternalScore,
   personalizationEditing,
   personalizationSaving,
-  personalCreditGrade,
-  personalPurchasePurpose,
   personalizationErrors,
   marketingConsent,
   marketingConsentLoading,
   onAvailableCashChange,
   onMonthlyIncomeChange,
-  onOwnedHouseCountChange,
-  onCreditGradeChange,
-  onPurchasePurposeChange,
+  onMonthlyExpensesChange,
+  onEmploymentTypeChange,
+  onHouseOwnershipChange,
+  onPurchasePurposeV2Change,
+  onPurchaseTimingChange,
+  onMoveinTimingChange,
   onEditStart,
   onSave,
   onCancel,
@@ -103,6 +132,7 @@ export default function PersonalizationSection({
 }: PersonalizationSectionProps) {
   const availableCashPreview = formatManwonPreview(availableCashManwon);
   const monthlyIncomePreview = formatManwonPreview(monthlyIncomeManwon);
+  const monthlyExpensesPreview = formatManwonPreview(monthlyExpensesManwon);
 
   return (
     <div className="space-y-4">
@@ -117,6 +147,7 @@ export default function PersonalizationSection({
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {/* 가용 현금 */}
           <div className="space-y-2">
             <Label>가용 현금 (만원) *</Label>
             <div className="relative">
@@ -147,6 +178,7 @@ export default function PersonalizationSection({
             ) : null}
           </div>
 
+          {/* 월 소득 */}
           <div className="space-y-2">
             <Label>월 소득 (만원) *</Label>
             <div className="relative">
@@ -177,45 +209,94 @@ export default function PersonalizationSection({
             ) : null}
           </div>
 
+          {/* 월 고정지출 */}
           <div className="space-y-2">
-            <Label>보유 주택 수 *</Label>
-            <Input
-              value={ownedHouseCount}
-              disabled={!personalizationEditing}
-              onChange={(e) => onOwnedHouseCountChange(formatNumericInput(e.target.value))}
-              inputMode="numeric"
-              placeholder="0"
-              className={[
-                oboonFieldBaseClass,
-                personalizationErrors.ownedHouseCount
-                  ? "border-(--oboon-danger-border)"
-                  : "",
-              ].join(" ")}
-            />
-            {personalizationErrors.ownedHouseCount ? (
-              <p className="ob-typo-caption text-(--oboon-danger)">
-                {personalizationErrors.ownedHouseCount}
-              </p>
-            ) : null}
+            <Label>월 고정지출 (만원)</Label>
+            <div className="relative">
+              <Input
+                value={monthlyExpensesManwon}
+                disabled={!personalizationEditing}
+                onChange={(e) => onMonthlyExpensesChange(formatNumericInput(e.target.value))}
+                inputMode="numeric"
+                placeholder="예: 100"
+                className={[
+                  oboonFieldBaseClass,
+                  monthlyExpensesPreview ? "pr-28" : "",
+                ].join(" ")}
+              />
+              {monthlyExpensesPreview ? (
+                <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center ob-typo-caption text-(--oboon-text-muted)">
+                  {monthlyExpensesPreview}
+                </div>
+              ) : null}
+            </div>
           </div>
 
+          {/* 직업 */}
           <div className="space-y-2">
-            <Label>신용</Label>
+            <Label>직업</Label>
             <Select
-              value={personalCreditGrade}
-              onChange={onCreditGradeChange}
-              options={CREDIT_OPTIONS}
+              value={employmentType ?? ""}
+              onChange={(v) => onEmploymentTypeChange(v as "employee" | "self_employed" | "freelancer" | "other")}
+              options={EMPLOYMENT_TYPE_OPTIONS}
               disabled={!personalizationEditing}
+              placeholder="선택"
             />
           </div>
 
+          {/* 보유주택 */}
+          <div className="space-y-2">
+            <Label>보유주택</Label>
+            <Select
+              value={houseOwnership ?? ""}
+              onChange={(v) => onHouseOwnershipChange(v as "none" | "one" | "two_or_more")}
+              options={HOUSE_OWNERSHIP_OPTIONS}
+              disabled={!personalizationEditing}
+              placeholder="선택"
+            />
+          </div>
+
+          {/* 신용 상태 (read-only) */}
+          <div className="space-y-2">
+            <Label>신용 상태</Label>
+            <div className={`${oboonFieldBaseClass} flex items-center px-3 py-2 ob-typo-body text-(--oboon-text-muted) bg-(--oboon-bg-subtle)`}>
+              {ltvInternalScore > 0 ? `${ltvInternalScore}점` : "평가 전"}
+            </div>
+          </div>
+
+          {/* 분양목적 */}
           <div className="space-y-2 sm:col-span-2">
-            <Label>구매 목적</Label>
+            <Label>분양목적</Label>
             <Select
-              value={personalPurchasePurpose}
-              onChange={onPurchasePurposeChange}
-              options={PURPOSE_OPTIONS}
+              value={purchasePurposeV2 ?? ""}
+              onChange={(v) => onPurchasePurposeV2Change(v as "residence" | "investment_rent" | "investment_capital" | "long_term")}
+              options={PURCHASE_PURPOSE_V2_OPTIONS}
               disabled={!personalizationEditing}
+              placeholder="선택"
+            />
+          </div>
+
+          {/* 분양시점 */}
+          <div className="space-y-2">
+            <Label>분양시점</Label>
+            <Select
+              value={purchaseTiming ?? ""}
+              onChange={(v) => onPurchaseTimingChange(v as "within_3months" | "within_6months" | "within_1year" | "over_1year" | "by_property")}
+              options={PURCHASE_TIMING_OPTIONS}
+              disabled={!personalizationEditing}
+              placeholder="선택"
+            />
+          </div>
+
+          {/* 희망입주 */}
+          <div className="space-y-2">
+            <Label>희망입주</Label>
+            <Select
+              value={moveinTiming ?? ""}
+              onChange={(v) => onMoveinTimingChange(v as "immediate" | "within_1year" | "within_2years" | "within_3years" | "anytime")}
+              options={MOVEIN_TIMING_OPTIONS}
+              disabled={!personalizationEditing}
+              placeholder="선택"
             />
           </div>
         </div>

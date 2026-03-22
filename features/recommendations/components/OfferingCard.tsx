@@ -38,39 +38,58 @@ function isLikelyImageUrl(url: string | null | undefined) {
 function gradeToneMeta(
   grade: RecommendationItem["evalResult"]["finalGrade"],
 ): GradeToneMeta {
-  if (grade === "GREEN") {
-    return {
-      badgeLabel: "조건 충족",
-      detailLabel: "충족",
-      badgeClassName:
-        "border-(--oboon-safe-border) bg-(--oboon-safe-bg) text-(--oboon-safe)",
-      barClassName: "bg-(--oboon-safe)",
-      dotClassName: "bg-(--oboon-safe)",
-      textClassName: "text-(--oboon-safe)",
-    };
+  switch (grade) {
+    case "GREEN":
+      return {
+        badgeLabel: "조건 충족",
+        detailLabel: "충족",
+        badgeClassName:
+          "border-(--oboon-grade-green-border) bg-(--oboon-grade-green-bg) text-(--oboon-grade-green-text)",
+        barClassName: "bg-(--oboon-grade-green)",
+        dotClassName: "bg-(--oboon-grade-green)",
+        textClassName: "text-(--oboon-grade-green-text)",
+      };
+    case "LIME":
+      return {
+        badgeLabel: "거의 충족",
+        detailLabel: "근접",
+        badgeClassName:
+          "border-(--oboon-grade-lime-border) bg-(--oboon-grade-lime-bg) text-(--oboon-grade-lime-text)",
+        barClassName: "bg-(--oboon-grade-lime)",
+        dotClassName: "bg-(--oboon-grade-lime)",
+        textClassName: "text-(--oboon-grade-lime-text)",
+      };
+    case "YELLOW":
+      return {
+        badgeLabel: "검토 필요",
+        detailLabel: "검토",
+        badgeClassName:
+          "border-(--oboon-grade-yellow-border) bg-(--oboon-grade-yellow-bg) text-(--oboon-grade-yellow-text)",
+        barClassName: "bg-(--oboon-grade-yellow)",
+        dotClassName: "bg-(--oboon-grade-yellow)",
+        textClassName: "text-(--oboon-grade-yellow-text)",
+      };
+    case "ORANGE":
+      return {
+        badgeLabel: "어려울 수 있음",
+        detailLabel: "어려움",
+        badgeClassName:
+          "border-(--oboon-grade-orange-border) bg-(--oboon-grade-orange-bg) text-(--oboon-grade-orange-text)",
+        barClassName: "bg-(--oboon-grade-orange)",
+        dotClassName: "bg-(--oboon-grade-orange)",
+        textClassName: "text-(--oboon-grade-orange-text)",
+      };
+    default:
+      return {
+        badgeLabel: "미충족",
+        detailLabel: "미충족",
+        badgeClassName:
+          "border-(--oboon-grade-red-border) bg-(--oboon-grade-red-bg) text-(--oboon-grade-red-text)",
+        barClassName: "bg-(--oboon-grade-red)",
+        dotClassName: "bg-(--oboon-grade-red)",
+        textClassName: "text-(--oboon-grade-red-text)",
+      };
   }
-
-  if (grade === "YELLOW") {
-    return {
-      badgeLabel: "검토 필요",
-      detailLabel: "검토",
-      badgeClassName:
-        "border-(--oboon-warning-border) bg-(--oboon-warning-bg) text-(--oboon-warning-text)",
-      barClassName: "bg-(--oboon-warning)",
-      dotClassName: "bg-(--oboon-warning)",
-      textClassName: "text-(--oboon-warning-text)",
-    };
-  }
-
-  return {
-    badgeLabel: "미충족",
-    detailLabel: "미충족",
-    badgeClassName:
-      "border-(--oboon-danger-border) bg-(--oboon-danger-bg) text-(--oboon-danger-text)",
-    barClassName: "bg-(--oboon-danger)",
-    dotClassName: "bg-(--oboon-danger)",
-    textClassName: "text-(--oboon-danger-text)",
-  };
 }
 
 function MetricDot(props: {
@@ -201,35 +220,33 @@ export default function OfferingCard(props: OfferingCardProps) {
                     />
                     <MetricDot
                       label="부담률"
-                      category={evalResult.categories.burden}
+                      category={evalResult.categories.income}
                       valueLabel={monthlyBurdenLabel}
                     />
                     <MetricDot
-                      label="리스크"
-                      category={evalResult.categories.risk}
+                      label="신용"
+                      category={evalResult.categories.ltvDsr}
                     />
                   </div>
 
                   {evalResult.totalScore !== null ? (
-                    <div className="space-y-1.5">
-                      <div className="ob-typo-body2 text-(--oboon-text-title)">
+                    <div className="flex items-center gap-2">
+                      <div className="shrink-0 ob-typo-body2 text-(--oboon-text-title)">
                         매칭률
                       </div>
-                      <div className="flex items-center gap-2">
-                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-(--oboon-bg-subtle)">
-                          <div
-                            className={cn(
-                              "h-full rounded-full transition-[width]",
-                              finalMeta.barClassName,
-                            )}
-                            style={{
-                              width: `${Math.max(0, Math.min(100, totalScore))}%`,
-                            }}
-                          />
-                        </div>
-                        <div className="shrink-0 ob-typo-body2 text-(--oboon-text-title)">
-                          {Math.round(totalScore)}%
-                        </div>
+                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-(--oboon-bg-subtle)">
+                        <div
+                          className={cn(
+                            "h-full rounded-full transition-[width]",
+                            finalMeta.barClassName,
+                          )}
+                          style={{
+                            width: `${Math.max(0, Math.min(100, totalScore))}%`,
+                          }}
+                        />
+                      </div>
+                      <div className="shrink-0 ob-typo-body2 text-(--oboon-text-title)">
+                        {Math.round(totalScore)}%
                       </div>
                     </div>
                   ) : null}
@@ -313,35 +330,33 @@ export default function OfferingCard(props: OfferingCardProps) {
                 />
                 <MetricDot
                   label="부담률"
-                  category={evalResult.categories.burden}
+                  category={evalResult.categories.income}
                   valueLabel={monthlyBurdenLabel}
                 />
                 <MetricDot
-                  label="리스크"
-                  category={evalResult.categories.risk}
+                  label="신용"
+                  category={evalResult.categories.ltvDsr}
                 />
               </div>
 
               {evalResult.totalScore !== null ? (
-                <div className="space-y-1.5">
-                  <div className="ob-typo-body2 text-(--oboon-text-title)">
+                <div className="flex items-center gap-2">
+                  <div className="shrink-0 ob-typo-body2 text-(--oboon-text-title)">
                     매칭률
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-(--oboon-bg-subtle)">
-                      <div
-                        className={cn(
-                          "h-full rounded-full transition-[width]",
-                          finalMeta.barClassName,
-                        )}
-                        style={{
-                          width: `${Math.max(0, Math.min(100, totalScore))}%`,
-                        }}
-                      />
-                    </div>
-                    <div className="shrink-0 ob-typo-body2 text-(--oboon-text-title)">
-                      {Math.round(totalScore)}%
-                    </div>
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-(--oboon-bg-subtle)">
+                    <div
+                      className={cn(
+                        "h-full rounded-full transition-[width]",
+                        finalMeta.barClassName,
+                      )}
+                      style={{
+                        width: `${Math.max(0, Math.min(100, totalScore))}%`,
+                      }}
+                    />
+                  </div>
+                  <div className="shrink-0 ob-typo-body2 text-(--oboon-text-title)">
+                    {Math.round(totalScore)}%
                   </div>
                 </div>
               ) : null}
