@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { fetchRecoPoisByPropertyId } from "@/features/reco/services/recoPoi.server";
 
-type SchoolLevel = "ELEMENTARY" | "MIDDLE" | "HIGH" | "UNIVERSITY" | "OTHER";
+type SchoolLevel = "KINDERGARTEN" | "ELEMENTARY" | "MIDDLE" | "HIGH";
 
 function toWalkMin(distanceM: number): number {
   return Math.ceil(distanceM / 80);
@@ -72,17 +72,24 @@ export async function GET(
     Lowercase<SchoolLevel>,
     Array<{ name: string; distance_m: number }>
   > = {
+    kindergarten: [],
     elementary: [],
     middle: [],
     high: [],
-    university: [],
-    other: [],
   };
 
   rows
     .filter((r) => r.category === "SCHOOL")
     .forEach((r) => {
-      const level = (r.school_level ?? "OTHER") as SchoolLevel;
+      if (
+        r.school_level !== "KINDERGARTEN" &&
+        r.school_level !== "ELEMENTARY" &&
+        r.school_level !== "MIDDLE" &&
+        r.school_level !== "HIGH"
+      ) {
+        return;
+      }
+      const level = r.school_level as SchoolLevel;
       const key = level.toLowerCase() as Lowercase<SchoolLevel>;
       const distance = toFiniteNumber(r.distance_m) ?? 0;
       schoolTabs[key].push({

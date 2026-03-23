@@ -9,6 +9,7 @@ export type RecoPoiCategory =
   | "SHOPPING_MALL";
 
 export type SchoolLevel =
+  | "KINDERGARTEN"
   | "ELEMENTARY"
   | "MIDDLE"
   | "HIGH"

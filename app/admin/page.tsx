@@ -44,6 +44,8 @@ import ReservationDetailModal from "@/features/admin/components/ReservationDetai
 import { type MapMarker } from "@/features/map/components/NaverMap";
 import { toKoreanErrorMessage } from "@/shared/errorMessage";
 import { deletePropertyById } from "@/features/company/services/property.list";
+import AdminPageSkeleton from "@/features/admin/components/AdminPageSkeleton";
+import ProfilePageShell from "@/features/profile/components/ProfilePageShell";
 
 function getErrorMessage(error: unknown, fallback: string) {
   return toKoreanErrorMessage(error, fallback);
@@ -1067,15 +1069,11 @@ function AdminPageInner() {
   }, [appraisalRowToMarkerId, selectedAppraisalRowId]);
 
   if (loading) {
-    return (
-      <div className="py-16 text-center ob-typo-body text-(--oboon-text-muted)">
-        로딩 중...
-      </div>
-    );
+    return <AdminPageSkeleton />;
   }
 
   return (
-    <div className="bg-(--oboon-bg-default)">
+    <>
       <Modal
         open={confirm.open}
         onClose={closeConfirm}
@@ -1147,71 +1145,14 @@ function AdminPageInner() {
             reservationAction?.loading,
         )}
       />
-      <div className="mx-auto w-full max-w-6xl px-4 pb-16">
-        <div className="mb-6 flex items-start justify-between gap-4">
-          <div>
-            <div className="ob-typo-h1 text-(--oboon-text-title)">
-              관리자 대시보드
-            </div>
-            <p className="mt-1 ob-typo-body text-(--oboon-text-muted)">
-              승인/복구 및 사용자 현황을 관리합니다.
-            </p>
-          </div>
-        </div>
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[220px_1fr]">
-          <aside className="hidden lg:block h-fit">
-            <div className="rounded-2xl">
-              <div className="space-y-0.5">
-                {tabs.map((tab) => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setActiveTab(tab.id)}
-                    className={[
-                      "w-full text-left py-1.5 rounded-xl ob-typo-body transition-colors relative",
-                      activeTab === tab.id
-                        ? "text-(--oboon-text-title)"
-                        : "text-(--oboon-text-muted) hover:text-(--oboon-text-title)",
-                    ].join(" ")}
-                  >
-                    <span
-                      className={[
-                        "relative block pl-5 pr-2 py-0.5 rounded-lg",
-                        activeTab === tab.id
-                          ? "bg-(--oboon-bg-subtle) py-1"
-                          : "",
-                      ].join(" ")}
-                    >
-                      {activeTab === tab.id && (
-                        <span className="absolute left-0 top-0 bottom-0 w-1 rounded-full bg-(--oboon-primary)" />
-                      )}
-                      {tab.label}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </aside>
-
-          <section className="min-w-0 space-y-4">
-            <div className="lg:hidden">
-              <div className="flex max-w-full gap-2 overflow-x-auto pb-2 scrollbar-none">
-                {tabs.map((tab) => (
-                  <Button
-                    key={tab.id}
-                    type="button"
-                    size="sm"
-                    shape="pill"
-                    variant={activeTab === tab.id ? "primary" : "secondary"}
-                    className="shrink-0"
-                    onClick={() => setActiveTab(tab.id)}
-                  >
-                    {tab.label}
-                  </Button>
-                ))}
-              </div>
-            </div>
+      <ProfilePageShell
+        title="관리자 대시보드"
+        description="승인/복구 및 사용자 현황을 관리합니다."
+        tabs={tabs}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+      >
             {activeTab === "summary" && (
               <AdminSummaryTab
                 onRefresh={refreshCurrentTab}
@@ -1378,9 +1319,7 @@ function AdminPageInner() {
             {activeTab === "regulations" && (
               <AdminRegulationRulesTab active={activeTab === "regulations"} />
             )}
-          </section>
-        </div>
-      </div>
-    </div>
+      </ProfilePageShell>
+    </>
   );
 }

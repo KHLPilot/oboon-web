@@ -7,6 +7,10 @@ import {
   fetchOfferingDetail,
   hasApprovedAgent,
 } from "@/features/offerings/services/offeringDetail.service";
+import {
+  getAvailableOfferingsBasic,
+  getOfferingsForCompare,
+} from "@/features/offerings/services/offering.compare";
 import { createSupabaseServer } from "@/lib/supabaseServer";
 import { runRecoPoiForProperty } from "@/features/reco/services/recoPoiBatch.service";
 
@@ -26,12 +30,22 @@ export default async function OfferingDetailPage({ id }: { id: number }) {
     isAdmin = me?.role === "admin";
   }
 
-  const [initialProperty, hasAgent] = await Promise.all([
+  const [initialProperty, hasAgent, availableOfferingsForCompare] = await Promise.all([
     fetchOfferingDetail(id),
     hasApprovedAgent(id),
+    getAvailableOfferingsBasic(),
   ]);
   let property = initialProperty;
   if (!property) notFound();
+
+  const [currentCompareItems, scrapsResult] = await Promise.all([
+    getOfferingsForCompare([String(property.id)]),
+    user
+      ? supabase.from("offering_scraps").select("property_id").eq("profile_id", user.id)
+      : Promise.resolve({ data: [] }),
+  ]);
+  const currentCompareItem = currentCompareItems[0] ?? null;
+  const scrappedIds = (scrapsResult.data ?? []).map((r) => String(r.property_id));
 
   if (isAdmin) {
     const { count: poiCount } = await supabase
@@ -60,6 +74,9 @@ export default async function OfferingDetailPage({ id }: { id: number }) {
           <OfferingDetailLeft
             property={property}
             hasApprovedAgent={hasAgent}
+            currentCompareItem={currentCompareItem}
+            availableItemsForCompare={availableOfferingsForCompare}
+            scrappedIdsForCompare={scrappedIds}
           />
         </div>
 

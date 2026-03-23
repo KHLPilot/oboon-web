@@ -1,0 +1,6 @@
+BEGIN;
+
+ALTER TYPE public.property_school_level
+  ADD VALUE IF NOT EXISTS 'KINDERGARTEN';
+
+COMMIT;

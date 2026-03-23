@@ -17,8 +17,6 @@ import {
   validatePhone,
   sanitizeInput,
 } from "@/lib/validators/profileValidation";
-import PageContainer from "@/components/shared/PageContainer";
-import Card from "@/components/ui/Card";
 import { useToast } from "@/components/ui/Toast";
 import AgentAffiliationTab from "./AgentAffiliationTab";
 import AgentCommunityTab from "./AgentCommunityTab";
@@ -32,6 +30,8 @@ import UserProfileSection from "./UserProfileSection";
 import { type UserMenuTabItem } from "./UserMenuTabs";
 import { showAlert } from "@/shared/alert";
 import { CommunityProfilePage } from "@/features/community";
+import UserActivityTab from "./UserActivityTab";
+import ProfilePageSkeleton from "./ProfilePageSkeleton";
 import useAgentAffiliation from "@/features/profile/hooks/useAgentAffiliation";
 import {
   fetchAgentPropertyDashboard,
@@ -121,11 +121,13 @@ type UserMenuTab =
   | "profile"
   | "consultations"
   | "personalization"
+  | "activity"
   | "community";
 
 function buildUserTabs(
   showConsultationsTab: boolean,
   showPersonalizationTab: boolean,
+  showActivityTab: boolean,
 ): UserMenuTabItem<UserMenuTab>[] {
   const tabs: UserMenuTabItem<UserMenuTab>[] = [{ id: "profile", label: "기본 프로필" }];
   if (showConsultationsTab) {
@@ -133,6 +135,9 @@ function buildUserTabs(
   }
   if (showPersonalizationTab) {
     tabs.push({ id: "personalization", label: "맞춤 정보" });
+  }
+  if (showActivityTab) {
+    tabs.push({ id: "activity", label: "관심 현장" });
   }
   tabs.push({ id: "community", label: "커뮤니티 프로필" });
   return tabs;
@@ -992,9 +997,10 @@ export default function ProfilePage({
   const showAgentProfile = forceAgentView || isAgentRole;
   const showConsultationsTab = !isAdminRole;
   const showPersonalizationTab = role === "user";
+  const showActivityTab = role === "user";
   const userTabs = useMemo(
-    () => buildUserTabs(showConsultationsTab, showPersonalizationTab),
-    [showConsultationsTab, showPersonalizationTab],
+    () => buildUserTabs(showConsultationsTab, showPersonalizationTab, showActivityTab),
+    [showConsultationsTab, showPersonalizationTab, showActivityTab],
   );
   const accountStatusLabel =
     role === "user"
@@ -1013,6 +1019,11 @@ export default function ProfilePage({
     if (userMenuTab !== "consultations") return;
     setUserMenuTab("profile");
   }, [showConsultationsTab, userMenuTab]);
+  useEffect(() => {
+    if (showActivityTab) return;
+    if (userMenuTab !== "activity") return;
+    setUserMenuTab("profile");
+  }, [showActivityTab, userMenuTab]);
   const latestRegisteredProperty = registeredPropertyRows[0] ?? null;
 
   const hasData = (v: unknown) => {
@@ -1174,17 +1185,7 @@ export default function ProfilePage({
   }, [showPersonalizationTab, userMenuTab]);
 
   if (loading) {
-    return (
-      <main className="bg-(--oboon-bg-page)">
-        <PageContainer>
-          <Card className="flex items-center justify-center py-16">
-            <div className="ob-typo-body text-(--oboon-text-muted)">
-              로딩 중...
-            </div>
-          </Card>
-        </PageContainer>
-      </main>
-    );
+    return <ProfilePageSkeleton />;
   }
 
   if (showAgentProfile) {
@@ -1370,6 +1371,12 @@ export default function ProfilePage({
                   }}
                   onToggleMarketingConsent={handleMarketingConsentToggle}
                 />
+              </section>
+
+              <section className={userMenuTab === "activity" ? "" : "hidden"}>
+                {userMenuTab === "activity" && (
+                  <UserActivityTab profileId={userId ?? null} />
+                )}
               </section>
 
               <section className={userMenuTab === "community" ? "" : "hidden"}>

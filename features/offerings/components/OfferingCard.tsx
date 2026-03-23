@@ -21,6 +21,8 @@ import { trackEvent } from "@/lib/analytics";
 import { cn } from "@/lib/utils/cn";
 
 import OfferingBadge from "./OfferingBadges";
+import ScrapButton from "./ScrapButton";
+import { X } from "lucide-react";
 
 function isLikelyImageUrl(url: string | null | undefined) {
   if (!url) return false;
@@ -86,6 +88,10 @@ export default function OfferingCard({
   compactLayout = false,
   mobileRecommendationLayout = false,
   isConsultable = false,
+  initialScrapped = false,
+  isLoggedIn = false,
+  priority = false,
+  onHistoryDelete,
 }: {
   offering: Offering;
   conditionCategories?: ConditionCategoryGrades | null;
@@ -99,6 +105,11 @@ export default function OfferingCard({
   compactLayout?: boolean;
   mobileRecommendationLayout?: boolean;
   isConsultable?: boolean;
+  initialScrapped?: boolean;
+  isLoggedIn?: boolean;
+  priority?: boolean;
+  /** 히스토리 탭 전용: 제공 시 모바일에서 상태 뱃지 자리에 삭제 버튼 렌더링 */
+  onHistoryDelete?: () => void;
 }) {
   const priceRange = formatPriceRange(
     offering.priceMin억,
@@ -153,7 +164,7 @@ export default function OfferingCard({
                 !disableHover &&
                   "transition-transform duration-300 group-hover:scale-[1.03]",
               )}
-              priority={false}
+              priority={priority}
             />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center">
@@ -182,6 +193,15 @@ export default function OfferingCard({
                 감정 평가
               </Badge>
             ) : null}
+          </div>
+
+          <div className="absolute right-3 top-3">
+            <ScrapButton
+              propertyId={Number(offering.id)}
+              initialScrapped={initialScrapped}
+              isLoggedIn={isLoggedIn}
+              variant="icon"
+            />
           </div>
         </div>
 
@@ -276,7 +296,7 @@ export default function OfferingCard({
                         !disableHover &&
                           "transition-transform duration-300 group-hover:scale-[1.03]",
                       )}
-                      priority={false}
+                      priority={priority}
                     />
                   ) : (
                     <div className="absolute inset-0 flex items-center justify-center">
@@ -302,22 +322,39 @@ export default function OfferingCard({
                       </div>
                     </div>
 
-                    <OfferingBadge
-                      type="status"
-                      value={statusBadgeValue}
-                      className="shrink-0 self-start"
-                    />
+                    {onHistoryDelete ? (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.preventDefault(); onHistoryDelete(); }}
+                        aria-label="히스토리에서 삭제"
+                        className="shrink-0 self-start flex h-6 w-6 items-center justify-center rounded-full bg-(--oboon-bg-subtle) text-(--oboon-text-muted) hover:text-rose-500 transition-colors"
+                      >
+                        <X size={13} />
+                      </button>
+                    ) : (
+                      <OfferingBadge
+                        type="status"
+                        value={statusBadgeValue}
+                        className="shrink-0 self-start"
+                      />
+                    )}
                   </div>
                 </div>
               </div>
 
               <div className="h-px bg-(--oboon-border-default)" />
 
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <OfferingBadge
                   type="region"
                   value={regionBadge}
                 />
+                {onHistoryDelete ? (
+                  <OfferingBadge
+                    type="status"
+                    value={statusBadgeValue}
+                  />
+                ) : null}
                 {offering.propertyType ? (
                   <OfferingBadge
                     type="propertyType"
@@ -334,6 +371,14 @@ export default function OfferingCard({
                     감정 평가
                   </Badge>
                 ) : null}
+                <div className="ml-auto">
+                  <ScrapButton
+                    propertyId={Number(offering.id)}
+                    initialScrapped={initialScrapped}
+                    isLoggedIn={isLoggedIn}
+                    variant="icon"
+                  />
+                </div>
               </div>
             </div>
 
@@ -406,17 +451,24 @@ export default function OfferingCard({
 
   if (interactionMode === "button") {
     return (
-      <button
-        type="button"
-        className="group block h-full w-full rounded-2xl border-0 bg-transparent p-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--oboon-primary)/35"
+      <div
+        role="button"
+        tabIndex={0}
+        className="group block h-full w-full rounded-2xl border-0 bg-transparent p-0 text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--oboon-primary)/35"
         onClick={onCardClick}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onCardClick?.();
+          }
+        }}
         onMouseEnter={onMouseEnter}
         onFocusCapture={onFocusCapture}
         aria-label={cardAriaLabel}
         aria-pressed={isSelected}
       >
         {cardContent}
-      </button>
+      </div>
     );
   }
 

@@ -1,12 +1,16 @@
 "use client";
 
 import { useEffect } from "react";
+import { recordLocalView } from "@/features/offerings/hooks/useViewHistory";
 
 const VIEW_TRACKER_STORAGE_PREFIX = "oboon:offering-view:";
 
 export default function OfferingViewTracker({ propertyId }: { propertyId: number }) {
   useEffect(() => {
     if (!Number.isFinite(propertyId) || propertyId <= 0) return;
+
+    // localStorage에 열람 기록 저장 (비로그인 포함)
+    recordLocalView(propertyId);
 
     const storageKey = `${VIEW_TRACKER_STORAGE_PREFIX}${propertyId}`;
     try {

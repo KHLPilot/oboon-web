@@ -200,7 +200,7 @@ function DesktopMaskedRecommendationCard(props: {
                 </p>
               </div>
 
-              <Badge variant={badgeVariant(evalResult.finalGrade)}>
+              <Badge variant={badgeVariant(evalResult.finalGrade)} className="shrink-0">
                 {badgeLabel(evalResult.finalGrade)}
               </Badge>
             </div>

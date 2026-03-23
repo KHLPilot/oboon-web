@@ -135,7 +135,6 @@ export function RecommendationPreviewContent(
     compact = false,
     footer,
     showFinalBadge = true,
-    showSummary = true,
   } = props;
   let burdenMetricLabel: string | null = null;
   if (evalResult) {
@@ -220,17 +219,6 @@ export function RecommendationPreviewContent(
             로그인하면 현금 여력, 부담률, 리스크와 매칭률을 자세히 확인할 수 있어요.
           </p>
         </div>
-
-        {showSummary ? (
-          <p
-            className={cn(
-              compact ? "ob-typo-caption" : "ob-typo-body",
-              "text-(--oboon-text-muted)",
-            )}
-          >
-            {evalResult.summaryMessage}
-          </p>
-        ) : null}
 
         {footer}
       </div>
@@ -373,17 +361,6 @@ export function RecommendationPreviewContent(
           </p>
         </div>
       )}
-
-      {showSummary ? (
-        <p
-          className={cn(
-            compact ? "ob-typo-caption leading-5" : "ob-typo-body",
-            "text-(--oboon-text-muted)",
-          )}
-        >
-          {evalResult.summaryMessage}
-        </p>
-      ) : null}
 
       {footer}
     </div>

@@ -7,6 +7,22 @@ import {
 } from "@/features/reco/constants/highSpeedRailMap";
 import type { PropertyRecoPoiRow } from "@/features/offerings/domain/offeringDetail.types";
 
+type SchoolInfraGroupKey =
+  | "KINDERGARTEN"
+  | "ELEMENTARY"
+  | "MIDDLE"
+  | "HIGH";
+
+const SCHOOL_INFRA_GROUPS: Array<{
+  key: SchoolInfraGroupKey;
+  label: string;
+}> = [
+  { key: "KINDERGARTEN", label: "유치원/어린이집" },
+  { key: "ELEMENTARY", label: "초등학교" },
+  { key: "MIDDLE", label: "중학교" },
+  { key: "HIGH", label: "고등학교" },
+];
+
 export const HIGH_SPEED_RAIL_ICON_PATH: Record<"KTX" | "SRT" | "ITX", string> =
   {
     KTX: "/icons/subway/KTX-line.svg",
@@ -40,6 +56,24 @@ function toNumberOrNull(value: number | string | null | undefined) {
   if (!normalized) return null;
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function byPoiDistanceAsc(a: PropertyRecoPoiRow, b: PropertyRecoPoiRow) {
+  return (
+    (toNumberOrNull(a.distance_m) ?? Number.MAX_SAFE_INTEGER) -
+    (toNumberOrNull(b.distance_m) ?? Number.MAX_SAFE_INTEGER)
+  );
+}
+
+function getSchoolInfraGroupKey(
+  poi: PropertyRecoPoiRow,
+): SchoolInfraGroupKey | null {
+  if (poi.category !== "SCHOOL") return null;
+  if (poi.school_level === "KINDERGARTEN") return "KINDERGARTEN";
+  if (poi.school_level === "ELEMENTARY") return "ELEMENTARY";
+  if (poi.school_level === "MIDDLE") return "MIDDLE";
+  if (poi.school_level === "HIGH") return "HIGH";
+  return null;
 }
 
 export function isLivingInfraAllowed(propertyType: string | null | undefined) {
@@ -420,9 +454,17 @@ export function buildInfraSections(
   );
 
   const allowLivingInfra = isLivingInfraAllowed(propertyType);
-  const schoolPois = allowLivingInfra
-    ? sortedRecoPois.filter((poi) => poi.category === "SCHOOL")
+  const schoolGroups = allowLivingInfra
+    ? SCHOOL_INFRA_GROUPS.map(({ key, label }) => ({
+        key,
+        label,
+        pois: sortedRecoPois
+          .filter((poi) => getSchoolInfraGroupKey(poi) === key)
+          .slice()
+          .sort(byPoiDistanceAsc),
+      })).filter((group) => group.pois.length > 0)
     : [];
+  const schoolPois = schoolGroups.flatMap((group) => group.pois);
   const hospitalPois = allowLivingInfra
     ? sortedRecoPois.filter((poi) => poi.category === "HOSPITAL")
     : [];
@@ -464,6 +506,7 @@ export function buildInfraSections(
     subwayPois,
     highSpeedRailPois,
     schoolPois,
+    schoolGroups,
     retailPois,
     combinedHospitalPois,
     visibleInfraSections,

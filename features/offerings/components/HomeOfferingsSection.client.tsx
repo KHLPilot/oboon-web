@@ -217,6 +217,7 @@ export default function HomeOfferingsSection() {
   const [homeUserId, setHomeUserId] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
   const [hasSavedConditionPreset, setHasSavedConditionPreset] = useState(false);
+  const [scrapedPropertyIds, setScrapedPropertyIds] = useState<Set<number>>(new Set());
   const availableCashPreview = useMemo(() => {
     const parsed = parseNullableNumericInput(availableCash);
     return parsed === null ? "" : formatManwonPreview(parsed);
@@ -509,15 +510,25 @@ export default function HomeOfferingsSection() {
         setRecommendedPropertyIds(ids);
         setRecommendedCategoriesById(nextCategories);
         setShowConditionSetupCard(false);
-        const houseLabel =
-          customer.owned_house_count === 0
-            ? "무주택"
-            : customer.owned_house_count === 1
-              ? "1주택"
-              : "2주택이상";
-        setAppliedCustomerSummary(
-          `현금 ${Number(customer.available_cash).toLocaleString("ko-KR")}만원 · 소득 ${Number(customer.monthly_income).toLocaleString("ko-KR")}만원 · ${houseLabel}`,
-        );
+        const summaryParts: string[] = [];
+        const empOpt = EMPLOYMENT_TYPE_OPTIONS.find(o => o.value === employmentType);
+        if (empOpt) summaryParts.push(empOpt.label);
+        const parsedCash = parseNullableNumericInput(availableCash);
+        if (parsedCash && parsedCash > 0) summaryParts.push(`현금 ${parsedCash.toLocaleString("ko-KR")}만원`);
+        const parsedIncome = parseNullableNumericInput(monthlyIncome);
+        if (parsedIncome && parsedIncome > 0) summaryParts.push(`소득 ${parsedIncome.toLocaleString("ko-KR")}만원`);
+        const parsedExpenses = parseNullableNumericInput(monthlyExpenses);
+        if (parsedExpenses && parsedExpenses > 0) summaryParts.push(`지출 ${parsedExpenses.toLocaleString("ko-KR")}만원`);
+        if (ltvInternalScore > 0) summaryParts.push(`신용 ${ltvInternalScore}점`);
+        const houseOpt = HOUSE_OWNERSHIP_OPTIONS.find(o => o.value === houseOwnership);
+        if (houseOpt) summaryParts.push(houseOpt.label);
+        const purposeOpt = PURPOSE_V2_OPTIONS.find(o => o.value === purchasePurposeV2);
+        if (purposeOpt) summaryParts.push(purposeOpt.label);
+        const timingOpt = PURCHASE_TIMING_OPTIONS.find(o => o.value === purchaseTiming);
+        if (timingOpt) summaryParts.push(timingOpt.label);
+        const moveinOpt = MOVEIN_TIMING_OPTIONS.find(o => o.value === moveinTiming);
+        if (moveinOpt) summaryParts.push(moveinOpt.label);
+        setAppliedCustomerSummary(summaryParts.length > 0 ? summaryParts.join(" · ") : null);
         if (options?.closeModal !== false) {
           setConditionModalOpen(false);
         }
@@ -527,7 +538,7 @@ export default function HomeOfferingsSection() {
         setConditionApplyLoading(false);
       }
     },
-    [],
+    [availableCash, employmentType, houseOwnership, ltvInternalScore, monthlyExpenses, monthlyIncome, moveinTiming, purchasePurposeV2, purchaseTiming],
   );
 
   const handleApplyCondition = useCallback(async () => {
@@ -618,6 +629,17 @@ export default function HomeOfferingsSection() {
       }
       setHomeUserId(user.id);
       setIsLoggedIn(true);
+
+      // 찜한 현장 ID 목록 로드
+      const { data: scraps } = await supabase
+        .from("offering_scraps")
+        .select("property_id")
+        .eq("profile_id", user.id);
+      if (mounted && scraps) {
+        setScrapedPropertyIds(
+          new Set(scraps.map((r: { property_id: number }) => r.property_id))
+        );
+      }
 
       let draftCustomer: ParsedCustomerInput | null = null;
       try {
@@ -802,7 +824,7 @@ export default function HomeOfferingsSection() {
                 description={Copy.home.consultable.empty.subtitle}
               />
             ) : (
-              <ResponsiveOfferingRow items={consultableOfferings} />
+              <ResponsiveOfferingRow items={consultableOfferings} scrapedPropertyIds={scrapedPropertyIds} isLoggedIn={isLoggedIn === true} />
             )}
           </section>
 
@@ -836,7 +858,7 @@ export default function HomeOfferingsSection() {
                 description={Copy.home.regional.empty.subtitle}
               />
             ) : (
-              <ResponsiveOfferingRow items={popularOfferings} />
+              <ResponsiveOfferingRow items={popularOfferings} scrapedPropertyIds={scrapedPropertyIds} isLoggedIn={isLoggedIn === true} />
             )}
           </section>
         </>
@@ -903,37 +925,35 @@ export default function HomeOfferingsSection() {
           ) : (
             /* ── 조건 적용 후: 리스트 + 수정 버튼 ── */
             <section className="mt-1 flex flex-col gap-2">
-              <div className="mb-3 sm:mb-4 flex items-start justify-between gap-4">
-                <div className="flex flex-col gap-1 min-w-0">
+              <div className="mb-3 sm:mb-4 flex flex-col gap-2">
+                <div className="flex items-center justify-between gap-4">
                   <h2 className="ob-typo-h2 text-(--oboon-text-title)">{Copy.home.customMatch.listTitle}</h2>
-                  {appliedCustomerSummary ? (
-                    <p className="ob-typo-caption text-(--oboon-text-muted) truncate">
-                      {appliedCustomerSummary}
-                    </p>
-                  ) : (
-                    <p className="ob-typo-caption text-(--oboon-text-muted)">
-                      {Copy.home.customMatch.listSubtitle}
-                    </p>
-                  )}
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setConditionModalOpen(true)}
+                      className="inline-flex h-8 items-center gap-1.5 rounded-full border border-(--oboon-border-default) px-3 ob-typo-caption text-(--oboon-text-muted) transition-colors hover:border-(--oboon-primary)/60 hover:text-(--oboon-primary)"
+                    >
+                      <SlidersHorizontal className="h-3 w-3" />
+                      조건 수정
+                    </button>
+                    <Link
+                      href="/recommendations"
+                      className="shrink-0 ob-typo-body text-(--oboon-text-muted) hover:text-(--oboon-primary)"
+                    >
+                      전체보기
+                    </Link>
+                  </div>
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => setConditionModalOpen(true)}
-                    className="gap-1.5 border-(--oboon-primary) text-(--oboon-primary) hover:bg-[color-mix(in_srgb,var(--oboon-primary)_8%,transparent)]"
-                  >
-                    <SlidersHorizontal className="h-3.5 w-3.5" />
-                    조건 수정
-                  </Button>
-                  <Link
-                    href="/recommendations"
-                    className="shrink-0 ob-typo-caption text-(--oboon-text-muted) hover:text-(--oboon-primary)"
-                  >
-                    전체보기
-                  </Link>
-                </div>
+                {appliedCustomerSummary ? (
+                  <p className="ob-typo-caption text-(--oboon-text-muted)">
+                    {appliedCustomerSummary}
+                  </p>
+                ) : (
+                  <p className="ob-typo-caption text-(--oboon-text-muted)">
+                    {Copy.home.customMatch.listSubtitle}
+                  </p>
+                )}
               </div>
 
               {loadError && (
@@ -950,6 +970,8 @@ export default function HomeOfferingsSection() {
                 <ResponsiveOfferingRow
                   items={conditionMatchedOfferings}
                   recommendedCategoriesById={recommendedCategoriesById}
+                  scrapedPropertyIds={scrapedPropertyIds}
+                  isLoggedIn={isLoggedIn === true}
                 />
               )}
             </section>
@@ -1270,9 +1292,13 @@ function ProjectRow({ children }: { children: ReactNode }) {
 function ResponsiveOfferingRow({
   items,
   recommendedCategoriesById,
+  scrapedPropertyIds,
+  isLoggedIn,
 }: {
   items: Offering[];
   recommendedCategoriesById?: Map<number, ConditionCategoryGrades>;
+  scrapedPropertyIds?: Set<number>;
+  isLoggedIn?: boolean;
 }) {
   return (
     <>
@@ -1290,11 +1316,14 @@ function ResponsiveOfferingRow({
                 "scroll-pl-4 scroll-pr-4",
               ].join(" ")}
             >
-              {items.map((offering) => (
+              {items.map((offering, index) => (
                 <div key={offering.id} className="w-70 shrink-0 snap-start">
                   <OfferingCard
                     offering={offering}
                     conditionCategories={recommendedCategoriesById?.get(Number(offering.id))}
+                    initialScrapped={scrapedPropertyIds?.has(Number(offering.id)) ?? false}
+                    isLoggedIn={isLoggedIn ?? false}
+                    priority={index === 0}
                   />
                 </div>
               ))}
@@ -1308,11 +1337,14 @@ function ResponsiveOfferingRow({
       {/* Desktop/Tablets: grid */}
       <div className="hidden sm:block">
         <ProjectRow>
-          {items.map((offering) => (
+          {items.map((offering, index) => (
             <OfferingCard
               key={offering.id}
               offering={offering}
               conditionCategories={recommendedCategoriesById?.get(Number(offering.id))}
+              initialScrapped={scrapedPropertyIds?.has(Number(offering.id)) ?? false}
+              isLoggedIn={isLoggedIn ?? false}
+              priority={index === 0}
             />
           ))}
         </ProjectRow>

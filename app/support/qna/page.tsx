@@ -1,9 +1,10 @@
 import { Suspense } from "react";
 import QnAPageClient from "@/features/support/components/qna/QnAPage.client";
+import { QnAListSkeleton } from "@/features/support/components/qna/QnAListSkeleton";
 
 export default function SupportQnAPage() {
   return (
-    <Suspense fallback={<div className="py-12 text-center text-(--oboon-text-muted)">로딩 중...</div>}>
+    <Suspense fallback={<QnAListSkeleton />}>
       <QnAPageClient />
     </Suspense>
   );

@@ -7,6 +7,8 @@ import {
   BadgeCheck,
   Building2,
   CalendarDays,
+  Check,
+  Clock,
   Cross,
   GraduationCap,
   Info,
@@ -51,6 +53,8 @@ import {
 } from "@/features/offerings/utils/infraSections";
 import { normalizeRetailPoiName } from "@/features/reco/utils/poiDisplay";
 import PropertyCommunityWidget from "@/features/community/components/PropertyCommunityWidget";
+import OfferingInlineCompare from "@/features/offerings/components/detail/OfferingInlineCompare.client";
+import type { OfferingCompareItem } from "@/features/offerings/domain/offering.types";
 
 /* ---------------- Utils ---------------- */
 
@@ -128,12 +132,42 @@ function fmtYMOrYMD(value: string | null | undefined) {
   return UXCopy.preNotice;
 }
 
-function fmtRange(a: string | null | undefined, b: string | null | undefined) {
-  const fa = fmtYMOrYMD(a);
-  const fb = fmtYMOrYMD(b);
-  if (fa === UXCopy.preNotice && fb === UXCopy.preNotice)
-    return `${UXCopy.preNoticeShort} ~ ${UXCopy.preNoticeShort}`;
-  return `${fa} ~ ${fb}`;
+
+function parseDate(s: string | null | undefined): Date | null {
+  if (!s) return null;
+  const v = s.trim();
+  if (/^\d{4}-\d{2}$/.test(v)) return new Date(v + "-01");
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return new Date(v);
+  return null;
+}
+
+function getStepStatus(
+  startDate: string | null | undefined,
+  endDate?: string | null | undefined,
+): "done" | "active" | "upcoming" {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const start = parseDate(startDate);
+  const end = parseDate(endDate);
+  const effectiveEnd = end ?? start;
+  if (!start) return "upcoming";
+  if (effectiveEnd && effectiveEnd < today) return "done";
+  if (start <= today) return "active";
+  return "upcoming";
+}
+
+function fmtDateTbd(value: string | null | undefined): string {
+  if (!value) return "미정";
+  const v = value.trim();
+  if (/^\d{4}-\d{2}$/.test(v) || /^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  return "미정";
+}
+
+function fmtRangeTbd(
+  a: string | null | undefined,
+  b: string | null | undefined,
+): string {
+  return `${fmtDateTbd(a)} ~ ${fmtDateTbd(b)}`;
 }
 
 function fmtText(value: string | null | undefined) {
@@ -304,9 +338,15 @@ function StatCard({ label, value }: { label: string; value: ReactNode }) {
 export default function OfferingDetailLeft({
   property,
   hasApprovedAgent = false,
+  currentCompareItem = null,
+  availableItemsForCompare = [],
+  scrappedIdsForCompare = [],
 }: {
   property: PropertyRow;
   hasApprovedAgent?: boolean;
+  currentCompareItem?: OfferingCompareItem | null;
+  availableItemsForCompare?: { id: string; name: string; location: string }[];
+  scrappedIdsForCompare?: string[];
 }) {
   const toast = useToast();
   const supabase = useMemo(() => createSupabaseClient(), []);
@@ -647,6 +687,7 @@ export default function OfferingDetailLeft({
     subwayPois,
     highSpeedRailPois,
     schoolPois,
+    schoolGroups,
     retailPois,
     combinedHospitalPois,
     visibleInfraSections,
@@ -926,7 +967,16 @@ export default function OfferingDetailLeft({
                       <GraduationCap className="h-5 w-5" />
                       학교 {schoolPois.length}
                     </div>
-                    {renderPoiChips(schoolPois)}
+                    <div className="mt-3 space-y-3">
+                      {schoolGroups.map((group) => (
+                        <div key={group.key}>
+                          <div className="ob-typo-caption font-semibold text-(--oboon-text-muted)">
+                            {group.label}
+                          </div>
+                          {renderPoiChips(group.pois)}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ) : null}
 
@@ -977,43 +1027,238 @@ export default function OfferingDetailLeft({
           />
 
           <div className="mt-3">
-            <Card className="p-3">
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <StatCard
-                  label="모집공고"
-                  value={fmtYMOrYMD(timeline0?.announcement_date)}
-                />
-                <StatCard
-                  label="청약 접수"
-                  value={fmtRange(
-                    timeline0?.application_start,
-                    timeline0?.application_end,
-                  )}
-                />
-                <StatCard
-                  label="당첨자 발표"
-                  value={fmtYMOrYMD(timeline0?.winner_announce)}
-                />
-                <StatCard
-                  label="계약"
-                  value={fmtRange(
-                    timeline0?.contract_start,
-                    timeline0?.contract_end,
-                  )}
-                />
-                <StatCard
-                  label="입주 예정"
-                  value={
-                    pickFirstNonEmpty(timeline0?.move_in_text) ??
-                    fmtYMOrYMD(timeline0?.move_in_date)
-                  }
-                />
-              </div>
+            <Card className="p-4">
+              {(() => {
+                const steps = [
+                  {
+                    label: "모집공고",
+                    date: fmtDateTbd(timeline0?.announcement_date),
+                    startRaw: timeline0?.announcement_date,
+                    endRaw: undefined,
+                  },
+                  {
+                    label: "청약 접수",
+                    date: fmtRangeTbd(
+                      timeline0?.application_start,
+                      timeline0?.application_end,
+                    ),
+                    startRaw: timeline0?.application_start,
+                    endRaw: timeline0?.application_end,
+                  },
+                  {
+                    label: "당첨자 발표",
+                    date: fmtDateTbd(timeline0?.winner_announce),
+                    startRaw: timeline0?.winner_announce,
+                    endRaw: undefined,
+                  },
+                  {
+                    label: "계약",
+                    date: fmtRangeTbd(
+                      timeline0?.contract_start,
+                      timeline0?.contract_end,
+                    ),
+                    startRaw: timeline0?.contract_start,
+                    endRaw: timeline0?.contract_end,
+                  },
+                  {
+                    label: "입주 예정",
+                    date:
+                      pickFirstNonEmpty(timeline0?.move_in_text) ??
+                      fmtDateTbd(timeline0?.move_in_date),
+                    startRaw: timeline0?.move_in_date,
+                    endRaw: undefined,
+                  },
+                ];
 
-              <div className="mt-2 px-2 py-1 ob-typo-caption text-(--oboon-text-muted)">
-                입주 예정 정보는 일정 특성에 맞춰 날짜 또는 안내 문구로
-                표시됩니다.
-              </div>
+                const statuses = steps.map((s) =>
+                  getStepStatus(s.startRaw, s.endRaw),
+                );
+
+                const dotStyle = (st: "done" | "active" | "upcoming") =>
+                  st === "done"
+                    ? {
+                        backgroundColor: "var(--oboon-safe)",
+                        borderColor: "var(--oboon-safe)",
+                        color: "#fff",
+                      }
+                    : st === "active"
+                      ? {
+                          backgroundColor: "var(--oboon-primary)",
+                          borderColor: "var(--oboon-primary)",
+                          color: "#fff",
+                        }
+                      : {
+                          backgroundColor: "var(--oboon-bg-surface)",
+                          borderColor: "var(--oboon-border-default)",
+                          color: "var(--oboon-text-muted)",
+                        };
+
+                const lineColor = (st: "done" | "active" | "upcoming") =>
+                  st === "done"
+                    ? "var(--oboon-safe)"
+                    : "var(--oboon-border-default)";
+
+                const labelColor = (st: "done" | "active" | "upcoming") =>
+                  st === "active"
+                    ? "var(--oboon-primary)"
+                    : st === "done"
+                      ? "var(--oboon-text-primary)"
+                      : "var(--oboon-text-muted)";
+
+                const dateColor = (st: "done" | "active" | "upcoming") =>
+                  st === "upcoming"
+                    ? "var(--oboon-text-muted)"
+                    : "var(--oboon-text-secondary)";
+
+                const DotIcon = ({
+                  status,
+                  idx,
+                }: {
+                  status: "done" | "active" | "upcoming";
+                  idx: number;
+                }) =>
+                  status === "done" ? (
+                    <Check className="h-3.5 w-3.5" />
+                  ) : status === "active" ? (
+                    <Clock className="h-3.5 w-3.5" />
+                  ) : (
+                    <span className="ob-typo-caption font-bold">{idx + 1}</span>
+                  );
+
+                return (
+                  <>
+                    {/* ── Mobile: vertical ── */}
+                    <div className="flex flex-col md:hidden">
+                      {steps.map((step, i) => {
+                        const status = statuses[i];
+                        const isLast = i === steps.length - 1;
+                        return (
+                          <div key={step.label} className="flex gap-3">
+                            <div className="flex flex-col items-center">
+                              <div
+                                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2"
+                                style={dotStyle(status)}
+                              >
+                                <DotIcon status={status} idx={i} />
+                              </div>
+                              {!isLast && (
+                                <div
+                                  className="my-0.5 w-0.5 flex-1"
+                                  style={{
+                                    minHeight: "1.25rem",
+                                    backgroundColor: lineColor(status),
+                                  }}
+                                />
+                              )}
+                            </div>
+                            <div
+                              className="min-w-0 flex-1"
+                              style={{ paddingBottom: isLast ? 0 : "0.875rem" }}
+                            >
+                              <div className="flex items-center gap-1.5">
+                                <p
+                                  className="ob-typo-subtitle"
+                                  style={{ color: labelColor(status) }}
+                                >
+                                  {step.label}
+                                </p>
+                                {status === "active" && (
+                                  <span
+                                    className="ob-typo-caption rounded-full px-1.5 py-0.5"
+                                    style={{
+                                      backgroundColor:
+                                        "color-mix(in srgb, var(--oboon-primary) 12%, transparent)",
+                                      color: "var(--oboon-primary)",
+                                    }}
+                                  >
+                                    진행 중
+                                  </span>
+                                )}
+                              </div>
+                              <p
+                                className="ob-typo-caption mt-0.5"
+                                style={{ color: dateColor(status) }}
+                              >
+                                {step.date}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* ── Desktop: horizontal ── */}
+                    <div className="hidden md:flex md:w-full md:items-start">
+                      {steps.map((step, i) => {
+                        const status = statuses[i];
+                        const prevStatus = i > 0 ? statuses[i - 1] : null;
+                        const isFirst = i === 0;
+                        const isLast = i === steps.length - 1;
+                        return (
+                          <div
+                            key={step.label}
+                            className="flex flex-1 flex-col items-center"
+                          >
+                            {/* label + badge */}
+                            <div className="mb-2 flex flex-col items-center gap-0.5 px-2">
+                              <p
+                                className="ob-typo-subtitle whitespace-nowrap text-center"
+                                style={{ color: labelColor(status) }}
+                              >
+                                {step.label}
+                              </p>
+                              {status === "active" && (
+                                <span
+                                  className="ob-typo-caption rounded-full px-1.5 py-px"
+                                  style={{
+                                    backgroundColor:
+                                      "color-mix(in srgb, var(--oboon-primary) 12%, transparent)",
+                                    color: "var(--oboon-primary)",
+                                  }}
+                                >
+                                  진행 중
+                                </span>
+                              )}
+                            </div>
+                            {/* dot + horizontal lines */}
+                            <div className="flex w-full items-center">
+                              <div
+                                className="h-0.5 flex-1"
+                                style={{
+                                  backgroundColor: isFirst
+                                    ? "transparent"
+                                    : lineColor(prevStatus!),
+                                }}
+                              />
+                              <div
+                                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2"
+                                style={dotStyle(status)}
+                              >
+                                <DotIcon status={status} idx={i} />
+                              </div>
+                              <div
+                                className="h-0.5 flex-1"
+                                style={{
+                                  backgroundColor: isLast
+                                    ? "transparent"
+                                    : lineColor(status),
+                                }}
+                              />
+                            </div>
+                            {/* date */}
+                            <p
+                              className="ob-typo-caption mt-2 whitespace-nowrap px-2 text-center"
+                              style={{ color: dateColor(status) }}
+                            >
+                              {step.date}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                );
+              })()}
             </Card>
           </div>
         </div>
@@ -1128,6 +1373,17 @@ export default function OfferingDetailLeft({
           ) : null}
         </div>
       </div>
+
+      {/* Inline Compare Widget */}
+      {currentCompareItem ? (
+        <div id="compare" className="mt-10 scroll-mt-30 lg:scroll-mt-30">
+          <OfferingInlineCompare
+            currentItem={currentCompareItem}
+            availableItems={availableItemsForCompare}
+            scrappedIds={scrappedIdsForCompare}
+          />
+        </div>
+      ) : null}
 
       {/* Community Widget */}
       <div id="community" className="mt-10 scroll-mt-30 lg:scroll-mt-30">

@@ -100,6 +100,7 @@ export type PropertyRecoPoiRow = {
   category_name?: string | null;
   subway_lines?: string[] | null;
   school_level?:
+    | "KINDERGARTEN"
     | "ELEMENTARY"
     | "MIDDLE"
     | "HIGH"

@@ -203,7 +203,7 @@ export type ConditionRecommendationItem = {
   status: string | null;
   image_url: string | null;
   show_detailed_metrics?: boolean;
-  final_grade: FinalGrade;
+  final_grade: FinalGrade5;
   total_score?: number;
   action: string;
   summary_message: string;

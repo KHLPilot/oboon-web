@@ -496,12 +496,12 @@ function FilterBarBody({
         />
       </div>
 
-      <div className="mt-5 space-y-2">
-        <div className="ob-typo-subtitle text-(--oboon-text-title)">예산</div>
-        <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-4">
-          {/* 헤더: 범위 요약 + 전체 버튼 */}
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div className="ob-typo-subtitle text-(--oboon-text-title)">
+      <div className="mt-4 space-y-2">
+        <div className="ob-typo-body font-semibold text-(--oboon-text-title)">예산</div>
+        <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-3">
+          {/* 헤더: 범위 요약 + 적용 버튼 */}
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <div className="ob-typo-body font-semibold text-(--oboon-text-title)">
               {formatBudgetSummary(minVal, effectiveMaxVal)}
             </div>
             <Button
@@ -511,7 +511,7 @@ function FilterBarBody({
               variant="primary"
               disabled={applyDisabled}
               className={cn(
-                "h-8 px-4 ob-typo-button shrink-0",
+                "h-7 px-3 ob-typo-caption shrink-0",
                 applyDisabled ? "opacity-60 cursor-not-allowed" : ""
               )}
               onClick={applyBudget}
@@ -521,32 +521,28 @@ function FilterBarBody({
           </div>
 
           {/* 최소/최대 현재값 칩 */}
-          <div className="flex items-center gap-2">
-            <div className="flex-1 rounded-2xl bg-(--oboon-bg-subtle) px-3 py-2">
+          <div className="flex items-center gap-1.5">
+            <div className="flex-1 rounded-xl bg-(--oboon-bg-subtle) px-2.5 py-1.5">
               <div className="ob-typo-caption text-(--oboon-text-muted)">최소</div>
-              <div className="ob-typo-body font-semibold text-(--oboon-primary)">
-                {minVal != null && minVal > 0
-                  ? formatEokPreview(minVal)
-                  : "0"}
+              <div className="ob-typo-caption font-semibold text-(--oboon-primary)">
+                {minVal != null && minVal > 0 ? formatEokPreview(minVal) : "0"}
               </div>
             </div>
             <span className="ob-typo-caption text-(--oboon-text-muted)">~</span>
-            <div className="flex-1 rounded-2xl bg-(--oboon-bg-subtle) px-3 py-2 text-right">
+            <div className="flex-1 rounded-xl bg-(--oboon-bg-subtle) px-2.5 py-1.5 text-right">
               <div className="ob-typo-caption text-(--oboon-text-muted)">최대</div>
-              <div className="ob-typo-body font-semibold text-(--oboon-primary)">
-                {budgetMaxUnlimited || maxVal == null
-                  ? "제한 없음"
-                  : formatEokPreview(maxVal)}
+              <div className="ob-typo-caption font-semibold text-(--oboon-primary)">
+                {budgetMaxUnlimited || maxVal == null ? "제한 없음" : formatEokPreview(maxVal)}
               </div>
             </div>
           </div>
 
-          {/* 슬라이더 — 트랙 두께↑, 썸 크기↑ */}
-          <div className="mb-2 px-1">
-            <div className="relative h-12">
-              <div className="absolute left-0 right-0 top-1/2 h-2.5 -translate-y-1/2 rounded-full bg-(--oboon-bg-subtle)" />
+          {/* 슬라이더 */}
+          <div className="mb-1 mt-1 px-1">
+            <div className="relative h-10">
+              <div className="absolute left-0 right-0 top-1/2 h-2 -translate-y-1/2 rounded-full bg-(--oboon-bg-subtle)" />
               <div
-                className="absolute top-1/2 h-2.5 -translate-y-1/2 rounded-full bg-(--oboon-primary)"
+                className="absolute top-1/2 h-2 -translate-y-1/2 rounded-full bg-(--oboon-primary)"
                 style={{
                   left: `${sliderProgressStart}%`,
                   width: `${Math.max(sliderProgressEnd - sliderProgressStart, 0)}%`,
@@ -559,7 +555,7 @@ function FilterBarBody({
                 step={1}
                 value={sliderMinPosition}
                 onChange={(e) => handleSliderMinChange(e.target.value)}
-                className="pointer-events-none absolute inset-0 h-12 w-full appearance-none bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-(--oboon-bg-surface) [&::-webkit-slider-thumb]:bg-(--oboon-primary) [&::-webkit-slider-thumb]:shadow-md [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:h-6 [&::-moz-range-thumb]:w-6 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-(--oboon-bg-surface) [&::-moz-range-thumb]:bg-(--oboon-primary)"
+                className="pointer-events-none absolute inset-0 h-10 w-full appearance-none bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-(--oboon-bg-surface) [&::-webkit-slider-thumb]:bg-(--oboon-primary) [&::-webkit-slider-thumb]:shadow-md [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-(--oboon-bg-surface) [&::-moz-range-thumb]:bg-(--oboon-primary)"
                 aria-label="최소 예산 슬라이더"
               />
               <input
@@ -569,11 +565,11 @@ function FilterBarBody({
                 step={1}
                 value={sliderMaxPosition}
                 onChange={(e) => handleSliderMaxChange(e.target.value)}
-                className="pointer-events-none absolute inset-0 h-12 w-full appearance-none bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-(--oboon-bg-surface) [&::-webkit-slider-thumb]:bg-(--oboon-primary) [&::-webkit-slider-thumb]:shadow-md [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:h-6 [&::-moz-range-thumb]:w-6 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-(--oboon-bg-surface) [&::-moz-range-thumb]:bg-(--oboon-primary)"
+                className="pointer-events-none absolute inset-0 h-10 w-full appearance-none bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-(--oboon-bg-surface) [&::-webkit-slider-thumb]:bg-(--oboon-primary) [&::-webkit-slider-thumb]:shadow-md [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-(--oboon-bg-surface) [&::-moz-range-thumb]:bg-(--oboon-primary)"
                 aria-label="최대 예산 슬라이더"
               />
             </div>
-            <div className="flex items-center justify-between ob-typo-body text-(--oboon-text-muted)">
+            <div className="flex items-center justify-between ob-typo-caption text-(--oboon-text-muted)">
               <span>0</span>
               <span>1억</span>
               <span>10억</span>

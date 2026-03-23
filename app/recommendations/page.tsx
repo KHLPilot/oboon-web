@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/DropdownMenu";
 import OfferingsViewToggle from "@/features/offerings/components/OfferingsViewToggle";
 import Link from "next/link";
-import { X } from "lucide-react";
 import FlippableRecommendationCard from "@/features/recommendations/components/FlippableRecommendationCard";
 import MiniMap from "@/features/recommendations/components/MiniMap";
 import MobileConditionSheet from "@/features/recommendations/components/MobileConditionSheet";
@@ -86,26 +85,10 @@ function MobileCardDetailSheet(props: {
     <div className="sm:hidden">
       <div
         className="fixed inset-0 z-(--oboon-z-modal) bg-(--oboon-overlay) backdrop-blur-sm"
-        onClick={onClose}
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }}
         aria-hidden="true"
       />
       <div className="fixed inset-x-0 bottom-0 z-(--oboon-z-modal) flex max-h-[88dvh] flex-col rounded-t-xl border border-b-0 border-(--oboon-border-default) bg-(--oboon-bg-surface) shadow-(--oboon-shadow-card)">
-        {/* 헤더 (고정) */}
-        <div className="flex shrink-0 items-center justify-between px-5 py-4">
-          <p className="line-clamp-1 ob-typo-subtitle text-(--oboon-text-title)">
-            {item.property.name}
-          </p>
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-page)"
-            aria-label="닫기"
-          >
-            <X className="h-4 w-4 text-(--oboon-text-muted)" />
-          </button>
-        </div>
-
-        <div className="shrink-0 border-t border-(--oboon-border-default)" />
 
         {/* 콘텐츠 (스크롤) */}
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
@@ -172,7 +155,7 @@ function SortDropdown(props: {
         <button
           type="button"
           className={cn(
-            "flex h-9 w-[7.5rem] items-center justify-between gap-1.5 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-page) px-3 text-left",
+            "flex h-9 w-[6rem] items-center justify-between gap-1.5 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 text-left",
             "text-[13px] leading-none font-medium text-(--oboon-text-title) sm:h-10 sm:w-auto sm:gap-2 sm:px-4 sm:text-sm sm:leading-normal",
           )}
           aria-label="정렬 선택"
@@ -475,7 +458,6 @@ export default function RecommendationsPage() {
     !catalogError &&
     results.length > 0 &&
     sortedResults.length === 0;
-  const showSearchBar = results.length > 0;
   const showResultToolbar = sortedResults.length > 0;
 
   return (
@@ -493,44 +475,42 @@ export default function RecommendationsPage() {
           </div>
 
           <div className="space-y-3 sm:hidden">
-            {showSearchBar ? (
-              <div className="flex items-center gap-3">
-                <div className="flex-1">
-                  <Label className="sr-only" htmlFor="recommendation-search-mobile">
-                    검색
-                  </Label>
-                  <Input
-                    id="recommendation-search-mobile"
-                    value={searchInput}
-                    onChange={(event) => setSearchInput(event.target.value)}
-                    placeholder={Copy.offerings.search.placeholder}
-                    className={cn(
-                      "h-10 w-full rounded-xl px-5 ob-typo-body",
-                      "outline-none focus:ring-2 focus:ring-(--oboon-primary)/30",
-                    )}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        applySearchQuery();
-                      }
-                    }}
-                    aria-label="맞춤 현장 검색"
-                  />
-                </div>
-
-                <Button
-                  type="button"
-                  variant="secondary"
-                  shape="pill"
-                  size="md"
-                  className="h-10 w-10 rounded-full p-0"
-                  onClick={applySearchQuery}
-                  aria-label="검색"
-                >
-                  <Search className="h-4 w-4" />
-                </Button>
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <Label className="sr-only" htmlFor="recommendation-search-mobile">
+                  검색
+                </Label>
+                <Input
+                  id="recommendation-search-mobile"
+                  value={searchInput}
+                  onChange={(event) => setSearchInput(event.target.value)}
+                  placeholder={Copy.offerings.search.placeholder}
+                  className={cn(
+                    "h-10 w-full rounded-xl px-5 ob-typo-body",
+                    "outline-none focus:ring-2 focus:ring-(--oboon-primary)/30",
+                  )}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      applySearchQuery();
+                    }
+                  }}
+                  aria-label="맞춤 현장 검색"
+                />
               </div>
-            ) : null}
+
+              <Button
+                type="button"
+                variant="secondary"
+                shape="pill"
+                size="md"
+                className="h-10 w-10 rounded-full p-0"
+                onClick={applySearchQuery}
+                aria-label="검색"
+              >
+                <Search className="h-4 w-4" />
+              </Button>
+            </div>
 
             <MobileConditionSheet
               condition={condition}
@@ -545,96 +525,14 @@ export default function RecommendationsPage() {
               onModeChange={changeMode}
             />
 
-            {showSearchBar ? (
-              showResultToolbar ? (
-                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-                  <div className="flex min-w-0 items-center gap-1 sm:gap-2 overflow-hidden whitespace-nowrap">
-                    <ResultChip
-                      label="충족"
-                      count={gradeCounts.GREEN}
-                      tone="GREEN"
-                    />
-                    <ResultChip
-                      label="근접"
-                      count={gradeCounts.LIME}
-                      tone="LIME"
-                    />
-                    <ResultChip
-                      label="검토"
-                      count={gradeCounts.YELLOW}
-                      tone="YELLOW"
-                    />
-                  </div>
-
-                  <div className="flex shrink-0 items-center gap-2">
-                    <SortDropdown
-                      value={sortKey}
-                      onChange={(nextSortKey) => {
-                        setSortKey(nextSortKey);
-                        setFlipState({ id: null, scope: "" });
-                      }}
-                    />
-                    <OfferingsViewToggle
-                      value={desktopView}
-                      onChange={(nextView) => {
-                        setDesktopView(nextView);
-                        setFlipState({ id: null, scope: "" });
-                      }}
-                    />
-                  </div>
+            {showResultToolbar ? (
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+                <div className="flex min-w-0 items-center gap-1 sm:gap-2 overflow-hidden whitespace-nowrap">
+                  <ResultChip label="충족" count={gradeCounts.GREEN} tone="GREEN" />
+                  <ResultChip label="근접" count={gradeCounts.LIME} tone="LIME" />
+                  <ResultChip label="검토" count={gradeCounts.YELLOW} tone="YELLOW" />
                 </div>
-              ) : (
-                <p className="ob-typo-caption text-(--oboon-text-muted)">
-                  검색 조건에 맞는 현장을 찾지 못했어요.
-                </p>
-              )
-            ) : null}
-          </div>
-
-          <div className="hidden sm:block">
-            <div
-              className={cn(
-                "flex items-center gap-3",
-                showSearchBar ? "" : "justify-end",
-              )}
-            >
-              {showSearchBar ? (
-                <>
-                  <div className="flex-1">
-                    <Label className="sr-only" htmlFor="recommendation-search">
-                      검색
-                    </Label>
-                    <Input
-                      id="recommendation-search"
-                      value={searchInput}
-                      onChange={(event) => setSearchInput(event.target.value)}
-                      placeholder={Copy.offerings.search.placeholder}
-                      className={cn(
-                        "h-10 w-full rounded-xl px-5 ob-typo-body",
-                        "outline-none focus:ring-2 focus:ring-(--oboon-primary)/30",
-                      )}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-                          applySearchQuery();
-                        }
-                      }}
-                      aria-label="맞춤 현장 검색"
-                    />
-                  </div>
-
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    shape="pill"
-                    size="md"
-                    className="h-10 w-10 rounded-full p-0"
-                    onClick={applySearchQuery}
-                    aria-label="검색"
-                  >
-                    <Search className="h-4 w-4" />
-                  </Button>
-
+                <div className="flex shrink-0 items-center gap-2">
                   <SortDropdown
                     value={sortKey}
                     onChange={(nextSortKey) => {
@@ -642,7 +540,6 @@ export default function RecommendationsPage() {
                       setFlipState({ id: null, scope: "" });
                     }}
                   />
-
                   <OfferingsViewToggle
                     value={desktopView}
                     onChange={(nextView) => {
@@ -650,8 +547,67 @@ export default function RecommendationsPage() {
                       setFlipState({ id: null, scope: "" });
                     }}
                   />
-                </>
-              ) : null}
+                </div>
+              </div>
+            ) : results.length > 0 ? (
+              <p className="ob-typo-caption text-(--oboon-text-muted)">
+                검색 조건에 맞는 현장을 찾지 못했어요.
+              </p>
+            ) : null}
+          </div>
+
+          <div className="hidden sm:block">
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <Label className="sr-only" htmlFor="recommendation-search">
+                  검색
+                </Label>
+                <Input
+                  id="recommendation-search"
+                  value={searchInput}
+                  onChange={(event) => setSearchInput(event.target.value)}
+                  placeholder={Copy.offerings.search.placeholder}
+                  className={cn(
+                    "h-10 w-full rounded-xl px-5 ob-typo-body",
+                    "outline-none focus:ring-2 focus:ring-(--oboon-primary)/30",
+                  )}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      applySearchQuery();
+                    }
+                  }}
+                  aria-label="맞춤 현장 검색"
+                />
+              </div>
+
+              <Button
+                type="button"
+                variant="secondary"
+                shape="pill"
+                size="md"
+                className="h-10 w-10 rounded-full p-0"
+                onClick={applySearchQuery}
+                aria-label="검색"
+              >
+                <Search className="h-4 w-4" />
+              </Button>
+
+              <SortDropdown
+                value={sortKey}
+                onChange={(nextSortKey) => {
+                  setSortKey(nextSortKey);
+                  setFlipState({ id: null, scope: "" });
+                }}
+              />
+
+              <OfferingsViewToggle
+                value={desktopView}
+                onChange={(nextView) => {
+                  setDesktopView(nextView);
+                  setFlipState({ id: null, scope: "" });
+                }}
+              />
 
               <Button
                 type="button"
@@ -690,7 +646,7 @@ export default function RecommendationsPage() {
               </div>
             ) : null}
 
-            {showSearchBar && !showResultToolbar ? (
+            {results.length > 0 && !showResultToolbar ? (
               <p className="mt-3 ob-typo-caption text-(--oboon-text-muted)">
                 검색 조건에 맞는 현장을 찾지 못했어요.
               </p>

@@ -80,18 +80,23 @@ function pickStationRows(payload: unknown): Array<Record<string, unknown>> {
 
 export function mapSchoolLevelFromCategoryName(
   categoryName: string | null | undefined,
+  placeName?: string | null | undefined,
 ):
+  | "KINDERGARTEN"
   | "ELEMENTARY"
   | "MIDDLE"
   | "HIGH"
   | "UNIVERSITY"
   | "OTHER" {
-  const raw = (categoryName ?? "").trim();
-  if (!raw) return "OTHER";
-  if (raw.includes("초등학교")) return "ELEMENTARY";
-  if (raw.includes("중학교")) return "MIDDLE";
-  if (raw.includes("고등학교")) return "HIGH";
-  if (raw.includes("대학교") || raw.includes("대학")) return "UNIVERSITY";
+  const rawCategory = (categoryName ?? "").trim();
+  const rawName = (placeName ?? "").trim();
+  const source = `${rawCategory} ${rawName}`.trim();
+  if (!source) return "OTHER";
+  if (/유치원|어린이집/.test(source)) return "KINDERGARTEN";
+  if (/초등학교/.test(source)) return "ELEMENTARY";
+  if (/중학교/.test(source)) return "MIDDLE";
+  if (/고등학교/.test(source)) return "HIGH";
+  if (/대학교|대학/.test(source)) return "UNIVERSITY";
   return "OTHER";
 }
 

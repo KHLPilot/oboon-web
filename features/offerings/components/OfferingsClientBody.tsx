@@ -347,22 +347,26 @@ export default function OfferingsClientBody() {
     Set<string>
   >(new Set());
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [scrapedPropertyIds, setScrapedPropertyIds] = useState<Set<number>>(new Set());
 
   /* ---------- fetch ---------- */
   useEffect(() => {
     let mounted = true;
 
     (async () => {
-      const [{ data, error }, { data: propertyAgents, error: agentError }] =
-        await Promise.all([
-          fetchPropertiesForOfferings(supabase, {
-            limit: 200,
-          }),
-          supabase
-            .from("property_agents")
-            .select("property_id")
-            .eq("status", "approved"),
-        ]);
+      const [
+        { data, error },
+        { data: propertyAgents, error: agentError },
+        { data: { user } },
+      ] = await Promise.all([
+        fetchPropertiesForOfferings(supabase, { limit: 200 }),
+        supabase
+          .from("property_agents")
+          .select("property_id")
+          .eq("status", "approved"),
+        supabase.auth.getUser(),
+      ]);
 
       if (!mounted) return;
 
@@ -387,6 +391,22 @@ export default function OfferingsClientBody() {
             .map((id) => String(id))
         );
         setApprovedAgentPropertyIds(ids);
+      }
+
+      // 로그인 사용자라면 찜한 현장 ID 목록 조회
+      if (user) {
+        setUserId(user.id);
+        const { data: scraps } = await supabase
+          .from("offering_scraps")
+          .select("property_id")
+          .eq("profile_id", user.id);
+        if (mounted && scraps) {
+          setScrapedPropertyIds(
+            new Set(
+              scraps.map((r: { property_id: number }) => r.property_id)
+            )
+          );
+        }
       }
 
       setLoadError(null);
@@ -451,7 +471,7 @@ export default function OfferingsClientBody() {
         <p className="ob-typo-body text-(--oboon-text-muted) mb-4">
           조건에 맞는 분양 정보를 빠르게 찾을 수 있어요.
         </p>
-        <div className="flex flex-col gap-5">
+        <div className="space-y-4">
           <FilterBar view={view} onViewChange={handleViewChange} />
 
           {loadError ? (
@@ -461,9 +481,9 @@ export default function OfferingsClientBody() {
           ) : null}
 
           {!rowsLoaded ? (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="space-y-3 sm:grid sm:grid-cols-2 sm:gap-4 sm:space-y-0 lg:grid-cols-3">
               {[0, 1, 2, 3, 4, 5].map((i) => (
-                <OfferingCardSkeleton key={i} />
+                <OfferingCardSkeleton key={i} mobileRecommendationLayout />
               ))}
             </div>
           ) : sortedOfferings.length === 0 ? (
@@ -490,13 +510,16 @@ export default function OfferingsClientBody() {
           ) : view === "map" ? (
             <OfferingsMapView offerings={sortedOfferings} />
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {sortedOfferings.map((offering) => (
+            <div className="space-y-3 sm:grid sm:grid-cols-2 sm:gap-4 sm:space-y-0 lg:grid-cols-3">
+              {sortedOfferings.map((offering, index) => (
                 <OfferingCard
                   key={offering.id}
                   offering={offering}
                   mobileRecommendationLayout
                   isConsultable={approvedAgentPropertyIds.has(String(offering.id))}
+                  initialScrapped={scrapedPropertyIds.has(Number(offering.id))}
+                  isLoggedIn={userId !== null}
+                  priority={index === 0}
                 />
               ))}
             </div>

@@ -57,8 +57,9 @@ export default function Header() {
 
   const NAV_ITEMS = useMemo(
     () => [
-      { label: "분양 리스트", href: ROUTES.offerings.list },
+      { label: "분양 리스트", href: ROUTES.offerings.list, exact: true },
       { label: "맞춤 현장", href: ROUTES.recommendations },
+      { label: "비교하기", href: "/offerings/compare", exact: true },
       // { label: "브리핑", href: "/briefing" },
       { label: "커뮤니티", href: "/community" },
       { label: "고객센터", href: "/support" },
@@ -211,7 +212,7 @@ export default function Header() {
             {/* Desktop nav */}
             <nav className="mt-1.5 hidden min-w-0 items-center gap-6 lg:gap-8 ob-typo-nav md:flex">
               {NAV_ITEMS.map((item) => {
-                const active = pathname.startsWith(item.href);
+                const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
                 return (
                   <Link
                     key={item.href}
@@ -347,7 +348,7 @@ export default function Header() {
 
                 <DropdownMenuContent align="end" className="mt-4 w-44 p-1">
                   {NAV_ITEMS.map((item) => {
-                    const active = pathname.startsWith(item.href);
+                    const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
                     return (
                       <DropdownMenuItem
                         key={item.href}

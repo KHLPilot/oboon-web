@@ -27,3 +27,35 @@ export const OFFERING_REGION_TABS = [
 ] as const;
 
 export type OfferingRegionTab = (typeof OFFERING_REGION_TABS)[number];
+
+// ─── Compare ──────────────────────────────────────────────────────────────────
+
+export type FinalGrade5 = "GREEN" | "LIME" | "YELLOW" | "ORANGE" | "RED";
+
+export interface OfferingCompareItem {
+  id: string;
+  name: string;
+  location: string;
+  imageUrl: string | null;
+  priceRange: string;
+  pricePerPyeong: string;
+  totalUnits: number;
+  unitTypes: string;
+  floors: string;
+  parking: string;
+  status: "OPEN" | "READY" | "CLOSED";
+  announcementDate: string | null;
+  applicationStart: string | null;
+  applicationEnd: string | null;
+  winnerAnnounce: string | null;
+  contractStart: string | null;
+  contractEnd: string | null;
+  moveInDate: string | null;
+  moveInText: string | null;
+  nearestStation: string;
+  distanceToCbd: string;
+  schoolGrade: "우수" | "보통" | "미흡";
+  conditionResult: FinalGrade5 | null;
+}
+
+export type CompareSlot = "a" | "b" | "c";

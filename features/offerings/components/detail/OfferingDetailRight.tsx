@@ -11,7 +11,9 @@ import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import BookingModal from "@/features/offerings/components/detail/BookingModal";
-import ConditionValidationCard from "@/features/offerings/components/detail/ConditionValidationCard";
+import ConditionValidationCard, {
+  type ProfileAutoFillData,
+} from "@/features/offerings/components/detail/ConditionValidationCard";
 import type { ConditionRecommendationItem } from "@/features/condition-validation/domain/types";
 import { formatManwonWithEok, formatPercent } from "@/lib/format/currency";
 import { createSupabaseClient } from "@/lib/supabaseClient";
@@ -20,6 +22,7 @@ import {
   normalizeOfferingStatusValue,
   statusLabelOf,
 } from "@/features/offerings/domain/offering.constants";
+import ScrapButton from "@/features/offerings/components/ScrapButton";
 
 interface OfferingDetailRightProps {
   propertyId?: number;
@@ -76,9 +79,11 @@ function gradeMeta(grade: ConditionRecommendationItem["final_grade"]): {
   label: string;
   badgeVariant: "success" | "warning" | "danger";
 } {
-  if (grade === "GREEN") return { label: "진행 가능", badgeVariant: "success" };
-  if (grade === "YELLOW") return { label: "상담 권장", badgeVariant: "warning" };
-  return { label: "리스크 높음", badgeVariant: "danger" };
+  if (grade === "GREEN") return { label: "계약 가능", badgeVariant: "success" };
+  if (grade === "LIME") return { label: "계약 가능 (확인 필요)", badgeVariant: "success" };
+  if (grade === "YELLOW") return { label: "확인 필요", badgeVariant: "warning" };
+  if (grade === "ORANGE") return { label: "계약 어려울 수 있음", badgeVariant: "warning" };
+  return { label: "계약 어려움", badgeVariant: "danger" };
 }
 
 function statusLabel(status: string | null): string {
@@ -106,9 +111,11 @@ export default function OfferingDetailRight({
   const [userRole, setUserRole] = useState<string | null>(null);
   const [conditionValidationPreset, setConditionValidationPreset] =
     useState<ConditionValidationPreset | null>(null);
+  const [profileAutoFill, setProfileAutoFill] = useState<ProfileAutoFillData | null>(null);
   const [isRecommendModalOpen, setIsRecommendModalOpen] = useState(false);
   const [recommendItems, setRecommendItems] = useState<ConditionRecommendationItem[]>([]);
   const [mobileConditionSlot, setMobileConditionSlot] = useState<HTMLElement | null>(null);
+  const [initialScrapped, setInitialScrapped] = useState(false);
   const isLoggedIn = Boolean(user);
   const isBookingBlockedRole = userRole === "agent" || userRole === "admin";
   const hasBookableAgent = hasApprovedAgent && agents.length > 0;
@@ -191,10 +198,21 @@ export default function OfferingDetailRight({
         setUser(currentUser);
 
         if (currentUser) {
+          // 찜 상태 초기값 로드
+          if (propertyId) {
+            const { data: scrapRow } = await supabase
+              .from("offering_scraps")
+              .select("id")
+              .eq("profile_id", currentUser.id)
+              .eq("property_id", propertyId)
+              .maybeSingle();
+            if (isMounted) setInitialScrapped(scrapRow !== null);
+          }
+
           const { data: profileWithPreset } = await supabase
             .from("profiles")
             .select(
-              "role, cv_available_cash_manwon, cv_monthly_income_manwon, cv_owned_house_count, cv_credit_grade, cv_purchase_purpose",
+              "role, cv_available_cash_manwon, cv_monthly_income_manwon, cv_owned_house_count, cv_credit_grade, cv_purchase_purpose, cv_employment_type, cv_monthly_expenses_manwon, cv_house_ownership, cv_purchase_purpose_v2, cv_purchase_timing, cv_movein_timing, cv_ltv_internal_score, cv_existing_monthly_repayment",
             )
             .eq("id", currentUser.id)
             .maybeSingle();
@@ -242,6 +260,39 @@ export default function OfferingDetailRight({
                 }
               : null,
           );
+
+          // v2 맞춤 정보 — 자동 채움 + 자동 검증용
+          const validEmploymentTypes = ["employee", "self_employed", "freelancer", "other"] as const;
+          const validHouseOwnerships = ["none", "one", "two_or_more"] as const;
+          const validPurchasePurposes = ["residence", "investment_rent", "investment_capital", "long_term"] as const;
+          const validPurchaseTimings = ["within_3months", "within_6months", "within_1year", "over_1year", "by_property"] as const;
+          const validMoveinTimings = ["immediate", "within_1year", "within_2years", "within_3years", "anytime"] as const;
+          const validRepayments = ["none", "under_50", "50to100", "100to200", "over_200"] as const;
+
+          setProfileAutoFill({
+            availableCashManwon: toFiniteInteger(profileWithPreset?.cv_available_cash_manwon),
+            monthlyIncomeManwon: toFiniteInteger(profileWithPreset?.cv_monthly_income_manwon),
+            monthlyExpensesManwon: toFiniteInteger(profileWithPreset?.cv_monthly_expenses_manwon),
+            employmentType: validEmploymentTypes.includes(profileWithPreset?.cv_employment_type as typeof validEmploymentTypes[number])
+              ? (profileWithPreset?.cv_employment_type as typeof validEmploymentTypes[number])
+              : null,
+            houseOwnership: validHouseOwnerships.includes(profileWithPreset?.cv_house_ownership as typeof validHouseOwnerships[number])
+              ? (profileWithPreset?.cv_house_ownership as typeof validHouseOwnerships[number])
+              : null,
+            purchasePurposeV2: validPurchasePurposes.includes(profileWithPreset?.cv_purchase_purpose_v2 as typeof validPurchasePurposes[number])
+              ? (profileWithPreset?.cv_purchase_purpose_v2 as typeof validPurchasePurposes[number])
+              : null,
+            purchaseTiming: validPurchaseTimings.includes(profileWithPreset?.cv_purchase_timing as typeof validPurchaseTimings[number])
+              ? (profileWithPreset?.cv_purchase_timing as typeof validPurchaseTimings[number])
+              : null,
+            moveinTiming: validMoveinTimings.includes(profileWithPreset?.cv_movein_timing as typeof validMoveinTimings[number])
+              ? (profileWithPreset?.cv_movein_timing as typeof validMoveinTimings[number])
+              : null,
+            ltvInternalScore: toFiniteInteger(profileWithPreset?.cv_ltv_internal_score),
+            existingMonthlyRepayment: validRepayments.includes(profileWithPreset?.cv_existing_monthly_repayment as typeof validRepayments[number])
+              ? (profileWithPreset?.cv_existing_monthly_repayment as typeof validRepayments[number])
+              : null,
+          });
         } else {
           setUserRole(null);
           setConditionValidationPreset(null);
@@ -327,6 +378,7 @@ export default function OfferingDetailRight({
       propertyId={propertyId}
       propertyName={propertyName}
       presetCustomer={resolvedConditionPreset}
+      profileAutoFill={isLoggedIn && userRole === "user" ? profileAutoFill : null}
       isLoggedIn={isLoggedIn}
       hasBookableAgent={hasBookableAgent}
       isBookingBlockedRole={isBookingBlockedRole}
@@ -343,8 +395,20 @@ export default function OfferingDetailRight({
          ========================= */}
       <div className="hidden lg:block space-y-3">
         <Card className="p-4">
-          <div className="ob-typo-h3 text-(--oboon-text-title)">
-            상담 예약하기
+          <div className="flex items-center justify-between">
+            <div className="ob-typo-h3 text-(--oboon-text-title)">
+              상담 예약하기
+            </div>
+            <div className="flex items-center gap-2">
+              {propertyId ? (
+                <ScrapButton
+                  propertyId={propertyId}
+                  initialScrapped={initialScrapped}
+                  isLoggedIn={isLoggedIn}
+                  variant="full"
+                />
+              ) : null}
+            </div>
           </div>
           {loadingAgents ? (
             <div className="mt-4 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-4 animate-pulse">
@@ -407,6 +471,14 @@ export default function OfferingDetailRight({
         >
           <div className="mx-auto w-full max-w-300 px-5 py-3">
             <div className="flex items-center gap-2">
+              {propertyId ? (
+                <ScrapButton
+                  propertyId={propertyId}
+                  initialScrapped={initialScrapped}
+                  isLoggedIn={isLoggedIn}
+                  variant="icon"
+                />
+              ) : null}
               {hasBookableAgent ? (
                 <Button
                   className="flex-1"

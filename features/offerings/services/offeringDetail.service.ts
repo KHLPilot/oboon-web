@@ -86,6 +86,7 @@ const isRecoPoiCategory = (value: unknown) =>
 const isRecoSchoolLevel = (value: unknown) =>
   value === null ||
   value === undefined ||
+  value === "KINDERGARTEN" ||
   value === "ELEMENTARY" ||
   value === "MIDDLE" ||
   value === "HIGH" ||

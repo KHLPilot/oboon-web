@@ -89,12 +89,7 @@ export default function ProfileSummary() {
   const avatarUrl = getAvatarUrlOrDefault(profile?.avatarUrl);
   const isLoggedIn = Boolean(profile);
 
-  return (
-    <div className="space-y-4">
-      <Link
-        href="/community/profile"
-        className="block rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--oboon-accent)/30"
-      >
+  const cardContent = (
         <Card className="p-5 hover:bg-(--oboon-bg-subtle) transition-colors">
           {/* 아바타 + 이름 + 역할 */}
           <div className="flex items-center justify-between gap-3">
@@ -192,7 +187,22 @@ export default function ProfileSummary() {
             </>
           )}
         </Card>
-      </Link>
+  );
+
+  return (
+    <div className="space-y-4">
+      {isLoggedIn ? (
+        <Link
+          href="/community/profile"
+          className="block rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--oboon-accent)/30"
+        >
+          {cardContent}
+        </Link>
+      ) : (
+        <div className="block rounded-2xl">
+          {cardContent}
+        </div>
+      )}
 
       <Interest />
     </div>

@@ -5,6 +5,7 @@ import type {
   KakaoPlace,
   PoiUpsertRow,
   RecoPoiCategory,
+  SchoolLevel,
 } from "@/features/reco/domain/recoPoi.types";
 import {
   fetchKakaoTopPoisByCategory,
@@ -31,6 +32,14 @@ const DEFAULT_TOP_N = 3;
 const DEFAULT_RADIUS = 2000;
 const HOSPITAL_SEARCH_PAGES = 4;
 const KAKAO_MAX_PAGES = 45;
+const SCHOOL_SEARCH_PAGES = 8;
+const SCHOOL_BUCKET_LIMIT = 2;
+const SCHOOL_TARGET_LEVELS = [
+  "KINDERGARTEN",
+  "ELEMENTARY",
+  "MIDDLE",
+  "HIGH",
+] as const;
 const OUTLET_KEYWORDS = ["아울렛", "롯데아울렛", "현대아울렛", "신세계아울렛"] as const;
 const RAIL_KEYWORDS = ["KTX역", "SRT역", "ITX역", "기차역"] as const;
 const DEFAULT_CHUNK = 50;
@@ -82,6 +91,76 @@ function toFiniteNumber(value: unknown): number | null {
 
 function byDistanceAsc(a: KakaoPlace, b: KakaoPlace) {
   return Number(a.distance ?? 0) - Number(b.distance ?? 0);
+}
+
+function isTargetSchoolLevel(
+  level: SchoolLevel,
+): level is (typeof SCHOOL_TARGET_LEVELS)[number] {
+  return SCHOOL_TARGET_LEVELS.includes(
+    level as (typeof SCHOOL_TARGET_LEVELS)[number],
+  );
+}
+
+function buildSchoolBuckets(places: KakaoPlace[]) {
+  const buckets: Record<(typeof SCHOOL_TARGET_LEVELS)[number], KakaoPlace[]> = {
+    KINDERGARTEN: [],
+    ELEMENTARY: [],
+    MIDDLE: [],
+    HIGH: [],
+  };
+
+  for (const place of places) {
+    const schoolLevel = mapSchoolLevelFromCategoryName(
+      place.category_name,
+      place.place_name,
+    );
+    if (!isTargetSchoolLevel(schoolLevel)) continue;
+    buckets[schoolLevel].push(place);
+  }
+
+  for (const level of SCHOOL_TARGET_LEVELS) {
+    buckets[level].sort(byDistanceAsc);
+  }
+
+  return buckets;
+}
+
+async function fetchSchoolPlaces(params: {
+  kakaoApiKey: string;
+  lat: number;
+  lng: number;
+  radius: number;
+}) {
+  const deduped = new Map<string, KakaoPlace>();
+
+  for (let page = 1; page <= SCHOOL_SEARCH_PAGES; page += 1) {
+    const pageRows = await withRetry(() =>
+      fetchKakaoTopPoisByCategory({
+        kakaoApiKey: params.kakaoApiKey,
+        category: "SCHOOL",
+        lat: params.lat,
+        lng: params.lng,
+        radius: params.radius,
+        topN: 15,
+        page,
+      }),
+    );
+
+    if (pageRows.length === 0) break;
+
+    for (const place of pageRows) {
+      deduped.set(place.id, place);
+    }
+
+    const buckets = buildSchoolBuckets(Array.from(deduped.values()));
+    const hasEnoughEachBucket = SCHOOL_TARGET_LEVELS.every(
+      (level) => buckets[level].length >= SCHOOL_BUCKET_LIMIT,
+    );
+    if (hasEnoughEachBucket) break;
+    if (pageRows.length < 15) break;
+  }
+
+  return Array.from(deduped.values());
 }
 
 function toStationToken(name: string) {
@@ -475,6 +554,13 @@ async function processProperty(params: {
                 return [...categoryRows, ...keywordRailRows];
               })()
             )
+        : category === "SCHOOL"
+          ? await fetchSchoolPlaces({
+              kakaoApiKey,
+              lat,
+              lng,
+              radius,
+            })
         : await withRetry(() =>
             fetchKakaoTopPoisByCategory({
               kakaoApiKey,
@@ -553,6 +639,56 @@ async function processProperty(params: {
         stats.categoryCounts[target.category] += inserted;
       }
 
+      continue;
+    }
+
+    if (category === "SCHOOL") {
+      const schoolBuckets = buildSchoolBuckets(dedupedRawPlaces);
+      const schoolPlaces = SCHOOL_TARGET_LEVELS.flatMap((level) =>
+        schoolBuckets[level].slice(0, SCHOOL_BUCKET_LIMIT),
+      );
+      const rows: PoiUpsertRow[] = [];
+
+      for (let i = 0; i < schoolPlaces.length; i += 1) {
+        const p = schoolPlaces[i];
+        const distance = toFiniteNumber(p.distance);
+        if (distance == null) continue;
+
+        rows.push({
+          property_id: propertyId,
+          category,
+          rank: i + 1,
+          kakao_place_id: p.id,
+          name: p.place_name,
+          distance_m: Math.max(0, Math.round(distance)),
+          lat: toFiniteNumber(p.y),
+          lng: toFiniteNumber(p.x),
+          address: p.address_name || null,
+          road_address: p.road_address_name || null,
+          phone: p.phone || null,
+          place_url: p.place_url || null,
+          category_name: p.category_name || null,
+          fetched_at: now,
+          raw_kakao: p as unknown as Record<string, unknown>,
+          subway_lines: null,
+          subway_station_code: null,
+          raw_public: null,
+          school_level: mapSchoolLevelFromCategoryName(
+            p.category_name,
+            p.place_name,
+          ),
+          updated_at: now,
+        });
+      }
+
+      const inserted = await upsertCategoryRows({
+        supabase,
+        propertyId,
+        category,
+        rows,
+      });
+      stats.upsertedRows += inserted;
+      stats.categoryCounts[category] += inserted;
       continue;
     }
 
@@ -679,7 +815,10 @@ async function processProperty(params: {
       };
 
       if (category === "SCHOOL") {
-        row.school_level = mapSchoolLevelFromCategoryName(p.category_name);
+        row.school_level = mapSchoolLevelFromCategoryName(
+          p.category_name,
+          p.place_name,
+        );
       }
 
       rows.push(row);
@@ -692,7 +831,7 @@ async function processProperty(params: {
       rows,
     });
     stats.upsertedRows += inserted;
-    stats.categoryCounts[category] += inserted;
+    stats.categoryCounts[category as RecoPoiCategory] += inserted;
   }
 
   const rawMartPlaces = (

@@ -163,7 +163,7 @@ export default function UserProfileSection({
                   placeholder={Copy.auth.placeholder.nickname}
                   maxLength={15}
                   className={[
-                    "flex-1",
+                    "grow min-h-11 shrink-0",
                     oboonFieldBaseClass,
                     errors.nickname ? "border-(--oboon-danger-border)" : "",
                   ].join(" ")}
@@ -294,7 +294,7 @@ export default function UserProfileSection({
 
         <div className="order-1 space-y-2 lg:order-2">
           <Label>프로필 이미지</Label>
-          <div className="relative mx-auto h-48 w-48 sm:h-60 sm:w-60 lg:h-75 lg:w-75">
+          <div className="relative isolate mx-auto h-48 w-48 sm:h-60 sm:w-60 lg:h-75 lg:w-75">
             <div className="h-48 w-48 overflow-hidden rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle) sm:h-60 sm:w-60 lg:h-75 lg:w-75">
               <Image
                 src={getAvatarUrlOrDefault(avatarUrl)}

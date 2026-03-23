@@ -29,7 +29,7 @@ type ConditionBarProps = {
 const FIELD_LABEL_CLASSNAME =
   "mb-1.5 block ob-typo-caption text-(--oboon-text-muted)";
 const INPUT_CLASSNAME = [
-  "h-11 w-full rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-page)",
+  "h-11 w-full rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)",
   "px-3 ob-typo-body text-(--oboon-text-body) outline-none",
   "focus-visible:ring-2 focus-visible:ring-(--oboon-primary)/30",
 ].join(" ");
@@ -189,7 +189,7 @@ export default function ConditionBar(props: ConditionBarProps) {
           <NumberField
             label="가용 현금"
             value={condition.availableCash}
-            placeholder="8,000"
+            placeholder="예: 8,000"
             onChange={(availableCash) => onChange({ availableCash })}
           />
         </div>
@@ -199,7 +199,7 @@ export default function ConditionBar(props: ConditionBarProps) {
           <NumberField
             label="월 소득"
             value={condition.monthlyIncome}
-            placeholder="400"
+            placeholder="예: 400"
             onChange={(monthlyIncome) => onChange({ monthlyIncome })}
           />
         </div>
@@ -209,7 +209,7 @@ export default function ConditionBar(props: ConditionBarProps) {
           <NumberField
             label="월 지출"
             value={condition.monthlyExpenses}
-            placeholder="150"
+            placeholder="예: 150"
             onChange={(monthlyExpenses) => onChange({ monthlyExpenses })}
           />
         </div>

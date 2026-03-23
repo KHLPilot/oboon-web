@@ -151,13 +151,13 @@ type OfferingMeta = {
 };
 
 const DEFAULT_CONDITION: RecommendationCondition = {
-  availableCash: 8_000,
-  monthlyIncome: 400,
+  availableCash: 0,
+  monthlyIncome: 0,
   ownedHouseCount: 0,
   creditGrade: "good",
   purchasePurpose: "residence",
   employmentType: null,
-  monthlyExpenses: 150,
+  monthlyExpenses: 0,
   houseOwnership: null,
   purchasePurposeV2: null,
   purchaseTiming: null,
@@ -673,8 +673,7 @@ export function useRecommendations() {
       const loggedIn = Boolean(authResult.data.user);
       setIsLoggedIn(loggedIn);
       if (!loggedIn) {
-        setMode("sim");
-        setCondition((prev) => normalizeSimulatorCondition(prev, false));
+        // 비로그인: 저장된 조건 없음, 기본값 유지
       } else {
         // 저장된 조건 불러오기
         const userId = authResult.data.user!.id;

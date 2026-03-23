@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import ProfilePage from "@/features/profile/components/ProfilePage.client";
+import ProfilePageSkeleton from "@/features/profile/components/ProfilePageSkeleton";
 
 export const metadata: Metadata = {
   robots: {
@@ -11,7 +12,7 @@ export const metadata: Metadata = {
 
 export default function ProfilePageRoute() {
   return (
-    <Suspense fallback={<div className="py-12 text-center text-(--oboon-text-muted)">로딩 중...</div>}>
+    <Suspense fallback={<ProfilePageSkeleton />}>
       <ProfilePage redirectAgentOnProfile />
     </Suspense>
   );
