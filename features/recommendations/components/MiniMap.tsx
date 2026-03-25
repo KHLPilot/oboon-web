@@ -391,6 +391,10 @@ export default function MiniMap(props: MiniMapProps) {
       return;
     }
 
+    if (initialLocationStatus === "pending" || initialLocationStatus === "idle") {
+      return;
+    }
+
     const viewportKey = "nationwide";
     if (lastViewportKeyRef.current !== viewportKey) {
       lastViewportKeyRef.current = viewportKey;

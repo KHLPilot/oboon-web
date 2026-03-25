@@ -84,6 +84,10 @@ export default function FullscreenMapOverlay({
       return;
     }
 
+    if (initialLocationStatus === "pending" || initialLocationStatus === "idle") {
+      return;
+    }
+
     if (lastViewportKeyRef.current !== "nationwide") {
       lastViewportKeyRef.current = "nationwide";
       map.fitToBounds(ALL_KOREA_VIEW_BOUNDS);

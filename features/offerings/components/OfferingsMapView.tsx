@@ -325,6 +325,10 @@ export default function OfferingsMapView({
       return;
     }
 
+    if (initialLocationStatus === "pending" || initialLocationStatus === "idle") {
+      return;
+    }
+
     if (activeBoundaryRegionKey === "all" && !hasActiveListFilters) {
       if (lastViewportKeyRef.current !== "nationwide") {
         lastViewportKeyRef.current = "nationwide";

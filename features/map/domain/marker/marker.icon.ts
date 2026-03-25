@@ -470,28 +470,21 @@ function heroOverlay({
         max-width: 90vw;
         overflow: visible;
         border-radius: 20px;
-        border: 1px solid color-mix(in srgb, ${v.dot} 28%, var(--oboon-border-default));
-        background: linear-gradient(
-          135deg,
-          color-mix(in srgb, ${v.dot} 16%, var(--oboon-bg-surface)) 0%,
-          var(--oboon-bg-surface) 56%,
-          color-mix(in srgb, ${v.dot} 8%, var(--oboon-bg-subtle)) 100%
-        );
+        border: 1px solid ${v.dot};
+        background: var(--oboon-bg-surface);
         pointer-events: auto;
         z-index: 1;
       ">
         <div style="
           position: absolute;
           inset: 0;
-          background:
-            radial-gradient(circle at 100% 0%, color-mix(in srgb, ${v.dot} 22%, transparent) 0%, transparent 54%),
-            linear-gradient(180deg, color-mix(in srgb, ${v.dot} 6%, transparent) 0%, transparent 38%);
+          background: none;
           pointer-events: none;
         "></div>
         <div style="
           position: absolute;
           inset: 0;
-          border: 1px solid color-mix(in srgb, ${v.dot} 28%, var(--oboon-border-default));
+          border: 1px solid ${v.dot};
           border-radius: 20px;
           pointer-events: none;
           z-index: 2;
@@ -565,7 +558,7 @@ function heroOverlay({
                   <div style="
                     color: ${v.text};
                     font-size: 15px;
-                    font-weight: 900;
+                    font-weight: 800;
                     line-height: 1.2;
                     letter-spacing: -0.03em;
                     white-space: nowrap;
@@ -617,7 +610,7 @@ function heroOverlay({
                   ? `<div style="
                       color: ${v.text};
                       font-size: 18px;
-                      font-weight: 900;
+                      font-weight: 800;
                       line-height: 1.15;
                       letter-spacing: -0.03em;
                       white-space: nowrap;
@@ -678,7 +671,7 @@ function heroOverlay({
                           display: flex;
                           align-items: center;
                           gap: 6px;
-                          min-height: 18px;
+                          min-height: 22px;
                           min-width: 0;
                           flex: 1 1 0;
                           width: 0;
@@ -686,7 +679,8 @@ function heroOverlay({
                           font-size: 11px;
                           font-weight: 800;
                           line-height: 1;
-                          overflow: hidden;
+                          overflow: visible;
+                          padding: 2px 0;
                         ">
                           <span style="
                             width: 8px;
@@ -696,7 +690,12 @@ function heroOverlay({
                             background: ${styles.dot};
                             box-shadow: 0 0 0 4px color-mix(in srgb, ${styles.dot} 14%, transparent);
                           "></span>
-                          <span style="color: ${v.text};">${stat.label}</span>
+                          <span style="
+                            min-width: 0;
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                            color: ${v.text};
+                          ">${stat.label}</span>
                           <span style="color: ${styles.text};">${stat.value}</span>
                         </span>
                       `;
@@ -754,8 +753,8 @@ function heroOverlay({
         </div>
 
         ${speechBubbleTailHtml({
-          borderColor: `color-mix(in srgb, ${v.dot} 28%, var(--oboon-border-default))`,
-          fillColor: `color-mix(in srgb, ${v.dot} 10%, var(--oboon-bg-surface))`,
+          borderColor: v.dot,
+          fillColor: "var(--oboon-bg-surface)",
         })}
       </div>
     </div>
