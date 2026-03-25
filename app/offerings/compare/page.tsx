@@ -10,6 +10,7 @@ import {
   getOfferingsForCompare,
   getAvailableOfferingsBasic,
 } from "@/features/offerings/services/offering.compare";
+import { getScrapedPropertyIds } from "@/features/offerings/services/offeringScrap.service";
 import { createSupabaseServer } from "@/lib/supabaseServer";
 
 export const metadata: Metadata = {
@@ -37,12 +38,12 @@ export default async function ComparePage({ searchParams }: ComparePageProps) {
       : Promise.resolve([]),
     getAvailableOfferingsBasic(),
     user
-      ? supabase.from("offering_scraps").select("property_id").eq("profile_id", user.id)
-      : Promise.resolve({ data: [] }),
+      ? getScrapedPropertyIds(supabase, user.id)
+      : Promise.resolve(new Set<number>()),
   ]);
 
   const scrappedIds = new Set(
-    (scrapsResult.data ?? []).map((r) => String(r.property_id)),
+    [...scrapsResult].map((propertyId) => String(propertyId)),
   );
 
   const initialSlots: Partial<Record<"a" | "b" | "c", string>> = {};
@@ -168,4 +169,3 @@ function CompareHeader({ items }: { items: Awaited<ReturnType<typeof getOffering
     </div>
   );
 }
-

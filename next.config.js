@@ -12,8 +12,12 @@ const nextConfig = {
   images: {
     unoptimized: true,
     remotePatterns: [
-      // 운영 안정 우선: HTTPS 전체 도메인 허용
-      { protocol: "https", hostname: "**", pathname: "/**" },
+      // Supabase Storage
+      { protocol: "https", hostname: "*.supabase.co", pathname: "/**" },
+      // Cloudflare R2 Public Bucket (*.pub.r2.dev 또는 커스텀 도메인)
+      { protocol: "https", hostname: "*.pub.r2.dev", pathname: "/**" },
+      // R2 커스텀 도메인 사용 시 아래에 추가:
+      // { protocol: "https", hostname: "your-custom-domain.com", pathname: "/**" },
     ],
   },
 

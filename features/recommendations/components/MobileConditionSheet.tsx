@@ -131,8 +131,8 @@ export default function MobileConditionSheet(props: MobileConditionSheetProps) {
     };
   }, [open]);
 
-  async function handleEvaluate() {
-    const ok = await onEvaluate();
+  async function handleEvaluate(override?: RecommendationCondition) {
+    const ok = await onEvaluate(override);
     if (ok) {
       setOpen(false);
     }

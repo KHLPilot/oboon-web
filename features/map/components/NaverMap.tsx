@@ -5,9 +5,15 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 
 import { loadNaverMaps } from "@/features/map/services/naver.loader";
 import type { MarkerType } from "@/features/map/domain/marker/marker.type";
+import type {
+  GeoLocationCenter,
+  GeoLocationStatus,
+} from "@/features/map/hooks/useCurrentLocationCenter";
 import {
   iconFor,
+  type MarkerHeroMeta,
   type MarkerState,
+  type MarkerViewType,
 } from "@/features/map/domain/marker/marker.icon";
 
 export interface MapMarker {
@@ -18,12 +24,16 @@ export interface MapMarker {
   type: MarkerType;
   isCluster?: boolean;
   clusterRegion?: string | null;
+  clusterGroupKey?: string | null;
+  clusterGroupLabel?: string | null;
   topLabel?: string | null;
   mainLabel?: string | null;
   imageUrl?: string | null;
   address?: string | null;
+  propertyType?: string | null;
   ctaLabel?: string | null;
   canConsult?: boolean;
+  heroMeta?: MarkerHeroMeta | null;
 }
 
 export type MapFocusBounds = {
@@ -66,7 +76,16 @@ type MapClickEvent = {
   latlng?: MapEventLatLngLike;
 };
 
+function setMapCenter(map: NaverMapInstance, latLng: naver.maps.LatLng) {
+  (
+    map as unknown as {
+      setCenter: (nextLatLng: naver.maps.LatLng) => void;
+    }
+  ).setCenter(latLng);
+}
+
 const REGION_CLUSTER_ZOOM_THRESHOLD = 10;
+const GPS_FOCUS_ZOOM = 17;
 const MERCATOR_TILE_SIZE = 256;
 
 type RgbaColor = { r: number; g: number; b: number; a: number };
@@ -217,9 +236,12 @@ const NaverMap = forwardRef<
     focusedId?: number | null;
     richMarkerIds?: number[];
     showFocusedAsRich?: boolean;
+    focusedMarkerViewType?: MarkerViewType;
     useDefaultMarkers?: boolean;
     fitToMarkers?: boolean;
     initialZoom?: number;
+    initialCenter?: GeoLocationCenter | null;
+    initialLocationStatus?: GeoLocationStatus;
     onMarkerSelect?: (id: number) => void;
     onClusterRegionSelect?: (regionLabel: string) => void;
     onMarkerAction?: (
@@ -230,6 +252,8 @@ const NaverMap = forwardRef<
     onVisibleIdsChange?: (ids: number[]) => void;
     onClearFocus?: () => void;
     onMapMoveStart?: () => void;
+    onZoomChange?: (zoom: number) => void;
+    clusterZoomDelta?: number;
     focusBounds?: MapFocusBounds | null;
     focusPolygons?: MapFocusPolygonPath[];
     focusPolygonGroups?: MapFocusPolygonGroup[];
@@ -237,6 +261,8 @@ const NaverMap = forwardRef<
     onMapReady?: () => void;
     mode?: MapMode;
     regionClusterEnabled?: boolean;
+    regionClusterZoomThreshold?: number;
+    fitToMarkersMaxZoom?: number;
     onSelectPosition?: (lat: number, lng: number) => void | Promise<void>;
     interactive?: boolean;
   }
@@ -248,9 +274,12 @@ const NaverMap = forwardRef<
       focusedId = null,
       richMarkerIds = [],
       showFocusedAsRich = true,
+      focusedMarkerViewType = "rich",
       useDefaultMarkers = false,
       fitToMarkers = false,
       initialZoom = 12,
+      initialCenter = null,
+      initialLocationStatus = "idle",
       onMarkerSelect,
       onClusterRegionSelect,
       onMarkerAction,
@@ -258,6 +287,8 @@ const NaverMap = forwardRef<
       onVisibleIdsChange,
       onClearFocus,
       onMapMoveStart,
+      onZoomChange,
+      clusterZoomDelta = 2,
       focusBounds = null,
       focusPolygons = [],
       focusPolygonGroups = [],
@@ -265,6 +296,8 @@ const NaverMap = forwardRef<
       onMapReady,
       mode = "base",
       regionClusterEnabled = true,
+      regionClusterZoomThreshold = REGION_CLUSTER_ZOOM_THRESHOLD,
+      fitToMarkersMaxZoom,
       onSelectPosition,
       interactive = true,
     },
@@ -281,7 +314,6 @@ const NaverMap = forwardRef<
 
     const listenersRef = useRef<naver.maps.EventHandle[]>([]);
 
-    const lastFocusedIdRef = useRef<number | null>(null);
     const lastVisibleIdsRef = useRef<string>("");
     const lastHoveredIdRef = useRef<number | null>(null);
     const lastStyledFocusedIdRef = useRef<number | null>(null);
@@ -294,6 +326,21 @@ const NaverMap = forwardRef<
     const hoveredIdRef = useRef(hoveredId);
     const richMarkerIdsRef = useRef<number[]>(richMarkerIds);
     const showFocusedAsRichRef = useRef(showFocusedAsRich);
+    const focusedMarkerViewTypeRef = useRef<MarkerViewType>(
+      focusedMarkerViewType,
+    );
+    const initialCenterRef = useRef<GeoLocationCenter | null>(initialCenter);
+    const fitToMarkersMaxZoomRef = useRef<number | undefined>(
+      fitToMarkersMaxZoom,
+    );
+    const initialCenterAppliedRef = useRef<string>("");
+    const initialFitSuppressedRef = useRef<boolean>(
+      initialLocationStatus === "pending" || initialCenter !== null,
+    );
+    const clusterZoomDeltaRef = useRef<number>(clusterZoomDelta);
+    const regionClusterZoomThresholdRef = useRef<number>(
+      regionClusterZoomThreshold,
+    );
     const markerClickTsRef = useRef<number>(0);
     const lastFittedMarkersKeyRef = useRef<string>("");
     const focusBoundsRef = useRef<MapFocusBounds | null>(focusBounds);
@@ -308,14 +355,28 @@ const NaverMap = forwardRef<
     const outlinePolygonsRef = useRef<Array<{ setMap: (map: unknown) => void }>>(
       [],
     );
+    const pendingClusterCenterRef = useRef<{
+      lat: number;
+      lng: number;
+    } | null>(null);
     focusedIdRef.current = focusedId;
     hoveredIdRef.current = hoveredId;
     richMarkerIdsRef.current = richMarkerIds;
     showFocusedAsRichRef.current = showFocusedAsRich;
+    focusedMarkerViewTypeRef.current = focusedMarkerViewType;
+    initialCenterRef.current = initialCenter;
+    fitToMarkersMaxZoomRef.current = fitToMarkersMaxZoom;
+    clusterZoomDeltaRef.current = clusterZoomDelta;
+    regionClusterZoomThresholdRef.current = regionClusterZoomThreshold;
     focusBoundsRef.current = focusBounds;
     focusPolygonsRef.current = focusPolygons;
     focusPolygonGroupsRef.current = focusPolygonGroups;
     focusMaskModeRef.current = focusMaskMode;
+    initialFitSuppressedRef.current =
+      initialFitSuppressedRef.current ||
+      initialLocationStatus === "pending" ||
+      initialLocationStatus === "granted" ||
+      initialCenter !== null;
     const applyMarkerStyleByIdRef = useRef<
       (naverObj: NaverGlobal, id: number) => void
     >(() => {});
@@ -323,7 +384,7 @@ const NaverMap = forwardRef<
       (naverObj: NaverGlobal) => void
     >(() => {});
     const fitMapToMarkersRef = useRef<
-      (naverObj: NaverGlobal, next: MapMarker[], force?: boolean) => void
+      (naverObj: NaverGlobal, next: MapMarker[]) => void
     >(() => {});
     const refreshDisplayMarkersRef = useRef<(naverObj: NaverGlobal) => void>(
       () => {},
@@ -711,6 +772,7 @@ const NaverMap = forwardRef<
       onVisibleIdsChange,
       onClearFocus,
       onMapMoveStart,
+      onZoomChange,
       onMapReady,
       onSelectPosition,
       mode,
@@ -725,6 +787,7 @@ const NaverMap = forwardRef<
         onVisibleIdsChange,
         onClearFocus,
         onMapMoveStart,
+        onZoomChange,
         onMapReady,
         onSelectPosition,
         mode,
@@ -778,15 +841,31 @@ const NaverMap = forwardRef<
     function buildRegionClusterMarkers(input: MapMarker[]): MapMarker[] {
       const groups = new Map<
         string,
-        { region: string; count: number; latSum: number; lngSum: number }
+        {
+          key: string;
+          label: string;
+          count: number;
+          latSum: number;
+          lngSum: number;
+        }
       >();
+      const unclustered: MapMarker[] = [];
 
       input.forEach((m) => {
-        const region = normalizeRegionLabel(m.clusterRegion ?? m.topLabel);
-        const acc = groups.get(region);
+        if (m.clusterRegion === null) {
+          unclustered.push(m);
+          return;
+        }
+
+        const key =
+          m.clusterGroupKey ?? normalizeRegionLabel(m.clusterRegion ?? m.topLabel);
+        const label =
+          m.clusterGroupLabel ?? normalizeRegionLabel(m.clusterRegion ?? m.topLabel);
+        const acc = groups.get(key);
         if (!acc) {
-          groups.set(region, {
-            region,
+          groups.set(key, {
+            key,
+            label,
             count: 1,
             latSum: m.lat,
             lngSum: m.lng,
@@ -798,23 +877,29 @@ const NaverMap = forwardRef<
         acc.lngSum += m.lng;
       });
 
-      return Array.from(groups.values()).map((g, idx) => ({
-        id: -100000 - idx,
-        label: `${g.region} ${g.count}건`,
-        lat: g.latSum / g.count,
-        lng: g.lngSum / g.count,
-        type: "agent",
-        isCluster: true,
-        clusterRegion: g.region,
-        topLabel: g.region,
-        mainLabel: `${g.count}건`,
-      }));
+      const clusterMarkers: MapMarker[] = Array.from(groups.values()).map(
+        (g, idx): MapMarker => ({
+          id: -100000 - idx,
+          label: `${g.label} ${g.count}건`,
+          lat: g.latSum / g.count,
+          lng: g.lngSum / g.count,
+          type: "agent",
+          isCluster: true,
+          clusterRegion: g.label,
+          clusterGroupKey: g.key,
+          clusterGroupLabel: g.label,
+          topLabel: g.label,
+          mainLabel: `${g.count}건`,
+        }),
+      );
+
+      return [...unclustered, ...clusterMarkers];
     }
 
     function shouldUseRegionCluster(map: naver.maps.Map) {
       if (mode === "select") return false;
       if (!regionClusterEnabled) return false;
-      return map.getZoom() <= REGION_CLUSTER_ZOOM_THRESHOLD;
+      return map.getZoom() <= regionClusterZoomThresholdRef.current;
     }
 
     function applyMarkerStyleById(naverObj: NaverGlobal, id: number) {
@@ -850,14 +935,18 @@ const NaverMap = forwardRef<
         : iconFor({
             type: m.type,
             state,
-            viewType: isRich ? "rich" : "compact",
+            viewType: isRich
+              ? focusedMarkerViewTypeRef.current
+              : "compact",
             label: m.label,
             topLabel: m.topLabel,
             mainLabel: m.mainLabel,
             imageUrl: m.imageUrl,
             address: m.address,
+            propertyType: m.propertyType,
             ctaLabel: m.ctaLabel,
             canConsult: m.canConsult,
+            heroMeta: m.heroMeta,
           });
 
       mk.setIcon({
@@ -924,19 +1013,59 @@ const NaverMap = forwardRef<
       });
     }
 
+    useEffect(() => {
+      const map = mapRef.current;
+      const naverObj = window.naver;
+      if (!map || !naverObj?.maps || !initialCenter) return;
+
+      const centerKey = `${initialCenter.lat.toFixed(6)},${initialCenter.lng.toFixed(6)}`;
+      if (initialCenterAppliedRef.current === centerKey) return;
+      initialCenterAppliedRef.current = centerKey;
+
+      setMapCenter(
+        map,
+        new naverObj.maps.LatLng(initialCenter.lat, initialCenter.lng),
+      );
+      const targetZoom = Math.max(map.getZoom(), initialZoom, GPS_FOCUS_ZOOM);
+      if (map.getZoom() !== targetZoom) {
+        map.setZoom(targetZoom, true);
+      }
+    }, [initialCenter, initialZoom]);
+
+    useEffect(() => {
+      if (initialLocationStatus === "pending") {
+        initialFitSuppressedRef.current = true;
+        return;
+      }
+
+      if (
+        initialLocationStatus === "denied" ||
+        initialLocationStatus === "unsupported"
+      ) {
+        initialFitSuppressedRef.current = false;
+        const map = mapRef.current;
+        const naverObj = window.naver;
+        if (!map || !naverObj?.maps || !fitToMarkers) return;
+        fitMapToMarkersRef.current(naverObj, sourceMarkersRef.current);
+      }
+    }, [fitToMarkers, initialLocationStatus]);
+
     function fitMapToMarkers(
       naverObj: NaverGlobal,
       next: MapMarker[],
-      force = false,
     ) {
       const map = mapRef.current;
       if (!map || !fitToMarkers || next.length < 1) return;
+      if (initialFitSuppressedRef.current) return;
+      const maxZoom = fitToMarkersMaxZoomRef.current;
 
       if (next.length === 1) {
         const single = next[0];
         map.panTo(new naverObj.maps.LatLng(single.lat, single.lng));
-        if (map.getZoom() < 14) {
-          map.setZoom(14, true);
+        const targetZoom =
+          typeof maxZoom === "number" ? Math.min(14, maxZoom) : 14;
+        if (map.getZoom() !== targetZoom) {
+          map.setZoom(targetZoom, true);
         }
         lastFittedMarkersKeyRef.current = `${single.id}:${single.lat.toFixed(6)},${single.lng.toFixed(6)}`;
         return;
@@ -945,7 +1074,7 @@ const NaverMap = forwardRef<
       const markersKey = next
         .map((m) => `${m.id}:${m.lat.toFixed(6)},${m.lng.toFixed(6)}`)
         .join("|");
-      if (!force && markersKey === lastFittedMarkersKeyRef.current) return;
+      if (markersKey === lastFittedMarkersKeyRef.current) return;
 
       const bounds = new naverObj.maps.LatLngBounds();
       next.forEach((marker) => {
@@ -958,6 +1087,18 @@ const NaverMap = forwardRef<
         bottom: 48,
         left: 48,
       });
+      const enforceMaxZoom = () => {
+        const currentMap = mapRef.current;
+        if (!currentMap || typeof maxZoom !== "number") return;
+        if (currentMap.getZoom() > maxZoom) {
+          currentMap.setZoom(maxZoom, true);
+        }
+      };
+      enforceMaxZoom();
+      if (typeof maxZoom === "number") {
+        window.setTimeout(enforceMaxZoom, 0);
+        window.setTimeout(enforceMaxZoom, 120);
+      }
 
       // 일부 환경에서 setCenter/setZoom 이후 실제 bounds 계산이 늦게 반영되어
       // 마커 일부가 화면 밖으로 남는 경우가 있어, 후검증으로 보정한다.
@@ -1022,15 +1163,14 @@ const NaverMap = forwardRef<
               event.domEvent.stopPropagation();
             }
             if (m.isCluster) {
-              const regionLabel = normalizeRegionLabel(
-                m.clusterRegion ?? m.topLabel,
-              );
+              const regionLabel =
+                m.clusterGroupLabel ?? m.clusterRegion ?? m.topLabel;
               if (regionLabel && callbacksRef.current.onClusterRegionSelect) {
                 callbacksRef.current.onClusterRegionSelect(regionLabel);
-                return;
               }
-              map.setZoom(map.getZoom() + 2, true);
-              map.panTo(new naverObj.maps.LatLng(m.lat, m.lng));
+              pendingClusterCenterRef.current = { lat: m.lat, lng: m.lng };
+              setMapCenter(map, new naverObj.maps.LatLng(m.lat, m.lng));
+              map.setZoom(map.getZoom() + clusterZoomDeltaRef.current, true);
               return;
             }
             callbacksRef.current.onMarkerSelect?.(m.id);
@@ -1091,11 +1231,7 @@ const NaverMap = forwardRef<
         const m = mapRef.current;
         const naverObj = window.naver;
         if (!m || !naverObj?.maps) return;
-        (
-          m as unknown as {
-            setCenter: (latLng: naver.maps.LatLng) => void;
-          }
-        ).setCenter(new naverObj.maps.LatLng(lat, lng));
+        setMapCenter(m, new naverObj.maps.LatLng(lat, lng));
         if (typeof zoom === "number") {
           m.setZoom(zoom, true);
         }
@@ -1130,11 +1266,7 @@ const NaverMap = forwardRef<
           ),
         );
 
-        (
-          m as unknown as {
-            setCenter: (latLng: naver.maps.LatLng) => void;
-          }
-        ).setCenter(new naverObj.maps.LatLng(centerLat, centerLng));
+        setMapCenter(m, new naverObj.maps.LatLng(centerLat, centerLng));
         m.setZoom(targetZoom, true);
       },
       resize: () => {
@@ -1159,14 +1291,19 @@ const NaverMap = forwardRef<
 
       loadNaverMaps(clientId).then((naverObj) => {
         if (!isMounted || !mapContainerRef.current) return;
+        const latestInitialCenter = initialCenterRef.current;
 
         const map = new naverObj.maps.Map(mapContainerRef.current, {
-          center: new naverObj.maps.LatLng(37.5127, 126.9706),
-          zoom: initialZoom,
+          center: new naverObj.maps.LatLng(
+            latestInitialCenter?.lat ?? 37.5127,
+            latestInitialCenter?.lng ?? 126.9706,
+          ),
+          zoom: latestInitialCenter ? Math.max(initialZoom, GPS_FOCUS_ZOOM) : initialZoom,
           zoomControl: false,
         });
         mapRef.current = map;
         callbacksRef.current.onMapReady?.();
+        callbacksRef.current.onZoomChange?.(map.getZoom());
 
         /**
          * iOS Safari / WKWebView(Whale 등)에서 초기 레이아웃 타이밍 때문에
@@ -1182,7 +1319,7 @@ const NaverMap = forwardRef<
               // resize 직후 가시영역/스타일 동기화
               scheduleVisibleSync();
               applyFocusHoverDeltaStyles(naverObj);
-              fitMapToMarkers(naverObj, sourceMarkersRef.current, true);
+              fitMapToMarkers(naverObj, sourceMarkersRef.current);
             });
           });
           // 일부 iOS에서 1회 더 필요할 때가 있어 보수적으로 1번만 추가
@@ -1196,7 +1333,7 @@ const NaverMap = forwardRef<
 
             scheduleVisibleSync();
             applyFocusHoverDeltaStyles(naverObj);
-            fitMapToMarkers(naverObj, sourceMarkersRef.current, true);
+            fitMapToMarkers(naverObj, sourceMarkersRef.current);
           }, 250);
         };
         triggerInitialResize();
@@ -1254,6 +1391,17 @@ const NaverMap = forwardRef<
           () => {
             isInteractingRef.current = false;
             refreshDisplayMarkersRef.current(naverObj);
+            const pendingClusterCenter = pendingClusterCenterRef.current;
+            if (pendingClusterCenter) {
+              pendingClusterCenterRef.current = null;
+              setMapCenter(
+                map,
+                new naverObj.maps.LatLng(
+                  pendingClusterCenter.lat,
+                  pendingClusterCenter.lng,
+                ),
+              );
+            }
             applyRegionFocusOverlayRef.current(naverObj);
             scheduleVisibleSync();
             // idle에서 델타만 반영 (전체 loop 금지)
@@ -1267,6 +1415,7 @@ const NaverMap = forwardRef<
           () => {
             isInteractingRef.current = true;
             callbacksRef.current.onMapMoveStart?.();
+            callbacksRef.current.onZoomChange?.(map.getZoom());
             refreshDisplayMarkersRef.current(naverObj);
             applyRegionFocusOverlayRef.current(naverObj);
             // 현 정책상 focused만 갱신하면 충분
@@ -1366,7 +1515,7 @@ const NaverMap = forwardRef<
           applyMarkerStyleByIdRef.current(naverObj, id);
         });
 
-        fitMapToMarkersRef.current(naverObj, sourceMarkersRef.current, true);
+        fitMapToMarkersRef.current(naverObj, sourceMarkersRef.current);
       };
 
       window.addEventListener("pageshow", forceRefresh);
@@ -1418,8 +1567,7 @@ const NaverMap = forwardRef<
     // [4] Focus 이동
     useEffect(() => {
       const map = mapRef.current;
-      if (!map || !focusedId || lastFocusedIdRef.current === focusedId) return;
-      if (fitToMarkers && markers.length > 1) return;
+      if (!map || !focusedId) return;
 
       const target =
         sourceMarkersRef.current.find((m) => m.id === focusedId) ??
@@ -1430,24 +1578,8 @@ const NaverMap = forwardRef<
       if (!naverObj?.maps) return;
       const targetLatLng = new naverObj.maps.LatLng(target.lat, target.lng);
 
-      if (mode === "expanded") {
-        const proj = map.getProjection();
-        const mapSize = map.getSize();
-
-        const targetOffset = proj.fromCoordToOffset(targetLatLng);
-        const newCenterOffset = new naverObj.maps.Point(
-          targetOffset.x,
-          targetOffset.y + mapSize.height * 0.1,
-        );
-
-        const newCenter = proj.fromOffsetToCoord(newCenterOffset);
-        map.panTo(newCenter);
-      } else {
-        map.panTo(targetLatLng);
-      }
-
-      lastFocusedIdRef.current = focusedId;
-    }, [focusedId, mode, fitToMarkers, markers.length]);
+      map.panTo(targetLatLng);
+    }, [focusedId]);
 
     return (
       <div className="relative w-full h-full">

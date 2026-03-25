@@ -5,6 +5,7 @@ import { Building2, Lock } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { Badge } from "@/components/ui/Badge";
+import { grade5DetailLabel } from "@/features/condition-validation/lib/grade5Labels";
 import type { RecommendationCategory } from "@/features/recommendations/hooks/useRecommendations";
 import type { RecommendationItem } from "@/features/recommendations/hooks/useRecommendations";
 import { formatPercent } from "@/lib/format/currency";
@@ -18,6 +19,7 @@ type OfferingCardProps = {
   onClick: () => void;
   flushImageToEdge?: boolean;
   hideImage?: boolean;
+  navigateOnClick?: boolean;
 };
 
 type GradeToneMeta = {
@@ -42,7 +44,7 @@ function gradeToneMeta(
     case "GREEN":
       return {
         badgeLabel: "조건 충족",
-        detailLabel: "충족",
+        detailLabel: grade5DetailLabel(grade),
         badgeClassName:
           "border-(--oboon-grade-green-border) bg-(--oboon-grade-green-bg) text-(--oboon-grade-green-text)",
         barClassName: "bg-(--oboon-grade-green)",
@@ -52,7 +54,7 @@ function gradeToneMeta(
     case "LIME":
       return {
         badgeLabel: "거의 충족",
-        detailLabel: "근접",
+        detailLabel: grade5DetailLabel(grade),
         badgeClassName:
           "border-(--oboon-grade-lime-border) bg-(--oboon-grade-lime-bg) text-(--oboon-grade-lime-text)",
         barClassName: "bg-(--oboon-grade-lime)",
@@ -62,7 +64,7 @@ function gradeToneMeta(
     case "YELLOW":
       return {
         badgeLabel: "검토 필요",
-        detailLabel: "검토",
+        detailLabel: grade5DetailLabel(grade),
         badgeClassName:
           "border-(--oboon-grade-yellow-border) bg-(--oboon-grade-yellow-bg) text-(--oboon-grade-yellow-text)",
         barClassName: "bg-(--oboon-grade-yellow)",
@@ -72,7 +74,7 @@ function gradeToneMeta(
     case "ORANGE":
       return {
         badgeLabel: "어려울 수 있음",
-        detailLabel: "어려움",
+        detailLabel: grade5DetailLabel(grade),
         badgeClassName:
           "border-(--oboon-grade-orange-border) bg-(--oboon-grade-orange-bg) text-(--oboon-grade-orange-text)",
         barClassName: "bg-(--oboon-grade-orange)",
@@ -82,7 +84,7 @@ function gradeToneMeta(
     default:
       return {
         badgeLabel: "미충족",
-        detailLabel: "미충족",
+        detailLabel: grade5DetailLabel(grade),
         badgeClassName:
           "border-(--oboon-grade-red-border) bg-(--oboon-grade-red-bg) text-(--oboon-grade-red-text)",
         barClassName: "bg-(--oboon-grade-red)",
@@ -118,10 +120,12 @@ export default function OfferingCard(props: OfferingCardProps) {
     onClick,
     flushImageToEdge = false,
     hideImage = false,
+    navigateOnClick = true,
   } = props;
   const router = useRouter();
   const { property: meta, evalResult } = property;
   const finalMeta = gradeToneMeta(evalResult.finalGrade);
+  const finalBadgeLabel = evalResult.gradeLabel ?? finalMeta.badgeLabel;
   const hasImage = isLikelyImageUrl(meta.imageUrl);
   const shouldRenderImage = !hideImage || flushImageToEdge;
   const totalScore = evalResult.totalScore ?? 0;
@@ -130,23 +134,25 @@ export default function OfferingCard(props: OfferingCardProps) {
       ? formatPercent(evalResult.metrics.monthlyBurdenPercent)
       : "계산 불가";
 
-  const handleNavigate = () => {
+  const handleCardPress = () => {
     onClick();
+    if (!navigateOnClick) return;
+
     trackEvent("property_view", { property_id: meta.id });
     router.push(ROUTES.offerings.detail(meta.id));
   };
 
   return (
     <article
-      role="link"
+      role={navigateOnClick ? "link" : "button"}
       tabIndex={0}
-      onClick={handleNavigate}
+      onClick={handleCardPress}
       onMouseEnter={onClick}
       onFocus={onClick}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
-          handleNavigate();
+          handleCardPress();
         }
       }}
       className={cn(
@@ -196,7 +202,7 @@ export default function OfferingCard(props: OfferingCardProps) {
                   className={cn("shrink-0 border ob-typo-caption", finalMeta.badgeClassName)}
                 >
                   <span className="sm:hidden">{finalMeta.detailLabel}</span>
-                  <span className="hidden sm:inline">{finalMeta.badgeLabel}</span>
+                  <span className="hidden sm:inline">{finalBadgeLabel}</span>
                 </Badge>
               </div>
 
@@ -304,7 +310,7 @@ export default function OfferingCard(props: OfferingCardProps) {
                   )}
                 >
                   <span className="sm:hidden">{finalMeta.detailLabel}</span>
-                  <span className="hidden sm:inline">{finalMeta.badgeLabel}</span>
+                  <span className="hidden sm:inline">{finalBadgeLabel}</span>
                 </Badge>
               </div>
             </div>

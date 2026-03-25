@@ -21,11 +21,13 @@ import {
 import { OfferingCardSkeleton } from "@/features/offerings/components/OfferingCardSkeleton";
 import {
   GYEONGGI_NORTH_CITIES,
+  GYEONGGI_SUB_REGION_OPTIONS,
   getGyeonggiSubRegionConfig,
   OFFERING_STATUS_LABEL,
   OFFERING_REGION_TABS,
   isOfferingStatusValue,
   normalizeOfferingStatusValue,
+  normalizeRegionTab,
 } from "@/features/offerings/domain/offering.constants";
 import {
   OFFERING_STATUS_VALUES,
@@ -111,6 +113,90 @@ function pickOfferingRegion(o: Offering): string | null {
     if (normalized) return normalized;
   }
   return null;
+}
+
+function pickOfferingAddress(o: Offering): string {
+  return normalizeNonEmptyString(o.addressFull ?? o.addressShort) ?? "";
+}
+
+const SEOUL_SUB_REGIONS = [
+  "전체",
+  "강남구",
+  "강동구",
+  "강북구",
+  "강서구",
+  "관악구",
+  "광진구",
+  "구로구",
+  "금천구",
+  "노원구",
+  "도봉구",
+  "동대문구",
+  "동작구",
+  "마포구",
+  "서대문구",
+  "서초구",
+  "성동구",
+  "성북구",
+  "송파구",
+  "양천구",
+  "영등포구",
+  "용산구",
+  "은평구",
+  "종로구",
+  "중구",
+  "중랑구",
+] as const;
+
+function listAvailableRegions(items: Offering[]): OfferingRegionTab[] {
+  const available = new Set<OfferingRegionTab>(["전체"]);
+
+  for (const item of items) {
+    const region = normalizeRegionTab(pickOfferingRegion(item));
+    if (region !== "전체") {
+      available.add(region);
+    }
+  }
+
+  return OFFERING_REGION_TABS.filter((region) => available.has(region));
+}
+
+function listAvailableSeoulSubRegions(items: Offering[]): string[] {
+  const available = new Set<string>(["전체"]);
+
+  for (const item of items) {
+    const address = pickOfferingAddress(item);
+    const matchedDistrict = SEOUL_SUB_REGIONS.find(
+      (district) => district !== "전체" && address.includes(district),
+    );
+
+    if (matchedDistrict) {
+      available.add(matchedDistrict);
+    }
+  }
+
+  return SEOUL_SUB_REGIONS.filter((district) => available.has(district));
+}
+
+function listAvailableGyeonggiSubRegions(items: Offering[]): string[] {
+  const available = new Set<string>(["전체"]);
+
+  for (const item of items) {
+    const address = pickOfferingAddress(item);
+
+    for (const option of GYEONGGI_SUB_REGION_OPTIONS) {
+      if (option.value === "전체") continue;
+
+      const config = getGyeonggiSubRegionConfig(option.value);
+      if (config?.matchers.some((matcher) => address.includes(matcher))) {
+        available.add(option.value);
+      }
+    }
+  }
+
+  return GYEONGGI_SUB_REGION_OPTIONS
+    .map((option) => option.value)
+    .filter((value) => available.has(value));
 }
 
 function pickOfferingStatus(o: Offering): string | null {
@@ -431,9 +517,95 @@ export default function OfferingsClientBody() {
     return rows.map((row) => mapPropertyRowToOffering(row, fallback));
   }, [rows, fallback]);
 
+  const searchParamsWithoutRegion = useMemo<SearchParams>(
+    () => ({
+      ...searchParams,
+      region: undefined,
+      subRegion: undefined,
+    }),
+    [searchParams],
+  );
+
+  const regionCandidateOfferings = useMemo<Offering[]>(
+    () => filterOfferings(offerings, searchParamsWithoutRegion, approvedAgentPropertyIds),
+    [offerings, searchParamsWithoutRegion, approvedAgentPropertyIds],
+  );
+
+  const availableRegions = useMemo<OfferingRegionTab[]>(
+    () => listAvailableRegions(regionCandidateOfferings),
+    [regionCandidateOfferings],
+  );
+
+  const normalizedRegion =
+    searchParams.region &&
+    isRegionTab(searchParams.region) &&
+    availableRegions.includes(searchParams.region)
+      ? searchParams.region
+      : undefined;
+
+  const seoulSubRegionCandidateOfferings = useMemo<Offering[]>(
+    () =>
+      filterOfferings(
+        offerings,
+        {
+          ...searchParamsWithoutRegion,
+          region: "서울",
+        },
+        approvedAgentPropertyIds,
+      ),
+    [offerings, searchParamsWithoutRegion, approvedAgentPropertyIds],
+  );
+
+  const availableSeoulSubRegions = useMemo<string[]>(
+    () => listAvailableSeoulSubRegions(seoulSubRegionCandidateOfferings),
+    [seoulSubRegionCandidateOfferings],
+  );
+
+  const gyeonggiSubRegionCandidateOfferings = useMemo<Offering[]>(
+    () =>
+      filterOfferings(
+        offerings,
+        {
+          ...searchParamsWithoutRegion,
+          region: "경기",
+        },
+        approvedAgentPropertyIds,
+      ),
+    [offerings, searchParamsWithoutRegion, approvedAgentPropertyIds],
+  );
+
+  const availableGyeonggiSubRegions = useMemo<string[]>(
+    () => listAvailableGyeonggiSubRegions(gyeonggiSubRegionCandidateOfferings),
+    [gyeonggiSubRegionCandidateOfferings],
+  );
+
+  const normalizedSubRegion =
+    normalizedRegion === "서울"
+      ? searchParams.subRegion &&
+        searchParams.subRegion !== "전체" &&
+        availableSeoulSubRegions.includes(searchParams.subRegion)
+        ? searchParams.subRegion
+        : undefined
+      : normalizedRegion === "경기"
+        ? searchParams.subRegion &&
+          searchParams.subRegion !== "전체" &&
+          availableGyeonggiSubRegions.includes(searchParams.subRegion)
+          ? searchParams.subRegion
+          : undefined
+        : undefined;
+
+  const normalizedSearchParams = useMemo<SearchParams>(
+    () => ({
+      ...searchParams,
+      region: normalizedRegion,
+      subRegion: normalizedSubRegion,
+    }),
+    [normalizedRegion, normalizedSubRegion, searchParams],
+  );
+
   const filtered = useMemo<Offering[]>(
-    () => filterOfferings(offerings, searchParams, approvedAgentPropertyIds),
-    [offerings, searchParams, approvedAgentPropertyIds],
+    () => filterOfferings(offerings, normalizedSearchParams, approvedAgentPropertyIds),
+    [offerings, normalizedSearchParams, approvedAgentPropertyIds],
   );
   const sortKey: OfferingsSortKey =
     searchParams.sort && isOfferingsSortKey(searchParams.sort)
@@ -444,15 +616,12 @@ export default function OfferingsClientBody() {
     [filtered, sortKey],
   );
   const isRecommendedMode = searchParams.recommended === "1";
-  const view = searchParams.view === "map" ? "map" : "list";
+  const view = searchParams.view === "list" ? "list" : "map";
 
   function handleViewChange(nextView: "list" | "map") {
     const next = new URLSearchParams(sp.toString());
-    if (nextView === "map") {
-      next.set("view", "map");
-    } else {
-      next.delete("view");
-    }
+    if (nextView === "list") next.set("view", "list");
+    else next.delete("view");
 
     const query = next.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, {
@@ -472,7 +641,13 @@ export default function OfferingsClientBody() {
           조건에 맞는 분양 정보를 빠르게 찾을 수 있어요.
         </p>
         <div className="space-y-4">
-          <FilterBar view={view} onViewChange={handleViewChange} />
+          <FilterBar
+            view={view}
+            onViewChange={handleViewChange}
+            availableRegions={availableRegions}
+            availableSeoulSubRegions={availableSeoulSubRegions}
+            availableGyeonggiSubRegions={availableGyeonggiSubRegions}
+          />
 
           {loadError ? (
             <div className="rounded-2xl border border-(--oboon-danger-border) bg-(--oboon-danger-bg) px-4 py-3">

@@ -10,6 +10,7 @@ import { ROUTES } from "@/types/index";
 import { Badge } from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
+import { getGrade5ToneMeta } from "@/features/condition-validation/lib/grade5Theme";
 import HomeOfferingCard from "@/features/offerings/components/OfferingCard";
 import OfferingBadge from "@/features/offerings/components/OfferingBadges";
 import type { RecommendationItem } from "@/features/recommendations/hooks/useRecommendations";
@@ -22,23 +23,22 @@ type FlippableRecommendationCardProps = {
   item: RecommendationItem;
   isSelected: boolean;
   isFlipped: boolean;
+  size?: "desktop" | "mobile";
   disableFlip?: boolean;
+  initialScrapped?: boolean;
+  isLoggedIn?: boolean;
+  priority?: boolean;
   onFlip: () => void;
   onSelect: () => void;
 };
 
 const DESKTOP_CARD_HEIGHT_CLASS = "h-[29rem] xl:h-[29.5rem]";
+const MOBILE_CARD_HEIGHT_CLASS = "h-[24.5rem]";
 
 function isLikelyImageUrl(url: string | null | undefined) {
   if (!url) return false;
   if (url.startsWith("data:image/")) return true;
   return /\.(jpg|jpeg|png|webp|gif|avif|svg)(\?.*)?$/i.test(url);
-}
-
-function badgeVariant(grade: RecommendationItem["evalResult"]["finalGrade"]) {
-  if (grade === "GREEN" || grade === "LIME") return "success" as const;
-  if (grade === "RED") return "danger" as const;
-  return "warning" as const;
 }
 
 function badgeLabel(grade: RecommendationItem["evalResult"]["finalGrade"]) {
@@ -96,30 +96,40 @@ function surfaceClassName(isSelected: boolean) {
 function BackFaceCard(props: {
   item: RecommendationItem;
   isSelected: boolean;
+  compact?: boolean;
   onFlip: () => void;
 }) {
-  const { item, isSelected, onFlip } = props;
+  const { item, isSelected, compact = false, onFlip } = props;
 
   return (
     <Card className={surfaceClassName(isSelected)}>
       <div className="flex h-full flex-col">
         <button
           type="button"
-          className="min-h-0 flex flex-1 items-center px-5 py-5 text-left focus-visible:outline-none"
+          className={cn(
+            "min-h-0 flex flex-1 items-center text-left focus-visible:outline-none",
+            compact ? "px-3.5 py-3.5" : "px-5 py-5",
+          )}
           onClick={onFlip}
           aria-label={`${item.property.name} 앞면 보기`}
         >
-          <div className="max-h-full w-full overflow-y-auto">
+          <div className="w-full">
             <RecommendationPreviewContent
               property={item.property}
               evalResult={item.evalResult}
+              compact={compact}
               showFinalBadge={false}
               showSummary={false}
             />
           </div>
         </button>
 
-        <div className="border-t border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-4 py-3.5">
+        <div
+          className={cn(
+            "border-t border-(--oboon-border-default) bg-(--oboon-bg-subtle)",
+            compact ? "px-3 py-2.5" : "px-4 py-3.5",
+          )}
+        >
           <Button
             asChild
             variant="primary"
@@ -143,14 +153,17 @@ function BackFaceCard(props: {
   );
 }
 
-function DesktopMaskedRecommendationCard(props: {
+function MaskedRecommendationCard(props: {
   item: RecommendationItem;
   isSelected: boolean;
+  compact?: boolean;
   onSelect: () => void;
 }) {
-  const { item, isSelected, onSelect } = props;
+  const { item, isSelected, compact = false, onSelect } = props;
   const { offering, property, evalResult } = item;
   const hasImage = isLikelyImageUrl(offering.imageUrl);
+  const finalTone = getGrade5ToneMeta(evalResult.finalGrade);
+  const finalBadgeLabel = evalResult.gradeLabel ?? badgeLabel(evalResult.finalGrade);
 
   return (
     <div
@@ -166,7 +179,7 @@ function DesktopMaskedRecommendationCard(props: {
                 src={offering.imageUrl}
                 alt={offering.title || "offering"}
                 fill
-                sizes="(max-width: 1023px) 50vw, 33vw"
+                sizes={compact ? "280px" : "(max-width: 1023px) 50vw, 33vw"}
                 className="object-cover"
               />
             ) : (
@@ -189,24 +202,44 @@ function DesktopMaskedRecommendationCard(props: {
             </div>
           </div>
 
-          <div className="flex flex-1 flex-col gap-3 px-4 py-4">
+          <div
+            className={cn(
+              "flex flex-1 flex-col",
+              compact ? "gap-2.5 px-3.5 py-3.5" : "gap-3 px-4 py-4",
+            )}
+          >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <h3 className="line-clamp-2 ob-typo-h3 text-(--oboon-text-title)">
+                <h3
+                  className={cn(
+                    "line-clamp-2 text-(--oboon-text-title)",
+                    compact ? "ob-typo-subtitle leading-tight" : "ob-typo-h3",
+                  )}
+                >
                   {offering.title}
                 </h3>
-                <p className="mt-1 line-clamp-1 ob-typo-body text-(--oboon-text-muted)">
+                <p
+                  className={cn(
+                    "line-clamp-1 text-(--oboon-text-muted)",
+                    compact ? "mt-0.5 ob-typo-caption" : "mt-1 ob-typo-body",
+                  )}
+                >
                   {offering.addressShort}
                 </p>
               </div>
 
-              <Badge variant={badgeVariant(evalResult.finalGrade)} className="shrink-0">
-                {badgeLabel(evalResult.finalGrade)}
+              <Badge className={cn("shrink-0", finalTone.badgeClassName)}>
+                {finalBadgeLabel}
               </Badge>
             </div>
 
             <div>
-              <p className="ob-typo-subtitle text-(--oboon-text-title)">
+              <p
+                className={cn(
+                  "text-(--oboon-text-title)",
+                  compact ? "ob-typo-body2" : "ob-typo-subtitle",
+                )}
+              >
                 {property.priceLabel}
               </p>
               <p className="mt-0.5 ob-typo-caption text-(--oboon-text-muted)">
@@ -214,7 +247,12 @@ function DesktopMaskedRecommendationCard(props: {
               </p>
             </div>
 
-            <div className="rounded-xl border border-(--oboon-warning-border) bg-(--oboon-warning-bg-subtle) px-3 py-3">
+            <div
+              className={cn(
+                "rounded-xl border border-(--oboon-warning-border) bg-(--oboon-warning-bg-subtle)",
+                compact ? "px-3 py-2.5" : "px-3 py-3",
+              )}
+            >
               <div className="flex items-start gap-2">
                 <Lock className="mt-0.5 h-4 w-4 shrink-0 text-(--oboon-warning-text)" />
                 <p className="ob-typo-caption leading-5 text-(--oboon-warning-text)">
@@ -255,23 +293,17 @@ export default function FlippableRecommendationCard(
     item,
     isSelected,
     isFlipped,
+    size = "desktop",
     disableFlip = false,
+    initialScrapped = false,
+    isLoggedIn = false,
+    priority = false,
     onFlip,
     onSelect,
   } = props;
   const prefersReducedMotion = usePrefersReducedMotion();
-
-  if (disableFlip) {
-    return (
-      <div className={DESKTOP_CARD_HEIGHT_CLASS}>
-        <DesktopMaskedRecommendationCard
-          item={item}
-          isSelected={isSelected}
-          onSelect={onSelect}
-        />
-      </div>
-    );
-  }
+  const compact = size === "mobile";
+  const cardHeightClass = compact ? MOBILE_CARD_HEIGHT_CLASS : DESKTOP_CARD_HEIGHT_CLASS;
 
   const frontFace = (
     <HomeOfferingCard
@@ -282,23 +314,39 @@ export default function FlippableRecommendationCard(
       onCardClick={onFlip}
       cardAriaLabel={`${item.property.name} 카드 뒤집기`}
       disableHover
+      compactLayout={compact}
+      initialScrapped={initialScrapped}
+      isLoggedIn={isLoggedIn}
+      priority={priority}
       onFocusCapture={() => onSelect()}
     />
   );
+
+  if (disableFlip) {
+    return (
+      <div className={cardHeightClass}>
+        <MaskedRecommendationCard
+          item={item}
+          isSelected={isSelected}
+          compact={compact}
+          onSelect={onSelect}
+        />
+      </div>
+    );
+  }
 
   const backFace = (
     <BackFaceCard
       item={item}
       isSelected={isSelected}
+      compact={compact}
       onFlip={onFlip}
     />
   );
 
   if (prefersReducedMotion) {
     return (
-      <div
-        className={DESKTOP_CARD_HEIGHT_CLASS}
-      >
+      <div className={cardHeightClass}>
         {isFlipped ? backFace : frontFace}
       </div>
     );
@@ -306,8 +354,8 @@ export default function FlippableRecommendationCard(
 
   return (
     <div
-      className={DESKTOP_CARD_HEIGHT_CLASS}
-      style={{ perspective: "1600px" }}
+      className={cardHeightClass}
+      style={{ perspective: compact ? "1200px" : "1600px" }}
     >
       <div
         className="relative h-full transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"

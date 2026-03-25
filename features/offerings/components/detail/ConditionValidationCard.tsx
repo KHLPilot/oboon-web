@@ -8,13 +8,24 @@ import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import LtvDsrModal from "@/features/condition-validation/components/LtvDsrModal";
+import { grade5DetailLabel } from "@/features/condition-validation/lib/grade5Labels";
+import {
+  loadConditionSession,
+  saveConditionSession,
+  type ConditionSessionSnapshot,
+} from "@/features/condition-validation/lib/sessionCondition";
 import { ltvScoreToPoints } from "@/features/condition-validation/domain/ltvDsrCalculator";
 import type {
+  CardLoanUsage,
+  DelinquencyCount,
   EmploymentType,
+  ExistingLoanAmount,
   FullEvaluationResponse,
   FullPurchasePurpose,
   FinalGrade5,
+  LoanRejection,
   MonthlyLoanRepayment,
+  MonthlyIncomeRange,
   MoveinTiming,
   PurchaseTiming,
 } from "@/features/condition-validation/domain/types";
@@ -44,7 +55,7 @@ function grade5Meta(grade: FinalGrade5): Grade5Meta {
         color: "var(--oboon-grade-lime)",
         bgColor: "var(--oboon-grade-lime-bg)",
         borderColor: "var(--oboon-grade-lime-border)",
-        label: "계약 가능 (확인 필요)",
+        label: "거의 충족",
       };
     case "YELLOW":
       return {
@@ -86,6 +97,29 @@ function parseNullableNumericInput(value: string): number | null {
   return parsed;
 }
 
+function hasStoredProfileAutoFill(profileAutoFill: ProfileAutoFillData | null | undefined): boolean {
+  if (!profileAutoFill) return false;
+
+  return Boolean(
+    profileAutoFill.availableCashManwon != null ||
+      profileAutoFill.monthlyIncomeManwon != null ||
+      profileAutoFill.monthlyExpensesManwon != null ||
+      profileAutoFill.employmentType ||
+      profileAutoFill.houseOwnership ||
+      profileAutoFill.purchasePurposeV2 ||
+      profileAutoFill.purchaseTiming ||
+      profileAutoFill.moveinTiming ||
+      (profileAutoFill.ltvInternalScore ?? 0) > 0 ||
+      profileAutoFill.existingLoan ||
+      profileAutoFill.recentDelinquency ||
+      profileAutoFill.cardLoanUsage ||
+      profileAutoFill.loanRejection ||
+      profileAutoFill.monthlyIncomeRange ||
+      (profileAutoFill.existingMonthlyRepayment &&
+        profileAutoFill.existingMonthlyRepayment !== "none"),
+  );
+}
+
 // ─── Props ─────────────────────────────────────────────────────────────────────
 
 /** 마이페이지에서 저장한 맞춤 정보 — 자동 채움 + 자동 검증에 사용 */
@@ -99,6 +133,11 @@ export type ProfileAutoFillData = {
   purchaseTiming: PurchaseTiming | null;
   moveinTiming: MoveinTiming | null;
   ltvInternalScore: number | null;
+  existingLoan: ExistingLoanAmount | null;
+  recentDelinquency: DelinquencyCount | null;
+  cardLoanUsage: CardLoanUsage | null;
+  loanRejection: LoanRejection | null;
+  monthlyIncomeRange: MonthlyIncomeRange | null;
   existingMonthlyRepayment: MonthlyLoanRepayment | null;
 };
 
@@ -192,6 +231,11 @@ export default function ConditionValidationCard({
   // LTV/DSR state from modal
   const [ltvInternalScore, setLtvInternalScore] = useState<number | null>(null);
   const [ltvPoints, setLtvPoints] = useState<number | null>(null);
+  const [existingLoan, setExistingLoan] = useState<ExistingLoanAmount | null>(null);
+  const [recentDelinquency, setRecentDelinquency] = useState<DelinquencyCount | null>(null);
+  const [cardLoanUsage, setCardLoanUsage] = useState<CardLoanUsage | null>(null);
+  const [loanRejection, setLoanRejection] = useState<LoanRejection | null>(null);
+  const [monthlyIncomeRange, setMonthlyIncomeRange] = useState<MonthlyIncomeRange | null>(null);
   const [existingMonthlyRepayment, setExistingMonthlyRepayment] =
     useState<MonthlyLoanRepayment>("none");
   const [ltvModalOpen, setLtvModalOpen] = useState(false);
@@ -203,8 +247,6 @@ export default function ConditionValidationCard({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [response, setResponse] = useState<FullEvaluationResponse | null>(null);
   const [showResultDetails, setShowResultDetails] = useState(false);
-
-  // 자동 검증 중복 실행 방지
   const autoEvaluatedRef = useRef(false);
 
   // Derived
@@ -235,6 +277,28 @@ export default function ConditionValidationCard({
   // Estimate loan payment for LTV modal preview
   // Using a rough 0.5% monthly payment estimate, no property price available on client
   const estimatedNewLoanPaymentManwon = 0;
+
+  const applySessionCondition = useCallback((snapshot: ConditionSessionSnapshot) => {
+    if (snapshot.employmentType) setEmploymentType(snapshot.employmentType);
+    if (snapshot.availableCash) setAvailableCash(snapshot.availableCash);
+    if (snapshot.monthlyIncome) setMonthlyIncome(snapshot.monthlyIncome);
+    if (snapshot.monthlyExpenses) setMonthlyExpenses(snapshot.monthlyExpenses);
+    if (snapshot.houseOwnership) setHouseOwnership(snapshot.houseOwnership);
+    if (snapshot.purchasePurposeV2) setPurchasePurpose(snapshot.purchasePurposeV2);
+    if (snapshot.purchaseTiming) setPurchaseTiming(snapshot.purchaseTiming);
+    if (snapshot.moveinTiming) setMoveinTiming(snapshot.moveinTiming);
+    if (snapshot.existingLoan) setExistingLoan(snapshot.existingLoan);
+    if (snapshot.recentDelinquency) setRecentDelinquency(snapshot.recentDelinquency);
+    if (snapshot.cardLoanUsage) setCardLoanUsage(snapshot.cardLoanUsage);
+    if (snapshot.loanRejection) setLoanRejection(snapshot.loanRejection);
+    if (snapshot.monthlyIncomeRange) setMonthlyIncomeRange(snapshot.monthlyIncomeRange);
+    setExistingMonthlyRepayment(snapshot.existingMonthlyRepayment);
+    if (snapshot.ltvInternalScore > 0) {
+      const { points } = ltvScoreToPoints(snapshot.ltvInternalScore);
+      setLtvInternalScore(snapshot.ltvInternalScore);
+      setLtvPoints(points);
+    }
+  }, []);
 
   const validate = (): string | null => {
     if (!propertyId) return "현장 정보를 찾을 수 없습니다.";
@@ -307,6 +371,24 @@ export default function ConditionValidationCard({
       return;
     }
 
+    saveConditionSession({
+      availableCash,
+      monthlyIncome,
+      monthlyExpenses,
+      employmentType,
+      houseOwnership,
+      purchasePurposeV2: purchasePurpose,
+      purchaseTiming,
+      moveinTiming,
+      ltvInternalScore: ltvInternalScore ?? 0,
+      existingLoan,
+      recentDelinquency,
+      cardLoanUsage,
+      loanRejection,
+      monthlyIncomeRange,
+      existingMonthlyRepayment,
+    });
+
     await evaluateWithValues({
       employment_type: employmentType,
       available_cash: parseNullableNumericInput(availableCash) ?? 0,
@@ -321,9 +403,13 @@ export default function ConditionValidationCard({
     });
   };
 
-  // ── 프로필 자동 채움 + 자동 검증 ────────────────────────────────────────────
+  // ── 프로필/세션 자동 채움 ──────────────────────────────────────────────────
   useEffect(() => {
-    if (!profileAutoFill || autoEvaluatedRef.current) return;
+    autoEvaluatedRef.current = false;
+  }, [propertyId]);
+
+  useEffect(() => {
+    if (!profileAutoFill) return;
 
     // 폼 필드 자동 채움
     if (profileAutoFill.employmentType) setEmploymentType(profileAutoFill.employmentType);
@@ -337,6 +423,11 @@ export default function ConditionValidationCard({
     if (profileAutoFill.purchasePurposeV2) setPurchasePurpose(profileAutoFill.purchasePurposeV2);
     if (profileAutoFill.purchaseTiming) setPurchaseTiming(profileAutoFill.purchaseTiming);
     if (profileAutoFill.moveinTiming) setMoveinTiming(profileAutoFill.moveinTiming);
+    if (profileAutoFill.existingLoan) setExistingLoan(profileAutoFill.existingLoan);
+    if (profileAutoFill.recentDelinquency) setRecentDelinquency(profileAutoFill.recentDelinquency);
+    if (profileAutoFill.cardLoanUsage) setCardLoanUsage(profileAutoFill.cardLoanUsage);
+    if (profileAutoFill.loanRejection) setLoanRejection(profileAutoFill.loanRejection);
+    if (profileAutoFill.monthlyIncomeRange) setMonthlyIncomeRange(profileAutoFill.monthlyIncomeRange);
     if (profileAutoFill.existingMonthlyRepayment)
       setExistingMonthlyRepayment(profileAutoFill.existingMonthlyRepayment);
     if (profileAutoFill.ltvInternalScore != null) {
@@ -345,34 +436,79 @@ export default function ConditionValidationCard({
       setLtvPoints(points);
     }
 
-    // 필수 필드가 모두 있을 때 자동 검증 실행
-    const canAutoEvaluate =
-      propertyId != null &&
-      profileAutoFill.availableCashManwon != null &&
-      profileAutoFill.availableCashManwon >= 0 &&
-      profileAutoFill.monthlyIncomeManwon != null &&
-      profileAutoFill.monthlyIncomeManwon >= 0 &&
-      profileAutoFill.monthlyExpensesManwon != null &&
-      profileAutoFill.monthlyExpensesManwon >= 0 &&
-      profileAutoFill.ltvInternalScore != null &&
-      profileAutoFill.ltvInternalScore > 0;
+    if (!isLoggedIn || autoEvaluatedRef.current) return;
 
-    if (canAutoEvaluate) {
-      autoEvaluatedRef.current = true;
-      void evaluateWithValues({
-        employment_type: profileAutoFill.employmentType ?? "employee",
-        available_cash: profileAutoFill.availableCashManwon!,
-        monthly_income: profileAutoFill.monthlyIncomeManwon!,
-        monthly_expenses: profileAutoFill.monthlyExpensesManwon!,
-        house_ownership: profileAutoFill.houseOwnership ?? "none",
-        purchase_purpose: profileAutoFill.purchasePurposeV2 ?? "residence",
-        purchase_timing: profileAutoFill.purchaseTiming ?? "by_property",
-        movein_timing: profileAutoFill.moveinTiming ?? "anytime",
-        ltv_internal_score: profileAutoFill.ltvInternalScore!,
-        existing_monthly_repayment: profileAutoFill.existingMonthlyRepayment ?? "none",
-      });
+    const autoCash = profileAutoFill.availableCashManwon;
+    const autoIncome = profileAutoFill.monthlyIncomeManwon;
+    const autoExpenses = profileAutoFill.monthlyExpensesManwon;
+    const autoLtvScore = profileAutoFill.ltvInternalScore;
+    if (
+      propertyId == null ||
+      autoCash == null ||
+      autoCash < 0 ||
+      autoIncome == null ||
+      autoIncome < 0 ||
+      autoExpenses == null ||
+      autoExpenses < 0 ||
+      autoLtvScore == null ||
+      autoLtvScore <= 0
+    ) {
+      return;
     }
-  }, [profileAutoFill, propertyId, evaluateWithValues]);
+
+    autoEvaluatedRef.current = true;
+    void evaluateWithValues({
+      employment_type: profileAutoFill.employmentType ?? "employee",
+      available_cash: autoCash,
+      monthly_income: autoIncome,
+      monthly_expenses: autoExpenses,
+      house_ownership: profileAutoFill.houseOwnership ?? "none",
+      purchase_purpose: profileAutoFill.purchasePurposeV2 ?? "residence",
+      purchase_timing: profileAutoFill.purchaseTiming ?? "by_property",
+      movein_timing: profileAutoFill.moveinTiming ?? "anytime",
+      ltv_internal_score: autoLtvScore,
+      existing_monthly_repayment: profileAutoFill.existingMonthlyRepayment ?? "none",
+    });
+  }, [evaluateWithValues, isLoggedIn, profileAutoFill, propertyId]);
+
+  useEffect(() => {
+    if (hasStoredProfileAutoFill(profileAutoFill)) return;
+
+    const sessionSnapshot = loadConditionSession();
+    if (!sessionSnapshot) return;
+
+    applySessionCondition(sessionSnapshot);
+
+    if (!isLoggedIn || autoEvaluatedRef.current) return;
+
+    const sessionCash = parseNullableNumericInput(sessionSnapshot.availableCash);
+    const sessionIncome = parseNullableNumericInput(sessionSnapshot.monthlyIncome);
+    const sessionExpenses = parseNullableNumericInput(sessionSnapshot.monthlyExpenses);
+    if (
+      propertyId == null ||
+      sessionCash == null ||
+      sessionIncome == null ||
+      sessionExpenses == null ||
+      sessionSnapshot.ltvInternalScore <= 0
+    ) {
+      return;
+    }
+
+    autoEvaluatedRef.current = true;
+    void evaluateWithValues({
+      employment_type: sessionSnapshot.employmentType ?? "employee",
+      available_cash: sessionCash,
+      monthly_income: sessionIncome,
+      monthly_expenses: sessionExpenses,
+      house_ownership: sessionSnapshot.houseOwnership ?? "none",
+      purchase_purpose: sessionSnapshot.purchasePurposeV2 ?? "residence",
+      purchase_timing: sessionSnapshot.purchaseTiming ?? "by_property",
+      movein_timing: sessionSnapshot.moveinTiming ?? "anytime",
+      ltv_internal_score: sessionSnapshot.ltvInternalScore,
+      existing_monthly_repayment:
+        sessionSnapshot.existingMonthlyRepayment ?? "none",
+    });
+  }, [applySessionCondition, evaluateWithValues, isLoggedIn, profileAutoFill, propertyId]);
 
   const handleConsultAction = () => {
     if (!isLoggedIn) {
@@ -634,7 +770,7 @@ export default function ConditionValidationCard({
                   className="rounded-full px-3 py-1 ob-typo-caption font-semibold text-(--oboon-text-title) shrink-0"
                   style={{ backgroundColor: meta.color }}
                 >
-                  {meta.label}
+                  {result.grade_label ?? meta.label}
                 </div>
               </div>
             );
@@ -682,7 +818,7 @@ export default function ConditionValidationCard({
                   >
                     <span className="ob-typo-caption font-medium text-(--oboon-text-title) shrink-0">{label}</span>
                     <span className="ob-typo-caption font-semibold text-(--oboon-text-title) truncate text-right">
-                      {cat.score}/{cat.max_score} · {meta.label}
+                      {cat.score}/{cat.max_score} · {grade5DetailLabel(cat.grade)}
                     </span>
                   </div>
                 );
@@ -755,11 +891,25 @@ export default function ConditionValidationCard({
         onConfirm={(result) => {
           setLtvInternalScore(result.ltvInternalScore);
           setLtvPoints(result.ltvPoints);
+          setExistingLoan(result.formValues.existingLoan);
+          setRecentDelinquency(result.formValues.recentDelinquency);
+          setCardLoanUsage(result.formValues.cardLoanUsage);
+          setLoanRejection(result.formValues.loanRejection);
+          setMonthlyIncomeRange(result.formValues.monthlyIncomeRange);
           setExistingMonthlyRepayment(result.existingMonthlyRepayment);
         }}
         initialEmploymentType={employmentType}
         initialHouseOwnership={houseOwnership}
         estimatedNewLoanPaymentManwon={estimatedNewLoanPaymentManwon}
+        initialValues={{
+          existingLoan,
+          recentDelinquency,
+          cardLoanUsage,
+          loanRejection,
+          monthlyIncomeRange,
+          existingMonthlyRepayment,
+        }}
+        initialLtvInternalScore={ltvInternalScore ?? 0}
       />
     </Card>
   );

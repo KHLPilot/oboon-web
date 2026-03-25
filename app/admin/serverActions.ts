@@ -1,41 +1,59 @@
 "use server";
 
 import { createClient } from "@supabase/supabase-js";
+import { fetchAdminGate } from "@/features/admin/services/admin.auth";
 
-// Admin Client (서버 전용)
+type AdminActionError = { error: string; success?: undefined };
+export type AdminActionResult = { success: true; error?: undefined } | AdminActionError;
+
+// Admin Client (서버 전용 — RLS 우회, 반드시 함수 내부에서 role 검증 후 사용)
 const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+async function requireAdmin(): Promise<AdminActionError | null> {
+    const { user, profile } = await fetchAdminGate();
+
+    if (!user) return { error: "로그인이 필요합니다." };
+
+    if (profile?.role !== "admin") return { error: "관리자 권한이 필요합니다." };
+
+    return null;
+}
+
 /* =========================
    분양대행사 직원 승인
    ========================= */
-export async function approveAgent(formData: FormData) {
+export async function approveAgent(formData: FormData): Promise<AdminActionResult> {
+    const authError = await requireAdmin();
+    if (authError) return authError;
+
     const userId = formData.get("userId") as string;
 
-    // supabaseAdmin 사용 (RLS 우회하여 다른 사용자 프로필 수정 가능)
     const { error } = await supabaseAdmin
         .from("profiles")
         .update({ role: "agent" })
         .eq("id", userId);
 
     if (error) {
-        console.error("승인 실패:", error);
+        console.error("승인 실패:", error.code);
         return { error: "승인에 실패했습니다." };
     }
 
-    return { success: true };  // ← 클라이언트에서 처리
+    return { success: true };
 }
 
 /* =========================
    계정 복구
    ========================= */
-export async function restoreAccount(formData: FormData) {
+export async function restoreAccount(formData: FormData): Promise<AdminActionResult> {
+    const authError = await requireAdmin();
+    if (authError) return authError;
+
     const userId = formData.get("userId") as string;
 
     try {
-
         // 1. profiles 복구
         const { error: updateError } = await supabaseAdmin
             .from("profiles")
@@ -46,7 +64,7 @@ export async function restoreAccount(formData: FormData) {
             .eq("id", userId);
 
         if (updateError) {
-            console.error("❌ Profile 복구 실패:", updateError);
+            console.error("Profile 복구 실패:", updateError.code);
             return { error: "복구 실패" };
         }
 
@@ -57,14 +75,13 @@ export async function restoreAccount(formData: FormData) {
         );
 
         if (unbanError) {
-            console.error("❌ 정지 해제 실패:", unbanError);
+            console.error("정지 해제 실패:", unbanError.message);
             return { error: "정지 해제 실패" };
         }
 
-
-        return { success: true };  // ← 클라이언트에서 처리
+        return { success: true };
     } catch (err: unknown) {
-        console.error("❌ 복구 오류:", err);
+        console.error("복구 오류:", err instanceof Error ? err.message : "unknown");
         return { error: "서버 오류" };
     }
 }

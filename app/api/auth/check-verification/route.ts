@@ -1,16 +1,16 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { verificationLimiter, getClientIp, checkRateLimit } from "@/lib/rateLimit";
 
 const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-function getErrorMessage(error: unknown, fallback: string) {
-    return error instanceof Error ? error.message : fallback;
-}
-
 export async function POST(req: Request) {
+    const rateLimitRes = await checkRateLimit(verificationLimiter, getClientIp(req));
+    if (rateLimitRes) return rateLimitRes;
+
     try {
         const body = await req.json();
         const token = body.token;
@@ -37,11 +37,7 @@ export async function POST(req: Request) {
 
         // 3. 이미 verified면 바로 리턴
         if (tokenData.verified) {
-            return NextResponse.json({
-                verified: true,
-                userId: tokenData.user_id,
-                email: tokenData.email,
-            });
+            return NextResponse.json({ verified: true });
         }
 
         // 4. Supabase Auth에서 실제 인증 상태 확인
@@ -56,17 +52,13 @@ export async function POST(req: Request) {
                 .update({ verified: true })
                 .eq("token", token);
 
-            return NextResponse.json({
-                verified: true,
-                userId: tokenData.user_id,
-                email: tokenData.email,
-            });
+            return NextResponse.json({ verified: true });
         }
 
         // 아직 미인증
         return NextResponse.json({ verified: false });
     } catch (err: unknown) {
-        console.error("❌ [API] 확인 오류:", err);
-        return NextResponse.json({ verified: false, error: getErrorMessage(err, "확인 오류") });
+        console.error("[API] 확인 오류:", err instanceof Error ? err.message : "unknown");
+        return NextResponse.json({ verified: false });
     }
 }

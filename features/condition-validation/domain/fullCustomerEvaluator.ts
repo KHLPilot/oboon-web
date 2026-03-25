@@ -45,7 +45,7 @@ function grade5Label(grade: FinalGrade5): string {
     case "GREEN":
       return "계약 가능";
     case "LIME":
-      return "계약 가능 (확인 필요)";
+      return "거의 충족";
     case "YELLOW":
       return "확인 필요";
     case "ORANGE":

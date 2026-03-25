@@ -23,7 +23,10 @@ import MobileConditionSheet from "@/features/recommendations/components/MobileCo
 import RecommendationOfferingCard from "@/features/recommendations/components/OfferingCard";
 import RecommendationConditionPanel from "@/features/recommendations/components/RecommendationConditionPanel";
 import { RecommendationPreviewContent } from "@/features/recommendations/components/GaugeOverlay";
-import type { RecommendationItem } from "@/features/recommendations/hooks/useRecommendations";
+import type {
+  RecommendationCondition,
+  RecommendationItem,
+} from "@/features/recommendations/hooks/useRecommendations";
 import { ROUTES } from "@/types/index";
 import {
   useRecommendations,
@@ -257,7 +260,7 @@ function DesktopSkeletonCard() {
 export default function RecommendationsPage() {
   const cardRefs = useRef(new Map<number, HTMLDivElement>());
   const [sortKey, setSortKey] = useState<SortKey>("default");
-  const [desktopView, setDesktopView] = useState<"list" | "map">("list");
+  const [desktopView, setDesktopView] = useState<"list" | "map">("map");
   const [desktopFilterOpen, setDesktopFilterOpen] = useState(true);
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -324,10 +327,13 @@ export default function RecommendationsPage() {
 
   const handleSelectFromMap = useCallback(
     (id: number) => {
-      setSelectedId(id);
-      requestAnimationFrame(() => {
-        scrollToCard(id);
-      });
+      const nextSelectedId = id > 0 ? id : null;
+      setSelectedId(nextSelectedId);
+      if (nextSelectedId !== null) {
+        requestAnimationFrame(() => {
+          scrollToCard(nextSelectedId);
+        });
+      }
     },
     [scrollToCard, setSelectedId],
   );
@@ -336,8 +342,8 @@ export default function RecommendationsPage() {
     setSearchQuery(searchInput);
   }, [searchInput]);
 
-  const handleEvaluate = useCallback(async () => {
-    const ok = await evaluate();
+  const handleEvaluate = useCallback(async (override?: RecommendationCondition) => {
+    const ok = await evaluate(override);
     if (ok) {
       setDesktopFilterOpen(false);
     }
@@ -432,10 +438,6 @@ export default function RecommendationsPage() {
   )
     ? selectedId
     : null;
-  const visibleSelectedItem =
-    visibleSelectedId === null
-      ? null
-      : sortedResults.find((item) => item.property.id === visibleSelectedId) ?? null;
 
   const handleFlipFromCard = useCallback(
     (id: number) => {
@@ -639,7 +641,7 @@ export default function RecommendationsPage() {
                   isLoading={isEvaluating}
                   isSaving={isSavingCondition}
                   onChange={updateCondition}
-                  onEvaluate={() => void handleEvaluate()}
+                  onEvaluate={handleEvaluate}
                   onSave={saveCondition}
                   onModeChange={changeMode}
                 />
@@ -759,28 +761,6 @@ export default function RecommendationsPage() {
                   selectedId={visibleSelectedId}
                   onSelect={handleSelectFromMap}
                 />
-
-                {visibleSelectedItem ? (
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 p-4">
-                    <div className="pointer-events-auto mx-auto w-full max-w-2xl">
-                      <div className="sm:hidden">
-                        <RecommendationOfferingCard
-                          property={visibleSelectedItem}
-                          isSelected
-                          onClick={() => handleSelectFromCard(visibleSelectedItem.property.id)}
-                        />
-                      </div>
-                      <div className="hidden sm:block">
-                        <RecommendationOfferingCard
-                          property={visibleSelectedItem}
-                          isSelected
-                          onClick={() => handleSelectFromCard(visibleSelectedItem.property.id)}
-                          flushImageToEdge
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
               </div>
             </aside>
           )}

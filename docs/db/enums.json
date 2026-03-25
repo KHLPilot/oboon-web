@@ -103,5 +103,10 @@
     "enum_name": "property_school_level",
     "sort_order": 5,
     "enum_value": "OTHER"
+  },
+  {
+    "enum_name": "property_school_level",
+    "sort_order": 6,
+    "enum_value": "KINDERGARTEN"
   }
 ]

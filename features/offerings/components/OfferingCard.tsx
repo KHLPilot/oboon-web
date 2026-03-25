@@ -13,8 +13,8 @@ import Card from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import type {
   ConditionCategoryGrades,
-  FinalGrade,
 } from "@/features/condition-validation/domain/types";
+import { getGrade5ToneMeta } from "@/features/condition-validation/lib/grade5Theme";
 import { UXCopy } from "@/shared/uxCopy";
 import { formatPriceRange } from "@/shared/price";
 import { trackEvent } from "@/lib/analytics";
@@ -30,38 +30,13 @@ function isLikelyImageUrl(url: string | null | undefined) {
   return /\.(jpg|jpeg|png|webp|gif|avif|svg)(\?.*)?$/i.test(url);
 }
 
-function gradeText(grade: FinalGrade): "안전" | "경계" | "위험" {
-  if (grade === "GREEN") return "안전";
-  if (grade === "YELLOW") return "경계";
-  return "위험";
-}
+function gradeBadgeStyle(grade: ConditionCategoryGrades["cash"]["grade"]): CSSProperties {
+  const tone = getGrade5ToneMeta(grade);
 
-function riskGradeText(grade: FinalGrade): "안전" | "경계" | "위험" {
-  if (grade === "GREEN") return "안전";
-  if (grade === "YELLOW") return "경계";
-  return "위험";
-}
-
-// 배지 인라인 스타일 (CSS 토큰 사용)
-function gradeBadgeStyle(grade: FinalGrade): CSSProperties {
-  if (grade === "GREEN") {
-    return {
-      borderColor: "var(--oboon-grade-green-border)",
-      backgroundColor: "var(--oboon-grade-green-bg)",
-      color: "var(--oboon-grade-green-text)",
-    };
-  }
-  if (grade === "YELLOW") {
-    return {
-      borderColor: "var(--oboon-grade-yellow-border)",
-      backgroundColor: "var(--oboon-grade-yellow-bg)",
-      color: "var(--oboon-grade-yellow-text)",
-    };
-  }
   return {
-    borderColor: "var(--oboon-grade-red-border)",
-    backgroundColor: "var(--oboon-grade-red-bg)",
-    color: "var(--oboon-grade-red-text)",
+    borderColor: tone.borderColor,
+    backgroundColor: tone.bgColor,
+    color: tone.textColor,
   };
 }
 
@@ -269,13 +244,13 @@ export default function OfferingCard({
                 )}
               >
                 <span className="rounded-full border px-2 py-0.5 ob-typo-caption" style={gradeBadgeStyle(conditionCategories.cash.grade)}>
-                  자금 {gradeText(conditionCategories.cash.grade)}
+                  현금 {getGrade5ToneMeta(conditionCategories.cash.grade).chipLabel}
                 </span>
                 <span className="rounded-full border px-2 py-0.5 ob-typo-caption" style={gradeBadgeStyle(conditionCategories.burden.grade)}>
-                  부담 {gradeText(conditionCategories.burden.grade)}
+                  부담률 {getGrade5ToneMeta(conditionCategories.burden.grade).chipLabel}
                 </span>
-                <span className="rounded-full border px-2 py-0.5 ob-typo-caption" style={gradeBadgeStyle(conditionCategories.risk.grade)}>
-                  신용 {riskGradeText(conditionCategories.risk.grade)}
+                <span className="rounded-full border px-2 py-0.5 ob-typo-caption" style={gradeBadgeStyle(conditionCategories.credit.grade)}>
+                  신용 {getGrade5ToneMeta(conditionCategories.credit.grade).chipLabel}
                 </span>
               </div>
             </div>
@@ -433,13 +408,13 @@ export default function OfferingCard({
             {conditionCategories ? (
               <div className="mt-3 flex flex-wrap gap-1.5">
                 <span className="rounded-full border px-2 py-0.5 ob-typo-caption" style={gradeBadgeStyle(conditionCategories.cash.grade)}>
-                  자금 {gradeText(conditionCategories.cash.grade)}
+                  현금 {getGrade5ToneMeta(conditionCategories.cash.grade).chipLabel}
                 </span>
                 <span className="rounded-full border px-2 py-0.5 ob-typo-caption" style={gradeBadgeStyle(conditionCategories.burden.grade)}>
-                  부담 {gradeText(conditionCategories.burden.grade)}
+                  부담률 {getGrade5ToneMeta(conditionCategories.burden.grade).chipLabel}
                 </span>
-                <span className="rounded-full border px-2 py-0.5 ob-typo-caption" style={gradeBadgeStyle(conditionCategories.risk.grade)}>
-                  신용 {riskGradeText(conditionCategories.risk.grade)}
+                <span className="rounded-full border px-2 py-0.5 ob-typo-caption" style={gradeBadgeStyle(conditionCategories.credit.grade)}>
+                  신용 {getGrade5ToneMeta(conditionCategories.credit.grade).chipLabel}
                 </span>
               </div>
             ) : null}

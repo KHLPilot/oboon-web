@@ -4,15 +4,26 @@ import { NextResponse } from "next/server";
 export async function GET() {
   const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID!;
   const NAVER_CALLBACK_URL = process.env.NAVER_CALLBACK_URL!;
-  
+
   const state = Math.random().toString(36).slice(2);
 
-  const authUrl = 
+  const authUrl =
     `https://nid.naver.com/oauth2.0/authorize?response_type=code` +
     `&client_id=${NAVER_CLIENT_ID}` +
     `&redirect_uri=${encodeURIComponent(NAVER_CALLBACK_URL)}` +
     `&state=${state}` +
     `&auth_type=reauthenticate`;
 
-  return NextResponse.redirect(authUrl);
+  const response = NextResponse.redirect(authUrl);
+
+  // CSRF 방지: state를 HttpOnly 쿠키에 저장 → 콜백에서 검증
+  response.cookies.set("naver_oauth_state", state, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 60 * 10, // 10분
+    path: "/",
+  });
+
+  return response;
 }

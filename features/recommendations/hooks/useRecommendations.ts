@@ -3,13 +3,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type {
+  CardLoanUsage,
   ConditionCategoryGrades,
   CreditGrade,
+  DelinquencyCount,
   EmploymentType,
-  FinalGrade,
+  ExistingLoanAmount,
   FinalGrade5,
   FullPurchasePurpose,
+  LoanRejection,
   MoveinTiming,
+  MonthlyIncomeRange,
   MonthlyLoanRepayment,
   PurchasePurpose,
   PurchaseTiming,
@@ -25,6 +29,11 @@ import {
   type PropertyRow,
 } from "@/features/offerings/mappers/offering.mapper";
 import { fetchPropertiesForOfferings } from "@/features/offerings/services/offering.query";
+import {
+  loadConditionSession,
+  saveConditionSession,
+  type ConditionSessionSnapshot,
+} from "@/features/condition-validation/lib/sessionCondition";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { toKoreanErrorMessage } from "@/shared/errorMessage";
 import { formatPriceRange } from "@/shared/price";
@@ -50,6 +59,11 @@ export type RecommendationCondition = {
   purchaseTiming: PurchaseTiming | null;
   moveinTiming: MoveinTiming | null;
   ltvInternalScore: number; // 0–100
+  existingLoan: ExistingLoanAmount | null;
+  recentDelinquency: DelinquencyCount | null;
+  cardLoanUsage: CardLoanUsage | null;
+  loanRejection: LoanRejection | null;
+  monthlyIncomeRange: MonthlyIncomeRange | null;
   existingMonthlyRepayment: MonthlyLoanRepayment;
   regions: OfferingRegionTab[]; // 빈 배열 = 전체
 };
@@ -60,6 +74,8 @@ export type RecommendationProperty = {
   addressShort: string;
   addressFull: string;
   regionLabel: string;
+  regionSido: string | null;
+  regionSigungu: string | null;
   propertyType: string | null;
   status: string | null;
   statusLabel: string;
@@ -77,6 +93,7 @@ export type RecommendationCategory = {
 
 export type RecommendationEvalResult = {
   finalGrade: FinalGrade5;
+  gradeLabel: string | null;
   totalScore: number | null;
   action: string | null;
   summaryMessage: string;
@@ -117,6 +134,7 @@ type RawRecommendationItem = {
   total_score?: number | null;
   action?: string | null;
   summary_message?: string | null;
+  grade_label?: string | null;
   reason_messages?: string[] | null;
   show_detailed_metrics?: boolean;
   categories?: {
@@ -148,6 +166,8 @@ type OfferingMeta = {
   offering: Offering;
   propertyType: string | null;
   rawStatus: string | null;
+  regionSido: string | null;
+  regionSigungu: string | null;
 };
 
 const DEFAULT_CONDITION: RecommendationCondition = {
@@ -163,6 +183,11 @@ const DEFAULT_CONDITION: RecommendationCondition = {
   purchaseTiming: null,
   moveinTiming: null,
   ltvInternalScore: 0,
+  existingLoan: null,
+  recentDelinquency: null,
+  cardLoanUsage: null,
+  loanRejection: null,
+  monthlyIncomeRange: null,
   existingMonthlyRepayment: "none",
   regions: [],
 };
@@ -209,6 +234,15 @@ function toPositiveInt(value: unknown): number | null {
   return normalized > 0 ? normalized : null;
 }
 
+function pickFirstNonEmpty(...values: Array<string | null | undefined>) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+  return null;
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
@@ -216,6 +250,104 @@ function clamp(value: number, min: number, max: number): number {
 function sanitizeAmount(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.round(value));
+}
+
+function parseSessionAmount(value: string): number {
+  const normalized = value.replaceAll(",", "").trim();
+  if (!normalized) return 0;
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed)) return 0;
+  return Math.max(0, Math.round(parsed));
+}
+
+function formatSessionAmount(value: number): string {
+  if (!Number.isFinite(value)) return "";
+  const normalized = Math.max(0, Math.round(value));
+  return normalized.toLocaleString("ko-KR");
+}
+
+function conditionFromSession(
+  snapshot: ConditionSessionSnapshot,
+  prev: RecommendationCondition,
+): RecommendationCondition {
+  return {
+    ...prev,
+    availableCash: parseSessionAmount(snapshot.availableCash),
+    monthlyIncome: parseSessionAmount(snapshot.monthlyIncome),
+    monthlyExpenses: parseSessionAmount(snapshot.monthlyExpenses),
+    employmentType: snapshot.employmentType,
+    houseOwnership: snapshot.houseOwnership,
+    purchasePurposeV2: snapshot.purchasePurposeV2,
+    purchaseTiming: snapshot.purchaseTiming,
+    moveinTiming: snapshot.moveinTiming,
+    ltvInternalScore: snapshot.ltvInternalScore,
+    existingLoan: snapshot.existingLoan,
+    recentDelinquency: snapshot.recentDelinquency,
+    cardLoanUsage: snapshot.cardLoanUsage,
+    loanRejection: snapshot.loanRejection,
+    monthlyIncomeRange: snapshot.monthlyIncomeRange,
+    existingMonthlyRepayment: snapshot.existingMonthlyRepayment,
+    regions: prev.regions,
+  };
+}
+
+function buildConditionSession(condition: RecommendationCondition): ConditionSessionSnapshot {
+  return {
+    availableCash: formatSessionAmount(condition.availableCash),
+    monthlyIncome: formatSessionAmount(condition.monthlyIncome),
+    monthlyExpenses: formatSessionAmount(condition.monthlyExpenses),
+    employmentType: condition.employmentType,
+    houseOwnership: condition.houseOwnership,
+    purchasePurposeV2: condition.purchasePurposeV2,
+    purchaseTiming: condition.purchaseTiming,
+    moveinTiming: condition.moveinTiming,
+    ltvInternalScore: condition.ltvInternalScore,
+    existingLoan: condition.existingLoan,
+    recentDelinquency: condition.recentDelinquency,
+    cardLoanUsage: condition.cardLoanUsage,
+    loanRejection: condition.loanRejection,
+    monthlyIncomeRange: condition.monthlyIncomeRange,
+    existingMonthlyRepayment: condition.existingMonthlyRepayment,
+  };
+}
+
+function hasStoredProfileCondition(profile: {
+  cv_available_cash_manwon?: number | null;
+  cv_monthly_income_manwon?: number | null;
+  cv_employment_type?: RecommendationCondition["employmentType"];
+  cv_monthly_expenses_manwon?: number | null;
+  cv_house_ownership?: RecommendationCondition["houseOwnership"];
+  cv_purchase_purpose_v2?: RecommendationCondition["purchasePurposeV2"];
+  cv_purchase_timing?: RecommendationCondition["purchaseTiming"];
+  cv_movein_timing?: RecommendationCondition["moveinTiming"];
+  cv_ltv_internal_score?: number | null;
+  cv_existing_loan_amount?: RecommendationCondition["existingLoan"];
+  cv_recent_delinquency?: RecommendationCondition["recentDelinquency"];
+  cv_card_loan_usage?: RecommendationCondition["cardLoanUsage"];
+  cv_loan_rejection?: RecommendationCondition["loanRejection"];
+  cv_monthly_income_range?: RecommendationCondition["monthlyIncomeRange"];
+  cv_existing_monthly_repayment?: RecommendationCondition["existingMonthlyRepayment"];
+} | null): boolean {
+  if (!profile) return false;
+
+  return Boolean(
+    profile.cv_available_cash_manwon != null ||
+      profile.cv_monthly_income_manwon != null ||
+      profile.cv_employment_type ||
+      profile.cv_monthly_expenses_manwon != null ||
+      profile.cv_house_ownership ||
+      profile.cv_purchase_purpose_v2 ||
+      profile.cv_purchase_timing ||
+      profile.cv_movein_timing ||
+      (profile.cv_ltv_internal_score ?? 0) > 0 ||
+      profile.cv_existing_loan_amount ||
+      profile.cv_recent_delinquency ||
+      profile.cv_card_loan_usage ||
+      profile.cv_loan_rejection ||
+      profile.cv_monthly_income_range ||
+      (profile.cv_existing_monthly_repayment &&
+        profile.cv_existing_monthly_repayment !== "none"),
+  );
 }
 
 function snapSimulatorAvailableCash(value: number): number {
@@ -341,20 +473,14 @@ function buildPriceLabel(args: {
   return UXCopy.priceRangeShort;
 }
 
-function grade5to3(grade: FinalGrade5 | undefined): FinalGrade {
-  if (grade === "GREEN" || grade === "LIME") return "GREEN";
-  if (grade === "RED") return "RED";
-  return "YELLOW";
-}
-
 function toConditionCategoryGrades(args: {
   totalScore: number | null;
   cashScore: number | null;
-  cashGrade: FinalGrade;
+  cashGrade: FinalGrade5;
   burdenScore: number | null;
-  burdenGrade: FinalGrade;
-  riskScore: number | null;
-  riskGrade: FinalGrade;
+  burdenGrade: FinalGrade5;
+  creditScore: number | null;
+  creditGrade: FinalGrade5;
 }): ConditionCategoryGrades {
   const {
     totalScore,
@@ -362,14 +488,14 @@ function toConditionCategoryGrades(args: {
     cashGrade,
     burdenScore,
     burdenGrade,
-    riskScore,
-    riskGrade,
+    creditScore,
+    creditGrade,
   } = args;
 
   return {
     cash: { grade: cashGrade, score: cashScore ?? undefined },
     burden: { grade: burdenGrade, score: burdenScore ?? undefined },
-    risk: { grade: riskGrade, score: riskScore ?? undefined },
+    credit: { grade: creditGrade, score: creditScore ?? undefined },
     totalScore: totalScore ?? undefined,
   };
 }
@@ -487,12 +613,6 @@ function mergeRecommendationItem(
   const regionLabel = offering?.regionLabel ?? offering?.region ?? UXCopy.regionShort;
   const rawStatus = metadata?.rawStatus ?? item.status ?? null;
   const statusLabel = statusLabelOf(normalizeOfferingStatusValue(rawStatus));
-  const cashGrade = grade5to3(item.categories?.cash?.grade) ?? grade5to3(finalGrade);
-  const incomeGrade = grade5to3(item.categories?.income?.grade) ?? grade5to3(finalGrade);
-  const ltvDsrGrade = grade5to3(item.categories?.ltv_dsr?.grade) ?? grade5to3(finalGrade);
-  const ownershipGrade = grade5to3(item.categories?.ownership?.grade) ?? grade5to3(finalGrade);
-  const purposeGrade = grade5to3(item.categories?.purpose?.grade) ?? grade5to3(finalGrade);
-  const timingGrade = grade5to3(item.categories?.timing?.grade) ?? grade5to3(finalGrade);
   const cashScore = toFiniteNumber(item.categories?.cash?.score);
   const incomeScore = toFiniteNumber(item.categories?.income?.score);
   const ltvDsrScore = toFiniteNumber(item.categories?.ltv_dsr?.score);
@@ -520,6 +640,9 @@ function mergeRecommendationItem(
     addressShort,
     addressFull,
     regionLabel,
+    regionSido:
+      metadata?.regionSido ?? offering?.regionLabel ?? offering?.region ?? UXCopy.regionShort,
+    regionSigungu: metadata?.regionSigungu ?? null,
     propertyType: metadata?.propertyType ?? item.property_type ?? null,
     status: rawStatus,
     statusLabel,
@@ -533,32 +656,21 @@ function mergeRecommendationItem(
     }),
   };
 
-  // Map new 6-categories to 3-category display format for OfferingCard backward compat
-  const worstSecondaryGrade = [ltvDsrGrade, ownershipGrade, purposeGrade, timingGrade]
-    .reduce((worst: FinalGrade, g) => {
-      if (g === "RED") return "RED";
-      if (worst === "RED") return "RED";
-      if (g === "YELLOW") return "YELLOW";
-      return worst;
-    }, "GREEN");
-  const secondaryScore = [ltvDsrScore, ownershipScore, purposeScore, timingScore]
-    .filter((s): s is number => s !== null)
-    .reduce((sum, s) => sum + s, 0);
-
   return {
     offering: recommendationOffering,
     property,
     conditionCategories: toConditionCategoryGrades({
       totalScore,
       cashScore,
-      cashGrade,
+      cashGrade: item.categories?.cash?.grade ?? finalGrade,
       burdenScore: incomeScore,
-      burdenGrade: incomeGrade,
-      riskScore: secondaryScore > 0 ? secondaryScore : null,
-      riskGrade: worstSecondaryGrade,
+      burdenGrade: item.categories?.income?.grade ?? finalGrade,
+      creditScore: ltvDsrScore,
+      creditGrade: item.categories?.ltv_dsr?.grade ?? finalGrade,
     }),
     evalResult: {
       finalGrade,
+      gradeLabel: item.grade_label ?? null,
       totalScore,
       action: item.action ?? null,
       summaryMessage: item.summary_message ?? "조건을 다시 확인해주세요.",
@@ -673,7 +785,12 @@ export function useRecommendations() {
       const loggedIn = Boolean(authResult.data.user);
       setIsLoggedIn(loggedIn);
       if (!loggedIn) {
-        // 비로그인: 저장된 조건 없음, 기본값 유지
+        const sessionSnapshot = loadConditionSession();
+        if (active && sessionSnapshot) {
+          setCondition((prev) =>
+            normalizeInputCondition(conditionFromSession(sessionSnapshot, prev)),
+          );
+        }
       } else {
         // 저장된 조건 불러오기
         const userId = authResult.data.user!.id;
@@ -689,6 +806,11 @@ export function useRecommendations() {
             "cv_purchase_timing",
             "cv_movein_timing",
             "cv_ltv_internal_score",
+            "cv_existing_loan_amount",
+            "cv_recent_delinquency",
+            "cv_card_loan_usage",
+            "cv_loan_rejection",
+            "cv_monthly_income_range",
             "cv_existing_monthly_repayment",
           ].join(","))
           .eq("id", userId)
@@ -709,22 +831,66 @@ export function useRecommendations() {
             cv_purchase_timing?: RecommendationCondition["purchaseTiming"];
             cv_movein_timing?: RecommendationCondition["moveinTiming"];
             cv_ltv_internal_score?: number | null;
+            cv_existing_loan_amount?: RecommendationCondition["existingLoan"];
+            cv_recent_delinquency?: RecommendationCondition["recentDelinquency"];
+            cv_card_loan_usage?: RecommendationCondition["cardLoanUsage"];
+            cv_loan_rejection?: RecommendationCondition["loanRejection"];
+            cv_monthly_income_range?: RecommendationCondition["monthlyIncomeRange"];
             cv_existing_monthly_repayment?: RecommendationCondition["existingMonthlyRepayment"];
           };
-          setCondition((prev) => ({
-            ...prev,
-            availableCash: p.cv_available_cash_manwon != null ? Number(p.cv_available_cash_manwon) : prev.availableCash,
-            monthlyIncome: p.cv_monthly_income_manwon != null ? Number(p.cv_monthly_income_manwon) : prev.monthlyIncome,
-            employmentType: p.cv_employment_type ?? prev.employmentType,
-            monthlyExpenses: p.cv_monthly_expenses_manwon != null ? Number(p.cv_monthly_expenses_manwon) : prev.monthlyExpenses,
-            houseOwnership: p.cv_house_ownership ?? prev.houseOwnership,
-            purchasePurposeV2: p.cv_purchase_purpose_v2 ?? prev.purchasePurposeV2,
-            purchaseTiming: p.cv_purchase_timing ?? prev.purchaseTiming,
-            moveinTiming: p.cv_movein_timing ?? prev.moveinTiming,
-            ltvInternalScore: p.cv_ltv_internal_score != null ? Number(p.cv_ltv_internal_score) : prev.ltvInternalScore,
-            existingMonthlyRepayment: p.cv_existing_monthly_repayment ?? prev.existingMonthlyRepayment,
-            regions: prev.regions,
-          }));
+          const sessionSnapshot = loadConditionSession();
+          const useProfile = hasStoredProfileCondition(p);
+
+          setCondition((prev) => {
+            const next = useProfile
+              ? {
+                  ...prev,
+                  availableCash:
+                    p.cv_available_cash_manwon != null
+                      ? Number(p.cv_available_cash_manwon)
+                      : prev.availableCash,
+                  monthlyIncome:
+                    p.cv_monthly_income_manwon != null
+                      ? Number(p.cv_monthly_income_manwon)
+                      : prev.monthlyIncome,
+                  employmentType: p.cv_employment_type ?? prev.employmentType,
+                  monthlyExpenses:
+                    p.cv_monthly_expenses_manwon != null
+                      ? Number(p.cv_monthly_expenses_manwon)
+                      : prev.monthlyExpenses,
+                  houseOwnership: p.cv_house_ownership ?? prev.houseOwnership,
+                  purchasePurposeV2: p.cv_purchase_purpose_v2 ?? prev.purchasePurposeV2,
+                  purchaseTiming: p.cv_purchase_timing ?? prev.purchaseTiming,
+                  moveinTiming: p.cv_movein_timing ?? prev.moveinTiming,
+                  ltvInternalScore:
+                    p.cv_ltv_internal_score != null
+                      ? Number(p.cv_ltv_internal_score)
+                      : prev.ltvInternalScore,
+                  existingLoan: p.cv_existing_loan_amount ?? prev.existingLoan,
+                  recentDelinquency:
+                    p.cv_recent_delinquency ?? prev.recentDelinquency,
+                  cardLoanUsage: p.cv_card_loan_usage ?? prev.cardLoanUsage,
+                  loanRejection: p.cv_loan_rejection ?? prev.loanRejection,
+                  monthlyIncomeRange:
+                    p.cv_monthly_income_range ?? prev.monthlyIncomeRange,
+                  existingMonthlyRepayment:
+                    p.cv_existing_monthly_repayment ??
+                    prev.existingMonthlyRepayment,
+                  regions: prev.regions,
+                }
+              : sessionSnapshot
+                ? conditionFromSession(sessionSnapshot, prev)
+                : prev;
+
+            return normalizeInputCondition(next);
+          });
+        } else if (active) {
+          const sessionSnapshot = loadConditionSession();
+          if (sessionSnapshot) {
+            setCondition((prev) =>
+              normalizeInputCondition(conditionFromSession(sessionSnapshot, prev)),
+            );
+          }
         }
       }
       setIsBootstrapping(false);
@@ -743,6 +909,7 @@ export function useRecommendations() {
     const map = new Map<number, OfferingMeta>();
 
     for (const row of rows) {
+      const loc0 = row.property_locations?.[0] ?? null;
       const offering = mapPropertyRowToOffering(row, {
         addressShort: UXCopy.addressShort,
         regionShort: UXCopy.regionShort,
@@ -752,6 +919,11 @@ export function useRecommendations() {
         offering,
         propertyType: row.property_type ?? null,
         rawStatus: row.status ?? null,
+        regionSido: pickFirstNonEmpty(loc0?.region_1depth),
+        regionSigungu: pickFirstNonEmpty(
+          loc0?.region_2depth,
+          loc0?.region_3depth,
+        ),
       });
     }
 
@@ -918,7 +1090,13 @@ export function useRecommendations() {
   );
 
   const evaluate = useCallback(async (override?: RecommendationCondition) => {
-    const evalCondition = override ?? condition;
+    const evalCondition =
+      override == null
+        ? condition
+        : mode === "sim"
+          ? normalizeSimulatorCondition(override, isLoggedIn)
+          : normalizeInputCondition(override);
+
     if (!Number.isFinite(evalCondition.availableCash) || evalCondition.availableCash < 0) {
       setValidationError("가용 현금을 확인해주세요.");
       return false;
@@ -929,8 +1107,13 @@ export function useRecommendations() {
     }
 
     setValidationError(null);
+    if (override != null) {
+      skipAutoEvalRef.current = true;
+      setCondition(evalCondition);
+    }
+    saveConditionSession(buildConditionSession(evalCondition));
     return runEvaluate(evalCondition);
-  }, [condition, runEvaluate]);
+  }, [condition, isLoggedIn, mode, runEvaluate]);
 
   const changeMode = useCallback((nextMode: RecommendationMode) => {
     setValidationError(null);
@@ -959,6 +1142,11 @@ export function useRecommendations() {
           cv_purchase_timing: condition.purchaseTiming,
           cv_movein_timing: condition.moveinTiming,
           cv_ltv_internal_score: condition.ltvInternalScore > 0 ? condition.ltvInternalScore : null,
+          cv_existing_loan_amount: condition.existingLoan,
+          cv_recent_delinquency: condition.recentDelinquency,
+          cv_card_loan_usage: condition.cardLoanUsage,
+          cv_loan_rejection: condition.loanRejection,
+          cv_monthly_income_range: condition.monthlyIncomeRange,
           cv_existing_monthly_repayment: condition.existingMonthlyRepayment,
         })
         .eq("id", user.id);

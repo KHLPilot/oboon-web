@@ -3,6 +3,8 @@
 import type { ReactNode } from "react";
 
 import { Badge } from "@/components/ui/Badge";
+import { grade5DetailLabel } from "@/features/condition-validation/lib/grade5Labels";
+import { getGrade5ToneMeta } from "@/features/condition-validation/lib/grade5Theme";
 import type {
   RecommendationEvalResult,
   RecommendationProperty,
@@ -22,34 +24,12 @@ type RecommendationPreviewContentProps = GaugeOverlayProps & {
   showSummary?: boolean;
 };
 
-// 5단계 등급 CSS 토큰
-const GRADE5_TOKEN = {
-  GREEN:  "var(--oboon-grade-green)",
-  LIME:   "var(--oboon-grade-lime)",
-  YELLOW: "var(--oboon-grade-yellow)",
-  ORANGE: "var(--oboon-grade-orange)",
-  RED:    "var(--oboon-grade-red)",
-} as const;
-
-const GRADE5_TEXT_TOKEN = {
-  GREEN:  "var(--oboon-grade-green-text)",
-  LIME:   "var(--oboon-grade-lime-text)",
-  YELLOW: "var(--oboon-grade-yellow-text)",
-  ORANGE: "var(--oboon-grade-orange-text)",
-  RED:    "var(--oboon-grade-red-text)",
-} as const;
-
 type GradeMeta = {
   label: string;
+  badgeClassName: string;
   barColor: string;
   textColor: string;
 };
-
-function badgeVariant(grade: RecommendationEvalResult["finalGrade"]) {
-  if (grade === "GREEN" || grade === "LIME") return "success" as const;
-  if (grade === "RED") return "danger" as const;
-  return "warning" as const;
-}
 
 function badgeLabel(grade: RecommendationEvalResult["finalGrade"]) {
   if (grade === "GREEN") return "조건 충족";
@@ -60,14 +40,12 @@ function badgeLabel(grade: RecommendationEvalResult["finalGrade"]) {
 }
 
 function gradeMeta(grade: RecommendationEvalResult["finalGrade"]): GradeMeta {
-  const labels: Record<typeof grade, string> = {
-    GREEN: "충족", LIME: "거의 충족", YELLOW: "검토",
-    ORANGE: "어려울 수 있음", RED: "미충족",
-  };
+  const tone = getGrade5ToneMeta(grade);
   return {
-    label: labels[grade],
-    barColor: GRADE5_TOKEN[grade],
-    textColor: GRADE5_TEXT_TOKEN[grade],
+    label: grade5DetailLabel(grade),
+    badgeClassName: tone.badgeClassName,
+    barColor: tone.color,
+    textColor: tone.textColor,
   };
 }
 
@@ -97,7 +75,12 @@ function GaugeRow(props: {
             {label}
           </div>
           {note ? (
-            <div className="mt-0.5 ob-typo-caption text-(--oboon-text-muted)">
+            <div
+              className={cn(
+                "mt-0.5 ob-typo-caption text-(--oboon-text-muted)",
+                compact && "line-clamp-1",
+              )}
+            >
               {note}
             </div>
           ) : null}
@@ -148,7 +131,9 @@ export function RecommendationPreviewContent(
   ) ?? [];
   const riskNote =
     riskReasonMessages.length > 0
-      ? riskReasonMessages.join(" · ")
+      ? compact
+        ? riskReasonMessages[0]
+        : riskReasonMessages.join(" · ")
       : "현재 걸린 리스크 없음";
 
   if (!property || !evalResult) {
@@ -180,6 +165,9 @@ export function RecommendationPreviewContent(
   }
 
   if (evalResult.isMasked) {
+    const finalMeta = gradeMeta(evalResult.finalGrade);
+    const finalBadgeLabel = evalResult.gradeLabel ?? badgeLabel(evalResult.finalGrade);
+
     return (
       <div className={compact ? "space-y-2.5" : "space-y-3"}>
         <div className="flex items-start justify-between gap-3">
@@ -198,8 +186,8 @@ export function RecommendationPreviewContent(
           </div>
 
           {showFinalBadge ? (
-            <Badge variant={badgeVariant(evalResult.finalGrade)}>
-              {badgeLabel(evalResult.finalGrade)}
+            <Badge className={finalMeta.badgeClassName}>
+              {finalBadgeLabel}
             </Badge>
           ) : null}
         </div>
@@ -225,13 +213,16 @@ export function RecommendationPreviewContent(
     );
   }
 
+  const finalMeta = gradeMeta(evalResult.finalGrade);
+  const finalBadgeLabel = evalResult.gradeLabel ?? badgeLabel(evalResult.finalGrade);
+
   return (
-    <div className={compact ? "space-y-3" : "space-y-4"}>
+    <div className={compact ? "space-y-2.5" : "space-y-4"}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div
             className={cn(
-              compact ? "ob-typo-body2" : "ob-typo-h3",
+              compact ? "ob-typo-body font-semibold" : "ob-typo-h3",
               "truncate text-(--oboon-text-title)",
             )}
           >
@@ -244,8 +235,8 @@ export function RecommendationPreviewContent(
 
         <div className="text-right">
           {showFinalBadge ? (
-            <Badge variant={badgeVariant(evalResult.finalGrade)}>
-              {badgeLabel(evalResult.finalGrade)}
+            <Badge className={finalMeta.badgeClassName}>
+              {finalBadgeLabel}
             </Badge>
           ) : null}
           {evalResult.totalScore !== null ? (
@@ -253,8 +244,8 @@ export function RecommendationPreviewContent(
               className={cn(
                 compact
                   ? showFinalBadge
-                    ? "mt-1.5 ob-typo-h3"
-                    : "ob-typo-h3"
+                    ? "mt-1 text-[1.35rem] leading-none font-semibold"
+                    : "text-[1.35rem] leading-none font-semibold"
                   : showFinalBadge
                     ? "mt-2 ob-typo-h2"
                     : "ob-typo-h2",
@@ -272,7 +263,7 @@ export function RecommendationPreviewContent(
         </div>
       </div>
 
-      <div className={compact ? "space-y-2.5" : "space-y-3"}>
+      <div className={compact ? "space-y-2" : "space-y-3"}>
         <GaugeRow
           label="현금 여력"
           value={evalResult.categories.cash.score}
@@ -308,17 +299,17 @@ export function RecommendationPreviewContent(
       </div>
 
       {evalResult.showDetailedMetrics ? (
-        <div className="grid grid-cols-2 gap-2">
+        <div className={cn("grid grid-cols-2", compact ? "gap-1.5" : "gap-2")}>
           <div
             className={cn(
               "rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle)",
-              compact ? "px-3 py-2" : "px-3 py-2.5",
+              compact ? "px-2.5 py-2" : "px-3 py-2.5",
             )}
           >
             <div className="ob-typo-caption text-(--oboon-text-muted)">최소 현금</div>
             <div
               className={cn(
-                compact ? "mt-1 ob-typo-body" : "mt-1 ob-typo-body2",
+                compact ? "mt-0.5 ob-typo-caption font-medium" : "mt-1 ob-typo-body2",
                 "text-(--oboon-text-title)",
               )}
             >
@@ -330,13 +321,13 @@ export function RecommendationPreviewContent(
           <div
             className={cn(
               "rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle)",
-              compact ? "px-3 py-2" : "px-3 py-2.5",
+              compact ? "px-2.5 py-2" : "px-3 py-2.5",
             )}
           >
             <div className="ob-typo-caption text-(--oboon-text-muted)">월 부담률</div>
             <div
               className={cn(
-                compact ? "mt-1 ob-typo-body" : "mt-1 ob-typo-body2",
+                compact ? "mt-0.5 ob-typo-caption font-medium" : "mt-1 ob-typo-body2",
                 "text-(--oboon-text-title)",
               )}
             >
@@ -348,7 +339,7 @@ export function RecommendationPreviewContent(
         <div
           className={cn(
             "rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle)",
-            compact ? "px-3 py-2.5" : "px-3 py-3",
+            compact ? "px-2.5 py-2" : "px-3 py-3",
           )}
         >
           <p

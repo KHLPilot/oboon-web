@@ -57,8 +57,8 @@ export default function Header() {
 
   const NAV_ITEMS = useMemo(
     () => [
-      { label: "분양 리스트", href: ROUTES.offerings.list, exact: true },
       { label: "맞춤 현장", href: ROUTES.recommendations },
+      { label: "분양 리스트", href: ROUTES.offerings.list, exact: true },
       { label: "비교하기", href: "/offerings/compare", exact: true },
       // { label: "브리핑", href: "/briefing" },
       { label: "커뮤니티", href: "/community" },

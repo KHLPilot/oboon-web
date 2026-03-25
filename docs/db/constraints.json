@@ -282,6 +282,30 @@
     "definition": "PRIMARY KEY (id)"
   },
   {
+    "table_name": "community_follows",
+    "constraint_name": "community_follows_check",
+    "constraint_type": "c",
+    "definition": "CHECK ((follower_id <> following_id))"
+  },
+  {
+    "table_name": "community_follows",
+    "constraint_name": "community_follows_follower_id_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (follower_id) REFERENCES profiles(id) ON DELETE CASCADE"
+  },
+  {
+    "table_name": "community_follows",
+    "constraint_name": "community_follows_following_id_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (following_id) REFERENCES profiles(id) ON DELETE CASCADE"
+  },
+  {
+    "table_name": "community_follows",
+    "constraint_name": "community_follows_pkey",
+    "constraint_type": "p",
+    "definition": "PRIMARY KEY (follower_id, following_id)"
+  },
+  {
     "table_name": "community_interests",
     "constraint_name": "community_interests_profile_id_fkey",
     "constraint_type": "f",
@@ -334,6 +358,12 @@
     "constraint_name": "community_posts_property_id_fkey",
     "constraint_type": "f",
     "definition": "FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE SET NULL"
+  },
+  {
+    "table_name": "community_posts",
+    "constraint_name": "community_posts_repost_original_post_id_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (repost_original_post_id) REFERENCES community_posts(id) ON DELETE SET NULL"
   },
   {
     "table_name": "community_posts",
@@ -582,6 +612,60 @@
     "definition": "PRIMARY KEY (id)"
   },
   {
+    "table_name": "offering_scraps",
+    "constraint_name": "offering_scraps_profile_id_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE"
+  },
+  {
+    "table_name": "offering_scraps",
+    "constraint_name": "offering_scraps_property_id_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE"
+  },
+  {
+    "table_name": "offering_scraps",
+    "constraint_name": "offering_scraps_pkey",
+    "constraint_type": "p",
+    "definition": "PRIMARY KEY (id)"
+  },
+  {
+    "table_name": "offering_scraps",
+    "constraint_name": "offering_scraps_profile_id_property_id_key",
+    "constraint_type": "u",
+    "definition": "UNIQUE (profile_id, property_id)"
+  },
+  {
+    "table_name": "offering_view_history",
+    "constraint_name": "offering_view_history_view_count_check",
+    "constraint_type": "c",
+    "definition": "CHECK ((view_count > 0))"
+  },
+  {
+    "table_name": "offering_view_history",
+    "constraint_name": "offering_view_history_profile_id_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE"
+  },
+  {
+    "table_name": "offering_view_history",
+    "constraint_name": "offering_view_history_property_id_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE"
+  },
+  {
+    "table_name": "offering_view_history",
+    "constraint_name": "offering_view_history_pkey",
+    "constraint_type": "p",
+    "definition": "PRIMARY KEY (id)"
+  },
+  {
+    "table_name": "offering_view_history",
+    "constraint_name": "offering_view_history_profile_id_property_id_key",
+    "constraint_type": "u",
+    "definition": "UNIQUE (profile_id, property_id)"
+  },
+  {
     "table_name": "payout_requests",
     "constraint_name": "payout_requests_status_check",
     "constraint_type": "c",
@@ -625,15 +709,75 @@
   },
   {
     "table_name": "profiles",
+    "constraint_name": "profiles_cv_card_loan_usage_check",
+    "constraint_type": "c",
+    "definition": "CHECK ((cv_card_loan_usage = ANY (ARRAY['none'::text, '1to2'::text, '3_or_more'::text])))"
+  },
+  {
+    "table_name": "profiles",
     "constraint_name": "profiles_cv_credit_grade_check",
     "constraint_type": "c",
     "definition": "CHECK (((cv_credit_grade IS NULL) OR (cv_credit_grade = ANY (ARRAY['good'::text, 'normal'::text, 'unstable'::text]))))"
   },
   {
     "table_name": "profiles",
+    "constraint_name": "profiles_cv_employment_type_check",
+    "constraint_type": "c",
+    "definition": "CHECK ((cv_employment_type = ANY (ARRAY['employee'::text, 'self_employed'::text, 'freelancer'::text, 'other'::text])))"
+  },
+  {
+    "table_name": "profiles",
+    "constraint_name": "profiles_cv_existing_loan_amount_check",
+    "constraint_type": "c",
+    "definition": "CHECK ((cv_existing_loan_amount = ANY (ARRAY['none'::text, 'under_1eok'::text, '1to3eok'::text, 'over_3eok'::text])))"
+  },
+  {
+    "table_name": "profiles",
+    "constraint_name": "profiles_cv_existing_monthly_repayment_check",
+    "constraint_type": "c",
+    "definition": "CHECK ((cv_existing_monthly_repayment = ANY (ARRAY['none'::text, 'under_50'::text, '50to100'::text, '100to200'::text, 'over_200'::text])))"
+  },
+  {
+    "table_name": "profiles",
+    "constraint_name": "profiles_cv_house_ownership_check",
+    "constraint_type": "c",
+    "definition": "CHECK ((cv_house_ownership = ANY (ARRAY['none'::text, 'one'::text, 'two_or_more'::text])))"
+  },
+  {
+    "table_name": "profiles",
+    "constraint_name": "profiles_cv_loan_rejection_check",
+    "constraint_type": "c",
+    "definition": "CHECK ((cv_loan_rejection = ANY (ARRAY['none'::text, 'yes'::text])))"
+  },
+  {
+    "table_name": "profiles",
+    "constraint_name": "profiles_cv_ltv_internal_score_check",
+    "constraint_type": "c",
+    "definition": "CHECK (((cv_ltv_internal_score >= 0) AND (cv_ltv_internal_score <= 100)))"
+  },
+  {
+    "table_name": "profiles",
+    "constraint_name": "profiles_cv_monthly_expenses_manwon_check",
+    "constraint_type": "c",
+    "definition": "CHECK ((cv_monthly_expenses_manwon >= 0))"
+  },
+  {
+    "table_name": "profiles",
     "constraint_name": "profiles_cv_monthly_income_manwon_check",
     "constraint_type": "c",
     "definition": "CHECK (((cv_monthly_income_manwon IS NULL) OR (cv_monthly_income_manwon > 0)))"
+  },
+  {
+    "table_name": "profiles",
+    "constraint_name": "profiles_cv_monthly_income_range_check",
+    "constraint_type": "c",
+    "definition": "CHECK ((cv_monthly_income_range = ANY (ARRAY['under_200'::text, '200to300'::text, '300to500'::text, '500to700'::text, 'over_700'::text])))"
+  },
+  {
+    "table_name": "profiles",
+    "constraint_name": "profiles_cv_movein_timing_check",
+    "constraint_type": "c",
+    "definition": "CHECK ((cv_movein_timing = ANY (ARRAY['anytime'::text, 'within_3years'::text, 'within_2years'::text, 'within_1year'::text, 'immediate'::text])))"
   },
   {
     "table_name": "profiles",
@@ -646,6 +790,24 @@
     "constraint_name": "profiles_cv_purchase_purpose_check",
     "constraint_type": "c",
     "definition": "CHECK (((cv_purchase_purpose IS NULL) OR (cv_purchase_purpose = ANY (ARRAY['residence'::text, 'investment'::text, 'both'::text]))))"
+  },
+  {
+    "table_name": "profiles",
+    "constraint_name": "profiles_cv_purchase_purpose_v2_check",
+    "constraint_type": "c",
+    "definition": "CHECK ((cv_purchase_purpose_v2 = ANY (ARRAY['residence'::text, 'investment_rent'::text, 'investment_capital'::text, 'long_term'::text])))"
+  },
+  {
+    "table_name": "profiles",
+    "constraint_name": "profiles_cv_purchase_timing_check",
+    "constraint_type": "c",
+    "definition": "CHECK ((cv_purchase_timing = ANY (ARRAY['by_property'::text, 'over_1year'::text, 'within_1year'::text, 'within_6months'::text, 'within_3months'::text])))"
+  },
+  {
+    "table_name": "profiles",
+    "constraint_name": "profiles_cv_recent_delinquency_check",
+    "constraint_type": "c",
+    "definition": "CHECK ((cv_recent_delinquency = ANY (ARRAY['none'::text, 'once'::text, 'twice_or_more'::text])))"
   },
   {
     "table_name": "profiles",

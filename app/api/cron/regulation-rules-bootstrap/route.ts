@@ -34,7 +34,7 @@ const adminSupabase = createClient(
 
 function isAuthorized(req: Request): boolean {
   const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) return true;
+  if (!cronSecret) return false; // CRON_SECRET 미설정 시 항상 거부
   return req.headers.get("authorization") === `Bearer ${cronSecret}`;
 }
 

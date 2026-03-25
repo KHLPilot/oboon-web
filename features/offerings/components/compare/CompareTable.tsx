@@ -1,5 +1,9 @@
 // features/offerings/components/compare/CompareTable.tsx
 import { cn } from "@/lib/utils/cn";
+import {
+  OFFERING_STATUS_VALUES,
+  statusLabelOf,
+} from "@/features/offerings/domain/offering.constants";
 import type {
   FinalGrade5,
   OfferingCompareItem,
@@ -12,13 +16,15 @@ interface CompareTableProps {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 type GradeMeta = { label: string; color: string; bg: string; border: string };
+const STATUS_READY = OFFERING_STATUS_VALUES[0];
+const STATUS_OPEN = OFFERING_STATUS_VALUES[1];
 
 function grade5Meta(grade: FinalGrade5): GradeMeta {
   switch (grade) {
     case "GREEN":
       return { label: "계약 가능", color: "var(--oboon-grade-green)", bg: "var(--oboon-grade-green-bg)", border: "var(--oboon-grade-green-border)" };
     case "LIME":
-      return { label: "계약 가능 (확인 필요)", color: "var(--oboon-grade-lime)", bg: "var(--oboon-grade-lime-bg)", border: "var(--oboon-grade-lime-border)" };
+      return { label: "거의 충족", color: "var(--oboon-grade-lime)", bg: "var(--oboon-grade-lime-bg)", border: "var(--oboon-grade-lime-border)" };
     case "YELLOW":
       return { label: "확인 필요", color: "var(--oboon-grade-yellow)", bg: "var(--oboon-grade-yellow-bg)", border: "var(--oboon-grade-yellow-border)" };
     case "ORANGE":
@@ -29,9 +35,13 @@ function grade5Meta(grade: FinalGrade5): GradeMeta {
 }
 
 function statusMeta(s: OfferingCompareItem["status"]): { label: string; cls: string } {
-  if (s === "OPEN") return { label: "분양 중", cls: "text-(--oboon-safe)" };
-  if (s === "READY") return { label: "분양 예정", cls: "text-(--oboon-primary)" };
-  return { label: "분양 종료", cls: "text-(--oboon-text-muted)" };
+  if (s === STATUS_OPEN) {
+    return { label: statusLabelOf(s), cls: "text-(--oboon-safe)" };
+  }
+  if (s === STATUS_READY) {
+    return { label: statusLabelOf(s), cls: "text-(--oboon-primary)" };
+  }
+  return { label: statusLabelOf(s), cls: "text-(--oboon-text-muted)" };
 }
 
 function schoolCls(g: OfferingCompareItem["schoolGrade"]): string {

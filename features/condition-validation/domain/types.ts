@@ -109,9 +109,9 @@ export type ConditionEvaluationResult = {
 };
 
 export type ConditionCategoryGrades = {
-  cash: { grade: FinalGrade; score?: number };
-  burden: { grade: FinalGrade; score?: number };
-  risk: { grade: FinalGrade; score?: number };
+  cash: { grade: FinalGrade5; score?: number };
+  burden: { grade: FinalGrade5; score?: number };
+  credit: { grade: FinalGrade5; score?: number };
   totalScore?: number;
 };
 
@@ -243,23 +243,61 @@ export type MoveinTiming =
 
 export type FinalGrade5 = "GREEN" | "LIME" | "YELLOW" | "ORANGE" | "RED";
 
-export type ExistingLoanAmount = "none" | "under_1eok" | "1to3eok" | "over_3eok";
-export type MonthlyLoanRepayment = "none" | "under_50" | "50to100" | "100to200" | "over_200";
-export type MonthlyIncomeRange =
-  | "under_200"
-  | "200to300"
-  | "300to500"
-  | "500to700"
-  | "over_700";
-export type DelinquencyCount = "none" | "once" | "twice_or_more";
-export type CardLoanUsage = "none" | "1to2" | "3_or_more";
+export const EXISTING_LOAN_AMOUNTS = ["none", "under_1eok", "1to3eok", "over_3eok"] as const;
+export type ExistingLoanAmount = (typeof EXISTING_LOAN_AMOUNTS)[number];
+
+export const MONTHLY_LOAN_REPAYMENTS = ["none", "under_50", "50to100", "100to200", "over_200"] as const;
+export type MonthlyLoanRepayment = (typeof MONTHLY_LOAN_REPAYMENTS)[number];
+
+export const MONTHLY_INCOME_RANGES = [
+  "under_200",
+  "200to300",
+  "300to500",
+  "500to700",
+  "over_700",
+] as const;
+export type MonthlyIncomeRange = (typeof MONTHLY_INCOME_RANGES)[number];
+
+export const DELINQUENCY_COUNTS = ["none", "once", "twice_or_more"] as const;
+export type DelinquencyCount = (typeof DELINQUENCY_COUNTS)[number];
+
+export const CARD_LOAN_USAGES = ["none", "1to2", "3_or_more"] as const;
+export type CardLoanUsage = (typeof CARD_LOAN_USAGES)[number];
+
+export const LOAN_REJECTIONS = ["none", "yes"] as const;
+export type LoanRejection = (typeof LOAN_REJECTIONS)[number];
+
+export type LtvDsrPersistedValues = {
+  existingLoan: ExistingLoanAmount | null;
+  recentDelinquency: DelinquencyCount | null;
+  cardLoanUsage: CardLoanUsage | null;
+  loanRejection: LoanRejection | null;
+  monthlyIncomeRange: MonthlyIncomeRange | null;
+  existingMonthlyRepayment: MonthlyLoanRepayment | null;
+};
+
+export const EMPTY_LTV_DSR_PERSISTED_VALUES: LtvDsrPersistedValues = {
+  existingLoan: null,
+  recentDelinquency: null,
+  cardLoanUsage: null,
+  loanRejection: null,
+  monthlyIncomeRange: null,
+  existingMonthlyRepayment: null,
+};
+
+export function isOneOf<T extends readonly string[]>(
+  values: T,
+  value: unknown,
+): value is T[number] {
+  return typeof value === "string" && values.includes(value as T[number]);
+}
 
 export type LtvDsrInput = {
   houseOwnership: "none" | "one" | "two_or_more";
   existingLoan: ExistingLoanAmount;
   recentDelinquency: DelinquencyCount;
   cardLoanUsage: CardLoanUsage;
-  loanRejection: "none" | "yes";
+  loanRejection: LoanRejection;
   employmentType: EmploymentType;
   monthlyIncomeRange: MonthlyIncomeRange;
   existingMonthlyRepayment: MonthlyLoanRepayment;

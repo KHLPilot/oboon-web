@@ -38,6 +38,14 @@ export default function Footer() {
               <ul className="space-y-2 ob-typo-caption text-(--oboon-text-muted)">
                 <li>
                   <Link
+                    href="/recommendations"
+                    className="hover:text-(--oboon-text-default)"
+                  >
+                    맞춤현장
+                  </Link>
+                </li>
+                <li>
+                  <Link
                     href="/offerings"
                     className="hover:text-(--oboon-text-default)"
                   >
@@ -46,10 +54,10 @@ export default function Footer() {
                 </li>
                 <li>
                   <Link
-                    href="/recommendations"
+                    href="/compare"
                     className="hover:text-(--oboon-text-default)"
                   >
-                    맞춤현장
+                    비교하기
                   </Link>
                 </li>
                 <li>

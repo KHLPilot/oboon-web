@@ -189,31 +189,49 @@ input[type="password"]::-webkit-contacts-auto-fill-button {
   --oboon-safe-border: rgba(34, 197, 94, 0.35);
   --oboon-on-safe: #ffffff;
 
-  /* Grade 5 (매칭 등급) */
-  --oboon-grade-green: #22c55e;
-  --oboon-grade-lime: #a3e635;
-  --oboon-grade-yellow: #facc15;
-  --oboon-grade-orange: #f97316;
-  --oboon-grade-red: #dc2626;
-  --oboon-grade-green-text: #15803d;
-  --oboon-grade-lime-text: #65a30d;
-  --oboon-grade-yellow-text: #92400e;
-  --oboon-grade-orange-text: #c2410c;
-  --oboon-grade-red-text: #b91c1c;
-  --oboon-grade-green-bg: rgba(34, 197, 94, 0.15);
-  --oboon-grade-lime-bg: rgba(163, 230, 53, 0.15);
-  --oboon-grade-yellow-bg: rgba(250, 204, 21, 0.15);
-  --oboon-grade-orange-bg: rgba(249, 115, 22, 0.15);
-  --oboon-grade-red-bg: rgba(220, 38, 38, 0.15);
-  --oboon-grade-green-border: rgba(34, 197, 94, 0.4);
-  --oboon-grade-lime-border: rgba(163, 230, 53, 0.4);
-  --oboon-grade-yellow-border: rgba(250, 204, 21, 0.4);
-  --oboon-grade-orange-border: rgba(249, 115, 22, 0.4);
-  --oboon-grade-red-border: rgba(220, 38, 38, 0.4);
+  /* Grade 5 (매칭 등급) - dark-first tone primitives */
+  --oboon-grade-surface-alpha: 0.16;
+  --oboon-grade-border-alpha: 0.38;
 
-  /* Optional: map */
-  --oboon-map-shadow-default: 0 12px 32px rgba(0, 0, 0, 0.25);
-  --oboon-map-shadow-strong: 0 18px 45px rgba(0, 0, 0, 0.35);
+  --oboon-grade-green-rgb: 74 222 128;
+  --oboon-grade-green-text-rgb: 187 247 208;
+  --oboon-grade-lime-rgb: 163 230 53;
+  --oboon-grade-lime-text-rgb: 217 249 157;
+  --oboon-grade-yellow-rgb: 251 191 36;
+  --oboon-grade-yellow-text-rgb: 253 230 138;
+  --oboon-grade-orange-rgb: 251 146 60;
+  --oboon-grade-orange-text-rgb: 254 215 170;
+  --oboon-grade-red-rgb: 248 113 113;
+  --oboon-grade-red-text-rgb: 254 202 202;
+
+  --oboon-grade-green: rgb(var(--oboon-grade-green-rgb));
+  --oboon-grade-green-text: rgb(var(--oboon-grade-green-text-rgb));
+  --oboon-grade-green-bg: rgb(var(--oboon-grade-green-rgb) / var(--oboon-grade-surface-alpha));
+  --oboon-grade-green-border: rgb(var(--oboon-grade-green-rgb) / var(--oboon-grade-border-alpha));
+
+  --oboon-grade-lime: rgb(var(--oboon-grade-lime-rgb));
+  --oboon-grade-lime-text: rgb(var(--oboon-grade-lime-text-rgb));
+  --oboon-grade-lime-bg: rgb(var(--oboon-grade-lime-rgb) / var(--oboon-grade-surface-alpha));
+  --oboon-grade-lime-border: rgb(var(--oboon-grade-lime-rgb) / var(--oboon-grade-border-alpha));
+
+  --oboon-grade-yellow: rgb(var(--oboon-grade-yellow-rgb));
+  --oboon-grade-yellow-text: rgb(var(--oboon-grade-yellow-text-rgb));
+  --oboon-grade-yellow-bg: rgb(var(--oboon-grade-yellow-rgb) / var(--oboon-grade-surface-alpha));
+  --oboon-grade-yellow-border: rgb(var(--oboon-grade-yellow-rgb) / var(--oboon-grade-border-alpha));
+
+  --oboon-grade-orange: rgb(var(--oboon-grade-orange-rgb));
+  --oboon-grade-orange-text: rgb(var(--oboon-grade-orange-text-rgb));
+  --oboon-grade-orange-bg: rgb(var(--oboon-grade-orange-rgb) / var(--oboon-grade-surface-alpha));
+  --oboon-grade-orange-border: rgb(var(--oboon-grade-orange-rgb) / var(--oboon-grade-border-alpha));
+
+  --oboon-grade-red: rgb(var(--oboon-grade-red-rgb));
+  --oboon-grade-red-text: rgb(var(--oboon-grade-red-text-rgb));
+  --oboon-grade-red-bg: rgb(var(--oboon-grade-red-rgb) / var(--oboon-grade-surface-alpha));
+  --oboon-grade-red-border: rgb(var(--oboon-grade-red-rgb) / var(--oboon-grade-border-alpha));
+
+  /* Optional: map — shadow color tokens (used as color params in drop-shadow/box-shadow) */
+  --oboon-map-shadow-default: rgba(0, 0, 0, 0.28);
+  --oboon-map-shadow-strong: rgba(0, 0, 0, 0.42);
   --oboon-map-bg: #1b2130;
   --oboon-map-dot: #516186;
   --oboon-map-hatch: #5f6f94;
@@ -295,6 +313,25 @@ input[type="password"]::-webkit-contacts-auto-fill-button {
   --oboon-map-road: #ffffff;
   --oboon-map-road-dash: #c7d0e8;
   --oboon-map-road-label: #a0aacc;
+
+  /* Map shadow colors — lighter for light mode */
+  --oboon-map-shadow-default: rgba(15, 23, 42, 0.14);
+  --oboon-map-shadow-strong: rgba(15, 23, 42, 0.22);
+
+  /* Grade marker colors — light mode primitives */
+  --oboon-grade-surface-alpha: 0.14;
+  --oboon-grade-border-alpha: 0.24;
+
+  --oboon-grade-green-rgb: 22 163 74;
+  --oboon-grade-green-text-rgb: 22 101 52;
+  --oboon-grade-lime-rgb: 101 163 13;
+  --oboon-grade-lime-text-rgb: 63 98 18;
+  --oboon-grade-yellow-rgb: 202 138 4;
+  --oboon-grade-yellow-text-rgb: 133 77 14;
+  --oboon-grade-orange-rgb: 234 88 12;
+  --oboon-grade-orange-text-rgb: 154 52 18;
+  --oboon-grade-red-rgb: 220 38 38;
+  --oboon-grade-red-text-rgb: 153 27 27;
 }
 
 /* Dark theme (if you use .dark or data-theme="dark") */

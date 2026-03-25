@@ -23,6 +23,8 @@
     "@smithy/signature-v4": "^5.3.9",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.86.0",
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.37.0",
     "ai": "^6.0.82",
     "bcryptjs": "^3.0.3",
     "date-fns": "^4.1.0",

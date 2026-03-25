@@ -251,6 +251,41 @@ function isInvalidCommunityStatusError(error: unknown) {
   );
 }
 
+async function countVisibleCommunityPostsByProperty(
+  supabase: ReturnType<typeof createSupabaseClient>,
+  propertyId: number,
+) {
+  const modernResult = await supabase
+    .from("community_posts")
+    .select("id", { count: "exact", head: true })
+    .eq("property_id", propertyId)
+    .eq("is_agent_only", false)
+    .in("status", ["thinking", "visited"]);
+
+  if (!modernResult.error) {
+    return modernResult.count ?? 0;
+  }
+
+  if (!isInvalidCommunityStatusError(modernResult.error)) {
+    console.error("community posts by property count error:", modernResult.error.message);
+    return 0;
+  }
+
+  const legacyResult = await supabase
+    .from("community_posts")
+    .select("id", { count: "exact", head: true })
+    .eq("property_id", propertyId)
+    .eq("is_agent_only", false)
+    .not("status", "in", '("hidden","deleted","draft")');
+
+  if (legacyResult.error) {
+    console.error("community posts by property legacy count error:", legacyResult.error.message);
+    return 0;
+  }
+
+  return legacyResult.count ?? 0;
+}
+
 async function enrichPostRows(
   rows: CommunityPostBaseDbRow[],
 ): Promise<CommunityPostWithAuthorDbRow[]> {
@@ -1232,7 +1267,7 @@ export async function getCommunityPostsByPropertyId(
 ): Promise<{ posts: CommunityPostRow[]; total: number }> {
   const supabase = createSupabaseClient();
 
-  const [{ data, error }, { count }] = await Promise.all([
+  const [{ data, error }, count] = await Promise.all([
     supabase
       .from("community_posts")
       .select(postBaseSelect)
@@ -1240,12 +1275,7 @@ export async function getCommunityPostsByPropertyId(
       .eq("is_agent_only", false)
       .order("created_at", { ascending: false })
       .limit(limit),
-    supabase
-      .from("community_posts")
-      .select("id", { count: "exact", head: true })
-      .eq("property_id", propertyId)
-      .eq("is_agent_only", false)
-      .not("status", "in", '("hidden","deleted","draft")'),
+    countVisibleCommunityPostsByProperty(supabase, propertyId),
   ]);
 
   if (error) {
@@ -1258,5 +1288,5 @@ export async function getCommunityPostsByPropertyId(
   );
   const enriched = await enrichPostRows(visibleRows);
   const posts = await attachViewerReactions(enriched.map((row) => mapPostRow(row)));
-  return { posts, total: count ?? 0 };
+  return { posts, total: count };
 }

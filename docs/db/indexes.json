@@ -205,6 +205,16 @@
     "definition": "CREATE INDEX idx_community_comments_post_parent_created ON public.community_comments USING btree (post_id, parent_comment_id, created_at)"
   },
   {
+    "table_name": "community_follows",
+    "index_name": "community_follows_following_idx",
+    "definition": "CREATE INDEX community_follows_following_idx ON public.community_follows USING btree (following_id)"
+  },
+  {
+    "table_name": "community_follows",
+    "index_name": "community_follows_pkey",
+    "definition": "CREATE UNIQUE INDEX community_follows_pkey ON public.community_follows USING btree (follower_id, following_id)"
+  },
+  {
     "table_name": "community_interests",
     "index_name": "community_interests_pkey",
     "definition": "CREATE UNIQUE INDEX community_interests_pkey ON public.community_interests USING btree (id)"
@@ -246,6 +256,11 @@
   },
   {
     "table_name": "community_posts",
+    "index_name": "community_posts_repost_orig_idx",
+    "definition": "CREATE INDEX community_posts_repost_orig_idx ON public.community_posts USING btree (repost_original_post_id) WHERE (repost_original_post_id IS NOT NULL)"
+  },
+  {
+    "table_name": "community_posts",
     "index_name": "idx_community_posts_created_at",
     "definition": "CREATE INDEX idx_community_posts_created_at ON public.community_posts USING btree (created_at DESC)"
   },
@@ -258,6 +273,11 @@
     "table_name": "community_posts",
     "index_name": "idx_community_posts_property_id",
     "definition": "CREATE INDEX idx_community_posts_property_id ON public.community_posts USING btree (property_id)"
+  },
+  {
+    "table_name": "community_posts",
+    "index_name": "idx_community_posts_property_qna",
+    "definition": "CREATE INDEX idx_community_posts_property_qna ON public.community_posts USING btree (is_property_qna) WHERE (is_property_qna = true)"
   },
   {
     "table_name": "community_posts",
@@ -423,6 +443,51 @@
     "table_name": "notifications",
     "index_name": "notifications_pkey",
     "definition": "CREATE UNIQUE INDEX notifications_pkey ON public.notifications USING btree (id)"
+  },
+  {
+    "table_name": "offering_scraps",
+    "index_name": "idx_offering_scraps_created",
+    "definition": "CREATE INDEX idx_offering_scraps_created ON public.offering_scraps USING btree (profile_id, created_at DESC)"
+  },
+  {
+    "table_name": "offering_scraps",
+    "index_name": "idx_offering_scraps_profile",
+    "definition": "CREATE INDEX idx_offering_scraps_profile ON public.offering_scraps USING btree (profile_id)"
+  },
+  {
+    "table_name": "offering_scraps",
+    "index_name": "idx_offering_scraps_property",
+    "definition": "CREATE INDEX idx_offering_scraps_property ON public.offering_scraps USING btree (property_id)"
+  },
+  {
+    "table_name": "offering_scraps",
+    "index_name": "offering_scraps_pkey",
+    "definition": "CREATE UNIQUE INDEX offering_scraps_pkey ON public.offering_scraps USING btree (id)"
+  },
+  {
+    "table_name": "offering_scraps",
+    "index_name": "offering_scraps_profile_id_property_id_key",
+    "definition": "CREATE UNIQUE INDEX offering_scraps_profile_id_property_id_key ON public.offering_scraps USING btree (profile_id, property_id)"
+  },
+  {
+    "table_name": "offering_view_history",
+    "index_name": "idx_view_history_profile",
+    "definition": "CREATE INDEX idx_view_history_profile ON public.offering_view_history USING btree (profile_id)"
+  },
+  {
+    "table_name": "offering_view_history",
+    "index_name": "idx_view_history_profile_viewed",
+    "definition": "CREATE INDEX idx_view_history_profile_viewed ON public.offering_view_history USING btree (profile_id, last_viewed_at DESC)"
+  },
+  {
+    "table_name": "offering_view_history",
+    "index_name": "offering_view_history_pkey",
+    "definition": "CREATE UNIQUE INDEX offering_view_history_pkey ON public.offering_view_history USING btree (id)"
+  },
+  {
+    "table_name": "offering_view_history",
+    "index_name": "offering_view_history_profile_id_property_id_key",
+    "definition": "CREATE UNIQUE INDEX offering_view_history_profile_id_property_id_key ON public.offering_view_history USING btree (profile_id, property_id)"
   },
   {
     "table_name": "payout_requests",

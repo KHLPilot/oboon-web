@@ -66,7 +66,7 @@ export default function ScrapButton({
       aria-label={scrapped ? "찜 해제" : "찜하기"}
       className={[
         "flex items-center justify-center rounded-full w-8 h-8 transition-colors",
-        "bg-white/80 backdrop-blur-sm shadow-sm",
+        "bg-(--oboon-bg-surface)/90 backdrop-blur-sm shadow-sm ring-1 ring-(--oboon-border-default)",
         scrapped
           ? "text-rose-500"
           : "text-(--oboon-text-muted) hover:text-rose-500",

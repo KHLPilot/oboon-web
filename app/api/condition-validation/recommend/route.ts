@@ -421,6 +421,7 @@ export async function POST(request: Request) {
         status: item.status,
         image_url: item.property_image_url,
         final_grade: item.result.finalGrade,
+        grade_label: item.result.gradeLabel,
         total_score: item.result.totalScore,
         action: mapGradeToAction(item.result.finalGrade),
         summary_message: item.result.summaryMessage,

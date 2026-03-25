@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyQnAPassword } from "@/features/support/services/qna.server";
+import { passwordLimiter, getClientIp, checkRateLimit } from "@/lib/rateLimit";
 
 /**
  * POST /api/support/qna/[id]/verify-password
@@ -9,6 +10,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const rateLimitRes = await checkRateLimit(passwordLimiter, getClientIp(request));
+  if (rateLimitRes) return rateLimitRes;
+
   try {
     const { id } = await params;
     const body = await request.json();

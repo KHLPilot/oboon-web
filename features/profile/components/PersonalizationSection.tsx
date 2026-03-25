@@ -1,10 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Label from "@/components/ui/Label";
 import Select from "@/components/ui/Select";
+import LtvDsrModal from "@/features/condition-validation/components/LtvDsrModal";
+import type { LtvDsrPersistedValues } from "@/features/condition-validation/domain/types";
 import { oboonFieldBaseClass } from "@/lib/ui/formFieldStyles";
 
 const EMPLOYMENT_TYPE_OPTIONS = [
@@ -66,6 +69,9 @@ type PersonalizationSectionProps = {
   onPurchasePurposeV2Change: (value: "residence" | "investment_rent" | "investment_capital" | "long_term") => void;
   onPurchaseTimingChange: (value: "within_3months" | "within_6months" | "within_1year" | "over_1year" | "by_property") => void;
   onMoveinTimingChange: (value: "immediate" | "within_1year" | "within_2years" | "within_3years" | "anytime") => void;
+  ltvDsrValues: LtvDsrPersistedValues;
+  onLtvInternalScoreChange: (value: number) => void;
+  onLtvDsrValuesChange: (value: LtvDsrPersistedValues) => void;
   onEditStart: () => void;
   onSave: () => void;
   onCancel: () => void;
@@ -125,11 +131,16 @@ export default function PersonalizationSection({
   onPurchasePurposeV2Change,
   onPurchaseTimingChange,
   onMoveinTimingChange,
+  ltvDsrValues,
+  onLtvInternalScoreChange,
+  onLtvDsrValuesChange,
   onEditStart,
   onSave,
   onCancel,
   onToggleMarketingConsent,
 }: PersonalizationSectionProps) {
+  const [ltvModalOpen, setLtvModalOpen] = useState(false);
+
   const availableCashPreview = formatManwonPreview(availableCashManwon);
   const monthlyIncomePreview = formatManwonPreview(monthlyIncomeManwon);
   const monthlyExpensesPreview = formatManwonPreview(monthlyExpensesManwon);
@@ -256,12 +267,25 @@ export default function PersonalizationSection({
             />
           </div>
 
-          {/* 신용 상태 (read-only) */}
+          {/* 신용 상태 */}
           <div className="space-y-2">
-            <Label>신용 상태</Label>
-            <div className={`${oboonFieldBaseClass} flex items-center px-3 py-2 ob-typo-body text-(--oboon-text-muted) bg-(--oboon-bg-subtle)`}>
-              {ltvInternalScore > 0 ? `${ltvInternalScore}점` : "평가 전"}
-            </div>
+            <Label>신용 상태 점수 (0-100)</Label>
+            {personalizationEditing ? (
+              <button
+                type="button"
+                onClick={() => setLtvModalOpen(true)}
+                className={`w-full text-left ${oboonFieldBaseClass} flex items-center justify-between px-3 py-2 ob-typo-body hover:border-(--oboon-primary) transition-colors`}
+              >
+                <span className={ltvInternalScore > 0 ? "text-(--oboon-text-body)" : "text-(--oboon-text-muted)"}>
+                  {ltvInternalScore > 0 ? `${ltvInternalScore}점` : "탭하여 신용 상태 입력"}
+                </span>
+                <span className="ob-typo-caption text-(--oboon-primary)">수정</span>
+              </button>
+            ) : (
+              <div className={`${oboonFieldBaseClass} flex items-center px-3 py-2 ob-typo-body text-(--oboon-text-muted) bg-(--oboon-bg-subtle)`}>
+                {ltvInternalScore > 0 ? `${ltvInternalScore}점` : "평가 전"}
+              </div>
+            )}
           </div>
 
           {/* 분양목적 */}
@@ -318,6 +342,20 @@ export default function PersonalizationSection({
           )}
         </div>
       </Card>
+
+      <LtvDsrModal
+        open={ltvModalOpen}
+        onClose={() => setLtvModalOpen(false)}
+        onConfirm={({ ltvInternalScore: score, formValues }) => {
+          onLtvInternalScoreChange(score);
+          onLtvDsrValuesChange(formValues);
+          setLtvModalOpen(false);
+        }}
+        initialEmploymentType={employmentType ?? "employee"}
+        initialHouseOwnership={houseOwnership ?? "none"}
+        initialValues={ltvDsrValues}
+        initialLtvInternalScore={ltvInternalScore}
+      />
 
       <Card className="p-4 sm:p-5">
         <div className="flex items-center justify-between">

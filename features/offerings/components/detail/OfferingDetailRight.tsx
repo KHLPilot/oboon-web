@@ -80,7 +80,7 @@ function gradeMeta(grade: ConditionRecommendationItem["final_grade"]): {
   badgeVariant: "success" | "warning" | "danger";
 } {
   if (grade === "GREEN") return { label: "계약 가능", badgeVariant: "success" };
-  if (grade === "LIME") return { label: "계약 가능 (확인 필요)", badgeVariant: "success" };
+  if (grade === "LIME") return { label: "거의 충족", badgeVariant: "success" };
   if (grade === "YELLOW") return { label: "확인 필요", badgeVariant: "warning" };
   if (grade === "ORANGE") return { label: "계약 어려울 수 있음", badgeVariant: "warning" };
   return { label: "계약 어려움", badgeVariant: "danger" };
@@ -212,7 +212,7 @@ export default function OfferingDetailRight({
           const { data: profileWithPreset } = await supabase
             .from("profiles")
             .select(
-              "role, cv_available_cash_manwon, cv_monthly_income_manwon, cv_owned_house_count, cv_credit_grade, cv_purchase_purpose, cv_employment_type, cv_monthly_expenses_manwon, cv_house_ownership, cv_purchase_purpose_v2, cv_purchase_timing, cv_movein_timing, cv_ltv_internal_score, cv_existing_monthly_repayment",
+              "role, cv_available_cash_manwon, cv_monthly_income_manwon, cv_owned_house_count, cv_credit_grade, cv_purchase_purpose, cv_employment_type, cv_monthly_expenses_manwon, cv_house_ownership, cv_purchase_purpose_v2, cv_purchase_timing, cv_movein_timing, cv_ltv_internal_score, cv_existing_loan_amount, cv_recent_delinquency, cv_card_loan_usage, cv_loan_rejection, cv_monthly_income_range, cv_existing_monthly_repayment",
             )
             .eq("id", currentUser.id)
             .maybeSingle();
@@ -267,6 +267,11 @@ export default function OfferingDetailRight({
           const validPurchasePurposes = ["residence", "investment_rent", "investment_capital", "long_term"] as const;
           const validPurchaseTimings = ["within_3months", "within_6months", "within_1year", "over_1year", "by_property"] as const;
           const validMoveinTimings = ["immediate", "within_1year", "within_2years", "within_3years", "anytime"] as const;
+          const validExistingLoans = ["none", "under_1eok", "1to3eok", "over_3eok"] as const;
+          const validDelinquencies = ["none", "once", "twice_or_more"] as const;
+          const validCardLoanUsages = ["none", "1to2", "3_or_more"] as const;
+          const validLoanRejections = ["none", "yes"] as const;
+          const validIncomeRanges = ["under_200", "200to300", "300to500", "500to700", "over_700"] as const;
           const validRepayments = ["none", "under_50", "50to100", "100to200", "over_200"] as const;
 
           setProfileAutoFill({
@@ -289,6 +294,21 @@ export default function OfferingDetailRight({
               ? (profileWithPreset?.cv_movein_timing as typeof validMoveinTimings[number])
               : null,
             ltvInternalScore: toFiniteInteger(profileWithPreset?.cv_ltv_internal_score),
+            existingLoan: validExistingLoans.includes(profileWithPreset?.cv_existing_loan_amount as typeof validExistingLoans[number])
+              ? (profileWithPreset?.cv_existing_loan_amount as typeof validExistingLoans[number])
+              : null,
+            recentDelinquency: validDelinquencies.includes(profileWithPreset?.cv_recent_delinquency as typeof validDelinquencies[number])
+              ? (profileWithPreset?.cv_recent_delinquency as typeof validDelinquencies[number])
+              : null,
+            cardLoanUsage: validCardLoanUsages.includes(profileWithPreset?.cv_card_loan_usage as typeof validCardLoanUsages[number])
+              ? (profileWithPreset?.cv_card_loan_usage as typeof validCardLoanUsages[number])
+              : null,
+            loanRejection: validLoanRejections.includes(profileWithPreset?.cv_loan_rejection as typeof validLoanRejections[number])
+              ? (profileWithPreset?.cv_loan_rejection as typeof validLoanRejections[number])
+              : null,
+            monthlyIncomeRange: validIncomeRanges.includes(profileWithPreset?.cv_monthly_income_range as typeof validIncomeRanges[number])
+              ? (profileWithPreset?.cv_monthly_income_range as typeof validIncomeRanges[number])
+              : null,
             existingMonthlyRepayment: validRepayments.includes(profileWithPreset?.cv_existing_monthly_repayment as typeof validRepayments[number])
               ? (profileWithPreset?.cv_existing_monthly_repayment as typeof validRepayments[number])
               : null,

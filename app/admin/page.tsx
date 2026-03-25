@@ -535,7 +535,7 @@ function AdminPageInner() {
           ? await approveAgent(formData)
           : await restoreAccount(formData);
 
-      if (result?.error) {
+      if (result.error) {
         toast.error(result.error, "작업 실패");
         return;
       }

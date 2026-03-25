@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Select from "@/components/ui/Select";
 import { MultiSelect } from "@/components/ui/MultiSelect";
 import Button from "@/components/ui/Button";
@@ -38,6 +38,11 @@ const RESET_CONDITION: RecommendationCondition = {
   purchaseTiming: null,
   moveinTiming: null,
   ltvInternalScore: 0,
+  existingLoan: null,
+  recentDelinquency: null,
+  cardLoanUsage: null,
+  loanRejection: null,
+  monthlyIncomeRange: null,
   existingMonthlyRepayment: "none",
   regions: [],
 };
@@ -192,6 +197,10 @@ export default function SimulatorBar({ condition, onEvaluate, isLoading = false 
   // 로컬 state — 슬라이더 변경이 "직접 입력" 탭에 영향을 주지 않도록 분리
   const [simCondition, setSimCondition] = useState<RecommendationCondition>(condition);
   const [ltvModalOpen, setLtvModalOpen] = useState(false);
+
+  useEffect(() => {
+    setSimCondition(condition);
+  }, [condition]);
 
   function patch(update: Partial<RecommendationCondition>) {
     setSimCondition((prev) => ({ ...prev, ...update }));
@@ -354,11 +363,28 @@ export default function SimulatorBar({ condition, onEvaluate, isLoading = false 
       <LtvDsrModal
         open={ltvModalOpen}
         onClose={() => setLtvModalOpen(false)}
-        onConfirm={({ ltvInternalScore, existingMonthlyRepayment }) => {
-          patch({ ltvInternalScore, existingMonthlyRepayment });
+        onConfirm={({ ltvInternalScore, existingMonthlyRepayment, formValues }) => {
+          patch({
+            ltvInternalScore,
+            existingMonthlyRepayment,
+            existingLoan: formValues.existingLoan,
+            recentDelinquency: formValues.recentDelinquency,
+            cardLoanUsage: formValues.cardLoanUsage,
+            loanRejection: formValues.loanRejection,
+            monthlyIncomeRange: formValues.monthlyIncomeRange,
+          });
         }}
         initialEmploymentType={simCondition.employmentType ?? "employee"}
         initialHouseOwnership={simCondition.houseOwnership ?? "none"}
+        initialValues={{
+          existingLoan: simCondition.existingLoan,
+          recentDelinquency: simCondition.recentDelinquency,
+          cardLoanUsage: simCondition.cardLoanUsage,
+          loanRejection: simCondition.loanRejection,
+          monthlyIncomeRange: simCondition.monthlyIncomeRange,
+          existingMonthlyRepayment: simCondition.existingMonthlyRepayment,
+        }}
+        initialLtvInternalScore={simCondition.ltvInternalScore}
       />
     </div>
   );

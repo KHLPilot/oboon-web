@@ -6,10 +6,22 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+function parseCookie(req: Request, name: string): string | null {
+  const header = req.headers.get("cookie") ?? "";
+  const match = header.split(";").find((c) => c.trim().startsWith(`${name}=`));
+  return match ? decodeURIComponent(match.split("=").slice(1).join("=").trim()) : null;
+}
+
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
+
+  // CSRF 방지: 쿠키에 저장된 state와 일치하는지 검증
+  const storedState = parseCookie(req, "naver_oauth_state");
+  if (!storedState || storedState !== state) {
+    return NextResponse.redirect(new URL("/auth/login?error=invalid_state", process.env.NEXT_PUBLIC_SITE_URL!));
+  }
 
   if (!code) {
     return NextResponse.redirect(new URL("/auth/login?error=no_code", process.env.NEXT_PUBLIC_SITE_URL!));
@@ -85,7 +97,10 @@ export async function GET(req: Request) {
     redirectUrl.searchParams.set("token_hash", linkData.properties.hashed_token);
     redirectUrl.searchParams.set("email", email);
 
-    return NextResponse.redirect(redirectUrl.toString());
+    const response = NextResponse.redirect(redirectUrl.toString());
+    // state 쿠키 즉시 삭제 (재사용 방지)
+    response.cookies.set("naver_oauth_state", "", { maxAge: 0, path: "/" });
+    return response;
 
   } catch (error: unknown) {
     console.error("❌ 네이버 OAuth 오류:", error);

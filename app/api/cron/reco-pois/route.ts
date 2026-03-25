@@ -13,7 +13,7 @@ function toPositiveInt(value: string | null, fallback: number): number {
 function isAuthorized(req: Request): boolean {
   const authHeader = req.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) return true;
+  if (!cronSecret) return false; // CRON_SECRET 미설정 시 항상 거부
   return authHeader === `Bearer ${cronSecret}`;
 }
 

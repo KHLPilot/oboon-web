@@ -5,6 +5,10 @@ import { useState, useCallback, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Check, ChevronDown, Clock, GitCompareArrows, Heart } from "lucide-react";
+import {
+  OFFERING_STATUS_VALUES,
+  statusLabelOf,
+} from "@/features/offerings/domain/offering.constants";
 import type { OfferingCompareItem } from "@/features/offerings/domain/offering.types";
 
 interface Props {
@@ -24,13 +28,19 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "schedule", label: "분양 일정"  },
   { id: "location", label: "교통·입지"  },
 ];
+const STATUS_READY = OFFERING_STATUS_VALUES[0];
+const STATUS_OPEN = OFFERING_STATUS_VALUES[1];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function statusMeta(s: OfferingCompareItem["status"]) {
-  if (s === "OPEN")  return { label: "분양 중",   cls: "text-(--oboon-safe)"       };
-  if (s === "READY") return { label: "분양 예정", cls: "text-(--oboon-primary)"    };
-  return              { label: "분양 종료", cls: "text-(--oboon-text-muted)" };
+  if (s === STATUS_OPEN) {
+    return { label: statusLabelOf(s), cls: "text-(--oboon-safe)" };
+  }
+  if (s === STATUS_READY) {
+    return { label: statusLabelOf(s), cls: "text-(--oboon-primary)" };
+  }
+  return { label: statusLabelOf(s), cls: "text-(--oboon-text-muted)" };
 }
 
 function schoolCls(g: OfferingCompareItem["schoolGrade"]) {

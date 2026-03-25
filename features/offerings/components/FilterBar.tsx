@@ -29,34 +29,6 @@ import OfferingsViewToggle from "@/features/offerings/components/OfferingsViewTo
 import { Copy } from "@/shared/copy";
 
 const REGIONS: OfferingRegionTab[] = [...OFFERING_REGION_TABS];
-const SEOUL_SUB_REGIONS = [
-  "전체",
-  "강남구",
-  "강동구",
-  "강북구",
-  "강서구",
-  "관악구",
-  "광진구",
-  "구로구",
-  "금천구",
-  "노원구",
-  "도봉구",
-  "동대문구",
-  "동작구",
-  "마포구",
-  "서대문구",
-  "서초구",
-  "성동구",
-  "성북구",
-  "송파구",
-  "양천구",
-  "영등포구",
-  "용산구",
-  "은평구",
-  "종로구",
-  "중구",
-  "중랑구",
-] as const;
 const STATUSES: Array<OfferingStatusValue | "전체"> = [
   "전체",
   ...OFFERING_STATUS_VALUES,
@@ -275,6 +247,9 @@ type FilterBarBodyProps = {
   urlBudgetMax: string;
   view: OfferingsView;
   onViewChange: (next: OfferingsView) => void;
+  availableRegions: OfferingRegionTab[];
+  availableSeoulSubRegions: string[];
+  availableGyeonggiSubRegions: string[];
 };
 
 function FilterBarBody({
@@ -286,13 +261,21 @@ function FilterBarBody({
   urlBudgetMax,
   view,
   onViewChange,
+  availableRegions,
+  availableSeoulSubRegions,
+  availableGyeonggiSubRegions,
 }: FilterBarBodyProps) {
   const router = useRouter();
   const pathname = usePathname();
 
   const rawRegion = sp.get("region");
+  const regionBaseOptions = availableRegions.length > 0 ? availableRegions : REGIONS;
   const region: OfferingRegionTab =
-    rawRegion && isRegionTab(rawRegion) ? rawRegion : "전체";
+    rawRegion &&
+    isRegionTab(rawRegion) &&
+    regionBaseOptions.includes(rawRegion)
+      ? rawRegion
+      : "전체";
 
   const rawStatus = sp.get("status");
   const status: OfferingStatusValue | "전체" =
@@ -340,39 +323,6 @@ function FilterBarBody({
     router.replace(pathname, { scroll: false });
   }
 
-  const activeCount =
-    (region !== "전체" ? 1 : 0) +
-    (subRegion !== "전체" ? 1 : 0) +
-    (status !== "전체" ? 1 : 0) +
-    (agentFilter !== "전체" ? 1 : 0) +
-    (appraisalFilter !== "전체" ? 1 : 0) +
-    (urlBudgetMin || urlBudgetMax ? 1 : 0);
-
-  const appliedBudgetMin = parseEok(urlBudgetMin);
-  const appliedBudgetMax = parseEok(urlBudgetMax);
-  const subRegionLabel =
-    subRegion === "north"
-      ? "경기 북부"
-      : subRegion === "south"
-        ? "경기 남부"
-        : subRegion;
-  const summaryParts = [
-    region !== "전체"
-      ? subRegion !== "전체"
-        ? `${region} ${subRegionLabel}`
-        : region
-      : null,
-    status !== "전체" ? OFFERING_STATUS_LABEL[status] : null,
-    agentFilter === "has" ? "상담 가능" : null,
-    appraisalFilter === "done" ? "감정평가 완료" : null,
-    urlBudgetMin || urlBudgetMax
-      ? formatBudgetSummary(appliedBudgetMin, appliedBudgetMax)
-      : null,
-  ].filter(Boolean) as string[];
-  const mobileSummaryLabel =
-    summaryParts.length > 0
-      ? summaryParts.join(" · ")
-      : "지역, 분양 상태, 예산으로 빠르게 좁혀보세요.";
   const minVal = parseEok(budgetMin);
   const maxVal = parseEok(budgetMax);
   const effectiveMaxVal = budgetMaxUnlimited ? null : maxVal;
@@ -386,7 +336,7 @@ function FilterBarBody({
     (sliderMinPosition / BUDGET_SLIDER_POSITION_MAX) * 100;
   const sliderProgressEnd =
     (sliderMaxPosition / BUDGET_SLIDER_POSITION_MAX) * 100;
-  const regionOptions = REGIONS.map((item) => ({ label: item, value: item }));
+  const regionOptions = regionBaseOptions.map((item) => ({ label: item, value: item }));
   const statusOptions = STATUSES.map((item) => ({
     label: item === "전체" ? "전체" : OFFERING_STATUS_LABEL[item],
     value: item,
@@ -401,13 +351,52 @@ function FilterBarBody({
   }));
   const subRegionOptions =
     region === "서울"
-      ? SEOUL_SUB_REGIONS.map((item) => ({ label: item, value: item }))
+      ? availableSeoulSubRegions.map((item) => ({ label: item, value: item }))
       : region === "경기"
-        ? GYEONGGI_SUB_REGION_OPTIONS.map((item) => ({
-            label: item.label,
-            value: item.value,
+        ? availableGyeonggiSubRegions.map((value) => ({
+            label:
+              GYEONGGI_SUB_REGION_OPTIONS.find((item) => item.value === value)?.label ??
+              value,
+            value,
           }))
         : [];
+  const normalizedSubRegion =
+    subRegionOptions.some((option) => option.value === subRegion)
+      ? subRegion
+      : "전체";
+  const activeCount =
+    (region !== "전체" ? 1 : 0) +
+    (normalizedSubRegion !== "전체" ? 1 : 0) +
+    (status !== "전체" ? 1 : 0) +
+    (agentFilter !== "전체" ? 1 : 0) +
+    (appraisalFilter !== "전체" ? 1 : 0) +
+    (urlBudgetMin || urlBudgetMax ? 1 : 0);
+
+  const appliedBudgetMin = parseEok(urlBudgetMin);
+  const appliedBudgetMax = parseEok(urlBudgetMax);
+  const subRegionLabel =
+    normalizedSubRegion === "north"
+      ? "경기 북부"
+      : normalizedSubRegion === "south"
+        ? "경기 남부"
+        : normalizedSubRegion;
+  const summaryParts = [
+    region !== "전체"
+      ? normalizedSubRegion !== "전체"
+        ? `${region} ${subRegionLabel}`
+        : region
+      : null,
+    status !== "전체" ? OFFERING_STATUS_LABEL[status] : null,
+    agentFilter === "has" ? "상담 가능" : null,
+    appraisalFilter === "done" ? "감정평가 완료" : null,
+    urlBudgetMin || urlBudgetMax
+      ? formatBudgetSummary(appliedBudgetMin, appliedBudgetMax)
+      : null,
+  ].filter(Boolean) as string[];
+  const mobileSummaryLabel =
+    summaryParts.length > 0
+      ? summaryParts.join(" · ")
+      : "지역, 분양 상태, 예산으로 빠르게 좁혀보세요.";
 
   const budgetError =
     minVal != null && effectiveMaxVal != null && minVal > effectiveMaxVal
@@ -465,7 +454,7 @@ function FilterBarBody({
         {subRegionOptions.length > 0 ? (
           <FilterDropdown
             label={region === "서울" ? "서울 세부 지역" : "경기 세부 지역"}
-            value={subRegion}
+            value={normalizedSubRegion}
             options={subRegionOptions}
             onSelect={(next) =>
               pushParams({ subRegion: next === "전체" ? null : next })
@@ -793,9 +782,15 @@ function FilterBarBody({
 export default function FilterBar({
   view,
   onViewChange,
+  availableRegions,
+  availableSeoulSubRegions,
+  availableGyeonggiSubRegions,
 }: {
   view: OfferingsView;
   onViewChange: (next: OfferingsView) => void;
+  availableRegions: OfferingRegionTab[];
+  availableSeoulSubRegions: string[];
+  availableGyeonggiSubRegions: string[];
 }) {
   const sp = useSearchParams();
   // 하이드레이션 일치: 최초 렌더는 항상 닫힘으로 시작하고,
@@ -845,6 +840,9 @@ export default function FilterBar({
       urlBudgetMax={urlBudgetMax}
       view={view}
       onViewChange={onViewChange}
+      availableRegions={availableRegions}
+      availableSeoulSubRegions={availableSeoulSubRegions}
+      availableGyeonggiSubRegions={availableGyeonggiSubRegions}
     />
   );
 }

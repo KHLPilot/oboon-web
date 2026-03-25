@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -12,12 +12,46 @@ import Select, { type SelectOption } from "@/components/ui/Select";
 import { ArrowRight, BusFront, GraduationCap, PawPrint, Pickaxe, SlidersHorizontal } from "lucide-react";
 import LtvDsrModal from "@/features/condition-validation/components/LtvDsrModal";
 import type {
+  CardLoanUsage,
+  DelinquencyCount,
   EmploymentType,
+  ExistingLoanAmount,
+  FinalGrade5,
   FullPurchasePurpose,
+  LoanRejection,
   MonthlyLoanRepayment,
+  MonthlyIncomeRange,
   MoveinTiming,
   PurchaseTiming,
 } from "@/features/condition-validation/domain/types";
+import {
+  loadConditionSession,
+  saveConditionSession,
+  type ConditionSessionSnapshot,
+} from "@/features/condition-validation/lib/sessionCondition";
+import type { ConditionCategoryGrades } from "@/features/condition-validation/domain/types";
+import type { ParsedCustomerInput } from "@/features/condition-validation/domain/validation";
+import OfferingCard from "@/features/offerings/components/OfferingCard";
+import { OfferingCardSkeleton } from "@/features/offerings/components/OfferingCardSkeleton";
+import { OFFERING_REGION_TABS } from "@/features/offerings/domain/offering.constants";
+import type { OfferingRegionTab } from "@/features/offerings/domain/offering.types";
+import {
+  mapPropertyRowToOffering,
+  type PropertyRow,
+} from "@/features/offerings/mappers/offering.mapper";
+import { fetchPropertiesForOfferings } from "@/features/offerings/services/offering.query";
+import FlippableRecommendationCard from "@/features/recommendations/components/FlippableRecommendationCard";
+import { RecommendationPreviewContent } from "@/features/recommendations/components/GaugeOverlay";
+import RecommendationOfferingCard from "@/features/recommendations/components/OfferingCard";
+import type { RecommendationItem } from "@/features/recommendations/hooks/useRecommendations";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { formatManwonPreview } from "@/lib/format/currency";
+import { createSupabaseClient } from "@/lib/supabaseClient";
+import { formatPriceRange } from "@/shared/price";
+import { Copy } from "@/shared/copy";
+import { toKoreanErrorMessage } from "@/shared/errorMessage";
+import { UXCopy } from "@/shared/uxCopy";
+import { ROUTES, type Offering } from "@/types/index";
 
 const EMPLOYMENT_TYPE_OPTIONS: Array<{ value: EmploymentType; label: string }> = [
   { value: "employee", label: "직장인" },
@@ -57,26 +91,6 @@ const MOVEIN_TIMING_OPTIONS: Array<SelectOption<MoveinTiming>> = [
   { value: "within_3years", label: "3년 이내" },
   { value: "anytime", label: "언제든지" },
 ];
-import { UXCopy } from "@/shared/uxCopy";
-import { Copy } from "@/shared/copy";
-
-import type { ConditionCategoryGrades } from "@/features/condition-validation/domain/types";
-import type { ParsedCustomerInput } from "@/features/condition-validation/domain/validation";
-import OfferingCard from "@/features/offerings/components/OfferingCard";
-import { OfferingCardSkeleton } from "@/features/offerings/components/OfferingCardSkeleton";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { fetchPropertiesForOfferings } from "@/features/offerings/services/offering.query";
-import {
-  mapPropertyRowToOffering,
-  type PropertyRow,
-} from "@/features/offerings/mappers/offering.mapper";
-import { OFFERING_REGION_TABS } from "@/features/offerings/domain/offering.constants";
-import type { OfferingRegionTab } from "@/features/offerings/domain/offering.types";
-
-import { formatManwonPreview } from "@/lib/format/currency";
-import { createSupabaseClient } from "@/lib/supabaseClient";
-import type { Offering } from "@/types/index";
-import { toKoreanErrorMessage } from "@/shared/errorMessage";
 
 type HomeOfferingView = "consult" | "condition";
 
@@ -89,7 +103,7 @@ type ConditionValidationRequestRow = {
   purchase_purpose: "residence" | "investment" | "both";
 };
 
-const HOME_OFFERING_LIMIT = 4;
+const HOME_OFFERING_LIMIT = 3;
 
 type ConditionValidationProfilePresetRow = {
   cv_available_cash_manwon: number | null;
@@ -105,8 +119,51 @@ type ConditionValidationProfilePresetRow = {
   cv_purchase_timing: PurchaseTiming | null;
   cv_movein_timing: MoveinTiming | null;
   cv_ltv_internal_score: number | null;
+  cv_existing_loan_amount: ExistingLoanAmount | null;
+  cv_recent_delinquency: DelinquencyCount | null;
+  cv_card_loan_usage: CardLoanUsage | null;
+  cv_loan_rejection: LoanRejection | null;
+  cv_monthly_income_range: MonthlyIncomeRange | null;
   cv_existing_monthly_repayment: MonthlyLoanRepayment | null;
 };
+
+type HomeRawCategory = {
+  grade?: string;
+  score?: number | null;
+} | null | undefined;
+
+type HomeRawRecommendation = {
+  property_id?: number | string;
+  final_grade?: string;
+  grade_label?: string | null;
+  total_score?: number | null;
+  action?: string | null;
+  summary_message?: string | null;
+  reason_messages?: string[] | null;
+  show_detailed_metrics?: boolean;
+  categories?: {
+    cash?: HomeRawCategory;
+    income?: HomeRawCategory;
+    ltv_dsr?: HomeRawCategory;
+    ownership?: HomeRawCategory;
+    purpose?: HomeRawCategory;
+    timing?: HomeRawCategory;
+  } | null;
+  metrics?: {
+    list_price?: number | null;
+    min_cash?: number | null;
+    recommended_cash?: number | null;
+    monthly_payment_est?: number | null;
+    monthly_burden_percent?: number | null;
+  } | null;
+};
+
+const HOME_CASH_MAX_SCORE = 30;
+const HOME_INCOME_MAX_SCORE = 25;
+const HOME_LTV_DSR_MAX_SCORE = 20;
+const HOME_OWNERSHIP_MAX_SCORE = 10;
+const HOME_PURPOSE_MAX_SCORE = 5;
+const HOME_TIMING_MAX_SCORE = 10;
 
 
 function formatNumericInput(value: string): string {
@@ -179,6 +236,202 @@ function buildCustomerFromSavedRow(
   };
 }
 
+function buildCustomerFromSessionSnapshot(
+  snapshot: ConditionSessionSnapshot | null,
+): ParsedCustomerInput | null {
+  if (!snapshot) return null;
+
+  const availableCash = parseNullableNumericInput(snapshot.availableCash);
+  const monthlyIncome = parseNullableNumericInput(snapshot.monthlyIncome);
+  if (
+    availableCash === null ||
+    monthlyIncome === null ||
+    snapshot.houseOwnership === null ||
+    snapshot.purchasePurposeV2 === null
+  ) {
+    return null;
+  }
+
+  const ownedHouseCount =
+    snapshot.houseOwnership === "one"
+      ? 1
+      : snapshot.houseOwnership === "two_or_more"
+        ? 2
+        : 0;
+
+  const creditGrade: "good" | "normal" | "unstable" =
+    snapshot.ltvInternalScore >= 70
+      ? "good"
+      : snapshot.ltvInternalScore >= 40
+        ? "normal"
+        : "unstable";
+
+  const purchasePurpose: "residence" | "investment" | "both" =
+    snapshot.purchasePurposeV2 === "long_term"
+      ? "both"
+      : snapshot.purchasePurposeV2 === "investment_rent" ||
+          snapshot.purchasePurposeV2 === "investment_capital"
+        ? "investment"
+        : "residence";
+
+  return {
+    available_cash: Math.max(0, Math.round(availableCash)),
+    monthly_income: Math.max(0, Math.round(monthlyIncome)),
+    owned_house_count: ownedHouseCount,
+    credit_grade: creditGrade,
+    purchase_purpose: purchasePurpose,
+  };
+}
+
+function toFiniteNumber(value: unknown): number | null {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value === "string") {
+    const normalized = value.replaceAll(",", "").trim();
+    if (!normalized) return null;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function toFinalGrade5(value: unknown): FinalGrade5 | null {
+  return value === "GREEN" ||
+    value === "LIME" ||
+    value === "YELLOW" ||
+    value === "ORANGE" ||
+    value === "RED"
+    ? value
+    : null;
+}
+
+function buildHomePriceLabel(offering: Offering): string {
+  if (offering.isPricePrivate) {
+    return UXCopy.pricePrivateShort;
+  }
+
+  return formatPriceRange(offering.priceMin억, offering.priceMax억, {
+    unknownLabel: UXCopy.priceRangeShort,
+  });
+}
+
+function buildHomeRecommendationItem(
+  offering: Offering,
+  raw: HomeRawRecommendation,
+): RecommendationItem | null {
+  const finalGrade = toFinalGrade5(raw.final_grade);
+  if (!finalGrade) return null;
+
+  const totalScore = toFiniteNumber(raw.total_score);
+  const cashScore = toFiniteNumber(raw.categories?.cash?.score);
+  const incomeScore = toFiniteNumber(raw.categories?.income?.score);
+  const ltvDsrScore = toFiniteNumber(raw.categories?.ltv_dsr?.score);
+  const ownershipScore = toFiniteNumber(raw.categories?.ownership?.score);
+  const purposeScore = toFiniteNumber(raw.categories?.purpose?.score);
+  const timingScore = toFiniteNumber(raw.categories?.timing?.score);
+  const minCash = toFiniteNumber(raw.metrics?.min_cash);
+  const listPrice = toFiniteNumber(raw.metrics?.list_price);
+  const recommendedCash = toFiniteNumber(raw.metrics?.recommended_cash);
+  const monthlyPaymentEst = toFiniteNumber(raw.metrics?.monthly_payment_est);
+  const monthlyBurdenPercent = toFiniteNumber(raw.metrics?.monthly_burden_percent);
+  const isMasked =
+    totalScore === null || cashScore === null || incomeScore === null || minCash === null;
+
+  return {
+    offering,
+    property: {
+      id: Number(offering.id),
+      name: offering.title,
+      addressShort: offering.addressShort,
+      addressFull: offering.addressFull ?? offering.addressShort,
+      regionLabel: offering.regionLabel ?? offering.region,
+      regionSido:
+        offering.regionLabel ?? offering.region ?? UXCopy.regionShort,
+      regionSigungu: null,
+      propertyType: offering.propertyType ?? null,
+      status: offering.statusValue ?? null,
+      statusLabel: offering.status,
+      imageUrl: offering.imageUrl ?? null,
+      lat: typeof offering.lat === "number" ? offering.lat : null,
+      lng: typeof offering.lng === "number" ? offering.lng : null,
+      priceLabel: buildHomePriceLabel(offering),
+    },
+    conditionCategories: {
+      cash: {
+        grade: toFinalGrade5(raw.categories?.cash?.grade) ?? finalGrade,
+        score: cashScore ?? undefined,
+      },
+      burden: {
+        grade: toFinalGrade5(raw.categories?.income?.grade) ?? finalGrade,
+        score: incomeScore ?? undefined,
+      },
+      credit: {
+        grade: toFinalGrade5(raw.categories?.ltv_dsr?.grade) ?? finalGrade,
+        score: ltvDsrScore ?? undefined,
+      },
+      totalScore: totalScore ?? undefined,
+    },
+    evalResult: {
+      finalGrade,
+      gradeLabel: raw.grade_label ?? null,
+      totalScore,
+      action: typeof raw.action === "string" ? raw.action : null,
+      summaryMessage:
+        typeof raw.summary_message === "string" && raw.summary_message.trim().length > 0
+          ? raw.summary_message
+          : "조건을 다시 확인해주세요.",
+      reasonMessages: Array.isArray(raw.reason_messages)
+        ? raw.reason_messages.filter(
+            (reason): reason is string =>
+              typeof reason === "string" && reason.trim().length > 0,
+          )
+        : [],
+      showDetailedMetrics: raw.show_detailed_metrics !== false,
+      isMasked,
+      categories: {
+        cash: {
+          grade: toFinalGrade5(raw.categories?.cash?.grade) ?? finalGrade,
+          score: cashScore,
+          maxScore: HOME_CASH_MAX_SCORE,
+        },
+        income: {
+          grade: toFinalGrade5(raw.categories?.income?.grade) ?? finalGrade,
+          score: incomeScore,
+          maxScore: HOME_INCOME_MAX_SCORE,
+        },
+        ltvDsr: {
+          grade: toFinalGrade5(raw.categories?.ltv_dsr?.grade) ?? finalGrade,
+          score: ltvDsrScore,
+          maxScore: HOME_LTV_DSR_MAX_SCORE,
+        },
+        ownership: {
+          grade: toFinalGrade5(raw.categories?.ownership?.grade) ?? finalGrade,
+          score: ownershipScore,
+          maxScore: HOME_OWNERSHIP_MAX_SCORE,
+        },
+        purpose: {
+          grade: toFinalGrade5(raw.categories?.purpose?.grade) ?? finalGrade,
+          score: purposeScore,
+          maxScore: HOME_PURPOSE_MAX_SCORE,
+        },
+        timing: {
+          grade: toFinalGrade5(raw.categories?.timing?.grade) ?? finalGrade,
+          score: timingScore,
+          maxScore: HOME_TIMING_MAX_SCORE,
+        },
+      },
+      metrics: {
+        listPrice,
+        minCash,
+        recommendedCash,
+        monthlyPaymentEst,
+        monthlyBurdenPercent,
+      },
+    },
+  };
+}
+
 export default function HomeOfferingsSection() {
   const router = useRouter();
   const supabase = useMemo(() => createSupabaseClient(), []);
@@ -202,6 +455,11 @@ export default function HomeOfferingsSection() {
   const [purchaseTiming, setPurchaseTiming] = useState<PurchaseTiming | null>(null);
   const [moveinTiming, setMoveinTiming] = useState<MoveinTiming | null>(null);
   const [ltvInternalScore, setLtvInternalScore] = useState(0);
+  const [existingLoan, setExistingLoan] = useState<ExistingLoanAmount | null>(null);
+  const [recentDelinquency, setRecentDelinquency] = useState<DelinquencyCount | null>(null);
+  const [cardLoanUsage, setCardLoanUsage] = useState<CardLoanUsage | null>(null);
+  const [loanRejection, setLoanRejection] = useState<LoanRejection | null>(null);
+  const [monthlyIncomeRange, setMonthlyIncomeRange] = useState<MonthlyIncomeRange | null>(null);
   const [existingMonthlyRepayment, setExistingMonthlyRepayment] = useState<MonthlyLoanRepayment>("none");
   const [ltvModalOpen, setLtvModalOpen] = useState(false);
   const [conditionError, setConditionError] = useState<string | null>(null);
@@ -212,11 +470,31 @@ export default function HomeOfferingsSection() {
   const [recommendedCategoriesById, setRecommendedCategoriesById] = useState<
     Map<number, ConditionCategoryGrades>
   >(new Map());
+  const [recommendedRawById, setRecommendedRawById] = useState<
+    Map<number, HomeRawRecommendation>
+  >(new Map());
   const [appliedCustomerSummary, setAppliedCustomerSummary] = useState<string | null>(null);
   const [showConditionSetupCard, setShowConditionSetupCard] = useState(true);
   const [homeUserId, setHomeUserId] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
   const [hasSavedConditionPreset, setHasSavedConditionPreset] = useState(false);
+  const [savedConditionPreset, setSavedConditionPreset] = useState<{
+    available_cash: number | null;
+    monthly_income: number | null;
+    monthly_expenses: number | null;
+    employment_type: EmploymentType | null;
+    house_ownership: "none" | "one" | "two_or_more" | null;
+    purchase_purpose_v2: FullPurchasePurpose | null;
+    purchase_timing: PurchaseTiming | null;
+    movein_timing: MoveinTiming | null;
+    ltv_internal_score: number;
+    existing_loan_amount: ExistingLoanAmount | null;
+    recent_delinquency: DelinquencyCount | null;
+    card_loan_usage: CardLoanUsage | null;
+    loan_rejection: LoanRejection | null;
+    monthly_income_range: MonthlyIncomeRange | null;
+    existing_monthly_repayment: MonthlyLoanRepayment;
+  } | null>(null);
   const [scrapedPropertyIds, setScrapedPropertyIds] = useState<Set<number>>(new Set());
   const availableCashPreview = useMemo(() => {
     const parsed = parseNullableNumericInput(availableCash);
@@ -230,6 +508,66 @@ export default function HomeOfferingsSection() {
     const parsed = parseNullableNumericInput(monthlyExpenses);
     return parsed === null ? "" : formatManwonPreview(parsed);
   }, [monthlyExpenses]);
+
+  // 저장된 조건과 현재 입력값이 다른지 감지
+  const isConditionDirty = useMemo(() => {
+    if (!savedConditionPreset) return false;
+    const currentCash = parseNullableNumericInput(availableCash);
+    const currentIncome = parseNullableNumericInput(monthlyIncome);
+    const currentExpenses = parseNullableNumericInput(monthlyExpenses);
+    const normalizedExpenses = currentExpenses !== null ? Math.max(0, Math.round(currentExpenses)) : null;
+    return (
+      currentCash !== savedConditionPreset.available_cash ||
+      currentIncome !== savedConditionPreset.monthly_income ||
+      normalizedExpenses !== savedConditionPreset.monthly_expenses ||
+      employmentType !== savedConditionPreset.employment_type ||
+      houseOwnership !== savedConditionPreset.house_ownership ||
+      purchasePurposeV2 !== savedConditionPreset.purchase_purpose_v2 ||
+      purchaseTiming !== savedConditionPreset.purchase_timing ||
+      moveinTiming !== savedConditionPreset.movein_timing ||
+      ltvInternalScore !== savedConditionPreset.ltv_internal_score ||
+      existingLoan !== savedConditionPreset.existing_loan_amount ||
+      recentDelinquency !== savedConditionPreset.recent_delinquency ||
+      cardLoanUsage !== savedConditionPreset.card_loan_usage ||
+      loanRejection !== savedConditionPreset.loan_rejection ||
+      monthlyIncomeRange !== savedConditionPreset.monthly_income_range ||
+      existingMonthlyRepayment !== savedConditionPreset.existing_monthly_repayment
+    );
+  }, [
+    savedConditionPreset,
+    availableCash, monthlyIncome, monthlyExpenses,
+    employmentType, houseOwnership, purchasePurposeV2,
+    purchaseTiming, moveinTiming, ltvInternalScore,
+    existingLoan, recentDelinquency, cardLoanUsage, loanRejection, monthlyIncomeRange,
+    existingMonthlyRepayment,
+  ]);
+
+  // 세션 내 입력값 자동 저장 (저장 버튼 누르지 않아도 새로고침 시 복원)
+  useEffect(() => {
+    saveConditionSession({
+      availableCash,
+      monthlyIncome,
+      monthlyExpenses,
+      employmentType,
+      houseOwnership,
+      purchasePurposeV2,
+      purchaseTiming,
+      moveinTiming,
+      ltvInternalScore,
+      existingLoan,
+      recentDelinquency,
+      cardLoanUsage,
+      loanRejection,
+      monthlyIncomeRange,
+      existingMonthlyRepayment,
+    });
+  }, [
+    availableCash, monthlyIncome, monthlyExpenses,
+    employmentType, houseOwnership, purchasePurposeV2,
+    purchaseTiming, moveinTiming, ltvInternalScore,
+    existingLoan, recentDelinquency, cardLoanUsage, loanRejection, monthlyIncomeRange,
+    existingMonthlyRepayment,
+  ]);
 
   useEffect(() => {
     let mounted = true;
@@ -310,12 +648,16 @@ export default function HomeOfferingsSection() {
     return map;
   }, [rows]);
 
+  const consultableOfferingIdSet = useMemo(
+    () => new Set(consultablePropertyIds),
+    [consultablePropertyIds],
+  );
+
   const consultableOfferings: Offering[] = useMemo(() => {
-    const idSet = new Set(consultablePropertyIds);
     return offerings
-      .filter((offering) => idSet.has(Number(offering.id)))
+      .filter((offering) => consultableOfferingIdSet.has(Number(offering.id)))
       .slice(0, HOME_OFFERING_LIMIT);
-  }, [consultablePropertyIds, offerings]);
+  }, [consultableOfferingIdSet, offerings]);
 
   const regionCounts = useMemo(() => {
     const counts = OFFERING_REGION_TABS.reduce(
@@ -399,6 +741,22 @@ export default function HomeOfferingsSection() {
 
     return ordered.slice(0, HOME_OFFERING_LIMIT);
   }, [offeringById, recommendedPropertyIds]);
+
+  const recommendedItemsById = useMemo(() => {
+    const map = new Map<number, RecommendationItem>();
+
+    for (const [id, raw] of recommendedRawById) {
+      const offering = offeringById.get(id);
+      if (!offering) continue;
+
+      const item = buildHomeRecommendationItem(offering, raw);
+      if (item) {
+        map.set(id, item);
+      }
+    }
+
+    return map;
+  }, [offeringById, recommendedRawById]);
   const consultableOfferingsHref = "/offerings?agent=has";
   const popularOfferingsHref = useMemo(() => {
     if (effectiveSelectedRegion === "전체") {
@@ -445,6 +803,24 @@ export default function HomeOfferingsSection() {
     };
   }, [availableCash, houseOwnership, ltvInternalScore, monthlyIncome, purchasePurposeV2]);
 
+  const applySessionCondition = useCallback((snapshot: ConditionSessionSnapshot) => {
+    setAvailableCash(snapshot.availableCash);
+    setMonthlyIncome(snapshot.monthlyIncome);
+    setMonthlyExpenses(snapshot.monthlyExpenses);
+    setEmploymentType(snapshot.employmentType);
+    setHouseOwnership(snapshot.houseOwnership);
+    setPurchasePurposeV2(snapshot.purchasePurposeV2);
+    setPurchaseTiming(snapshot.purchaseTiming);
+    setMoveinTiming(snapshot.moveinTiming);
+    setLtvInternalScore(snapshot.ltvInternalScore);
+    setExistingLoan(snapshot.existingLoan);
+    setRecentDelinquency(snapshot.recentDelinquency);
+    setCardLoanUsage(snapshot.cardLoanUsage);
+    setLoanRejection(snapshot.loanRejection);
+    setMonthlyIncomeRange(snapshot.monthlyIncomeRange);
+    setExistingMonthlyRepayment(snapshot.existingMonthlyRepayment);
+  }, []);
+
   const applyRecommendationByCustomer = useCallback(
     async (customer: ParsedCustomerInput, options?: { closeModal?: boolean }) => {
       setConditionError(null);
@@ -464,23 +840,11 @@ export default function HomeOfferingsSection() {
             },
           }),
         });
-
-        type RawCategory = { grade?: string; score?: number } | null | undefined;
-        type RawRecommendation = {
-          property_id?: number | string;
-          total_score?: number;
-          categories?: {
-            cash?: RawCategory;
-            income?: RawCategory;
-            ltv_dsr?: RawCategory;
-            [key: string]: RawCategory | undefined;
-          } | null;
-        };
         const payload = (await response.json().catch(() => null)) as
         | {
             ok?: boolean;
             property_ids?: Array<number | string>;
-            recommendations?: RawRecommendation[];
+            recommendations?: HomeRawRecommendation[];
             error?: { message?: string };
           }
         | null;
@@ -494,21 +858,41 @@ export default function HomeOfferingsSection() {
           .map((id) => Number(id))
           .filter((id) => Number.isFinite(id));
         const nextCategories = new Map<number, ConditionCategoryGrades>();
+        const nextRaw = new Map<number, HomeRawRecommendation>();
         for (const item of payload.recommendations ?? []) {
           const id = Number(item.property_id);
           if (!Number.isFinite(id) || !item.categories) continue;
+          nextRaw.set(id, item);
           const cats = item.categories;
-          const toGrade = (g?: string): "GREEN" | "YELLOW" | "RED" =>
-            g === "GREEN" ? "GREEN" : g === "YELLOW" ? "YELLOW" : "RED";
+          const toGrade = (
+            g?: string,
+          ): ConditionCategoryGrades["cash"]["grade"] =>
+            g === "GREEN" ||
+            g === "LIME" ||
+            g === "YELLOW" ||
+            g === "ORANGE" ||
+            g === "RED"
+              ? g
+              : "RED";
           nextCategories.set(id, {
-            cash: { grade: toGrade(cats.cash?.grade), score: cats.cash?.score },
-            burden: { grade: toGrade(cats.income?.grade), score: cats.income?.score },
-            risk: { grade: toGrade(cats.ltv_dsr?.grade), score: cats.ltv_dsr?.score },
-            totalScore: item.total_score,
+            cash: {
+              grade: toGrade(cats.cash?.grade),
+              score: toFiniteNumber(cats.cash?.score) ?? undefined,
+            },
+            burden: {
+              grade: toGrade(cats.income?.grade),
+              score: toFiniteNumber(cats.income?.score) ?? undefined,
+            },
+            credit: {
+              grade: toGrade(cats.ltv_dsr?.grade),
+              score: toFiniteNumber(cats.ltv_dsr?.score) ?? undefined,
+            },
+            totalScore: toFiniteNumber(item.total_score) ?? undefined,
           });
         }
         setRecommendedPropertyIds(ids);
         setRecommendedCategoriesById(nextCategories);
+        setRecommendedRawById(nextRaw);
         setShowConditionSetupCard(false);
         const summaryParts: string[] = [];
         const empOpt = EMPLOYMENT_TYPE_OPTIONS.find(o => o.value === employmentType);
@@ -540,6 +924,12 @@ export default function HomeOfferingsSection() {
     },
     [availableCash, employmentType, houseOwnership, ltvInternalScore, monthlyExpenses, monthlyIncome, moveinTiming, purchasePurposeV2, purchaseTiming],
   );
+
+  // ref 패턴: 최신 콜백을 ref로 유지 → 로딩 useEffect의 deps에서 제거 가능
+  const applyRecommendationRef = useRef(applyRecommendationByCustomer);
+  useEffect(() => {
+    applyRecommendationRef.current = applyRecommendationByCustomer;
+  });
 
   const handleApplyCondition = useCallback(async () => {
     setConditionError(null);
@@ -593,6 +983,11 @@ export default function HomeOfferingsSection() {
           cv_purchase_timing: purchaseTiming,
           cv_movein_timing: moveinTiming,
           cv_ltv_internal_score: ltvInternalScore,
+          cv_existing_loan_amount: existingLoan,
+          cv_recent_delinquency: recentDelinquency,
+          cv_card_loan_usage: cardLoanUsage,
+          cv_loan_rejection: loanRejection,
+          cv_monthly_income_range: monthlyIncomeRange,
           cv_existing_monthly_repayment: existingMonthlyRepayment,
         })
         .eq("id", homeUserId);
@@ -602,14 +997,53 @@ export default function HomeOfferingsSection() {
         return;
       }
 
+      const isUpdate = hasSavedConditionPreset;
+      const parsedExpensesForSnapshot = parsedExpenses !== null ? Math.max(0, Math.round(parsedExpenses)) : null;
+      setSavedConditionPreset({
+        available_cash: parseNullableNumericInput(availableCash),
+        monthly_income: parseNullableNumericInput(monthlyIncome),
+        monthly_expenses: parsedExpensesForSnapshot,
+        employment_type: employmentType,
+        house_ownership: houseOwnership,
+        purchase_purpose_v2: purchasePurposeV2,
+        purchase_timing: purchaseTiming,
+        movein_timing: moveinTiming,
+        ltv_internal_score: ltvInternalScore,
+        existing_loan_amount: existingLoan,
+        recent_delinquency: recentDelinquency,
+        card_loan_usage: cardLoanUsage,
+        loan_rejection: loanRejection,
+        monthly_income_range: monthlyIncomeRange,
+        existing_monthly_repayment: existingMonthlyRepayment,
+      });
       setHasSavedConditionPreset(true);
-      setConditionNotice("맞춤 정보에 현재 조건을 저장했습니다.");
+      setConditionNotice(isUpdate ? "조건이 업데이트되었습니다." : "맞춤 정보에 현재 조건을 저장했습니다.");
     } catch {
       setConditionError("조건 저장 중 네트워크 오류가 발생했습니다.");
     } finally {
       setConditionSaveLoading(false);
     }
-  }, [employmentType, existingMonthlyRepayment, homeUserId, houseOwnership, ltvInternalScore, monthlyExpenses, moveinTiming, parseCustomerInputFromState, purchasePurposeV2, purchaseTiming, supabase]);
+  }, [
+    availableCash,
+    cardLoanUsage,
+    employmentType,
+    existingLoan,
+    existingMonthlyRepayment,
+    hasSavedConditionPreset,
+    homeUserId,
+    houseOwnership,
+    loanRejection,
+    ltvInternalScore,
+    monthlyExpenses,
+    monthlyIncome,
+    monthlyIncomeRange,
+    moveinTiming,
+    parseCustomerInputFromState,
+    purchasePurposeV2,
+    purchaseTiming,
+    recentDelinquency,
+    supabase,
+  ]);
 
   useEffect(() => {
     let mounted = true;
@@ -624,7 +1058,26 @@ export default function HomeOfferingsSection() {
         setHomeUserId(null);
         setIsLoggedIn(false);
         setHasSavedConditionPreset(false);
-        setShowConditionSetupCard(true);
+        // 비로그인: 세션 임시 저장값 복원
+        try {
+          const snapshot = loadConditionSession();
+          if (snapshot) {
+            applySessionCondition(snapshot);
+            const sessionCustomer = buildCustomerFromSessionSnapshot(snapshot);
+            if (sessionCustomer) {
+              setShowConditionSetupCard(false);
+              await applyRecommendationRef.current(sessionCustomer, {
+                closeModal: false,
+              });
+            } else {
+              setShowConditionSetupCard(true);
+            }
+          } else {
+            setShowConditionSetupCard(true);
+          }
+        } catch {
+          setShowConditionSetupCard(true);
+        }
         return;
       }
       setHomeUserId(user.id);
@@ -678,7 +1131,7 @@ export default function HomeOfferingsSection() {
         setAvailableCash(draftCustomer.available_cash.toLocaleString("ko-KR"));
         setMonthlyIncome(draftCustomer.monthly_income.toLocaleString("ko-KR"));
         setShowConditionSetupCard(false);
-        await applyRecommendationByCustomer(draftCustomer, { closeModal: false });
+        await applyRecommendationRef.current(draftCustomer, { closeModal: false });
         try {
           localStorage.removeItem("oboon:home-condition-draft");
         } catch {
@@ -694,12 +1147,12 @@ export default function HomeOfferingsSection() {
             "id, available_cash_manwon, monthly_income_manwon, owned_house_count, credit_grade, purchase_purpose",
           )
           .eq("customer_id", user.id)
-          .order("created_at", { ascending: false })
+          .order("requested_at", { ascending: false })
           .limit(1),
         supabase
           .from("profiles")
           .select(
-            "cv_available_cash_manwon, cv_monthly_income_manwon, cv_owned_house_count, cv_credit_grade, cv_purchase_purpose, cv_employment_type, cv_monthly_expenses_manwon, cv_house_ownership, cv_purchase_purpose_v2, cv_purchase_timing, cv_movein_timing, cv_ltv_internal_score, cv_existing_monthly_repayment",
+            "cv_available_cash_manwon, cv_monthly_income_manwon, cv_owned_house_count, cv_credit_grade, cv_purchase_purpose, cv_employment_type, cv_monthly_expenses_manwon, cv_house_ownership, cv_purchase_purpose_v2, cv_purchase_timing, cv_movein_timing, cv_ltv_internal_score, cv_existing_loan_amount, cv_recent_delinquency, cv_card_loan_usage, cv_loan_rejection, cv_monthly_income_range, cv_existing_monthly_repayment",
           )
           .eq("id", user.id)
           .maybeSingle(),
@@ -720,7 +1173,7 @@ export default function HomeOfferingsSection() {
           setAvailableCash(latestCustomer.available_cash.toLocaleString("ko-KR"));
           setMonthlyIncome(latestCustomer.monthly_income.toLocaleString("ko-KR"));
           setShowConditionSetupCard(false);
-          await applyRecommendationByCustomer(latestCustomer, { closeModal: false });
+          await applyRecommendationRef.current(latestCustomer, { closeModal: false });
           return;
         }
       }
@@ -732,7 +1185,26 @@ export default function HomeOfferingsSection() {
       }
 
       if (!presetCustomer) {
-        setShowConditionSetupCard(true);
+        // 저장된 조건 없음: 세션 임시 저장값 복원 시도
+        try {
+          const snapshot = loadConditionSession();
+          if (snapshot) {
+            applySessionCondition(snapshot);
+            const sessionCustomer = buildCustomerFromSessionSnapshot(snapshot);
+            if (sessionCustomer) {
+              setShowConditionSetupCard(false);
+              await applyRecommendationRef.current(sessionCustomer, {
+                closeModal: false,
+              });
+            } else {
+              setShowConditionSetupCard(true);
+            }
+          } else {
+            setShowConditionSetupCard(true);
+          }
+        } catch {
+          setShowConditionSetupCard(true);
+        }
         return;
       }
 
@@ -751,16 +1223,42 @@ export default function HomeOfferingsSection() {
         if (profileData.cv_ltv_internal_score !== null && profileData.cv_ltv_internal_score !== undefined) {
           setLtvInternalScore(profileData.cv_ltv_internal_score);
         }
+        if (profileData.cv_existing_loan_amount) setExistingLoan(profileData.cv_existing_loan_amount);
+        if (profileData.cv_recent_delinquency) setRecentDelinquency(profileData.cv_recent_delinquency);
+        if (profileData.cv_card_loan_usage) setCardLoanUsage(profileData.cv_card_loan_usage);
+        if (profileData.cv_loan_rejection) setLoanRejection(profileData.cv_loan_rejection);
+        if (profileData.cv_monthly_income_range) setMonthlyIncomeRange(profileData.cv_monthly_income_range);
         if (profileData.cv_existing_monthly_repayment) setExistingMonthlyRepayment(profileData.cv_existing_monthly_repayment);
+
+        // 저장된 조건 스냅샷 초기화 (dirty 감지 기준값)
+        setSavedConditionPreset({
+          available_cash: presetCustomer.available_cash,
+          monthly_income: presetCustomer.monthly_income,
+          monthly_expenses: profileData.cv_monthly_expenses_manwon ?? null,
+          employment_type: profileData.cv_employment_type ?? null,
+          house_ownership: profileData.cv_house_ownership ?? null,
+          purchase_purpose_v2: profileData.cv_purchase_purpose_v2 ?? null,
+          purchase_timing: profileData.cv_purchase_timing ?? null,
+          movein_timing: profileData.cv_movein_timing ?? null,
+          ltv_internal_score: profileData.cv_ltv_internal_score ?? 0,
+          existing_loan_amount: profileData.cv_existing_loan_amount ?? null,
+          recent_delinquency: profileData.cv_recent_delinquency ?? null,
+          card_loan_usage: profileData.cv_card_loan_usage ?? null,
+          loan_rejection: profileData.cv_loan_rejection ?? null,
+          monthly_income_range: profileData.cv_monthly_income_range ?? null,
+          existing_monthly_repayment: profileData.cv_existing_monthly_repayment ?? "none",
+        });
       }
       setShowConditionSetupCard(false);
-      await applyRecommendationByCustomer(presetCustomer, { closeModal: false });
+      await applyRecommendationRef.current(presetCustomer, { closeModal: false });
     })();
 
     return () => {
       mounted = false;
     };
-  }, [applyRecommendationByCustomer, supabase]);
+  // applyRecommendationRef는 항상 최신 콜백을 참조하므로 deps에서 제외
+  // → 유저가 필드를 수정해도 이 effect가 재실행되지 않음
+  }, [applySessionCondition, supabase]);
 
   return (
     <>
@@ -815,8 +1313,10 @@ export default function HomeOfferingsSection() {
             />
 
             {!rowsLoaded ? (
-              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-                {[0, 1, 2].map((i) => <OfferingCardSkeleton key={i} />)}
+              <div className="space-y-3 sm:grid sm:grid-cols-2 sm:gap-4 sm:space-y-0 lg:grid-cols-3">
+                {[0, 1, 2].map((i) => (
+                  <OfferingCardSkeleton key={i} mobileRecommendationLayout />
+                ))}
               </div>
             ) : consultableOfferings.length === 0 ? (
               <EmptyState
@@ -824,7 +1324,14 @@ export default function HomeOfferingsSection() {
                 description={Copy.home.consultable.empty.subtitle}
               />
             ) : (
-              <ResponsiveOfferingRow items={consultableOfferings} scrapedPropertyIds={scrapedPropertyIds} isLoggedIn={isLoggedIn === true} />
+              <ResponsiveOfferingRow
+                items={consultableOfferings}
+                scrapedPropertyIds={scrapedPropertyIds}
+                isLoggedIn={isLoggedIn === true}
+                mobileLayout="stack"
+                mobileCardLayout
+                consultableOfferingIds={consultableOfferingIdSet}
+              />
             )}
           </section>
 
@@ -849,8 +1356,10 @@ export default function HomeOfferingsSection() {
             </div>
 
             {!rowsLoaded ? (
-              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-                {[0, 1, 2].map((i) => <OfferingCardSkeleton key={i} />)}
+              <div className="space-y-3 sm:grid sm:grid-cols-2 sm:gap-4 sm:space-y-0 lg:grid-cols-3">
+                {[0, 1, 2].map((i) => (
+                  <OfferingCardSkeleton key={i} mobileRecommendationLayout />
+                ))}
               </div>
             ) : popularOfferings.length === 0 ? (
               <EmptyState
@@ -858,7 +1367,13 @@ export default function HomeOfferingsSection() {
                 description={Copy.home.regional.empty.subtitle}
               />
             ) : (
-              <ResponsiveOfferingRow items={popularOfferings} scrapedPropertyIds={scrapedPropertyIds} isLoggedIn={isLoggedIn === true} />
+              <ResponsiveOfferingRow
+                items={popularOfferings}
+                scrapedPropertyIds={scrapedPropertyIds}
+                isLoggedIn={isLoggedIn === true}
+                mobileLayout="stack"
+                mobileCardLayout
+              />
             )}
           </section>
         </>
@@ -970,8 +1485,10 @@ export default function HomeOfferingsSection() {
                 <ResponsiveOfferingRow
                   items={conditionMatchedOfferings}
                   recommendedCategoriesById={recommendedCategoriesById}
+                  recommendedItemsById={recommendedItemsById}
                   scrapedPropertyIds={scrapedPropertyIds}
                   isLoggedIn={isLoggedIn === true}
+                  mobileLayout="stack"
                 />
               )}
             </section>
@@ -1161,6 +1678,7 @@ export default function HomeOfferingsSection() {
                   setConditionNotice(null);
                   setRecommendedPropertyIds(null);
                   setRecommendedCategoriesById(new Map());
+                  setRecommendedRawById(new Map());
                   setAppliedCustomerSummary(null);
                 }}
               >
@@ -1184,6 +1702,16 @@ export default function HomeOfferingsSection() {
                   onClick={() => void handleSaveConditionPreset()}
                 >
                   조건 저장하기
+                </Button>
+              ) : isLoggedIn && hasSavedConditionPreset && isConditionDirty ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  loading={conditionSaveLoading}
+                  onClick={() => void handleSaveConditionPreset()}
+                >
+                  조건 업데이트
                 </Button>
               ) : null}
             </div>
@@ -1210,12 +1738,26 @@ export default function HomeOfferingsSection() {
       <LtvDsrModal
         open={ltvModalOpen}
         onClose={() => setLtvModalOpen(false)}
-        onConfirm={({ ltvInternalScore: score, existingMonthlyRepayment: repayment }) => {
+        onConfirm={({ ltvInternalScore: score, existingMonthlyRepayment: repayment, formValues }) => {
           setLtvInternalScore(score);
+          setExistingLoan(formValues.existingLoan);
+          setRecentDelinquency(formValues.recentDelinquency);
+          setCardLoanUsage(formValues.cardLoanUsage);
+          setLoanRejection(formValues.loanRejection);
+          setMonthlyIncomeRange(formValues.monthlyIncomeRange);
           setExistingMonthlyRepayment(repayment);
         }}
         initialEmploymentType={employmentType ?? "employee"}
         initialHouseOwnership={houseOwnership ?? "none"}
+        initialValues={{
+          existingLoan,
+          recentDelinquency,
+          cardLoanUsage,
+          loanRejection,
+          monthlyIncomeRange,
+          existingMonthlyRepayment,
+        }}
+        initialLtvInternalScore={ltvInternalScore}
       />
     </>
   );
@@ -1285,68 +1827,238 @@ function SectionHeader({
 
 function ProjectRow({ children }: { children: ReactNode }) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{children}</div>
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{children}</div>
+  );
+}
+
+function HomeMobileRecommendationDetailSheet({
+  item,
+  onClose,
+}: {
+  item: RecommendationItem | null;
+  onClose: () => void;
+}) {
+  if (!item) return null;
+
+  return (
+    <div className="sm:hidden">
+      <div
+        className="fixed inset-0 z-(--oboon-z-modal) bg-(--oboon-overlay) backdrop-blur-sm"
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          onClose();
+        }}
+        aria-hidden="true"
+      />
+      <div className="fixed inset-x-0 bottom-0 z-(--oboon-z-modal) flex max-h-[88dvh] flex-col rounded-t-xl border border-b-0 border-(--oboon-border-default) bg-(--oboon-bg-surface) shadow-(--oboon-shadow-card)">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          <RecommendationPreviewContent
+            property={item.property}
+            evalResult={item.evalResult}
+            showFinalBadge={false}
+            showSummary={false}
+          />
+        </div>
+
+        <div className="shrink-0 border-t border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-5 py-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
+          <Button asChild variant="primary" shape="pill" className="w-full">
+            <Link href={ROUTES.offerings.detail(item.property.id)}>
+              현장 상세 보기
+            </Link>
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
 function ResponsiveOfferingRow({
   items,
   recommendedCategoriesById,
+  recommendedItemsById,
   scrapedPropertyIds,
   isLoggedIn,
+  mobileLayout = "carousel",
+  mobileCardLayout = false,
+  consultableOfferingIds,
 }: {
   items: Offering[];
   recommendedCategoriesById?: Map<number, ConditionCategoryGrades>;
+  recommendedItemsById?: Map<number, RecommendationItem>;
   scrapedPropertyIds?: Set<number>;
   isLoggedIn?: boolean;
+  mobileLayout?: "carousel" | "stack";
+  mobileCardLayout?: boolean;
+  consultableOfferingIds?: Set<number>;
 }) {
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [flippedId, setFlippedId] = useState<number | null>(null);
+  const [mobileDetailItem, setMobileDetailItem] = useState<RecommendationItem | null>(null);
+  const itemIds = useMemo(
+    () => new Set(items.map((item) => Number(item.id))),
+    [items],
+  );
+  const activeSelectedId =
+    selectedId !== null && itemIds.has(selectedId) ? selectedId : null;
+  const activeFlippedId =
+    flippedId !== null && itemIds.has(flippedId) ? flippedId : null;
+  const activeMobileDetailItem =
+    mobileDetailItem && itemIds.has(mobileDetailItem.property.id)
+      ? mobileDetailItem
+      : null;
+
+  const handleSelect = useCallback((id: number) => {
+    setSelectedId(id);
+  }, []);
+
+  const handleFlip = useCallback((id: number) => {
+    setSelectedId(id);
+    setFlippedId((prev) => (prev === id ? null : id));
+  }, []);
+
+  const handleMobileDetailOpen = useCallback((item: RecommendationItem) => {
+    setSelectedId(item.property.id);
+    setMobileDetailItem(item);
+  }, []);
+
+  const handleMobileDetailClose = useCallback(() => {
+    setMobileDetailItem(null);
+    setSelectedId(null);
+  }, []);
+
   return (
     <>
       {/* Mobile */}
       <div className="sm:hidden">
-        {/* PageContainer(px-4) 밖으로 빼서 스크롤이 화면 끝까지 자연스럽게 */}
-        <div className="-mx-4">
-          <div className="relative">
-            <div
-              className={[
-                "flex gap-3 overflow-x-auto pb-3 px-4",
-                "snap-x snap-mandatory",
-                "[-webkit-overflow-scrolling:touch]",
-                "scrollbar-none",
-                "scroll-pl-4 scroll-pr-4",
-              ].join(" ")}
-            >
-              {items.map((offering, index) => (
-                <div key={offering.id} className="w-70 shrink-0 snap-start">
-                  <OfferingCard
-                    offering={offering}
-                    conditionCategories={recommendedCategoriesById?.get(Number(offering.id))}
-                    initialScrapped={scrapedPropertyIds?.has(Number(offering.id)) ?? false}
-                    isLoggedIn={isLoggedIn ?? false}
-                    priority={index === 0}
-                  />
-                </div>
-              ))}
+        {mobileLayout === "stack" ? (
+          <div className="space-y-3">
+            {items.map((offering, index) => {
+              const numericId = Number(offering.id);
+              const recommendationItem = recommendedItemsById?.get(numericId) ?? null;
+              const isConsultable = consultableOfferingIds?.has(numericId) ?? false;
 
-              <div className="shrink-0 w-4" />
+              if (recommendationItem) {
+                return (
+                  <RecommendationOfferingCard
+                    key={offering.id}
+                    property={recommendationItem}
+                    isSelected={activeSelectedId === recommendationItem.property.id}
+                    navigateOnClick={false}
+                    onClick={() => handleMobileDetailOpen(recommendationItem)}
+                  />
+                );
+              }
+
+              return (
+                <OfferingCard
+                  key={offering.id}
+                  offering={offering}
+                  conditionCategories={recommendedCategoriesById?.get(numericId)}
+                  mobileRecommendationLayout={mobileCardLayout}
+                  isConsultable={isConsultable}
+                  initialScrapped={scrapedPropertyIds?.has(numericId) ?? false}
+                  isLoggedIn={isLoggedIn ?? false}
+                  priority={index === 0}
+                />
+              );
+            })}
+          </div>
+        ) : (
+          <div className="-mx-4">
+            <div className="relative">
+              <div
+                className={[
+                  "flex gap-3 overflow-x-auto pb-3 px-4",
+                  "snap-x snap-mandatory",
+                  "[-webkit-overflow-scrolling:touch]",
+                  "scrollbar-none",
+                  "scroll-pl-4 scroll-pr-4",
+                ].join(" ")}
+              >
+                {items.map((offering, index) => {
+                  const numericId = Number(offering.id);
+                  const recommendationItem = recommendedItemsById?.get(numericId) ?? null;
+                  const isConsultable = consultableOfferingIds?.has(numericId) ?? false;
+
+                  if (recommendationItem) {
+                    return (
+                      <div key={offering.id} className="w-[17.5rem] shrink-0 snap-start">
+                        <RecommendationOfferingCard
+                          property={recommendationItem}
+                          isSelected={activeSelectedId === recommendationItem.property.id}
+                          onClick={() => handleSelect(recommendationItem.property.id)}
+                        />
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div key={offering.id} className="w-[17.5rem] shrink-0 snap-start">
+                      <OfferingCard
+                        offering={offering}
+                        conditionCategories={recommendedCategoriesById?.get(numericId)}
+                        mobileRecommendationLayout={mobileCardLayout}
+                        isConsultable={isConsultable}
+                        initialScrapped={scrapedPropertyIds?.has(numericId) ?? false}
+                        isLoggedIn={isLoggedIn ?? false}
+                        priority={index === 0}
+                      />
+                    </div>
+                  );
+                })}
+
+                <div className="shrink-0 w-4" />
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
+
+      <HomeMobileRecommendationDetailSheet
+        item={activeMobileDetailItem}
+        onClose={handleMobileDetailClose}
+      />
 
       {/* Desktop/Tablets: grid */}
       <div className="hidden sm:block">
         <ProjectRow>
-          {items.map((offering, index) => (
-            <OfferingCard
-              key={offering.id}
-              offering={offering}
-              conditionCategories={recommendedCategoriesById?.get(Number(offering.id))}
-              initialScrapped={scrapedPropertyIds?.has(Number(offering.id)) ?? false}
-              isLoggedIn={isLoggedIn ?? false}
-              priority={index === 0}
-            />
-          ))}
+          {items.map((offering, index) => {
+            const numericId = Number(offering.id);
+            const recommendationItem = recommendedItemsById?.get(numericId) ?? null;
+            const isConsultable = consultableOfferingIds?.has(numericId) ?? false;
+
+            if (recommendationItem) {
+              return (
+                <div key={offering.id} className="min-w-0">
+                  <FlippableRecommendationCard
+                    item={recommendationItem}
+                    isSelected={activeSelectedId === recommendationItem.property.id}
+                    isFlipped={activeFlippedId === recommendationItem.property.id}
+                    disableFlip={recommendationItem.evalResult.isMasked}
+                    initialScrapped={scrapedPropertyIds?.has(numericId) ?? false}
+                    isLoggedIn={isLoggedIn ?? false}
+                    priority={index === 0}
+                    onFlip={() => handleFlip(recommendationItem.property.id)}
+                    onSelect={() => handleSelect(recommendationItem.property.id)}
+                  />
+                </div>
+              );
+            }
+
+            return (
+              <OfferingCard
+                key={offering.id}
+                offering={offering}
+                conditionCategories={recommendedCategoriesById?.get(numericId)}
+                mobileRecommendationLayout={mobileCardLayout}
+                isConsultable={isConsultable}
+                initialScrapped={scrapedPropertyIds?.has(numericId) ?? false}
+                isLoggedIn={isLoggedIn ?? false}
+                priority={index === 0}
+              />
+            );
+          })}
         </ProjectRow>
       </div>
     </>

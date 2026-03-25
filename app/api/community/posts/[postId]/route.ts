@@ -25,18 +25,44 @@ function isInvalidCommunityStatusError(error: unknown) {
   );
 }
 
-async function syncRepostCount(originalPostId: string | null | undefined) {
-  if (!originalPostId) return;
+async function countVisibleReposts(originalPostId: string) {
+  const modernResult = await adminSupabase
+    .from("community_posts")
+    .select("id", { count: "exact", head: true })
+    .eq("repost_original_post_id", originalPostId)
+    .in("status", ["thinking", "visited"]);
 
-  const { count } = await adminSupabase
+  if (!modernResult.error) {
+    return modernResult.count ?? 0;
+  }
+
+  if (!isInvalidCommunityStatusError(modernResult.error)) {
+    console.error("community repost count error:", modernResult.error.message);
+    return 0;
+  }
+
+  const legacyResult = await adminSupabase
     .from("community_posts")
     .select("id", { count: "exact", head: true })
     .eq("repost_original_post_id", originalPostId)
     .not("status", "in", '("hidden","deleted","draft")');
 
+  if (legacyResult.error) {
+    console.error("community repost legacy count error:", legacyResult.error.message);
+    return 0;
+  }
+
+  return legacyResult.count ?? 0;
+}
+
+async function syncRepostCount(originalPostId: string | null | undefined) {
+  if (!originalPostId) return;
+
+  const count = await countVisibleReposts(originalPostId);
+
   await adminSupabase
     .from("community_posts")
-    .update({ repost_count: count ?? 0 })
+    .update({ repost_count: count })
     .eq("id", originalPostId);
 }
 

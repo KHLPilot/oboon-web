@@ -43,6 +43,24 @@ import {
   type PropertyListRow,
 } from "@/features/company/services/property.list";
 import { toKoreanErrorMessage } from "@/shared/errorMessage";
+import {
+  CARD_LOAN_USAGES,
+  DELINQUENCY_COUNTS,
+  EXISTING_LOAN_AMOUNTS,
+  LOAN_REJECTIONS,
+  MONTHLY_INCOME_RANGES,
+  MONTHLY_LOAN_REPAYMENTS,
+  isOneOf,
+} from "@/features/condition-validation/domain/types";
+import type {
+  CardLoanUsage,
+  DelinquencyCount,
+  ExistingLoanAmount,
+  LoanRejection,
+  LtvDsrPersistedValues,
+  MonthlyIncomeRange,
+  MonthlyLoanRepayment,
+} from "@/features/condition-validation/domain/types";
 
 type Role =
   | "user"
@@ -229,6 +247,12 @@ export default function ProfilePage({
   const [purchaseTiming, setPurchaseTiming] = useState<PurchaseTiming | null>(null);
   const [moveinTiming, setMoveinTiming] = useState<MoveinTiming | null>(null);
   const [ltvInternalScore, setLtvInternalScore] = useState(0);
+  const [existingMonthlyRepayment, setExistingMonthlyRepayment] = useState<MonthlyLoanRepayment | null>(null);
+  const [existingLoan, setExistingLoan] = useState<ExistingLoanAmount | null>(null);
+  const [recentDelinquency, setRecentDelinquency] = useState<DelinquencyCount | null>(null);
+  const [cardLoanUsage, setCardLoanUsage] = useState<CardLoanUsage | null>(null);
+  const [loanRejection, setLoanRejection] = useState<LoanRejection | null>(null);
+  const [monthlyIncomeRange, setMonthlyIncomeRange] = useState<MonthlyIncomeRange | null>(null);
   const [personalizationErrors, setPersonalizationErrors] = useState<{
     availableCashManwon?: string;
     monthlyIncomeManwon?: string;
@@ -297,7 +321,7 @@ export default function ProfilePage({
       const { data: loadedProfile, error: loadProfileError } = await supabase
         .from("profiles")
         .select(
-          `${baseProfileSelect}, cv_available_cash_manwon, cv_monthly_income_manwon, cv_employment_type, cv_monthly_expenses_manwon, cv_house_ownership, cv_purchase_purpose_v2, cv_purchase_timing, cv_movein_timing, cv_ltv_internal_score, cv_existing_monthly_repayment`,
+          `${baseProfileSelect}, cv_available_cash_manwon, cv_monthly_income_manwon, cv_employment_type, cv_monthly_expenses_manwon, cv_house_ownership, cv_purchase_purpose_v2, cv_purchase_timing, cv_movein_timing, cv_ltv_internal_score, cv_existing_monthly_repayment, cv_existing_loan_amount, cv_recent_delinquency, cv_card_loan_usage, cv_loan_rejection, cv_monthly_income_range`,
         )
         .eq("id", user.id)
         .single();
@@ -384,6 +408,36 @@ export default function ProfilePage({
         );
         const loadedLtvScore = parseOptionalInteger(profile.cv_ltv_internal_score);
         setLtvInternalScore(loadedLtvScore !== null && loadedLtvScore > 0 ? loadedLtvScore : 0);
+        setExistingMonthlyRepayment(
+          isOneOf(MONTHLY_LOAN_REPAYMENTS, profile.cv_existing_monthly_repayment)
+            ? profile.cv_existing_monthly_repayment
+            : null,
+        );
+        setExistingLoan(
+          isOneOf(EXISTING_LOAN_AMOUNTS, profile.cv_existing_loan_amount)
+            ? profile.cv_existing_loan_amount
+            : null,
+        );
+        setRecentDelinquency(
+          isOneOf(DELINQUENCY_COUNTS, profile.cv_recent_delinquency)
+            ? profile.cv_recent_delinquency
+            : null,
+        );
+        setCardLoanUsage(
+          isOneOf(CARD_LOAN_USAGES, profile.cv_card_loan_usage)
+            ? profile.cv_card_loan_usage
+            : null,
+        );
+        setLoanRejection(
+          isOneOf(LOAN_REJECTIONS, profile.cv_loan_rejection)
+            ? profile.cv_loan_rejection
+            : null,
+        );
+        setMonthlyIncomeRange(
+          isOneOf(MONTHLY_INCOME_RANGES, profile.cv_monthly_income_range)
+            ? profile.cv_monthly_income_range
+            : null,
+        );
         if ((profile.role as Role) === "agent") {
           await fetchGalleryImages(user.id, profile.role as Role);
         } else {
@@ -576,6 +630,12 @@ export default function ProfilePage({
           cv_purchase_timing: purchaseTiming,
           cv_movein_timing: moveinTiming,
           cv_ltv_internal_score: ltvInternalScore > 0 ? ltvInternalScore : null,
+          cv_existing_monthly_repayment: existingMonthlyRepayment,
+          cv_existing_loan_amount: existingLoan,
+          cv_recent_delinquency: recentDelinquency,
+          cv_card_loan_usage: cardLoanUsage,
+          cv_loan_rejection: loanRejection,
+          cv_monthly_income_range: monthlyIncomeRange,
         })
         .eq("id", userId);
 
@@ -1363,6 +1423,23 @@ export default function ProfilePage({
                   onPurchasePurposeV2Change={setPurchasePurposeV2}
                   onPurchaseTimingChange={setPurchaseTiming}
                   onMoveinTimingChange={setMoveinTiming}
+                  ltvDsrValues={{
+                    existingLoan,
+                    recentDelinquency,
+                    cardLoanUsage,
+                    loanRejection,
+                    monthlyIncomeRange,
+                    existingMonthlyRepayment,
+                  }}
+                  onLtvInternalScoreChange={setLtvInternalScore}
+                  onLtvDsrValuesChange={(value: LtvDsrPersistedValues) => {
+                    setExistingLoan(value.existingLoan);
+                    setRecentDelinquency(value.recentDelinquency);
+                    setCardLoanUsage(value.cardLoanUsage);
+                    setLoanRejection(value.loanRejection);
+                    setMonthlyIncomeRange(value.monthlyIncomeRange);
+                    setExistingMonthlyRepayment(value.existingMonthlyRepayment);
+                  }}
                   onEditStart={() => setPersonalizationEditing(true)}
                   onSave={savePersonalization}
                   onCancel={() => {

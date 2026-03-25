@@ -48,6 +48,11 @@ const RESET_CONDITION: RecommendationCondition = {
   purchaseTiming: null,
   moveinTiming: null,
   ltvInternalScore: 0,
+  existingLoan: null,
+  recentDelinquency: null,
+  cardLoanUsage: null,
+  loanRejection: null,
+  monthlyIncomeRange: null,
   existingMonthlyRepayment: "none",
   regions: [],
 };
@@ -328,11 +333,28 @@ export default function ConditionBar(props: ConditionBarProps) {
       <LtvDsrModal
         open={ltvModalOpen}
         onClose={() => setLtvModalOpen(false)}
-        onConfirm={({ ltvInternalScore, existingMonthlyRepayment }) => {
-          onChange({ ltvInternalScore, existingMonthlyRepayment });
+        onConfirm={({ ltvInternalScore, existingMonthlyRepayment, formValues }) => {
+          onChange({
+            ltvInternalScore,
+            existingMonthlyRepayment,
+            existingLoan: formValues.existingLoan,
+            recentDelinquency: formValues.recentDelinquency,
+            cardLoanUsage: formValues.cardLoanUsage,
+            loanRejection: formValues.loanRejection,
+            monthlyIncomeRange: formValues.monthlyIncomeRange,
+          });
         }}
         initialEmploymentType={condition.employmentType ?? "employee"}
         initialHouseOwnership={condition.houseOwnership ?? "none"}
+        initialValues={{
+          existingLoan: condition.existingLoan,
+          recentDelinquency: condition.recentDelinquency,
+          cardLoanUsage: condition.cardLoanUsage,
+          loanRejection: condition.loanRejection,
+          monthlyIncomeRange: condition.monthlyIncomeRange,
+          existingMonthlyRepayment: condition.existingMonthlyRepayment,
+        }}
+        initialLtvInternalScore={condition.ltvInternalScore}
       />
     </div>
   );

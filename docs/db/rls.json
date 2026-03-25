@@ -70,6 +70,11 @@
     "rls_forced": false
   },
   {
+    "table_name": "community_follows",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
     "table_name": "community_interests",
     "rls_enabled": true,
     "rls_forced": false
@@ -126,6 +131,16 @@
   },
   {
     "table_name": "notifications",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "offering_scraps",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "offering_view_history",
     "rls_enabled": true,
     "rls_forced": false
   },

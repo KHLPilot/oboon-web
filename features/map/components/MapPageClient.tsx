@@ -15,6 +15,7 @@ import NaverMap, {
   type MapFocusBounds,
   type MapMarker,
 } from "@/features/map/components/NaverMap";
+import { useCurrentLocationCenter } from "@/features/map/hooks/useCurrentLocationCenter";
 import type {
   MarkerLayer,
 } from "@/features/map/domain/marker/marker.type";
@@ -62,6 +63,7 @@ const ALL_KOREA_VIEW_BOUNDS: MapFocusBounds = {
   north: 38.75,
   east: 130.95,
 };
+const GPS_FOCUS_ZOOM = 17;
 
 const REGION_NAME_MATCHERS: Record<string, string[]> = {
   seoul: ["서울특별시", "서울"],
@@ -270,6 +272,9 @@ export default function MapPageClient() {
   const [regionBoundaryByKey, setRegionBoundaryByKey] = useState<
     Record<string, RegionBoundaryPayload>
   >({});
+  const { center: initialCenter, status: initialLocationStatus } =
+    useCurrentLocationCenter();
+  const lastViewportKeyRef = useRef<string>("");
 
   const mapApiRef = useRef<NaverMapHandle | null>(null);
   const router = useRouter();
@@ -474,10 +479,45 @@ export default function MapPageClient() {
 
   useEffect(() => {
     if (!mapReady) return;
-    const bounds = activeRegionTab === "all" ? ALL_KOREA_VIEW_BOUNDS : activeRegionFocusBounds;
+    const map = mapApiRef.current;
+    if (!map) return;
+
+    const isDefaultScope =
+      activeRegionTab === "all" && activeSubRegionTab === "all";
+
+    if (isDefaultScope) {
+      if (initialLocationStatus === "granted" && initialCenter) {
+        const locationKey = `${initialCenter.lat.toFixed(6)},${initialCenter.lng.toFixed(6)}`;
+        const viewportKey = `location:${locationKey}`;
+        if (lastViewportKeyRef.current !== viewportKey) {
+          lastViewportKeyRef.current = viewportKey;
+          map.setView(initialCenter.lat, initialCenter.lng, GPS_FOCUS_ZOOM);
+        }
+        return;
+      }
+
+      if (lastViewportKeyRef.current !== "nationwide") {
+        lastViewportKeyRef.current = "nationwide";
+        map.fitToBounds(ALL_KOREA_VIEW_BOUNDS);
+      }
+      return;
+    }
+
+    const bounds = activeRegionFocusBounds;
     if (!bounds) return;
-    mapApiRef.current?.fitToBounds(bounds);
-  }, [activeRegionFocusBounds, activeRegionTab, activeSubRegionTab, mapReady]);
+    const boundsKey = `${bounds.south.toFixed(4)},${bounds.west.toFixed(4)},${bounds.north.toFixed(4)},${bounds.east.toFixed(4)}`;
+    const viewportKey = `region:${activeRegionTab}:${activeSubRegionTab}:${boundsKey}`;
+    if (lastViewportKeyRef.current === viewportKey) return;
+    lastViewportKeyRef.current = viewportKey;
+    map.fitToBounds(bounds);
+  }, [
+    activeRegionFocusBounds,
+    activeRegionTab,
+    activeSubRegionTab,
+    initialCenter,
+    initialLocationStatus,
+    mapReady,
+  ]);
 
   return (
     <main className="bg-(--oboon-bg-page)">
@@ -555,6 +595,8 @@ export default function MapPageClient() {
                 <NaverMap
                   ref={mapApiRef}
                   markers={markers}
+                  initialCenter={initialCenter}
+                  initialLocationStatus={initialLocationStatus}
                   initialZoom={13}
                   focusBounds={activeRegionFocusBounds}
                   focusPolygons={activeRegionFocusPolygons}
@@ -625,7 +667,8 @@ export default function MapPageClient() {
           <FullscreenMapOverlay
             open={overlayOpen}
             markers={markers}
-            offerings={filtered}
+            initialCenter={initialCenter}
+            initialLocationStatus={initialLocationStatus}
             hoveredId={hoveredId}
             focusedId={focusedId}
             onHoverChange={setHoveredId}

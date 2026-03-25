@@ -1,10 +1,8 @@
 // features/map/FullscreenMapOverlay.tsx
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import Image from "next/image";
-import { formatPriceRange } from "@/shared/price";
 import { X, Plus, Minus } from "lucide-react";
 
 import Button from "@/components/ui/Button";
@@ -12,18 +10,25 @@ import NaverMap, {
   type MapMarker,
   type NaverMapHandle,
 } from "@/features/map/components/NaverMap";
-import type { DbOffering } from "@/features/map/mappers/mapOffering.mapper";
-import { useRouter } from "next/navigation";
-import { UXCopy } from "@/shared/uxCopy";
+import type {
+  GeoLocationCenter,
+  GeoLocationStatus,
+} from "@/features/map/hooks/useCurrentLocationCenter";
 
-import OfferingBadge from "@/features/offerings/components/OfferingBadges";
-import type { OfferingStatusValue } from "@/features/offerings/domain/offering.types";
+const ALL_KOREA_VIEW_BOUNDS = {
+  south: 33.0,
+  west: 125.8,
+  north: 38.75,
+  east: 130.95,
+};
+const GPS_FOCUS_ZOOM = 17;
 
 export default function FullscreenMapOverlay({
   open,
   title = "지도",
   markers,
-  offerings,
+  initialCenter = null,
+  initialLocationStatus = "idle",
   filtersSlot,
   hoveredId,
   focusedId,
@@ -35,7 +40,8 @@ export default function FullscreenMapOverlay({
   title?: string;
 
   markers: MapMarker[];
-  offerings: DbOffering[];
+  initialCenter?: GeoLocationCenter | null;
+  initialLocationStatus?: GeoLocationStatus;
 
   filtersSlot?: React.ReactNode;
 
@@ -46,7 +52,6 @@ export default function FullscreenMapOverlay({
 
   onClose: () => void;
 }) {
-  const router = useRouter();
   const [portalEl] = useState<HTMLDivElement | null>(() => {
     if (typeof document === "undefined") return null;
     const el = document.createElement("div");
@@ -54,19 +59,36 @@ export default function FullscreenMapOverlay({
     return el;
   });
   const mapRef = useRef<NaverMapHandle | null>(null);
-  const [sheetId, setSheetId] = useState<number | null>(null);
+  const [mapReadyVersion, setMapReadyVersion] = useState(0);
+  const lastViewportKeyRef = useRef<string>("");
 
-  const offeringById = useMemo(() => {
-    const m = new Map<number, DbOffering>();
-    offerings.forEach((o) => m.set(o.id, o));
-    return m;
-  }, [offerings]);
+  useEffect(() => {
+    if (!open) {
+      lastViewportKeyRef.current = "";
+      mapRef.current = null;
+    }
+  }, [open]);
 
-  const sheetOffering = useMemo(() => {
-    if (sheetId && sheetId > 0) return offeringById.get(sheetId) ?? null;
-    if (focusedId && focusedId > 0) return offeringById.get(focusedId) ?? null;
-    return null;
-  }, [sheetId, focusedId, offeringById]);
+  useEffect(() => {
+    if (!open || mapReadyVersion === 0) return;
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (initialLocationStatus === "granted" && initialCenter) {
+      const locationKey = `${initialCenter.lat.toFixed(6)},${initialCenter.lng.toFixed(6)}`;
+      const viewportKey = `location:${locationKey}`;
+      if (lastViewportKeyRef.current !== viewportKey) {
+        lastViewportKeyRef.current = viewportKey;
+        map.setView(initialCenter.lat, initialCenter.lng, GPS_FOCUS_ZOOM);
+      }
+      return;
+    }
+
+    if (lastViewportKeyRef.current !== "nationwide") {
+      lastViewportKeyRef.current = "nationwide";
+      map.fitToBounds(ALL_KOREA_VIEW_BOUNDS);
+    }
+  }, [initialCenter, initialLocationStatus, mapReadyVersion, open]);
 
   useEffect(() => {
     if (!open || !portalEl) return;
@@ -130,9 +152,13 @@ export default function FullscreenMapOverlay({
               }}
               mode="expanded"
               markers={markers}
+              initialCenter={initialCenter}
+              initialLocationStatus={initialLocationStatus}
               hoveredId={hoveredId}
               focusedId={focusedId}
-              showFocusedAsRich={false}
+              showFocusedAsRich
+              focusedMarkerViewType="hero"
+              onMapReady={() => setMapReadyVersion((prev) => prev + 1)}
               onHoverChange={onHoverChange}
               onClearFocus={() => onSelect(0)}
               onMarkerSelect={(id) => onSelect(id)}
@@ -169,111 +195,6 @@ export default function FullscreenMapOverlay({
               <Minus className="h-4 w-4" />
             </Button>
           </div>
-
-          {/* bottom sheet preview */}
-          {sheetOffering ? (
-            <div className="absolute inset-x-0 bottom-0 z-40">
-              <div className="mx-auto max-w-300 px-4 pb-[calc(env(safe-area-inset-bottom)+14px)]">
-                <div
-                  className={[
-                    "relative",
-                    "rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)",
-                    "shadow-(--oboon-shadow-card)",
-                    "overflow-hidden",
-                  ].join(" ")}
-                >
-                  {/* 1. 상단 이미지 영역 (16:9 비율) */}
-                  {sheetOffering.imageUrl ? (
-                    <div className="relative aspect-video w-full bg-gray-100">
-                      <Image
-                        src={sheetOffering.imageUrl}
-                        alt=""
-                        width={1280}
-                        height={720}
-                        className="h-full w-full object-cover"
-                      />
-                      <div className="absolute left-3 top-3 z-10">
-                        <OfferingBadge
-                          type="status"
-                          value={
-                            ((sheetOffering as unknown as {
-                              statusEnum?: OfferingStatusValue | null;
-                            })
-                              .statusEnum as OfferingStatusValue | null) ??
-                            undefined
-                          }
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSheetId(null);
-                          onSelect(0);
-                        }}
-                        className="absolute top-3 right-3 inline-flex p-1.5 rounded-full bg-black/40 text-white backdrop-blur-sm hover:bg-black/60 transition-colors z-10"
-                        aria-label="닫기"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSheetId(null);
-                        onSelect(0);
-                      }}
-                      className="absolute top-3 right-3 z-10 inline-flex p-1.5 rounded-full bg-(--oboon-bg-subtle) text-(--oboon-text-muted) hover:bg-(--oboon-bg-muted) transition-colors"
-                      aria-label="닫기"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-
-                  {/* 2. 텍스트 및 버튼 영역 */}
-                  <div className="p-4">
-                    <div className="mb-4">
-                      <div className="ob-typo-h3 text-(--oboon-text-title) line-clamp-1 pr-8">
-                        {sheetOffering.title}
-                      </div>
-
-                      <div className="mt-1 text-[13px] text-(--oboon-text-muted) line-clamp-1">
-                        {sheetOffering.region} · {sheetOffering.address}
-                      </div>
-
-                      {/* 가격 및 상태 정보 */}
-                      <div className="flex items-center gap-2 mt-1.5">
-                        <div className="font-bold text-(--oboon-text-title) ob-typo-h4">
-                          {formatPriceRange(
-                            sheetOffering.priceMinWon,
-                            sheetOffering.priceMaxWon,
-                            {
-                              unknownLabel: sheetOffering.isPricePrivate
-                                ? UXCopy.pricePrivate
-                                : UXCopy.priceRange,
-                            }
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <Button
-                      variant="primary"
-                      size="md"
-                      shape="pill"
-                      className="w-full rounded-xl"
-                      onClick={() => {
-                        onClose?.();
-                        router.push(`/offerings/${sheetOffering.id}`);
-                      }}
-                    >
-                      상세 보기
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : null}
         </div>
       </div>
     </div>,

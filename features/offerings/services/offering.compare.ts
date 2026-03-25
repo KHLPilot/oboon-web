@@ -1,5 +1,9 @@
 // features/offerings/services/offering.compare.ts
 import { createSupabaseServer } from "@/lib/supabaseServer";
+import {
+  normalizeOfferingStatusValue,
+  OFFERING_STATUS_VALUES,
+} from "@/features/offerings/domain/offering.constants";
 import type { OfferingCompareItem } from "../domain/offering.types";
 import type { PropertyRow } from "../domain/offeringDetail.types";
 import { formatPriceRange } from "@/shared/price";
@@ -75,12 +79,8 @@ function mapToCompareItem(
 
   // Status
   const raw = (row.status ?? "").trim().toUpperCase();
-  const status: "OPEN" | "READY" | "CLOSED" =
-    raw === "OPEN" || raw === "ONGOING"
-      ? "OPEN"
-      : raw === "READY"
-        ? "READY"
-        : "CLOSED";
+  const status: OfferingCompareItem["status"] =
+    normalizeOfferingStatusValue(raw) ?? OFFERING_STATUS_VALUES[2];
 
   // Location
   const locationParts = [

@@ -511,6 +511,36 @@
   },
   {
     "schemaname": "public",
+    "tablename": "community_follows",
+    "policyname": "follows_delete",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "using_expression": "(follower_id = auth.uid())",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "community_follows",
+    "policyname": "follows_insert",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "(follower_id = auth.uid())"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "community_follows",
+    "policyname": "follows_select",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
     "tablename": "community_interests",
     "policyname": "community_interests_delete_own",
     "permissive": "PERMISSIVE",
@@ -777,6 +807,56 @@
     "roles": "{public}",
     "cmd": "UPDATE",
     "using_expression": "(auth.uid() = recipient_id)",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "offering_scraps",
+    "policyname": "offering_scraps_delete_own",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "using_expression": "(auth.uid() = profile_id)",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "offering_scraps",
+    "policyname": "offering_scraps_insert_own",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "INSERT",
+    "using_expression": null,
+    "with_check_expression": "(auth.uid() = profile_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "offering_scraps",
+    "policyname": "offering_scraps_select_own",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "(auth.uid() = profile_id)",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "offering_view_history",
+    "policyname": "offering_view_history_delete_own",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "DELETE",
+    "using_expression": "(auth.uid() = profile_id)",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "offering_view_history",
+    "policyname": "offering_view_history_select_own",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "(auth.uid() = profile_id)",
     "with_check_expression": null
   },
   {
