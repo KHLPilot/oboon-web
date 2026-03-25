@@ -380,6 +380,7 @@ export default function MiniMap(props: MiniMapProps) {
     if (!mapReady) return;
     const map = mapApiRef.current;
     if (!map) return;
+    let retryTimer: number | null = null;
 
     if (initialLocationStatus === "granted" && initialCenter) {
       const locationKey = `${initialCenter.lat.toFixed(6)},${initialCenter.lng.toFixed(6)}`;
@@ -387,8 +388,17 @@ export default function MiniMap(props: MiniMapProps) {
       if (lastViewportKeyRef.current !== viewportKey) {
         lastViewportKeyRef.current = viewportKey;
         map.setView(initialCenter.lat, initialCenter.lng, GPS_FOCUS_ZOOM);
+        retryTimer = window.setTimeout(() => {
+          mapApiRef.current?.setView(
+            initialCenter.lat,
+            initialCenter.lng,
+            GPS_FOCUS_ZOOM,
+          );
+        }, 180);
       }
-      return;
+      return () => {
+        if (retryTimer !== null) window.clearTimeout(retryTimer);
+      };
     }
 
     if (initialLocationStatus === "pending" || initialLocationStatus === "idle") {
@@ -400,6 +410,9 @@ export default function MiniMap(props: MiniMapProps) {
       lastViewportKeyRef.current = viewportKey;
       map.fitToBounds(ALL_KOREA_VIEW_BOUNDS);
     }
+    return () => {
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
+    };
   }, [
     activeSelectedId,
     initialCenter,

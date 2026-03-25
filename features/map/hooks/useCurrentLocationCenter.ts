@@ -47,6 +47,7 @@ export function useCurrentLocationCenter(
     let permissionStatus: PermissionStatus | null = null;
     let watchId: number | null = null;
     let watchTimeoutId: number | null = null;
+    let requestSeq = 0;
 
     const clearWatch = () => {
       if (watchId !== null) {
@@ -82,50 +83,54 @@ export function useCurrentLocationCenter(
       );
     };
 
-    const startWatchFallback = () => {
+    const startLocationRequest = () => {
+      requestSeq += 1;
+      const seq = requestSeq;
       clearWatch();
+
       watchId = navigator.geolocation.watchPosition(
-        resolveSuccess,
+        (position) => {
+          if (!active || seq !== requestSeq) return;
+          resolveSuccess(position);
+        },
         (error) => {
-          if (!active) return;
+          if (!active || seq !== requestSeq) return;
           if (error.code === 1) {
             resolveFailure("denied");
-            return;
           }
-          resolveFailure("unavailable");
         },
         {
           enableHighAccuracy: true,
           maximumAge: 0,
+          timeout: 10_000,
         },
       );
 
       watchTimeoutId = window.setTimeout(() => {
+        if (seq !== requestSeq) return;
         resolveFailure("unavailable");
       }, 12_000);
-    };
 
-    const requestCurrentPosition = () => {
-      clearWatch();
       navigator.geolocation.getCurrentPosition(
-        resolveSuccess,
+        (position) => {
+          if (!active || seq !== requestSeq) return;
+          resolveSuccess(position);
+        },
         (error) => {
-          if (!active) return;
+          if (!active || seq !== requestSeq) return;
           if (error.code === 1) {
             resolveFailure("denied");
-            return;
           }
-          startWatchFallback();
         },
         {
-          enableHighAccuracy: false,
-          maximumAge: 300_000,
-          timeout: 5_000,
+          enableHighAccuracy: true,
+          maximumAge: 60_000,
+          timeout: 8_000,
         },
       );
     };
 
-    requestCurrentPosition();
+    startLocationRequest();
 
     if (navigator.permissions?.query) {
       void navigator.permissions
@@ -141,7 +146,7 @@ export function useCurrentLocationCenter(
                   ? prev
                   : { center: null, status: "pending" },
               );
-              requestCurrentPosition();
+              startLocationRequest();
               return;
             }
             if (status.state === "denied") {

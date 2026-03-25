@@ -9,8 +9,10 @@ import { OFFERING_STATUS_VALUES } from "@/features/offerings/domain/offering.typ
 import type {
   FullCustomerInput,
   FullEvaluationResult,
+  MoveinTiming,
   ValidationAssetType,
   PropertyValidationProfile,
+  PurchaseTiming,
 } from "@/features/condition-validation/domain/types";
 
 type ValidationProfileRow = {
@@ -27,11 +29,44 @@ type PropertyRow = {
   name: string | null;
   status: string | null;
   property_type: string | null;
+  property_timeline:
+    | Array<{
+        announcement_date: string | null;
+        application_start: string | null;
+        application_end: string | null;
+        winner_announce: string | null;
+        contract_start: string | null;
+        contract_end: string | null;
+        move_in_date: string | null;
+        move_in_text?: string | null;
+      }>
+    | {
+        announcement_date: string | null;
+        application_start: string | null;
+        application_end: string | null;
+        winner_announce: string | null;
+        contract_start: string | null;
+        contract_end: string | null;
+        move_in_date: string | null;
+        move_in_text?: string | null;
+      }
+    | null;
   property_unit_types: Array<{
     price_min: number | string | null;
     price_max: number | string | null;
     is_price_public?: boolean | null;
   }> | null;
+};
+
+type PropertyTimelineRow = {
+  announcement_date: string | null;
+  application_start: string | null;
+  application_end: string | null;
+  winner_announce: string | null;
+  contract_start: string | null;
+  contract_end: string | null;
+  move_in_date: string | null;
+  move_in_text?: string | null;
 };
 
 type PropertySnapshotRow = {
@@ -154,6 +189,163 @@ function toPositiveInt(value: unknown): number | null {
   return asInt > 0 ? asInt : null;
 }
 
+const KST_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  timeZone: "Asia/Seoul",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+function parseIsoDateStamp(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    return null;
+  }
+
+  return Date.UTC(year, month - 1, day);
+}
+
+function getTodayKstStamp(now: Date = new Date()): number {
+  const parts = KST_DATE_FORMATTER.formatToParts(now);
+  const year = Number(parts.find((part) => part.type === "year")?.value);
+  const month = Number(parts.find((part) => part.type === "month")?.value);
+  const day = Number(parts.find((part) => part.type === "day")?.value);
+  return Date.UTC(year, month - 1, day);
+}
+
+function addMonthsStamp(stamp: number, months: number): number {
+  const date = new Date(stamp);
+  return Date.UTC(
+    date.getUTCFullYear(),
+    date.getUTCMonth() + months,
+    date.getUTCDate(),
+  );
+}
+
+function addYearsStamp(stamp: number, years: number): number {
+  const date = new Date(stamp);
+  return Date.UTC(
+    date.getUTCFullYear() + years,
+    date.getUTCMonth(),
+    date.getUTCDate(),
+  );
+}
+
+function pickTimelineRow(property: PropertyRow): PropertyTimelineRow | null {
+  if (Array.isArray(property.property_timeline)) {
+    return property.property_timeline[0] ?? null;
+  }
+  return property.property_timeline ?? null;
+}
+
+function isOngoingWindow(
+  startStamp: number | null,
+  endStamp: number | null,
+  todayStamp: number,
+): boolean {
+  if (startStamp === null || todayStamp < startStamp) return false;
+  return endStamp === null || todayStamp <= endStamp;
+}
+
+function resolvePurchaseAvailabilityStamp(
+  timeline: PropertyTimelineRow | null,
+  todayStamp: number,
+): number | null {
+  if (!timeline) return null;
+
+  const applicationStart = parseIsoDateStamp(timeline.application_start);
+  const applicationEnd = parseIsoDateStamp(timeline.application_end);
+  const contractStart = parseIsoDateStamp(timeline.contract_start);
+  const contractEnd = parseIsoDateStamp(timeline.contract_end);
+  const announcementDate = parseIsoDateStamp(timeline.announcement_date);
+
+  if (
+    isOngoingWindow(applicationStart, applicationEnd, todayStamp) ||
+    isOngoingWindow(contractStart, contractEnd, todayStamp)
+  ) {
+    return todayStamp;
+  }
+
+  const nextCandidates = [
+    applicationStart,
+    contractStart,
+    announcementDate,
+  ].filter((value): value is number => value !== null && value >= todayStamp);
+
+  if (nextCandidates.length === 0) return null;
+  return Math.min(...nextCandidates);
+}
+
+function matchesPurchaseTiming(
+  purchaseTiming: PurchaseTiming,
+  timeline: PropertyTimelineRow | null,
+  todayStamp: number,
+): boolean {
+  if (purchaseTiming === "by_property") return true;
+
+  const availabilityStamp = resolvePurchaseAvailabilityStamp(timeline, todayStamp);
+  if (availabilityStamp === null) return false;
+
+  switch (purchaseTiming) {
+    case "within_3months":
+      return availabilityStamp <= addMonthsStamp(todayStamp, 3);
+    case "within_6months":
+      return availabilityStamp <= addMonthsStamp(todayStamp, 6);
+    case "within_1year":
+      return availabilityStamp <= addYearsStamp(todayStamp, 1);
+    case "over_1year":
+      return availabilityStamp > addYearsStamp(todayStamp, 1);
+  }
+}
+
+function matchesMoveinTiming(
+  moveinTiming: MoveinTiming,
+  timeline: PropertyTimelineRow | null,
+  todayStamp: number,
+): boolean {
+  if (moveinTiming === "anytime") return true;
+
+  const moveInStamp = parseIsoDateStamp(timeline?.move_in_date);
+  if (moveInStamp === null) return false;
+
+  switch (moveinTiming) {
+    case "immediate":
+      return moveInStamp <= addMonthsStamp(todayStamp, 3);
+    case "within_1year":
+      return moveInStamp <= addYearsStamp(todayStamp, 1);
+    case "within_2years":
+      return moveInStamp <= addYearsStamp(todayStamp, 2);
+    case "within_3years":
+      return moveInStamp <= addYearsStamp(todayStamp, 3);
+  }
+}
+
+function matchesRecommendationSchedule(
+  property: PropertyRow,
+  customer: FullCustomerInput,
+  todayStamp: number,
+): boolean {
+  if (
+    customer.purchaseTiming === "by_property" &&
+    customer.moveinTiming === "anytime"
+  ) {
+    return true;
+  }
+
+  const timeline = pickTimelineRow(property);
+  return (
+    matchesPurchaseTiming(customer.purchaseTiming, timeline, todayStamp) &&
+    matchesMoveinTiming(customer.moveinTiming, timeline, todayStamp)
+  );
+}
+
 function getCashRule(assetType: ValidationAssetType): {
   minExtraRate: number;
   recommendedExtraRate: number;
@@ -243,7 +435,7 @@ async function loadRecommendationProperties(
     const { data, error } = await adminSupabase
       .from("properties")
       .select(
-        "id, name, status, property_type, property_unit_types(price_min,price_max,is_price_public)",
+        "id, name, status, property_type, property_timeline(announcement_date,application_start,application_end,winner_announce,contract_start,contract_end,move_in_date,move_in_text), property_unit_types(price_min,price_max,is_price_public)",
       )
       .order("id", { ascending: false })
       .range(from, from + chunkSize - 1)
@@ -352,6 +544,7 @@ export async function POST(request: Request) {
       ltvInternalScore: input.ltv_internal_score,
       existingMonthlyRepayment: input.existing_monthly_repayment,
     };
+    const todayStamp = getTodayKstStamp();
 
     const properties = await loadRecommendationProperties(adminSupabase);
     const propertyIds = properties.map((property) => property.id);
@@ -365,6 +558,7 @@ export async function POST(request: Request) {
       .map((property): EvaluatedRecommendation | null => {
         if (excludePropertyId && property.id === excludePropertyId) return null;
         if (normalizeOfferingStatusValue(property.status) === closedStatusValue) return null;
+        if (!matchesRecommendationSchedule(property, customer, todayStamp)) return null;
 
         const profile = resolveProfileForRecommendation({
           property,

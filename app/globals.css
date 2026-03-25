@@ -140,6 +140,7 @@ input[type="password"]::-webkit-contacts-auto-fill-button {
   /* Core surfaces */
   --oboon-bg-default: #0b0c10;
   --oboon-bg-surface: #0f1117;
+  --oboon-bg-surface-frost: rgba(15, 17, 23, 0.9);
   --oboon-bg-page: var(--oboon-bg-default);
   --oboon-bg-subtle: rgba(255, 255, 255, 0.06);
   --oboon-overlay: rgba(0, 0, 0, 0.6);
@@ -268,6 +269,7 @@ input[type="password"]::-webkit-contacts-auto-fill-button {
 
   --oboon-bg-default: #f3f5f9;
   --oboon-bg-surface: #ffffff;
+  --oboon-bg-surface-frost: rgba(255, 255, 255, 0.9);
   --oboon-bg-page: #f3f5f9;
   --oboon-bg-subtle: rgba(15, 23, 42, 0.08);
   --oboon-overlay: rgba(15, 23, 42, 0.35);

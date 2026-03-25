@@ -481,6 +481,7 @@ export default function MapPageClient() {
     if (!mapReady) return;
     const map = mapApiRef.current;
     if (!map) return;
+    let retryTimer: number | null = null;
 
     const isDefaultScope =
       activeRegionTab === "all" && activeSubRegionTab === "all";
@@ -492,8 +493,17 @@ export default function MapPageClient() {
         if (lastViewportKeyRef.current !== viewportKey) {
           lastViewportKeyRef.current = viewportKey;
           map.setView(initialCenter.lat, initialCenter.lng, GPS_FOCUS_ZOOM);
+          retryTimer = window.setTimeout(() => {
+            mapApiRef.current?.setView(
+              initialCenter.lat,
+              initialCenter.lng,
+              GPS_FOCUS_ZOOM,
+            );
+          }, 180);
         }
-        return;
+        return () => {
+          if (retryTimer !== null) window.clearTimeout(retryTimer);
+        };
       }
 
       if (initialLocationStatus === "pending" || initialLocationStatus === "idle") {
@@ -504,7 +514,9 @@ export default function MapPageClient() {
         lastViewportKeyRef.current = "nationwide";
         map.fitToBounds(ALL_KOREA_VIEW_BOUNDS);
       }
-      return;
+      return () => {
+        if (retryTimer !== null) window.clearTimeout(retryTimer);
+      };
     }
 
     const bounds = activeRegionFocusBounds;
@@ -514,6 +526,9 @@ export default function MapPageClient() {
     if (lastViewportKeyRef.current === viewportKey) return;
     lastViewportKeyRef.current = viewportKey;
     map.fitToBounds(bounds);
+    return () => {
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
+    };
   }, [
     activeRegionFocusBounds,
     activeRegionTab,

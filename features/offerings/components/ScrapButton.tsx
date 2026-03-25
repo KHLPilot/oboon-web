@@ -66,7 +66,7 @@ export default function ScrapButton({
       aria-label={scrapped ? "찜 해제" : "찜하기"}
       className={[
         "flex items-center justify-center rounded-full w-8 h-8 transition-colors",
-        "bg-(--oboon-bg-surface)/90 backdrop-blur-sm shadow-sm ring-1 ring-(--oboon-border-default)",
+        "border border-(--oboon-border-default) backdrop-blur-sm shadow-sm",
         scrapped
           ? "text-rose-500"
           : "text-(--oboon-text-muted) hover:text-rose-500",
@@ -74,6 +74,7 @@ export default function ScrapButton({
       ]
         .filter(Boolean)
         .join(" ")}
+      style={{ backgroundColor: "var(--oboon-bg-surface-frost)" }}
     >
       <Heart
         size={16}
