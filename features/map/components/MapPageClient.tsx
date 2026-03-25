@@ -63,7 +63,7 @@ const ALL_KOREA_VIEW_BOUNDS: MapFocusBounds = {
   north: 38.75,
   east: 130.95,
 };
-const GPS_FOCUS_ZOOM = 17;
+const GPS_FOCUS_ZOOM = 12;
 
 const REGION_NAME_MATCHERS: Record<string, string[]> = {
   seoul: ["서울특별시", "서울"],

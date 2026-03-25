@@ -21,7 +21,7 @@ const ALL_KOREA_VIEW_BOUNDS = {
   north: 38.75,
   east: 130.95,
 };
-const GPS_FOCUS_ZOOM = 17;
+const GPS_FOCUS_ZOOM = 12;
 
 export default function FullscreenMapOverlay({
   open,

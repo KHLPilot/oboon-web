@@ -122,22 +122,28 @@ function dotIcon({
       height: ${size}px;
       pointer-events: auto;
       z-index: 10;
-      filter: ${shadow};
+      overflow: visible;
     ">
-      <svg
-        width="${size}"
-        height="${size}"
-        viewBox="0 0 42 42"
-        xmlns="http://www.w3.org/2000/svg"
-        role="img"
-        aria-label="${escapeHtml(type)} marker"
-      >
-        <path
-          d="M21 1C12.2 1 5 8.2 5 17c0 11.6 16 24 16 24s16-12.4 16-24C37 8.2 29.8 1 21 1z"
-          fill="${pinColor}"
-        />
-        <circle cx="21" cy="14" r="5.2" fill="var(--oboon-on-primary)" />
-      </svg>
+      <div style="
+        width: ${size}px;
+        height: ${size}px;
+        filter: ${shadow};
+      ">
+        <svg
+          width="${size}"
+          height="${size}"
+          viewBox="0 0 42 42"
+          xmlns="http://www.w3.org/2000/svg"
+          role="img"
+          aria-label="${escapeHtml(type)} marker"
+        >
+          <path
+            d="M21 1C12.2 1 5 8.2 5 17c0 11.6 16 24 16 24s16-12.4 16-24C37 8.2 29.8 1 21 1z"
+            fill="${pinColor}"
+          />
+          <circle cx="21" cy="14" r="5.2" fill="var(--oboon-on-primary)" />
+        </svg>
+      </div>
       ${
         safeLabel
           ? `<div style="

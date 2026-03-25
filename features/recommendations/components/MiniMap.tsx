@@ -55,7 +55,7 @@ const ALL_KOREA_VIEW_BOUNDS = {
 const PROVINCE_CLUSTER_ZOOM = 9;
 const CITY_CLUSTER_ZOOM = PROVINCE_CLUSTER_ZOOM + 1;
 const DISTRICT_CLUSTER_ZOOM = CITY_CLUSTER_ZOOM + 1;
-const GPS_FOCUS_ZOOM = 17;
+const GPS_FOCUS_ZOOM = 12;
 
 type RegionHierarchy = {
   provinceLabel: string;

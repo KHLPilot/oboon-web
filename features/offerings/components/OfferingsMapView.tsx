@@ -40,7 +40,7 @@ const ALL_KOREA_VIEW_BOUNDS: MapFocusBounds = {
   north: 38.75,
   east: 130.95,
 };
-const GPS_FOCUS_ZOOM = 17;
+const GPS_FOCUS_ZOOM = 12;
 const STATUS_OPEN = OFFERING_STATUS_VALUES[1];
 
 const SEOUL_BOUNDARY_KEY_BY_LABEL: Record<string, string> = {

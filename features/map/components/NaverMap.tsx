@@ -85,7 +85,7 @@ function setMapCenter(map: NaverMapInstance, latLng: naver.maps.LatLng) {
 }
 
 const REGION_CLUSTER_ZOOM_THRESHOLD = 10;
-const GPS_FOCUS_ZOOM = 17;
+const GPS_FOCUS_ZOOM = 12;
 const MERCATOR_TILE_SIZE = 256;
 
 type RgbaColor = { r: number; g: number; b: number; a: number };
