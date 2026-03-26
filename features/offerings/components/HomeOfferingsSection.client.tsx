@@ -30,7 +30,6 @@ import {
   type ConditionSessionSnapshot,
 } from "@/features/condition-validation/lib/sessionCondition";
 import type { ConditionCategoryGrades } from "@/features/condition-validation/domain/types";
-import type { ParsedCustomerInput } from "@/features/condition-validation/domain/validation";
 import OfferingCard from "@/features/offerings/components/OfferingCard";
 import { OfferingCardSkeleton } from "@/features/offerings/components/OfferingCardSkeleton";
 import { OFFERING_REGION_TABS } from "@/features/offerings/domain/offering.constants";
@@ -101,6 +100,44 @@ type ConditionValidationRequestRow = {
   owned_house_count: number;
   credit_grade: "good" | "normal" | "unstable";
   purchase_purpose: "residence" | "investment" | "both";
+  input_payload?: unknown;
+};
+
+type HomeRecommendationCustomerPayload = {
+  available_cash: number;
+  monthly_income: number;
+  monthly_expenses: number;
+  employment_type: EmploymentType;
+  house_ownership: "none" | "one" | "two_or_more";
+  purchase_purpose_v2: FullPurchasePurpose;
+  purchase_timing: PurchaseTiming;
+  movein_timing: MoveinTiming;
+  ltv_internal_score: number;
+  existing_monthly_repayment: MonthlyLoanRepayment;
+};
+
+type HomeConditionDraft = {
+  snapshot?: ConditionSessionSnapshot;
+  customer?: unknown;
+  saved_at?: string;
+};
+
+type SavedConditionPresetState = {
+  available_cash: number | null;
+  monthly_income: number | null;
+  monthly_expenses: number | null;
+  employment_type: EmploymentType | null;
+  house_ownership: "none" | "one" | "two_or_more" | null;
+  purchase_purpose_v2: FullPurchasePurpose | null;
+  purchase_timing: PurchaseTiming | null;
+  movein_timing: MoveinTiming | null;
+  ltv_internal_score: number;
+  existing_loan_amount: ExistingLoanAmount | null;
+  recent_delinquency: DelinquencyCount | null;
+  card_loan_usage: CardLoanUsage | null;
+  loan_rejection: LoanRejection | null;
+  monthly_income_range: MonthlyIncomeRange | null;
+  existing_monthly_repayment: MonthlyLoanRepayment;
 };
 
 const HOME_OFFERING_LIMIT = 3;
@@ -165,6 +202,13 @@ const HOME_OWNERSHIP_MAX_SCORE = 10;
 const HOME_PURPOSE_MAX_SCORE = 5;
 const HOME_TIMING_MAX_SCORE = 10;
 
+const DEFAULT_EMPLOYMENT_TYPE: EmploymentType = "employee";
+const DEFAULT_HOUSE_OWNERSHIP: "none" | "one" | "two_or_more" = "none";
+const DEFAULT_PURCHASE_PURPOSE_V2: FullPurchasePurpose = "residence";
+const DEFAULT_PURCHASE_TIMING: PurchaseTiming = "over_1year";
+const DEFAULT_MOVEIN_TIMING: MoveinTiming = "anytime";
+const DEFAULT_EXISTING_MONTHLY_REPAYMENT: MonthlyLoanRepayment = "none";
+
 
 function formatNumericInput(value: string): string {
   const digitsOnly = value.replace(/[^\d]/g, "");
@@ -180,14 +224,175 @@ function parseNullableNumericInput(value: string): number | null {
   return parsed;
 }
 
-function isValidCreditGrade(value: unknown): value is "good" | "normal" | "unstable" {
-  return value === "good" || value === "normal" || value === "unstable";
+function isValidEmploymentType(value: unknown): value is EmploymentType {
+  return (
+    value === "employee" ||
+    value === "self_employed" ||
+    value === "freelancer" ||
+    value === "other"
+  );
 }
 
-function isValidPurchasePurpose(
+function isValidHouseOwnership(
   value: unknown,
-): value is "residence" | "investment" | "both" {
-  return value === "residence" || value === "investment" || value === "both";
+): value is "none" | "one" | "two_or_more" {
+  return value === "none" || value === "one" || value === "two_or_more";
+}
+
+function isValidFullPurchasePurpose(value: unknown): value is FullPurchasePurpose {
+  return (
+    value === "residence" ||
+    value === "investment_rent" ||
+    value === "investment_capital" ||
+    value === "long_term"
+  );
+}
+
+function isValidPurchaseTiming(value: unknown): value is PurchaseTiming {
+  return (
+    value === "by_property" ||
+    value === "over_1year" ||
+    value === "within_1year" ||
+    value === "within_6months" ||
+    value === "within_3months"
+  );
+}
+
+function isValidMoveinTiming(value: unknown): value is MoveinTiming {
+  return (
+    value === "anytime" ||
+    value === "within_3years" ||
+    value === "within_2years" ||
+    value === "within_1year" ||
+    value === "immediate"
+  );
+}
+
+function isValidMonthlyLoanRepayment(value: unknown): value is MonthlyLoanRepayment {
+  return (
+    value === "none" ||
+    value === "under_50" ||
+    value === "50to100" ||
+    value === "100to200" ||
+    value === "over_200"
+  );
+}
+
+function toUnknownRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function toNonNegativeInt(value: unknown): number | null {
+  const parsed = toFiniteNumber(value);
+  if (parsed === null || parsed < 0) return null;
+  return Math.round(parsed);
+}
+
+function houseOwnershipFromOwnedHouseCount(
+  value: unknown,
+): "none" | "one" | "two_or_more" | null {
+  const count = toNonNegativeInt(value);
+  if (count === null) return null;
+  if (count >= 2) return "two_or_more";
+  if (count === 1) return "one";
+  return "none";
+}
+
+function ownedHouseCountFromHouseOwnership(
+  value: "none" | "one" | "two_or_more",
+): number {
+  if (value === "two_or_more") return 2;
+  if (value === "one") return 1;
+  return 0;
+}
+
+function creditGradeFromLtvInternalScore(
+  score: number,
+): "good" | "normal" | "unstable" {
+  if (score >= 70) return "good";
+  if (score >= 40) return "normal";
+  return "unstable";
+}
+
+function ltvInternalScoreFromCreditGrade(value: unknown): number | null {
+  if (value === "good") return 80;
+  if (value === "normal") return 55;
+  if (value === "unstable") return 20;
+  return null;
+}
+
+function purchasePurposeV2FromLegacy(value: unknown): FullPurchasePurpose | null {
+  if (value === "residence") return "residence";
+  if (value === "investment") return "investment_capital";
+  if (value === "both") return "long_term";
+  return null;
+}
+
+function legacyPurchasePurposeFromV2(
+  value: FullPurchasePurpose,
+): "residence" | "investment" | "both" {
+  if (value === "long_term") return "both";
+  if (value === "investment_rent" || value === "investment_capital") {
+    return "investment";
+  }
+  return "residence";
+}
+
+function formatStoredAmount(value: number): string {
+  return Math.max(0, Math.round(value)).toLocaleString("ko-KR");
+}
+
+function buildCustomerPayloadFromRaw(
+  raw: Record<string, unknown> | null,
+): HomeRecommendationCustomerPayload | null {
+  if (!raw) return null;
+
+  const availableCash = toNonNegativeInt(raw.available_cash);
+  const monthlyIncome = toNonNegativeInt(raw.monthly_income);
+  if (availableCash === null || monthlyIncome === null) {
+    return null;
+  }
+
+  const houseOwnership =
+    isValidHouseOwnership(raw.house_ownership)
+      ? raw.house_ownership
+      : houseOwnershipFromOwnedHouseCount(raw.owned_house_count) ?? DEFAULT_HOUSE_OWNERSHIP;
+  const purchasePurposeV2 =
+    isValidFullPurchasePurpose(raw.purchase_purpose_v2)
+      ? raw.purchase_purpose_v2
+      : purchasePurposeV2FromLegacy(raw.purchase_purpose) ?? DEFAULT_PURCHASE_PURPOSE_V2;
+  const ltvInternalScore =
+    Math.min(
+      100,
+      Math.max(
+        0,
+        toNonNegativeInt(raw.ltv_internal_score) ??
+          ltvInternalScoreFromCreditGrade(raw.credit_grade) ??
+          0,
+      ),
+    );
+
+  return {
+    available_cash: availableCash,
+    monthly_income: monthlyIncome,
+    monthly_expenses: toNonNegativeInt(raw.monthly_expenses) ?? 0,
+    employment_type: isValidEmploymentType(raw.employment_type)
+      ? raw.employment_type
+      : DEFAULT_EMPLOYMENT_TYPE,
+    house_ownership: houseOwnership,
+    purchase_purpose_v2: purchasePurposeV2,
+    purchase_timing: isValidPurchaseTiming(raw.purchase_timing)
+      ? raw.purchase_timing
+      : DEFAULT_PURCHASE_TIMING,
+    movein_timing: isValidMoveinTiming(raw.movein_timing)
+      ? raw.movein_timing
+      : DEFAULT_MOVEIN_TIMING,
+    ltv_internal_score: ltvInternalScore,
+    existing_monthly_repayment: isValidMonthlyLoanRepayment(raw.existing_monthly_repayment)
+      ? raw.existing_monthly_repayment
+      : DEFAULT_EXISTING_MONTHLY_REPAYMENT,
+  };
 }
 
 function buildCustomerFromSavedRow(
@@ -195,91 +400,100 @@ function buildCustomerFromSavedRow(
     | ConditionValidationRequestRow
     | ConditionValidationProfilePresetRow
     | null,
-): ParsedCustomerInput | null {
+): HomeRecommendationCustomerPayload | null {
   if (!source) return null;
 
-  const availableCash =
-    "available_cash_manwon" in source
-      ? source.available_cash_manwon
-      : source.cv_available_cash_manwon;
-  const monthlyIncome =
-    "monthly_income_manwon" in source
-      ? source.monthly_income_manwon
-      : source.cv_monthly_income_manwon;
-  const ownedHouseCount =
-    "owned_house_count" in source
-      ? source.owned_house_count
-      : source.cv_owned_house_count;
-  const creditGrade =
-    "credit_grade" in source ? source.credit_grade : source.cv_credit_grade;
-  const purchasePurpose =
-    "purchase_purpose" in source
-      ? source.purchase_purpose
-      : source.cv_purchase_purpose;
+  if ("available_cash_manwon" in source) {
+    const payloadRecord = toUnknownRecord(source.input_payload);
+    const payloadCustomer = buildCustomerPayloadFromRaw(
+      toUnknownRecord(payloadRecord?.customer),
+    );
+    if (payloadCustomer) return payloadCustomer;
 
-  if (
-    availableCash === null ||
-    monthlyIncome === null ||
-    ownedHouseCount === null ||
-    !isValidCreditGrade(creditGrade) ||
-    !isValidPurchasePurpose(purchasePurpose)
-  ) {
-    return null;
+    return buildCustomerPayloadFromRaw({
+      available_cash: source.available_cash_manwon,
+      monthly_income: source.monthly_income_manwon,
+      owned_house_count: source.owned_house_count,
+      credit_grade: source.credit_grade,
+      purchase_purpose: source.purchase_purpose,
+    });
   }
 
-  return {
-    available_cash: Math.max(0, Math.round(Number(availableCash) || 0)),
-    monthly_income: Math.max(0, Math.round(Number(monthlyIncome) || 0)),
-    owned_house_count: Math.max(0, Math.round(Number(ownedHouseCount) || 0)),
-    credit_grade: creditGrade,
-    purchase_purpose: purchasePurpose,
-  };
+  return buildCustomerPayloadFromRaw({
+    available_cash: source.cv_available_cash_manwon,
+    monthly_income: source.cv_monthly_income_manwon,
+    monthly_expenses: source.cv_monthly_expenses_manwon,
+    employment_type: source.cv_employment_type,
+    house_ownership:
+      source.cv_house_ownership ?? houseOwnershipFromOwnedHouseCount(source.cv_owned_house_count),
+    purchase_purpose_v2:
+      source.cv_purchase_purpose_v2 ?? purchasePurposeV2FromLegacy(source.cv_purchase_purpose),
+    purchase_timing: source.cv_purchase_timing,
+    movein_timing: source.cv_movein_timing,
+    ltv_internal_score:
+      source.cv_ltv_internal_score ?? ltvInternalScoreFromCreditGrade(source.cv_credit_grade),
+    existing_monthly_repayment: source.cv_existing_monthly_repayment,
+  });
 }
 
 function buildCustomerFromSessionSnapshot(
   snapshot: ConditionSessionSnapshot | null,
-): ParsedCustomerInput | null {
+): HomeRecommendationCustomerPayload | null {
   if (!snapshot) return null;
 
   const availableCash = parseNullableNumericInput(snapshot.availableCash);
   const monthlyIncome = parseNullableNumericInput(snapshot.monthlyIncome);
-  if (
-    availableCash === null ||
-    monthlyIncome === null ||
-    snapshot.houseOwnership === null ||
-    snapshot.purchasePurposeV2 === null
-  ) {
+  if (availableCash === null || monthlyIncome === null) {
     return null;
   }
-
-  const ownedHouseCount =
-    snapshot.houseOwnership === "one"
-      ? 1
-      : snapshot.houseOwnership === "two_or_more"
-        ? 2
-        : 0;
-
-  const creditGrade: "good" | "normal" | "unstable" =
-    snapshot.ltvInternalScore >= 70
-      ? "good"
-      : snapshot.ltvInternalScore >= 40
-        ? "normal"
-        : "unstable";
-
-  const purchasePurpose: "residence" | "investment" | "both" =
-    snapshot.purchasePurposeV2 === "long_term"
-      ? "both"
-      : snapshot.purchasePurposeV2 === "investment_rent" ||
-          snapshot.purchasePurposeV2 === "investment_capital"
-        ? "investment"
-        : "residence";
 
   return {
     available_cash: Math.max(0, Math.round(availableCash)),
     monthly_income: Math.max(0, Math.round(monthlyIncome)),
-    owned_house_count: ownedHouseCount,
-    credit_grade: creditGrade,
-    purchase_purpose: purchasePurpose,
+    monthly_expenses: parseNullableNumericInput(snapshot.monthlyExpenses) ?? 0,
+    employment_type: snapshot.employmentType ?? DEFAULT_EMPLOYMENT_TYPE,
+    house_ownership: snapshot.houseOwnership ?? DEFAULT_HOUSE_OWNERSHIP,
+    purchase_purpose_v2: snapshot.purchasePurposeV2 ?? DEFAULT_PURCHASE_PURPOSE_V2,
+    purchase_timing: snapshot.purchaseTiming ?? DEFAULT_PURCHASE_TIMING,
+    movein_timing: snapshot.moveinTiming ?? DEFAULT_MOVEIN_TIMING,
+    ltv_internal_score: Math.min(100, Math.max(0, snapshot.ltvInternalScore)),
+    existing_monthly_repayment:
+      snapshot.existingMonthlyRepayment ?? DEFAULT_EXISTING_MONTHLY_REPAYMENT,
+  };
+}
+
+function buildSavedConditionPresetSnapshot(
+  profileData: ConditionValidationProfilePresetRow,
+  customer: HomeRecommendationCustomerPayload,
+): SavedConditionPresetState {
+  const effectiveHouseOwnership =
+    profileData.cv_house_ownership ??
+    houseOwnershipFromOwnedHouseCount(profileData.cv_owned_house_count);
+  const effectivePurposeV2 =
+    profileData.cv_purchase_purpose_v2 ??
+    purchasePurposeV2FromLegacy(profileData.cv_purchase_purpose);
+  const effectiveLtvScore =
+    profileData.cv_ltv_internal_score ??
+    ltvInternalScoreFromCreditGrade(profileData.cv_credit_grade) ??
+    0;
+
+  return {
+    available_cash: customer.available_cash,
+    monthly_income: customer.monthly_income,
+    monthly_expenses: profileData.cv_monthly_expenses_manwon ?? null,
+    employment_type: profileData.cv_employment_type ?? null,
+    house_ownership: effectiveHouseOwnership,
+    purchase_purpose_v2: effectivePurposeV2,
+    purchase_timing: profileData.cv_purchase_timing ?? null,
+    movein_timing: profileData.cv_movein_timing ?? null,
+    ltv_internal_score: Math.min(100, Math.max(0, effectiveLtvScore)),
+    existing_loan_amount: profileData.cv_existing_loan_amount ?? null,
+    recent_delinquency: profileData.cv_recent_delinquency ?? null,
+    card_loan_usage: profileData.cv_card_loan_usage ?? null,
+    loan_rejection: profileData.cv_loan_rejection ?? null,
+    monthly_income_range: profileData.cv_monthly_income_range ?? null,
+    existing_monthly_repayment:
+      profileData.cv_existing_monthly_repayment ?? DEFAULT_EXISTING_MONTHLY_REPAYMENT,
   };
 }
 
@@ -478,23 +692,8 @@ export default function HomeOfferingsSection() {
   const [homeUserId, setHomeUserId] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
   const [hasSavedConditionPreset, setHasSavedConditionPreset] = useState(false);
-  const [savedConditionPreset, setSavedConditionPreset] = useState<{
-    available_cash: number | null;
-    monthly_income: number | null;
-    monthly_expenses: number | null;
-    employment_type: EmploymentType | null;
-    house_ownership: "none" | "one" | "two_or_more" | null;
-    purchase_purpose_v2: FullPurchasePurpose | null;
-    purchase_timing: PurchaseTiming | null;
-    movein_timing: MoveinTiming | null;
-    ltv_internal_score: number;
-    existing_loan_amount: ExistingLoanAmount | null;
-    recent_delinquency: DelinquencyCount | null;
-    card_loan_usage: CardLoanUsage | null;
-    loan_rejection: LoanRejection | null;
-    monthly_income_range: MonthlyIncomeRange | null;
-    existing_monthly_repayment: MonthlyLoanRepayment;
-  } | null>(null);
+  const [savedConditionPreset, setSavedConditionPreset] =
+    useState<SavedConditionPresetState | null>(null);
   const [scrapedPropertyIds, setScrapedPropertyIds] = useState<Set<number>>(new Set());
   const availableCashPreview = useMemo(() => {
     const parsed = parseNullableNumericInput(availableCash);
@@ -766,7 +965,8 @@ export default function HomeOfferingsSection() {
     return `/offerings?region=${encodeURIComponent(effectiveSelectedRegion)}`;
   }, [effectiveSelectedRegion]);
 
-  const parseCustomerInputFromState = useCallback((): ParsedCustomerInput | null => {
+  const parseCustomerInputFromState =
+    useCallback((): HomeRecommendationCustomerPayload | null => {
     const parsedCash = parseNullableNumericInput(availableCash);
     if (parsedCash === null) {
       setConditionError("가용 현금은 만원 단위 정수로 입력해주세요.");
@@ -778,30 +978,32 @@ export default function HomeOfferingsSection() {
       return null;
     }
 
-    // Derive creditGrade from ltvInternalScore
-    const derivedCreditGrade: "good" | "normal" | "unstable" =
-      ltvInternalScore >= 70 ? "good" : ltvInternalScore >= 40 ? "normal" : "unstable";
-
-    // Map houseOwnership to count
-    const derivedOwnedHouseCount =
-      houseOwnership === "one" ? 1 : houseOwnership === "two_or_more" ? 2 : 0;
-
-    // Map purchasePurposeV2 to old format
-    const derivedPurchasePurpose: "residence" | "investment" | "both" =
-      purchasePurposeV2 === "long_term"
-        ? "both"
-        : purchasePurposeV2 === "investment_rent" || purchasePurposeV2 === "investment_capital"
-          ? "investment"
-          : "residence";
+    const parsedExpenses = parseNullableNumericInput(monthlyExpenses);
 
     return {
       available_cash: Math.max(0, Math.round(parsedCash)),
       monthly_income: Math.max(0, Math.round(parsedIncome)),
-      owned_house_count: derivedOwnedHouseCount,
-      credit_grade: derivedCreditGrade,
-      purchase_purpose: derivedPurchasePurpose,
+      monthly_expenses: parsedExpenses === null ? 0 : Math.max(0, Math.round(parsedExpenses)),
+      employment_type: employmentType ?? DEFAULT_EMPLOYMENT_TYPE,
+      house_ownership: houseOwnership ?? DEFAULT_HOUSE_OWNERSHIP,
+      purchase_purpose_v2: purchasePurposeV2 ?? DEFAULT_PURCHASE_PURPOSE_V2,
+      purchase_timing: purchaseTiming ?? DEFAULT_PURCHASE_TIMING,
+      movein_timing: moveinTiming ?? DEFAULT_MOVEIN_TIMING,
+      ltv_internal_score: Math.min(100, Math.max(0, Math.round(ltvInternalScore))),
+      existing_monthly_repayment: existingMonthlyRepayment,
     };
-  }, [availableCash, houseOwnership, ltvInternalScore, monthlyIncome, purchasePurposeV2]);
+  }, [
+    availableCash,
+    employmentType,
+    existingMonthlyRepayment,
+    houseOwnership,
+    ltvInternalScore,
+    monthlyExpenses,
+    monthlyIncome,
+    moveinTiming,
+    purchasePurposeV2,
+    purchaseTiming,
+  ]);
 
   const applySessionCondition = useCallback((snapshot: ConditionSessionSnapshot) => {
     setAvailableCash(snapshot.availableCash);
@@ -821,8 +1023,100 @@ export default function HomeOfferingsSection() {
     setExistingMonthlyRepayment(snapshot.existingMonthlyRepayment);
   }, []);
 
+  const applyCustomerStateFromRaw = useCallback((raw: Record<string, unknown>) => {
+    const availableCash = toNonNegativeInt(raw.available_cash);
+    const monthlyIncome = toNonNegativeInt(raw.monthly_income);
+    const monthlyExpensesValue = toNonNegativeInt(raw.monthly_expenses);
+    const derivedHouseOwnership =
+      isValidHouseOwnership(raw.house_ownership)
+        ? raw.house_ownership
+        : houseOwnershipFromOwnedHouseCount(raw.owned_house_count);
+    const derivedPurpose =
+      isValidFullPurchasePurpose(raw.purchase_purpose_v2)
+        ? raw.purchase_purpose_v2
+        : purchasePurposeV2FromLegacy(raw.purchase_purpose);
+    const derivedLtvScore =
+      toNonNegativeInt(raw.ltv_internal_score) ??
+      ltvInternalScoreFromCreditGrade(raw.credit_grade) ??
+      0;
+
+    setAvailableCash(availableCash === null ? "" : formatStoredAmount(availableCash));
+    setMonthlyIncome(monthlyIncome === null ? "" : formatStoredAmount(monthlyIncome));
+    setMonthlyExpenses(
+      monthlyExpensesValue === null ? "" : formatStoredAmount(monthlyExpensesValue),
+    );
+    setEmploymentType(
+      isValidEmploymentType(raw.employment_type) ? raw.employment_type : null,
+    );
+    setHouseOwnership(derivedHouseOwnership);
+    setPurchasePurposeV2(derivedPurpose);
+    setPurchaseTiming(
+      isValidPurchaseTiming(raw.purchase_timing) ? raw.purchase_timing : null,
+    );
+    setMoveinTiming(isValidMoveinTiming(raw.movein_timing) ? raw.movein_timing : null);
+    setLtvInternalScore(Math.min(100, Math.max(0, derivedLtvScore)));
+    setExistingLoan(null);
+    setRecentDelinquency(null);
+    setCardLoanUsage(null);
+    setLoanRejection(null);
+    setMonthlyIncomeRange(null);
+    setExistingMonthlyRepayment(
+      isValidMonthlyLoanRepayment(raw.existing_monthly_repayment)
+        ? raw.existing_monthly_repayment
+        : DEFAULT_EXISTING_MONTHLY_REPAYMENT,
+    );
+  }, []);
+
+  const applyProfileConditionPreset = useCallback(
+    (
+      profileData: ConditionValidationProfilePresetRow,
+      customer: HomeRecommendationCustomerPayload,
+    ) => {
+      const effectiveHouseOwnership =
+        profileData.cv_house_ownership ??
+        houseOwnershipFromOwnedHouseCount(profileData.cv_owned_house_count);
+      const effectivePurposeV2 =
+        profileData.cv_purchase_purpose_v2 ??
+        purchasePurposeV2FromLegacy(profileData.cv_purchase_purpose);
+      const effectiveLtvScore =
+        profileData.cv_ltv_internal_score ??
+        ltvInternalScoreFromCreditGrade(profileData.cv_credit_grade) ??
+        0;
+
+      setAvailableCash(formatStoredAmount(customer.available_cash));
+      setMonthlyIncome(formatStoredAmount(customer.monthly_income));
+      setMonthlyExpenses(
+        profileData.cv_monthly_expenses_manwon == null
+          ? ""
+          : formatStoredAmount(profileData.cv_monthly_expenses_manwon),
+      );
+      setEmploymentType(profileData.cv_employment_type ?? null);
+      setHouseOwnership(effectiveHouseOwnership);
+      setPurchasePurposeV2(effectivePurposeV2);
+      setPurchaseTiming(profileData.cv_purchase_timing ?? null);
+      setMoveinTiming(profileData.cv_movein_timing ?? null);
+      setLtvInternalScore(Math.min(100, Math.max(0, effectiveLtvScore)));
+      setExistingLoan(profileData.cv_existing_loan_amount ?? null);
+      setRecentDelinquency(profileData.cv_recent_delinquency ?? null);
+      setCardLoanUsage(profileData.cv_card_loan_usage ?? null);
+      setLoanRejection(profileData.cv_loan_rejection ?? null);
+      setMonthlyIncomeRange(profileData.cv_monthly_income_range ?? null);
+      setExistingMonthlyRepayment(
+        profileData.cv_existing_monthly_repayment ?? DEFAULT_EXISTING_MONTHLY_REPAYMENT,
+      );
+
+      setSavedConditionPreset(
+        buildSavedConditionPresetSnapshot(profileData, customer),
+      );
+    },
+    [],
+  );
+
   const applyRecommendationByCustomer = useCallback(
-    async (customer: ParsedCustomerInput, options?: { closeModal?: boolean }) => {
+    async (
+      customer: HomeRecommendationCustomerPayload,
+      options?: { closeModal?: boolean },
+    ) => {
       setConditionError(null);
       setConditionNotice(null);
       setConditionApplyLoading(true);
@@ -895,22 +1189,37 @@ export default function HomeOfferingsSection() {
         setRecommendedRawById(nextRaw);
         setShowConditionSetupCard(false);
         const summaryParts: string[] = [];
-        const empOpt = EMPLOYMENT_TYPE_OPTIONS.find(o => o.value === employmentType);
+        const empOpt = EMPLOYMENT_TYPE_OPTIONS.find(
+          (option) => option.value === customer.employment_type,
+        );
         if (empOpt) summaryParts.push(empOpt.label);
-        const parsedCash = parseNullableNumericInput(availableCash);
-        if (parsedCash && parsedCash > 0) summaryParts.push(`현금 ${parsedCash.toLocaleString("ko-KR")}만원`);
-        const parsedIncome = parseNullableNumericInput(monthlyIncome);
-        if (parsedIncome && parsedIncome > 0) summaryParts.push(`소득 ${parsedIncome.toLocaleString("ko-KR")}만원`);
-        const parsedExpenses = parseNullableNumericInput(monthlyExpenses);
-        if (parsedExpenses && parsedExpenses > 0) summaryParts.push(`지출 ${parsedExpenses.toLocaleString("ko-KR")}만원`);
-        if (ltvInternalScore > 0) summaryParts.push(`신용 ${ltvInternalScore}점`);
-        const houseOpt = HOUSE_OWNERSHIP_OPTIONS.find(o => o.value === houseOwnership);
+        if (customer.available_cash > 0) {
+          summaryParts.push(`현금 ${customer.available_cash.toLocaleString("ko-KR")}만원`);
+        }
+        if (customer.monthly_income > 0) {
+          summaryParts.push(`소득 ${customer.monthly_income.toLocaleString("ko-KR")}만원`);
+        }
+        if (customer.monthly_expenses > 0) {
+          summaryParts.push(`지출 ${customer.monthly_expenses.toLocaleString("ko-KR")}만원`);
+        }
+        if (customer.ltv_internal_score > 0) {
+          summaryParts.push(`신용 ${customer.ltv_internal_score}점`);
+        }
+        const houseOpt = HOUSE_OWNERSHIP_OPTIONS.find(
+          (option) => option.value === customer.house_ownership,
+        );
         if (houseOpt) summaryParts.push(houseOpt.label);
-        const purposeOpt = PURPOSE_V2_OPTIONS.find(o => o.value === purchasePurposeV2);
+        const purposeOpt = PURPOSE_V2_OPTIONS.find(
+          (option) => option.value === customer.purchase_purpose_v2,
+        );
         if (purposeOpt) summaryParts.push(purposeOpt.label);
-        const timingOpt = PURCHASE_TIMING_OPTIONS.find(o => o.value === purchaseTiming);
+        const timingOpt = PURCHASE_TIMING_OPTIONS.find(
+          (option) => option.value === customer.purchase_timing,
+        );
         if (timingOpt) summaryParts.push(timingOpt.label);
-        const moveinOpt = MOVEIN_TIMING_OPTIONS.find(o => o.value === moveinTiming);
+        const moveinOpt = MOVEIN_TIMING_OPTIONS.find(
+          (option) => option.value === customer.movein_timing,
+        );
         if (moveinOpt) summaryParts.push(moveinOpt.label);
         setAppliedCustomerSummary(summaryParts.length > 0 ? summaryParts.join(" · ") : null);
         if (options?.closeModal !== false) {
@@ -922,7 +1231,7 @@ export default function HomeOfferingsSection() {
         setConditionApplyLoading(false);
       }
     },
-    [availableCash, employmentType, houseOwnership, ltvInternalScore, monthlyExpenses, monthlyIncome, moveinTiming, purchasePurposeV2, purchaseTiming],
+    [],
   );
 
   // ref 패턴: 최신 콜백을 ref로 유지 → 로딩 useEffect의 deps에서 제거 가능
@@ -946,7 +1255,24 @@ export default function HomeOfferingsSection() {
     if (!customer) return;
 
     try {
-      const payload = {
+      const payload: HomeConditionDraft = {
+        snapshot: {
+          availableCash,
+          monthlyIncome,
+          monthlyExpenses,
+          employmentType,
+          houseOwnership,
+          purchasePurposeV2,
+          purchaseTiming,
+          moveinTiming,
+          ltvInternalScore,
+          existingLoan,
+          recentDelinquency,
+          cardLoanUsage,
+          loanRejection,
+          monthlyIncomeRange,
+          existingMonthlyRepayment,
+        },
         customer,
         saved_at: new Date().toISOString(),
       };
@@ -956,7 +1282,25 @@ export default function HomeOfferingsSection() {
     }
 
     router.push("/login?next=/");
-  }, [parseCustomerInputFromState, router]);
+  }, [
+    availableCash,
+    cardLoanUsage,
+    employmentType,
+    existingLoan,
+    existingMonthlyRepayment,
+    houseOwnership,
+    loanRejection,
+    ltvInternalScore,
+    monthlyExpenses,
+    monthlyIncome,
+    monthlyIncomeRange,
+    moveinTiming,
+    parseCustomerInputFromState,
+    purchasePurposeV2,
+    purchaseTiming,
+    recentDelinquency,
+    router,
+  ]);
 
   const handleSaveConditionPreset = useCallback(async () => {
     setConditionError(null);
@@ -972,9 +1316,9 @@ export default function HomeOfferingsSection() {
         .update({
           cv_available_cash_manwon: customer.available_cash,
           cv_monthly_income_manwon: customer.monthly_income,
-          cv_owned_house_count: customer.owned_house_count,
-          cv_credit_grade: customer.credit_grade,
-          cv_purchase_purpose: customer.purchase_purpose,
+          cv_owned_house_count: ownedHouseCountFromHouseOwnership(customer.house_ownership),
+          cv_credit_grade: creditGradeFromLtvInternalScore(customer.ltv_internal_score),
+          cv_purchase_purpose: legacyPurchasePurposeFromV2(customer.purchase_purpose_v2),
           // New v2 fields
           cv_employment_type: employmentType,
           cv_monthly_expenses_manwon: parsedExpenses !== null ? Math.max(0, Math.round(parsedExpenses)) : null,
@@ -1058,6 +1402,7 @@ export default function HomeOfferingsSection() {
         setHomeUserId(null);
         setIsLoggedIn(false);
         setHasSavedConditionPreset(false);
+        setSavedConditionPreset(null);
         // 비로그인: 세션 임시 저장값 복원
         try {
           const snapshot = loadConditionSession();
@@ -1094,42 +1439,34 @@ export default function HomeOfferingsSection() {
         );
       }
 
-      let draftCustomer: ParsedCustomerInput | null = null;
+      let draftCustomer: HomeRecommendationCustomerPayload | null = null;
+      let draftSnapshot: ConditionSessionSnapshot | null = null;
+      let draftCustomerRaw: Record<string, unknown> | null = null;
       try {
         const rawDraft = localStorage.getItem("oboon:home-condition-draft");
         if (rawDraft) {
-          const parsedDraft = JSON.parse(rawDraft) as {
-            customer?: ParsedCustomerInput;
-          };
-          if (parsedDraft?.customer) {
-            const draft = parsedDraft.customer;
-            if (
-              Number.isFinite(Number(draft.available_cash)) &&
-              Number.isFinite(Number(draft.monthly_income)) &&
-              Number.isFinite(Number(draft.owned_house_count)) &&
-              isValidCreditGrade(draft.credit_grade) &&
-              isValidPurchasePurpose(draft.purchase_purpose)
-            ) {
-              draftCustomer = {
-                available_cash: Math.max(0, Math.round(Number(draft.available_cash) || 0)),
-                monthly_income: Math.max(0, Math.round(Number(draft.monthly_income) || 0)),
-                owned_house_count: Math.max(
-                  0,
-                  Math.round(Number(draft.owned_house_count) || 0),
-                ),
-                credit_grade: draft.credit_grade,
-                purchase_purpose: draft.purchase_purpose,
-              };
-            }
+          const parsedDraft = JSON.parse(rawDraft) as HomeConditionDraft;
+          if (parsedDraft?.snapshot) {
+            draftSnapshot = parsedDraft.snapshot;
+            draftCustomer = buildCustomerFromSessionSnapshot(parsedDraft.snapshot);
+          }
+          if (!draftCustomer && parsedDraft?.customer) {
+            draftCustomerRaw = toUnknownRecord(parsedDraft.customer);
+            draftCustomer = buildCustomerPayloadFromRaw(draftCustomerRaw);
           }
         }
       } catch {
         draftCustomer = null;
+        draftSnapshot = null;
+        draftCustomerRaw = null;
       }
 
       if (draftCustomer) {
-        setAvailableCash(draftCustomer.available_cash.toLocaleString("ko-KR"));
-        setMonthlyIncome(draftCustomer.monthly_income.toLocaleString("ko-KR"));
+        if (draftSnapshot) {
+          applySessionCondition(draftSnapshot);
+        } else if (draftCustomerRaw) {
+          applyCustomerStateFromRaw(draftCustomerRaw);
+        }
         setShowConditionSetupCard(false);
         await applyRecommendationRef.current(draftCustomer, { closeModal: false });
         try {
@@ -1144,7 +1481,7 @@ export default function HomeOfferingsSection() {
         supabase
           .from("condition_validation_requests")
           .select(
-            "id, available_cash_manwon, monthly_income_manwon, owned_house_count, credit_grade, purchase_purpose",
+            "id, available_cash_manwon, monthly_income_manwon, owned_house_count, credit_grade, purchase_purpose, input_payload",
           )
           .eq("customer_id", user.id)
           .order("requested_at", { ascending: false })
@@ -1163,15 +1500,30 @@ export default function HomeOfferingsSection() {
         (profileResult.data ?? null) as ConditionValidationProfilePresetRow | null,
       );
       setHasSavedConditionPreset(Boolean(presetCustomer));
+      const profileData = profileResult.data as ConditionValidationProfilePresetRow | null;
+      if (profileData && presetCustomer) {
+        setSavedConditionPreset(
+          buildSavedConditionPresetSnapshot(profileData, presetCustomer),
+        );
+      } else {
+        setSavedConditionPreset(null);
+      }
 
       if (requestResult.error) {
         console.error("[home condition request] load error:", requestResult.error);
       } else {
         const latest = (requestResult.data?.[0] ?? null) as ConditionValidationRequestRow | null;
         const latestCustomer = latest ? buildCustomerFromSavedRow(latest) : null;
-        if (latestCustomer) {
-          setAvailableCash(latestCustomer.available_cash.toLocaleString("ko-KR"));
-          setMonthlyIncome(latestCustomer.monthly_income.toLocaleString("ko-KR"));
+        if (latest && latestCustomer) {
+          const requestPayload = toUnknownRecord(latest.input_payload);
+          const requestCustomer = toUnknownRecord(requestPayload?.customer) ?? {
+            available_cash: latest.available_cash_manwon,
+            monthly_income: latest.monthly_income_manwon,
+            owned_house_count: latest.owned_house_count,
+            credit_grade: latest.credit_grade,
+            purchase_purpose: latest.purchase_purpose,
+          };
+          applyCustomerStateFromRaw(requestCustomer);
           setShowConditionSetupCard(false);
           await applyRecommendationRef.current(latestCustomer, { closeModal: false });
           return;
@@ -1208,46 +1560,8 @@ export default function HomeOfferingsSection() {
         return;
       }
 
-      setAvailableCash(presetCustomer.available_cash.toLocaleString("ko-KR"));
-      setMonthlyIncome(presetCustomer.monthly_income.toLocaleString("ko-KR"));
-      const profileData = profileResult.data as ConditionValidationProfilePresetRow | null;
       if (profileData) {
-        if (profileData.cv_employment_type) setEmploymentType(profileData.cv_employment_type);
-        if (profileData.cv_monthly_expenses_manwon !== null && profileData.cv_monthly_expenses_manwon !== undefined) {
-          setMonthlyExpenses(profileData.cv_monthly_expenses_manwon.toLocaleString("ko-KR"));
-        }
-        if (profileData.cv_house_ownership) setHouseOwnership(profileData.cv_house_ownership);
-        if (profileData.cv_purchase_purpose_v2) setPurchasePurposeV2(profileData.cv_purchase_purpose_v2);
-        if (profileData.cv_purchase_timing) setPurchaseTiming(profileData.cv_purchase_timing);
-        if (profileData.cv_movein_timing) setMoveinTiming(profileData.cv_movein_timing);
-        if (profileData.cv_ltv_internal_score !== null && profileData.cv_ltv_internal_score !== undefined) {
-          setLtvInternalScore(profileData.cv_ltv_internal_score);
-        }
-        if (profileData.cv_existing_loan_amount) setExistingLoan(profileData.cv_existing_loan_amount);
-        if (profileData.cv_recent_delinquency) setRecentDelinquency(profileData.cv_recent_delinquency);
-        if (profileData.cv_card_loan_usage) setCardLoanUsage(profileData.cv_card_loan_usage);
-        if (profileData.cv_loan_rejection) setLoanRejection(profileData.cv_loan_rejection);
-        if (profileData.cv_monthly_income_range) setMonthlyIncomeRange(profileData.cv_monthly_income_range);
-        if (profileData.cv_existing_monthly_repayment) setExistingMonthlyRepayment(profileData.cv_existing_monthly_repayment);
-
-        // 저장된 조건 스냅샷 초기화 (dirty 감지 기준값)
-        setSavedConditionPreset({
-          available_cash: presetCustomer.available_cash,
-          monthly_income: presetCustomer.monthly_income,
-          monthly_expenses: profileData.cv_monthly_expenses_manwon ?? null,
-          employment_type: profileData.cv_employment_type ?? null,
-          house_ownership: profileData.cv_house_ownership ?? null,
-          purchase_purpose_v2: profileData.cv_purchase_purpose_v2 ?? null,
-          purchase_timing: profileData.cv_purchase_timing ?? null,
-          movein_timing: profileData.cv_movein_timing ?? null,
-          ltv_internal_score: profileData.cv_ltv_internal_score ?? 0,
-          existing_loan_amount: profileData.cv_existing_loan_amount ?? null,
-          recent_delinquency: profileData.cv_recent_delinquency ?? null,
-          card_loan_usage: profileData.cv_card_loan_usage ?? null,
-          loan_rejection: profileData.cv_loan_rejection ?? null,
-          monthly_income_range: profileData.cv_monthly_income_range ?? null,
-          existing_monthly_repayment: profileData.cv_existing_monthly_repayment ?? "none",
-        });
+        applyProfileConditionPreset(profileData, presetCustomer);
       }
       setShowConditionSetupCard(false);
       await applyRecommendationRef.current(presetCustomer, { closeModal: false });
@@ -1258,7 +1572,7 @@ export default function HomeOfferingsSection() {
     };
   // applyRecommendationRef는 항상 최신 콜백을 참조하므로 deps에서 제외
   // → 유저가 필드를 수정해도 이 effect가 재실행되지 않음
-  }, [applySessionCondition, supabase]);
+  }, [applyCustomerStateFromRaw, applyProfileConditionPreset, applySessionCondition, supabase]);
 
   return (
     <>

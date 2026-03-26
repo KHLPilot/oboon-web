@@ -29,6 +29,9 @@ export default function FullscreenMapOverlay({
   markers,
   initialCenter = null,
   initialLocationStatus = "idle",
+  regionClusterEnabled = false,
+  regionClusterZoomThreshold,
+  clusterZoomDelta,
   filtersSlot,
   hoveredId,
   focusedId,
@@ -42,6 +45,9 @@ export default function FullscreenMapOverlay({
   markers: MapMarker[];
   initialCenter?: GeoLocationCenter | null;
   initialLocationStatus?: GeoLocationStatus;
+  regionClusterEnabled?: boolean;
+  regionClusterZoomThreshold?: number;
+  clusterZoomDelta?: number;
 
   filtersSlot?: React.ReactNode;
 
@@ -171,6 +177,9 @@ export default function FullscreenMapOverlay({
               markers={markers}
               initialCenter={initialCenter}
               initialLocationStatus={initialLocationStatus}
+              regionClusterEnabled={regionClusterEnabled}
+              regionClusterZoomThreshold={regionClusterZoomThreshold}
+              clusterZoomDelta={clusterZoomDelta}
               hoveredId={hoveredId}
               focusedId={focusedId}
               showFocusedAsRich

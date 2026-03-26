@@ -13,12 +13,15 @@ type RecommendationConditionPanelProps = {
   condition: RecommendationCondition;
   mode: RecommendationMode;
   isLoggedIn?: boolean;
+  hasSavedConditionPreset?: boolean;
+  isConditionDirty?: boolean;
   errorMessage?: string | null;
   isLoading?: boolean;
   isSaving?: boolean;
   onChange: (patch: Partial<RecommendationCondition>) => void;
   onEvaluate: (override?: RecommendationCondition) => void | Promise<boolean>;
   onSave?: () => void | Promise<boolean>;
+  onLoginAndSave?: () => void | Promise<void>;
   onModeChange: (mode: RecommendationMode) => void;
 };
 
@@ -29,12 +32,15 @@ export default function RecommendationConditionPanel(
     condition,
     mode,
     isLoggedIn = true,
+    hasSavedConditionPreset = false,
+    isConditionDirty = false,
     errorMessage = null,
     isLoading = false,
     isSaving = false,
     onChange,
     onEvaluate,
     onSave,
+    onLoginAndSave,
     onModeChange,
   } = props;
 
@@ -78,9 +84,13 @@ export default function RecommendationConditionPanel(
       {mode === "input" ? (
         <ConditionBar
           condition={condition}
+          isLoggedIn={isLoggedIn}
+          hasSavedConditionPreset={hasSavedConditionPreset}
+          isConditionDirty={isConditionDirty}
           onChange={onChange}
           onEvaluate={onEvaluate}
           onSave={isLoggedIn ? onSave : undefined}
+          onLoginAndSave={isLoggedIn ? undefined : onLoginAndSave}
           isLoading={isLoading}
           isSaving={isSaving}
         />

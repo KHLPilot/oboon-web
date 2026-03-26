@@ -288,7 +288,10 @@ export default function RecommendationsPage() {
     updateCondition,
     evaluate,
     saveCondition,
+    loginAndSaveCondition,
     isSavingCondition,
+    hasSavedConditionPreset,
+    isConditionDirty,
     setSelectedId,
   } = useRecommendations();
 
@@ -518,12 +521,15 @@ export default function RecommendationsPage() {
               condition={condition}
               mode={mode}
               isLoggedIn={isLoggedIn}
+              hasSavedConditionPreset={hasSavedConditionPreset}
+              isConditionDirty={isConditionDirty}
               errorMessage={activeError}
               isLoading={isEvaluating}
               isSaving={isSavingCondition}
               onChange={updateCondition}
               onEvaluate={handleEvaluate}
               onSave={saveCondition}
+              onLoginAndSave={loginAndSaveCondition}
               onModeChange={changeMode}
             />
 
@@ -638,11 +644,14 @@ export default function RecommendationsPage() {
                   condition={condition}
                   mode={mode}
                   isLoggedIn={isLoggedIn}
+                  hasSavedConditionPreset={hasSavedConditionPreset}
+                  isConditionDirty={isConditionDirty}
                   isLoading={isEvaluating}
                   isSaving={isSavingCondition}
                   onChange={updateCondition}
                   onEvaluate={handleEvaluate}
                   onSave={saveCondition}
+                  onLoginAndSave={loginAndSaveCondition}
                   onModeChange={changeMode}
                 />
               </div>

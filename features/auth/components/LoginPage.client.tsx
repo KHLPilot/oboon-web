@@ -25,10 +25,17 @@ import RestoreAccountModal from "./RestoreAccountModal";
 
 type LoginField = "email" | "password" | "generic";
 
+function resolveSafeNextPath(value: string | null): string | null {
+  if (!value) return null;
+  if (!value.startsWith("/") || value.startsWith("//")) return null;
+  return value;
+}
+
 export default function LoginPage() {
   const supabase = createSupabaseClient();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const nextPath = resolveSafeNextPath(searchParams.get("next"));
   const lastInvalidToastAtRef = useRef(0);
 
   const cardWrapRef = useRef<HTMLDivElement | null>(null);
@@ -257,7 +264,7 @@ export default function LoginPage() {
           .update({ role: "agent" })
           .eq("id", data.user.id);
 
-        router.replace("/");
+        router.replace(nextPath ?? "/");
         router.refresh();
         return;
       }
@@ -268,7 +275,7 @@ export default function LoginPage() {
       if (isMissingInfo) {
         router.replace("/auth/onboarding");
       } else {
-        router.replace("/");
+        router.replace(nextPath ?? "/");
         router.refresh();
       }
     } catch (err: unknown) {

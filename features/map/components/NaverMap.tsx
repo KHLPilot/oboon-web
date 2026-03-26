@@ -26,6 +26,9 @@ export interface MapMarker {
   clusterRegion?: string | null;
   clusterGroupKey?: string | null;
   clusterGroupLabel?: string | null;
+  clusterProvinceLabel?: string | null;
+  clusterCityLabel?: string | null;
+  clusterDistrictLabel?: string | null;
   topLabel?: string | null;
   mainLabel?: string | null;
   imageUrl?: string | null;
@@ -87,6 +90,9 @@ function setMapCenter(map: NaverMapInstance, latLng: naver.maps.LatLng) {
 const REGION_CLUSTER_ZOOM_THRESHOLD = 10;
 const GPS_FOCUS_ZOOM = 12;
 const MERCATOR_TILE_SIZE = 256;
+const PROVINCE_CLUSTER_ZOOM = 9;
+const CITY_CLUSTER_ZOOM = PROVINCE_CLUSTER_ZOOM + 1;
+const DISTRICT_CLUSTER_ZOOM = CITY_CLUSTER_ZOOM + 1;
 
 type RgbaColor = { r: number; g: number; b: number; a: number };
 
@@ -839,6 +845,8 @@ const NaverMap = forwardRef<
     }
 
     function buildRegionClusterMarkers(input: MapMarker[]): MapMarker[] {
+      const map = mapRef.current;
+      const currentZoom = map?.getZoom() ?? regionClusterZoomThresholdRef.current;
       const groups = new Map<
         string,
         {
@@ -851,16 +859,95 @@ const NaverMap = forwardRef<
       >();
       const unclustered: MapMarker[] = [];
 
+      function getHierarchyDescriptor(
+        marker: MapMarker,
+      ): { key: string; label: string } | null {
+        const provinceLabel =
+          marker.clusterProvinceLabel ??
+          normalizeRegionLabel(marker.clusterRegion ?? marker.topLabel);
+        const cityLabel = marker.clusterCityLabel?.trim() || null;
+        const districtLabel = marker.clusterDistrictLabel?.trim() || null;
+
+        if (currentZoom <= PROVINCE_CLUSTER_ZOOM) {
+          return {
+            key: `province:${provinceLabel}`,
+            label: provinceLabel,
+          };
+        }
+
+        if (currentZoom <= CITY_CLUSTER_ZOOM) {
+          if (cityLabel) {
+            return {
+              key: `province:${provinceLabel}|city:${cityLabel}`,
+              label: cityLabel,
+            };
+          }
+          if (districtLabel) {
+            return {
+              key: `province:${provinceLabel}|district:${districtLabel}`,
+              label: districtLabel,
+            };
+          }
+          return {
+            key: `province:${provinceLabel}`,
+            label: provinceLabel,
+          };
+        }
+
+        if (currentZoom <= DISTRICT_CLUSTER_ZOOM) {
+          if (cityLabel && districtLabel) {
+            return {
+              key: `province:${provinceLabel}|city:${cityLabel}|district:${districtLabel}`,
+              label: districtLabel,
+            };
+          }
+          if (districtLabel) {
+            return {
+              key: `province:${provinceLabel}|district:${districtLabel}`,
+              label: districtLabel,
+            };
+          }
+          if (cityLabel) {
+            return {
+              key: `province:${provinceLabel}|city:${cityLabel}`,
+              label: cityLabel,
+            };
+          }
+          return {
+            key: `province:${provinceLabel}`,
+            label: provinceLabel,
+          };
+        }
+
+        return null;
+      }
+
       input.forEach((m) => {
-        if (m.clusterRegion === null) {
+        const hasHierarchyClusterLabels = Boolean(
+          m.clusterProvinceLabel || m.clusterCityLabel || m.clusterDistrictLabel,
+        );
+        if (!hasHierarchyClusterLabels && m.clusterRegion === null) {
           unclustered.push(m);
           return;
         }
 
-        const key =
-          m.clusterGroupKey ?? normalizeRegionLabel(m.clusterRegion ?? m.topLabel);
-        const label =
-          m.clusterGroupLabel ?? normalizeRegionLabel(m.clusterRegion ?? m.topLabel);
+        const descriptor = hasHierarchyClusterLabels
+          ? getHierarchyDescriptor(m)
+          : {
+              key:
+                m.clusterGroupKey ??
+                normalizeRegionLabel(m.clusterRegion ?? m.topLabel),
+              label:
+                m.clusterGroupLabel ??
+                normalizeRegionLabel(m.clusterRegion ?? m.topLabel),
+            };
+        if (!descriptor) {
+          unclustered.push(m);
+          return;
+        }
+
+        const key = descriptor.key;
+        const label = descriptor.label;
         const acc = groups.get(key);
         if (!acc) {
           groups.set(key, {

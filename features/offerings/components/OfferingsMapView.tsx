@@ -41,6 +41,7 @@ const ALL_KOREA_VIEW_BOUNDS: MapFocusBounds = {
   east: 130.95,
 };
 const GPS_FOCUS_ZOOM = 12;
+const REGION_CLUSTER_ZOOM_THRESHOLD = 16;
 const STATUS_OPEN = OFFERING_STATUS_VALUES[1];
 
 const SEOUL_BOUNDARY_KEY_BY_LABEL: Record<string, string> = {
@@ -135,26 +136,125 @@ function computeBoundsFromMarkers(markers: MapMarker[]): MapFocusBounds | null {
   };
 }
 
+type RegionHierarchy = {
+  provinceLabel: string;
+  cityLabel: string | null;
+  districtLabel: string | null;
+  displayLabel: string;
+};
+
+function normalizeProvinceLabel(value: string | null | undefined) {
+  const raw = (value ?? "").trim();
+  if (!raw) return "기타";
+  if (raw.includes("서울")) return "서울";
+  if (raw.includes("경기")) return "경기";
+  if (raw.includes("인천")) return "인천";
+  if (raw.includes("부산")) return "부산";
+  if (raw.includes("대구")) return "대구";
+  if (raw.includes("대전")) return "대전";
+  if (raw.includes("광주")) return "광주";
+  if (raw.includes("울산")) return "울산";
+  if (raw.includes("세종")) return "세종";
+  if (raw.includes("강원")) return "강원";
+  if (raw.includes("충청북")) return "충북";
+  if (raw.includes("충청남")) return "충남";
+  if (raw.includes("충북")) return "충북";
+  if (raw.includes("충남")) return "충남";
+  if (raw.includes("전라북")) return "전북";
+  if (raw.includes("전라남")) return "전남";
+  if (raw.includes("전북")) return "전북";
+  if (raw.includes("전남")) return "전남";
+  if (raw.includes("경상북")) return "경북";
+  if (raw.includes("경상남")) return "경남";
+  if (raw.includes("경북")) return "경북";
+  if (raw.includes("경남")) return "경남";
+  if (raw.includes("제주")) return "제주";
+  return (
+    raw
+      .replace(
+        /특별자치시|특별자치도|특별시|광역시|자치시|자치도|도/g,
+        "",
+      )
+      .trim() || raw
+  );
+}
+
+function splitRegionHierarchy(value: string | null | undefined) {
+  const raw = (value ?? "").trim();
+  if (!raw) {
+    return { cityLabel: null, districtLabel: null };
+  }
+
+  const parts = raw.split(/\s+/).filter(Boolean);
+  let cityLabel: string | null = null;
+  let districtLabel: string | null = null;
+
+  for (const part of parts) {
+    if (cityLabel === null && /[시군]$/.test(part)) {
+      cityLabel = part;
+    }
+    if (/[구군]$/.test(part)) {
+      districtLabel = part;
+    }
+  }
+
+  if (parts.length === 1) {
+    const only = parts[0];
+    if (/[시군]$/.test(only)) {
+      cityLabel = only;
+    }
+    if (/[구군]$/.test(only)) {
+      districtLabel = only;
+    }
+  }
+
+  return { cityLabel, districtLabel };
+}
+
+function buildRegionHierarchy(offering: MappedOffering): RegionHierarchy {
+  const provinceLabel = normalizeProvinceLabel(
+    offering.regionLabel ?? offering.region ?? offering.addressFull,
+  );
+  const { cityLabel, districtLabel } = splitRegionHierarchy(
+    offering.addressFull ?? offering.addressShort ?? offering.regionLabel,
+  );
+  const displayLabel = districtLabel ?? cityLabel ?? provinceLabel;
+
+  return {
+    provinceLabel,
+    cityLabel,
+    districtLabel,
+    displayLabel,
+  };
+}
+
 function toMapMarkers(offerings: MappedOffering[]): MapMarker[] {
-  return offerings.map((offering) => ({
-    id: Number(offering.id),
-    type: "all",
-    label: offering.title,
-    lat: offering.lat,
-    lng: offering.lng,
-    topLabel: offering.regionLabel ?? offering.region ?? UXCopy.regionShort,
-    propertyType: offering.propertyType ?? null,
-    mainLabel: formatPriceRange(offering.priceMin억, offering.priceMax억, {
-      unknownLabel: offering.isPricePrivate
-        ? UXCopy.pricePrivateShort
-        : UXCopy.priceRangeShort,
-    }),
-    address: offering.addressShort,
-    imageUrl: offering.imageUrl ?? null,
-    ctaLabel: offering.status,
-    canConsult:
-      normalizeOfferingStatusValue(offering.statusValue) === STATUS_OPEN,
-  }));
+  return offerings.map((offering) => {
+    const hierarchy = buildRegionHierarchy(offering);
+
+    return {
+      id: Number(offering.id),
+      type: "all",
+      label: offering.title,
+      lat: offering.lat,
+      lng: offering.lng,
+      topLabel: hierarchy.displayLabel,
+      propertyType: offering.propertyType ?? null,
+      mainLabel: formatPriceRange(offering.priceMin억, offering.priceMax억, {
+        unknownLabel: offering.isPricePrivate
+          ? UXCopy.pricePrivateShort
+          : UXCopy.priceRangeShort,
+      }),
+      address: offering.addressShort,
+      imageUrl: offering.imageUrl ?? null,
+      ctaLabel: offering.status,
+      canConsult:
+        normalizeOfferingStatusValue(offering.statusValue) === STATUS_OPEN,
+      clusterProvinceLabel: hierarchy.provinceLabel,
+      clusterCityLabel: hierarchy.cityLabel,
+      clusterDistrictLabel: hierarchy.districtLabel,
+    };
+  });
 }
 
 export default function OfferingsMapView({
@@ -277,8 +377,6 @@ export default function OfferingsMapView({
       activeRegionFocusPolygons,
     ],
   );
-  const shouldUseRegionCluster = activeBoundaryRegionKey === "all";
-
   useEffect(() => {
     if (activeBoundaryRegionKey === "all") return;
     if (regionBoundaryByKey[activeBoundaryRegionKey]) return;
@@ -394,7 +492,9 @@ export default function OfferingsMapView({
                 initialCenter={initialCenter}
                 initialLocationStatus={initialLocationStatus}
                 initialZoom={11}
-                regionClusterEnabled={shouldUseRegionCluster}
+                regionClusterEnabled
+                regionClusterZoomThreshold={REGION_CLUSTER_ZOOM_THRESHOLD}
+                clusterZoomDelta={1}
                 showFocusedAsRich
                 focusedMarkerViewType="hero"
                 focusBounds={hasActiveRegionBoundary ? activeRegionFocusBounds : null}
@@ -456,6 +556,9 @@ export default function OfferingsMapView({
         markers={markers}
         initialCenter={initialCenter}
         initialLocationStatus={initialLocationStatus}
+        regionClusterEnabled
+        regionClusterZoomThreshold={REGION_CLUSTER_ZOOM_THRESHOLD}
+        clusterZoomDelta={1}
         hoveredId={hoveredId}
         focusedId={activeFocusedId}
         onHoverChange={setHoveredId}

@@ -19,9 +19,13 @@ import { OFFERING_REGION_TABS, type OfferingRegionTab } from "@/features/offerin
 
 type ConditionBarProps = {
   condition: RecommendationCondition;
+  isLoggedIn?: boolean;
+  hasSavedConditionPreset?: boolean;
+  isConditionDirty?: boolean;
   onChange: (patch: Partial<RecommendationCondition>) => void;
   onEvaluate: (override?: RecommendationCondition) => void | Promise<boolean>;
   onSave?: () => void | Promise<boolean>;
+  onLoginAndSave?: () => void | Promise<void>;
   isLoading?: boolean;
   isSaving?: boolean;
 };
@@ -154,7 +158,18 @@ function NumberField(props: {
 }
 
 export default function ConditionBar(props: ConditionBarProps) {
-  const { condition, onChange, onEvaluate, onSave, isLoading = false, isSaving = false } = props;
+  const {
+    condition,
+    isLoggedIn = true,
+    hasSavedConditionPreset = false,
+    isConditionDirty = false,
+    onChange,
+    onEvaluate,
+    onSave,
+    onLoginAndSave,
+    isLoading = false,
+    isSaving = false,
+  } = props;
   const [ltvModalOpen, setLtvModalOpen] = useState(false);
   const toast = useToast();
 
@@ -303,7 +318,18 @@ export default function ConditionBar(props: ConditionBarProps) {
         >
           초기화
         </Button>
-        {onSave && (
+        {isLoggedIn === false && onLoginAndSave ? (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            shape="pill"
+            className="h-8 px-4 shrink-0"
+            onClick={() => void onLoginAndSave()}
+          >
+            로그인하고 조건 저장하기
+          </Button>
+        ) : isLoggedIn && !hasSavedConditionPreset && onSave ? (
           <Button
             type="button"
             variant="secondary"
@@ -316,7 +342,20 @@ export default function ConditionBar(props: ConditionBarProps) {
           >
             조건 저장하기
           </Button>
-        )}
+        ) : isLoggedIn && hasSavedConditionPreset && isConditionDirty && onSave ? (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            shape="pill"
+            className="h-8 px-4 shrink-0"
+            loading={isSaving}
+            disabled={!isReadyToEvaluate}
+            onClick={() => void handleSave()}
+          >
+            조건 업데이트
+          </Button>
+        ) : null}
         <Button
           variant="primary"
           size="sm"

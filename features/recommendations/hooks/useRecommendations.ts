@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type {
@@ -170,6 +171,29 @@ type OfferingMeta = {
   regionSigungu: string | null;
 };
 
+type RecommendationProfilePresetRow = {
+  cv_available_cash_manwon?: number | null;
+  cv_monthly_income_manwon?: number | null;
+  cv_employment_type?: RecommendationCondition["employmentType"];
+  cv_monthly_expenses_manwon?: number | null;
+  cv_house_ownership?: RecommendationCondition["houseOwnership"];
+  cv_purchase_purpose_v2?: RecommendationCondition["purchasePurposeV2"];
+  cv_purchase_timing?: RecommendationCondition["purchaseTiming"];
+  cv_movein_timing?: RecommendationCondition["moveinTiming"];
+  cv_ltv_internal_score?: number | null;
+  cv_existing_loan_amount?: RecommendationCondition["existingLoan"];
+  cv_recent_delinquency?: RecommendationCondition["recentDelinquency"];
+  cv_card_loan_usage?: RecommendationCondition["cardLoanUsage"];
+  cv_loan_rejection?: RecommendationCondition["loanRejection"];
+  cv_monthly_income_range?: RecommendationCondition["monthlyIncomeRange"];
+  cv_existing_monthly_repayment?: RecommendationCondition["existingMonthlyRepayment"];
+} | null;
+
+type RecommendationConditionDraft = {
+  snapshot?: ConditionSessionSnapshot;
+  saved_at?: string;
+};
+
 const DEFAULT_CONDITION: RecommendationCondition = {
   availableCash: 0,
   monthlyIncome: 0,
@@ -210,6 +234,8 @@ const SIMULATOR_MONTHLY_INCOME_STEPS = [
   ...Array.from({ length: 8 }, (_, index) => 1_500 + index * 500),
   ...Array.from({ length: 5 }, (_, index) => 6_000 + index * 1_000),
 ];
+const RECOMMENDATION_CONDITION_DRAFT_STORAGE_KEY =
+  "oboon:recommendations-condition-draft";
 
 function toFiniteNumber(value: unknown): number | null {
   if (typeof value === "number") {
@@ -348,6 +374,107 @@ function hasStoredProfileCondition(profile: {
       (profile.cv_existing_monthly_repayment &&
         profile.cv_existing_monthly_repayment !== "none"),
   );
+}
+
+function conditionFromProfile(
+  profile: RecommendationProfilePresetRow,
+  prev: RecommendationCondition,
+): RecommendationCondition {
+  if (!profile) return prev;
+
+  return normalizeInputCondition({
+    ...prev,
+    availableCash:
+      profile.cv_available_cash_manwon != null
+        ? Number(profile.cv_available_cash_manwon)
+        : prev.availableCash,
+    monthlyIncome:
+      profile.cv_monthly_income_manwon != null
+        ? Number(profile.cv_monthly_income_manwon)
+        : prev.monthlyIncome,
+    employmentType: profile.cv_employment_type ?? prev.employmentType,
+    monthlyExpenses:
+      profile.cv_monthly_expenses_manwon != null
+        ? Number(profile.cv_monthly_expenses_manwon)
+        : prev.monthlyExpenses,
+    houseOwnership: profile.cv_house_ownership ?? prev.houseOwnership,
+    purchasePurposeV2: profile.cv_purchase_purpose_v2 ?? prev.purchasePurposeV2,
+    purchaseTiming: profile.cv_purchase_timing ?? prev.purchaseTiming,
+    moveinTiming: profile.cv_movein_timing ?? prev.moveinTiming,
+    ltvInternalScore:
+      profile.cv_ltv_internal_score != null
+        ? Number(profile.cv_ltv_internal_score)
+        : prev.ltvInternalScore,
+    existingLoan: profile.cv_existing_loan_amount ?? prev.existingLoan,
+    recentDelinquency: profile.cv_recent_delinquency ?? prev.recentDelinquency,
+    cardLoanUsage: profile.cv_card_loan_usage ?? prev.cardLoanUsage,
+    loanRejection: profile.cv_loan_rejection ?? prev.loanRejection,
+    monthlyIncomeRange: profile.cv_monthly_income_range ?? prev.monthlyIncomeRange,
+    existingMonthlyRepayment:
+      profile.cv_existing_monthly_repayment ?? prev.existingMonthlyRepayment,
+    regions: prev.regions,
+  });
+}
+
+function buildSavedConditionBaseline(
+  condition: RecommendationCondition,
+): RecommendationCondition {
+  return normalizeInputCondition({
+    ...DEFAULT_CONDITION,
+    ...condition,
+    regions: [],
+  });
+}
+
+function isSameSavedCondition(
+  current: RecommendationCondition,
+  saved: RecommendationCondition | null,
+): boolean {
+  if (!saved) return false;
+
+  return (
+    current.availableCash === saved.availableCash &&
+    current.monthlyIncome === saved.monthlyIncome &&
+    current.monthlyExpenses === saved.monthlyExpenses &&
+    current.employmentType === saved.employmentType &&
+    current.houseOwnership === saved.houseOwnership &&
+    current.purchasePurposeV2 === saved.purchasePurposeV2 &&
+    current.purchaseTiming === saved.purchaseTiming &&
+    current.moveinTiming === saved.moveinTiming &&
+    current.ltvInternalScore === saved.ltvInternalScore &&
+    current.existingLoan === saved.existingLoan &&
+    current.recentDelinquency === saved.recentDelinquency &&
+    current.cardLoanUsage === saved.cardLoanUsage &&
+    current.loanRejection === saved.loanRejection &&
+    current.monthlyIncomeRange === saved.monthlyIncomeRange &&
+    current.existingMonthlyRepayment === saved.existingMonthlyRepayment
+  );
+}
+
+function loadRecommendationConditionDraft(): ConditionSessionSnapshot | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = window.localStorage.getItem(
+      RECOMMENDATION_CONDITION_DRAFT_STORAGE_KEY,
+    );
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as RecommendationConditionDraft;
+    return parsed.snapshot ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function clearRecommendationConditionDraft(): void {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.removeItem(RECOMMENDATION_CONDITION_DRAFT_STORAGE_KEY);
+  } catch {
+    // ignore storage cleanup failure
+  }
 }
 
 function snapSimulatorAvailableCash(value: number): number {
@@ -726,6 +853,7 @@ function mergeRecommendationItem(
 }
 
 export function useRecommendations() {
+  const router = useRouter();
   const supabase = useMemo(() => createSupabaseClient(), []);
   const requestSeqRef = useRef(0);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -748,6 +876,9 @@ export function useRecommendations() {
   const [requestError, setRequestError] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isSavingCondition, setIsSavingCondition] = useState(false);
+  const [hasSavedConditionPreset, setHasSavedConditionPreset] = useState(false);
+  const [savedConditionPreset, setSavedConditionPreset] =
+    useState<RecommendationCondition | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -785,6 +916,8 @@ export function useRecommendations() {
       const loggedIn = Boolean(authResult.data.user);
       setIsLoggedIn(loggedIn);
       if (!loggedIn) {
+        setHasSavedConditionPreset(false);
+        setSavedConditionPreset(null);
         const sessionSnapshot = loadConditionSession();
         if (active && sessionSnapshot) {
           setCondition((prev) =>
@@ -821,72 +954,48 @@ export function useRecommendations() {
         }
 
         if (active && profile) {
-          const p = profile as unknown as {
-            cv_available_cash_manwon?: number | null;
-            cv_monthly_income_manwon?: number | null;
-            cv_employment_type?: RecommendationCondition["employmentType"];
-            cv_monthly_expenses_manwon?: number | null;
-            cv_house_ownership?: RecommendationCondition["houseOwnership"];
-            cv_purchase_purpose_v2?: RecommendationCondition["purchasePurposeV2"];
-            cv_purchase_timing?: RecommendationCondition["purchaseTiming"];
-            cv_movein_timing?: RecommendationCondition["moveinTiming"];
-            cv_ltv_internal_score?: number | null;
-            cv_existing_loan_amount?: RecommendationCondition["existingLoan"];
-            cv_recent_delinquency?: RecommendationCondition["recentDelinquency"];
-            cv_card_loan_usage?: RecommendationCondition["cardLoanUsage"];
-            cv_loan_rejection?: RecommendationCondition["loanRejection"];
-            cv_monthly_income_range?: RecommendationCondition["monthlyIncomeRange"];
-            cv_existing_monthly_repayment?: RecommendationCondition["existingMonthlyRepayment"];
-          };
+          const p = profile as unknown as RecommendationProfilePresetRow;
           const sessionSnapshot = loadConditionSession();
+          const draftSnapshot = loadRecommendationConditionDraft();
           const useProfile = hasStoredProfileCondition(p);
+          setHasSavedConditionPreset(useProfile);
 
           setCondition((prev) => {
             const next = useProfile
-              ? {
-                  ...prev,
-                  availableCash:
-                    p.cv_available_cash_manwon != null
-                      ? Number(p.cv_available_cash_manwon)
-                      : prev.availableCash,
-                  monthlyIncome:
-                    p.cv_monthly_income_manwon != null
-                      ? Number(p.cv_monthly_income_manwon)
-                      : prev.monthlyIncome,
-                  employmentType: p.cv_employment_type ?? prev.employmentType,
-                  monthlyExpenses:
-                    p.cv_monthly_expenses_manwon != null
-                      ? Number(p.cv_monthly_expenses_manwon)
-                      : prev.monthlyExpenses,
-                  houseOwnership: p.cv_house_ownership ?? prev.houseOwnership,
-                  purchasePurposeV2: p.cv_purchase_purpose_v2 ?? prev.purchasePurposeV2,
-                  purchaseTiming: p.cv_purchase_timing ?? prev.purchaseTiming,
-                  moveinTiming: p.cv_movein_timing ?? prev.moveinTiming,
-                  ltvInternalScore:
-                    p.cv_ltv_internal_score != null
-                      ? Number(p.cv_ltv_internal_score)
-                      : prev.ltvInternalScore,
-                  existingLoan: p.cv_existing_loan_amount ?? prev.existingLoan,
-                  recentDelinquency:
-                    p.cv_recent_delinquency ?? prev.recentDelinquency,
-                  cardLoanUsage: p.cv_card_loan_usage ?? prev.cardLoanUsage,
-                  loanRejection: p.cv_loan_rejection ?? prev.loanRejection,
-                  monthlyIncomeRange:
-                    p.cv_monthly_income_range ?? prev.monthlyIncomeRange,
-                  existingMonthlyRepayment:
-                    p.cv_existing_monthly_repayment ??
-                    prev.existingMonthlyRepayment,
-                  regions: prev.regions,
-                }
+              ? conditionFromProfile(p, prev)
+              : draftSnapshot
+                ? normalizeInputCondition(conditionFromSession(draftSnapshot, prev))
               : sessionSnapshot
                 ? conditionFromSession(sessionSnapshot, prev)
                 : prev;
 
             return normalizeInputCondition(next);
           });
+
+          if (useProfile) {
+            setSavedConditionPreset((prev) =>
+              buildSavedConditionBaseline(
+                conditionFromProfile(p, prev ?? DEFAULT_CONDITION),
+              ),
+            );
+          } else {
+            setSavedConditionPreset(null);
+          }
+
+          if (draftSnapshot && !useProfile) {
+            clearRecommendationConditionDraft();
+          }
         } else if (active) {
+          setHasSavedConditionPreset(false);
+          setSavedConditionPreset(null);
+          const draftSnapshot = loadRecommendationConditionDraft();
           const sessionSnapshot = loadConditionSession();
-          if (sessionSnapshot) {
+          if (draftSnapshot) {
+            setCondition((prev) =>
+              normalizeInputCondition(conditionFromSession(draftSnapshot, prev)),
+            );
+            clearRecommendationConditionDraft();
+          } else if (sessionSnapshot) {
             setCondition((prev) =>
               normalizeInputCondition(conditionFromSession(sessionSnapshot, prev)),
             );
@@ -954,6 +1063,11 @@ export function useRecommendations() {
       setSelectedId(null);
     }
   }, [results, selectedId]);
+
+  const isConditionDirty = useMemo(
+    () => !isSameSavedCondition(condition, savedConditionPreset),
+    [condition, savedConditionPreset],
+  );
 
   const runEvaluate = useCallback(async (nextCondition: RecommendationCondition) => {
     const seq = requestSeqRef.current + 1;
@@ -1154,11 +1268,35 @@ export function useRecommendations() {
       if (error) {
         console.error("[saveCondition] profiles update failed:", error);
       }
+      if (!error) {
+        setHasSavedConditionPreset(true);
+        setSavedConditionPreset(buildSavedConditionBaseline(condition));
+        clearRecommendationConditionDraft();
+      }
       return !error;
     } finally {
       setIsSavingCondition(false);
     }
   }, [condition, isLoggedIn, supabase]);
+
+  const loginAndSaveCondition = useCallback(() => {
+    const snapshot = buildConditionSession(condition);
+    saveConditionSession(snapshot);
+
+    try {
+      window.localStorage.setItem(
+        RECOMMENDATION_CONDITION_DRAFT_STORAGE_KEY,
+        JSON.stringify({
+          snapshot,
+          saved_at: new Date().toISOString(),
+        } satisfies RecommendationConditionDraft),
+      );
+    } catch {
+      // ignore storage failure
+    }
+
+    router.push("/auth/login?next=/recommendations");
+  }, [condition, router]);
 
   return {
     condition,
@@ -1176,7 +1314,10 @@ export function useRecommendations() {
     updateCondition,
     evaluate,
     saveCondition,
+    loginAndSaveCondition,
     isSavingCondition,
+    hasSavedConditionPreset,
+    isConditionDirty,
     setSelectedId,
   };
 }

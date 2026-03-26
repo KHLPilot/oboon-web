@@ -14,12 +14,15 @@ type MobileConditionSheetProps = {
   condition: RecommendationCondition;
   mode: RecommendationMode;
   isLoggedIn?: boolean;
+  hasSavedConditionPreset?: boolean;
+  isConditionDirty?: boolean;
   errorMessage?: string | null;
   isLoading?: boolean;
   isSaving?: boolean;
   onChange: (patch: Partial<RecommendationCondition>) => void;
   onEvaluate: (override?: RecommendationCondition) => Promise<boolean>;
   onSave?: () => void | Promise<boolean>;
+  onLoginAndSave?: () => void | Promise<void>;
   onModeChange: (mode: RecommendationMode) => void;
 };
 
@@ -84,12 +87,15 @@ export default function MobileConditionSheet(props: MobileConditionSheetProps) {
     condition,
     mode,
     isLoggedIn = true,
+    hasSavedConditionPreset = false,
+    isConditionDirty = false,
     errorMessage = null,
     isLoading = false,
     isSaving = false,
     onChange,
     onEvaluate,
     onSave,
+    onLoginAndSave,
     onModeChange,
   } = props;
   const [open, setOpen] = useState(false);
@@ -190,12 +196,15 @@ export default function MobileConditionSheet(props: MobileConditionSheetProps) {
               condition={condition}
               mode={mode}
               isLoggedIn={isLoggedIn}
+              hasSavedConditionPreset={hasSavedConditionPreset}
+              isConditionDirty={isConditionDirty}
               errorMessage={errorMessage}
               isLoading={isLoading}
               isSaving={isSaving}
               onChange={onChange}
               onEvaluate={handleEvaluate}
               onSave={onSave}
+              onLoginAndSave={onLoginAndSave}
               onModeChange={onModeChange}
             />
           </div>

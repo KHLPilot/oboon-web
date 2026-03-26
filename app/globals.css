@@ -194,8 +194,8 @@ input[type="password"]::-webkit-contacts-auto-fill-button {
   --oboon-grade-surface-alpha: 0.16;
   --oboon-grade-border-alpha: 0.38;
 
-  --oboon-grade-green-rgb: 74 222 128;
-  --oboon-grade-green-text-rgb: 187 247 208;
+  --oboon-grade-green-rgb: 22 163 74;
+  --oboon-grade-green-text-rgb: 134 239 172;
   --oboon-grade-lime-rgb: 163 230 53;
   --oboon-grade-lime-text-rgb: 217 249 157;
   --oboon-grade-yellow-rgb: 251 191 36;
@@ -320,19 +320,20 @@ input[type="password"]::-webkit-contacts-auto-fill-button {
   --oboon-map-shadow-default: rgba(15, 23, 42, 0.14);
   --oboon-map-shadow-strong: rgba(15, 23, 42, 0.22);
 
-  /* Grade marker colors — light mode primitives */
+  /* Grade marker colors — light mode primitives
+     keep dark-first hues for all grades except lime, which is slightly toned down for white surfaces */
   --oboon-grade-surface-alpha: 0.14;
   --oboon-grade-border-alpha: 0.24;
 
   --oboon-grade-green-rgb: 22 163 74;
   --oboon-grade-green-text-rgb: 22 101 52;
-  --oboon-grade-lime-rgb: 101 163 13;
-  --oboon-grade-lime-text-rgb: 63 98 18;
-  --oboon-grade-yellow-rgb: 202 138 4;
+  --oboon-grade-lime-rgb: 132 204 22;
+  --oboon-grade-lime-text-rgb: 77 124 15;
+  --oboon-grade-yellow-rgb: 251 191 36;
   --oboon-grade-yellow-text-rgb: 133 77 14;
-  --oboon-grade-orange-rgb: 234 88 12;
+  --oboon-grade-orange-rgb: 251 146 60;
   --oboon-grade-orange-text-rgb: 154 52 18;
-  --oboon-grade-red-rgb: 220 38 38;
+  --oboon-grade-red-rgb: 248 113 113;
   --oboon-grade-red-text-rgb: 153 27 27;
 }
 
