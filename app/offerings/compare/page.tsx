@@ -81,6 +81,7 @@ export default async function ComparePage({ searchParams }: ComparePageProps) {
       <div className="sticky top-16 z-20 border-b border-(--oboon-border-default) backdrop-blur-sm">
         <div className="mx-auto w-full max-w-5xl py-3 md:py-4">
           <CompareSlotGrid
+            key={COMPARE_SLOTS.map((slot) => initialSlots[slot] ?? "").join(":")}
             availableItems={availableItems}
             initialSlots={initialSlots}
             scrappedIds={[...scrappedIds]}

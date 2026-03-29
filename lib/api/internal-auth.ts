@@ -1,26 +1,25 @@
 import "server-only";
 import { timingSafeEqual } from "crypto";
 
-function toPaddedBuffer(value: string, length: number): Buffer {
-  const source = Buffer.from(value);
-  const target = Buffer.alloc(length);
-  source.copy(target);
+const encoder = new TextEncoder();
+
+function toPaddedBytes(value: string, length: number): Uint8Array {
+  const source = encoder.encode(value);
+  const target = new Uint8Array(length);
+  target.set(source.subarray(0, length));
   return target;
 }
 
 export function constantTimeEqual(a: string, b: string): boolean {
-  const maxLength = Math.max(
-    Buffer.byteLength(a),
-    Buffer.byteLength(b),
-    1,
-  );
-
-  const aBuffer = toPaddedBuffer(a, maxLength);
-  const bBuffer = toPaddedBuffer(b, maxLength);
+  const aBytes = encoder.encode(a);
+  const bBytes = encoder.encode(b);
+  const maxLength = Math.max(aBytes.length, bBytes.length, 1);
+  const aBuffer = toPaddedBytes(a, maxLength);
+  const bBuffer = toPaddedBytes(b, maxLength);
 
   return (
     timingSafeEqual(aBuffer, bBuffer) &&
-    Buffer.byteLength(a) === Buffer.byteLength(b)
+    aBytes.length === bBytes.length
   );
 }
 

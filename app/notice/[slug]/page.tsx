@@ -12,9 +12,10 @@ import { fetchPublicNoticeBySlug } from "@/features/notice/services/notices.serv
 export async function generateMetadata({
   params,
 }: {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
-  const notice = await fetchPublicNoticeBySlug(params.slug);
+  const { slug } = await params;
+  const notice = await fetchPublicNoticeBySlug(slug);
   if (!notice) {
     return {
       title: "공지사항",
@@ -29,9 +30,10 @@ export async function generateMetadata({
 export default async function NoticeDetailPage({
   params,
 }: {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }) {
-  const notice = await fetchPublicNoticeBySlug(params.slug);
+  const { slug } = await params;
+  const notice = await fetchPublicNoticeBySlug(slug);
   if (!notice) notFound();
 
   return (

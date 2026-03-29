@@ -1,7 +1,7 @@
 "use client";
 
 // features/offerings/components/compare/CompareSlotGrid.client.tsx
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Heart, X } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
@@ -44,14 +44,6 @@ export default function CompareSlotGrid({
   const [slots, setSlots] = useState<Partial<Record<CompareSlot, string>>>(
     initialSlots,
   );
-
-  useEffect(() => {
-    setSlots(initialSlots);
-  }, [
-    initialSlots.a,
-    initialSlots.b,
-    initialSlots.c,
-  ]);
 
   const pushUrl = useCallback(
     (next: Partial<Record<CompareSlot, string>>) => {

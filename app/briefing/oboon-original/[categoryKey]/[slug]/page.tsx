@@ -120,10 +120,11 @@ function pickPrimaryTagName(post: PostRow): string | null {
 export default async function OboonOriginalPostPage({
   params,
 }: {
-  params: { categoryKey: string; slug: string };
+  params: Promise<{ categoryKey: string; slug: string }>;
 }) {
-  const categoryKey = decodeURIComponent(params.categoryKey);
-  const slug = decodeURIComponent(params.slug);
+  const { categoryKey: rawCategoryKey, slug: rawSlug } = await params;
+  const categoryKey = decodeURIComponent(rawCategoryKey);
+  const slug = decodeURIComponent(rawSlug);
 
   // 관리자 체크
   const {

@@ -3,10 +3,11 @@ import { fetchPublicNoticeBySlug } from "@/features/notice/services/notices.serv
 
 export async function GET(
   _request: Request,
-  context: { params: { slug: string } },
+  context: { params: Promise<{ slug: string }> },
 ) {
   try {
-    const item = await fetchPublicNoticeBySlug(context.params.slug);
+    const { slug } = await context.params;
+    const item = await fetchPublicNoticeBySlug(slug);
     if (!item) {
       return NextResponse.json({ error: "공지사항을 찾을 수 없습니다." }, { status: 404 });
     }

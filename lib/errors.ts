@@ -156,6 +156,10 @@ export function createSupabaseServiceError(
 export function createSupabaseServiceError(
   error: SupabaseLikeError | null | undefined,
   options: SupabaseAppErrorOptions,
+): AppError | null;
+export function createSupabaseServiceError(
+  error: SupabaseLikeError | null | undefined,
+  options: SupabaseAppErrorOptions,
 ): AppError | null {
   if (!error) {
     return null;

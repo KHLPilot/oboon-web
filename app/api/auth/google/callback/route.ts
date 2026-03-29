@@ -57,9 +57,10 @@ export async function GET(req: Request) {
         const user = data.user;
         // 3. profiles 확인 (anon key로 조회) - deleted_at 포함
         const { data: profile, error: profileError } = await fetchProfileById(user.id);
+        const profileErrorCode = profileError?.code;
 
-        if (profileError && profileError.code !== ERR.NOT_FOUND) {
-            console.error("[google/callback] 프로필 조회 실패:", { code: profileError.code });
+        if (profileErrorCode && profileErrorCode !== ERR.NOT_FOUND) {
+            console.error("[google/callback] 프로필 조회 실패:", { code: profileErrorCode });
             return NextResponse.redirect(
                 new URL("/auth/login?error=auth_failed", process.env.NEXT_PUBLIC_SITE_URL!)
             );

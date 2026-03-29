@@ -131,9 +131,10 @@ function makeBulletLines(md: string | null, maxLines = 3) {
 export default async function GeneralPostPage({
   params,
 }: {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }) {
-  const slug = decodeURIComponent(params.slug);
+  const { slug: rawSlug } = await params;
+  const slug = decodeURIComponent(rawSlug);
 
   const { isAdmin, post: data, relatedPosts } =
     await fetchGeneralPostPageData(slug);

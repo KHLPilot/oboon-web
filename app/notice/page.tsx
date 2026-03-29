@@ -35,11 +35,15 @@ function formatListDate(value: string) {
 export default async function NoticePage({
   searchParams,
 }: {
-  searchParams?: { category?: string; page?: string; q?: string };
+  searchParams?: Promise<{ category?: string; page?: string; q?: string }>;
 }) {
-  const activeTab = toTab(searchParams?.category);
-  const query = (searchParams?.q ?? "").trim();
-  const page = Math.max(1, Number.parseInt(searchParams?.page ?? "1", 10) || 1);
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const activeTab = toTab(resolvedSearchParams?.category);
+  const query = (resolvedSearchParams?.q ?? "").trim();
+  const page = Math.max(
+    1,
+    Number.parseInt(resolvedSearchParams?.page ?? "1", 10) || 1,
+  );
   const pageSize = 10;
   const notices = await fetchPublicNotices(activeTab);
   const filteredNotices = query

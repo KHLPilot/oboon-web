@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { QnADetail } from "@/features/support/components/qna/QnADetail";
 import { QnADetailSkeleton } from "@/features/support/components/qna/QnADetailSkeleton";
 import { QnAPasswordModal } from "@/features/support/components/qna/QnAPasswordModal";
@@ -9,9 +9,10 @@ import type { QnADetailViewModel } from "@/features/support/domain/support";
 
 type DetailData = QnADetailViewModel & { isLoggedIn: boolean; isAdmin: boolean };
 
-export default function QnADetailPage({ params }: { params: { id: string } }) {
+export default function QnADetailPage() {
   const router = useRouter();
-  const { id } = params;
+  const params = useParams<{ id: string }>();
+  const id = params.id;
 
   const [data, setData] = useState<DetailData | null>(null);
   const [loading, setLoading] = useState(true);

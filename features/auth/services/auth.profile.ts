@@ -1,7 +1,18 @@
 import { createSupabaseServer } from "@/lib/supabaseServer";
-import { ERR, createSupabaseServiceError } from "@/lib/errors";
+import { AppError, ERR, createSupabaseServiceError } from "@/lib/errors";
 
-export async function fetchProfileById(userId: string) {
+type AuthProfile = {
+  role: string | null;
+  name: string | null;
+  phone_number: string | null;
+  deleted_at: string | null;
+  email: string | null;
+};
+
+export async function fetchProfileById(userId: string): Promise<{
+  data: AuthProfile | null;
+  error: AppError | null;
+}> {
   const supabase = await createSupabaseServer();
   const { data, error } = await supabase
     .from("profiles")
@@ -10,14 +21,7 @@ export async function fetchProfileById(userId: string) {
     .single();
 
   return {
-    data:
-      (data as {
-        role: string | null;
-        name: string | null;
-        phone_number: string | null;
-        deleted_at: string | null;
-        email: string | null;
-      } | null) ?? null,
+    data: (data as AuthProfile | null) ?? null,
     error: createSupabaseServiceError(error, {
       scope: "auth.profile",
       action: "fetchProfileById",
