@@ -1,13 +1,14 @@
-import { createClient } from "@supabase/supabase-js";
 import { createSupabaseServer } from "@/lib/supabaseServer";
 import type { PropertyRow } from "@/features/offerings/domain/offeringDetail.types";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import {
+  AppError,
+  ERR,
+  ServiceResult,
+  createSupabaseServiceError,
+} from "@/lib/errors";
 
 type RecordValue = Record<string, unknown>;
-type ServiceResult<T> = {
-  data: T | null;
-  error: Error | null;
-};
-
 const isRecord = (value: unknown): value is RecordValue =>
   typeof value === "object" && value !== null;
 
@@ -126,14 +127,11 @@ const isPropertyRow = (value: unknown): value is PropertyRow =>
   isRowOrArray(value.property_unit_types, isUnitTypeRow);
 
 function createOfferingAdminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!url || !serviceRoleKey) {
+  try {
+    return createSupabaseAdminClient();
+  } catch {
     return null;
   }
-
-  return createClient(url, serviceRoleKey);
 }
 
 export async function fetchOfferingDetail(
@@ -250,7 +248,11 @@ export async function fetchOfferingViewSnapshot(
   if (!supabase) {
     return {
       data: null,
-      error: new Error("missing supabase env"),
+      error: new AppError(
+        ERR.CONFIG,
+        "처리 중 오류가 발생했습니다.",
+        500,
+      ),
     };
   }
 
@@ -262,7 +264,19 @@ export async function fetchOfferingViewSnapshot(
 
   return {
     data: (data as { property_id: number } | null) ?? null,
-    error: error ? new Error(error.message) : null,
+    error: createSupabaseServiceError(error, {
+      scope: "offeringDetail.service",
+      action: "fetchOfferingViewSnapshot",
+      defaultMessage: "조회수 스냅샷 조회 중 오류가 발생했습니다.",
+      context: { propertyId },
+      codeMap: {
+        PGRST116: {
+          code: ERR.NOT_FOUND,
+          clientMessage: "현장을 찾을 수 없습니다.",
+          statusHint: 404,
+        },
+      },
+    }),
   };
 }
 
@@ -273,7 +287,11 @@ export async function incrementOfferingViewCount(
   if (!supabase) {
     return {
       data: null,
-      error: new Error("missing supabase env"),
+      error: new AppError(
+        ERR.CONFIG,
+        "처리 중 오류가 발생했습니다.",
+        500,
+      ),
     };
   }
 
@@ -284,6 +302,11 @@ export async function incrementOfferingViewCount(
 
   return {
     data: typeof data === "number" ? data : null,
-    error: error ? new Error(error.message) : null,
+    error: createSupabaseServiceError(error, {
+      scope: "offeringDetail.service",
+      action: "incrementOfferingViewCount",
+      defaultMessage: "조회수 반영 중 오류가 발생했습니다.",
+      context: { propertyId },
+    }),
   };
 }

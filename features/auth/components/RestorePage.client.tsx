@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
@@ -14,15 +14,128 @@ export default function RestorePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const userId = searchParams.get("userId") || "";
-  const email = searchParams.get("email") || "";
+  const restoreSessionKey = searchParams.get("s") || "";
+  const restoreTokenParam = searchParams.get("restoreToken") || "";
+  const emailParam = searchParams.get("email") || "";
 
+  const [restoreToken, setRestoreToken] = useState(restoreTokenParam);
+  const [email, setEmail] = useState(emailParam);
   const [loading, setLoading] = useState(false);
+  const [resolvingToken, setResolvingToken] = useState(
+    Boolean(restoreSessionKey) || (!restoreTokenParam && Boolean(emailParam)),
+  );
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (restoreSessionKey) {
+      let ignore = false;
+
+      async function resolveRestoreSession() {
+        setResolvingToken(true);
+
+        try {
+          const res = await fetch("/api/auth/restore-session", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sessionKey: restoreSessionKey }),
+          });
+          const data = await res.json();
+
+          if (!res.ok) {
+            throw new Error(data.error || "계정 정보를 확인할 수 없습니다.");
+          }
+
+          if (!ignore) {
+            setEmail(typeof data?.email === "string" ? data.email : "");
+            setRestoreToken(
+              typeof data?.restoreToken === "string" ? data.restoreToken : "",
+            );
+          }
+        } catch (err: unknown) {
+          if (!ignore) {
+            setError(
+              toKoreanErrorMessage(
+                err,
+                "계정 정보 확인 중 오류가 발생했습니다.",
+              ),
+            );
+          }
+        } finally {
+          if (!ignore) {
+            setResolvingToken(false);
+          }
+        }
+      }
+
+      void resolveRestoreSession();
+
+      return () => {
+        ignore = true;
+      };
+    }
+
+    if (restoreTokenParam) {
+      setRestoreToken(restoreTokenParam);
+      setEmail(emailParam);
+      setResolvingToken(false);
+      return;
+    }
+
+    if (!emailParam) {
+      setResolvingToken(false);
+      return;
+    }
+
+    let ignore = false;
+
+    async function resolveRestoreToken() {
+      setResolvingToken(true);
+
+      try {
+        const res = await fetch("/api/auth/check-deleted-account", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: emailParam }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || "계정 정보를 확인할 수 없습니다.");
+        }
+
+        if (!ignore) {
+          const nextRestoreToken =
+            typeof data?.restoreToken === "string" ? data.restoreToken : "";
+
+          if (!nextRestoreToken) {
+            setError("계정 정보가 만료되었습니다. 다시 로그인해주세요.");
+            return;
+          }
+
+          setEmail(emailParam);
+          setRestoreToken(nextRestoreToken);
+        }
+      } catch (err: unknown) {
+        if (!ignore) {
+          setError(toKoreanErrorMessage(err, "계정 정보 확인 중 오류가 발생했습니다."));
+        }
+      } finally {
+        if (!ignore) {
+          setResolvingToken(false);
+        }
+      }
+    }
+
+    void resolveRestoreToken();
+
+    return () => {
+      ignore = true;
+    };
+  }, [restoreSessionKey, restoreTokenParam, emailParam]);
 
   // 계정 복구
   async function handleRestore() {
-    if (!userId || !email) {
+    if (!restoreToken || !email) {
       setError("계정 정보가 없습니다. 다시 로그인해주세요.");
       return;
     }
@@ -32,7 +145,7 @@ export default function RestorePage() {
       const res = await fetch("/api/auth/restore-account", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, email }),
+        body: JSON.stringify({ restoreToken, email }),
       });
 
       const data = await res.json();
@@ -52,7 +165,7 @@ export default function RestorePage() {
 
   // 새로 가입 (기존 데이터 삭제)
   async function handleRecreate() {
-    if (!userId) {
+    if (!restoreToken) {
       setError("계정 정보가 없습니다. 다시 로그인해주세요.");
       return;
     }
@@ -62,7 +175,7 @@ export default function RestorePage() {
       const res = await fetch("/api/auth/delete-and-recreate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId }),
+        body: JSON.stringify({ restoreToken }),
       });
 
       const data = await res.json();
@@ -80,7 +193,21 @@ export default function RestorePage() {
     }
   }
 
-  if (!userId) {
+  if (resolvingToken) {
+    return (
+      <main className="min-h-dvh bg-(--oboon-bg-page) text-(--oboon-text-title)">
+        <PageContainer variant="full">
+          <Card className="p-6 text-center">
+            <p className="ob-typo-body text-(--oboon-text-muted)">
+              계정 정보를 확인하는 중입니다.
+            </p>
+          </Card>
+        </PageContainer>
+      </main>
+    );
+  }
+
+  if (!restoreToken || !email) {
     return (
       <main className="min-h-dvh bg-(--oboon-bg-page) text-(--oboon-text-title)">
         <PageContainer variant="full">

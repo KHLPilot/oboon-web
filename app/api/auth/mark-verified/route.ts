@@ -1,17 +1,43 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import {
+  checkAuthRateLimit,
+  getClientIp,
+  markVerifiedIpLimiter,
+} from "@/lib/rateLimit";
+import {
+  handleApiError,
+  handleSupabaseError,
+} from "@/lib/api/route-error";
+import { createSupabaseServer } from "@/lib/supabaseServer";
 
-const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const supabaseAdmin = createSupabaseAdminClient();
 
 export async function POST(req: Request) {
-    try {
-        const { userId, email } = await req.json();
+    const rateLimitRes = await checkAuthRateLimit(
+        markVerifiedIpLimiter,
+        getClientIp(req),
+        { windowMs: 60 * 1000 }
+    );
+    if (rateLimitRes) return rateLimitRes;
 
-        if (!userId || !email) {
+    try {
+        const supabase = await createSupabaseServer();
+        const {
+            data: { user },
+        } = await supabase.auth.getUser();
+        const { userId } = await req.json();
+
+        if (!userId) {
             return NextResponse.json({ error: "필수 값 누락" }, { status: 400 });
+        }
+
+        if (!user) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
+        if (user.id !== userId) {
+            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
 
         // 해당 유저의 모든 토큰을 verified로 업데이트
@@ -22,12 +48,15 @@ export async function POST(req: Request) {
             .eq("verified", false);
 
         if (error) {
-            console.error("토큰 업데이트 실패:", error);
+            return handleSupabaseError("mark-verified 토큰 업데이트", error, {
+                defaultMessage: "인증 처리에 실패했습니다",
+            });
         }
 
         return NextResponse.json({ success: true });
     } catch (err: unknown) {
-        console.error("서버 오류:", err);
-        return NextResponse.json({ error: "서버 오류" }, { status: 500 });
+        return handleApiError("mark-verified", err, {
+            clientMessage: "서버 오류",
+        });
     }
 }

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
-import { createClient } from "@supabase/supabase-js";
+import { adminSupabase, requireAdminRoute } from "@/lib/api/admin-route";
+import { handleSupabaseError } from "@/lib/api/route-error";
 
 type RegulationArea =
   | "non_regulated"
@@ -37,11 +36,6 @@ type RegulationRuleRow = {
   note: string | null;
   updated_at: string;
 };
-
-const adminSupabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-);
 
 function normalizeSegment(value: unknown): string | null {
   const text = String(value ?? "").trim();
@@ -111,54 +105,10 @@ function toIsoDateOrNull(raw: unknown): string | null {
   return date.toISOString().slice(0, 10);
 }
 
-async function ensureAdmin() {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) => {
-              cookieStore.set(name, value, options);
-            });
-          } catch {
-            // ignore
-          }
-        },
-      },
-    },
-  );
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { ok: false as const, status: 401, error: "로그인이 필요합니다." };
-  }
-
-  const { data: profile } = await adminSupabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (!profile || profile.role !== "admin") {
-    return { ok: false as const, status: 403, error: "관리자 권한이 필요합니다." };
-  }
-
-  return { ok: true as const };
-}
-
 export async function GET() {
-  const auth = await ensureAdmin();
+  const auth = await requireAdminRoute();
   if (!auth.ok) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+    return auth.response;
   }
 
   const { data, error } = await adminSupabase
@@ -170,19 +120,18 @@ export async function GET() {
     .returns<RegulationRuleRow[]>();
 
   if (error) {
-    return NextResponse.json(
-      { error: `규제 룰 조회 실패: ${error.message}` },
-      { status: 500 },
-    );
+    return handleSupabaseError("admin/regulation-rules 조회", error, {
+      defaultMessage: "규제 룰 조회에 실패했습니다.",
+    });
   }
 
   return NextResponse.json({ items: data ?? [] });
 }
 
 export async function POST(request: Request) {
-  const auth = await ensureAdmin();
+  const auth = await requireAdminRoute();
   if (!auth.ok) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+    return auth.response;
   }
 
   const body = (await request.json()) as RegulationRulePayload;
@@ -225,10 +174,9 @@ export async function POST(request: Request) {
     .select("id");
 
   if (error) {
-    return NextResponse.json(
-      { error: `규제 룰 저장 실패: ${error.message}` },
-      { status: 500 },
-    );
+    return handleSupabaseError("admin/regulation-rules 저장", error, {
+      defaultMessage: "규제 룰 저장에 실패했습니다.",
+    });
   }
 
   if (body.replaceAreas === true) {
@@ -244,10 +192,9 @@ export async function POST(request: Request) {
       .not("regulation_area", "in", `(${inactiveTargets})`);
 
     if (deactivateError) {
-      return NextResponse.json(
-        { error: `규제 룰 동기화 실패: ${deactivateError.message}` },
-        { status: 500 },
-      );
+      return handleSupabaseError("admin/regulation-rules 동기화", deactivateError, {
+        defaultMessage: "규제 룰 동기화에 실패했습니다.",
+      });
     }
   }
 
@@ -261,19 +208,18 @@ export async function POST(request: Request) {
     .returns<RegulationRuleRow[]>();
 
   if (refreshError) {
-    return NextResponse.json(
-      { error: `규제 룰 재조회 실패: ${refreshError.message}` },
-      { status: 500 },
-    );
+    return handleSupabaseError("admin/regulation-rules 재조회", refreshError, {
+      defaultMessage: "규제 룰 재조회에 실패했습니다.",
+    });
   }
 
   return NextResponse.json({ items: refreshedRows ?? [] });
 }
 
 export async function PUT(request: Request) {
-  const auth = await ensureAdmin();
+  const auth = await requireAdminRoute();
   if (!auth.ok) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+    return auth.response;
   }
 
   const body = (await request.json()) as RegulationRulePayload;
@@ -343,10 +289,9 @@ export async function PUT(request: Request) {
     .single<RegulationRuleRow>();
 
   if (error) {
-    return NextResponse.json(
-      { error: `규제 룰 수정 실패: ${error.message}` },
-      { status: 500 },
-    );
+    return handleSupabaseError("admin/regulation-rules 수정", error, {
+      defaultMessage: "규제 룰 수정에 실패했습니다.",
+    });
   }
 
   return NextResponse.json({ item: data });

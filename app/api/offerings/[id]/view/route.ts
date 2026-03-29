@@ -1,16 +1,14 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { createClient } from "@supabase/supabase-js";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { cookies } from "next/headers";
+import { handleServiceError } from "@/lib/api/route-error";
 import {
   fetchOfferingViewSnapshot,
   incrementOfferingViewCount,
 } from "@/features/offerings/services/offeringDetail.service";
 
-const adminSupabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-);
+const adminSupabase = createSupabaseAdminClient();
 
 function parsePropertyId(raw: string): number | null {
   const parsed = Number(raw);
@@ -32,10 +30,7 @@ export async function POST(
     await fetchOfferingViewSnapshot(propertyId);
 
   if (snapshotError) {
-    return NextResponse.json(
-      { error: "snapshot lookup failed", details: snapshotError.message },
-      { status: 500 },
-    );
+    return handleServiceError(snapshotError, "조회수 정보 조회에 실패했습니다");
   }
 
   if (!snapshot) {
@@ -46,10 +41,7 @@ export async function POST(
     await incrementOfferingViewCount(propertyId);
 
   if (incrementError) {
-    return NextResponse.json(
-      { error: "increment failed", details: incrementError.message },
-      { status: 500 },
-    );
+    return handleServiceError(incrementError, "조회수 반영에 실패했습니다");
   }
 
   // 로그인 사용자이면 열람 히스토리 기록

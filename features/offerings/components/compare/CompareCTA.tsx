@@ -1,13 +1,14 @@
 // features/offerings/components/compare/CompareCTA.tsx
 import Link from "next/link";
+import Button from "@/components/ui/Button";
 import { cn } from "@/lib/utils/cn";
 import type {
-  FinalGrade5,
   OfferingCompareItem,
 } from "@/features/offerings/domain/offering.types";
 
 interface CompareCTAProps {
-  items: OfferingCompareItem[];
+  items: Array<OfferingCompareItem | null>;
+  mobileVisibleIndices: number[];
 }
 
 type CTAConfig = {
@@ -17,50 +18,62 @@ type CTAConfig = {
 };
 
 function resolveCTA(item: OfferingCompareItem): CTAConfig {
-  const grade = item.conditionResult as FinalGrade5 | null;
-
-  if (grade === "GREEN" || grade === "LIME") {
-    return { label: "상담 예약하기", href: `/offerings/${item.id}`, isPrimary: true };
-  }
-  if (grade === "YELLOW" || grade === "ORANGE") {
-    return { label: "다시 확인하기", href: `/offerings/${item.id}`, isPrimary: false };
-  }
-  if (grade === "RED") {
-    return { label: "다시 검토하기", href: `/offerings/${item.id}`, isPrimary: false };
-  }
-  return { label: "현장 자세히 보기", href: `/offerings/${item.id}`, isPrimary: false };
+  return {
+    label: "현장 상세보기",
+    href: `/offerings/${item.id}`,
+    isPrimary: true,
+  };
 }
 
-export default function CompareCTA({ items }: CompareCTAProps) {
-  if (items.length < 2) return null;
+export default function CompareCTA({
+  items,
+  mobileVisibleIndices,
+}: CompareCTAProps) {
+  const selectedCount = items.filter(
+    (item): item is OfferingCompareItem => item !== null,
+  ).length;
+  if (selectedCount < 2) return null;
 
   return (
     <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
       {items.map((item, i) => {
+        const hiddenOnMobile = !mobileVisibleIndices.includes(i);
+
+        if (!item) {
+          return (
+            <div
+              key={`empty-${i}`}
+              className={cn(hiddenOnMobile && "hidden md:block")}
+            />
+          );
+        }
+
         const cta = resolveCTA(item);
 
         return (
-          <div key={item.id} className={cn("flex flex-col items-center gap-2 text-center", i >= 2 && "hidden md:flex")}>
-            {/* 현장명 */}
+          <div
+            key={item.id}
+            className={cn(
+              "flex flex-col items-center gap-2 text-center",
+              hiddenOnMobile && "hidden md:flex",
+            )}
+          >
             <span
-              className="ob-typo-caption font-semibold text-(--oboon-text-muted) truncate max-w-[160px]"
+              className="w-full px-2 ob-typo-body font-semibold text-(--oboon-text-muted) truncate"
               title={item.name}
             >
               {item.name}
             </span>
 
-            {/* CTA 버튼 */}
-            <Link
-              href={cta.href}
-              className={cn(
-                "w-full rounded-full px-5 py-2.5 ob-typo-body font-semibold transition-all",
-                cta.isPrimary
-                  ? "bg-(--oboon-primary) text-white hover:opacity-90"
-                  : "bg-(--oboon-bg-surface) border border-(--oboon-border-default) text-(--oboon-text-title) hover:border-(--oboon-border-hover)",
-              )}
+            <Button
+              asChild
+              variant={cta.isPrimary ? "primary" : "secondary"}
+              size="lg"
+              shape="pill"
+              className="w-full"
             >
-              {cta.label}
-            </Link>
+              <Link href={cta.href}>{cta.label}</Link>
+            </Button>
           </div>
         );
       })}

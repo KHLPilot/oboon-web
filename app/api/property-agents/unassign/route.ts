@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { handleServiceError } from "@/lib/api/route-error";
+import { unwrapErrorCause } from "@/lib/errors";
 import {
   fetchApprovedPropertyAgentsForUser,
   fetchPropertyAgentProfileRole,
@@ -8,10 +10,11 @@ import {
 } from "@/features/agent/services/agent.propertyAgents";
 
 function isWithdrawnSchemaIssue(error: unknown): boolean {
-  if (!error || typeof error !== "object") return false;
+  const source = unwrapErrorCause(error);
+  if (!source || typeof source !== "object") return false;
   const message = String(
-    (error as { message?: unknown }).message ??
-      (error as { details?: unknown }).details ??
+    (source as { message?: unknown }).message ??
+      (source as { details?: unknown }).details ??
       "",
   ).toLowerCase();
   return (
@@ -55,7 +58,11 @@ export async function POST() {
     const { data: profile, error: profileError } =
       await fetchPropertyAgentProfileRole(user.id);
 
-    if (profileError || !profile) {
+    if (profileError) {
+      return handleServiceError(profileError, "프로필을 찾을 수 없습니다");
+    }
+
+    if (!profile) {
       return NextResponse.json(
         { error: "프로필을 찾을 수 없습니다" },
         { status: 404 },
@@ -73,11 +80,7 @@ export async function POST() {
       await fetchApprovedPropertyAgentsForUser(user.id);
 
     if (approvedError) {
-      console.error("승인 소속 조회 오류:", approvedError);
-      return NextResponse.json(
-        { error: "현재 소속 조회에 실패했습니다" },
-        { status: 500 },
-      );
+      return handleServiceError(approvedError, "현재 소속 조회에 실패했습니다");
     }
 
     if (!approvedRows || approvedRows.length === 0) {
@@ -95,7 +98,6 @@ export async function POST() {
 
     const finalUpdatedRows = updatedRows;
     if (updateError) {
-      console.error("무소속 전환 오류:", updateError);
       if (isWithdrawnSchemaIssue(updateError)) {
         return NextResponse.json(
           {
@@ -105,10 +107,7 @@ export async function POST() {
           { status: 500 },
         );
       }
-      return NextResponse.json(
-        { error: "무소속 전환에 실패했습니다" },
-        { status: 500 },
-      );
+      return handleServiceError(updateError, "무소속 전환에 실패했습니다");
     }
 
     if (!finalUpdatedRows || finalUpdatedRows.length === 0) {

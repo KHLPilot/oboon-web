@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
-import { createClient } from "@supabase/supabase-js";
+import { adminSupabase, requireAdminRoute } from "@/lib/api/admin-route";
+import { handleApiError } from "@/lib/api/route-error";
 
 type HousingKind = "apartment" | "officetel";
 
@@ -58,11 +57,6 @@ type PropertyRow = {
   property_timeline: PropertyTimelineRow[] | null;
   property_unit_types: PropertyUnitTypeRow[] | null;
 };
-
-const adminSupabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-);
 
 const KAKAO_ENDPOINT = "https://dapi.kakao.com/v2/local/search/keyword.json";
 const KAKAO_QUERY_BY_KIND: Record<HousingKind, string> = {
@@ -283,50 +277,6 @@ function computeAgeYears(dateIso: string | null): number | null {
   const years = (now.getTime() - parsed.getTime()) / (365.25 * 24 * 60 * 60 * 1000);
   if (!Number.isFinite(years)) return null;
   return Math.max(0, Math.floor(years));
-}
-
-async function ensureAdmin() {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) => {
-              cookieStore.set(name, value, options);
-            });
-          } catch {
-            // ignore in readonly contexts
-          }
-        },
-      },
-    },
-  );
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { ok: false as const, status: 401, error: "로그인이 필요합니다." };
-  }
-
-  const { data: profile } = await adminSupabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (!profile || profile.role !== "admin") {
-    return { ok: false as const, status: 403, error: "관리자 권한이 필요합니다." };
-  }
-
-  return { ok: true as const, userId: user.id };
 }
 
 async function fetchKakaoCandidates(params: {
@@ -581,9 +531,9 @@ function matchProperty(
 }
 
 export async function GET(request: Request) {
-  const auth = await ensureAdmin();
+  const auth = await requireAdminRoute();
   if (!auth.ok) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+    return auth.response;
   }
 
   const { searchParams } = new URL(request.url);
@@ -670,15 +620,8 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
-    console.error("GET /api/admin/appraisals/nearby error:", error);
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "감정평가 근방 검색 중 오류가 발생했습니다.",
-      },
-      { status: 500 },
-    );
+    return handleApiError("admin/appraisals/nearby", error, {
+      clientMessage: "감정평가 근방 검색 중 오류가 발생했습니다.",
+    });
   }
 }

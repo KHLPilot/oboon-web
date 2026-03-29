@@ -6,6 +6,7 @@ import {
   imageClassificationResultSchema,
   type PropertyExtractionData,
 } from '@/lib/schema/property-schema';
+import { logApiError } from '@/lib/api/route-error';
 import { extractImagesFromPDF, renderPagesAsImages, convertImageToBase64 } from '@/lib/pdf-utils';
 import { createSupabaseServer } from '@/lib/supabaseServer';
 import { DeleteObjectCommand, GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
@@ -3715,10 +3716,9 @@ export async function POST(req: Request) {
   } catch (error: unknown) {
     const resolved = toApiError(error);
     const code = extractErrorCode(error);
-    console.error('AI Extraction Error:', {
-      code: code || null,
-      message: error instanceof Error ? error.message : String(error),
-      error,
+    logApiError('extract-pdf', error, {
+      extractedCode: code || null,
+      resolvedStatus: resolved.status,
     });
     return Response.json({ error: resolved.error }, { status: resolved.status });
   } finally {

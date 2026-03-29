@@ -13,6 +13,7 @@ import {
 import { validateRequiredOrShowModal } from "@/shared/validationMessage";
 
 import PageContainer from "@/components/shared/PageContainer";
+import SafeMarkdown from "@/components/shared/SafeMarkdown";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -811,9 +812,9 @@ export default function OnboardingPage() {
               <div className="ob-typo-h2 text-(--oboon-text-title)">
                 {termModal?.title}
               </div>
-              <div
-                className="ob-typo-body text-(--oboon-text-muted) max-h-96 overflow-y-auto whitespace-pre-wrap"
-                dangerouslySetInnerHTML={{ __html: termModal?.content ?? "" }}
+              <SafeMarkdown
+                content={termModal?.content ?? ""}
+                className="max-h-96 overflow-y-auto text-(--oboon-text-muted)"
               />
               <div className="mt-3 pt-3 border-t border-(--oboon-border-default)">
                 <Button

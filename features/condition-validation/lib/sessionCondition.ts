@@ -119,6 +119,15 @@ export function saveConditionSession(snapshot: ConditionSessionSnapshot): void {
   }
 }
 
+export function clearConditionSession(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(CONDITION_SESSION_STORAGE_KEY);
+  } catch {
+    // Ignore storage failure.
+  }
+}
+
 export function loadConditionSession(): ConditionSessionSnapshot | null {
   if (typeof window === "undefined") return null;
 

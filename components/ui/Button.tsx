@@ -20,7 +20,7 @@ function getVariantClass(variant: ButtonVariant) {
   switch (variant) {
     case "primary":
       return cn(
-        "bg-(--oboon-primary) text-(--oboon-on-primary) border border-(--oboon-primary)",
+        "bg-(--oboon-primary) !text-(--oboon-on-primary) border border-(--oboon-primary)",
         "hover:bg-(--oboon-primary-hover)"
       );
 

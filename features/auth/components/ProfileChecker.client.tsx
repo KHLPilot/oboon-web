@@ -36,7 +36,7 @@ export default function ProfileChecker() {
 
   useEffect(() => {
     // /auth 경로는 모두 건너뛰기 (온보딩 포함)
-    if (pathname.startsWith("/auth")) {
+    if (pathname?.startsWith("/auth")) {
       return;
     }
 

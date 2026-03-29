@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
+import { adminSupabase, requireAdminRoute } from "@/lib/api/admin-route";
 
 export const dynamic = "force-dynamic";
 
@@ -13,11 +11,6 @@ function isDynamicServerUsageError(error: unknown) {
     (error as { digest?: string }).digest === "DYNAMIC_SERVER_USAGE"
   );
 }
-
-const adminSupabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-);
 
 type ConsultationRow = {
   id: string;
@@ -99,50 +92,9 @@ function normalizeUrl(value: unknown): string | null {
 
 export async function GET() {
   try {
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll();
-          },
-          setAll(cookiesToSet) {
-            try {
-              cookiesToSet.forEach(({ name, value, options }) => {
-                cookieStore.set(name, value, options);
-              });
-            } catch {
-              // 읽기 전용 컨텍스트에서는 무시
-            }
-          },
-        },
-      },
-    );
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json(
-        { error: "로그인이 필요합니다" },
-        { status: 401 },
-      );
-    }
-
-    const { data: profile } = await adminSupabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-
-    if (profile?.role !== "admin") {
-      return NextResponse.json(
-        { error: "관리자 권한이 필요합니다" },
-        { status: 403 },
-      );
+    const auth = await requireAdminRoute();
+    if (!auth.ok) {
+      return auth.response;
     }
 
     const [{ data: consultations }, { data: ledgers }, { data: payouts }] =

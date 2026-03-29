@@ -8,7 +8,6 @@ import Button from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import Input from "@/components/ui/Input";
 import Label from "@/components/ui/Label";
-import { Skeleton } from "@/components/ui/Skeleton";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,8 +20,10 @@ import FlippableRecommendationCard from "@/features/recommendations/components/F
 import MiniMap from "@/features/recommendations/components/MiniMap";
 import MobileConditionSheet from "@/features/recommendations/components/MobileConditionSheet";
 import RecommendationOfferingCard from "@/features/recommendations/components/OfferingCard";
+import RecommendationCardSkeleton from "@/features/recommendations/components/RecommendationCardSkeleton";
 import RecommendationConditionPanel from "@/features/recommendations/components/RecommendationConditionPanel";
 import { RecommendationPreviewContent } from "@/features/recommendations/components/GaugeOverlay";
+import { grade5DetailLabel } from "@/features/condition-validation/lib/grade5Labels";
 import type {
   RecommendationCondition,
   RecommendationItem,
@@ -191,69 +192,6 @@ function SortDropdown(props: {
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
-  );
-}
-
-function SkeletonCard() {
-  return (
-    <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-1 items-start gap-3">
-          <Skeleton className="aspect-square w-[72px] shrink-0 rounded-xl" />
-          <div className="min-w-0 flex-1 space-y-2">
-            <Skeleton className="h-5 w-3/4" />
-            <Skeleton className="h-3.5 w-2/3" />
-            <Skeleton className="h-4 w-1/2" />
-          </div>
-        </div>
-        <Skeleton className="h-7 w-20 shrink-0 rounded-full" />
-      </div>
-
-      <div className="mt-3 h-px w-full bg-(--oboon-border-default)" />
-
-      <div className="mt-3 space-y-3">
-        <div className="grid grid-cols-3 gap-3">
-          <Skeleton className="h-4" />
-          <Skeleton className="h-4" />
-          <Skeleton className="h-4" />
-        </div>
-        <div className="space-y-1.5">
-          <Skeleton className="h-4 w-14" />
-          <div className="flex items-center gap-2">
-            <Skeleton className="h-2 flex-1 rounded-full" />
-            <Skeleton className="h-4 w-10" />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function DesktopSkeletonCard() {
-  return (
-    <div className="overflow-hidden rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)">
-      <Skeleton className="aspect-video w-full rounded-none" />
-      <div className="space-y-3 p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1 space-y-2">
-            <Skeleton className="h-5 w-3/4" />
-            <Skeleton className="h-4 w-2/3" />
-          </div>
-          <Skeleton className="h-7 w-20 rounded-full" />
-        </div>
-        <Skeleton className="h-12 rounded-xl" />
-        <div className="space-y-2">
-          <Skeleton className="h-3" />
-          <Skeleton className="h-3" />
-          <Skeleton className="h-3" />
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <Skeleton className="h-14 rounded-xl" />
-          <Skeleton className="h-14 rounded-xl" />
-        </div>
-        <Skeleton className="h-9 rounded-full" />
-      </div>
-    </div>
   );
 }
 
@@ -536,9 +474,9 @@ export default function RecommendationsPage() {
             {showResultToolbar ? (
               <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
                 <div className="flex min-w-0 items-center gap-1 sm:gap-2 overflow-hidden whitespace-nowrap">
-                  <ResultChip label="충족" count={gradeCounts.GREEN} tone="GREEN" />
-                  <ResultChip label="근접" count={gradeCounts.LIME} tone="LIME" />
-                  <ResultChip label="검토" count={gradeCounts.YELLOW} tone="YELLOW" />
+                  <ResultChip label={grade5DetailLabel("GREEN")} count={gradeCounts.GREEN} tone="GREEN" />
+                  <ResultChip label={grade5DetailLabel("LIME")} count={gradeCounts.LIME} tone="LIME" />
+                  <ResultChip label={grade5DetailLabel("YELLOW")} count={gradeCounts.YELLOW} tone="YELLOW" />
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <SortDropdown
@@ -688,12 +626,12 @@ export default function RecommendationsPage() {
                     </p>
                     <div className="space-y-3 sm:hidden">
                       {Array.from({ length: 3 }).map((_, index) => (
-                        <SkeletonCard key={index} />
+                        <RecommendationCardSkeleton key={index} size="mobile" seed={index} />
                       ))}
                     </div>
                     <div className="hidden grid-cols-2 gap-4 sm:grid lg:grid-cols-3">
                       {Array.from({ length: 6 }).map((_, index) => (
-                        <DesktopSkeletonCard key={index} />
+                        <RecommendationCardSkeleton key={index} size="desktop" seed={index} />
                       ))}
                     </div>
                   </>

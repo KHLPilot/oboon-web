@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import { verifyBearerToken } from "@/lib/api/internal-auth";
+import { handleApiError } from "@/lib/api/route-error";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -49,15 +51,11 @@ type RegulationRule = {
   regulationArea: RegulationArea;
 };
 
-const adminSupabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-);
+const adminSupabase = createSupabaseAdminClient();
 
 function isAuthorized(req: Request): boolean {
   const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) return false; // CRON_SECRET 미설정 시 항상 거부
-  return req.headers.get("authorization") === `Bearer ${cronSecret}`;
+  return verifyBearerToken(req.headers.get("authorization"), cronSecret);
 }
 
 function toPositiveInt(
@@ -464,13 +462,9 @@ export async function GET(req: Request) {
       finished_at: new Date().toISOString(),
     });
   } catch (error) {
-    return NextResponse.json(
-      {
-        error: "condition_validation_profile_resync_failed",
-        details: error instanceof Error ? error.message : "unknown_error",
-      },
-      { status: 500 },
-    );
+    return handleApiError("condition-validation-profiles 재동기화", error, {
+      clientMessage: "조건검증 프로필 동기화 중 오류가 발생했습니다",
+    });
   }
 }
 

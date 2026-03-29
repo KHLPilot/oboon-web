@@ -4,6 +4,8 @@ import {
   ListObjectsV2Command,
   S3Client,
 } from "@aws-sdk/client-s3";
+import { verifyBearerToken } from "@/lib/api/internal-auth";
+import { handleApiError } from "@/lib/api/route-error";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -22,8 +24,7 @@ const PREFIX = "pdf-temp/";
 
 function isAuthorized(req: Request) {
   const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) return false; // CRON_SECRET 미설정 시 항상 거부
-  return req.headers.get("authorization") === `Bearer ${cronSecret}`;
+  return verifyBearerToken(req.headers.get("authorization"), cronSecret);
 }
 
 function toPositiveInt(value: string | null, fallback: number) {
@@ -112,13 +113,9 @@ export async function GET(req: Request) {
       deleteErrors,
     });
   } catch (error) {
-    return NextResponse.json(
-      {
-        error: "cleanup_temp_pdfs_failed",
-        details: error instanceof Error ? error.message : "unknown_error",
-      },
-      { status: 500 },
-    );
+    return handleApiError("cleanup-temp-pdfs", error, {
+      clientMessage: "임시 PDF 정리 중 오류가 발생했습니다",
+    });
   }
 }
 

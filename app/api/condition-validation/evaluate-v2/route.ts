@@ -1,5 +1,4 @@
 import { createServerClient } from "@supabase/ssr";
-import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { z } from "zod";
@@ -7,12 +6,19 @@ import { z } from "zod";
 import { evaluateFullCondition } from "@/features/condition-validation/domain/fullCustomerEvaluator";
 import { loadPropertyProfile } from "@/features/condition-validation/server/profile-resolver";
 import type { FullCustomerInput } from "@/features/condition-validation/domain/types";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import { AppError, ERR } from "@/lib/errors";
 
 function createAdminSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceRoleKey) throw new Error("Missing Supabase env");
-  return createClient(url, serviceRoleKey);
+  try {
+    return createSupabaseAdminClient();
+  } catch {
+    throw new AppError(
+      ERR.CONFIG,
+      "조건 검증 처리 중 오류가 발생했습니다.",
+      500,
+    );
+  }
 }
 
 async function requireUser(): Promise<string | null> {
@@ -83,7 +89,7 @@ export async function POST(request: Request) {
     payload = await request.json();
   } catch {
     return NextResponse.json(
-      { ok: false, error: { code: "VALIDATION_ERROR", message: "invalid json payload" } },
+      { ok: false, error: { code: "VALIDATION_ERROR", message: "유효하지 않은 요청 형식입니다." } },
       { status: 400 },
     );
   }
@@ -95,8 +101,7 @@ export async function POST(request: Request) {
         ok: false,
         error: {
           code: "VALIDATION_ERROR",
-          message: "request validation failed",
-          field_errors: parsed.error.flatten().fieldErrors,
+          message: "입력값이 올바르지 않습니다.",
         },
       },
       { status: 400 },

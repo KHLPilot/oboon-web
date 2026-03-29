@@ -1,4 +1,5 @@
 import type { KakaoPlace } from "@/features/reco/domain/recoPoi.types";
+import { AppError, ERR } from "@/lib/errors";
 
 const KAKAO_LOCAL_BASE_URL =
   "https://dapi.kakao.com/v2/local/search/category.json";
@@ -294,7 +295,12 @@ export async function fetchKakaoTopPoisByCategory(params: {
   });
 
   if (!res.ok) {
-    throw new Error(`Kakao Local error: ${res.status}`);
+    throw new AppError(
+      ERR.DB_QUERY,
+      "장소 정보를 불러오지 못했습니다.",
+      502,
+      { status: res.status },
+    );
   }
 
   const json = (await res.json()) as { documents?: unknown[] };
@@ -338,7 +344,12 @@ export async function fetchKakaoTopPoisByKeyword(params: {
   });
 
   if (!res.ok) {
-    throw new Error(`Kakao Local keyword error: ${res.status}`);
+    throw new AppError(
+      ERR.DB_QUERY,
+      "장소 검색에 실패했습니다.",
+      502,
+      { status: res.status },
+    );
   }
 
   const json = (await res.json()) as { documents?: unknown[] };

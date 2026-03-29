@@ -1,13 +1,10 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { createSupabaseServer } from "@/lib/supabaseServer";
 import { createQnAAnswer } from "@/features/support/services/qna.server";
 import { NOTIFICATION_TYPES } from "@/features/notifications/domain/notification.types";
 
-const adminSupabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-);
+const adminSupabase = createSupabaseAdminClient();
 
 /**
  * POST /api/support/qna/[id]/answer

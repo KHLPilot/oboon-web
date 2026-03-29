@@ -1,4 +1,5 @@
 import { createSupabaseServer } from "@/lib/supabaseServer";
+import { AppError, ERR, createSupabaseServiceError } from "@/lib/errors";
 
 export const BRIEFING_CATEGORY_PAGE_SIZE = 8;
 
@@ -13,10 +14,18 @@ export async function fetchOboonOriginalCategoryPageData(categoryKey: string, pa
     .eq("key", "oboon_original")
     .maybeSingle();
 
-  if (boardErr) throw boardErr;
+  if (boardErr) {
+    throw createSupabaseServiceError(boardErr, {
+      scope: "briefing.original.category",
+      action: "fetchOboonOriginalCategoryPageData.board",
+      defaultMessage: "브리핑 게시판 조회 중 오류가 발생했습니다.",
+    });
+  }
   if (!board?.id) {
-    throw new Error(
-      'briefing_boards에서 key="oboon_original" 보드를 찾지 못했습니다',
+    throw new AppError(
+      ERR.NOT_FOUND,
+      "브리핑 게시판을 찾을 수 없습니다.",
+      404,
     );
   }
 
@@ -27,7 +36,14 @@ export async function fetchOboonOriginalCategoryPageData(categoryKey: string, pa
     .eq("key", categoryKey)
     .maybeSingle();
 
-  if (catErr) throw catErr;
+  if (catErr) {
+    throw createSupabaseServiceError(catErr, {
+      scope: "briefing.original.category",
+      action: "fetchOboonOriginalCategoryPageData.category",
+      defaultMessage: "브리핑 카테고리 조회 중 오류가 발생했습니다.",
+      context: { categoryKey },
+    });
+  }
 
   const { data: postsData, error: postsErr, count: postsCount } = await supabase
     .from("briefing_posts")
@@ -45,7 +61,14 @@ export async function fetchOboonOriginalCategoryPageData(categoryKey: string, pa
     .order("created_at", { ascending: false })
     .range(offset, offset + pageSize - 1);
 
-  if (postsErr) throw postsErr;
+  if (postsErr) {
+    throw createSupabaseServiceError(postsErr, {
+      scope: "briefing.original.category",
+      action: "fetchOboonOriginalCategoryPageData.posts",
+      defaultMessage: "브리핑 목록 조회 중 오류가 발생했습니다.",
+      context: { categoryKey, page },
+    });
+  }
 
   const { data: tagData, error: tagErr } = await supabase
     .from("briefing_tags")
@@ -53,7 +76,14 @@ export async function fetchOboonOriginalCategoryPageData(categoryKey: string, pa
     .eq("is_active", true)
     .order("sort_order");
 
-  if (tagErr) throw tagErr;
+  if (tagErr) {
+    throw createSupabaseServiceError(tagErr, {
+      scope: "briefing.original.category",
+      action: "fetchOboonOriginalCategoryPageData.tags",
+      defaultMessage: "브리핑 태그 조회 중 오류가 발생했습니다.",
+      context: { categoryKey },
+    });
+  }
 
   return {
     board,

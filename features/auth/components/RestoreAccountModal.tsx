@@ -10,7 +10,6 @@ type RestoreAccountModalProps = {
   open: boolean;
   onClose: () => void;
   email: string;
-  userId: string;
   onRestore: () => Promise<void>;
   onRecreate: () => Promise<void>;
 };

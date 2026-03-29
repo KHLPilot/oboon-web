@@ -48,11 +48,7 @@ export default function AgentPropertyTab({
       <div className="flex items-center justify-between gap-3">
         <div className="ob-typo-h2 text-(--oboon-text-title)">현장 정보 수정</div>
         <Button asChild variant="primary" size="sm" shape="pill">
-          <Link
-            href="/company/properties/new"
-            className="inline-flex items-center gap-1.5"
-            style={{ color: "var(--oboon-on-primary)" }}
-          >
+          <Link href="/company/properties/new" className="inline-flex items-center gap-1.5">
             <Plus className="h-4 w-4" />
             새 현장 등록
           </Link>
@@ -120,11 +116,7 @@ export default function AgentPropertyTab({
               소속 현장이 없어 새 현장을 만들면 자동 소속됩니다.
             </div>
             <Button asChild variant="primary" size="sm" shape="pill">
-              <Link
-                href="/company/properties/new"
-                className="inline-flex items-center gap-1.5"
-                style={{ color: "var(--oboon-on-primary)" }}
-              >
+              <Link href="/company/properties/new" className="inline-flex items-center gap-1.5">
                 <Plus className="h-4 w-4" />새 현장 등록
               </Link>
             </Button>

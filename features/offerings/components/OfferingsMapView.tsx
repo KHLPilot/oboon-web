@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Expand, Minus, Plus } from "lucide-react";
 
 import Button from "@/components/ui/Button";
@@ -262,6 +262,7 @@ export default function OfferingsMapView({
 }: {
   offerings: Offering[];
 }) {
+  const router = useRouter();
   const sp = useSearchParams();
   const mapApiRef = useRef<NaverMapHandle | null>(null);
   const [mapReady, setMapReady] = useState(false);
@@ -377,6 +378,24 @@ export default function OfferingsMapView({
       activeRegionFocusPolygons,
     ],
   );
+  const handleMarkerSelect = useCallback((id: number) => {
+    if (activeFocusedId === id) {
+      router.push(`/offerings/${id}`);
+      return;
+    }
+    setFocusedId(id);
+  }, [activeFocusedId, router]);
+  const handleOverlaySelect = useCallback((id: number) => {
+    if (id <= 0) {
+      setFocusedId(null);
+      return;
+    }
+    if (activeFocusedId === id) {
+      router.push(`/offerings/${id}`);
+      return;
+    }
+    setFocusedId(id);
+  }, [activeFocusedId, router]);
   useEffect(() => {
     if (activeBoundaryRegionKey === "all") return;
     if (regionBoundaryByKey[activeBoundaryRegionKey]) return;
@@ -503,10 +522,7 @@ export default function OfferingsMapView({
                 focusedId={activeFocusedId}
                 onMapReady={() => setMapReady(true)}
                 onHoverChange={setHoveredId}
-                onMarkerSelect={(id) => {
-                  if (activeFocusedId === id) return;
-                  setFocusedId(id);
-                }}
+                onMarkerSelect={handleMarkerSelect}
                 onClearFocus={() => setFocusedId(null)}
                 onMapMoveStart={() => setFocusedId(null)}
               />
@@ -562,7 +578,7 @@ export default function OfferingsMapView({
         hoveredId={hoveredId}
         focusedId={activeFocusedId}
         onHoverChange={setHoveredId}
-        onSelect={(id) => setFocusedId(id > 0 ? id : null)}
+        onSelect={handleOverlaySelect}
         onClose={() => setOverlayOpen(false)}
       />
     </div>

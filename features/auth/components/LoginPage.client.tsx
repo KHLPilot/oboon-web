@@ -25,10 +25,12 @@ import RestoreAccountModal from "./RestoreAccountModal";
 
 type LoginField = "email" | "password" | "generic";
 
-function resolveSafeNextPath(value: string | null): string | null {
-  if (!value) return null;
-  if (!value.startsWith("/") || value.startsWith("//")) return null;
-  return value;
+function resolveSafeNextPath(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (!trimmed.startsWith("/") || trimmed.startsWith("//")) return null;
+  return trimmed;
 }
 
 export default function LoginPage() {
@@ -37,6 +39,7 @@ export default function LoginPage() {
   const searchParams = useSearchParams();
   const nextPath = resolveSafeNextPath(searchParams.get("next"));
   const lastInvalidToastAtRef = useRef(0);
+  const errorConfirmButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const cardWrapRef = useRef<HTMLDivElement | null>(null);
   const [fieldError, setFieldError] =
@@ -54,7 +57,7 @@ export default function LoginPage() {
   const [restoreModalOpen, setRestoreModalOpen] = useState(false);
   const [deletedAccountInfo, setDeletedAccountInfo] = useState<{
     email: string;
-    userId: string;
+    restoreToken: string;
   } | null>(null);
 
   // 소셜 로그인 banned 시 이메일 입력 모달
@@ -80,6 +83,32 @@ export default function LoginPage() {
   }, [searchParams, router]);
 
   // 소셜 로그인 banned 계정 확인
+  async function checkDeletedAccount(
+    targetEmail: string,
+    options?: { needBanCheck?: boolean },
+  ) {
+    const res = await fetch("/api/auth/check-deleted-account", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: targetEmail,
+        needBanCheck: options?.needBanCheck === true,
+      }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.error || "계정 확인 중 오류가 발생했습니다.");
+    }
+
+    return {
+      isDeleted: Boolean(data?.isDeleted),
+      isBanned: Boolean(data?.isBanned),
+      restoreToken:
+        typeof data?.restoreToken === "string" ? data.restoreToken : null,
+    };
+  }
+
   async function handleCheckBannedAccount() {
     if (!bannedEmail) {
       showAlert("이메일을 입력해주세요.");
@@ -88,18 +117,13 @@ export default function LoginPage() {
 
     setCheckingBanned(true);
     try {
-      const res = await fetch("/api/auth/check-deleted-account", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: bannedEmail }),
-      });
-      const data = await res.json();
+      const data = await checkDeletedAccount(bannedEmail, { needBanCheck: true });
 
-      if (data.isDeleted && data.isBanned && data.userId) {
+      if (data.isDeleted && data.restoreToken) {
         setBannedEmailModalOpen(false);
-        setDeletedAccountInfo({ email: bannedEmail, userId: data.userId });
+        setDeletedAccountInfo({ email: bannedEmail, restoreToken: data.restoreToken });
         setRestoreModalOpen(true);
-      } else if (data.isBanned && data.userId) {
+      } else if (data.isBanned) {
         // banned지만 deleted가 아닌 경우 (관리자 밴)
         setBannedEmailModalOpen(false);
         setError(Copy.auth.error.deactivated);
@@ -189,15 +213,10 @@ export default function LoginPage() {
           throw new Error("이메일 인증을 완료해주세요.");
         } else if (loginError.message.toLowerCase().includes("banned")) {
           // 탈퇴(ban)된 계정인지 확인
-          const checkRes = await fetch("/api/auth/check-deleted-account", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email }),
-          });
-          const checkData = await checkRes.json();
+          const checkData = await checkDeletedAccount(email);
 
-          if (checkData.isDeleted && checkData.isBanned && checkData.userId) {
-            setDeletedAccountInfo({ email, userId: checkData.userId });
+          if (checkData.isDeleted && checkData.restoreToken) {
+            setDeletedAccountInfo({ email, restoreToken: checkData.restoreToken });
             setRestoreModalOpen(true);
             setLoading(false);
             return;
@@ -243,9 +262,20 @@ export default function LoginPage() {
 
       // 탈퇴한 계정인지 확인 (deleted_at이 설정된 경우)
       if (profile.deleted_at) {
+        const restoreSessionRes = await fetch("/api/auth/create-restore-session", {
+          method: "POST",
+        });
+        const restoreSessionData = await restoreSessionRes.json();
         await supabase.auth.signOut();
+
+        if (!restoreSessionRes.ok || typeof restoreSessionData?.sessionKey !== "string") {
+          setLoading(false);
+          setError("복구 정보를 확인할 수 없습니다. 다시 로그인해주세요.");
+          return;
+        }
+
         router.replace(
-          `/auth/restore?userId=${data.user.id}&email=${encodeURIComponent(email)}`
+          `/auth/restore?s=${encodeURIComponent(restoreSessionData.sessionKey)}`
         );
         return;
       }
@@ -334,7 +364,7 @@ export default function LoginPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        userId: deletedAccountInfo.userId,
+        restoreToken: deletedAccountInfo.restoreToken,
         email: deletedAccountInfo.email,
       }),
     });
@@ -357,7 +387,7 @@ export default function LoginPage() {
     const res = await fetch("/api/auth/delete-and-recreate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: deletedAccountInfo.userId }),
+      body: JSON.stringify({ restoreToken: deletedAccountInfo.restoreToken }),
     });
 
     const data = await res.json();
@@ -388,6 +418,24 @@ export default function LoginPage() {
   }
 
   const bubbleId = "login-field-error";
+
+  useEffect(() => {
+    if (!error) return;
+
+    errorConfirmButtonRef.current?.focus();
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Enter" && event.key !== "NumpadEnter") return;
+      event.preventDefault();
+      event.stopPropagation();
+      setError(null);
+    };
+
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, true);
+    };
+  }, [error]);
 
   return (
     <main className="min-h-dvh overflow-x-hidden bg-(--oboon-bg-page) text-(--oboon-text-title)">
@@ -626,6 +674,7 @@ export default function LoginPage() {
               </div>
               <div className="mt-5">
                 <Button
+                  ref={errorConfirmButtonRef}
                   variant="primary"
                   shape="pill"
                   className="w-full justify-center"
@@ -689,7 +738,6 @@ export default function LoginPage() {
             open={restoreModalOpen}
             onClose={() => setRestoreModalOpen(false)}
             email={deletedAccountInfo?.email ?? ""}
-            userId={deletedAccountInfo?.userId ?? ""}
             onRestore={handleRestoreAccount}
             onRecreate={handleRecreateAccount}
           />

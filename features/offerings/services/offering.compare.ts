@@ -1,5 +1,16 @@
 // features/offerings/services/offering.compare.ts
+import { createClient } from "@supabase/supabase-js";
 import { createSupabaseServer } from "@/lib/supabaseServer";
+import { evaluateFullCondition } from "@/features/condition-validation/domain/fullCustomerEvaluator";
+import type {
+  EmploymentType,
+  FullCustomerInput,
+  FullPurchasePurpose,
+  MonthlyLoanRepayment,
+  MoveinTiming,
+  PurchaseTiming,
+} from "@/features/condition-validation/domain/types";
+import { loadPropertyProfile } from "@/features/condition-validation/server/profile-resolver";
 import {
   normalizeOfferingStatusValue,
   OFFERING_STATUS_VALUES,
@@ -17,6 +28,149 @@ type RecoPoiQueryRow = {
   distance_m: number | string | null;
   school_level: string | null;
 };
+
+type CompareProfileRow = {
+  cv_available_cash_manwon: number | null;
+  cv_monthly_income_manwon: number | null;
+  cv_monthly_expenses_manwon: number | null;
+  cv_owned_house_count: number | null;
+  cv_credit_grade: "good" | "normal" | "unstable" | null;
+  cv_purchase_purpose: "residence" | "investment" | "both" | null;
+  cv_employment_type: EmploymentType | null;
+  cv_house_ownership: "none" | "one" | "two_or_more" | null;
+  cv_purchase_purpose_v2: FullPurchasePurpose | null;
+  cv_purchase_timing: PurchaseTiming | null;
+  cv_movein_timing: MoveinTiming | null;
+  cv_ltv_internal_score: number | null;
+  cv_existing_monthly_repayment: MonthlyLoanRepayment | null;
+};
+
+const EMPLOYMENT_TYPES = ["employee", "self_employed", "freelancer", "other"] as const;
+const HOUSE_OWNERSHIPS = ["none", "one", "two_or_more"] as const;
+const PURCHASE_PURPOSES = [
+  "residence",
+  "investment_rent",
+  "investment_capital",
+  "long_term",
+] as const;
+const PURCHASE_TIMINGS = [
+  "by_property",
+  "over_1year",
+  "within_1year",
+  "within_6months",
+  "within_3months",
+] as const;
+const MOVEIN_TIMINGS = [
+  "anytime",
+  "within_3years",
+  "within_2years",
+  "within_1year",
+  "immediate",
+] as const;
+const MONTHLY_REPAYMENTS = ["none", "under_50", "50to100", "100to200", "over_200"] as const;
+
+function createAdminSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serviceRoleKey) return null;
+  return createClient(url, serviceRoleKey);
+}
+
+function toFiniteInteger(value: unknown): number | null {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? Math.max(0, Math.round(value)) : null;
+  }
+  if (typeof value === "string") {
+    const normalized = value.replaceAll(",", "").trim();
+    if (!normalized) return null;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : null;
+  }
+  return null;
+}
+
+function isOneOf<T extends string>(values: readonly T[], value: unknown): value is T {
+  return typeof value === "string" && (values as readonly string[]).includes(value);
+}
+
+function houseOwnershipFromOwnedHouseCount(value: unknown): "none" | "one" | "two_or_more" {
+  const count = toFiniteInteger(value) ?? 0;
+  if (count >= 2) return "two_or_more";
+  if (count === 1) return "one";
+  return "none";
+}
+
+function purchasePurposeFromLegacy(value: unknown): FullPurchasePurpose {
+  if (value === "investment") return "investment_capital";
+  if (value === "both") return "long_term";
+  return "residence";
+}
+
+function ltvInternalScoreFromCreditGrade(value: unknown): number {
+  if (value === "good") return 80;
+  if (value === "normal") return 55;
+  if (value === "unstable") return 20;
+  return 0;
+}
+
+function buildCompareCustomer(profile: CompareProfileRow | null): FullCustomerInput | null {
+  if (!profile) return null;
+
+  const availableCash = toFiniteInteger(profile.cv_available_cash_manwon);
+  const monthlyIncome = toFiniteInteger(profile.cv_monthly_income_manwon);
+  if (availableCash === null || monthlyIncome === null) return null;
+
+  return {
+    employmentType: isOneOf(EMPLOYMENT_TYPES, profile.cv_employment_type)
+      ? profile.cv_employment_type
+      : "employee",
+    availableCash,
+    monthlyIncome,
+    monthlyExpenses: toFiniteInteger(profile.cv_monthly_expenses_manwon) ?? 0,
+    houseOwnership: isOneOf(HOUSE_OWNERSHIPS, profile.cv_house_ownership)
+      ? profile.cv_house_ownership
+      : houseOwnershipFromOwnedHouseCount(profile.cv_owned_house_count),
+    purchasePurpose: isOneOf(PURCHASE_PURPOSES, profile.cv_purchase_purpose_v2)
+      ? profile.cv_purchase_purpose_v2
+      : purchasePurposeFromLegacy(profile.cv_purchase_purpose),
+    purchaseTiming: isOneOf(PURCHASE_TIMINGS, profile.cv_purchase_timing)
+      ? profile.cv_purchase_timing
+      : "by_property",
+    moveinTiming: isOneOf(MOVEIN_TIMINGS, profile.cv_movein_timing)
+      ? profile.cv_movein_timing
+      : "anytime",
+    ltvInternalScore: Math.min(
+      100,
+      Math.max(
+        0,
+        toFiniteInteger(profile.cv_ltv_internal_score) ??
+          ltvInternalScoreFromCreditGrade(profile.cv_credit_grade),
+      ),
+    ),
+    existingMonthlyRepayment: isOneOf(
+      MONTHLY_REPAYMENTS,
+      profile.cv_existing_monthly_repayment,
+    )
+      ? profile.cv_existing_monthly_repayment
+      : "none",
+  };
+}
+
+export async function loadCompareViewerCustomer(
+  userId: string,
+): Promise<FullCustomerInput | null> {
+  const supabase = await createSupabaseServer();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select(
+      "cv_available_cash_manwon, cv_monthly_income_manwon, cv_monthly_expenses_manwon, cv_owned_house_count, cv_credit_grade, cv_purchase_purpose, cv_employment_type, cv_house_ownership, cv_purchase_purpose_v2, cv_purchase_timing, cv_movein_timing, cv_ltv_internal_score, cv_existing_monthly_repayment",
+    )
+    .eq("id", userId)
+    .maybeSingle<CompareProfileRow>();
+
+  if (error || !data) return null;
+  return buildCompareCustomer(data);
+}
 
 function pickFirst<T>(v: T | T[] | null | undefined): T | null {
   if (!v) return null;
@@ -161,11 +315,13 @@ function mapToCompareItem(
     distanceToCbd,
     schoolGrade,
     conditionResult: null,
+    conditionCategories: null,
   };
 }
 
 export async function getOfferingsForCompare(
   ids: string[],
+  viewerCustomer: FullCustomerInput | null = null,
 ): Promise<OfferingCompareItem[]> {
   if (!ids.length) return [];
 
@@ -175,6 +331,7 @@ export async function getOfferingsForCompare(
   if (!numericIds.length) return [];
 
   const supabase = await createSupabaseServer();
+  const adminSupabase = viewerCustomer ? createAdminSupabase() : null;
 
   const [snapshotResult, poisResult] = await Promise.all([
     supabase
@@ -211,14 +368,40 @@ export async function getOfferingsForCompare(
   );
 
   // Return in the requested order
-  return ids
-    .map((id) => {
+  const items = await Promise.all(
+    ids.map(async (id) => {
       const snapshot = snapshotMap.get(id);
       if (!snapshot) return null;
       const pois = poisByPropertyId.get(Number(id)) ?? [];
-      return mapToCompareItem(snapshot, pois);
-    })
-    .filter((item): item is OfferingCompareItem => item !== null);
+      const item = mapToCompareItem(snapshot, pois);
+
+      if (viewerCustomer && adminSupabase) {
+        const profile = await loadPropertyProfile({
+          adminSupabase,
+          propertyIdInput: id,
+        });
+        if (profile) {
+          const evaluation = evaluateFullCondition({
+            profile,
+            customer: viewerCustomer,
+          });
+          item.conditionResult = evaluation.finalGrade;
+          item.conditionCategories = {
+            cash: evaluation.categories.cash.grade,
+            income: evaluation.categories.income.grade,
+            ltvDsr: evaluation.categories.ltvDsr.grade,
+            ownership: evaluation.categories.ownership.grade,
+            purpose: evaluation.categories.purpose.grade,
+            timing: evaluation.categories.timing.grade,
+          };
+        }
+      }
+
+      return item;
+    }),
+  );
+
+  return items.filter((item): item is OfferingCompareItem => item !== null);
 }
 
 // 선택 드롭다운용 기본 현장 목록 (최근 발행 순)

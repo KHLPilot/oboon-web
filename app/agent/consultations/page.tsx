@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 import PageContainer from "@/components/shared/PageContainer";
+import SafeMarkdown from "@/components/shared/SafeMarkdown";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
@@ -1151,9 +1152,10 @@ function AgentConsultationsPageContent() {
           </button>
           {termsAccordionOpen ? (
             <div className="mt-3 max-h-64 overflow-y-auto rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-3">
-              <p className="ob-typo-caption whitespace-pre-wrap text-(--oboon-text-muted)">
-                {agentTerms?.content || "약관을 불러오는 중..."}
-              </p>
+              <SafeMarkdown
+                content={agentTerms?.content || "약관을 불러오는 중..."}
+                className="text-(--oboon-text-muted)"
+              />
             </div>
           ) : null}
         </div>

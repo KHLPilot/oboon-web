@@ -99,6 +99,7 @@ export default function RecommendationConditionPanel(
           condition={condition}
           onEvaluate={onEvaluate}
           isLoading={isLoading}
+          isLoggedIn={isLoggedIn}
         />
       )}
     </div>

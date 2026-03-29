@@ -32,6 +32,15 @@ export type OfferingRegionTab = (typeof OFFERING_REGION_TABS)[number];
 
 export type FinalGrade5 = "GREEN" | "LIME" | "YELLOW" | "ORANGE" | "RED";
 
+export interface OfferingCompareConditionCategories {
+  cash: FinalGrade5;
+  income: FinalGrade5;
+  ltvDsr: FinalGrade5;
+  ownership: FinalGrade5;
+  purpose: FinalGrade5;
+  timing: FinalGrade5;
+}
+
 export interface OfferingCompareItem {
   id: string;
   name: string;
@@ -56,6 +65,8 @@ export interface OfferingCompareItem {
   distanceToCbd: string;
   schoolGrade: "우수" | "보통" | "미흡";
   conditionResult: FinalGrade5 | null;
+  conditionCategories: OfferingCompareConditionCategories | null;
 }
 
-export type CompareSlot = "a" | "b" | "c";
+export const COMPARE_SLOTS = ["a", "b", "c"] as const;
+export type CompareSlot = (typeof COMPARE_SLOTS)[number];

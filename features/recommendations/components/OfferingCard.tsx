@@ -43,7 +43,7 @@ function gradeToneMeta(
   switch (grade) {
     case "GREEN":
       return {
-        badgeLabel: "조건 충족",
+        badgeLabel: grade5DetailLabel(grade),
         detailLabel: grade5DetailLabel(grade),
         badgeClassName:
           "border-(--oboon-grade-green-border) bg-(--oboon-grade-green-bg) text-(--oboon-grade-green-text)",
@@ -53,7 +53,7 @@ function gradeToneMeta(
       };
     case "LIME":
       return {
-        badgeLabel: "거의 충족",
+        badgeLabel: grade5DetailLabel(grade),
         detailLabel: grade5DetailLabel(grade),
         badgeClassName:
           "border-(--oboon-grade-lime-border) bg-(--oboon-grade-lime-bg) text-(--oboon-grade-lime-text)",
@@ -63,7 +63,7 @@ function gradeToneMeta(
       };
     case "YELLOW":
       return {
-        badgeLabel: "검토 필요",
+        badgeLabel: grade5DetailLabel(grade),
         detailLabel: grade5DetailLabel(grade),
         badgeClassName:
           "border-(--oboon-grade-yellow-border) bg-(--oboon-grade-yellow-bg) text-(--oboon-grade-yellow-text)",
@@ -73,7 +73,7 @@ function gradeToneMeta(
       };
     case "ORANGE":
       return {
-        badgeLabel: "어려울 수 있음",
+        badgeLabel: grade5DetailLabel(grade),
         detailLabel: grade5DetailLabel(grade),
         badgeClassName:
           "border-(--oboon-grade-orange-border) bg-(--oboon-grade-orange-bg) text-(--oboon-grade-orange-text)",
@@ -83,7 +83,7 @@ function gradeToneMeta(
       };
     default:
       return {
-        badgeLabel: "미충족",
+        badgeLabel: grade5DetailLabel(grade),
         detailLabel: grade5DetailLabel(grade),
         badgeClassName:
           "border-(--oboon-grade-red-border) bg-(--oboon-grade-red-bg) text-(--oboon-grade-red-text)",

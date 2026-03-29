@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import SafeMarkdown from "@/components/shared/SafeMarkdown";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import { Loader2 } from "lucide-react";
@@ -239,9 +240,9 @@ export default function TermsConsentModal({
       >
         <h2 className="ob-typo-h3 text-(--oboon-text-title) mb-4">{termDetailModal.title}</h2>
         <div className="max-h-[60vh] overflow-y-auto">
-          <div
-            className="ob-typo-body text-(--oboon-text-body) whitespace-pre-wrap"
-            dangerouslySetInnerHTML={{ __html: termDetailModal.content }}
+          <SafeMarkdown
+            content={termDetailModal.content}
+            className="text-(--oboon-text-body)"
           />
         </div>
         <div className="flex justify-end mt-4">

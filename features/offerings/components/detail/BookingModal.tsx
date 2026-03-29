@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { OboonInlineDatePicker } from "@/components/ui/DatePicker";
 
+import SafeMarkdown from "@/components/shared/SafeMarkdown";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
@@ -1053,9 +1054,10 @@ export default function BookingModal({
               </button>
               {termsAccordionOpen ? (
                 <div className="mt-3 max-h-64 overflow-y-auto rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-3">
-                  <p className="ob-typo-caption whitespace-pre-wrap text-(--oboon-text-muted)">
-                    {terms?.content || "약관을 불러오는 중..."}
-                  </p>
+                  <SafeMarkdown
+                    content={terms?.content || "약관을 불러오는 중..."}
+                    className="text-(--oboon-text-muted)"
+                  />
                 </div>
               ) : null}
             </div>

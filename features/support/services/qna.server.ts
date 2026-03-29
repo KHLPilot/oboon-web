@@ -5,6 +5,7 @@
 import { createSupabaseServer } from "@/lib/supabaseServer";
 import { createClient } from "@supabase/supabase-js";
 import { hashPassword, verifyPassword } from "@/lib/password";
+import { createSupabaseServiceError } from "@/lib/errors";
 import {
   QNA_STATUS,
   formatSupportDate,
@@ -101,7 +102,12 @@ export async function fetchQnAListServer(options?: {
     .is("deleted_at", null);
 
   if (countError) {
-    throw countError;
+    throw createSupabaseServiceError(countError, {
+      scope: "qna.server",
+      action: "fetchQnAListServer.count",
+      defaultMessage: "QnA 목록 조회 중 오류가 발생했습니다.",
+      context: { page, limit },
+    });
   }
 
   const { data, error } = await supabase
@@ -124,7 +130,12 @@ export async function fetchQnAListServer(options?: {
     .range(offset, offset + limit - 1);
 
   if (error) {
-    throw error;
+    throw createSupabaseServiceError(error, {
+      scope: "qna.server",
+      action: "fetchQnAListServer.list",
+      defaultMessage: "QnA 목록 조회 중 오류가 발생했습니다.",
+      context: { page, limit },
+    });
   }
 
   const items: QnAListItemViewModel[] = (data ?? []).map((row) => {

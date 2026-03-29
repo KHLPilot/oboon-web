@@ -1,12 +1,8 @@
 import { createSupabaseServer } from "@/lib/supabaseServer";
+import { ERR, ServiceResult, createSupabaseServiceError } from "@/lib/errors";
 
 const TABLE_NAME = "property_image_assets";
 const GALLERY_KIND = "gallery";
-
-type ServiceResult<T> = {
-  data: T | null;
-  error: Error | null;
-};
 
 export async function fetchPropertyGalleryProfileRole(userId: string) {
   const supabase = await createSupabaseServer();
@@ -18,7 +14,19 @@ export async function fetchPropertyGalleryProfileRole(userId: string) {
 
   return {
     data: (data as { role: string | null } | null) ?? null,
-    error: error ? new Error(error.message) : null,
+    error: createSupabaseServiceError(error, {
+      scope: "property.gallery",
+      action: "fetchPropertyGalleryProfileRole",
+      defaultMessage: "프로필 조회 중 오류가 발생했습니다.",
+      context: { userId },
+      codeMap: {
+        PGRST116: {
+          code: ERR.NOT_FOUND,
+          clientMessage: "프로필을 찾을 수 없습니다.",
+          statusHint: 404,
+        },
+      },
+    }),
   } as ServiceResult<{ role: string | null }>;
 }
 
@@ -32,7 +40,19 @@ export async function fetchPropertyGalleryProperty(propertyId: number) {
 
   return {
     data: (data as { created_by: string | null } | null) ?? null,
-    error: error ? new Error(error.message) : null,
+    error: createSupabaseServiceError(error, {
+      scope: "property.gallery",
+      action: "fetchPropertyGalleryProperty",
+      defaultMessage: "현장 조회 중 오류가 발생했습니다.",
+      context: { propertyId },
+      codeMap: {
+        PGRST116: {
+          code: ERR.NOT_FOUND,
+          clientMessage: "현장을 찾을 수 없습니다.",
+          statusHint: 404,
+        },
+      },
+    }),
   } as ServiceResult<{ created_by: string | null }>;
 }
 
@@ -51,7 +71,12 @@ export async function fetchPropertyGalleryMembership(
 
   return {
     data: (data as Array<{ id: string }> | null) ?? null,
-    error: error ? new Error(error.message) : null,
+    error: createSupabaseServiceError(error, {
+      scope: "property.gallery",
+      action: "fetchPropertyGalleryMembership",
+      defaultMessage: "소속 정보 조회 중 오류가 발생했습니다.",
+      context: { propertyId, agentId },
+    }),
   } as ServiceResult<Array<{ id: string }>>;
 }
 
@@ -77,7 +102,12 @@ export async function fetchPropertyGalleryImages(propertyId: number) {
         caption: string | null;
         created_at: string;
       }> | null) ?? null,
-    error: error ? new Error(error.message) : null,
+    error: createSupabaseServiceError(error, {
+      scope: "property.gallery",
+      action: "fetchPropertyGalleryImages",
+      defaultMessage: "추가 사진 조회 중 오류가 발생했습니다.",
+      context: { propertyId },
+    }),
   };
 }
 
@@ -93,7 +123,12 @@ export async function fetchPropertyGallerySortRows(propertyId: number) {
   return {
     data:
       (data as Array<{ id: string; sort_order: number }> | null) ?? null,
-    error: error ? new Error(error.message) : null,
+    error: createSupabaseServiceError(error, {
+      scope: "property.gallery",
+      action: "fetchPropertyGallerySortRows",
+      defaultMessage: "추가 사진 정렬 조회 중 오류가 발생했습니다.",
+      context: { propertyId },
+    }),
   } as ServiceResult<Array<{ id: string; sort_order: number }>>;
 }
 
@@ -113,7 +148,12 @@ export async function insertPropertyGalleryRows(
 
   return {
     data: error ? null : { success: true },
-    error: error ? new Error(error.message) : null,
+    error: createSupabaseServiceError(error, {
+      scope: "property.gallery",
+      action: "insertPropertyGalleryRows",
+      defaultMessage: "추가 사진 저장 중 오류가 발생했습니다.",
+      context: { rowCount: rows.length },
+    }),
   };
 }
 
@@ -132,7 +172,12 @@ export async function fetchPropertyGalleryExistingRows(
 
   return {
     data: (data as Array<{ id: string }> | null) ?? null,
-    error: error ? new Error(error.message) : null,
+    error: createSupabaseServiceError(error, {
+      scope: "property.gallery",
+      action: "fetchPropertyGalleryExistingRows",
+      defaultMessage: "추가 사진 확인 중 오류가 발생했습니다.",
+      context: { propertyId, imageCount: ids.length },
+    }),
   } as ServiceResult<Array<{ id: string }>>;
 }
 
@@ -155,7 +200,12 @@ export async function updatePropertyGalleryRow(
 
   return {
     data: error ? null : { success: true },
-    error: error ? new Error(error.message) : null,
+    error: createSupabaseServiceError(error, {
+      scope: "property.gallery",
+      action: "updatePropertyGalleryRow",
+      defaultMessage: "추가 사진 수정 중 오류가 발생했습니다.",
+      context: { propertyId, imageId },
+    }),
   };
 }
 
@@ -176,7 +226,12 @@ export async function fetchPropertyGalleryTarget(
   return {
     data:
       (data as { id: string; storage_path: string | null } | null) ?? null,
-    error: error ? new Error(error.message) : null,
+    error: createSupabaseServiceError(error, {
+      scope: "property.gallery",
+      action: "fetchPropertyGalleryTarget",
+      defaultMessage: "사진 조회 중 오류가 발생했습니다.",
+      context: { propertyId, imageId },
+    }),
   } as ServiceResult<{ id: string; storage_path: string | null }>;
 }
 
@@ -195,6 +250,11 @@ export async function softDeletePropertyGalleryImage(
 
   return {
     data: error ? null : { success: true },
-    error: error ? new Error(error.message) : null,
+    error: createSupabaseServiceError(error, {
+      scope: "property.gallery",
+      action: "softDeletePropertyGalleryImage",
+      defaultMessage: "사진 삭제 중 오류가 발생했습니다.",
+      context: { propertyId, imageId },
+    }),
   };
 }

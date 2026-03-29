@@ -1,17 +1,7 @@
 import { createSupabaseServer } from "@/lib/supabaseServer";
+import { ServiceResult, createSupabaseServiceError } from "@/lib/errors";
 
 const TABLE_NAME = "profile_gallery_images";
-
-type ServiceResult<T> = {
-  data: T | null;
-  error: Error | null;
-};
-
-function toErrorMessage(error: { code?: string; message?: string } | null) {
-  if (!error) return null;
-  const code = error.code ? `${error.code}: ` : "";
-  return new Error(`${code}${error.message ?? "unknown_error"}`);
-}
 
 export async function fetchProfileGalleryImages(userId: string) {
   const supabase = await createSupabaseServer();
@@ -33,7 +23,12 @@ export async function fetchProfileGalleryImages(userId: string) {
         caption: string | null;
         created_at: string;
       }> | null) ?? null,
-    error: toErrorMessage(error),
+    error: createSupabaseServiceError(error, {
+      scope: "profile.gallery",
+      action: "fetchProfileGalleryImages",
+      defaultMessage: "갤러리 조회 중 오류가 발생했습니다.",
+      context: { userId },
+    }),
   };
 }
 
@@ -47,7 +42,12 @@ export async function fetchProfileGallerySortRows(userId: string) {
   return {
     data:
       (data as Array<{ id: string; sort_order: number }> | null) ?? null,
-    error: toErrorMessage(error),
+    error: createSupabaseServiceError(error, {
+      scope: "profile.gallery",
+      action: "fetchProfileGallerySortRows",
+      defaultMessage: "갤러리 정렬 조회 중 오류가 발생했습니다.",
+      context: { userId },
+    }),
   } as ServiceResult<Array<{ id: string; sort_order: number }>>;
 }
 
@@ -78,7 +78,12 @@ export async function insertProfileGalleryRows(
         caption: string | null;
         created_at: string;
       }> | null) ?? null,
-    error: toErrorMessage(error),
+    error: createSupabaseServiceError(error, {
+      scope: "profile.gallery",
+      action: "insertProfileGalleryRows",
+      defaultMessage: "갤러리 저장 중 오류가 발생했습니다.",
+      context: { rowCount: rows.length },
+    }),
   };
 }
 
@@ -95,7 +100,12 @@ export async function fetchOwnedProfileGalleryRows(
 
   return {
     data: (data as Array<{ id: string }> | null) ?? null,
-    error: toErrorMessage(error),
+    error: createSupabaseServiceError(error, {
+      scope: "profile.gallery",
+      action: "fetchOwnedProfileGalleryRows",
+      defaultMessage: "갤러리 소유권 확인 중 오류가 발생했습니다.",
+      context: { userId, imageCount: ids.length },
+    }),
   } as ServiceResult<Array<{ id: string }>>;
 }
 
@@ -115,7 +125,12 @@ export async function updateProfileGalleryRow(
 
   return {
     data: error ? null : { success: true },
-    error: toErrorMessage(error),
+    error: createSupabaseServiceError(error, {
+      scope: "profile.gallery",
+      action: "updateProfileGalleryRow",
+      defaultMessage: "갤러리 수정 중 오류가 발생했습니다.",
+      context: { userId, imageId: input.id },
+    }),
   };
 }
 
@@ -134,7 +149,12 @@ export async function fetchProfileGalleryDeleteRows(
     data:
       (data as Array<{ id: string; storage_path: string | null }> | null) ??
       null,
-    error: toErrorMessage(error),
+    error: createSupabaseServiceError(error, {
+      scope: "profile.gallery",
+      action: "fetchProfileGalleryDeleteRows",
+      defaultMessage: "삭제 대상 조회 중 오류가 발생했습니다.",
+      context: { userId, imageCount: ids.length },
+    }),
   } as ServiceResult<Array<{ id: string; storage_path: string | null }>>;
 }
 
@@ -151,6 +171,11 @@ export async function deleteProfileGalleryRows(
 
   return {
     data: error ? null : { success: true },
-    error: toErrorMessage(error),
+    error: createSupabaseServiceError(error, {
+      scope: "profile.gallery",
+      action: "deleteProfileGalleryRows",
+      defaultMessage: "갤러리 삭제 중 오류가 발생했습니다.",
+      context: { userId, imageCount: ids.length },
+    }),
   };
 }

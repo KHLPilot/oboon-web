@@ -15,6 +15,7 @@ import ConditionValidationCard, {
   type ProfileAutoFillData,
 } from "@/features/offerings/components/detail/ConditionValidationCard";
 import type { ConditionRecommendationItem } from "@/features/condition-validation/domain/types";
+import { grade5DetailLabel } from "@/features/condition-validation/lib/grade5Labels";
 import { formatManwonWithEok, formatPercent } from "@/lib/format/currency";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { trackEvent } from "@/lib/analytics";
@@ -79,11 +80,11 @@ function gradeMeta(grade: ConditionRecommendationItem["final_grade"]): {
   label: string;
   badgeVariant: "success" | "warning" | "danger";
 } {
-  if (grade === "GREEN") return { label: "계약 가능", badgeVariant: "success" };
-  if (grade === "LIME") return { label: "거의 충족", badgeVariant: "success" };
-  if (grade === "YELLOW") return { label: "확인 필요", badgeVariant: "warning" };
-  if (grade === "ORANGE") return { label: "계약 어려울 수 있음", badgeVariant: "warning" };
-  return { label: "계약 어려움", badgeVariant: "danger" };
+  if (grade === "GREEN") return { label: grade5DetailLabel(grade), badgeVariant: "success" };
+  if (grade === "LIME") return { label: grade5DetailLabel(grade), badgeVariant: "success" };
+  if (grade === "YELLOW") return { label: grade5DetailLabel(grade), badgeVariant: "warning" };
+  if (grade === "ORANGE") return { label: grade5DetailLabel(grade), badgeVariant: "warning" };
+  return { label: grade5DetailLabel(grade), badgeVariant: "danger" };
 }
 
 function statusLabel(status: string | null): string {

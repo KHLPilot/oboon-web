@@ -10,10 +10,10 @@ const EXCLUDED_PATHS = ["/auth/signup", "/auth/onboarding"];
 
 export default function TermsConsentProvider() {
   const pathname = usePathname();
-  const pathnameRef = useRef(pathname);
+  const pathnameRef = useRef(pathname ?? "");
 
   useEffect(() => {
-    pathnameRef.current = pathname;
+    pathnameRef.current = pathname ?? "";
   }, [pathname]);
 
   const [open, setOpen] = useState(false);
@@ -50,8 +50,10 @@ export default function TermsConsentProvider() {
     // 약관 동의 체크 함수
     const checkConsent = async () => {
       // 제외 경로에서는 약관 체크 스킵
+      const currentPath =
+        typeof pathnameRef.current === "string" ? pathnameRef.current : "";
       const isExcluded = EXCLUDED_PATHS.some((p) =>
-        pathnameRef.current.startsWith(p)
+        currentPath.startsWith(p)
       );
       if (isExcluded) return;
 

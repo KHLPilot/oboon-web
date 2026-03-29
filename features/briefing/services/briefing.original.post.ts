@@ -1,4 +1,5 @@
 import { createSupabaseServer } from "@/lib/supabaseServer";
+import { createSupabaseServiceError } from "@/lib/errors";
 
 export async function fetchOboonOriginalPostPageData(args: {
   categoryKey: string;
@@ -24,7 +25,13 @@ export async function fetchOboonOriginalPostPageData(args: {
     .select("id")
     .eq("key", "oboon_original")
     .single();
-  if (boardError) throw boardError;
+  if (boardError) {
+    throw createSupabaseServiceError(boardError, {
+      scope: "briefing.original.post",
+      action: "fetchOboonOriginalPostPageData.board",
+      defaultMessage: "브리핑 게시판 조회 중 오류가 발생했습니다.",
+    });
+  }
   const boardId = board.id as string;
 
   const { data: cat, error: catErr } = await supabase
@@ -34,7 +41,14 @@ export async function fetchOboonOriginalPostPageData(args: {
     .eq("key", categoryKey)
     .eq("is_active", true)
     .maybeSingle();
-  if (catErr) throw catErr;
+  if (catErr) {
+    throw createSupabaseServiceError(catErr, {
+      scope: "briefing.original.post",
+      action: "fetchOboonOriginalPostPageData.category",
+      defaultMessage: "브리핑 카테고리 조회 중 오류가 발생했습니다.",
+      context: { categoryKey },
+    });
+  }
 
   const { data: post, error } = await supabase
     .from("briefing_posts")
@@ -62,7 +76,14 @@ export async function fetchOboonOriginalPostPageData(args: {
     .eq("board_id", boardId)
     .eq("slug", slug)
     .maybeSingle();
-  if (error) throw error;
+  if (error) {
+    throw createSupabaseServiceError(error, {
+      scope: "briefing.original.post",
+      action: "fetchOboonOriginalPostPageData.post",
+      defaultMessage: "브리핑 게시글 조회 중 오류가 발생했습니다.",
+      context: { categoryKey, slug },
+    });
+  }
 
   const { data: relatedData, error: relErr } = await supabase
     .from("briefing_posts")
@@ -75,7 +96,14 @@ export async function fetchOboonOriginalPostPageData(args: {
     .order("created_at", { ascending: false })
     .limit(3);
 
-  if (relErr) throw relErr;
+  if (relErr) {
+    throw createSupabaseServiceError(relErr, {
+      scope: "briefing.original.post",
+      action: "fetchOboonOriginalPostPageData.related",
+      defaultMessage: "관련 브리핑 조회 중 오류가 발생했습니다.",
+      context: { categoryKey, slug },
+    });
+  }
 
   const { data: recCats, error: recErr } = await supabase
     .from("briefing_categories")
@@ -85,7 +113,14 @@ export async function fetchOboonOriginalPostPageData(args: {
     .neq("key", categoryKey)
     .order("sort_order", { ascending: true })
     .limit(3);
-  if (recErr) throw recErr;
+  if (recErr) {
+    throw createSupabaseServiceError(recErr, {
+      scope: "briefing.original.post",
+      action: "fetchOboonOriginalPostPageData.recommendedCategories",
+      defaultMessage: "추천 카테고리 조회 중 오류가 발생했습니다.",
+      context: { categoryKey },
+    });
+  }
 
   const recCounts = new Map<string, number>();
   if ((recCats ?? []).length > 0) {
@@ -101,7 +136,14 @@ export async function fetchOboonOriginalPostPageData(args: {
       .eq("board_id", boardId)
       .in("category_id", recCategoryIds);
 
-    if (rowsErr) throw rowsErr;
+    if (rowsErr) {
+      throw createSupabaseServiceError(rowsErr, {
+        scope: "briefing.original.post",
+        action: "fetchOboonOriginalPostPageData.recommendedCounts",
+        defaultMessage: "추천 카테고리 집계 중 오류가 발생했습니다.",
+        context: { categoryKey, recommendedCategoryCount: recCategoryIds.length },
+      });
+    }
 
     (rows ?? []).forEach((r) => {
       const k = idToKey.get(r.category_id);

@@ -1,8 +1,10 @@
 import { createServerClient } from "@supabase/ssr";
-import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { z } from "zod";
+import { handleStructuredApiError } from "@/lib/api/route-error";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import { AppError, ERR } from "@/lib/errors";
 
 import {
   evaluateCondition,
@@ -72,12 +74,15 @@ const requestSchema = z.object({
 });
 
 function createAdminSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceRoleKey) {
-    throw new Error("Missing Supabase env for condition validation API");
+  try {
+    return createSupabaseAdminClient();
+  } catch {
+    throw new AppError(
+      ERR.CONFIG,
+      "조건 검증 처리 중 오류가 발생했습니다.",
+      500,
+    );
   }
-  return createClient(url, serviceRoleKey);
 }
 
 function stringifyPropertyId(propertyId: string | number): string {
@@ -240,7 +245,7 @@ export async function POST(request: Request) {
         ok: false,
         error: {
           code: "VALIDATION_ERROR",
-          message: "invalid json payload",
+          message: "유효하지 않은 요청 형식입니다.",
         },
       },
       { status: 400 },
@@ -254,8 +259,7 @@ export async function POST(request: Request) {
         ok: false,
         error: {
           code: "VALIDATION_ERROR",
-          message: "request validation failed",
-          field_errors: parsed.error.flatten().fieldErrors,
+          message: "입력값이 올바르지 않습니다.",
         },
       },
       { status: 400 },
@@ -409,19 +413,10 @@ export async function POST(request: Request) {
       evaluated_at: new Date().toISOString(),
     });
   } catch (error) {
-    console.error("POST /api/condition-validation/evaluate error:", error);
-    return NextResponse.json(
-      {
-        ok: false,
-        error: {
-          code: "EVALUATION_FAILED",
-          message:
-            error instanceof Error
-              ? error.message
-              : "조건 검증 처리 중 오류가 발생했습니다.",
-        },
-      },
-      { status: 500 },
-    );
+    return handleStructuredApiError("condition-validation/evaluate", error, {
+      status: 500,
+      code: "EVALUATION_FAILED",
+      message: "조건 검증 처리 중 오류가 발생했습니다.",
+    });
   }
 }

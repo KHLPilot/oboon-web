@@ -11,6 +11,7 @@ import type {
   PurchaseTiming,
   ValidationAssetType,
 } from "./types";
+import { grade5DetailLabel } from "@/features/condition-validation/lib/grade5Labels";
 import {
   ltvScoreToPoints,
   repaymentRangeToMidpoint,
@@ -41,18 +42,7 @@ function categoryGrade5(score: number, maxScore: number): FinalGrade5 {
 }
 
 function grade5Label(grade: FinalGrade5): string {
-  switch (grade) {
-    case "GREEN":
-      return "계약 가능";
-    case "LIME":
-      return "거의 충족";
-    case "YELLOW":
-      return "확인 필요";
-    case "ORANGE":
-      return "계약 어려울 수 있음";
-    case "RED":
-      return "계약 어려움";
-  }
+  return grade5DetailLabel(grade);
 }
 
 function cashCategory(

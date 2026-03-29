@@ -1,55 +1,104 @@
 // app/api/auth/check-deleted-account/route.ts
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import {
+  checkAuthRateLimit,
+  deletedAccountEmailLimiter,
+  getEmailRateLimitIdentifier,
+} from "@/lib/rateLimit";
+import {
+  handleApiError,
+  handleSupabaseError,
+  maskEmail,
+} from "@/lib/api/route-error";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import { createRestoreToken } from "@/lib/auth/restoreToken";
+import {
+  findAuthUserByEmail,
+  findProfileByEmail,
+} from "@/lib/supabaseAdminAuth";
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const supabaseAdmin = createSupabaseAdminClient();
 
 export async function POST(req: Request) {
-  try {
-    const { email } = await req.json();
+  let maskedRequestEmail: string | undefined;
 
-    if (!email) {
+  try {
+    const { email, needBanCheck } = await req.json();
+    const normalizedEmail =
+      typeof email === "string" ? email.trim().toLowerCase() : "";
+
+    if (!normalizedEmail) {
       return NextResponse.json(
         { error: "이메일이 필요합니다." },
         { status: 400 }
       );
     }
 
-    // auth.users에서 이메일로 사용자 찾기
-    const { data: userList } = await supabaseAdmin.auth.admin.listUsers();
-    const user = userList?.users.find((u) => u.email === email);
+    maskedRequestEmail = maskEmail(normalizedEmail);
 
-    if (!user) {
+    const rateLimitRes = await checkAuthRateLimit(
+      deletedAccountEmailLimiter,
+      getEmailRateLimitIdentifier(normalizedEmail),
+      { windowMs: 10 * 60 * 1000 },
+    );
+    if (rateLimitRes) return rateLimitRes;
+
+    let profile: Awaited<ReturnType<typeof findProfileByEmail>>;
+    try {
+      profile = await findProfileByEmail(supabaseAdmin, normalizedEmail);
+    } catch (profileError) {
+      return handleSupabaseError("check-deleted-account 프로필 조회", profileError, {
+        defaultMessage: "서버 오류",
+        context: maskedRequestEmail ? { email: maskedRequestEmail } : undefined,
+      });
+    }
+
+    if (!profile) {
       return NextResponse.json({
         isDeleted: false,
         isBanned: false,
       });
     }
 
-    // ban 여부 확인
+    const isDeleted = profile.deleted_at != null;
+
+    if (isDeleted) {
+      return NextResponse.json({
+        isDeleted: true,
+        isBanned: false,
+        restoreToken: createRestoreToken(profile.id),
+      });
+    }
+
+    if (needBanCheck !== true) {
+      return NextResponse.json({
+        isDeleted: false,
+        isBanned: false,
+      });
+    }
+
+    let user: Awaited<ReturnType<typeof findAuthUserByEmail>>;
+    try {
+      user = await findAuthUserByEmail(supabaseAdmin, normalizedEmail);
+    } catch (authUserError) {
+      return handleSupabaseError("check-deleted-account Auth 사용자 조회", authUserError, {
+        defaultMessage: "서버 오류",
+        context: maskedRequestEmail ? { email: maskedRequestEmail } : undefined,
+      });
+    }
+
     const isBanned =
-      ((user as { banned_until?: string | null }).banned_until ?? null) !== null;
-
-    // profiles에서 deleted_at 확인
-    const { data: profile } = await supabaseAdmin
-      .from("profiles")
-      .select("deleted_at")
-      .eq("id", user.id)
-      .single();
-
-    // deleted_at이 존재하고 null이 아닌 경우만 isDeleted = true
-    const isDeleted = profile?.deleted_at != null;
+      ((user as { banned_until?: string | null } | null)?.banned_until ?? null) !==
+      null;
 
     return NextResponse.json({
-      isDeleted,
+      isDeleted: false,
       isBanned,
-      userId: user.id,
     });
   } catch (err) {
-    console.error("탈퇴 계정 확인 오류:", err);
-    return NextResponse.json({ error: "서버 오류" }, { status: 500 });
+    return handleApiError("check-deleted-account", err, {
+      clientMessage: "서버 오류",
+      context: maskedRequestEmail ? { email: maskedRequestEmail } : undefined,
+    });
   }
 }

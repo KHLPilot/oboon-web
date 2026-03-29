@@ -1,4 +1,5 @@
 import { createSupabaseServer } from "@/lib/supabaseServer";
+import { AppError, ERR, createSupabaseServiceError } from "@/lib/errors";
 
 export async function fetchOboonOriginalPageData() {
   const supabase = await createSupabaseServer();
@@ -21,10 +22,18 @@ export async function fetchOboonOriginalPageData() {
     .eq("key", "oboon_original")
     .maybeSingle();
 
-  if (boardError) throw boardError;
+  if (boardError) {
+    throw createSupabaseServiceError(boardError, {
+      scope: "briefing.original",
+      action: "fetchOboonOriginalPageData.board",
+      defaultMessage: "브리핑 게시판 조회 중 오류가 발생했습니다.",
+    });
+  }
   if (!board?.id) {
-    throw new Error(
-      'briefing_boards에서 key="oboon_original" 보드를 찾지 못했습니다',
+    throw new AppError(
+      ERR.NOT_FOUND,
+      "브리핑 게시판을 찾을 수 없습니다.",
+      404,
     );
   }
 
@@ -37,7 +46,13 @@ export async function fetchOboonOriginalPageData() {
     .eq("is_active", true)
     .order("name", { ascending: true });
 
-  if (catErr) throw catErr;
+  if (catErr) {
+    throw createSupabaseServiceError(catErr, {
+      scope: "briefing.original",
+      action: "fetchOboonOriginalPageData.categories",
+      defaultMessage: "브리핑 카테고리 조회 중 오류가 발생했습니다.",
+    });
+  }
 
   const categoryIds = (categories ?? [])
     .map((c) => c.id)
@@ -52,7 +67,14 @@ export async function fetchOboonOriginalPageData() {
       .eq("status", "published")
       .in("category_id", categoryIds);
 
-    if (cntErr) throw cntErr;
+    if (cntErr) {
+      throw createSupabaseServiceError(cntErr, {
+        scope: "briefing.original",
+        action: "fetchOboonOriginalPageData.categoryCounts",
+        defaultMessage: "브리핑 카테고리 집계 중 오류가 발생했습니다.",
+        context: { categoryCount: categoryIds.length },
+      });
+    }
 
     (rows ?? []).forEach((r) => {
       const id = (r?.category_id ?? null) as string | null;
@@ -75,7 +97,13 @@ export async function fetchOboonOriginalPageData() {
     .order("created_at", { ascending: false })
     .limit(8);
 
-  if (featErr) throw featErr;
+  if (featErr) {
+    throw createSupabaseServiceError(featErr, {
+      scope: "briefing.original",
+      action: "fetchOboonOriginalPageData.featured",
+      defaultMessage: "대표 브리핑 조회 중 오류가 발생했습니다.",
+    });
+  }
 
   const { data: tags, error: tagErr } = await supabase
     .from("briefing_tags")
@@ -84,7 +112,13 @@ export async function fetchOboonOriginalPageData() {
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: true });
 
-  if (tagErr) throw tagErr;
+  if (tagErr) {
+    throw createSupabaseServiceError(tagErr, {
+      scope: "briefing.original",
+      action: "fetchOboonOriginalPageData.tags",
+      defaultMessage: "브리핑 태그 조회 중 오류가 발생했습니다.",
+    });
+  }
 
   const tagRows = tags ?? [];
   const tagToCategoryIds = new Map<string, Set<string>>();
@@ -104,7 +138,14 @@ export async function fetchOboonOriginalPageData() {
       .eq("post.status", "published")
       .eq("post.board_id", boardId);
 
-    if (mapErr) throw mapErr;
+    if (mapErr) {
+      throw createSupabaseServiceError(mapErr, {
+        scope: "briefing.original",
+        action: "fetchOboonOriginalPageData.tagMap",
+        defaultMessage: "브리핑 태그 매핑 조회 중 오류가 발생했습니다.",
+        context: { tagCount: tagIds.length },
+      });
+    }
 
     (mapRows ?? []).forEach((row) => {
       const tagId = row?.tag_id as string | undefined;

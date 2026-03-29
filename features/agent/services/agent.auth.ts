@@ -1,4 +1,5 @@
 import { createSupabaseClient } from "@/lib/supabaseClient";
+import { AppError, ERR, createSupabaseServiceError } from "@/lib/errors";
 
 export type AgentAccess = {
   userId: string | null;
@@ -30,7 +31,7 @@ export async function fetchAgentRefundAccountProfile(): Promise<{
     bank_account_number: string | null;
     bank_account_holder: string | null;
   } | null;
-  error: Error | null;
+  error: AppError | null;
 }> {
   const supabase = createSupabaseClient();
   const {
@@ -41,7 +42,12 @@ export async function fetchAgentRefundAccountProfile(): Promise<{
   if (authError || !user) {
     return {
       data: null,
-      error: authError ? new Error(authError.message) : new Error("로그인이 필요합니다."),
+      error: new AppError(
+        ERR.UNAUTHORIZED,
+        "로그인이 필요합니다.",
+        401,
+        authError,
+      ),
     };
   }
 
@@ -58,6 +64,11 @@ export async function fetchAgentRefundAccountProfile(): Promise<{
         bank_account_number: string | null;
         bank_account_holder: string | null;
       } | null) ?? null,
-    error: error ? new Error(error.message) : null,
+    error: createSupabaseServiceError(error, {
+      scope: "agent.auth",
+      action: "fetchAgentRefundAccountProfile",
+      defaultMessage: "환불 계좌 조회 중 오류가 발생했습니다.",
+      context: { userId: user.id },
+    }),
   };
 }

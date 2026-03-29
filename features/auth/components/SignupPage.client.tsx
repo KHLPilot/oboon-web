@@ -260,11 +260,16 @@ export default function SignupPage() {
       }
 
       if (exists && !confirmed) {
-        await fetch("/api/auth/cleanup-temp-user", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email }),
-        });
+        // 이 라우트는 현재 서버 전용 비밀키가 필요하므로 브라우저에서는 best-effort로만 시도합니다.
+        try {
+          await fetch("/api/auth/cleanup-temp-user", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email }),
+          });
+        } catch {
+          // ignore
+        }
       }
 
       // signUp

@@ -15,6 +15,8 @@ import {
   insertProfileGalleryRows,
   updateProfileGalleryRow,
 } from "@/features/profile/services/profile.gallery";
+import { handleServiceError } from "@/lib/api/route-error";
+import { unwrapErrorCause } from "@/lib/errors";
 
 const MAX_IMAGES = 5;
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
@@ -40,9 +42,10 @@ type GalleryUpdateItem = {
 };
 
 function isMissingSchemaError(error: unknown): boolean {
-  if (!error || typeof error !== "object") return false;
-  const code = String((error as { code?: unknown }).code ?? "");
-  const message = String((error as { message?: unknown }).message ?? "");
+  const source = unwrapErrorCause(error);
+  if (!source || typeof source !== "object") return false;
+  const code = String((source as { code?: unknown }).code ?? "");
+  const message = String((source as { message?: unknown }).message ?? "");
   return (
     code === "42P01" ||
     code === "42703" ||
@@ -112,10 +115,7 @@ export async function GET(req: Request) {
       if (isMissingSchemaError(error)) {
         return NextResponse.json({ images: [] });
       }
-      return NextResponse.json(
-        { error: "갤러리 조회에 실패했습니다" },
-        { status: 500 },
-      );
+      return handleServiceError(error, "갤러리 조회에 실패했습니다");
     }
 
     return NextResponse.json({ images: data || [] });
@@ -173,10 +173,7 @@ export async function POST(req: Request) {
       await fetchProfileGallerySortRows(user.id);
 
     if (countError) {
-      return NextResponse.json(
-        { error: "기존 갤러리 확인에 실패했습니다" },
-        { status: 500 },
-      );
+      return handleServiceError(countError, "기존 갤러리 확인에 실패했습니다");
     }
 
     const existingCount = existingRows?.length ?? 0;
@@ -267,10 +264,7 @@ export async function POST(req: Request) {
           }),
         );
       }
-      return NextResponse.json(
-        { error: "갤러리 저장에 실패했습니다" },
-        { status: 500 },
-      );
+      return handleServiceError(insertError, "갤러리 저장에 실패했습니다");
     }
 
     return NextResponse.json({ images: inserted || [] });
@@ -311,10 +305,7 @@ export async function PATCH(req: Request) {
       await fetchOwnedProfileGalleryRows(user.id, ids);
 
     if (ownedError) {
-      return NextResponse.json(
-        { error: "수정 대상 확인에 실패했습니다" },
-        { status: 500 },
-      );
+      return handleServiceError(ownedError, "수정 대상 확인에 실패했습니다");
     }
 
     if ((ownedRows?.length ?? 0) !== ids.length) {
@@ -332,10 +323,7 @@ export async function PATCH(req: Request) {
       });
 
       if (updateError) {
-        return NextResponse.json(
-          { error: "정렬/설명 저장에 실패했습니다" },
-          { status: 500 },
-        );
+        return handleServiceError(updateError, "정렬/설명 저장에 실패했습니다");
       }
     }
 
@@ -343,10 +331,7 @@ export async function PATCH(req: Request) {
       await fetchProfileGalleryImages(user.id);
 
     if (refreshError) {
-      return NextResponse.json(
-        { error: "변경 내역 조회에 실패했습니다" },
-        { status: 500 },
-      );
+      return handleServiceError(refreshError, "변경 내역 조회에 실패했습니다");
     }
 
     return NextResponse.json({ images: refreshed || [] });
@@ -393,10 +378,7 @@ export async function DELETE(req: Request) {
     );
 
     if (fetchError) {
-      return NextResponse.json(
-        { error: "삭제 대상을 조회하지 못했습니다" },
-        { status: 500 },
-      );
+      return handleServiceError(fetchError, "삭제 대상을 조회하지 못했습니다");
     }
 
     if ((rows?.length ?? 0) !== ids.length) {
@@ -432,13 +414,15 @@ export async function DELETE(req: Request) {
     const { error: deleteError } = await deleteProfileGalleryRows(user.id, ids);
 
     if (deleteError) {
-      return NextResponse.json(
-        { error: "갤러리 삭제에 실패했습니다" },
-        { status: 500 },
-      );
+      return handleServiceError(deleteError, "갤러리 삭제에 실패했습니다");
     }
 
-    const { data: refreshed } = await fetchProfileGalleryImages(user.id);
+    const { data: refreshed, error: refreshError } =
+      await fetchProfileGalleryImages(user.id);
+
+    if (refreshError) {
+      return handleServiceError(refreshError, "삭제 후 갤러리 조회에 실패했습니다");
+    }
 
     return NextResponse.json({ images: refreshed || [] });
   } catch (error) {

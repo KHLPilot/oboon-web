@@ -1,14 +1,11 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { calculateDistance } from "@/lib/utils/geo";
 import { randomUUID } from "crypto";
 
-const adminSupabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const adminSupabase = createSupabaseAdminClient();
 
 const ALLOWED_RADIUS_METERS = 150;
 const MAX_ACCURACY_METERS = 150;

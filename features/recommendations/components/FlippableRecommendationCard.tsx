@@ -10,6 +10,7 @@ import { ROUTES } from "@/types/index";
 import { Badge } from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
+import { grade5DetailLabel } from "@/features/condition-validation/lib/grade5Labels";
 import { getGrade5ToneMeta } from "@/features/condition-validation/lib/grade5Theme";
 import HomeOfferingCard from "@/features/offerings/components/OfferingCard";
 import OfferingBadge from "@/features/offerings/components/OfferingBadges";
@@ -42,11 +43,7 @@ function isLikelyImageUrl(url: string | null | undefined) {
 }
 
 function badgeLabel(grade: RecommendationItem["evalResult"]["finalGrade"]) {
-  if (grade === "GREEN") return "조건 충족";
-  if (grade === "LIME") return "거의 충족";
-  if (grade === "YELLOW") return "검토 필요";
-  if (grade === "ORANGE") return "어려울 수 있음";
-  return "미충족";
+  return grade5DetailLabel(grade);
 }
 
 function usePrefersReducedMotion() {

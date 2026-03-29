@@ -1,72 +1,82 @@
-import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
+import { NextRequest, NextResponse } from "next/server";
+import { adminSupabase, requireAdminRoute } from "@/lib/api/admin-route";
 
-const adminSupabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+type ApproveAgentBody = {
+  userId?: unknown;
+};
 
-export async function POST(req: Request) {
-    try {
-        // body를 먼저 읽어둠 (한 번만 읽을 수 있으므로)
-        const body = await req.json();
-        const { userId } = body;
+export async function POST(req: NextRequest) {
+  const auth = await requireAdminRoute();
+  if (!auth.ok) {
+    return auth.response;
+  }
 
-        // 요청자가 admin인지 확인
-        const cookieStore = await cookies();
-        const supabase = createServerClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-            {
-                cookies: {
-          getAll() {
-            return cookieStore.getAll();
-          },
-          setAll(cookiesToSet) {
-            try {
-              cookiesToSet.forEach(({ name, value, options }) => {
-                cookieStore.set(name, value, options);
-              });
-            } catch {
-              // 읽기 전용 컨텍스트에서는 무시
-            }
-          },
-        },
-            }
-        );
+  let body: ApproveAgentBody;
+  try {
+    body = (await req.json()) as ApproveAgentBody;
+  } catch {
+    return NextResponse.json({ error: "유효하지 않은 입력" }, { status: 400 });
+  }
 
-        const { data: { user } } = await supabase.auth.getUser();
+  const userId = typeof body.userId === "string" ? body.userId.trim() : "";
+  if (!userId) {
+    return NextResponse.json({ error: "유효하지 않은 입력" }, { status: 400 });
+  }
 
-        if (!user) {
-            return NextResponse.json({ error: "인증되지 않은 요청입니다" }, { status: 401 });
-        }
+  const { data: target, error: targetError } = await adminSupabase
+    .from("profiles")
+    .select("id, role")
+    .eq("id", userId)
+    .maybeSingle();
 
-        const { data: requesterProfile } = await adminSupabase
-            .from("profiles")
-            .select("role")
-            .eq("id", user.id)
-            .single();
+  if (targetError) {
+    console.error("[admin/approve-agent] 대상 조회 실패:", {
+      adminId: auth.user.id,
+      targetId: userId,
+      code: targetError.code,
+    });
+    return NextResponse.json({ error: "처리 중 오류 발생" }, { status: 500 });
+  }
 
-        if (requesterProfile?.role !== "admin") {
-            return NextResponse.json({ error: "관리자 권한이 필요합니다" }, { status: 403 });
-        }
+  if (!target) {
+    return NextResponse.json({ error: "대상 없음" }, { status: 404 });
+  }
 
-        const { error } = await adminSupabase
-            .from("profiles")
-            .update({ role: "agent" })
-            .eq("id", userId);
+  if (target.role !== "agent_pending") {
+    return NextResponse.json(
+      { error: `변경 불가: 현재 역할이 '${target.role}'입니다` },
+      { status: 409 },
+    );
+  }
 
-        if (error) {
-            console.error("[approve-agent] 승인 실패:", error);
-            return NextResponse.json({ error: "승인 실패" }, { status: 500 });
-        }
+  const { data: updatedTarget, error: updateError } = await adminSupabase
+    .from("profiles")
+    .update({ role: "agent" })
+    .eq("id", userId)
+    .eq("role", "agent_pending")
+    .select("id")
+    .maybeSingle();
 
-        return NextResponse.json({ success: true });
+  if (updateError) {
+    console.error("[admin/approve-agent] 역할 변경 실패:", {
+      adminId: auth.user.id,
+      targetId: userId,
+      code: updateError.code,
+    });
+    return NextResponse.json({ error: "처리 중 오류 발생" }, { status: 500 });
+  }
 
-    } catch (err: unknown) {
-        console.error("[approve-agent] 오류:", err);
-        return NextResponse.json({ error: "서버 오류가 발생했습니다" }, { status: 500 });
-    }
+  if (!updatedTarget) {
+    return NextResponse.json(
+      { error: "변경 불가: 대상 상태가 이미 변경되었습니다" },
+      { status: 409 },
+    );
+  }
+
+  console.info("[admin/approve-agent] 역할 승인:", {
+    adminId: auth.user.id,
+    targetId: userId,
+  });
+
+  return NextResponse.json({ success: true });
 }

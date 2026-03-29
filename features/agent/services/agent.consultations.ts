@@ -1,4 +1,5 @@
 import { createSupabaseClient } from "@/lib/supabaseClient";
+import { AppError, ERR, createSupabaseServiceError } from "@/lib/errors";
 
 export async function updateAgentRefundAccount(input: {
   bankName: string;
@@ -14,7 +15,12 @@ export async function updateAgentRefundAccount(input: {
   if (authError || !user) {
     return {
       data: null,
-      error: authError ? new Error(authError.message) : new Error("로그인이 필요합니다."),
+      error: new AppError(
+        ERR.UNAUTHORIZED,
+        "로그인이 필요합니다.",
+        401,
+        authError,
+      ),
     };
   }
 
@@ -31,6 +37,11 @@ export async function updateAgentRefundAccount(input: {
 
   return {
     data: (data as { id: string } | null) ?? null,
-    error: error ? new Error(error.message) : null,
+    error: createSupabaseServiceError(error, {
+      scope: "agent.consultations",
+      action: "updateAgentRefundAccount",
+      defaultMessage: "환불 계좌 저장 중 오류가 발생했습니다.",
+      context: { userId: user.id },
+    }),
   };
 }

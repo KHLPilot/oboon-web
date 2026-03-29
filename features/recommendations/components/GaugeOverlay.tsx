@@ -32,11 +32,7 @@ type GradeMeta = {
 };
 
 function badgeLabel(grade: RecommendationEvalResult["finalGrade"]) {
-  if (grade === "GREEN") return "조건 충족";
-  if (grade === "LIME") return "거의 충족";
-  if (grade === "YELLOW") return "검토 필요";
-  if (grade === "ORANGE") return "어려울 수 있음";
-  return "미충족";
+  return grade5DetailLabel(grade);
 }
 
 function gradeMeta(grade: RecommendationEvalResult["finalGrade"]): GradeMeta {

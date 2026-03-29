@@ -62,12 +62,8 @@ export function SupportShell({ children }: SupportShellProps) {
               size="sm"
               shape="pill"
               variant="primary"
-              className="!text-(--oboon-on-primary)"
             >
-              <Link
-                href="/support/qna?write=1"
-                style={{ color: "var(--oboon-on-primary)" }}
-              >
+              <Link href="/support/qna?write=1">
                 <Plus className="h-4 w-4" />
                 문의하기
               </Link>

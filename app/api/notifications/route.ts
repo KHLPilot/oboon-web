@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
-import { createClient } from "@supabase/supabase-js";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+
+const supabaseAdmin = createSupabaseAdminClient();
 
 function isMissingSchemaError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
@@ -48,13 +50,7 @@ export async function GET() {
       );
     }
 
-    const db =
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-        ? createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_ROLE_KEY
-          )
-        : supabase;
+    const db = supabaseAdmin;
 
     const { data: notifications, error } = await db
       .from("notifications")
@@ -126,13 +122,7 @@ export async function PATCH(req: Request) {
 
     const body = await req.json();
     const { notificationId, markAllRead, consultationId, type } = body;
-    const db =
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-        ? createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_ROLE_KEY
-          )
-        : supabase;
+    const db = supabaseAdmin;
 
     // 전체 읽음 처리
     if (markAllRead) {
@@ -248,13 +238,7 @@ export async function DELETE(req: Request) {
 
     const body = await req.json();
     const { notificationId, deleteAll } = body;
-    const db =
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-        ? createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_ROLE_KEY
-          )
-        : supabase;
+    const db = supabaseAdmin;
 
     // 전체 삭제
     if (deleteAll) {

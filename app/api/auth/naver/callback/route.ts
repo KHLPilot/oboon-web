@@ -1,109 +1,193 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { cookies } from "next/headers";
+import type { User } from "@supabase/supabase-js";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import { createRestoreOAuthTempSession } from "@/lib/auth/oauthTempSession";
+import { findAuthUserByEmail } from "@/lib/supabaseAdminAuth";
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const supabaseAdmin = createSupabaseAdminClient();
 
-function parseCookie(req: Request, name: string): string | null {
-  const header = req.headers.get("cookie") ?? "";
-  const match = header.split(";").find((c) => c.trim().startsWith(`${name}=`));
-  return match ? decodeURIComponent(match.split("=").slice(1).join("=").trim()) : null;
+const OAUTH_STATE_COOKIE_NAME = "oauth_state";
+type NaverTokenResponse = {
+  access_token?: string;
+};
+
+type NaverProfileResponse = {
+  response?: {
+    email?: string;
+    name?: string;
+  };
+};
+
+function clearOAuthStateCookie(response: NextResponse) {
+  response.cookies.set(OAUTH_STATE_COOKIE_NAME, "", {
+    httpOnly: true,
+    secure: true,
+    sameSite: "strict",
+    maxAge: 0,
+    path: "/",
+  });
+  return response;
+}
+
+function redirectWithClearedState(path: string) {
+  const response = NextResponse.redirect(
+    new URL(path, process.env.NEXT_PUBLIC_SITE_URL!),
+  );
+  return clearOAuthStateCookie(response);
+}
+
+function redirectToAuthFailed() {
+  return redirectWithClearedState("/auth/login?error=auth_failed");
+}
+
+async function resolveAuthUser(email: string, name: string): Promise<User | null> {
+  const existingUser = await findAuthUserByEmail(supabaseAdmin, email);
+
+  if (existingUser) {
+    return existingUser;
+  }
+
+  const { data, error } = await supabaseAdmin.auth.admin.createUser({
+    email,
+    email_confirm: true,
+    user_metadata: {
+      provider: "naver",
+      name,
+    },
+  });
+
+  if (!error && data?.user) {
+    return data.user;
+  }
+
+  console.error("[naver/callback] auth user create failed");
+  return findAuthUserByEmail(supabaseAdmin, email);
 }
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
-  const code = url.searchParams.get("code");
-  const state = url.searchParams.get("state");
+  const code = url.searchParams.get("code")?.trim();
+  const state = url.searchParams.get("state")?.trim();
+  const cookieStore = await cookies();
+  const storedState = cookieStore.get(OAUTH_STATE_COOKIE_NAME)?.value?.trim();
 
-  // CSRF 방지: 쿠키에 저장된 state와 일치하는지 검증
-  const storedState = parseCookie(req, "naver_oauth_state");
-  if (!storedState || storedState !== state) {
-    return NextResponse.redirect(new URL("/auth/login?error=invalid_state", process.env.NEXT_PUBLIC_SITE_URL!));
+  if (!state || !storedState || storedState !== state) {
+    return redirectWithClearedState("/auth/login?error=invalid_state");
   }
+  cookieStore.set(OAUTH_STATE_COOKIE_NAME, "", {
+    httpOnly: true,
+    secure: true,
+    sameSite: "strict",
+    maxAge: 0,
+    path: "/",
+  });
 
   if (!code) {
-    return NextResponse.redirect(new URL("/auth/login?error=no_code", process.env.NEXT_PUBLIC_SITE_URL!));
+    return redirectToAuthFailed();
   }
 
   try {
-    // 1. 네이버 Access Token 요청
-    const tokenRes = await fetch(
-      `https://nid.naver.com/oauth2.0/token?grant_type=authorization_code&client_id=${process.env.NAVER_CLIENT_ID}&client_secret=${process.env.NAVER_CLIENT_SECRET}&code=${code}&state=${state}`
-    );
-    const tokenData = await tokenRes.json();
+    const tokenRes = await fetch("https://nid.naver.com/oauth2.0/token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Accept: "application/json",
+      },
+      body: new URLSearchParams({
+        grant_type: "authorization_code",
+        client_id: process.env.NAVER_CLIENT_ID!,
+        client_secret: process.env.NAVER_CLIENT_SECRET!,
+        code,
+        state,
+      }),
+      cache: "no-store",
+    });
+
+    if (!tokenRes.ok) {
+      console.error("[naver/callback] token exchange failed", {
+        status: tokenRes.status,
+      });
+      return redirectToAuthFailed();
+    }
+
+    const tokenData = (await tokenRes.json()) as NaverTokenResponse;
 
     if (!tokenData.access_token) {
-      return NextResponse.redirect(new URL("/auth/login?error=token_failed", process.env.NEXT_PUBLIC_SITE_URL!));
+      console.error("[naver/callback] token response missing access token", {
+        status: tokenRes.status,
+      });
+      return redirectToAuthFailed();
     }
 
-    // 2. 네이버 프로필 조회
     const profileRes = await fetch("https://openapi.naver.com/v1/nid/me", {
       headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      cache: "no-store",
     });
-    const profileData = await profileRes.json();
 
-    const { email, name } = profileData.response;
+    if (!profileRes.ok) {
+      console.error("[naver/callback] profile fetch failed", {
+        status: profileRes.status,
+      });
+      return redirectToAuthFailed();
+    }
+
+    const profileData = (await profileRes.json()) as NaverProfileResponse;
+    const email = profileData.response?.email?.trim().toLowerCase() ?? "";
+    const name = profileData.response?.name?.trim() || "네이버 사용자";
 
     if (!email) {
-      return NextResponse.redirect(new URL("/auth/login?error=no_email", process.env.NEXT_PUBLIC_SITE_URL!));
+      console.error("[naver/callback] profile response missing email", {
+        status: profileRes.status,
+      });
+      return redirectToAuthFailed();
     }
 
-    // 3. 기존 유저 확인
-    const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
-    const existingUser = users.find((u) => u.email === email);
+    const authUser = await resolveAuthUser(email, name);
 
-    if (existingUser) {
-      // 기존 유저
-    } else {
-      // 신규 유저 생성
-      const { data, error } = await supabaseAdmin.auth.admin.createUser({
+    if (!authUser) {
+      return redirectToAuthFailed();
+    }
+
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .select("deleted_at")
+      .eq("id", authUser.id)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error("[naver/callback] profile lookup failed");
+      return redirectToAuthFailed();
+    }
+
+    if ((profile as { deleted_at: string | null } | null)?.deleted_at) {
+      const sessionKey = await createRestoreOAuthTempSession({
+        userId: authUser.id,
         email,
-        email_confirm: true,
-        user_metadata: {
-          provider: "naver",
-          name: name || "네이버 사용자",
-        },
       });
 
-      if (error || !data?.user) {
-        // 재조회
-        const { data: { users: retry } } = await supabaseAdmin.auth.admin.listUsers();
-        const retryUser = retry.find((u) => u.email === email);
-
-        if (retryUser) {
-        } else {
-          return NextResponse.redirect(new URL("/auth/login?error=create_failed", process.env.NEXT_PUBLIC_SITE_URL!));
-        }
-      } else {
-      }
+      return redirectWithClearedState(
+        `/auth/restore?s=${encodeURIComponent(sessionKey)}`,
+      );
     }
 
-    // 4. ✅ generateLink로 OTP 생성
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: "magiclink",
-      email: email,
+      email,
     });
 
-    if (linkError || !linkData) {
-      console.error("❌ 링크 생성 실패:", linkError);
-      return NextResponse.redirect(new URL("/auth/login?error=link_failed", process.env.NEXT_PUBLIC_SITE_URL!));
+    if (linkError || !linkData?.properties.hashed_token) {
+      console.error("[naver/callback] magic link generation failed");
+      return redirectToAuthFailed();
     }
 
-    // 5. ✅ /auth/callback으로 리다이렉트 (OTP 포함)
     const redirectUrl = new URL("/auth/callback", process.env.NEXT_PUBLIC_SITE_URL!);
     redirectUrl.searchParams.set("type", "naver");
     redirectUrl.searchParams.set("token_hash", linkData.properties.hashed_token);
-    redirectUrl.searchParams.set("email", email);
 
-    const response = NextResponse.redirect(redirectUrl.toString());
-    // state 쿠키 즉시 삭제 (재사용 방지)
-    response.cookies.set("naver_oauth_state", "", { maxAge: 0, path: "/" });
-    return response;
-
-  } catch (error: unknown) {
-    console.error("❌ 네이버 OAuth 오류:", error);
-    return NextResponse.redirect(new URL("/auth/login?error=unknown", process.env.NEXT_PUBLIC_SITE_URL!));
+    return redirectWithClearedState(redirectUrl.toString());
+  } catch {
+    console.error("[naver/callback] unexpected error");
+    return redirectToAuthFailed();
   }
 }

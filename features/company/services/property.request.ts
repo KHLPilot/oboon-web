@@ -1,5 +1,12 @@
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  AppError,
+  ERR,
+  ServiceResult,
+  createSupabaseServiceError,
+  toAppError,
+} from "@/lib/errors";
 
 export type PropertyRequestStatus = "pending" | "approved" | "rejected";
 export type PropertyRequestType = "publish" | "delete";
@@ -13,10 +20,7 @@ export type PropertyRequestRow = {
   rejection_reason?: string | null;
 };
 
-type PropertyRequestResult<T> = {
-  data: T | null;
-  error: Error | null;
-};
+type PropertyRequestResult<T> = ServiceResult<T>;
 
 export async function fetchPropertyRequestProfile(
   supabase: SupabaseClient,
@@ -30,7 +34,19 @@ export async function fetchPropertyRequestProfile(
 
   return {
     data: (data as { role: string | null } | null) ?? null,
-    error: error ? new Error(error.message) : null,
+    error: createSupabaseServiceError(error, {
+      scope: "property.request",
+      action: "fetchPropertyRequestProfile",
+      defaultMessage: "프로필 조회 중 오류가 발생했습니다.",
+      context: { userId },
+      codeMap: {
+        PGRST116: {
+          code: ERR.NOT_FOUND,
+          clientMessage: "프로필을 찾을 수 없습니다.",
+          statusHint: 404,
+        },
+      },
+    }),
   } as PropertyRequestResult<{ role: string | null }>;
 }
 
@@ -46,7 +62,19 @@ export async function fetchPropertyRequestById(
 
   return {
     data: (data as Record<string, unknown> | null) ?? null,
-    error: error ? new Error(error.message) : null,
+    error: createSupabaseServiceError(error, {
+      scope: "property.request",
+      action: "fetchPropertyRequestById",
+      defaultMessage: "요청 조회 중 오류가 발생했습니다.",
+      context: { requestId },
+      codeMap: {
+        PGRST116: {
+          code: ERR.NOT_FOUND,
+          clientMessage: "요청을 찾을 수 없습니다.",
+          statusHint: 404,
+        },
+      },
+    }),
   } as PropertyRequestResult<Record<string, unknown>>;
 }
 
@@ -66,7 +94,12 @@ export async function updatePropertyRequestById(
 
   return {
     data: (data as Record<string, unknown> | null) ?? null,
-    error: error ? new Error(error.message) : null,
+    error: createSupabaseServiceError(error, {
+      scope: "property.request",
+      action: "updatePropertyRequestById",
+      defaultMessage: "요청 처리 중 오류가 발생했습니다.",
+      context: { requestId },
+    }),
   } as PropertyRequestResult<Record<string, unknown>>;
 }
 
@@ -78,7 +111,11 @@ export async function fetchMyDeleteRequest(propertyId: number) {
   if (!Number.isFinite(propertyId) || propertyId <= 0) {
     return {
       data: null,
-      error: new Error("유효하지 않은 propertyId입니다."),
+      error: new AppError(
+        ERR.VALIDATION,
+        "유효하지 않은 propertyId입니다.",
+        400,
+      ),
     } as PropertyRequestResult<PropertyRequestRow>;
   }
 
@@ -90,7 +127,7 @@ export async function fetchMyDeleteRequest(propertyId: number) {
   if (!user) {
     return {
       data: null,
-      error: new Error("로그인이 필요합니다."),
+      error: new AppError(ERR.UNAUTHORIZED, "로그인이 필요합니다.", 401),
     } as PropertyRequestResult<PropertyRequestRow>;
   }
 
@@ -107,7 +144,12 @@ export async function fetchMyDeleteRequest(propertyId: number) {
 
   return {
     data: (data as PropertyRequestRow | null) ?? null,
-    error: error ? new Error(error.message) : null,
+    error: createSupabaseServiceError(error, {
+      scope: "property.request",
+      action: "fetchMyDeleteRequest",
+      defaultMessage: "삭제 요청 조회 중 오류가 발생했습니다.",
+      context: { propertyId, userId: user.id },
+    }),
   } as PropertyRequestResult<PropertyRequestRow>;
 }
 
@@ -118,7 +160,11 @@ async function fetchMyPropertyRequestByType(
   if (!Number.isFinite(propertyId) || propertyId <= 0) {
     return {
       data: null,
-      error: new Error("유효하지 않은 propertyId입니다."),
+      error: new AppError(
+        ERR.VALIDATION,
+        "유효하지 않은 propertyId입니다.",
+        400,
+      ),
     } as PropertyRequestResult<PropertyRequestRow>;
   }
 
@@ -128,7 +174,10 @@ async function fetchMyPropertyRequestByType(
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return { data: null, error: new Error("로그인이 필요합니다.") } as PropertyRequestResult<PropertyRequestRow>;
+    return {
+      data: null,
+      error: new AppError(ERR.UNAUTHORIZED, "로그인이 필요합니다.", 401),
+    } as PropertyRequestResult<PropertyRequestRow>;
   }
 
   const { data, error } = await supabase
@@ -143,7 +192,12 @@ async function fetchMyPropertyRequestByType(
 
   return {
     data: (data as PropertyRequestRow | null) ?? null,
-    error: error ? new Error(error.message) : null,
+    error: createSupabaseServiceError(error, {
+      scope: "property.request",
+      action: "fetchMyPropertyRequestByType",
+      defaultMessage: "요청 조회 중 오류가 발생했습니다.",
+      context: { propertyId, userId: user.id, requestType },
+    }),
   } as PropertyRequestResult<PropertyRequestRow>;
 }
 
@@ -154,7 +208,11 @@ export async function createPropertyRequest(
   if (!Number.isFinite(propertyId) || propertyId <= 0) {
     return {
       data: null,
-      error: new Error("유효하지 않은 propertyId입니다."),
+      error: new AppError(
+        ERR.VALIDATION,
+        "유효하지 않은 propertyId입니다.",
+        400,
+      ),
     } as PropertyRequestResult<PropertyRequestRow>;
   }
 
@@ -173,7 +231,14 @@ export async function createPropertyRequest(
     if (!response.ok) {
       return {
         data: null,
-        error: new Error(payload.error || "요청 생성 실패"),
+        error: new AppError(
+          response.status === 400 ? ERR.VALIDATION : ERR.DB_QUERY,
+          typeof payload?.error === "string" && payload.error.trim().length > 0
+            ? payload.error
+            : "요청 생성 실패",
+          response.status,
+          payload,
+        ),
       } as PropertyRequestResult<PropertyRequestRow>;
     }
     return {
@@ -183,7 +248,7 @@ export async function createPropertyRequest(
   } catch (error) {
     return {
       data: null,
-      error: error instanceof Error ? error : new Error("요청 생성 실패"),
+      error: toAppError(error, ERR.DB_QUERY, "요청 생성 실패", 500),
     } as PropertyRequestResult<PropertyRequestRow>;
   }
 }
@@ -197,7 +262,14 @@ export async function cancelPropertyRequest(requestId: string | number) {
     if (!response.ok) {
       return {
         data: null,
-        error: new Error(payload.error || "요청 철회 실패"),
+        error: new AppError(
+          response.status === 400 ? ERR.VALIDATION : ERR.DB_QUERY,
+          typeof payload?.error === "string" && payload.error.trim().length > 0
+            ? payload.error
+            : "요청 철회 실패",
+          response.status,
+          payload,
+        ),
       } as PropertyRequestResult<PropertyRequestRow>;
     }
     return {
@@ -207,7 +279,7 @@ export async function cancelPropertyRequest(requestId: string | number) {
   } catch (error) {
     return {
       data: null,
-      error: error instanceof Error ? error : new Error("요청 철회 실패"),
+      error: toAppError(error, ERR.DB_QUERY, "요청 철회 실패", 500),
     } as PropertyRequestResult<PropertyRequestRow>;
   }
 }

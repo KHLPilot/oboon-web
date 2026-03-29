@@ -5,6 +5,7 @@ import Select from "@/components/ui/Select";
 import { MultiSelect } from "@/components/ui/MultiSelect";
 import Button from "@/components/ui/Button";
 import type {
+  CreditGrade,
   EmploymentType,
   FullPurchasePurpose,
   MoveinTiming,
@@ -21,6 +22,7 @@ type SimulatorBarProps = {
   condition: RecommendationCondition;
   onEvaluate: (sim: RecommendationCondition) => void | Promise<boolean>;
   isLoading?: boolean;
+  isLoggedIn?: boolean;
 };
 
 const FIELD_LABEL_CLASSNAME = "mb-2 block ob-typo-caption text-(--oboon-text-muted)";
@@ -89,6 +91,12 @@ const MOVEIN_TIMING_OPTIONS: Array<{ value: MoveinTiming; label: string }> = [
 const REGION_OPTIONS = OFFERING_REGION_TABS.filter((r) => r !== "전체").map(
   (r) => ({ value: r as OfferingRegionTab, label: r }),
 );
+
+const CREDIT_GRADE_OPTIONS: Array<{ value: CreditGrade; label: string }> = [
+  { value: "good", label: "신용 양호" },
+  { value: "normal", label: "신용 보통" },
+  { value: "unstable", label: "신용 불안정" },
+];
 
 const AVAILABLE_CASH_STEPS = [
   ...Array.from({ length: 11 }, (_, i) => i * 1_000),
@@ -193,7 +201,7 @@ function SliderField(props: {
   );
 }
 
-export default function SimulatorBar({ condition, onEvaluate, isLoading = false }: SimulatorBarProps) {
+export default function SimulatorBar({ condition, onEvaluate, isLoading = false, isLoggedIn = true }: SimulatorBarProps) {
   // 로컬 state — 슬라이더 변경이 "직접 입력" 탭에 영향을 주지 않도록 분리
   const [simCondition, setSimCondition] = useState<RecommendationCondition>(condition);
   const [ltvModalOpen, setLtvModalOpen] = useState(false);
@@ -206,12 +214,16 @@ export default function SimulatorBar({ condition, onEvaluate, isLoading = false 
     setSimCondition((prev) => ({ ...prev, ...update }));
   }
 
-  const isReadyToEvaluate =
-    simCondition.availableCash > 0 &&
-    simCondition.monthlyIncome > 0 &&
-    simCondition.houseOwnership !== null &&
-    simCondition.purchasePurposeV2 !== null &&
-    simCondition.ltvInternalScore > 0;
+  const isReadyToEvaluate = isLoggedIn
+    ? simCondition.availableCash > 0 &&
+      simCondition.monthlyIncome > 0 &&
+      simCondition.houseOwnership !== null &&
+      simCondition.purchasePurposeV2 !== null &&
+      simCondition.ltvInternalScore > 0
+    : simCondition.availableCash > 0 &&
+      simCondition.monthlyIncome > 0 &&
+      simCondition.houseOwnership !== null &&
+      simCondition.purchasePurposeV2 !== null;
 
   return (
     <div className="space-y-4">
@@ -227,8 +239,31 @@ export default function SimulatorBar({ condition, onEvaluate, isLoading = false 
         onChange={(availableCash) => patch({ availableCash })}
       />
 
-      {/* 월 소득 + 월 고정지출 */}
-      <div className="grid grid-cols-2 gap-2 sm:gap-3">
+      {/* 월 소득 (+ 고정지출: 로그인 시에만) */}
+      {isLoggedIn ? (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
+          <SliderField
+            label="월 소득"
+            valueLabel={formatManwonPreview(simCondition.monthlyIncome)}
+            minLabel="0만"
+            midLabel="5,000만"
+            maxLabel="1억"
+            value={simCondition.monthlyIncome}
+            positions={MONTHLY_INCOME_STEPS}
+            onChange={(monthlyIncome) => patch({ monthlyIncome })}
+          />
+          <SliderField
+            label="월 고정지출"
+            valueLabel={formatManwonPreview(simCondition.monthlyExpenses)}
+            minLabel="0만"
+            midLabel="300만"
+            maxLabel="1,000만"
+            value={simCondition.monthlyExpenses}
+            positions={MONTHLY_EXPENSES_STEPS}
+            onChange={(monthlyExpenses) => patch({ monthlyExpenses })}
+          />
+        </div>
+      ) : (
         <SliderField
           label="월 소득"
           valueLabel={formatManwonPreview(simCondition.monthlyIncome)}
@@ -239,103 +274,128 @@ export default function SimulatorBar({ condition, onEvaluate, isLoading = false 
           positions={MONTHLY_INCOME_STEPS}
           onChange={(monthlyIncome) => patch({ monthlyIncome })}
         />
-        <SliderField
-          label="월 고정지출"
-          valueLabel={formatManwonPreview(simCondition.monthlyExpenses)}
-          minLabel="0만"
-          midLabel="300만"
-          maxLabel="1,000만"
-          value={simCondition.monthlyExpenses}
-          positions={MONTHLY_EXPENSES_STEPS}
-          onChange={(monthlyExpenses) => patch({ monthlyExpenses })}
-        />
-      </div>
+      )}
 
       {/* 셀렉트 그리드 */}
-      <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
-        {/* 직업 */}
-        <div>
-          <div className={FIELD_LABEL_CLASSNAME}>직업</div>
-          <Select<EmploymentType>
-            value={(simCondition.employmentType ?? "") as EmploymentType}
-            onChange={(employmentType) => patch({ employmentType })}
-            options={EMPLOYMENT_OPTIONS}
-          />
-        </div>
+      {isLoggedIn ? (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
+          {/* 직업 */}
+          <div>
+            <div className={FIELD_LABEL_CLASSNAME}>직업</div>
+            <Select<EmploymentType>
+              value={(simCondition.employmentType ?? "") as EmploymentType}
+              onChange={(employmentType) => patch({ employmentType })}
+              options={EMPLOYMENT_OPTIONS}
+            />
+          </div>
 
-        {/* 보유 주택 */}
-        <div>
-          <div className={FIELD_LABEL_CLASSNAME}>보유 주택</div>
-          <Select<"none" | "one" | "two_or_more">
-            value={(simCondition.houseOwnership ?? "") as "none" | "one" | "two_or_more"}
-            onChange={(houseOwnership) => patch({ houseOwnership })}
-            options={HOUSE_OWNERSHIP_OPTIONS}
-          />
-        </div>
+          {/* 보유 주택 */}
+          <div>
+            <div className={FIELD_LABEL_CLASSNAME}>보유 주택</div>
+            <Select<"none" | "one" | "two_or_more">
+              value={(simCondition.houseOwnership ?? "") as "none" | "one" | "two_or_more"}
+              onChange={(houseOwnership) => patch({ houseOwnership })}
+              options={HOUSE_OWNERSHIP_OPTIONS}
+            />
+          </div>
 
-        {/* 신용 상태 — 2칸 */}
-        <div className="col-span-2">
-          <div className={FIELD_LABEL_CLASSNAME}>신용 상태 (LTV+DSR)</div>
-          <button
-            type="button"
-            onClick={() => setLtvModalOpen(true)}
-            className="flex w-full items-center justify-between rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-2.5 hover:border-(--oboon-primary) transition-colors"
-          >
-            <span className="ob-typo-caption text-(--oboon-text-muted)">대출 가능성 평가</span>
-            <div className="flex items-center gap-1.5">
-              {simCondition.ltvInternalScore > 0 ? (
-                <span className="ob-typo-body font-semibold text-(--oboon-primary)">
-                  {simCondition.ltvInternalScore}점
-                </span>
-              ) : (
-                <span className="ob-typo-caption text-(--oboon-text-muted)">미평가</span>
-              )}
-              <span className="ob-typo-caption text-(--oboon-text-muted)">수정 →</span>
-            </div>
-          </button>
-        </div>
+          {/* 신용 상태 — 2칸 */}
+          <div className="col-span-2">
+            <div className={FIELD_LABEL_CLASSNAME}>신용 상태 (LTV+DSR)</div>
+            <button
+              type="button"
+              onClick={() => setLtvModalOpen(true)}
+              className="flex w-full items-center justify-between rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-2.5 hover:border-(--oboon-primary) transition-colors"
+            >
+              <span className="ob-typo-caption text-(--oboon-text-muted)">대출 가능성 평가</span>
+              <div className="flex items-center gap-1.5">
+                {simCondition.ltvInternalScore > 0 ? (
+                  <span className="ob-typo-body font-semibold text-(--oboon-primary)">
+                    {simCondition.ltvInternalScore}점
+                  </span>
+                ) : (
+                  <span className="ob-typo-caption text-(--oboon-text-muted)">미평가</span>
+                )}
+                <span className="ob-typo-caption text-(--oboon-text-muted)">수정 →</span>
+              </div>
+            </button>
+          </div>
 
-        {/* 분양 목적 */}
-        <div>
-          <div className={FIELD_LABEL_CLASSNAME}>분양 목적</div>
-          <Select<FullPurchasePurpose>
-            value={(simCondition.purchasePurposeV2 ?? "") as FullPurchasePurpose}
-            onChange={(purchasePurposeV2) => patch({ purchasePurposeV2 })}
-            options={PURPOSE_V2_OPTIONS}
-          />
-        </div>
+          {/* 분양 목적 */}
+          <div>
+            <div className={FIELD_LABEL_CLASSNAME}>분양 목적</div>
+            <Select<FullPurchasePurpose>
+              value={(simCondition.purchasePurposeV2 ?? "") as FullPurchasePurpose}
+              onChange={(purchasePurposeV2) => patch({ purchasePurposeV2 })}
+              options={PURPOSE_V2_OPTIONS}
+            />
+          </div>
 
-        {/* 분양 시점 */}
-        <div>
-          <div className={FIELD_LABEL_CLASSNAME}>분양 시점</div>
-          <Select<PurchaseTiming>
-            value={(simCondition.purchaseTiming ?? "") as PurchaseTiming}
-            onChange={(purchaseTiming) => patch({ purchaseTiming })}
-            options={PURCHASE_TIMING_OPTIONS}
-          />
-        </div>
+          {/* 분양 시점 */}
+          <div>
+            <div className={FIELD_LABEL_CLASSNAME}>분양 시점</div>
+            <Select<PurchaseTiming>
+              value={(simCondition.purchaseTiming ?? "") as PurchaseTiming}
+              onChange={(purchaseTiming) => patch({ purchaseTiming })}
+              options={PURCHASE_TIMING_OPTIONS}
+            />
+          </div>
 
-        {/* 희망 입주 */}
-        <div>
-          <div className={FIELD_LABEL_CLASSNAME}>희망 입주</div>
-          <Select<MoveinTiming>
-            value={(simCondition.moveinTiming ?? "") as MoveinTiming}
-            onChange={(moveinTiming) => patch({ moveinTiming })}
-            options={MOVEIN_TIMING_OPTIONS}
-          />
-        </div>
+          {/* 희망 입주 */}
+          <div>
+            <div className={FIELD_LABEL_CLASSNAME}>희망 입주</div>
+            <Select<MoveinTiming>
+              value={(simCondition.moveinTiming ?? "") as MoveinTiming}
+              onChange={(moveinTiming) => patch({ moveinTiming })}
+              options={MOVEIN_TIMING_OPTIONS}
+            />
+          </div>
 
-        {/* 지역 */}
-        <div>
-          <div className={FIELD_LABEL_CLASSNAME}>지역</div>
-          <MultiSelect<OfferingRegionTab>
-            values={simCondition.regions}
-            onChange={(regions) => patch({ regions })}
-            options={REGION_OPTIONS}
-            placeholder="전체"
-          />
+          {/* 지역 */}
+          <div>
+            <div className={FIELD_LABEL_CLASSNAME}>지역</div>
+            <MultiSelect<OfferingRegionTab>
+              values={simCondition.regions}
+              onChange={(regions) => patch({ regions })}
+              options={REGION_OPTIONS}
+              placeholder="전체"
+            />
+          </div>
         </div>
-      </div>
+      ) : (
+        /* 비로그인: 게스트 평가에 필요한 공개 항목만 표시 */
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
+          {/* 보유 주택 */}
+          <div>
+            <div className={FIELD_LABEL_CLASSNAME}>보유 주택</div>
+            <Select<"none" | "one" | "two_or_more">
+              value={(simCondition.houseOwnership ?? "") as "none" | "one" | "two_or_more"}
+              onChange={(houseOwnership) => patch({ houseOwnership })}
+              options={HOUSE_OWNERSHIP_OPTIONS}
+            />
+          </div>
+
+          {/* 신용 상태 */}
+          <div>
+            <div className={FIELD_LABEL_CLASSNAME}>신용 상태</div>
+            <Select<CreditGrade>
+              value={simCondition.creditGrade}
+              onChange={(creditGrade) => patch({ creditGrade })}
+              options={CREDIT_GRADE_OPTIONS}
+            />
+          </div>
+
+          {/* 분양 목적 */}
+          <div>
+            <div className={FIELD_LABEL_CLASSNAME}>분양 목적</div>
+            <Select<FullPurchasePurpose>
+              value={(simCondition.purchasePurposeV2 ?? "") as FullPurchasePurpose}
+              onChange={(purchasePurposeV2) => patch({ purchasePurposeV2 })}
+              options={PURPOSE_V2_OPTIONS}
+            />
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center justify-end gap-3 pt-2">
         <Button
@@ -360,32 +420,34 @@ export default function SimulatorBar({ condition, onEvaluate, isLoading = false 
         </Button>
       </div>
 
-      <LtvDsrModal
-        open={ltvModalOpen}
-        onClose={() => setLtvModalOpen(false)}
-        onConfirm={({ ltvInternalScore, existingMonthlyRepayment, formValues }) => {
-          patch({
-            ltvInternalScore,
-            existingMonthlyRepayment,
-            existingLoan: formValues.existingLoan,
-            recentDelinquency: formValues.recentDelinquency,
-            cardLoanUsage: formValues.cardLoanUsage,
-            loanRejection: formValues.loanRejection,
-            monthlyIncomeRange: formValues.monthlyIncomeRange,
-          });
-        }}
-        initialEmploymentType={simCondition.employmentType ?? "employee"}
-        initialHouseOwnership={simCondition.houseOwnership ?? "none"}
-        initialValues={{
-          existingLoan: simCondition.existingLoan,
-          recentDelinquency: simCondition.recentDelinquency,
-          cardLoanUsage: simCondition.cardLoanUsage,
-          loanRejection: simCondition.loanRejection,
-          monthlyIncomeRange: simCondition.monthlyIncomeRange,
-          existingMonthlyRepayment: simCondition.existingMonthlyRepayment,
-        }}
-        initialLtvInternalScore={simCondition.ltvInternalScore}
-      />
+      {isLoggedIn ? (
+        <LtvDsrModal
+          open={ltvModalOpen}
+          onClose={() => setLtvModalOpen(false)}
+          onConfirm={({ ltvInternalScore, existingMonthlyRepayment, formValues }) => {
+            patch({
+              ltvInternalScore,
+              existingMonthlyRepayment,
+              existingLoan: formValues.existingLoan,
+              recentDelinquency: formValues.recentDelinquency,
+              cardLoanUsage: formValues.cardLoanUsage,
+              loanRejection: formValues.loanRejection,
+              monthlyIncomeRange: formValues.monthlyIncomeRange,
+            });
+          }}
+          initialEmploymentType={simCondition.employmentType ?? "employee"}
+          initialHouseOwnership={simCondition.houseOwnership ?? "none"}
+          initialValues={{
+            existingLoan: simCondition.existingLoan,
+            recentDelinquency: simCondition.recentDelinquency,
+            cardLoanUsage: simCondition.cardLoanUsage,
+            loanRejection: simCondition.loanRejection,
+            monthlyIncomeRange: simCondition.monthlyIncomeRange,
+            existingMonthlyRepayment: simCondition.existingMonthlyRepayment,
+          }}
+          initialLtvInternalScore={simCondition.ltvInternalScore}
+        />
+      ) : null}
     </div>
   );
 }

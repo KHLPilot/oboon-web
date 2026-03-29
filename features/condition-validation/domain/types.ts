@@ -358,6 +358,73 @@ export type FullEvaluationResult = {
   };
 };
 
+// ===== Guest (비로그인) Evaluation Types =====
+
+export type GuestCustomerInput = {
+  availableCash: number;
+  monthlyIncome: number;
+  creditGrade: CreditGrade;
+  houseOwnership: "none" | "one" | "two_or_more";
+  purchasePurpose: FullPurchasePurpose;
+};
+
+export type GuestEvaluationCategoryResult = {
+  grade: FinalGrade5;
+  score: number;
+  maxScore: number;
+  reasonMessage: string;
+};
+
+export type GuestEvaluationResult = {
+  finalGrade: FinalGrade5;
+  totalScore: number;
+  maxScore: 100;
+  summaryMessage: string;
+  gradeLabel: string;
+  categories: {
+    cash: GuestEvaluationCategoryResult;
+    income: GuestEvaluationCategoryResult;
+    credit: GuestEvaluationCategoryResult;
+    ownership: GuestEvaluationCategoryResult;
+    purpose: GuestEvaluationCategoryResult;
+  };
+  metrics: {
+    contractAmount: number;
+    loanAmount: number;
+    monthlyPaymentEst: number;
+    monthlyBurdenPercent: number | null;
+  };
+};
+
+export type GuestEvaluationResponse = {
+  ok: boolean;
+  result?: {
+    final_grade: FinalGrade5;
+    total_score: number;
+    max_score: number;
+    summary_message: string;
+    grade_label: string;
+  };
+  categories?: {
+    cash: { grade: FinalGrade5; score: number; max_score: number; reason: string };
+    income: { grade: FinalGrade5; score: number; max_score: number; reason: string };
+    credit: { grade: FinalGrade5; score: number; max_score: number; reason: string };
+    ownership: { grade: FinalGrade5; score: number; max_score: number; reason: string };
+    purpose: { grade: FinalGrade5; score: number; max_score: number; reason: string };
+  };
+  metrics?: {
+    contract_amount: number;
+    loan_amount: number;
+    monthly_payment_est: number;
+    monthly_burden_percent: number | null;
+  };
+  error?: {
+    code?: string;
+    message?: string;
+    field_errors?: Record<string, string[] | undefined>;
+  };
+};
+
 export type FullEvaluationResponse = {
   ok: boolean;
   result?: {

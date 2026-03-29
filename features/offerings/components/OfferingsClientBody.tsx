@@ -658,7 +658,7 @@ export default function OfferingsClientBody() {
           {!rowsLoaded ? (
             <div className="space-y-3 sm:grid sm:grid-cols-2 sm:gap-4 sm:space-y-0 lg:grid-cols-3">
               {[0, 1, 2, 3, 4, 5].map((i) => (
-                <OfferingCardSkeleton key={i} mobileRecommendationLayout />
+                <OfferingCardSkeleton key={i} mobileRecommendationLayout seed={i} />
               ))}
             </div>
           ) : sortedOfferings.length === 0 ? (

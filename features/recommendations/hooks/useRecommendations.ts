@@ -337,6 +337,26 @@ function buildConditionSession(condition: RecommendationCondition): ConditionSes
   };
 }
 
+function sanitizeGuestCondition(
+  condition: RecommendationCondition,
+): RecommendationCondition {
+  return {
+    ...condition,
+    employmentType: null,
+    monthlyExpenses: 0,
+    purchaseTiming: null,
+    moveinTiming: null,
+    ltvInternalScore: 0,
+    existingLoan: null,
+    recentDelinquency: null,
+    cardLoanUsage: null,
+    loanRejection: null,
+    monthlyIncomeRange: null,
+    existingMonthlyRepayment: "none",
+    regions: [],
+  };
+}
+
 function hasStoredProfileCondition(profile: {
   cv_available_cash_manwon?: number | null;
   cv_monthly_income_manwon?: number | null;
@@ -921,7 +941,9 @@ export function useRecommendations() {
         const sessionSnapshot = loadConditionSession();
         if (active && sessionSnapshot) {
           setCondition((prev) =>
-            normalizeInputCondition(conditionFromSession(sessionSnapshot, prev)),
+            sanitizeGuestCondition(
+              normalizeInputCondition(conditionFromSession(sessionSnapshot, prev)),
+            ),
           );
         }
       } else {
@@ -1014,6 +1036,14 @@ export function useRecommendations() {
     };
   }, [supabase]);
 
+  useEffect(() => {
+    if (isLoggedIn) return;
+
+    setHasSavedConditionPreset(false);
+    setSavedConditionPreset(null);
+    setCondition((prev) => sanitizeGuestCondition(prev));
+  }, [isLoggedIn]);
+
   const metadataById = useMemo(() => {
     const map = new Map<number, OfferingMeta>();
 
@@ -1091,6 +1121,7 @@ export function useRecommendations() {
           customer: {
             available_cash: nextCondition.availableCash,
             monthly_income: nextCondition.monthlyIncome,
+            credit_grade: nextCondition.creditGrade,
             monthly_expenses: nextCondition.monthlyExpenses,
             employment_type: nextCondition.employmentType ?? "employee",
             house_ownership: nextCondition.houseOwnership ?? "none",
@@ -1101,6 +1132,7 @@ export function useRecommendations() {
             existing_monthly_repayment: nextCondition.existingMonthlyRepayment,
           },
           options: {
+            guest_mode: isLoggedIn === false,
             include_red: false,
             limit: 60,
           },
@@ -1146,7 +1178,7 @@ export function useRecommendations() {
         setIsEvaluating(false);
       }
     }
-  }, []);
+  }, [isLoggedIn]);
 
   const isReadyToEvaluate =
     condition.availableCash > 0 &&
@@ -1195,9 +1227,11 @@ export function useRecommendations() {
           ...patch,
         };
 
-        return mode === "sim"
+        const normalized = mode === "sim"
           ? normalizeSimulatorCondition(nextCondition, isLoggedIn)
           : normalizeInputCondition(nextCondition);
+
+        return isLoggedIn ? normalized : sanitizeGuestCondition(normalized);
       });
     },
     [isLoggedIn, mode],
@@ -1223,17 +1257,25 @@ export function useRecommendations() {
     setValidationError(null);
     if (override != null) {
       skipAutoEvalRef.current = true;
-      setCondition(evalCondition);
+      setCondition(isLoggedIn ? evalCondition : sanitizeGuestCondition(evalCondition));
     }
-    saveConditionSession(buildConditionSession(evalCondition));
+    saveConditionSession(
+      buildConditionSession(
+        isLoggedIn ? evalCondition : sanitizeGuestCondition(evalCondition),
+      ),
+    );
     return runEvaluate(evalCondition);
   }, [condition, isLoggedIn, mode, runEvaluate]);
 
   const changeMode = useCallback((nextMode: RecommendationMode) => {
     setValidationError(null);
-    if (nextMode === "sim") {
-      setCondition((prev) => normalizeSimulatorCondition(prev, isLoggedIn));
-    }
+    setCondition((prev) => {
+      const nextCondition =
+        nextMode === "sim"
+          ? normalizeSimulatorCondition(prev, isLoggedIn)
+          : prev;
+      return isLoggedIn ? nextCondition : sanitizeGuestCondition(nextCondition);
+    });
     setMode(nextMode);
   }, [isLoggedIn]);
 

@@ -1,4 +1,5 @@
 import { createSupabaseServer } from "@/lib/supabaseServer";
+import { createSupabaseServiceError } from "@/lib/errors";
 
 export const BRIEFING_SEARCH_PAGE_SIZE = 12;
 
@@ -26,7 +27,14 @@ export async function searchBriefingPosts(query: string, page = 1) {
     .order("created_at", { ascending: false })
     .range(offset, offset + pageSize - 1);
 
-  if (error) throw error;
+  if (error) {
+    throw createSupabaseServiceError(error, {
+      scope: "briefing.search",
+      action: "searchBriefingPosts",
+      defaultMessage: "브리핑 검색 중 오류가 발생했습니다.",
+      context: { queryLength: query.trim().length, page },
+    });
+  }
 
   return {
     posts: data ?? [],

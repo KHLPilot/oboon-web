@@ -1,4 +1,5 @@
 import { createSupabaseServer } from "@/lib/supabaseServer";
+import { createSupabaseServiceError } from "@/lib/errors";
 
 export async function fetchGeneralPostPageData(slug: string) {
   const supabase = await createSupabaseServer();
@@ -20,7 +21,13 @@ export async function fetchGeneralPostPageData(slug: string) {
     .select("id")
     .eq("key", "general")
     .single();
-  if (boardError) throw boardError;
+  if (boardError) {
+    throw createSupabaseServiceError(boardError, {
+      scope: "briefing.general.post",
+      action: "fetchGeneralPostPageData.board",
+      defaultMessage: "브리핑 게시판 조회 중 오류가 발생했습니다.",
+    });
+  }
   const boardId = board.id as string;
 
   const { data, error } = await supabase
@@ -49,7 +56,14 @@ export async function fetchGeneralPostPageData(slug: string) {
     .eq("board_id", boardId)
     .eq("slug", slug)
     .maybeSingle();
-  if (error) throw error;
+  if (error) {
+    throw createSupabaseServiceError(error, {
+      scope: "briefing.general.post",
+      action: "fetchGeneralPostPageData.post",
+      defaultMessage: "브리핑 게시글 조회 중 오류가 발생했습니다.",
+      context: { slug },
+    });
+  }
 
   const { data: relatedData, error: relErr } = await supabase
     .from("briefing_posts")
@@ -60,7 +74,14 @@ export async function fetchGeneralPostPageData(slug: string) {
     .order("published_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
     .limit(4);
-  if (relErr) throw relErr;
+  if (relErr) {
+    throw createSupabaseServiceError(relErr, {
+      scope: "briefing.general.post",
+      action: "fetchGeneralPostPageData.related",
+      defaultMessage: "관련 브리핑 조회 중 오류가 발생했습니다.",
+      context: { slug },
+    });
+  }
 
   return {
     isAdmin,

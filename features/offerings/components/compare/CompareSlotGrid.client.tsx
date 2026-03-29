@@ -1,10 +1,11 @@
 "use client";
 
 // features/offerings/components/compare/CompareSlotGrid.client.tsx
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Heart, X } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { COMPARE_SLOTS } from "@/features/offerings/domain/offering.types";
 import type { CompareSlot } from "@/features/offerings/domain/offering.types";
 import {
   DropdownMenu,
@@ -25,8 +26,6 @@ interface CompareSlotGridProps {
   scrappedIds?: string[];
 }
 
-const SLOTS: CompareSlot[] = ["a", "b", "c"];
-
 export default function CompareSlotGrid({
   availableItems,
   initialSlots = {},
@@ -46,10 +45,18 @@ export default function CompareSlotGrid({
     initialSlots,
   );
 
+  useEffect(() => {
+    setSlots(initialSlots);
+  }, [
+    initialSlots.a,
+    initialSlots.b,
+    initialSlots.c,
+  ]);
+
   const pushUrl = useCallback(
     (next: Partial<Record<CompareSlot, string>>) => {
       const params = new URLSearchParams();
-      SLOTS.forEach((s) => {
+      COMPARE_SLOTS.forEach((s) => {
         if (next[s]) params.set(s, next[s]!);
       });
       const qs = params.toString();
@@ -83,7 +90,7 @@ export default function CompareSlotGrid({
   const optionsFor = useCallback(
     (slot: CompareSlot) => {
       const otherSelected = new Set(
-        SLOTS.filter((s) => s !== slot && slots[s]).map((s) => slots[s]!),
+        COMPARE_SLOTS.filter((s) => s !== slot && slots[s]).map((s) => slots[s]!),
       );
       return sortedAvailableItems.filter((item) => !otherSelected.has(item.id));
     },
@@ -103,7 +110,7 @@ export default function CompareSlotGrid({
     <div className="space-y-6">
       {/* 슬롯 선택 그리드 */}
       <div className="grid grid-cols-2 gap-2 md:gap-4 md:grid-cols-3">
-        {SLOTS.map((slot) => {
+        {COMPARE_SLOTS.map((slot) => {
           const item = selectedItem(slot);
           const options = optionsFor(slot);
           const isC = slot === "c";

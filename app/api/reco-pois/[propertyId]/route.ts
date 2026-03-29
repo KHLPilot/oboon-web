@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { handleServiceError } from "@/lib/api/route-error";
 import { fetchRecoPoisByPropertyId } from "@/features/reco/services/recoPoi.server";
 
 type SchoolLevel = "KINDERGARTEN" | "ELEMENTARY" | "MIDDLE" | "HIGH";
@@ -36,10 +37,7 @@ export async function GET(
   const { data, error } = await fetchRecoPoisByPropertyId(propertyId);
 
   if (error) {
-    return NextResponse.json(
-      { error: "Failed to fetch pois", details: error.message },
-      { status: 500 },
-    );
+    return handleServiceError(error, "POI 조회에 실패했습니다");
   }
 
   const rows = data ?? [];

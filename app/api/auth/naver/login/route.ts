@@ -1,27 +1,28 @@
-//app/api/auth/naver/login/route.ts
+import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
+
+const OAUTH_STATE_COOKIE_NAME = "oauth_state";
+const OAUTH_STATE_MAX_AGE_SECONDS = 60 * 5;
 
 export async function GET() {
   const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID!;
   const NAVER_CALLBACK_URL = process.env.NAVER_CALLBACK_URL!;
+  const state = randomUUID();
+  const authUrl = new URL("https://nid.naver.com/oauth2.0/authorize");
 
-  const state = Math.random().toString(36).slice(2);
-
-  const authUrl =
-    `https://nid.naver.com/oauth2.0/authorize?response_type=code` +
-    `&client_id=${NAVER_CLIENT_ID}` +
-    `&redirect_uri=${encodeURIComponent(NAVER_CALLBACK_URL)}` +
-    `&state=${state}` +
-    `&auth_type=reauthenticate`;
+  authUrl.searchParams.set("response_type", "code");
+  authUrl.searchParams.set("client_id", NAVER_CLIENT_ID);
+  authUrl.searchParams.set("redirect_uri", NAVER_CALLBACK_URL);
+  authUrl.searchParams.set("state", state);
+  authUrl.searchParams.set("auth_type", "reauthenticate");
 
   const response = NextResponse.redirect(authUrl);
 
-  // CSRF 방지: state를 HttpOnly 쿠키에 저장 → 콜백에서 검증
-  response.cookies.set("naver_oauth_state", state, {
+  response.cookies.set(OAUTH_STATE_COOKIE_NAME, state, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: 60 * 10, // 10분
+    secure: true,
+    sameSite: "strict",
+    maxAge: OAUTH_STATE_MAX_AGE_SECONDS,
     path: "/",
   });
 

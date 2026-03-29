@@ -1,13 +1,10 @@
 // DELETE /api/offerings/history — 전체 열람 히스토리 삭제
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { createClient } from "@supabase/supabase-js";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { cookies } from "next/headers";
 
-const adminSupabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-);
+const adminSupabase = createSupabaseAdminClient();
 
 export async function DELETE() {
   try {

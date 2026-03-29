@@ -1,11 +1,8 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { verificationLimiter, getClientIp, checkRateLimit } from "@/lib/rateLimit";
 
-const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const supabaseAdmin = createSupabaseAdminClient();
 
 export async function POST(req: Request) {
     const rateLimitRes = await checkRateLimit(verificationLimiter, getClientIp(req));

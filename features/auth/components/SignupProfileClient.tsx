@@ -16,6 +16,7 @@ import { validateRequiredOrShowModal } from "@/shared/validationMessage";
 import { toKoreanErrorMessage } from "@/shared/errorMessage";
 
 import PageContainer from "@/components/shared/PageContainer";
+import SafeMarkdown from "@/components/shared/SafeMarkdown";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -940,11 +941,10 @@ export default function SignupProfileClient() {
               <div className="ob-typo-h3 text-(--oboon-text-title)">
                 {termModal.title}
               </div>
-              <div
-                className="ob-typo-caption text-(--oboon-text-muted) whitespace-pre-wrap max-h-80 overflow-y-auto"
-              >
-                {termModal.content}
-              </div>
+              <SafeMarkdown
+                content={termModal.content}
+                className="max-h-80 overflow-y-auto text-(--oboon-text-muted)"
+              />
               <div className="pt-2">
                 <Button
                   variant="primary"

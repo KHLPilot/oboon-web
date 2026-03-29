@@ -212,7 +212,9 @@ export default function Header() {
             {/* Desktop nav */}
             <nav className="mt-1.5 hidden min-w-0 items-center gap-6 lg:gap-8 ob-typo-nav md:flex">
               {NAV_ITEMS.map((item) => {
-                const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
+                const active = item.exact
+                  ? pathname === item.href
+                  : pathname?.startsWith(item.href) ?? false;
                 return (
                   <Link
                     key={item.href}
@@ -348,7 +350,9 @@ export default function Header() {
 
                 <DropdownMenuContent align="end" className="mt-4 w-44 p-1">
                   {NAV_ITEMS.map((item) => {
-                    const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
+                    const active = item.exact
+                      ? pathname === item.href
+                      : pathname?.startsWith(item.href) ?? false;
                     return (
                       <DropdownMenuItem
                         key={item.href}

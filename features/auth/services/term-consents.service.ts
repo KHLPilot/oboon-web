@@ -1,4 +1,5 @@
 import { createSupabaseServer } from "@/lib/supabaseServer";
+import { createSupabaseServiceError } from "@/lib/errors";
 
 type TermRow = {
   id: string;
@@ -27,7 +28,12 @@ export async function fetchActiveTermsByTypes(termTypes: string[]) {
 
   return {
     data: (data as TermRow[] | null) ?? null,
-    error: error ? new Error(error.message) : null,
+    error: createSupabaseServiceError(error, {
+      scope: "term-consents.service",
+      action: "fetchActiveTermsByTypes",
+      defaultMessage: "활성 약관 조회 중 오류가 발생했습니다.",
+      context: { termTypeCount: termTypes.length },
+    }),
   };
 }
 
@@ -43,7 +49,12 @@ export async function insertTermConsents(
   return {
     data:
       (data as Array<{ id: string; term_type: string }> | null) ?? null,
-    error: error ? new Error(error.message) : null,
+    error: createSupabaseServiceError(error, {
+      scope: "term-consents.service",
+      action: "insertTermConsents",
+      defaultMessage: "약관 동의 기록 저장 중 오류가 발생했습니다.",
+      context: { consentCount: consentsToInsert.length },
+    }),
   };
 }
 
@@ -73,7 +84,12 @@ export async function fetchUserTermConsents(
 
   return {
     data: (data as TermConsentRow[] | null) ?? null,
-    error: error ? new Error(error.message) : null,
+    error: createSupabaseServiceError(error, {
+      scope: "term-consents.service",
+      action: "fetchUserTermConsents",
+      defaultMessage: "동의 기록 조회 중 오류가 발생했습니다.",
+      context: { userId },
+    }),
   };
 }
 
@@ -90,7 +106,12 @@ export async function deleteUserTermConsent(
 
   return {
     data: error ? null : { success: true },
-    error: error ? new Error(error.message) : null,
+    error: createSupabaseServiceError(error, {
+      scope: "term-consents.service",
+      action: "deleteUserTermConsent",
+      defaultMessage: "동의 기록 삭제 중 오류가 발생했습니다.",
+      context: { userId, termType },
+    }),
   };
 }
 
@@ -106,7 +127,11 @@ export async function fetchRequiredSignupTerms() {
   return {
     data:
       (data as Array<{ type: string; version: number }> | null) ?? null,
-    error: error ? new Error(error.message) : null,
+    error: createSupabaseServiceError(error, {
+      scope: "term-consents.service",
+      action: "fetchRequiredSignupTerms",
+      defaultMessage: "필수 약관 조회 중 오류가 발생했습니다.",
+    }),
   };
 }
 
@@ -125,6 +150,11 @@ export async function fetchUserConsentsForTypes(
     data:
       (data as Array<{ term_type: string; term_version: number }> | null) ??
       null,
-    error: error ? new Error(error.message) : null,
+    error: createSupabaseServiceError(error, {
+      scope: "term-consents.service",
+      action: "fetchUserConsentsForTypes",
+      defaultMessage: "사용자 동의 기록 조회 중 오류가 발생했습니다.",
+      context: { userId, termTypeCount: termTypes.length },
+    }),
   };
 }

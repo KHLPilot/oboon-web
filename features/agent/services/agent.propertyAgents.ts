@@ -1,17 +1,26 @@
-import { createClient } from "@supabase/supabase-js";
 import { createSupabaseServer } from "@/lib/supabaseServer";
-
-type ServiceResult<T> = {
-  data: T | null;
-  error: Error | null;
-};
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import {
+  AppError,
+  ERR,
+  ServiceResult,
+  createSupabaseServiceError,
+} from "@/lib/errors";
 
 function createAdminSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  try {
+    return createSupabaseAdminClient();
+  } catch {
+    return null;
+  }
+}
 
-  if (!url || !serviceRoleKey) return null;
-  return createClient(url, serviceRoleKey);
+function missingAdminConfigError() {
+  return new AppError(
+    ERR.CONFIG,
+    "처리 중 오류가 발생했습니다.",
+    500,
+  );
 }
 
 export async function fetchPropertyAgentProfileRole(userId: string) {
@@ -24,7 +33,19 @@ export async function fetchPropertyAgentProfileRole(userId: string) {
 
   return {
     data: (data as { role: string | null } | null) ?? null,
-    error: error ? new Error(error.message) : null,
+    error: createSupabaseServiceError(error, {
+      scope: "agent.propertyAgents",
+      action: "fetchPropertyAgentProfileRole",
+      defaultMessage: "프로필 조회 중 오류가 발생했습니다.",
+      context: { userId },
+      codeMap: {
+        PGRST116: {
+          code: ERR.NOT_FOUND,
+          clientMessage: "프로필을 찾을 수 없습니다.",
+          statusHint: 404,
+        },
+      },
+    }),
   } as ServiceResult<{ role: string | null }>;
 }
 
@@ -38,7 +59,19 @@ export async function fetchPropertyAgentProperty(propertyId: number) {
 
   return {
     data: (data as { id: number; name: string | null } | null) ?? null,
-    error: error ? new Error(error.message) : null,
+    error: createSupabaseServiceError(error, {
+      scope: "agent.propertyAgents",
+      action: "fetchPropertyAgentProperty",
+      defaultMessage: "현장 조회 중 오류가 발생했습니다.",
+      context: { propertyId },
+      codeMap: {
+        PGRST116: {
+          code: ERR.NOT_FOUND,
+          clientMessage: "현장을 찾을 수 없습니다.",
+          statusHint: 404,
+        },
+      },
+    }),
   } as ServiceResult<{ id: number; name: string | null }>;
 }
 
@@ -50,7 +83,7 @@ export async function fetchExistingPropertyAgent(
   if (!supabase) {
     return {
       data: null,
-      error: new Error("missing supabase env"),
+      error: missingAdminConfigError(),
     } as ServiceResult<{ id: string; status: string | null }>;
   }
 
@@ -63,7 +96,12 @@ export async function fetchExistingPropertyAgent(
 
   return {
     data: (data as { id: string; status: string | null } | null) ?? null,
-    error: error ? new Error(error.message) : null,
+    error: createSupabaseServiceError(error, {
+      scope: "agent.propertyAgents",
+      action: "fetchExistingPropertyAgent",
+      defaultMessage: "기존 소속 조회 중 오류가 발생했습니다.",
+      context: { propertyId, agentId },
+    }),
   } as ServiceResult<{ id: string; status: string | null }>;
 }
 
@@ -74,7 +112,10 @@ export async function reactivatePropertyAgentMembership(
 ) {
   const supabase = createAdminSupabase();
   if (!supabase) {
-    return { data: null, error: new Error("missing supabase env") } as ServiceResult<Record<string, unknown>>;
+    return {
+      data: null,
+      error: missingAdminConfigError(),
+    } as ServiceResult<Record<string, unknown>>;
   }
 
   const { data, error } = await supabase
@@ -94,7 +135,12 @@ export async function reactivatePropertyAgentMembership(
 
   return {
     data: (data as Record<string, unknown> | null) ?? null,
-    error: error ? new Error(error.message) : null,
+    error: createSupabaseServiceError(error, {
+      scope: "agent.propertyAgents",
+      action: "reactivatePropertyAgentMembership",
+      defaultMessage: "소속 재활성화 중 오류가 발생했습니다.",
+      context: { id },
+    }),
   } as ServiceResult<Record<string, unknown>>;
 }
 
@@ -105,7 +151,10 @@ export async function insertApprovedPropertyAgentMembership(
 ) {
   const supabase = createAdminSupabase();
   if (!supabase) {
-    return { data: null, error: new Error("missing supabase env") } as ServiceResult<Record<string, unknown>>;
+    return {
+      data: null,
+      error: missingAdminConfigError(),
+    } as ServiceResult<Record<string, unknown>>;
   }
 
   const { data, error } = await supabase
@@ -123,7 +172,12 @@ export async function insertApprovedPropertyAgentMembership(
 
   return {
     data: (data as Record<string, unknown> | null) ?? null,
-    error: error ? new Error(error.message) : null,
+    error: createSupabaseServiceError(error, {
+      scope: "agent.propertyAgents",
+      action: "insertApprovedPropertyAgentMembership",
+      defaultMessage: "소속 등록 중 오류가 발생했습니다.",
+      context: { propertyId, agentId },
+    }),
   } as ServiceResult<Record<string, unknown>>;
 }
 
@@ -175,7 +229,12 @@ export async function fetchPropertyAgentsList(params: {
 
   return {
     data: (data as Array<Record<string, unknown>> | null) ?? null,
-    error: error ? new Error(error.message) : null,
+    error: createSupabaseServiceError(error, {
+      scope: "agent.propertyAgents",
+      action: "fetchPropertyAgentsList",
+      defaultMessage: "소속 목록 조회 중 오류가 발생했습니다.",
+      context: { userId: params.userId, role: params.role },
+    }),
   } as ServiceResult<Array<Record<string, unknown>>>;
 }
 
@@ -198,7 +257,7 @@ export async function fetchPropertyMainAssets(propertyIds: number[]) {
   if (!supabase) {
     return {
       data: null,
-      error: new Error("missing supabase env"),
+      error: missingAdminConfigError(),
     } as ServiceResult<
       Array<{
         property_id: number;
@@ -226,7 +285,12 @@ export async function fetchPropertyMainAssets(propertyIds: number[]) {
         sort_order: number | null;
         created_at: string | null;
       }> | null) ?? null,
-    error: error ? new Error(error.message) : null,
+    error: createSupabaseServiceError(error, {
+      scope: "agent.propertyAgents",
+      action: "fetchPropertyMainAssets",
+      defaultMessage: "대표 이미지 조회 중 오류가 발생했습니다.",
+      context: { propertyCount: propertyIds.length },
+    }),
   };
 }
 
@@ -235,7 +299,7 @@ export async function fetchApprovedPropertyAgentsForUser(agentId: string) {
   if (!supabase) {
     return {
       data: null,
-      error: new Error("missing supabase env"),
+      error: missingAdminConfigError(),
     } as ServiceResult<Array<{ id: string; property_id: number }>>;
   }
 
@@ -249,7 +313,12 @@ export async function fetchApprovedPropertyAgentsForUser(agentId: string) {
 
   return {
     data: (data as Array<{ id: string; property_id: number }> | null) ?? null,
-    error: error ? new Error(error.message) : null,
+    error: createSupabaseServiceError(error, {
+      scope: "agent.propertyAgents",
+      action: "fetchApprovedPropertyAgentsForUser",
+      defaultMessage: "승인 소속 조회 중 오류가 발생했습니다.",
+      context: { agentId },
+    }),
   } as ServiceResult<Array<{ id: string; property_id: number }>>;
 }
 
@@ -261,7 +330,7 @@ export async function withdrawPropertyAgents(
   if (!supabase) {
     return {
       data: null,
-      error: new Error("missing supabase env"),
+      error: missingAdminConfigError(),
     } as ServiceResult<Array<{ id: string }>>;
   }
 
@@ -278,6 +347,11 @@ export async function withdrawPropertyAgents(
 
   return {
     data: (data as Array<{ id: string }> | null) ?? null,
-    error: error ? new Error(error.message) : null,
+    error: createSupabaseServiceError(error, {
+      scope: "agent.propertyAgents",
+      action: "withdrawPropertyAgents",
+      defaultMessage: "소속 해제 중 오류가 발생했습니다.",
+      context: { membershipCount: ids.length },
+    }),
   } as ServiceResult<Array<{ id: string }>>;
 }

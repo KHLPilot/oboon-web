@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { handleServiceError } from "@/lib/api/route-error";
 import {
   fetchExistingPropertyAgent,
   fetchPropertyAgentProfileRole,
@@ -53,7 +54,11 @@ export async function POST(request: NextRequest) {
     const { data: profile, error: profileError } =
       await fetchPropertyAgentProfileRole(user.id);
 
-    if (profileError || !profile) {
+    if (profileError) {
+      return handleServiceError(profileError, "프로필을 찾을 수 없습니다");
+    }
+
+    if (!profile) {
       return NextResponse.json(
         { error: "프로필을 찾을 수 없습니다" },
         { status: 404 }
@@ -83,7 +88,11 @@ export async function POST(request: NextRequest) {
     const { data: property, error: propertyError } =
       await fetchPropertyAgentProperty(property_id);
 
-    if (propertyError || !property) {
+    if (propertyError) {
+      return handleServiceError(propertyError, "현장을 찾을 수 없습니다");
+    }
+
+    if (!property) {
       return NextResponse.json(
         { error: "현장을 찾을 수 없습니다" },
         { status: 404 }
@@ -95,11 +104,7 @@ export async function POST(request: NextRequest) {
       await fetchExistingPropertyAgent(property_id, user.id);
 
     if (existingError) {
-      console.error("기존 신청 조회 오류:", existingError);
-      return NextResponse.json(
-        { error: "신청 확인 중 오류가 발생했습니다" },
-        { status: 500 }
-      );
+      return handleServiceError(existingError, "신청 확인 중 오류가 발생했습니다");
     }
 
     if (existing?.status === "approved") {
@@ -130,7 +135,9 @@ export async function POST(request: NextRequest) {
     }
 
     if (saveError || !propertyAgent) {
-      console.error("소속 신청 저장 오류:", saveError);
+      if (saveError) {
+        return handleServiceError(saveError, "소속 신청에 실패했습니다");
+      }
       return NextResponse.json(
         { error: "소속 신청에 실패했습니다" },
         { status: 500 }
@@ -189,7 +196,11 @@ export async function GET(request: NextRequest) {
     const { data: profile, error: profileError } =
       await fetchPropertyAgentProfileRole(user.id);
 
-    if (profileError || !profile) {
+    if (profileError) {
+      return handleServiceError(profileError, "프로필을 찾을 수 없습니다");
+    }
+
+    if (!profile) {
       return NextResponse.json(
         { error: "프로필을 찾을 수 없습니다" },
         { status: 404 }
@@ -208,11 +219,7 @@ export async function GET(request: NextRequest) {
       });
 
     if (fetchError) {
-      console.error("소속 신청 조회 오류:", fetchError);
-      return NextResponse.json(
-        { error: "소속 신청 조회에 실패했습니다" },
-        { status: 500 }
-      );
+      return handleServiceError(fetchError, "소속 신청 조회에 실패했습니다");
     }
     const rows = (propertyAgents ?? []) as Array<{
       properties?: { id?: number } | null;
@@ -225,7 +232,15 @@ export async function GET(request: NextRequest) {
           .filter((id): id is number => typeof id === "number")
       )
     );
-    const { data: propertyMainAssets } = await fetchPropertyMainAssets(propertyIds);
+    const { data: propertyMainAssets, error: propertyMainAssetsError } =
+      await fetchPropertyMainAssets(propertyIds);
+
+    if (propertyMainAssetsError) {
+      return handleServiceError(
+        propertyMainAssetsError,
+        "대표 이미지 조회에 실패했습니다",
+      );
+    }
     const propertyMainImageMap = new Map<number, string>();
     for (const row of propertyMainAssets ?? []) {
       const url = normalizeUrl(row.image_url);

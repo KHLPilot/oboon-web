@@ -1,14 +1,20 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { handleStructuredApiError } from "@/lib/api/route-error";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import { AppError, ERR } from "@/lib/errors";
 
 import { evaluateFullCondition } from "@/features/condition-validation/domain/fullCustomerEvaluator";
+import { evaluateGuestCondition } from "@/features/condition-validation/domain/guestEvaluator";
 import { resolveProfileForRecommendation } from "@/features/condition-validation/server/profile-resolver";
 import { normalizeOfferingStatusValue } from "@/features/offerings/domain/offering.constants";
 import { OFFERING_STATUS_VALUES } from "@/features/offerings/domain/offering.types";
 import type {
+  FinalGrade5,
   FullCustomerInput,
   FullEvaluationResult,
+  GuestCustomerInput,
+  GuestEvaluationResult,
   MoveinTiming,
   ValidationAssetType,
   PropertyValidationProfile,
@@ -83,16 +89,29 @@ type DisplayMetrics = {
   monthly_burden_percent: number | null;
 };
 
-type EvaluatedRecommendation = {
+type EvaluatedRecommendationBase = {
   property_id: number;
   property_name: string | null;
   property_type: string | null;
   status: string | null;
   property_image_url: string | null;
   show_detailed_metrics: boolean;
-  result: FullEvaluationResult;
   displayMetrics: DisplayMetrics;
 };
+
+type FullEvaluatedRecommendation = EvaluatedRecommendationBase & {
+  evaluationMode: "full";
+  result: FullEvaluationResult;
+};
+
+type GuestEvaluatedRecommendation = EvaluatedRecommendationBase & {
+  evaluationMode: "guest";
+  result: GuestEvaluationResult;
+};
+
+type EvaluatedRecommendation =
+  | FullEvaluatedRecommendation
+  | GuestEvaluatedRecommendation;
 
 const amountSchema = z.preprocess((value) => {
   if (typeof value === "string") {
@@ -125,6 +144,7 @@ const requestSchema = z.object({
     available_cash: manwonAmountSchema,
     monthly_income: manwonAmountSchema,
     monthly_expenses: manwonAmountSchema.optional().default(0),
+    credit_grade: z.enum(["good", "normal", "unstable"]).optional(),
     employment_type: z
       .enum(["employee", "self_employed", "freelancer", "other"])
       .optional()
@@ -156,6 +176,7 @@ const requestSchema = z.object({
       exclude_property_id: z
         .union([z.number().int().positive(), z.string().trim().min(1)])
         .optional(),
+      guest_mode: z.boolean().optional(),
       include_red: z.boolean().optional(),
       limit: z.number().int().min(1).max(60).optional(),
     })
@@ -163,12 +184,15 @@ const requestSchema = z.object({
 });
 
 function createAdminSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceRoleKey) {
-    throw new Error("Missing Supabase env for condition recommendation API");
+  try {
+    return createSupabaseAdminClient();
+  } catch {
+    throw new AppError(
+      ERR.CONFIG,
+      "추천 처리 중 오류가 발생했습니다.",
+      500,
+    );
   }
-  return createClient(url, serviceRoleKey);
 }
 
 function toFiniteNumber(value: unknown): number | null {
@@ -378,12 +402,23 @@ function computeDisplayMetrics(
 }
 
 function mapGradeToAction(
-  grade: FullEvaluationResult["finalGrade"],
+  grade: FinalGrade5,
 ): string {
   if (grade === "GREEN") return "VISIT_BOOKING";
   if (grade === "LIME") return "PRE_VISIT_CONSULT";
   if (grade === "YELLOW") return "PRE_VISIT_CONSULT";
   return "RECOMMEND_ALTERNATIVE_AND_CONSULT";
+}
+
+function normalizeGuestCreditGrade(params: {
+  creditGrade?: GuestCustomerInput["creditGrade"];
+  ltvInternalScore?: number;
+}): GuestCustomerInput["creditGrade"] {
+  const { creditGrade, ltvInternalScore = 0 } = params;
+  if (creditGrade) return creditGrade;
+  if (ltvInternalScore >= 70) return "good";
+  if (ltvInternalScore >= 40) return "normal";
+  return "unstable";
 }
 
 function shouldShowDetailedMetrics(
@@ -517,8 +552,7 @@ export async function POST(request: Request) {
         ok: false,
         error: {
           code: "VALIDATION_ERROR",
-          message: "request validation failed",
-          field_errors: parsed.error.flatten().fieldErrors,
+          message: "입력값이 올바르지 않습니다.",
         },
       },
       { status: 400 },
@@ -530,9 +564,10 @@ export async function POST(request: Request) {
     const input = parsed.data.customer;
     const limit = parsed.data.options?.limit ?? 24;
     const includeRed = parsed.data.options?.include_red ?? false;
+    const isGuestMode = parsed.data.options?.guest_mode === true;
     const excludePropertyId = toPositiveInt(parsed.data.options?.exclude_property_id);
 
-    const customer: FullCustomerInput = {
+    const fullCustomer: FullCustomerInput = {
       availableCash: input.available_cash,
       monthlyIncome: input.monthly_income,
       monthlyExpenses: input.monthly_expenses,
@@ -543,6 +578,16 @@ export async function POST(request: Request) {
       moveinTiming: input.movein_timing,
       ltvInternalScore: input.ltv_internal_score,
       existingMonthlyRepayment: input.existing_monthly_repayment,
+    };
+    const guestCustomer: GuestCustomerInput = {
+      availableCash: input.available_cash,
+      monthlyIncome: input.monthly_income,
+      creditGrade: normalizeGuestCreditGrade({
+        creditGrade: input.credit_grade,
+        ltvInternalScore: input.ltv_internal_score,
+      }),
+      houseOwnership: input.house_ownership,
+      purchasePurpose: input.purchase_purpose_v2,
     };
     const todayStamp = getTodayKstStamp();
 
@@ -558,7 +603,9 @@ export async function POST(request: Request) {
       .map((property): EvaluatedRecommendation | null => {
         if (excludePropertyId && property.id === excludePropertyId) return null;
         if (normalizeOfferingStatusValue(property.status) === closedStatusValue) return null;
-        if (!matchesRecommendationSchedule(property, customer, todayStamp)) return null;
+        if (!isGuestMode && !matchesRecommendationSchedule(property, fullCustomer, todayStamp)) {
+          return null;
+        }
 
         const profile = resolveProfileForRecommendation({
           property,
@@ -566,11 +613,32 @@ export async function POST(request: Request) {
         });
         if (!profile) return null;
 
-        const result = evaluateFullCondition({ profile, customer });
+        if (isGuestMode) {
+          const result = evaluateGuestCondition({ profile, customer: guestCustomer });
+          const displayMetrics = computeDisplayMetrics(
+            profile,
+            result.metrics.monthlyPaymentEst,
+            guestCustomer.monthlyIncome,
+          );
+
+          return {
+            property_id: property.id,
+            property_name: property.name,
+            property_type: property.property_type,
+            status: property.status,
+            property_image_url: propertyImageMap.get(property.id) ?? null,
+            show_detailed_metrics: shouldShowDetailedMetrics(property.property_unit_types),
+            evaluationMode: "guest",
+            result,
+            displayMetrics,
+          };
+        }
+
+        const result = evaluateFullCondition({ profile, customer: fullCustomer });
         const displayMetrics = computeDisplayMetrics(
           profile,
           result.metrics.monthlyPaymentEst,
-          customer.monthlyIncome,
+          fullCustomer.monthlyIncome,
         );
 
         return {
@@ -580,6 +648,7 @@ export async function POST(request: Request) {
           status: property.status,
           property_image_url: propertyImageMap.get(property.id) ?? null,
           show_detailed_metrics: shouldShowDetailedMetrics(property.property_unit_types),
+          evaluationMode: "full",
           result,
           displayMetrics,
         };
@@ -621,32 +690,56 @@ export async function POST(request: Request) {
         summary_message: item.result.summaryMessage,
         reason_messages: [item.result.categories.cash.reasonMessage],
         show_detailed_metrics: item.show_detailed_metrics,
-        categories: {
-          cash: {
-            grade: item.result.categories.cash.grade,
-            score: item.result.categories.cash.score,
-          },
-          income: {
-            grade: item.result.categories.income.grade,
-            score: item.result.categories.income.score,
-          },
-          ltv_dsr: {
-            grade: item.result.categories.ltvDsr.grade,
-            score: item.result.categories.ltvDsr.score,
-          },
-          ownership: {
-            grade: item.result.categories.ownership.grade,
-            score: item.result.categories.ownership.score,
-          },
-          purpose: {
-            grade: item.result.categories.purpose.grade,
-            score: item.result.categories.purpose.score,
-          },
-          timing: {
-            grade: item.result.categories.timing.grade,
-            score: item.result.categories.timing.score,
-          },
-        },
+        categories:
+          item.evaluationMode === "guest"
+            ? {
+                cash: {
+                  grade: item.result.categories.cash.grade,
+                  score: item.result.categories.cash.score,
+                },
+                income: {
+                  grade: item.result.categories.income.grade,
+                  score: item.result.categories.income.score,
+                },
+                ltv_dsr: {
+                  grade: item.result.categories.credit.grade,
+                  score: item.result.categories.credit.score,
+                },
+                ownership: {
+                  grade: item.result.categories.ownership.grade,
+                  score: item.result.categories.ownership.score,
+                },
+                purpose: {
+                  grade: item.result.categories.purpose.grade,
+                  score: item.result.categories.purpose.score,
+                },
+              }
+            : {
+                cash: {
+                  grade: item.result.categories.cash.grade,
+                  score: item.result.categories.cash.score,
+                },
+                income: {
+                  grade: item.result.categories.income.grade,
+                  score: item.result.categories.income.score,
+                },
+                ltv_dsr: {
+                  grade: item.result.categories.ltvDsr.grade,
+                  score: item.result.categories.ltvDsr.score,
+                },
+                ownership: {
+                  grade: item.result.categories.ownership.grade,
+                  score: item.result.categories.ownership.score,
+                },
+                purpose: {
+                  grade: item.result.categories.purpose.grade,
+                  score: item.result.categories.purpose.score,
+                },
+                timing: {
+                  grade: item.result.categories.timing.grade,
+                  score: item.result.categories.timing.score,
+                },
+              },
         metrics: {
           list_price: item.displayMetrics.list_price,
           min_cash: item.displayMetrics.min_cash,
@@ -658,19 +751,10 @@ export async function POST(request: Request) {
       evaluated_at: new Date().toISOString(),
     });
   } catch (error) {
-    console.error("POST /api/condition-validation/recommend error:", error);
-    return NextResponse.json(
-      {
-        ok: false,
-        error: {
-          code: "RECOMMENDATION_FAILED",
-          message:
-            error instanceof Error
-              ? error.message
-              : "추천 현장 조회 중 오류가 발생했습니다.",
-        },
-      },
-      { status: 500 },
-    );
+    return handleStructuredApiError("condition-validation/recommend", error, {
+      status: 500,
+      code: "RECOMMENDATION_FAILED",
+      message: "추천 현장 조회 중 오류가 발생했습니다.",
+    });
   }
 }

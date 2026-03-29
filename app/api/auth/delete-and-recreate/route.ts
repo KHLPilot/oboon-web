@@ -1,21 +1,22 @@
 // app/api/auth/delete-and-recreate/route.ts
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import {
+  handleApiError,
+  handleSupabaseError,
+} from "@/lib/api/route-error";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import { verifyRestoreToken } from "@/lib/auth/restoreToken";
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const supabaseAdmin = createSupabaseAdminClient();
 
 export async function POST(req: Request) {
   try {
-    const { userId } = await req.json();
+    const { restoreToken } = await req.json();
+    const userId =
+      typeof restoreToken === "string" ? verifyRestoreToken(restoreToken) : null;
 
     if (!userId) {
-      return NextResponse.json(
-        { error: "userId가 필요합니다." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "유효하지 않은 복구 요청입니다." }, { status: 403 });
     }
 
     // 1. profiles를 참조하는 테이블들 정리
@@ -130,11 +131,10 @@ export async function POST(req: Request) {
       .eq("id", userId);
 
     if (profileDeleteError) {
-      console.error("Profile 삭제 실패:", profileDeleteError);
-      return NextResponse.json(
-        { error: "프로필 삭제 실패: " + profileDeleteError.message },
-        { status: 500 }
-      );
+      return handleSupabaseError("delete-and-recreate 프로필 삭제", profileDeleteError, {
+        defaultMessage: "계정 처리 중 오류가 발생했습니다",
+        context: { userId },
+      });
     }
 
     // 3. 기존 auth.users 완전 삭제
@@ -143,11 +143,10 @@ export async function POST(req: Request) {
     );
 
     if (deleteError) {
-      console.error("Auth 사용자 삭제 실패:", deleteError);
-      return NextResponse.json(
-        { error: "계정 삭제 실패: " + deleteError.message },
-        { status: 500 }
-      );
+      return handleApiError("delete-and-recreate Auth 삭제", deleteError, {
+        clientMessage: "계정 처리 중 오류가 발생했습니다",
+        context: { userId },
+      });
     }
 
     return NextResponse.json({
@@ -155,7 +154,8 @@ export async function POST(req: Request) {
       message: "기존 계정이 삭제되었습니다. 새로 가입해주세요.",
     });
   } catch (err) {
-    console.error("계정 삭제 및 재생성 오류:", err);
-    return NextResponse.json({ error: "서버 오류" }, { status: 500 });
+    return handleApiError("delete-and-recreate", err, {
+      clientMessage: "서버 오류가 발생했습니다",
+    });
   }
 }

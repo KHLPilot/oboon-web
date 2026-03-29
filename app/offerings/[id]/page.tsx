@@ -1,5 +1,6 @@
 // app/offerings/[id]/page.tsx
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import OfferingDetailPage from "@/features/offerings/components/detail/OfferingDetailPage";
@@ -148,6 +149,7 @@ export default async function OfferingDetailRoute({
 }: {
   params: { id: string } | Promise<{ id: string }>;
 }) {
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   const { id: rawId } = await Promise.resolve(params);
   const id = Number(rawId);
   if (!Number.isFinite(id)) notFound();
@@ -206,6 +208,7 @@ export default async function OfferingDetailRoute({
     <>
       <script
         type="application/ld+json"
+        nonce={nonce}
         dangerouslySetInnerHTML={{
           __html: JSON.stringify(structuredData).replace(/</g, "\\u003c"),
         }}

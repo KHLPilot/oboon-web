@@ -69,6 +69,9 @@ export default function AdminTermsTab({
 
             <div>
               <label className="block ob-typo-caption text-(--oboon-text-muted) mb-1">내용</label>
+              <p className="mb-2 ob-typo-caption text-(--oboon-text-muted)">
+                Markdown만 지원합니다. 저장된 HTML 태그와 스크립트는 화면에서 렌더링되지 않습니다.
+              </p>
               <Textarea
                 value={editingTerm.content}
                 onChange={(e) =>
@@ -194,4 +197,3 @@ export default function AdminTermsTab({
     </>
   );
 }
-

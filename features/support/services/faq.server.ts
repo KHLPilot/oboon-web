@@ -3,6 +3,7 @@
  */
 
 import { createSupabaseServer } from "@/lib/supabaseServer";
+import { createSupabaseServiceError } from "@/lib/errors";
 import type { FAQCategoryRow, FAQItemViewModel } from "../domain/support";
 
 type FAQAdminItemViewModel = FAQItemViewModel & {
@@ -64,7 +65,11 @@ export async function fetchPublicFAQCategoriesServer(): Promise<FAQCategoryRow[]
     .order("sort_order", { ascending: true });
 
   if (error) {
-    throw error;
+    throw createSupabaseServiceError(error, {
+      scope: "faq.server",
+      action: "fetchPublicFAQCategoriesServer",
+      defaultMessage: "FAQ 카테고리 조회 중 오류가 발생했습니다.",
+    });
   }
 
   return data ?? [];
@@ -101,7 +106,12 @@ export async function fetchPublicFAQItemsServer(
   const { data, error } = await query.order("sort_order", { ascending: true });
 
   if (error) {
-    throw error;
+    throw createSupabaseServiceError(error, {
+      scope: "faq.server",
+      action: "fetchPublicFAQItemsServer",
+      defaultMessage: "FAQ 목록 조회 중 오류가 발생했습니다.",
+      context: { categoryKey: categoryKey ?? null },
+    });
   }
 
   if (!data) return [];

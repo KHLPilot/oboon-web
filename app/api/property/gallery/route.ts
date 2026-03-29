@@ -18,6 +18,8 @@ import {
   softDeletePropertyGalleryImage,
   updatePropertyGalleryRow,
 } from "@/features/company/services/property.gallery";
+import { isAppError } from "@/lib/errors";
+import { handleServiceError } from "@/lib/api/route-error";
 
 const GALLERY_KIND = "gallery";
 const MAX_IMAGES = 10;
@@ -96,14 +98,41 @@ async function canManageProperty(
     return { ok: false as const, error: "로그인이 필요합니다", status: 401 };
   }
 
-  const { data: profile } = await fetchPropertyGalleryProfileRole(user.id);
+  const { data: profile, error: profileError } =
+    await fetchPropertyGalleryProfileRole(user.id);
+
+  if (profileError) {
+    return {
+      ok: false as const,
+      error: isAppError(profileError)
+        ? profileError.clientMessage
+        : "프로필 확인에 실패했습니다",
+      status: isAppError(profileError)
+        ? (profileError.statusHint ?? 500)
+        : 500,
+    };
+  }
+
   const role = profile?.role ?? null;
 
   if (role === "admin") {
     return { ok: true as const, userId: user.id, role };
   }
 
-  const { data: property } = await fetchPropertyGalleryProperty(propertyId);
+  const { data: property, error: propertyError } =
+    await fetchPropertyGalleryProperty(propertyId);
+
+  if (propertyError) {
+    return {
+      ok: false as const,
+      error: isAppError(propertyError)
+        ? propertyError.clientMessage
+        : "현장 확인에 실패했습니다",
+      status: isAppError(propertyError)
+        ? (propertyError.statusHint ?? 500)
+        : 500,
+    };
+  }
 
   if (!property) {
     return { ok: false as const, error: "현장을 찾을 수 없습니다", status: 404 };
@@ -114,10 +143,23 @@ async function canManageProperty(
   }
 
   if (role === "agent") {
-    const { data: memberships } = await fetchPropertyGalleryMembership(
-      propertyId,
-      user.id,
-    );
+    const { data: memberships, error: membershipError } =
+      await fetchPropertyGalleryMembership(
+        propertyId,
+        user.id,
+      );
+
+    if (membershipError) {
+      return {
+        ok: false as const,
+        error: isAppError(membershipError)
+          ? membershipError.clientMessage
+          : "소속 정보 확인에 실패했습니다",
+        status: isAppError(membershipError)
+          ? (membershipError.statusHint ?? 500)
+          : 500,
+      };
+    }
 
     if ((memberships?.length ?? 0) > 0) {
       return { ok: true as const, userId: user.id, role };
@@ -144,10 +186,7 @@ export async function GET(req: Request) {
     const { data, error } = await fetchPropertyGalleryImages(propertyId);
 
     if (error) {
-      return NextResponse.json(
-        { error: "추가 사진 조회에 실패했습니다" },
-        { status: 500 },
-      );
+      return handleServiceError(error, "추가 사진 조회에 실패했습니다");
     }
 
     return NextResponse.json({ images: data || [] });
@@ -207,10 +246,7 @@ export async function POST(req: Request) {
       await fetchPropertyGallerySortRows(propertyId);
 
     if (countError) {
-      return NextResponse.json(
-        { error: "기존 추가 사진 확인에 실패했습니다" },
-        { status: 500 },
-      );
+      return handleServiceError(countError, "기존 추가 사진 확인에 실패했습니다");
     }
 
     const existingCount = existingRows?.length ?? 0;
@@ -307,13 +343,18 @@ export async function POST(req: Request) {
         );
       }
 
-      return NextResponse.json(
-        { error: "업로드 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요." },
-        { status: 500 },
+      return handleServiceError(
+        insertError,
+        "업로드 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.",
       );
     }
 
-    const { data: refreshed } = await fetchPropertyGalleryImages(propertyId);
+    const { data: refreshed, error: refreshError } =
+      await fetchPropertyGalleryImages(propertyId);
+
+    if (refreshError) {
+      return handleServiceError(refreshError, "업로드된 사진 조회에 실패했습니다");
+    }
 
     return NextResponse.json({ images: refreshed || [] });
   } catch (error) {
@@ -349,10 +390,7 @@ export async function PATCH(req: Request) {
       await fetchPropertyGalleryExistingRows(propertyId, ids);
 
     if (existingError) {
-      return NextResponse.json(
-        { error: "추가 사진 확인에 실패했습니다" },
-        { status: 500 },
-      );
+      return handleServiceError(existingError, "추가 사진 확인에 실패했습니다");
     }
 
     if ((existingRows?.length ?? 0) !== ids.length) {
@@ -373,14 +411,16 @@ export async function PATCH(req: Request) {
       );
 
       if (updateError) {
-        return NextResponse.json(
-          { error: "정렬 저장에 실패했습니다" },
-          { status: 500 },
-        );
+        return handleServiceError(updateError, "정렬 저장에 실패했습니다");
       }
     }
 
-    const { data: refreshed } = await fetchPropertyGalleryImages(propertyId);
+    const { data: refreshed, error: refreshError } =
+      await fetchPropertyGalleryImages(propertyId);
+
+    if (refreshError) {
+      return handleServiceError(refreshError, "변경된 사진 조회에 실패했습니다");
+    }
 
     return NextResponse.json({ images: refreshed || [] });
   } catch (error) {
@@ -417,10 +457,7 @@ export async function DELETE(req: Request) {
     );
 
     if (targetError) {
-      return NextResponse.json(
-        { error: "삭제할 사진 조회에 실패했습니다" },
-        { status: 500 },
-      );
+      return handleServiceError(targetError, "삭제할 사진 조회에 실패했습니다");
     }
     if (!target) {
       return NextResponse.json({ error: "사진을 찾을 수 없습니다" }, { status: 404 });
@@ -432,7 +469,7 @@ export async function DELETE(req: Request) {
     );
 
     if (deleteError) {
-      return NextResponse.json({ error: "사진 삭제에 실패했습니다" }, { status: 500 });
+      return handleServiceError(deleteError, "사진 삭제에 실패했습니다");
     }
 
     if (target.storage_path) {
@@ -448,7 +485,12 @@ export async function DELETE(req: Request) {
       }
     }
 
-    const { data: refreshed } = await fetchPropertyGalleryImages(propertyId);
+    const { data: refreshed, error: refreshError } =
+      await fetchPropertyGalleryImages(propertyId);
+
+    if (refreshError) {
+      return handleServiceError(refreshError, "삭제 후 사진 조회에 실패했습니다");
+    }
 
     return NextResponse.json({ images: refreshed || [] });
   } catch (error) {

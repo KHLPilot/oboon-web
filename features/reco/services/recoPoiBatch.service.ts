@@ -22,6 +22,7 @@ import {
   isHighSpeedRailStation,
 } from "@/features/reco/constants/highSpeedRailMap";
 import { canonicalizeSubwayLine } from "@/features/reco/constants/subwayIconMap";
+import { AppError, ERR, createSupabaseServiceError, toAppError } from "@/lib/errors";
 
 const FETCH_CATEGORIES: Array<"SUBWAY" | "SCHOOL" | "HOSPITAL"> = [
   "SUBWAY",
@@ -78,6 +79,27 @@ const NON_RESIDENTIAL_PROPERTY_TYPE_KEYWORDS = [
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function toRecoPoiBatchError(
+  action: string,
+  error: { code?: string | null; hint?: string | null; message?: string | null } | null,
+  context?: Record<string, string | number | boolean | null | undefined>,
+) {
+  return createSupabaseServiceError(error, {
+    scope: "recoPoiBatch.service",
+    action,
+    defaultMessage: "추천 POI 처리 중 오류가 발생했습니다.",
+    context,
+  });
+}
+
+function missingRecoPoiBatchConfigError() {
+  return new AppError(
+    ERR.CONFIG,
+    "처리 중 오류가 발생했습니다.",
+    500,
+  );
 }
 
 function toFiniteNumber(value: unknown): number | null {
@@ -354,7 +376,14 @@ async function withRetry<T>(fn: () => Promise<T>, maxRetry = MAX_RETRY) {
       return await fn();
     } catch (error) {
       attempt += 1;
-      if (attempt >= maxRetry) throw error;
+      if (attempt >= maxRetry) {
+        throw toAppError(
+          error,
+          ERR.DB_QUERY,
+          "추천 POI 처리 중 오류가 발생했습니다.",
+          500,
+        );
+      }
       const backoff = 300 * 2 ** (attempt - 1);
       await sleep(backoff);
     }
@@ -430,13 +459,24 @@ async function upsertCategoryRows(params: {
     .eq("property_id", propertyId)
     .eq("category", category);
 
-  if (deleteError) throw deleteError;
+  if (deleteError) {
+    throw toRecoPoiBatchError("replacePoiRows.delete", deleteError, {
+      propertyId,
+      category,
+    });
+  }
   if (rows.length === 0) return 0;
 
   const { error: insertError } = await supabase
     .from("property_reco_pois")
     .insert(rows);
-  if (insertError) throw insertError;
+  if (insertError) {
+    throw toRecoPoiBatchError("replacePoiRows.insert", insertError, {
+      propertyId,
+      category,
+      rowCount: rows.length,
+    });
+  }
   return rows.length;
 }
 
@@ -942,7 +982,7 @@ export async function runRecoPoiForProperty(input: {
   const kakaoApiKey = process.env.KAKAO_REST_API_KEY;
 
   if (!url || !serviceKey || !kakaoApiKey) {
-    throw new Error("Missing env for reco poi batch");
+    throw missingRecoPoiBatchConfigError();
   }
 
   const topN = Math.max(1, Math.min(10, input.topN ?? DEFAULT_TOP_N));
@@ -959,7 +999,11 @@ export async function runRecoPoiForProperty(input: {
     .order("id", { ascending: true })
     .maybeSingle();
 
-  if (locationError) throw locationError;
+  if (locationError) {
+    throw toRecoPoiBatchError("runRecoPoiForProperty.location", locationError, {
+      propertyId: input.propertyId,
+    });
+  }
   if (!location) return { ok: false, reason: "missing_property_location" as const };
 
   const lat = toFiniteNumber(location.lat);
@@ -1046,7 +1090,7 @@ export async function runRecoPoiBatch(input?: {
   const kakaoApiKey = process.env.KAKAO_REST_API_KEY;
 
   if (!url || !serviceKey || !kakaoApiKey) {
-    throw new Error("Missing env for reco poi batch");
+    throw missingRecoPoiBatchConfigError();
   }
 
   const chunkSize = Math.max(1, input?.chunkSize ?? DEFAULT_CHUNK);
@@ -1066,7 +1110,11 @@ export async function runRecoPoiBatch(input?: {
     .order("run_after", { ascending: true })
     .limit(chunkSize);
 
-  if (queuedError) throw queuedError;
+  if (queuedError) {
+    throw toRecoPoiBatchError("runRecoPoiBatch.queuedJobs", queuedError, {
+      chunkSize,
+    });
+  }
   const queuedJobs = (queuedRows ?? []) as JobRow[];
   stats.queuedPicked = queuedJobs.length;
 
@@ -1088,7 +1136,11 @@ export async function runRecoPoiBatch(input?: {
     .not("lat", "is", null)
     .not("lng", "is", null)
     .order("id", { ascending: true });
-  if (locationError) throw locationError;
+  if (locationError) {
+    throw toRecoPoiBatchError("runRecoPoiBatch.locations", locationError, {
+      chunkSize,
+    });
+  }
 
   const properties = dedupeByProperty((locationsRows ?? []) as LocationRow[]);
   stats.scanned = properties.length;

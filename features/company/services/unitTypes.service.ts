@@ -1,5 +1,6 @@
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import type { UnitDraft, UnitRow } from "@/features/company/domain/unit.types";
+import { AppError, ERR, createSupabaseServiceError } from "@/lib/errors";
 
 const SELECT_COLUMNS = `
   id, created_at, properties_id,
@@ -8,6 +9,19 @@ const SELECT_COLUMNS = `
   price_min, price_max, is_price_public, is_public, unit_count, supply_count,
   sort_order
 `;
+
+function toUnitTypesError(
+  action: string,
+  error: { code?: string | null; hint?: string | null; message?: string | null } | null,
+  context?: Record<string, string | number | boolean | null | undefined>,
+) {
+  return createSupabaseServiceError(error, {
+    scope: "unitTypes.service",
+    action,
+    defaultMessage: "평면 타입 처리 중 오류가 발생했습니다.",
+    context,
+  });
+}
 
 function normalizeText(value?: string | null) {
   const trimmed = (value ?? "").trim();
@@ -98,7 +112,9 @@ async function fetchFloorPlanUrlsMap(propertyId: number) {
     .order("updated_at", { ascending: false })
     .order("created_at", { ascending: true });
 
-  if (error) throw error;
+  if (error) {
+    throw toUnitTypesError("fetchFloorPlanUrlsMap", error, { propertyId });
+  }
 
   const map = new Map<number, string[]>();
   for (const row of data ?? []) {
@@ -143,7 +159,12 @@ async function syncFloorPlanAssets(
       .eq("kind", "floor_plan")
       .eq("unit_type_id", unitTypeId)
       .eq("is_active", true);
-    if (error) throw error;
+    if (error) {
+      throw toUnitTypesError("syncFloorPlanAssets", error, {
+        propertyId,
+        unitTypeId,
+      });
+    }
     return;
   }
 
@@ -155,7 +176,12 @@ async function syncFloorPlanAssets(
     .eq("unit_type_id", unitTypeId)
     .eq("is_active", true);
 
-  if (activeRowsError) throw activeRowsError;
+  if (activeRowsError) {
+    throw toUnitTypesError("syncFloorPlanAssets", activeRowsError, {
+      propertyId,
+      unitTypeId,
+    });
+  }
 
   const activeUrlSet = new Set(
     (activeRows ?? [])
@@ -173,7 +199,12 @@ async function syncFloorPlanAssets(
       .eq("unit_type_id", unitTypeId)
       .eq("is_active", true)
       .in("image_url", deactivateUrls);
-    if (deactivateError) throw deactivateError;
+    if (deactivateError) {
+      throw toUnitTypesError("syncFloorPlanAssets", deactivateError, {
+        propertyId,
+        unitTypeId,
+      });
+    }
   }
 
   const insertUrls = targetUrls.filter((url) => !activeUrlSet.has(url));
@@ -189,7 +220,12 @@ async function syncFloorPlanAssets(
           is_active: true,
         })),
       );
-    if (insertError) throw insertError;
+    if (insertError) {
+      throw toUnitTypesError("syncFloorPlanAssets", insertError, {
+        propertyId,
+        unitTypeId,
+      });
+    }
   }
 }
 
@@ -203,7 +239,9 @@ export async function fetchUnitTypes(propertyId: number): Promise<UnitRow[]> {
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: true });
 
-  if (error) throw error;
+  if (error) {
+    throw toUnitTypesError("fetchUnitTypes", error, { propertyId });
+  }
   const rows = ((data ?? []) as Array<Omit<UnitRow, "floor_plan_url" | "image_url">>).map((row) => ({
     ...row,
     floor_plan_url: null,
@@ -224,7 +262,7 @@ export async function fetchUnitTypePriceRanges(propertyId: number) {
     data:
       (data as Array<{ price_min: number | null; price_max: number | null }> | null) ??
       null,
-    error: error ? new Error(error.message) : null,
+    error: toUnitTypesError("fetchUnitTypePriceRanges", error, { propertyId }),
   };
 }
 
@@ -241,7 +279,9 @@ export async function createUnitType(
     .select(SELECT_COLUMNS)
     .single();
 
-  if (error) throw error;
+  if (error) {
+    throw toUnitTypesError("createUnitType", error, { propertyId });
+  }
 
   const created = {
     ...(data as Omit<UnitRow, "floor_plan_url" | "image_url">),
@@ -267,7 +307,9 @@ export async function updateUnitType(
     .select(SELECT_COLUMNS)
     .single();
 
-  if (error) throw error;
+  if (error) {
+    throw toUnitTypesError("updateUnitType", error, { unitTypeId: id });
+  }
 
   const updated = {
     ...(data as Omit<UnitRow, "floor_plan_url" | "image_url">),
@@ -287,7 +329,11 @@ export async function deleteUnitType(id: number): Promise<void> {
     .select("id, properties_id")
     .eq("id", id)
     .maybeSingle();
-  if (existingUnitError) throw existingUnitError;
+  if (existingUnitError) {
+    throw toUnitTypesError("deleteUnitType", existingUnitError, {
+      unitTypeId: id,
+    });
+  }
 
   const { data, error } = await supabase
     .from("property_unit_types")
@@ -296,9 +342,15 @@ export async function deleteUnitType(id: number): Promise<void> {
     .select("id")
     .maybeSingle();
 
-  if (error) throw error;
+  if (error) {
+    throw toUnitTypesError("deleteUnitType", error, { unitTypeId: id });
+  }
   if (!data) {
-    throw new Error("삭제 권한이 없거나 삭제할 평면 타입을 찾을 수 없습니다.");
+    throw new AppError(
+      ERR.NOT_FOUND,
+      "삭제 권한이 없거나 삭제할 평면 타입을 찾을 수 없습니다.",
+      404,
+    );
   }
 
   if (existingUnit?.properties_id) {
@@ -309,6 +361,11 @@ export async function deleteUnitType(id: number): Promise<void> {
       .eq("kind", "floor_plan")
       .eq("unit_type_id", id)
       .eq("is_active", true);
-    if (deactivateError) throw deactivateError;
+    if (deactivateError) {
+      throw toUnitTypesError("deleteUnitType", deactivateError, {
+        unitTypeId: id,
+        propertyId: existingUnit.properties_id,
+      });
+    }
   }
 }

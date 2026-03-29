@@ -17,10 +17,12 @@ import {
 import { ltvScoreToPoints } from "@/features/condition-validation/domain/ltvDsrCalculator";
 import type {
   CardLoanUsage,
+  CreditGrade,
   DelinquencyCount,
   EmploymentType,
   ExistingLoanAmount,
   FullEvaluationResponse,
+  GuestEvaluationResponse,
   FullPurchasePurpose,
   FinalGrade5,
   LoanRejection,
@@ -48,35 +50,35 @@ function grade5Meta(grade: FinalGrade5): Grade5Meta {
         color: "var(--oboon-grade-green)",
         bgColor: "var(--oboon-grade-green-bg)",
         borderColor: "var(--oboon-grade-green-border)",
-        label: "계약 가능",
+        label: grade5DetailLabel(grade),
       };
     case "LIME":
       return {
         color: "var(--oboon-grade-lime)",
         bgColor: "var(--oboon-grade-lime-bg)",
         borderColor: "var(--oboon-grade-lime-border)",
-        label: "거의 충족",
+        label: grade5DetailLabel(grade),
       };
     case "YELLOW":
       return {
         color: "var(--oboon-grade-yellow)",
         bgColor: "var(--oboon-grade-yellow-bg)",
         borderColor: "var(--oboon-grade-yellow-border)",
-        label: "확인 필요",
+        label: grade5DetailLabel(grade),
       };
     case "ORANGE":
       return {
         color: "var(--oboon-grade-orange)",
         bgColor: "var(--oboon-grade-orange-bg)",
         borderColor: "var(--oboon-grade-orange-border)",
-        label: "계약 어려울 수 있음",
+        label: grade5DetailLabel(grade),
       };
     case "RED":
       return {
         color: "var(--oboon-grade-red)",
         bgColor: "var(--oboon-grade-red-bg)",
         borderColor: "var(--oboon-grade-red-border)",
-        label: "계약 어려움",
+        label: grade5DetailLabel(grade),
       };
   }
 }
@@ -199,6 +201,12 @@ const MOVEIN_TIMING_OPTIONS: { value: MoveinTiming; label: string }[] = [
   { value: "anytime", label: "상관없음" },
 ];
 
+const CREDIT_GRADE_OPTIONS: { value: CreditGrade; label: string }[] = [
+  { value: "good", label: "양호" },
+  { value: "normal", label: "보통" },
+  { value: "unstable", label: "불안정" },
+];
+
 const LTV_STATUS_LABELS: Record<string, string> = {
   not_set: "미설정 (클릭하여 평가)",
 };
@@ -228,6 +236,9 @@ export default function ConditionValidationCard({
   const [purchaseTiming, setPurchaseTiming] = useState<PurchaseTiming>("by_property");
   const [moveinTiming, setMoveinTiming] = useState<MoveinTiming>("anytime");
 
+  // 비로그인 전용 간이 신용 상태 (로그인 시 LTV/DSR로 대체)
+  const [guestCreditGrade, setGuestCreditGrade] = useState<CreditGrade>("good");
+
   // LTV/DSR state from modal
   const [ltvInternalScore, setLtvInternalScore] = useState<number | null>(null);
   const [ltvPoints, setLtvPoints] = useState<number | null>(null);
@@ -239,6 +250,10 @@ export default function ConditionValidationCard({
   const [existingMonthlyRepayment, setExistingMonthlyRepayment] =
     useState<MonthlyLoanRepayment>("none");
   const [ltvModalOpen, setLtvModalOpen] = useState(false);
+
+  // 비로그인 간편 검증 결과
+  const [guestResponse, setGuestResponse] = useState<GuestEvaluationResponse | null>(null);
+  const [guestLoading, setGuestLoading] = useState(false);
 
   // UI state
   const [isInputSectionVisible, setIsInputSectionVisible] = useState(true);
@@ -403,6 +418,55 @@ export default function ConditionValidationCard({
     });
   };
 
+  const handleGuestEvaluate = async () => {
+    setErrorMessage(null);
+    if (!propertyId) {
+      setErrorMessage("현장 정보를 찾을 수 없습니다.");
+      return;
+    }
+    const cash = parseNullableNumericInput(availableCash);
+    if (cash === null) {
+      setErrorMessage("가용 현금을 올바르게 입력해주세요.");
+      return;
+    }
+    const income = parseNullableNumericInput(monthlyIncome);
+    if (income === null) {
+      setErrorMessage("월 세후 소득을 올바르게 입력해주세요.");
+      return;
+    }
+
+    setGuestLoading(true);
+    try {
+      const res = await fetch("/api/condition-validation/evaluate-guest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          property_id: propertyId,
+          customer: {
+            available_cash: cash,
+            monthly_income: income,
+            credit_grade: guestCreditGrade,
+            house_ownership: houseOwnership,
+            purchase_purpose: purchasePurpose,
+          },
+        }),
+      });
+
+      const data = (await res.json().catch(() => null)) as GuestEvaluationResponse | null;
+      if (!res.ok || !data?.ok) {
+        setErrorMessage(data?.error?.message ?? "조건 검증에 실패했습니다.");
+        return;
+      }
+
+      setGuestResponse(data);
+      setIsInputSectionVisible(false);
+    } catch {
+      setErrorMessage("조건 검증 처리 중 네트워크 오류가 발생했습니다.");
+    } finally {
+      setGuestLoading(false);
+    }
+  };
+
   // ── 프로필/세션 자동 채움 ──────────────────────────────────────────────────
   useEffect(() => {
     autoEvaluatedRef.current = false;
@@ -560,33 +624,6 @@ export default function ConditionValidationCard({
   const shouldShowAlternativeButton =
     result?.final_grade === "RED" || result?.final_grade === "ORANGE";
 
-  // ── Login gate ────────────────────────────────────────────────────────────────
-  if (!isLoggedIn) {
-    return (
-      <Card className="p-4">
-        <div className="ob-typo-h3 text-(--oboon-text-title)">조건 검증</div>
-        <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
-          {propertyName ? `${propertyName} 현장 기준` : "현장 기준"}으로 내 조건을 확인합니다.
-        </p>
-        <div className="mt-4 flex flex-col items-center gap-3 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) py-8 px-4 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-surface)">
-            <Lock className="h-5 w-5 text-(--oboon-text-muted)" />
-          </div>
-          <div>
-            <p className="ob-typo-body font-semibold text-(--oboon-text-title)">
-              로그인이 필요합니다
-            </p>
-            <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
-              내 조건에 맞는 현장인지 확인하려면 로그인하세요.
-            </p>
-          </div>
-          <Button onClick={onLoginRequest} className="mt-1">
-            로그인하기
-          </Button>
-        </div>
-      </Card>
-    );
-  }
 
   // ── Main render ───────────────────────────────────────────────────────────────
   return (
@@ -615,128 +652,357 @@ export default function ConditionValidationCard({
       {/* Input Section */}
       {isInputSectionVisible ? (
         <div className="mt-2.5 space-y-2.5">
-          {/* Employment type / Available cash */}
-          <div className="grid grid-cols-2 gap-2.5">
-            <div className="min-w-0">
-              <div className="mb-1 ob-typo-caption text-(--oboon-text-muted)">직업 형태</div>
-              <Select<EmploymentType>
-                value={employmentType}
-                onChange={setEmploymentType}
-                options={EMPLOYMENT_OPTIONS}
-              />
-            </div>
-            <div className="min-w-0">
-              <label className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
-                가용 현금 (만원)
-              </label>
-              <div className="relative">
-                <Input
-                  value={availableCash}
-                  onChange={(e) => setAvailableCash(formatNumericInput(e.target.value))}
-                  inputMode="numeric"
-                  placeholder="예: 5,000"
-                  className={availableCashPreview ? "pr-16" : undefined}
-                />
-                {availableCashPreview ? (
-                  <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center ob-typo-caption text-(--oboon-text-muted) truncate max-w-[56px]">
-                    {availableCashPreview}
+          {isLoggedIn ? (
+            <>
+              {/* Employment type / Available cash */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="min-w-0">
+                  <div className="mb-1 ob-typo-caption text-(--oboon-text-muted)">직업 형태</div>
+                  <Select<EmploymentType>
+                    value={employmentType}
+                    onChange={setEmploymentType}
+                    options={EMPLOYMENT_OPTIONS}
+                  />
+                </div>
+                <div className="min-w-0">
+                  <label className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
+                    가용 현금 (만원)
+                  </label>
+                  <div className="relative">
+                    <Input
+                      value={availableCash}
+                      onChange={(e) => setAvailableCash(formatNumericInput(e.target.value))}
+                      inputMode="numeric"
+                      placeholder="예: 5,000"
+                      className={availableCashPreview ? "pr-16" : undefined}
+                    />
+                    {availableCashPreview ? (
+                      <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center ob-typo-caption text-(--oboon-text-muted) truncate max-w-[56px]">
+                        {availableCashPreview}
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
+                </div>
               </div>
-            </div>
-          </div>
 
-          {/* Monthly income / Monthly expenses */}
-          <div className="grid grid-cols-2 gap-2.5">
-            <div className="min-w-0">
-              <label className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
-                월 소득 (만원)
-              </label>
-              <div className="relative">
-                <Input
-                  value={monthlyIncome}
-                  onChange={(e) => setMonthlyIncome(formatNumericInput(e.target.value))}
-                  inputMode="numeric"
-                  placeholder="예: 400"
-                  className={monthlyIncomePreview ? "pr-16" : undefined}
-                />
-                {monthlyIncomePreview ? (
-                  <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center ob-typo-caption text-(--oboon-text-muted) truncate max-w-[56px]">
-                    {monthlyIncomePreview}
+              {/* Monthly income / Monthly expenses */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="min-w-0">
+                  <label className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
+                    월 소득 (만원)
+                  </label>
+                  <div className="relative">
+                    <Input
+                      value={monthlyIncome}
+                      onChange={(e) => setMonthlyIncome(formatNumericInput(e.target.value))}
+                      inputMode="numeric"
+                      placeholder="예: 400"
+                      className={monthlyIncomePreview ? "pr-16" : undefined}
+                    />
+                    {monthlyIncomePreview ? (
+                      <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center ob-typo-caption text-(--oboon-text-muted) truncate max-w-[56px]">
+                        {monthlyIncomePreview}
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
+                </div>
+                <div className="min-w-0">
+                  <label className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
+                    월 지출 (만원)
+                  </label>
+                  <Input
+                    value={monthlyExpenses}
+                    onChange={(e) => setMonthlyExpenses(formatNumericInput(e.target.value))}
+                    inputMode="numeric"
+                    placeholder="예: 150"
+                  />
+                </div>
               </div>
-            </div>
-            <div className="min-w-0">
-              <label className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
-                월 지출 (만원)
-              </label>
-              <Input
-                value={monthlyExpenses}
-                onChange={(e) => setMonthlyExpenses(formatNumericInput(e.target.value))}
-                inputMode="numeric"
-                placeholder="예: 150"
-              />
-            </div>
-          </div>
 
-          {/* LTV/DSR button */}
-          <div>
-            <div className="mb-1 ob-typo-caption text-(--oboon-text-muted)">신용 상태 (LTV+DSR)</div>
-            <button
-              type="button"
-              onClick={() => setLtvModalOpen(true)}
-              className="w-full rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-2 text-left transition-colors hover:border-(--oboon-border-hover)"
-            >
-              <span className={["ob-typo-caption", ltvStatusColor].join(" ")}>
-                {ltvStatusLabel}
-              </span>
-            </button>
-          </div>
+              {/* LTV/DSR button */}
+              <div>
+                <div className="mb-1 ob-typo-caption text-(--oboon-text-muted)">신용 상태 (LTV+DSR)</div>
+                <button
+                  type="button"
+                  onClick={() => setLtvModalOpen(true)}
+                  className="w-full rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-2 text-left transition-colors hover:border-(--oboon-border-hover)"
+                >
+                  <span className={["ob-typo-caption", ltvStatusColor].join(" ")}>
+                    {ltvStatusLabel}
+                  </span>
+                </button>
+              </div>
 
-          {/* House ownership / Purchase purpose */}
-          <div className="grid grid-cols-2 gap-2.5">
-            <div>
-              <div className="mb-1 ob-typo-caption text-(--oboon-text-muted)">주택 보유</div>
-              <Select<"none" | "one" | "two_or_more">
-                value={houseOwnership}
-                onChange={setHouseOwnership}
-                options={OWNERSHIP_OPTIONS}
-              />
-            </div>
-            <div>
-              <div className="mb-1 ob-typo-caption text-(--oboon-text-muted)">구매 목적</div>
-              <Select<FullPurchasePurpose>
-                value={purchasePurpose}
-                onChange={setPurchasePurpose}
-                options={PURPOSE_OPTIONS}
-              />
-            </div>
-          </div>
+              {/* House ownership / Purchase purpose */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <div className="mb-1 ob-typo-caption text-(--oboon-text-muted)">주택 보유</div>
+                  <Select<"none" | "one" | "two_or_more">
+                    value={houseOwnership}
+                    onChange={setHouseOwnership}
+                    options={OWNERSHIP_OPTIONS}
+                  />
+                </div>
+                <div>
+                  <div className="mb-1 ob-typo-caption text-(--oboon-text-muted)">구매 목적</div>
+                  <Select<FullPurchasePurpose>
+                    value={purchasePurpose}
+                    onChange={setPurchasePurpose}
+                    options={PURPOSE_OPTIONS}
+                  />
+                </div>
+              </div>
 
-          {/* Purchase timing / Move-in timing */}
-          <div className="grid grid-cols-2 gap-2.5">
-            <div>
-              <div className="mb-1 ob-typo-caption text-(--oboon-text-muted)">분양 희망 시점</div>
-              <Select<PurchaseTiming>
-                value={purchaseTiming}
-                onChange={setPurchaseTiming}
-                options={PURCHASE_TIMING_OPTIONS}
-              />
-            </div>
-            <div>
-              <div className="mb-1 ob-typo-caption text-(--oboon-text-muted)">입주 가능 시점</div>
-              <Select<MoveinTiming>
-                value={moveinTiming}
-                onChange={setMoveinTiming}
-                options={MOVEIN_TIMING_OPTIONS}
-              />
-            </div>
-          </div>
+              {/* Purchase timing / Move-in timing */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <div className="mb-1 ob-typo-caption text-(--oboon-text-muted)">분양 희망 시점</div>
+                  <Select<PurchaseTiming>
+                    value={purchaseTiming}
+                    onChange={setPurchaseTiming}
+                    options={PURCHASE_TIMING_OPTIONS}
+                  />
+                </div>
+                <div>
+                  <div className="mb-1 ob-typo-caption text-(--oboon-text-muted)">입주 가능 시점</div>
+                  <Select<MoveinTiming>
+                    value={moveinTiming}
+                    onChange={setMoveinTiming}
+                    options={MOVEIN_TIMING_OPTIONS}
+                  />
+                </div>
+              </div>
 
-          <Button className="w-full" loading={loading} onClick={() => void handleEvaluate()}>
-            조건 검증하기
-          </Button>
+              <Button className="w-full" loading={loading} onClick={() => void handleEvaluate()}>
+                조건 검증하기
+              </Button>
+            </>
+          ) : (
+            <>
+              {/* 비로그인: 기본 필드 (현금 / 소득) */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="min-w-0">
+                  <label className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
+                    가용 현금 (만원)
+                  </label>
+                  <div className="relative">
+                    <Input
+                      value={availableCash}
+                      onChange={(e) => setAvailableCash(formatNumericInput(e.target.value))}
+                      inputMode="numeric"
+                      placeholder="예: 5,000"
+                      className={availableCashPreview ? "pr-16" : undefined}
+                    />
+                    {availableCashPreview ? (
+                      <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center ob-typo-caption text-(--oboon-text-muted) truncate max-w-[56px]">
+                        {availableCashPreview}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="min-w-0">
+                  <label className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
+                    월 소득 (만원)
+                  </label>
+                  <div className="relative">
+                    <Input
+                      value={monthlyIncome}
+                      onChange={(e) => setMonthlyIncome(formatNumericInput(e.target.value))}
+                      inputMode="numeric"
+                      placeholder="예: 400"
+                      className={monthlyIncomePreview ? "pr-16" : undefined}
+                    />
+                    {monthlyIncomePreview ? (
+                      <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center ob-typo-caption text-(--oboon-text-muted) truncate max-w-[56px]">
+                        {monthlyIncomePreview}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+
+              {/* 비로그인: 기본 필드 (신용 상태) */}
+              <div>
+                <div className="mb-1 ob-typo-caption text-(--oboon-text-muted)">신용 상태</div>
+                <Select<CreditGrade>
+                  value={guestCreditGrade}
+                  onChange={setGuestCreditGrade}
+                  options={CREDIT_GRADE_OPTIONS}
+                />
+              </div>
+
+              {/* 비로그인: 기본 필드 (주택 보유 / 구매 목적) */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <div className="mb-1 ob-typo-caption text-(--oboon-text-muted)">주택 보유</div>
+                  <Select<"none" | "one" | "two_or_more">
+                    value={houseOwnership}
+                    onChange={setHouseOwnership}
+                    options={OWNERSHIP_OPTIONS}
+                  />
+                </div>
+                <div>
+                  <div className="mb-1 ob-typo-caption text-(--oboon-text-muted)">구매 목적</div>
+                  <Select<FullPurchasePurpose>
+                    value={purchasePurpose}
+                    onChange={setPurchasePurpose}
+                    options={PURPOSE_OPTIONS}
+                  />
+                </div>
+              </div>
+
+              {/* 비로그인: soft gate — 잠긴 상세 조건 */}
+              <div className="relative overflow-hidden rounded-xl border border-(--oboon-border-default)">
+                {/* 블러 처리된 필드들 */}
+                <div className="pointer-events-none select-none blur-sm opacity-50 p-3 space-y-2.5">
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div className="min-w-0">
+                      <div className="mb-1 ob-typo-caption text-(--oboon-text-muted)">직업 형태</div>
+                      <Select<EmploymentType>
+                        value={employmentType}
+                        onChange={() => undefined}
+                        options={EMPLOYMENT_OPTIONS}
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <label className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
+                        월 지출 (만원)
+                      </label>
+                      <Input value="" onChange={() => undefined} placeholder="예: 150" />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="mb-1 ob-typo-caption text-(--oboon-text-muted)">신용 상태 (LTV+DSR)</div>
+                    <div className="w-full rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-2">
+                      <span className="ob-typo-caption text-(--oboon-text-muted)">미설정 (클릭하여 평가)</span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div>
+                      <div className="mb-1 ob-typo-caption text-(--oboon-text-muted)">분양 희망 시점</div>
+                      <Select<PurchaseTiming>
+                        value={purchaseTiming}
+                        onChange={() => undefined}
+                        options={PURCHASE_TIMING_OPTIONS}
+                      />
+                    </div>
+                    <div>
+                      <div className="mb-1 ob-typo-caption text-(--oboon-text-muted)">입주 가능 시점</div>
+                      <Select<MoveinTiming>
+                        value={moveinTiming}
+                        onChange={() => undefined}
+                        options={MOVEIN_TIMING_OPTIONS}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 잠금 오버레이 */}
+                <button
+                  type="button"
+                  onClick={onLoginRequest}
+                  className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-(--oboon-bg-surface)/80 backdrop-blur-[1px] transition-colors hover:bg-(--oboon-bg-subtle)/80"
+                >
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-(--oboon-bg-elevated) border border-(--oboon-border-default) shadow-sm">
+                    <Lock className="h-4 w-4 text-(--oboon-text-muted)" />
+                  </div>
+                  <div className="text-center px-4">
+                    <p className="ob-typo-caption font-semibold text-(--oboon-text-title)">
+                      로그인하면 더 자세한 조건으로 검증할 수 있습니다
+                    </p>
+                    <p className="mt-0.5 ob-typo-caption text-(--oboon-text-muted)">
+                      직업 · 지출 · 신용 · 분양·입주 시점 추가 입력
+                    </p>
+                  </div>
+                </button>
+              </div>
+
+              <Button
+                className="w-full"
+                loading={guestLoading}
+                onClick={() => void handleGuestEvaluate()}
+              >
+                간편 검증하기
+              </Button>
+            </>
+          )}
+        </div>
+      ) : null}
+
+      {/* Guest Result */}
+      {guestResponse?.ok && guestResponse.result && !isInputSectionVisible && !isLoggedIn ? (
+        <div className="mt-2.5 space-y-2">
+          {/* Grade summary */}
+          {(() => {
+            const meta = grade5Meta(guestResponse.result.final_grade);
+            const matchRate = Math.round(
+              (guestResponse.result.total_score / guestResponse.result.max_score) * 100,
+            );
+            return (
+              <div
+                className="rounded-xl border px-3 py-3 flex items-center justify-between gap-3"
+                style={{ borderColor: meta.borderColor, backgroundColor: meta.bgColor }}
+              >
+                <div>
+                  <div className="ob-typo-caption text-(--oboon-text-muted)">간편 매칭률</div>
+                  <div className="mt-0.5 ob-typo-h2 font-bold text-(--oboon-text-title) leading-none">
+                    {matchRate}%
+                  </div>
+                </div>
+                <div
+                  className="rounded-full px-3 py-1 ob-typo-caption font-semibold text-(--oboon-text-title) shrink-0"
+                  style={{ backgroundColor: meta.color }}
+                >
+                  {guestResponse.result.grade_label}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Category breakdown */}
+          {guestResponse.categories ? (
+            <div className="rounded-lg border border-(--oboon-border-default) overflow-hidden">
+              {(
+                [
+                  { key: "cash" as const, label: "자금력" },
+                  { key: "income" as const, label: "소득/부담" },
+                  { key: "credit" as const, label: "신용" },
+                  { key: "ownership" as const, label: "주택 보유" },
+                  { key: "purpose" as const, label: "구매 목적" },
+                ] as const
+              ).map(({ key, label }, idx, arr) => {
+                const cat = guestResponse.categories![key];
+                const meta = grade5Meta(cat.grade);
+                return (
+                  <div
+                    key={key}
+                    className={`flex items-center justify-between gap-2 px-3 py-2${idx < arr.length - 1 ? " border-b" : ""}`}
+                    style={{ backgroundColor: meta.bgColor, borderColor: meta.borderColor }}
+                  >
+                    <span className="ob-typo-caption font-medium text-(--oboon-text-title) shrink-0">
+                      {label}
+                    </span>
+                    <span className="ob-typo-caption font-semibold text-(--oboon-text-title) truncate text-right">
+                      {cat.score}/{cat.max_score} · {grade5DetailLabel(cat.grade)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+
+          {/* Login CTA */}
+          <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-3 text-center space-y-2">
+            <p className="ob-typo-caption font-semibold text-(--oboon-text-title)">
+              로그인하면 더 정밀하게 검증할 수 있습니다
+            </p>
+            <p className="ob-typo-caption text-(--oboon-text-muted)">
+              직업·지출·신용 상세·분양·입주 시점까지 반영
+            </p>
+            <Button className="w-full" onClick={onLoginRequest}>
+              로그인 후 정밀 검증하기
+            </Button>
+          </div>
         </div>
       ) : null}
 

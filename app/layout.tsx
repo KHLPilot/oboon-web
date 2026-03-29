@@ -1,5 +1,6 @@
 // app/layout.tsx
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import Script from "next/script";
 import "./globals.css";
 import localFont from "next/font/local";
@@ -124,11 +125,12 @@ const suit = localFont({
   variable: "--font-suit",
 });
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   const isProduction = process.env.NODE_ENV === "production";
   const clarityProjectId = process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID;
   const gaTrackingId =
@@ -139,18 +141,20 @@ export default function RootLayout({
       <head>
         {process.env.NODE_ENV === "development" && (
           <Script
-            src="//unpkg.com/react-grab/dist/index.global.js"
+            src="https://unpkg.com/react-grab/dist/index.global.js"
             crossOrigin="anonymous"
             strategy="beforeInteractive"
+            nonce={nonce}
           />
         )}
         {process.env.NODE_ENV === "development" && (
           <Script
-            src="//unpkg.com/@react-grab/mcp/dist/client.global.js"
+            src="https://unpkg.com/@react-grab/mcp/dist/client.global.js"
             strategy="lazyOnload"
+            nonce={nonce}
           />
         )}
-        <Script id="theme-init" strategy="beforeInteractive">
+        <Script id="theme-init" strategy="beforeInteractive" nonce={nonce}>
           {`
             (function () {
               try {
@@ -171,8 +175,9 @@ export default function RootLayout({
             <Script
               src={`https://www.googletagmanager.com/gtag/js?id=${gaTrackingId}`}
               strategy="lazyOnload"
+              nonce={nonce}
             />
-            <Script id="gtag-init" strategy="lazyOnload">
+            <Script id="gtag-init" strategy="lazyOnload" nonce={nonce}>
               {`
                 try {
                   window.dataLayer = window.dataLayer || [];
@@ -186,7 +191,7 @@ export default function RootLayout({
         ) : null}
         {/* Microsoft Clarity (production only) */}
         {isProduction && clarityProjectId ? (
-          <Script id="clarity-init" strategy="afterInteractive">
+          <Script id="clarity-init" strategy="afterInteractive" nonce={nonce}>
             {`
               try {
                 (function(c,l,a,r,i,t,y){
@@ -201,6 +206,7 @@ export default function RootLayout({
         ) : null}
         <script
           type="application/ld+json"
+          nonce={nonce}
           dangerouslySetInnerHTML={{
             __html: JSON.stringify(structuredData).replace(/</g, "\\u003c"),
           }}

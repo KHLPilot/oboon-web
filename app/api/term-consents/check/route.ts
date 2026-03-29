@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
+import { handleServiceError } from "@/lib/api/route-error";
 import {
   fetchRequiredSignupTerms,
   fetchUserConsentsForTypes,
@@ -65,8 +66,7 @@ export async function GET() {
       await fetchRequiredSignupTerms();
 
     if (termsError) {
-      console.error('약관 조회 실패:', termsError);
-      return NextResponse.json({ error: '약관 조회에 실패했습니다.' }, { status: 500 });
+      return handleServiceError(termsError, '약관 조회에 실패했습니다.');
     }
 
     if (!requiredTerms || requiredTerms.length === 0) {
@@ -82,8 +82,7 @@ export async function GET() {
       );
 
     if (consentsError) {
-      console.error('동의 기록 조회 실패:', consentsError);
-      return NextResponse.json({ error: '동의 기록 조회에 실패했습니다.' }, { status: 500 });
+      return handleServiceError(consentsError, '동의 기록 조회에 실패했습니다.');
     }
 
     // 3. 미동의 또는 버전 불일치 약관 찾기

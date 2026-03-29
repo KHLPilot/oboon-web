@@ -1,21 +1,49 @@
 // app/api/auth/restore-account/route.ts
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import {
+  checkAuthRateLimit,
+  getClientIp,
+  restoreAccountIpLimiter,
+} from "@/lib/rateLimit";
+import {
+  handleApiError,
+  handleSupabaseError,
+  logApiError,
+  maskEmail,
+} from "@/lib/api/route-error";
+import { verifyRestoreToken } from "@/lib/auth/restoreToken";
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const supabaseAdmin = createSupabaseAdminClient();
 
 export async function POST(req: Request) {
-  try {
-    const { userId, email } = await req.json();
+  const rateLimitRes = await checkAuthRateLimit(
+    restoreAccountIpLimiter,
+    getClientIp(req),
+    { windowMs: 60 * 1000 },
+  );
+  if (rateLimitRes) return rateLimitRes;
 
-    if (!userId || !email) {
+  let maskedRequestEmail: string | undefined;
+
+  try {
+    const { restoreToken, email } = await req.json();
+    const normalizedEmail =
+      typeof email === "string" ? email.trim().toLowerCase() : "";
+    const userId =
+      typeof restoreToken === "string" ? verifyRestoreToken(restoreToken) : null;
+
+    if (!normalizedEmail || typeof restoreToken !== "string") {
       return NextResponse.json(
-        { error: "userId와 email이 필요합니다." },
+        { error: "restoreToken과 email이 필요합니다." },
         { status: 400 }
       );
+    }
+
+    maskedRequestEmail = maskEmail(normalizedEmail);
+
+    if (!userId) {
+      return NextResponse.json({ error: "유효하지 않은 복구 요청입니다." }, { status: 403 });
     }
 
     // 1. auth.users ban 해제 (기존에 ban된 계정 대응)
@@ -27,7 +55,7 @@ export async function POST(req: Request) {
 
     if (unbanError) {
       // ban 해제 실패는 무시 (이미 ban되지 않은 경우일 수 있음)
-      console.warn("Ban 해제 시도:", unbanError.message);
+      logApiError("restore-account ban 해제", unbanError);
     }
 
     // 2. profiles 복원 (deleted_at null, 이메일 복원)
@@ -35,17 +63,16 @@ export async function POST(req: Request) {
       .from("profiles")
       .update({
         deleted_at: null,
-        email: email,
+        email: normalizedEmail,
         // name, nickname, phone_number는 온보딩에서 다시 입력
       })
       .eq("id", userId);
 
     if (updateError) {
-      console.error("Profile 복원 실패:", updateError);
-      return NextResponse.json(
-        { error: "프로필 복원 실패" },
-        { status: 500 }
-      );
+      return handleSupabaseError("restore-account 프로필 복원", updateError, {
+        defaultMessage: "프로필 복원 실패",
+        context: maskedRequestEmail ? { email: maskedRequestEmail } : undefined,
+      });
     }
 
     return NextResponse.json({
@@ -53,7 +80,9 @@ export async function POST(req: Request) {
       message: "계정이 복구되었습니다. 프로필 정보를 다시 입력해주세요.",
     });
   } catch (err) {
-    console.error("계정 복구 오류:", err);
-    return NextResponse.json({ error: "서버 오류" }, { status: 500 });
+    return handleApiError("restore-account", err, {
+      clientMessage: "서버 오류",
+      context: maskedRequestEmail ? { email: maskedRequestEmail } : undefined,
+    });
   }
 }

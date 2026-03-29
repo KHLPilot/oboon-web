@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import { verifyBearerToken } from "@/lib/api/internal-auth";
+import { handleApiError, handleSupabaseError } from "@/lib/api/route-error";
 
 export const dynamic = "force-dynamic";
 
-const adminSupabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const adminSupabase = createSupabaseAdminClient();
 
 // 취소된 예약 정리 (3일 경과 후 소프트 삭제 처리)
 // Vercel Cron 또는 외부 스케줄러에서 호출
@@ -16,7 +15,7 @@ export async function GET(req: Request) {
         const authHeader = req.headers.get("authorization");
         const cronSecret = process.env.CRON_SECRET;
 
-        if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+        if (!verifyBearerToken(authHeader, cronSecret)) {
             return NextResponse.json(
                 { error: "Unauthorized" },
                 { status: 401 }
@@ -36,11 +35,9 @@ export async function GET(req: Request) {
             .lt("cancelled_at", deletionThreshold.toISOString());
 
         if (fetchError) {
-            console.error("만료된 예약 조회 오류:", fetchError);
-            return NextResponse.json(
-                { error: "조회 실패", details: fetchError.message },
-                { status: 500 }
-            );
+            return handleSupabaseError("cleanup-cancelled 대상 조회", fetchError, {
+                defaultMessage: "조회 실패",
+            });
         }
 
         if (!expiredConsultations || expiredConsultations.length === 0) {
@@ -63,11 +60,9 @@ export async function GET(req: Request) {
             .in("id", consultationIds);
 
         if (hideError) {
-            console.error("예약 소프트 삭제 처리 오류:", hideError);
-            return NextResponse.json(
-                { error: "소프트 삭제 처리 실패", details: hideError.message },
-                { status: 500 }
-            );
+            return handleSupabaseError("cleanup-cancelled 소프트 삭제", hideError, {
+                defaultMessage: "소프트 삭제 처리 실패",
+            });
         }
 
         return NextResponse.json({
@@ -78,10 +73,8 @@ export async function GET(req: Request) {
         });
 
     } catch (err: unknown) {
-        console.error("Cron 정리 API 오류:", err);
-        return NextResponse.json(
-            { error: "서버 오류", details: (err instanceof Error ? err.message : "알 수 없는 오류") },
-            { status: 500 }
-        );
+        return handleApiError("cleanup-cancelled", err, {
+            clientMessage: "서버 오류",
+        });
     }
 }

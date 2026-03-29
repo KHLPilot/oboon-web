@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import { verifyBearerToken } from "@/lib/api/internal-auth";
 
-const adminSupabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const adminSupabase = createSupabaseAdminClient();
 
 /**
  * POST /api/consultations/cleanup
@@ -13,12 +11,10 @@ const adminSupabase = createClient(
  */
 export async function POST(req: Request) {
   try {
-    // API 키 검증 (선택적 - 보안을 위해 사용 권장)
     const authHeader = req.headers.get("authorization");
     const expectedKey = process.env.CLEANUP_API_KEY;
 
-    // API 키가 설정되어 있으면 검증
-    if (expectedKey && authHeader !== `Bearer ${expectedKey}`) {
+    if (!verifyBearerToken(authHeader, expectedKey)) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }

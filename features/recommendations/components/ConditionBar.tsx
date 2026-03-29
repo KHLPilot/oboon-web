@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useId } from "react"; // useState: ltvModalOpen용
+import { Lock } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import Button from "@/components/ui/Button";
 import Select, { type SelectOption } from "@/components/ui/Select";
 import { useToast } from "@/components/ui/Toast";
 import { MultiSelect } from "@/components/ui/MultiSelect";
 import type {
+  CreditGrade,
   EmploymentType,
   FullPurchasePurpose,
   MoveinTiming,
@@ -104,6 +106,18 @@ const REGION_OPTIONS = OFFERING_REGION_TABS.filter((r) => r !== "전체").map(
   (r) => ({ value: r as OfferingRegionTab, label: r }),
 );
 
+const CREDIT_GRADE_OPTIONS: Array<{ value: CreditGrade; label: string }> = [
+  { value: "good", label: "양호" },
+  { value: "normal", label: "보통" },
+  { value: "unstable", label: "불안정" },
+];
+
+function guestCreditGradeToScore(grade: CreditGrade): number {
+  if (grade === "good") return 80;
+  if (grade === "normal") return 55;
+  return 20;
+}
+
 function formatNumericInput(value: string): string {
   const digitsOnly = value.replace(/[^\d]/g, "");
   if (!digitsOnly) return "";
@@ -170,6 +184,7 @@ export default function ConditionBar(props: ConditionBarProps) {
     isLoading = false,
     isSaving = false,
   } = props;
+  const [guestCreditGrade, setGuestCreditGrade] = useState<CreditGrade>("good");
   const [ltvModalOpen, setLtvModalOpen] = useState(false);
   const toast = useToast();
 
@@ -188,125 +203,223 @@ export default function ConditionBar(props: ConditionBarProps) {
     condition.monthlyIncome > 0 &&
     condition.houseOwnership !== null &&
     condition.purchasePurposeV2 !== null &&
-    condition.ltvInternalScore > 0;
+    (isLoggedIn !== false ? condition.ltvInternalScore > 0 : true);
 
   return (
     <div className="space-y-4">
-      {/* 필드 그리드: mobile 2열 → lg 4열 */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {/* 직업 */}
-        <div>
-          <div className={FIELD_LABEL_CLASSNAME}>직업</div>
-          <Select<EmploymentType>
-            value={(condition.employmentType ?? "") as EmploymentType}
-            onChange={(employmentType) => onChange({ employmentType })}
-            options={EMPLOYMENT_OPTIONS}
-          />
-        </div>
+      {isLoggedIn !== false ? (
+        // ── 로그인 사용자: 전체 필드 그리드 ────────────────────────────────────
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 lg:grid-cols-4">
+          {/* 직업 */}
+          <div>
+            <div className={FIELD_LABEL_CLASSNAME}>직업</div>
+            <Select<EmploymentType>
+              value={(condition.employmentType ?? "") as EmploymentType}
+              onChange={(employmentType) => onChange({ employmentType })}
+              options={EMPLOYMENT_OPTIONS}
+            />
+          </div>
 
-        {/* 가용 현금 */}
-        <div>
-          <NumberField
-            label="가용 현금"
-            value={condition.availableCash}
-            placeholder="예: 8,000"
-            onChange={(availableCash) => onChange({ availableCash })}
-          />
-        </div>
+          {/* 가용 현금 */}
+          <div>
+            <NumberField
+              label="가용 현금"
+              value={condition.availableCash}
+              placeholder="예: 8,000"
+              onChange={(availableCash) => onChange({ availableCash })}
+            />
+          </div>
 
-        {/* 월 소득 */}
-        <div>
-          <NumberField
-            label="월 소득"
-            value={condition.monthlyIncome}
-            placeholder="예: 400"
-            onChange={(monthlyIncome) => onChange({ monthlyIncome })}
-          />
-        </div>
+          {/* 월 소득 */}
+          <div>
+            <NumberField
+              label="월 소득"
+              value={condition.monthlyIncome}
+              placeholder="예: 400"
+              onChange={(monthlyIncome) => onChange({ monthlyIncome })}
+            />
+          </div>
 
-        {/* 월 고정지출 */}
-        <div>
-          <NumberField
-            label="월 지출"
-            value={condition.monthlyExpenses}
-            placeholder="예: 150"
-            onChange={(monthlyExpenses) => onChange({ monthlyExpenses })}
-          />
-        </div>
+          {/* 월 고정지출 */}
+          <div>
+            <NumberField
+              label="월 지출"
+              value={condition.monthlyExpenses}
+              placeholder="예: 150"
+              onChange={(monthlyExpenses) => onChange({ monthlyExpenses })}
+            />
+          </div>
 
-        {/* 신용 상태 — 2칸 */}
-        <div className="col-span-2">
-          <div className={FIELD_LABEL_CLASSNAME}>신용 상태</div>
-          <button
-            type="button"
-            onClick={() => setLtvModalOpen(true)}
-            className="flex w-full items-center justify-between rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-2.5 hover:border-(--oboon-primary) transition-colors"
-          >
-            <span className="ob-typo-caption text-(--oboon-text-muted)">대출 가능성 평가</span>
-            <div className="flex items-center gap-1.5">
-              {condition.ltvInternalScore > 0 ? (
-                <span className="ob-typo-body font-semibold text-(--oboon-primary)">
-                  {condition.ltvInternalScore}점
-                </span>
-              ) : (
-                <span className="ob-typo-caption text-(--oboon-text-muted)">미평가</span>
-              )}
-              <span className="ob-typo-caption text-(--oboon-text-muted)">수정 →</span>
+          {/* 신용 상태 — 2칸 */}
+          <div className="col-span-2">
+            <div className={FIELD_LABEL_CLASSNAME}>신용 상태</div>
+            <button
+              type="button"
+              onClick={() => setLtvModalOpen(true)}
+              className="flex w-full items-center justify-between rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-2.5 hover:border-(--oboon-primary) transition-colors"
+            >
+              <span className="ob-typo-caption text-(--oboon-text-muted)">대출 가능성 평가</span>
+              <div className="flex items-center gap-1.5">
+                {condition.ltvInternalScore > 0 ? (
+                  <span className="ob-typo-body font-semibold text-(--oboon-primary)">
+                    {condition.ltvInternalScore}점
+                  </span>
+                ) : (
+                  <span className="ob-typo-caption text-(--oboon-text-muted)">미평가</span>
+                )}
+                <span className="ob-typo-caption text-(--oboon-text-muted)">수정 →</span>
+              </div>
+            </button>
+          </div>
+
+          {/* 보유 주택 */}
+          <div>
+            <div className={FIELD_LABEL_CLASSNAME}>보유 주택</div>
+            <Select<"none" | "one" | "two_or_more">
+              value={(condition.houseOwnership ?? "") as "none" | "one" | "two_or_more"}
+              onChange={(houseOwnership) => onChange({ houseOwnership })}
+              options={HOUSE_OWNERSHIP_OPTIONS}
+            />
+          </div>
+
+          {/* 분양 목적 */}
+          <div>
+            <div className={FIELD_LABEL_CLASSNAME}>분양 목적</div>
+            <Select<FullPurchasePurpose>
+              value={(condition.purchasePurposeV2 ?? "") as FullPurchasePurpose}
+              onChange={(purchasePurposeV2) => onChange({ purchasePurposeV2 })}
+              options={PURPOSE_V2_OPTIONS}
+            />
+          </div>
+
+          {/* 분양 시점 */}
+          <div>
+            <div className={FIELD_LABEL_CLASSNAME}>분양 시점</div>
+            <Select<PurchaseTiming>
+              value={(condition.purchaseTiming ?? "") as PurchaseTiming}
+              onChange={(purchaseTiming) => onChange({ purchaseTiming })}
+              options={PURCHASE_TIMING_OPTIONS}
+            />
+          </div>
+
+          {/* 희망 입주 */}
+          <div>
+            <div className={FIELD_LABEL_CLASSNAME}>희망 입주</div>
+            <Select<MoveinTiming>
+              value={(condition.moveinTiming ?? "") as MoveinTiming}
+              onChange={(moveinTiming) => onChange({ moveinTiming })}
+              options={MOVEIN_TIMING_OPTIONS}
+            />
+          </div>
+
+          {/* 지역 */}
+          <div className="col-span-2 lg:col-span-1">
+            <div className={FIELD_LABEL_CLASSNAME}>지역</div>
+            <MultiSelect<OfferingRegionTab>
+              values={condition.regions}
+              onChange={(regions) => onChange({ regions })}
+              options={REGION_OPTIONS}
+              placeholder="전체"
+            />
+          </div>
+        </div>
+      ) : (
+        // ── 비로그인: 기본 5개 + soft gate ──────────────────────────────────
+        <>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <NumberField
+                label="가용 현금"
+                value={condition.availableCash}
+                placeholder="예: 8,000"
+                onChange={(availableCash) => onChange({ availableCash })}
+              />
             </div>
-          </button>
-        </div>
+            <div>
+              <NumberField
+                label="월 소득"
+                value={condition.monthlyIncome}
+                placeholder="예: 400"
+                onChange={(monthlyIncome) => onChange({ monthlyIncome })}
+              />
+            </div>
 
-        {/* 보유 주택 */}
-        <div>
-          <div className={FIELD_LABEL_CLASSNAME}>보유 주택</div>
-          <Select<"none" | "one" | "two_or_more">
-            value={(condition.houseOwnership ?? "") as "none" | "one" | "two_or_more"}
-            onChange={(houseOwnership) => onChange({ houseOwnership })}
-            options={HOUSE_OWNERSHIP_OPTIONS}
-          />
-        </div>
+            <div>
+              <div className={FIELD_LABEL_CLASSNAME}>신용 상태</div>
+              <Select<CreditGrade>
+                value={guestCreditGrade}
+                onChange={setGuestCreditGrade}
+                options={CREDIT_GRADE_OPTIONS}
+              />
+            </div>
 
-        {/* 분양 목적 */}
-        <div>
-          <div className={FIELD_LABEL_CLASSNAME}>분양 목적</div>
-          <Select<FullPurchasePurpose>
-            value={(condition.purchasePurposeV2 ?? "") as FullPurchasePurpose}
-            onChange={(purchasePurposeV2) => onChange({ purchasePurposeV2 })}
-            options={PURPOSE_V2_OPTIONS}
-          />
-        </div>
+            <div>
+              <div className={FIELD_LABEL_CLASSNAME}>보유 주택</div>
+              <Select<"none" | "one" | "two_or_more">
+                value={(condition.houseOwnership ?? "") as "none" | "one" | "two_or_more"}
+                onChange={(houseOwnership) => onChange({ houseOwnership })}
+                options={HOUSE_OWNERSHIP_OPTIONS}
+              />
+            </div>
+            <div>
+              <div className={FIELD_LABEL_CLASSNAME}>분양 목적</div>
+              <Select<FullPurchasePurpose>
+                value={(condition.purchasePurposeV2 ?? "") as FullPurchasePurpose}
+                onChange={(purchasePurposeV2) => onChange({ purchasePurposeV2 })}
+                options={PURPOSE_V2_OPTIONS}
+              />
+            </div>
+          </div>
 
-        {/* 분양 시점 */}
-        <div>
-          <div className={FIELD_LABEL_CLASSNAME}>분양 시점</div>
-          <Select<PurchaseTiming>
-            value={(condition.purchaseTiming ?? "") as PurchaseTiming}
-            onChange={(purchaseTiming) => onChange({ purchaseTiming })}
-            options={PURCHASE_TIMING_OPTIONS}
-          />
-        </div>
+          {/* Soft gate: 로그인 전용 상세 필드 */}
+          <div className="relative overflow-hidden rounded-xl border border-(--oboon-border-default)">
+            <div className="pointer-events-none select-none blur-sm opacity-50 grid grid-cols-1 gap-3 p-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <div className={FIELD_LABEL_CLASSNAME}>직업</div>
+                <div className="h-11 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)" />
+              </div>
+              <div>
+                <div className={FIELD_LABEL_CLASSNAME}>월 지출</div>
+                <div className="h-11 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)" />
+              </div>
+              <div className="sm:col-span-2 lg:col-span-2">
+                <div className={FIELD_LABEL_CLASSNAME}>신용 상태 (LTV+DSR)</div>
+                <div className="h-11 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)" />
+              </div>
+              <div>
+                <div className={FIELD_LABEL_CLASSNAME}>분양 시점</div>
+                <div className="h-11 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)" />
+              </div>
+              <div>
+                <div className={FIELD_LABEL_CLASSNAME}>희망 입주</div>
+                <div className="h-11 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)" />
+              </div>
+              <div className="sm:col-span-2 lg:col-span-2">
+                <div className={FIELD_LABEL_CLASSNAME}>지역</div>
+                <div className="h-11 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)" />
+              </div>
+            </div>
 
-        {/* 희망 입주 */}
-        <div>
-          <div className={FIELD_LABEL_CLASSNAME}>희망 입주</div>
-          <Select<MoveinTiming>
-            value={(condition.moveinTiming ?? "") as MoveinTiming}
-            onChange={(moveinTiming) => onChange({ moveinTiming })}
-            options={MOVEIN_TIMING_OPTIONS}
-          />
-        </div>
-
-        {/* 지역 */}
-        <div className="col-span-2 lg:col-span-1">
-          <div className={FIELD_LABEL_CLASSNAME}>지역</div>
-          <MultiSelect<OfferingRegionTab>
-            values={condition.regions}
-            onChange={(regions) => onChange({ regions })}
-            options={REGION_OPTIONS}
-            placeholder="전체"
-          />
-        </div>
-      </div>
+            <button
+              type="button"
+              onClick={() => void onLoginAndSave?.()}
+              className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-(--oboon-bg-surface)/80 backdrop-blur-[1px] transition-colors hover:bg-(--oboon-bg-subtle)/80"
+            >
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-(--oboon-bg-elevated) border border-(--oboon-border-default) shadow-sm">
+                <Lock className="h-4 w-4 text-(--oboon-text-muted)" />
+              </div>
+              <div className="text-center px-4">
+                <p className="ob-typo-caption font-semibold text-(--oboon-text-title)">
+                  로그인하면 더 자세한 조건으로 평가할 수 있습니다
+                </p>
+                <p className="mt-0.5 ob-typo-caption text-(--oboon-text-muted)">
+                  직업 · 지출 · 신용 상세 · 분양·입주 시점 · 지역 추가 입력
+                </p>
+              </div>
+            </button>
+          </div>
+        </>
+      )}
 
       <div className="flex items-center justify-end gap-3 pt-2">
         <Button
@@ -363,7 +476,15 @@ export default function ConditionBar(props: ConditionBarProps) {
           className="h-8 px-4 shrink-0"
           loading={isLoading}
           disabled={!isReadyToEvaluate}
-          onClick={() => void onEvaluate()}
+          onClick={
+            isLoggedIn !== false
+              ? () => void onEvaluate()
+              : () =>
+                  void onEvaluate({
+                    ...condition,
+                    ltvInternalScore: guestCreditGradeToScore(guestCreditGrade),
+                  })
+          }
         >
           평가하기
         </Button>

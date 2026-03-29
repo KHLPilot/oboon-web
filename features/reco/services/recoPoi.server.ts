@@ -1,4 +1,5 @@
 import { createSupabaseServer } from "@/lib/supabaseServer";
+import { createSupabaseServiceError } from "@/lib/errors";
 
 type RecoPoiRow = {
   category: string | null;
@@ -23,6 +24,11 @@ export async function fetchRecoPoisByPropertyId(propertyId: number) {
 
   return {
     data: (data as RecoPoiRow[] | null) ?? null,
-    error: error ? new Error(error.message) : null,
+    error: createSupabaseServiceError(error, {
+      scope: "recoPoi.server",
+      action: "fetchRecoPoisByPropertyId",
+      defaultMessage: "추천 POI 조회 중 오류가 발생했습니다.",
+      context: { propertyId },
+    }),
   };
 }

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { fetchProfileById } from "@/features/auth/services/auth.profile";
+import { createRestoreOAuthTempSession } from "@/lib/auth/oauthTempSession";
+import { ERR } from "@/lib/errors";
 
 export async function GET(req: Request) {
     const url = new URL(req.url);
@@ -54,14 +56,32 @@ export async function GET(req: Request) {
 
         const user = data.user;
         // 3. profiles 확인 (anon key로 조회) - deleted_at 포함
-        const { data: profile } = await fetchProfileById(user.id);
+        const { data: profile, error: profileError } = await fetchProfileById(user.id);
+
+        if (profileError && profileError.code !== ERR.NOT_FOUND) {
+            console.error("[google/callback] 프로필 조회 실패:", { code: profileError.code });
+            return NextResponse.redirect(
+                new URL("/auth/login?error=auth_failed", process.env.NEXT_PUBLIC_SITE_URL!)
+            );
+        }
 
         // 4. 탈퇴한 계정인지 확인 (deleted_at이 설정된 경우)
         if (profile?.deleted_at) {
             // 세션 제거 후 복구 페이지로 리다이렉트
             await supabase.auth.signOut();
+            if (!user.email) {
+                return NextResponse.redirect(
+                    new URL("/auth/login?error=banned", process.env.NEXT_PUBLIC_SITE_URL!)
+                );
+            }
+
+            const sessionKey = await createRestoreOAuthTempSession({
+                userId: user.id,
+                email: user.email,
+            });
+
             return NextResponse.redirect(
-                new URL(`/auth/restore?userId=${user.id}&email=${encodeURIComponent(user.email || "")}`, process.env.NEXT_PUBLIC_SITE_URL!)
+                new URL(`/auth/restore?s=${encodeURIComponent(sessionKey)}`, process.env.NEXT_PUBLIC_SITE_URL!)
             );
         }
 

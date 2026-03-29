@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
+import { handleServiceError } from "@/lib/api/route-error";
 import {
   deleteUserTermConsent,
   fetchActiveTermsByTypes,
@@ -85,8 +86,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (termsError) {
-      console.error('약관 조회 실패:', termsError);
-      return NextResponse.json({ error: '약관 조회에 실패했습니다.' }, { status: 500 });
+      return handleServiceError(termsError, '약관 조회에 실패했습니다.');
     }
 
     if (!terms || terms.length === 0) {
@@ -125,11 +125,7 @@ export async function POST(request: NextRequest) {
       await insertTermConsents(consentsToInsert);
 
     if (insertError) {
-      console.error('동의 기록 저장 실패:', insertError);
-      return NextResponse.json(
-        { error: '동의 기록 저장에 실패했습니다.' },
-        { status: 500 }
-      );
+      return handleServiceError(insertError, '동의 기록 저장에 실패했습니다.');
     }
 
     return NextResponse.json({
@@ -195,11 +191,7 @@ export async function GET(request: NextRequest) {
     );
 
     if (queryError) {
-      console.error('동의 기록 조회 실패:', queryError);
-      return NextResponse.json(
-        { error: '동의 기록 조회에 실패했습니다.' },
-        { status: 500 }
-      );
+      return handleServiceError(queryError, '동의 기록 조회에 실패했습니다.');
     }
 
     return NextResponse.json({ consents });
@@ -268,11 +260,7 @@ export async function DELETE(request: NextRequest) {
     );
 
     if (deleteError) {
-      console.error('동의 기록 삭제 실패:', deleteError);
-      return NextResponse.json(
-        { error: '동의 철회에 실패했습니다.' },
-        { status: 500 }
-      );
+      return handleServiceError(deleteError, '동의 철회에 실패했습니다.');
     }
 
     return NextResponse.json({

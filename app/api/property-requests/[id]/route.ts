@@ -1,17 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import { createClient } from "@supabase/supabase-js";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import { handleServiceError } from "@/lib/api/route-error";
 import {
   fetchPropertyRequestById,
   fetchPropertyRequestProfile,
   updatePropertyRequestById,
 } from "@/features/company/services/property.request";
 
-const adminSupabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-);
+const adminSupabase = createSupabaseAdminClient();
 
 // PATCH - 관리자가 삭제 요청 승인/반려
 export async function PATCH(
@@ -52,7 +50,11 @@ export async function PATCH(
     const { data: profile, error: profileError } =
       await fetchPropertyRequestProfile(supabase, user.id);
 
-    if (profileError || !profile) {
+    if (profileError) {
+      return handleServiceError(profileError, "프로필을 찾을 수 없습니다");
+    }
+
+    if (!profile) {
       return NextResponse.json(
         { error: "프로필을 찾을 수 없습니다" },
         { status: 404 },
@@ -81,7 +83,11 @@ export async function PATCH(
     const { data: existingRequest, error: fetchError } =
       await fetchPropertyRequestById(supabase, requestId);
 
-    if (fetchError || !existingRequest) {
+    if (fetchError) {
+      return handleServiceError(fetchError, "게시 요청을 찾을 수 없습니다");
+    }
+
+    if (!existingRequest) {
       return NextResponse.json(
         { error: "게시 요청을 찾을 수 없습니다" },
         { status: 404 },
@@ -113,11 +119,7 @@ export async function PATCH(
       await updatePropertyRequestById(supabase, requestId, updatePayload);
 
     if (updateError) {
-      console.error("게시 요청 업데이트 오류:", updateError);
-      return NextResponse.json(
-        { error: "게시 요청 처리에 실패했습니다" },
-        { status: 500 },
-      );
+      return handleServiceError(updateError, "게시 요청 처리에 실패했습니다");
     }
     if (!updatedRequest) {
       return NextResponse.json(
@@ -210,7 +212,11 @@ export async function DELETE(
     const { data: profile, error: profileError } =
       await fetchPropertyRequestProfile(supabase, user.id);
 
-    if (profileError || !profile) {
+    if (profileError) {
+      return handleServiceError(profileError, "프로필을 찾을 수 없습니다");
+    }
+
+    if (!profile) {
       return NextResponse.json(
         { error: "프로필을 찾을 수 없습니다" },
         { status: 404 },

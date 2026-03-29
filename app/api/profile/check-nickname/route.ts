@@ -1,33 +1,38 @@
 // app/api/profile/check-nickname/route.ts
 
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import { createSupabaseServer } from "@/lib/supabaseServer";
 
-const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const supabaseAdmin = createSupabaseAdminClient();
 
 export async function POST(req: Request) {
     try {
-        const { nickname, currentUserId } = await req.json();
+        const supabase = await createSupabaseServer();
+        const { data: { user } } = await supabase.auth.getUser();
+
+        if (!user) {
+            return NextResponse.json({ error: "로그인이 필요합니다" }, { status: 401 });
+        }
+
+        const { nickname } = await req.json();
 
         // 닉네임이 없으면 사용 가능
         if (!nickname || nickname.trim() === "") {
             return NextResponse.json({ available: true });
         }
 
-        // 닉네임 중복 체크 (본인 제외)
+        // 닉네임 중복 체크 (본인 제외 — 서버에서 검증된 user.id 사용)
         const { data, error } = await supabaseAdmin
             .from("profiles")
             .select("id")
             .eq("nickname", nickname)
-            .neq("id", currentUserId || "")
-            .maybeSingle(); // single 대신 maybeSingle 사용
+            .neq("id", user.id)
+            .maybeSingle();
 
         if (error) {
             console.error("닉네임 체크 오류:", error);
-            return NextResponse.json({ error: (error instanceof Error ? error.message : "알 수 없는 오류") }, { status: 500 });
+            return NextResponse.json({ error: "서버 오류" }, { status: 500 });
         }
 
         // data가 있으면 중복

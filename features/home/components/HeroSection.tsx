@@ -607,13 +607,9 @@ export default function HeroSection() {
                   <Link
                     href="/offerings"
                     aria-label="분양 리스트 보기"
-                    className="!text-(--oboon-on-primary)"
                   >
                     {Copy.hero.agentMatch.cta.primary}
-                    <ArrowRight
-                      className="h-4 w-4 text-(--oboon-on-primary)"
-                      aria-hidden="true"
-                    />
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
                   </Link>
                 </Button>
 
@@ -699,9 +695,9 @@ export default function HeroSection() {
 
               <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 md:flex md:flex-wrap">
                 <Button asChild size="lg" variant="primary" className="w-full md:w-auto">
-                  <Link href="/offerings" aria-label="맞춤 현장 보기" className="!text-(--oboon-on-primary)">
+                  <Link href="/recommendations" aria-label="맞춤 현장 보기">
                     {Copy.hero.aiMatch.cta.primary}
-                    <ArrowRight className="h-4 w-4 text-(--oboon-on-primary)" aria-hidden="true" />
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
                   </Link>
                 </Button>
 
@@ -711,7 +707,7 @@ export default function HeroSection() {
                   variant="secondary"
                   className="w-full md:w-auto border-transparent bg-transparent text-(--oboon-text-body) hover:bg-(--oboon-bg-subtle) hover:text-(--oboon-text-title)"
                 >
-                  <Link href="/offerings" aria-label="조건 상세 설정">
+                  <Link href="/recommendations" aria-label="조건 상세 설정">
                     {Copy.hero.aiMatch.cta.secondary}
                     <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
                   </Link>

@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { verifyBearerToken } from "@/lib/api/internal-auth";
+import { handleApiError } from "@/lib/api/route-error";
 import { runRecoPoiBatch } from "@/features/reco/services/recoPoiBatch.service";
 
 export const dynamic = "force-dynamic";
@@ -13,8 +15,7 @@ function toPositiveInt(value: string | null, fallback: number): number {
 function isAuthorized(req: Request): boolean {
   const authHeader = req.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) return false; // CRON_SECRET 미설정 시 항상 거부
-  return authHeader === `Bearer ${cronSecret}`;
+  return verifyBearerToken(authHeader, cronSecret);
 }
 
 export async function POST(req: Request) {
@@ -45,13 +46,9 @@ export async function POST(req: Request) {
       stats,
     });
   } catch (error) {
-    return NextResponse.json(
-      {
-        error: "Batch failed",
-        details: error instanceof Error ? error.message : "unknown_error",
-      },
-      { status: 500 },
-    );
+    return handleApiError("cron/reco-pois", error, {
+      clientMessage: "배치 실행 중 오류가 발생했습니다",
+    });
   }
 }
 

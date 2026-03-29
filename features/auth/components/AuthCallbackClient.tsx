@@ -24,9 +24,8 @@ export default function AuthCallbackClient() {
         // ========================================
         if (type === "naver") {
           const tokenHash = searchParams.get("token_hash");
-          const email = searchParams.get("email");
 
-          if (!tokenHash || !email) {
+          if (!tokenHash) {
             router.replace("/auth/login");
             return;
           }

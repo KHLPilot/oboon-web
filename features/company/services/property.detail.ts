@@ -1,4 +1,5 @@
 import { createSupabaseClient } from "@/lib/supabaseClient";
+import { AppError, ERR, createSupabaseServiceError } from "@/lib/errors";
 
 export async function fetchPropertyDetail(id: number) {
   const supabase = createSupabaseClient();
@@ -18,7 +19,22 @@ export async function fetchPropertyDetail(id: number) {
     .single();
 
   if (propertyResult.error || !propertyResult.data) {
-    return propertyResult;
+    return {
+      data: null,
+      error: createSupabaseServiceError(propertyResult.error, {
+        scope: "property.detail",
+        action: "fetchPropertyDetail",
+        defaultMessage: "현장 조회 중 오류가 발생했습니다.",
+        context: { propertyId: id },
+        codeMap: {
+          PGRST116: {
+            code: ERR.NOT_FOUND,
+            clientMessage: "현장을 찾을 수 없습니다.",
+            statusHint: 404,
+          },
+        },
+      }),
+    };
   }
 
   const mainImageResult = await supabase
@@ -68,7 +84,12 @@ export async function deletePropertyCascade(id: number) {
   for (const table of tables) {
     const { error } = await supabase.from(table).delete().eq("properties_id", id);
     if (error) {
-      throw error;
+      throw createSupabaseServiceError(error, {
+        scope: "property.detail",
+        action: "deletePropertyCascade",
+        defaultMessage: "현장 삭제 중 오류가 발생했습니다.",
+        context: { propertyId: id },
+      });
     }
   }
 
@@ -79,10 +100,19 @@ export async function deletePropertyCascade(id: number) {
     .select("id")
     .maybeSingle();
   if (error) {
-    throw error;
+    throw createSupabaseServiceError(error, {
+      scope: "property.detail",
+      action: "deletePropertyCascade",
+      defaultMessage: "현장 삭제 중 오류가 발생했습니다.",
+      context: { propertyId: id },
+    });
   }
   if (!data) {
-    throw new Error("삭제 권한이 없거나 삭제할 현장을 찾을 수 없습니다.");
+    throw new AppError(
+      ERR.NOT_FOUND,
+      "삭제 권한이 없거나 삭제할 현장을 찾을 수 없습니다.",
+      404,
+    );
   }
   return { data };
 }
