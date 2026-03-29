@@ -11,6 +11,7 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import AdminPostActions from "@/features/briefing/components/AdminPostActions.client";
+import BriefingHtmlRenderer from "@/features/briefing/components/BriefingHtmlRenderer.client";
 
 import BriefingOriginalCard from "@/features/briefing/components/oboon-original/BriefingOriginalCard";
 import { Cover, cx } from "@/features/briefing/components/briefing.ui";
@@ -33,6 +34,7 @@ type PostRow = {
   slug: string;
   title: string;
   content_md: string | null;
+  content_html: string | null;
   created_at: string;
   published_at?: string | null;
   cover_image_url: string | null;
@@ -146,6 +148,7 @@ export default async function OboonOriginalPostPage({
     slug: string;
     title: string;
     content_md: string | null;
+    content_html: string | null;
   }>;
   const recCategoryItems = (recCats ?? []) as Array<{
     key: string;
@@ -266,11 +269,18 @@ export default async function OboonOriginalPostPage({
 
               {/* 버튼 영역만큼 본문을 아래로 내림 */}
               <div className={cx("ob-md", isAdmin ? "pt-14" : "")}>
-                <div className="prose max-w-none">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {post.content_md ?? ""}
-                  </ReactMarkdown>
-                </div>
+                {post.content_html ? (
+                  <BriefingHtmlRenderer
+                    html={post.content_html}
+                    className="prose max-w-none"
+                  />
+                ) : (
+                  <div className="prose max-w-none">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {post.content_md ?? ""}
+                    </ReactMarkdown>
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -1,17 +1,12 @@
-// app/briefing/admin/posts/new/PostEditor.client.tsx
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
-import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
-import Textarea from "@/components/ui/Textarea";
 import Label from "@/components/ui/Label";
-import { Badge } from "@/components/ui/Badge";
 import Modal from "@/components/ui/Modal";
-
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,8 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/DropdownMenu";
 
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import TiptapEditor from "@/features/briefing/components/TiptapEditor.client";
 
 export type EditorBootstrap = {
   boards: Array<{ id: string; key: string; name: string }>;
@@ -40,14 +34,33 @@ export type EditorBootstrap = {
   defaultCategoryId: string;
 };
 
+type InitialValues = {
+  title: string;
+  coverImageUrl: string;
+  contentHtml: string;
+  tagId: string | null;
+};
+
 type Props = {
   bootstrap: EditorBootstrap;
-  onCreate: (input: {
+  onCreate?: (input: {
     board_id: string;
     category_id: string;
     title: string;
     cover_image_url: string;
-    content_md: string;
+    content_html: string;
+    intent: "draft" | "publish";
+    tag_id: string | null;
+  }) => Promise<
+    { ok: true; redirectTo: string } | { ok: false; message: string }
+  >;
+  mode?: "create" | "edit";
+  postId?: string;
+  initialValues?: InitialValues;
+  onUpdate?: (input: {
+    title: string;
+    cover_image_url: string;
+    content_html: string;
     intent: "draft" | "publish";
     tag_id: string | null;
   }) => Promise<
@@ -55,26 +68,52 @@ type Props = {
   >;
 };
 
-function storageKey(boardId: string, categoryId: string) {
+function storageKey(
+  mode: "create" | "edit",
+  boardId: string,
+  categoryId: string,
+  postId?: string,
+) {
+  if (mode === "edit" && postId) {
+    return `oboon.briefing.editor.edit:${postId}`;
+  }
   return `oboon.briefing.editor.draft:${boardId}:${categoryId}`;
 }
 
-export default function PostEditorClient({ bootstrap, onCreate }: Props) {
+type DraftPayload = {
+  title: string;
+  coverImageUrl: string;
+  contentHtml: string;
+  selectedTagId: string | null;
+  savedAt: number;
+};
+
+export default function PostEditorClient({
+  bootstrap,
+  onCreate,
+  mode = "create",
+  postId,
+  initialValues,
+  onUpdate,
+}: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [cancelOpen, setCancelOpen] = useState(false);
+  const uploadTempIdRef = useRef<string>(
+    typeof crypto !== "undefined" ? crypto.randomUUID() : `temp-${Date.now()}`,
+  );
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [boardId, setBoardId] = useState(bootstrap.defaultBoardId);
   const [categoryId, setCategoryId] = useState(bootstrap.defaultCategoryId);
 
-  // board -> category options
   const catsForBoard = useMemo(
     () => bootstrap.categories.filter((c) => c.board_id === boardId),
     [bootstrap.categories, boardId],
   );
 
-  // 보드 변경 시 카테고리 자동 교정
   useEffect(() => {
-    // 현재 선택된 categoryId가 해당 보드에 없으면 1순위로 자동 세팅
     if (!catsForBoard.some((c) => c.id === categoryId)) {
       queueMicrotask(() => setCategoryId(catsForBoard[0]?.id ?? ""));
     }
@@ -93,13 +132,11 @@ export default function PostEditorClient({ bootstrap, onCreate }: Props) {
   const isGeneralBoard = selectedBoard?.key === "general";
   const hideCategoryUI = isGeneralBoard;
 
-  // form
   const [title, setTitle] = useState("");
   const [coverImageUrl, setCoverImageUrl] = useState("");
-  const [contentMd, setContentMd] = useState("");
-  const [tab, setTab] = useState<"write" | "preview">("write");
+  const [contentHtml, setContentHtml] = useState("");
+  const [editorInitialValue, setEditorInitialValue] = useState("");
 
-  // tags (single)
   const tags = useMemo(() => {
     const list = bootstrap.tags ?? [];
     return [...list]
@@ -128,30 +165,75 @@ export default function PostEditorClient({ bootstrap, onCreate }: Props) {
 
   const clearTag = () => setSelectedTagId(null);
 
-  // autosave
   const [dirty, setDirty] = useState(false);
   const lastSavedRef = useRef<number>(0);
   const [lastSavedAt, setLastSavedAt] = useState<number>(0);
+  const initialValuesApplied = useRef(false);
 
-  // restore
   useEffect(() => {
-    const key = storageKey(boardId, categoryId);
+    if (!initialValues || initialValuesApplied.current) return;
+    initialValuesApplied.current = true;
+
+    const editKey = `oboon.briefing.editor.edit:${postId ?? "unknown"}`;
+    const raw = localStorage.getItem(editKey);
+
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw) as DraftPayload;
+        queueMicrotask(() => {
+          setTitle(parsed.title ?? initialValues.title);
+          setCoverImageUrl(
+            parsed.coverImageUrl ?? initialValues.coverImageUrl,
+          );
+          setContentHtml(parsed.contentHtml ?? initialValues.contentHtml);
+          setEditorInitialValue(parsed.contentHtml ?? initialValues.contentHtml);
+          setSelectedTagId(parsed.selectedTagId ?? initialValues.tagId);
+          lastSavedRef.current = parsed.savedAt ?? Date.now();
+          setLastSavedAt(lastSavedRef.current);
+          setDirty(false);
+        });
+        return;
+      } catch {
+        // ignore
+      }
+    }
+
+    queueMicrotask(() => {
+      setTitle(initialValues.title);
+      setCoverImageUrl(initialValues.coverImageUrl);
+      setContentHtml(initialValues.contentHtml);
+      setEditorInitialValue(initialValues.contentHtml);
+      setSelectedTagId(initialValues.tagId);
+      setDirty(false);
+    });
+  }, [initialValues, postId]);
+
+  useEffect(() => {
+    if (mode === "edit" && initialValuesApplied.current) return;
+
+    const key = storageKey(mode, boardId, categoryId, postId);
     const raw = localStorage.getItem(key);
-    if (!raw) return;
+    if (!raw) {
+      queueMicrotask(() => {
+        setTitle("");
+        setCoverImageUrl("");
+        setContentHtml("");
+        setEditorInitialValue("");
+        setSelectedTagId(null);
+        lastSavedRef.current = 0;
+        setLastSavedAt(0);
+        setDirty(false);
+      });
+      return;
+    }
 
     try {
-      const parsed = JSON.parse(raw) as {
-        title: string;
-        coverImageUrl: string;
-        contentMd: string;
-        selectedTagId: string | null;
-        savedAt: number;
-      };
-
+      const parsed = JSON.parse(raw) as DraftPayload;
       queueMicrotask(() => {
         setTitle(parsed.title ?? "");
         setCoverImageUrl(parsed.coverImageUrl ?? "");
-        setContentMd(parsed.contentMd ?? "");
+        setContentHtml(parsed.contentHtml ?? "");
+        setEditorInitialValue(parsed.contentHtml ?? "");
         setSelectedTagId(parsed.selectedTagId ?? null);
         lastSavedRef.current = parsed.savedAt ?? Date.now();
         setLastSavedAt(lastSavedRef.current);
@@ -160,21 +242,28 @@ export default function PostEditorClient({ bootstrap, onCreate }: Props) {
     } catch {
       // ignore
     }
-  }, [boardId, categoryId]);
+  }, [boardId, categoryId, mode, postId]);
 
-  // dirty tracking
   useEffect(() => {
     queueMicrotask(() => setDirty(true));
-  }, [title, coverImageUrl, contentMd, selectedTagId, boardId, categoryId]);
+  }, [
+    title,
+    coverImageUrl,
+    contentHtml,
+    selectedTagId,
+    boardId,
+    categoryId,
+    mode,
+    postId,
+  ]);
 
-  // debounce save
   useEffect(() => {
     const t = window.setTimeout(() => {
-      const key = storageKey(boardId, categoryId);
-      const payload = {
+      const key = storageKey(mode, boardId, categoryId, postId);
+      const payload: DraftPayload = {
         title,
         coverImageUrl,
-        contentMd,
+        contentHtml,
         selectedTagId,
         savedAt: Date.now(),
       };
@@ -184,9 +273,17 @@ export default function PostEditorClient({ bootstrap, onCreate }: Props) {
     }, 1500);
 
     return () => window.clearTimeout(t);
-  }, [title, coverImageUrl, contentMd, selectedTagId, boardId, categoryId]);
+  }, [
+    title,
+    coverImageUrl,
+    contentHtml,
+    selectedTagId,
+    boardId,
+    categoryId,
+    mode,
+    postId,
+  ]);
 
-  // beforeunload warning
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       if (!dirty) return;
@@ -200,35 +297,85 @@ export default function PostEditorClient({ bootstrap, onCreate }: Props) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const onResetDraft = () => {
-    localStorage.removeItem(storageKey(boardId, categoryId));
+    localStorage.removeItem(storageKey(mode, boardId, categoryId, postId));
     setTitle("");
     setCoverImageUrl("");
-    setContentMd("");
+    setContentHtml("");
+    setEditorInitialValue("");
     setSelectedTagId(null);
     setDirty(false);
     setErrorMsg(null);
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    setUploadError(null);
+
+    try {
+      const uploadId =
+        mode === "edit" && postId ? postId : uploadTempIdRef.current;
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("mode", "briefing_cover");
+      formData.append("postId", uploadId);
+
+      const res = await fetch("/api/r2/upload", {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as { error?: string }).error ?? "업로드 실패");
+      }
+      const data = (await res.json()) as { url: string };
+      setCoverImageUrl(data.url);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "업로드 실패");
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
   const submit = (intent: "draft" | "publish") => {
     setErrorMsg(null);
-
     startTransition(async () => {
-      const res = await onCreate({
-        board_id: boardId,
-        category_id: categoryId,
-        title,
-        cover_image_url: coverImageUrl,
-        content_md: contentMd,
-        intent,
-        tag_id: selectedTagId,
-      });
+      let res:
+        | { ok: true; redirectTo: string }
+        | { ok: false; message: string };
+
+      if (mode === "edit" && onUpdate) {
+        res = await onUpdate({
+          title,
+          cover_image_url: coverImageUrl,
+          content_html: contentHtml,
+          intent,
+          tag_id: selectedTagId,
+        });
+      } else if (onCreate) {
+        res = await onCreate({
+          board_id: boardId,
+          category_id: categoryId,
+          title,
+          cover_image_url: coverImageUrl,
+          content_html: contentHtml,
+          intent,
+          tag_id: selectedTagId,
+        });
+      } else {
+        setErrorMsg("액션이 설정되지 않았습니다.");
+        return;
+      }
 
       if (!res.ok) {
         setErrorMsg(res.message);
         return;
       }
 
-      localStorage.removeItem(storageKey(boardId, categoryId));
+      localStorage.removeItem(storageKey(mode, boardId, categoryId, postId));
       setDirty(false);
       router.push(res.redirectTo);
     });
@@ -245,158 +392,40 @@ export default function PostEditorClient({ bootstrap, onCreate }: Props) {
 
   return (
     <>
-      <div className="mb-6">
-        <div className="ob-typo-h2 text-(--oboon-text-title)">글 작성</div>
-        <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
-          관리자 전용 편집기 · {savedAtText}
+      <div className="mb-5 flex items-center justify-between">
+        <div>
+          <div className="ob-typo-h2 text-(--oboon-text-title)">
+            {mode === "edit" ? "글 수정" : "글 작성"}
+          </div>
+          <div className="mt-0.5 ob-typo-caption text-(--oboon-text-muted)">
+            관리자 전용 · {savedAtText}
+          </div>
         </div>
+        <Button
+          variant="secondary"
+          size="sm"
+          shape="pill"
+          onClick={() => setCancelOpen(true)}
+          disabled={isPending}
+        >
+          취소
+        </Button>
       </div>
 
-      <Card className="p-5 shadow-none">
-        {/* header */}
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Badge variant="status">작성</Badge>
-            {dirty ? (
-              <span className="text-[12px] text-(--oboon-text-muted)">
-                변경사항 있음
-              </span>
-            ) : (
-              <span className="text-[12px] text-(--oboon-text-muted)">
-                동기화됨
-              </span>
-            )}
+      {errorMsg ? (
+        <div className="mb-4 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-3">
+          <div className="text-[13px] font-medium text-(--oboon-text-title)">
+            저장 실패
           </div>
-
-          <Button
-            variant="secondary"
-            size="sm"
-            shape="pill"
-            onClick={onResetDraft}
-            disabled={isPending}
-            title="현재 보드/카테고리의 임시저장을 초기화합니다."
-          >
-            임시저장 초기화
-          </Button>
+          <div className="mt-1 text-[12px] leading-5 text-(--oboon-text-muted)">
+            {errorMsg}
+          </div>
         </div>
+      ) : null}
 
-        {errorMsg ? (
-          <div className="mt-4 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-3">
-            <div className="text-[13px] font-medium text-(--oboon-text-title)">
-              저장 실패
-            </div>
-            <div className="mt-1 text-[12px] leading-5 text-(--oboon-text-muted)">
-              {errorMsg}
-            </div>
-          </div>
-        ) : null}
-
-        {/* body */}
-        <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2">
-          {/* board dropdown */}
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[1fr_280px]">
+        <div className="flex flex-col gap-4">
           <div>
-            <Label>보드</Label>
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="secondary"
-                  size="md"
-                  shape="pill"
-                  disabled={isPending}
-                  className="w-full justify-between"
-                >
-                  <span className="min-w-0 truncate">
-                    {selectedBoard
-                      ? `${selectedBoard.name} (${selectedBoard.key})`
-                      : "보드 선택"}
-                  </span>
-                  <span className="ml-2 text-(--oboon-text-muted)">▾</span>
-                </Button>
-              </DropdownMenuTrigger>
-
-              <DropdownMenuContent align="start" className="w-[360px]">
-                {bootstrap.boards.map((b) => {
-                  const active = b.id === boardId;
-                  return (
-                    <DropdownMenuItem
-                      key={b.id}
-                      onClick={() => setBoardId(b.id)}
-                      className="flex items-center justify-between"
-                    >
-                      <span className="text-sm">
-                        {b.name}{" "}
-                        <span className="text-(--oboon-text-muted)">
-                          ({b.key})
-                        </span>
-                      </span>
-                      <span className="text-[12px] text-(--oboon-text-muted)">
-                        {active ? "선택됨" : ""}
-                      </span>
-                    </DropdownMenuItem>
-                  );
-                })}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-
-          {/* category dropdown */}
-          {!hideCategoryUI ? (
-            <div>
-              <Label>카테고리</Label>
-
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="secondary"
-                    size="md"
-                    shape="pill"
-                    disabled={isPending || catsForBoard.length === 0}
-                    className="w-full justify-between"
-                  >
-                    <span className="min-w-0 truncate">
-                      {selectedCategory
-                        ? `${selectedCategory.name} (${selectedCategory.key})`
-                        : "카테고리 선택"}
-                    </span>
-                    <span className="ml-2 text-(--oboon-text-muted)">▾</span>
-                  </Button>
-                </DropdownMenuTrigger>
-
-                <DropdownMenuContent align="start" className="w-[360px]">
-                  {catsForBoard.length === 0 ? (
-                    <div className="px-3 py-2 text-[12px] text-(--oboon-text-muted)">
-                      선택한 보드에 활성 카테고리가 없습니다.
-                    </div>
-                  ) : (
-                    catsForBoard.map((c) => {
-                      const active = c.id === categoryId;
-                      return (
-                        <DropdownMenuItem
-                          key={c.id}
-                          onClick={() => setCategoryId(c.id)}
-                          className="flex items-center justify-between"
-                        >
-                          <span className="text-sm">
-                            {c.name}{" "}
-                            <span className="text-(--oboon-text-muted)">
-                              ({c.key})
-                            </span>
-                          </span>
-                          <span className="text-[12px] text-(--oboon-text-muted)">
-                            {active ? "선택됨" : ""}
-                          </span>
-                        </DropdownMenuItem>
-                      );
-                    })
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          ) : null}
-
-          {/* title */}
-          <div className="md:col-span-2">
             <Label>제목</Label>
             <Input
               value={title}
@@ -406,41 +435,167 @@ export default function PostEditorClient({ bootstrap, onCreate }: Props) {
             />
           </div>
 
-          {/* cover */}
           <div>
-            <Label>커버 이미지 URL</Label>
-            <Input
-              value={coverImageUrl}
-              onChange={(e) => setCoverImageUrl(e.target.value)}
-              placeholder="https://..."
+            <Label>본문</Label>
+            <TiptapEditor
+              initialValue={editorInitialValue}
+              onChange={setContentHtml}
               disabled={isPending}
             />
           </div>
+        </div>
 
-          {/* tag */}
-          <div>
+        <div className="flex flex-col gap-4">
+          <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-4">
+            <Label>커버 이미지</Label>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/gif,image/webp"
+              className="hidden"
+              onChange={handleFileUpload}
+              disabled={isPending || isUploading}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isPending || isUploading}
+              className={[
+                "mt-1 flex w-full items-center justify-center gap-2 rounded-lg border border-dashed",
+                "border-(--oboon-border-default) bg-(--oboon-bg-subtle) py-2 text-[12px]",
+                "text-(--oboon-text-muted) transition-colors hover:border-(--oboon-primary)/50",
+                "hover:text-(--oboon-text-title) disabled:opacity-50",
+              ].join(" ")}
+            >
+              {isUploading ? "업로드 중…" : "파일 업로드"}
+            </button>
+
+            {uploadError && (
+              <div className="mt-1 text-[11px] text-red-400">{uploadError}</div>
+            )}
+
+            <div className="mt-2">
+              <Input
+                value={coverImageUrl}
+                onChange={(e) => setCoverImageUrl(e.target.value)}
+                placeholder="또는 이미지 URL 직접 입력"
+                disabled={isPending}
+              />
+            </div>
+
+            {coverImageUrl ? (
+              <div className="mt-2 aspect-video w-full overflow-hidden rounded-lg border border-(--oboon-border-default)">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={coverImageUrl}
+                  alt="커버 미리보기"
+                  className="h-full w-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="mt-2 flex aspect-video w-full items-center justify-center rounded-lg border border-dashed border-(--oboon-border-default) bg-(--oboon-bg-subtle)">
+                <span className="ob-typo-caption text-(--oboon-text-muted)">
+                  URL 입력 시 미리보기
+                </span>
+              </div>
+            )}
+          </div>
+
+          {mode !== "edit" && (
+            <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-4">
+              <Label>보드</Label>
+              <div className="mt-1 flex flex-wrap gap-2">
+                {bootstrap.boards.map((b) => (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => setBoardId(b.id)}
+                    disabled={isPending}
+                    className={[
+                      "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                      b.id === boardId
+                        ? "border-(--oboon-primary) bg-(--oboon-primary)/10 text-(--oboon-primary)"
+                        : "border-(--oboon-border-default) bg-(--oboon-bg-subtle) text-(--oboon-text-muted) hover:border-(--oboon-primary)/50",
+                    ].join(" ")}
+                  >
+                    {b.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {mode !== "edit" && !hideCategoryUI && (
+            <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-4">
+              <Label>카테고리</Label>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    shape="pill"
+                    disabled={isPending || catsForBoard.length === 0}
+                    className="mt-1 w-full justify-between"
+                  >
+                    <span className="min-w-0 truncate">
+                      {selectedCategory
+                        ? selectedCategory.name
+                        : "카테고리 선택"}
+                    </span>
+                    <span className="ml-2 text-(--oboon-text-muted)">▾</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-[240px]">
+                  {catsForBoard.length === 0 ? (
+                    <div className="px-3 py-2 text-[12px] text-(--oboon-text-muted)">
+                      활성 카테고리가 없습니다.
+                    </div>
+                  ) : (
+                    catsForBoard.map((c) => (
+                      <DropdownMenuItem
+                        key={c.id}
+                        onClick={() => setCategoryId(c.id)}
+                        className="flex items-center justify-between"
+                      >
+                        <span className="text-sm">{c.name}</span>
+                        {c.id === categoryId && (
+                          <span className="text-[12px] text-(--oboon-primary)">
+                            ✓
+                          </span>
+                        )}
+                      </DropdownMenuItem>
+                    ))
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          )}
+
+          <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-4">
             <Label>태그</Label>
-
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="mt-1 flex flex-wrap items-center gap-2">
               {selectedTag ? (
-                <span className="inline-flex items-center gap-2 rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-1 text-[12px] text-(--oboon-text-title)">
+                <span className="inline-flex items-center gap-2 rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-1 text-[12px] text-(--oboon-text-title)">
                   {selectedTag.name}
                   <button
                     type="button"
                     className="text-(--oboon-text-muted) hover:text-(--oboon-text-title)"
                     onClick={clearTag}
-                    aria-label={`${selectedTag.name} 제거`}
                     disabled={isPending}
+                    aria-label={`${selectedTag.name} 제거`}
                   >
                     ×
                   </button>
                 </span>
               ) : (
                 <span className="text-[12px] text-(--oboon-text-muted)">
-                  아직 선택된 태그가 없습니다.
+                  태그 없음
                 </span>
               )}
-
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -452,8 +607,7 @@ export default function PostEditorClient({ bootstrap, onCreate }: Props) {
                     태그 선택
                   </Button>
                 </DropdownMenuTrigger>
-
-                <DropdownMenuContent align="start" className="w-[320px] p-2">
+                <DropdownMenuContent align="start" className="w-[280px] p-2">
                   <div className="p-1">
                     <Input
                       value={tagQuery}
@@ -462,34 +616,31 @@ export default function PostEditorClient({ bootstrap, onCreate }: Props) {
                       disabled={isPending}
                     />
                   </div>
-
-                  <div className="mt-2 max-h-[280px] overflow-auto">
+                  <div className="mt-2 max-h-[220px] overflow-auto">
                     {filteredTags.length === 0 ? (
                       <div className="px-2 py-3 text-[12px] text-(--oboon-text-muted)">
-                        검색 결과가 없습니다.
+                        검색 결과 없음
                       </div>
                     ) : (
-                      filteredTags.map((t) => {
-                        const checked = selectedTagId === t.id;
-                        return (
-                          <DropdownMenuItem
-                            key={t.id}
-                            onClick={() => {
-                              setSelectedTagId(t.id);
-                              setTagQuery("");
-                            }}
-                            className="flex items-center justify-between"
-                          >
-                            <span className="text-sm">{t.name}</span>
-                            <span className="text-[12px] text-(--oboon-text-muted)">
-                              {checked ? "선택됨" : ""}
+                      filteredTags.map((t) => (
+                        <DropdownMenuItem
+                          key={t.id}
+                          onClick={() => {
+                            setSelectedTagId(t.id);
+                            setTagQuery("");
+                          }}
+                          className="flex items-center justify-between"
+                        >
+                          <span className="text-sm">{t.name}</span>
+                          {selectedTagId === t.id && (
+                            <span className="text-[12px] text-(--oboon-primary)">
+                              ✓
                             </span>
-                          </DropdownMenuItem>
-                        );
-                      })
+                          )}
+                        </DropdownMenuItem>
+                      ))
                     )}
                   </div>
-
                   <div className="mt-2 flex items-center justify-between border-t border-(--oboon-border-default) pt-2">
                     <Button
                       variant="ghost"
@@ -500,7 +651,7 @@ export default function PostEditorClient({ bootstrap, onCreate }: Props) {
                       선택 해제
                     </Button>
                     <div className="text-[12px] text-(--oboon-text-muted)">
-                      태그는 1개만 선택
+                      태그 1개
                     </div>
                   </div>
                 </DropdownMenuContent>
@@ -508,130 +659,81 @@ export default function PostEditorClient({ bootstrap, onCreate }: Props) {
             </div>
           </div>
 
-          {/* content */}
-          <div className="md:col-span-2">
-            <div className="mb-2 flex items-center justify-between">
-              <Label>본문(Markdown)</Label>
-
-              <div className="inline-flex overflow-hidden rounded-full border border-(--oboon-border-default)">
-                <button
-                  type="button"
-                  className={[
-                    "px-3 py-1 text-xs transition",
-                    tab === "write"
-                      ? "bg-(--oboon-primary)/10 text-(--oboon-text-title)"
-                      : "text-(--oboon-text-muted) hover:bg-(--oboon-bg-subtle)",
-                  ].join(" ")}
-                  onClick={() => setTab("write")}
-                  disabled={isPending}
-                >
-                  작성
-                </button>
-                <button
-                  type="button"
-                  className={[
-                    "px-3 py-1 text-xs transition",
-                    tab === "preview"
-                      ? "bg-(--oboon-primary)/10 text-(--oboon-text-title)"
-                      : "text-(--oboon-text-muted) hover:bg-(--oboon-bg-subtle)",
-                  ].join(" ")}
-                  onClick={() => setTab("preview")}
-                  disabled={isPending}
-                >
-                  미리보기
-                </button>
-              </div>
-            </div>
-
-            {tab === "write" ? (
-              <Textarea
-                value={contentMd}
-                onChange={(e) => setContentMd(e.target.value)}
-                rows={14}
-                className="w-full rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-4 py-3 text-sm leading-6 focus:outline-none focus:ring-2 focus:ring-(--oboon-primary)"
-                placeholder="Markdown으로 작성하세요"
-                disabled={isPending}
-              />
-            ) : (
-              <div className="ob-md min-h-[360px] rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-4">
-                <div className="prose max-w-none">
-                  {contentMd && contentMd.trim().length > 0 ? (
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {contentMd}
-                    </ReactMarkdown>
-                  ) : (
-                    <div className="ob-typo-body text-(--oboon-text-muted)">
-                      미리보기: 본문을 입력하면 여기에 표시됩니다.
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* actions */}
-        <div className="mt-6 flex items-center justify-end gap-2">
-          <Button
-            variant="secondary"
-            size="md"
-            onClick={() => setCancelOpen(true)}
-            disabled={isPending}
-          >
-            취소
-          </Button>
-          <Button
-            variant="secondary"
-            size="md"
-            onClick={() => submit("draft")}
-            disabled={isPending}
-          >
-            임시 저장
-          </Button>
-          <Button
-            variant="primary"
-            size="md"
-            onClick={() => submit("publish")}
-            disabled={isPending}
-          >
-            발행
-          </Button>
-        </div>
-
-        {/* cancel confirm modal */}
-        <Modal
-          open={cancelOpen}
-          onClose={() => setCancelOpen(false)}
-          showCloseIcon={true}
-        >
-          <div className="ob-typo-h2 font-semibold text-(--oboon-text-title)">
-            작성 취소하시겠습니까?
-          </div>
-          <div className="mt-2 ob-typo-caption leading-5 text-(--oboon-text-muted)">
-            저장하지 않고 나가면 입력한 내용이 사라질 수 있습니다.
+          <div className="flex items-center gap-2 px-1">
+            <div
+              className={[
+                "h-2 w-2 flex-shrink-0 rounded-full",
+                dirty ? "bg-yellow-400" : "bg-green-500",
+              ].join(" ")}
+            />
+            <span className="ob-typo-caption text-(--oboon-text-muted)">
+              {dirty ? "변경사항 있음" : "자동 저장됨"}
+            </span>
           </div>
 
-          <div className="mt-5 grid grid-cols-2 gap-2">
+          <div className="flex flex-col gap-2">
             <Button
               variant="secondary"
-              onClick={() => setCancelOpen(false)}
+              size="md"
+              shape="pill"
+              onClick={onResetDraft}
+              disabled={isPending}
               className="w-full"
+              title="현재 보드/카테고리의 임시저장을 초기화합니다."
             >
-              계속 작성
+              임시저장 초기화
             </Button>
             <Button
-              variant="danger"
-              onClick={() => {
-                setCancelOpen(false);
-                router.push("/briefing");
-              }}
+              variant="secondary"
+              size="md"
+              shape="pill"
+              onClick={() => submit("draft")}
+              disabled={isPending}
               className="w-full"
             >
-              나가기
+              임시 저장
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              shape="pill"
+              onClick={() => submit("publish")}
+              disabled={isPending}
+              className="w-full"
+            >
+              발행
             </Button>
           </div>
-        </Modal>
-      </Card>
+        </div>
+      </div>
+
+      <Modal open={cancelOpen} onClose={() => setCancelOpen(false)} showCloseIcon>
+        <div className="ob-typo-h2 font-semibold text-(--oboon-text-title)">
+          작성을 취소하시겠습니까?
+        </div>
+        <div className="mt-2 ob-typo-caption leading-5 text-(--oboon-text-muted)">
+          저장하지 않고 나가면 입력한 내용이 사라질 수 있습니다.
+        </div>
+        <div className="mt-5 grid grid-cols-2 gap-2">
+          <Button
+            variant="secondary"
+            onClick={() => setCancelOpen(false)}
+            className="w-full"
+          >
+            계속 작성
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => {
+              setCancelOpen(false);
+              router.push("/briefing");
+            }}
+            className="w-full"
+          >
+            나가기
+          </Button>
+        </div>
+      </Modal>
     </>
   );
 }

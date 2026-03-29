@@ -1,5 +1,9 @@
+import "server-only";
+
 import { createClient } from "@supabase/supabase-js";
-import { createSupabaseServer } from "@/lib/supabaseServer";
+
+import { createSupabaseServiceError } from "@/lib/errors";
+import { createServiceServerClient } from "@/lib/services/supabase-server";
 
 export const BRIEFING_HOME_PAGE_SIZE = 8;
 
@@ -50,7 +54,7 @@ export async function fetchPublishedBriefingPostsForSitemap(
 }
 
 export async function fetchBriefingHomeData(page = 1) {
-  const supabase = await createSupabaseServer();
+  const supabase = await createServiceServerClient();
   const pageSize = BRIEFING_HOME_PAGE_SIZE;
   const offset = (Math.max(1, page) - 1) * pageSize;
 
@@ -65,13 +69,6 @@ export async function fetchBriefingHomeData(page = 1) {
       .maybeSingle();
     isAdmin = !!profile && !profile.deleted_at && profile.role === "admin";
   }
-
-  const { data: ob, error: obErr } = await supabase
-    .from("briefing_boards")
-    .select("id")
-    .eq("key", "oboon_original")
-    .single();
-  if (obErr) throw obErr;
 
   const { data: heroData, error: heroErr } = await supabase
     .from("briefing_posts")
@@ -88,16 +85,20 @@ export async function fetchBriefingHomeData(page = 1) {
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (heroErr) throw heroErr;
 
-  const { data: tagData, error: tagErr } = await supabase
-    .from("briefing_tags")
-    .select("key,name")
-    .eq("is_active", true)
-    .order("sort_order");
-  if (tagErr) throw tagErr;
+  if (heroErr) {
+    createSupabaseServiceError(heroErr, {
+      scope: "briefing.home",
+      action: "fetch hero post",
+      defaultMessage: "브리핑 메인 글을 불러오지 못했습니다.",
+    });
+  }
 
-  const { data: generalData, error: generalErr, count: generalCount } = await supabase
+  const {
+    data: generalData,
+    error: generalErr,
+    count: generalCount,
+  } = await supabase
     .from("briefing_posts")
     .select(
       `
@@ -115,15 +116,21 @@ export async function fetchBriefingHomeData(page = 1) {
     .order("published_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
     .range(offset, offset + pageSize - 1);
-  if (generalErr) throw generalErr;
+
+  if (generalErr) {
+    createSupabaseServiceError(generalErr, {
+      scope: "briefing.home",
+      action: "fetch general posts",
+      defaultMessage: "브리핑 목록을 불러오지 못했습니다.",
+      context: { page, offset },
+    });
+  }
 
   return {
     isAdmin,
-    oboonOriginalBoardId: ob.id as string,
-    heroPost: heroData ?? null,
-    tagData: tagData ?? [],
-    generalPosts: generalData ?? [],
-    generalTotalCount: generalCount ?? 0,
+    heroPost: heroErr ? null : (heroData ?? null),
+    generalPosts: generalErr ? [] : (generalData ?? []),
+    generalTotalCount: generalErr ? 0 : (generalCount ?? 0),
     page,
     pageSize,
   };

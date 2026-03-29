@@ -16,10 +16,7 @@ export async function getViewedOfferings(
     .order("last_viewed_at", { ascending: false })
     .limit(20);
 
-  if (historyError) {
-    console.error("offering_view_history load error:", historyError.message);
-    return [];
-  }
+  if (historyError) return [];
 
   if (!history || history.length === 0) return [];
 
@@ -33,10 +30,7 @@ export async function getViewedOfferings(
     .select("property_id, snapshot")
     .in("property_id", ids);
 
-  if (snapError) {
-    console.error("property_public_snapshots load error:", snapError.message);
-    return [];
-  }
+  if (snapError) return [];
 
   const snapshotMap = new Map<number, unknown>(
     (snapshots ?? []).map(
@@ -73,7 +67,6 @@ export async function deleteViewHistory(
     .eq("profile_id", profileId)
     .eq("property_id", propertyId);
 
-  if (error) console.error("delete view history error:", error.message);
   return !error;
 }
 
@@ -89,6 +82,5 @@ export async function deleteAllViewHistory(
     .delete()
     .eq("profile_id", profileId);
 
-  if (error) console.error("delete all view history error:", error.message);
   return !error;
 }

@@ -1,0 +1,161 @@
+<h2>글 작성 에디터 — 상세 디자인</h2>
+<p class="subtitle">사이드바형 + Tiptap WYSIWYG</p>
+
+<div class="mockup" style="max-width: 760px; margin: 0 auto;">
+  <div class="mockup-header">/briefing/admin/posts/new</div>
+  <div class="mockup-body" style="background: #0f0f13; padding: 16px;">
+
+    <!-- Page header -->
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+      <div>
+        <div style="color: white; font-size: 14px; font-weight: 800;">글 작성</div>
+        <div style="color: #555; font-size: 9px; margin-top: 2px;">관리자 전용 · 최근 자동저장: 14:32:01</div>
+      </div>
+      <div style="display: flex; gap: 6px; align-items: center;">
+        <div style="background: #2a2a3a; border-radius: 20px; padding: 5px 12px; font-size: 9px; color: #888;">취소</div>
+      </div>
+    </div>
+
+    <!-- Main layout: editor + sidebar -->
+    <div style="display: grid; grid-template-columns: 1fr 200px; gap: 10px; align-items: start;">
+
+      <!-- Left: Editor -->
+      <div style="background: #1e1e2a; border-radius: 12px; border: 1px solid #2a2a3a; overflow: hidden;">
+
+        <!-- Toolbar -->
+        <div style="border-bottom: 1px solid #2a2a3a; padding: 7px 10px; display: flex; align-items: center; gap: 3px; flex-wrap: wrap;">
+          <!-- Text style -->
+          <div style="background: #2a2a3a; border-radius: 4px; width: 22px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #aaa; font-weight: 700;">B</div>
+          <div style="background: #2a2a3a; border-radius: 4px; width: 22px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #aaa; font-style: italic;">I</div>
+          <div style="width: 1px; height: 14px; background: #3a3a4a; margin: 0 3px;"></div>
+          <!-- Headings -->
+          <div style="background: #2a2a3a; border-radius: 4px; padding: 0 5px; height: 18px; display: flex; align-items: center; font-size: 8px; color: #aaa;">H1</div>
+          <div style="background: #2a2a3a; border-radius: 4px; padding: 0 5px; height: 18px; display: flex; align-items: center; font-size: 8px; color: #aaa;">H2</div>
+          <div style="background: #2a2a3a; border-radius: 4px; padding: 0 5px; height: 18px; display: flex; align-items: center; font-size: 8px; color: #aaa;">H3</div>
+          <div style="width: 1px; height: 14px; background: #3a3a4a; margin: 0 3px;"></div>
+          <!-- Lists -->
+          <div style="background: #2a2a3a; border-radius: 4px; width: 22px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #aaa;">≡</div>
+          <div style="background: #2a2a3a; border-radius: 4px; width: 22px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #aaa;">1.</div>
+          <div style="background: #2a2a3a; border-radius: 4px; width: 22px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #aaa;">"</div>
+          <div style="width: 1px; height: 14px; background: #3a3a4a; margin: 0 3px;"></div>
+          <!-- A, image, table, link, hr -->
+          <div style="background: #2a2a3a; border-radius: 4px; width: 22px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #aaa; position: relative;">
+            <span style="text-decoration: underline; text-decoration-color: #e74c3c;">A</span>
+          </div>
+          <div style="background: #2a2a3a; border-radius: 4px; width: 22px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #aaa;">🖼</div>
+          <div style="background: #2a2a3a; border-radius: 4px; width: 22px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #aaa;">⊞</div>
+          <div style="background: #2a2a3a; border-radius: 4px; width: 22px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #aaa;">🔗</div>
+          <div style="background: #2a2a3a; border-radius: 4px; width: 22px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #aaa;">—</div>
+        </div>
+
+        <!-- Title input -->
+        <div style="padding: 10px 14px; border-bottom: 1px solid #2a2a3a;">
+          <div style="color: #555; font-size: 8px; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px;">제목</div>
+          <div style="background: #252535; border-radius: 8px; height: 26px; padding: 0 10px; display: flex; align-items: center;">
+            <span style="color: #888; font-size: 10px;">2025년 청약 시장, 어디서 기회를 찾아야 할까</span>
+          </div>
+        </div>
+
+        <!-- Editor content area -->
+        <div style="padding: 14px; min-height: 200px;">
+          <!-- Simulated rich content -->
+          <div style="color: white; font-size: 13px; font-weight: 700; margin-bottom: 8px;">청약 시장의 구조적 변화</div>
+          <div style="color: #9090a0; font-size: 10px; line-height: 1.7; margin-bottom: 8px;">2024년 이후 청약 시장은 이전과 다른 양상을 보이고 있습니다. 금리 인하 기대감과 함께 수도권 중심으로...</div>
+          <!-- Colored text example -->
+          <div style="font-size: 10px; margin-bottom: 8px; line-height: 1.7;">
+            <span style="color: #9090a0;">주요 특징으로는 </span>
+            <span style="color: #7c6ff7; font-weight: 600;">무순위 청약 확대</span>
+            <span style="color: #9090a0;">와 </span>
+            <span style="color: #e67e22; font-weight: 600;">특별공급 비율 조정</span>
+            <span style="color: #9090a0;">이 있습니다.</span>
+          </div>
+          <!-- Table example -->
+          <div style="border: 1px solid #2a2a3a; border-radius: 6px; overflow: hidden; margin-bottom: 8px; font-size: 9px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; background: #252535;">
+              <div style="padding: 5px 8px; color: #aaa; border-right: 1px solid #2a2a3a; font-weight: 600;">구분</div>
+              <div style="padding: 5px 8px; color: #aaa; border-right: 1px solid #2a2a3a; font-weight: 600;">2024년</div>
+              <div style="padding: 5px 8px; color: #aaa; font-weight: 600;">2025년</div>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr;">
+              <div style="padding: 5px 8px; color: #777; border-right: 1px solid #2a2a3a; border-top: 1px solid #2a2a3a;">수도권</div>
+              <div style="padding: 5px 8px; color: #777; border-right: 1px solid #2a2a3a; border-top: 1px solid #2a2a3a;">12.4만</div>
+              <div style="padding: 5px 8px; color: #777; border-top: 1px solid #2a2a3a;">15.2만</div>
+            </div>
+          </div>
+          <!-- Image placeholder -->
+          <div style="background: #252535; border-radius: 8px; height: 50px; border: 1px dashed #3a3a4a; display: flex; align-items: center; justify-content: center; gap: 6px;">
+            <span style="color: #555; font-size: 9px;">🖼 이미지</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right: Sidebar -->
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+
+        <!-- Cover image -->
+        <div style="background: #1e1e2a; border-radius: 10px; border: 1px solid #2a2a3a; padding: 10px;">
+          <div style="color: #888; font-size: 8px; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">커버 이미지</div>
+          <div style="background: #252535; border-radius: 8px; height: 70px; border: 1px dashed #3a3a4a; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; cursor: pointer;">
+            <span style="color: #555; font-size: 16px;">+</span>
+            <span style="color: #555; font-size: 8px;">업로드 또는 URL</span>
+          </div>
+        </div>
+
+        <!-- Board -->
+        <div style="background: #1e1e2a; border-radius: 10px; border: 1px solid #2a2a3a; padding: 10px;">
+          <div style="color: #888; font-size: 8px; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px;">보드</div>
+          <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+            <div style="background: #7c6ff7; border-radius: 20px; padding: 3px 8px; font-size: 8px; color: white;">OBOON Original</div>
+            <div style="background: #252535; border-radius: 20px; padding: 3px 8px; font-size: 8px; color: #666;">일반 브리핑</div>
+          </div>
+        </div>
+
+        <!-- Category -->
+        <div style="background: #1e1e2a; border-radius: 10px; border: 1px solid #2a2a3a; padding: 10px;">
+          <div style="color: #888; font-size: 8px; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px;">카테고리</div>
+          <div style="background: #252535; border-radius: 8px; height: 22px; display: flex; align-items: center; justify-content: between; padding: 0 8px;">
+            <span style="color: #888; font-size: 9px; flex: 1;">청약 전략</span>
+            <span style="color: #555; font-size: 9px;">▾</span>
+          </div>
+        </div>
+
+        <!-- Tag -->
+        <div style="background: #1e1e2a; border-radius: 10px; border: 1px solid #2a2a3a; padding: 10px;">
+          <div style="color: #888; font-size: 8px; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px;">태그</div>
+          <div style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">
+            <div style="background: #252535; border-radius: 20px; padding: 3px 8px; font-size: 8px; color: #aaa; display: flex; align-items: center; gap: 3px;">
+              청약 <span style="color: #555;">×</span>
+            </div>
+            <div style="background: #252535; border-radius: 20px; padding: 3px 8px; font-size: 8px; color: #7c6ff7; border: 1px dashed #7c6ff7;">+ 추가</div>
+          </div>
+        </div>
+
+        <!-- Save status -->
+        <div style="padding: 6px 10px; display: flex; align-items: center; gap: 4px;">
+          <div style="width: 6px; height: 6px; border-radius: 50%; background: #2ecc71; flex-shrink: 0;"></div>
+          <span style="color: #555; font-size: 8px;">자동 저장됨</span>
+        </div>
+
+        <!-- Actions -->
+        <div style="display: flex; flex-direction: column; gap: 5px;">
+          <div style="background: #252535; border-radius: 20px; padding: 7px; text-align: center; font-size: 9px; color: #888; border: 1px solid #2a2a3a;">임시저장</div>
+          <div style="background: #7c6ff7; border-radius: 20px; padding: 7px; text-align: center; font-size: 9px; color: white; font-weight: 700;">발행</div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="section" style="margin-top: 24px;">
+  <h3>구성 요약</h3>
+  <ul style="color: var(--text-secondary); font-size: 14px; line-height: 2.2;">
+    <li><strong>에디터</strong> — Tiptap WYSIWYG, 툴바: Bold/Italic/H1~H3/목록/인용/링크/구분선 + 이미지·표·글자색</li>
+    <li><strong>커버 이미지</strong> — 드래그&드롭 업로드 또는 URL 직접 입력 선택</li>
+    <li><strong>보드</strong> — 칩 버튼으로 선택 (드롭다운 → 직관적 토글)</li>
+    <li><strong>자동저장</strong> — 상태 인디케이터 (●녹색=저장됨, ●노란=저장중)</li>
+    <li><strong>저장 방식</strong> — DB: <code>content_html</code> 컬럼 추가, 기존 <code>content_md</code> fallback 유지</li>
+  </ul>
+</div>

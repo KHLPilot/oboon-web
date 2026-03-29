@@ -1,6 +1,6 @@
-import { createSupabaseClient } from "@/lib/supabaseClient";
 import type { UnitDraft, UnitRow } from "@/features/company/domain/unit.types";
 import { AppError, ERR, createSupabaseServiceError } from "@/lib/errors";
+import { createServiceBrowserClient } from "@/lib/services/supabase-browser";
 
 const SELECT_COLUMNS = `
   id, created_at, properties_id,
@@ -100,7 +100,7 @@ function buildUpdatePayload(
 }
 
 async function fetchFloorPlanUrlsMap(propertyId: number) {
-  const supabase = createSupabaseClient();
+  const supabase = createServiceBrowserClient();
   const { data, error } = await supabase
     .from("property_image_assets")
     .select("id, unit_type_id, image_url, sort_order, updated_at, created_at")
@@ -148,7 +148,7 @@ async function syncFloorPlanAssets(
   unitTypeId: number,
   draft: UnitDraft,
 ) {
-  const supabase = createSupabaseClient();
+  const supabase = createServiceBrowserClient();
   const targetUrls = parseFloorPlanUrls(draft.floor_plan_url, draft.image_url);
 
   if (targetUrls.length === 0) {
@@ -230,7 +230,7 @@ async function syncFloorPlanAssets(
 }
 
 export async function fetchUnitTypes(propertyId: number): Promise<UnitRow[]> {
-  const supabase = createSupabaseClient();
+  const supabase = createServiceBrowserClient();
 
   const { data, error } = await supabase
     .from("property_unit_types")
@@ -252,7 +252,7 @@ export async function fetchUnitTypes(propertyId: number): Promise<UnitRow[]> {
 }
 
 export async function fetchUnitTypePriceRanges(propertyId: number) {
-  const supabase = createSupabaseClient();
+  const supabase = createServiceBrowserClient();
   const { data, error } = await supabase
     .from("property_unit_types")
     .select("price_min, price_max")
@@ -270,7 +270,7 @@ export async function createUnitType(
   propertyId: number,
   draft: UnitDraft,
 ): Promise<UnitRow> {
-  const supabase = createSupabaseClient();
+  const supabase = createServiceBrowserClient();
   const payload = buildCreatePayload(propertyId, draft);
 
   const { data, error } = await supabase
@@ -297,7 +297,7 @@ export async function updateUnitType(
   id: number,
   draft: UnitDraft,
 ): Promise<UnitRow> {
-  const supabase = createSupabaseClient();
+  const supabase = createServiceBrowserClient();
   const payload = buildUpdatePayload(draft);
 
   const { data, error } = await supabase
@@ -322,7 +322,7 @@ export async function updateUnitType(
 }
 
 export async function deleteUnitType(id: number): Promise<void> {
-  const supabase = createSupabaseClient();
+  const supabase = createServiceBrowserClient();
 
   const { data: existingUnit, error: existingUnitError } = await supabase
     .from("property_unit_types")

@@ -4,6 +4,8 @@ import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import {
   checkAuthRateLimit,
   getClientIp,
+  getEmailRateLimitIdentifier,
+  restoreAccountEmailLimiter,
   restoreAccountIpLimiter,
 } from "@/lib/rateLimit";
 import {
@@ -17,12 +19,12 @@ import { verifyRestoreToken } from "@/lib/auth/restoreToken";
 const supabaseAdmin = createSupabaseAdminClient();
 
 export async function POST(req: Request) {
-  const rateLimitRes = await checkAuthRateLimit(
+  const ipRateLimitRes = await checkAuthRateLimit(
     restoreAccountIpLimiter,
     getClientIp(req),
     { windowMs: 60 * 1000 },
   );
-  if (rateLimitRes) return rateLimitRes;
+  if (ipRateLimitRes) return ipRateLimitRes;
 
   let maskedRequestEmail: string | undefined;
 
@@ -41,6 +43,13 @@ export async function POST(req: Request) {
     }
 
     maskedRequestEmail = maskEmail(normalizedEmail);
+
+    const emailRateLimitRes = await checkAuthRateLimit(
+      restoreAccountEmailLimiter,
+      getEmailRateLimitIdentifier(normalizedEmail),
+      { windowMs: 10 * 60 * 1000 },
+    );
+    if (emailRateLimitRes) return emailRateLimitRes;
 
     if (!userId) {
       return NextResponse.json({ error: "유효하지 않은 복구 요청입니다." }, { status: 403 });

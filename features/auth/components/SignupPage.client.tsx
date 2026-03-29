@@ -1,7 +1,7 @@
 // app/auth/signup/page.tsx
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 
@@ -23,7 +23,6 @@ import { Copy } from "@/shared/copy";
 
 type VerificationState = {
   isEmailSent: boolean;
-  token: string | null;
 };
 
 type Step1Field = "email" | "password" | "passwordConfirm" | "generic";
@@ -38,8 +37,8 @@ export default function SignupPage() {
 
   // Step1 fields
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [passwordConfirm, setPasswordConfirm] = useState("");
+  const [passwordConfirmDirty, setPasswordConfirmDirty] = useState(false);
+  const [passwordMatch, setPasswordMatch] = useState(true);
 
   // UI state
   const [loading, setLoading] = useState(false);
@@ -55,8 +54,8 @@ export default function SignupPage() {
   // verification
   const [verification, setVerification] = useState<VerificationState>({
     isEmailSent: false,
-    token: null,
   });
+  const verificationTokenRef = useRef<string | null>(null);
 
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -112,11 +111,6 @@ export default function SignupPage() {
     };
   }, []);
 
-  const passwordMatch = useMemo(() => {
-    if (!passwordConfirm) return true;
-    return password === passwordConfirm;
-  }, [password, passwordConfirm]);
-
   const stopPolling = () => {
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
@@ -128,18 +122,7 @@ export default function SignupPage() {
     setCapsLockOn(e.getModifierState("CapsLock"));
   }
 
-  function persistForStep2() {
-    // Step2 자동 로그인용: query로 비밀번호 절대 전달하지 않음
-    try {
-      sessionStorage.setItem("oboon_signup_email", email);
-      sessionStorage.setItem("oboon_signup_pw", password);
-    } catch {
-      // ignore
-    }
-  }
-
   function goStep2(token: string) {
-    persistForStep2();
     router.replace(
       `/auth/signup/profile?token=${encodeURIComponent(token)}&email=${encodeURIComponent(email)}`,
     );
@@ -165,8 +148,8 @@ export default function SignupPage() {
 
   // Polling: "인증 완료 후 Step2로 이동"
   useEffect(() => {
-    if (!verification.isEmailSent || !verification.token) return;
-    const token = verification.token;
+    const token = verificationTokenRef.current;
+    if (!verification.isEmailSent || !token) return;
 
     stopPolling();
 
@@ -177,7 +160,8 @@ export default function SignupPage() {
       try {
         if (Date.now() - startedAt > timeoutMs) {
           stopPolling();
-          setVerification({ isEmailSent: false, token: null });
+          verificationTokenRef.current = null;
+          setVerification({ isEmailSent: false });
           setFatalError("인증 시간이 초과되었습니다. 다시 시도해주세요.");
           return;
         }
@@ -200,9 +184,12 @@ export default function SignupPage() {
 
     return () => stopPolling();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [verification.isEmailSent, verification.token]);
+  }, [verification.isEmailSent]);
 
   function validateStep1Inputs(): boolean {
+    const passwordValue = passwordRef.current?.value ?? "";
+    const passwordConfirmValue = passwordConfirmRef.current?.value ?? "";
+
     // 입력 검증은 "필드 에러(bubble)" 우선, 시스템 오류(fatalError modal)는 최후에 사용
     if (!validateRequiredOrShowModal(email, "이메일")) return false;
 
@@ -213,19 +200,19 @@ export default function SignupPage() {
       return false;
     }
 
-    if (!validateRequiredOrShowModal(password, "비밀번호")) return false;
+    if (!validateRequiredOrShowModal(passwordValue, "비밀번호")) return false;
 
-    const pwErr = validatePassword(password);
+    const pwErr = validatePassword(passwordValue);
     if (pwErr) {
       setPasswordError(pwErr);
       openFieldError("password", pwErr);
       return false;
     }
 
-    if (!validateRequiredOrShowModal(passwordConfirm, "비밀번호 확인"))
+    if (!validateRequiredOrShowModal(passwordConfirmValue, "비밀번호 확인"))
       return false;
 
-    if (!passwordMatch) {
+    if (passwordValue !== passwordConfirmValue) {
       openFieldError("passwordConfirm", "비밀번호가 일치하지 않습니다.");
       return false;
     }
@@ -243,6 +230,7 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
+      const passwordValue = passwordRef.current?.value ?? "";
       // 이메일 중복 체크
       const checkResponse = await fetch("/api/auth/check-email", {
         method: "POST",
@@ -275,7 +263,7 @@ export default function SignupPage() {
       // signUp
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
-        password,
+        password: passwordValue,
         options: {
           emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
@@ -316,7 +304,8 @@ export default function SignupPage() {
         return;
       }
 
-      setVerification({ isEmailSent: true, token });
+      verificationTokenRef.current = token;
+      setVerification({ isEmailSent: true });
     } catch (err: unknown) {
       setFatalError(toKoreanErrorMessage(err, "요청 중 오류가 발생했습니다."));
     } finally {
@@ -325,8 +314,8 @@ export default function SignupPage() {
   }
 
   async function handleManualCheck() {
-    if (!verification.token) return;
-    const token = verification.token;
+    const token = verificationTokenRef.current;
+    if (!token) return;
 
     setLoading(true);
     setFatalError(null);
@@ -336,7 +325,7 @@ export default function SignupPage() {
       const res = await fetch(`/api/auth/check-verification`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: verification.token }),
+        body: JSON.stringify({ token }),
       });
       const json = await res.json();
 
@@ -434,10 +423,15 @@ export default function SignupPage() {
                     <Input
                       ref={passwordRef}
                       type={showPassword ? "text" : "password"}
-                      value={password}
                       onChange={(e) => {
-                        setPassword(e.target.value);
-                        setPasswordError(null);
+                        const nextPassword = e.target.value;
+                        setPasswordError(validatePassword(nextPassword));
+                        const passwordConfirmValue =
+                          passwordConfirmRef.current?.value ?? "";
+                        setPasswordMatch(
+                          !passwordConfirmValue ||
+                            nextPassword === passwordConfirmValue,
+                        );
                       }}
                       onKeyDown={handleKeyEvent}
                       onKeyUp={handleKeyEvent}
@@ -495,8 +489,12 @@ export default function SignupPage() {
                     <Input
                       ref={passwordConfirmRef}
                       type={showPasswordConfirm ? "text" : "password"}
-                      value={passwordConfirm}
-                      onChange={(e) => setPasswordConfirm(e.target.value)}
+                      onChange={(e) => {
+                        setPasswordConfirmDirty(Boolean(e.target.value));
+                        setPasswordMatch(
+                          (passwordRef.current?.value ?? "") === e.target.value,
+                        );
+                      }}
                       onKeyDown={handleKeyEvent}
                       onKeyUp={handleKeyEvent}
                       onFocus={clearFieldError}
@@ -505,7 +503,7 @@ export default function SignupPage() {
                       disabled={lockInputs}
                       className={cx(
                         "h-11",
-                        !passwordMatch && passwordConfirm
+                        !passwordMatch && passwordConfirmDirty
                           ? "border-(--oboon-danger)"
                           : "",
                       )}
@@ -539,7 +537,7 @@ export default function SignupPage() {
                     </button>
                   </div>
 
-                  {passwordConfirm ? (
+                  {passwordConfirmDirty ? (
                     <p
                       className={cx(
                         "text-[11px] leading-4",

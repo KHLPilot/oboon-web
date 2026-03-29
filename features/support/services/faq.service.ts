@@ -2,14 +2,15 @@
  * FAQ 서비스 (클라이언트 조회용)
  */
 
-import { createSupabaseClient } from "@/lib/supabaseClient";
+import { createServiceBrowserClient } from "@/lib/services/supabase-browser";
 import type { FAQCategoryRow, FAQItemViewModel } from "../domain/support";
+import { mapFAQItemViewModel } from "../mappers/support.mapper";
 
 /**
  * FAQ 카테고리 목록 조회
  */
 export async function fetchFAQCategories(): Promise<FAQCategoryRow[]> {
-  const supabase = createSupabaseClient();
+  const supabase = createServiceBrowserClient();
 
   const { data, error } = await supabase
     .from("faq_categories")
@@ -17,10 +18,7 @@ export async function fetchFAQCategories(): Promise<FAQCategoryRow[]> {
     .eq("is_active", true)
     .order("sort_order", { ascending: true });
 
-  if (error) {
-    console.error("FAQ 카테고리 조회 실패:", error);
-    return [];
-  }
+  if (error) return [];
 
   return data ?? [];
 }
@@ -29,7 +27,7 @@ export async function fetchFAQCategories(): Promise<FAQCategoryRow[]> {
  * FAQ 아이템 목록 조회 (카테고리 포함)
  */
 export async function fetchFAQItems(): Promise<FAQItemViewModel[]> {
-  const supabase = createSupabaseClient();
+  const supabase = createServiceBrowserClient();
 
   const { data, error } = await supabase
     .from("faq_items")
@@ -50,27 +48,10 @@ export async function fetchFAQItems(): Promise<FAQItemViewModel[]> {
     .eq("is_active", true)
     .order("sort_order", { ascending: true });
 
-  if (error) {
-    console.error("FAQ 아이템 조회 실패:", error);
-    return [];
-  }
+  if (error) return [];
 
   if (!data) return [];
-
-  // 타입 단언 및 변환
-  return data.map((item) => {
-    const category = item.faq_categories as unknown as {
-      key: string;
-      name: string;
-    };
-    return {
-      id: item.id,
-      categoryKey: category.key,
-      categoryName: category.name,
-      question: item.question,
-      answer: item.answer,
-    };
-  });
+  return data.map(mapFAQItemViewModel);
 }
 
 /**
@@ -79,7 +60,7 @@ export async function fetchFAQItems(): Promise<FAQItemViewModel[]> {
 export async function fetchFAQItemsByCategory(
   categoryKey: string
 ): Promise<FAQItemViewModel[]> {
-  const supabase = createSupabaseClient();
+  const supabase = createServiceBrowserClient();
 
   const { data, error } = await supabase
     .from("faq_items")
@@ -100,24 +81,8 @@ export async function fetchFAQItemsByCategory(
     .eq("faq_categories.key", categoryKey)
     .order("sort_order", { ascending: true });
 
-  if (error) {
-    console.error("FAQ 아이템 조회 실패:", error);
-    return [];
-  }
+  if (error) return [];
 
   if (!data) return [];
-
-  return data.map((item) => {
-    const category = item.faq_categories as unknown as {
-      key: string;
-      name: string;
-    };
-    return {
-      id: item.id,
-      categoryKey: category.key,
-      categoryName: category.name,
-      question: item.question,
-      answer: item.answer,
-    };
-  });
+  return data.map(mapFAQItemViewModel);
 }

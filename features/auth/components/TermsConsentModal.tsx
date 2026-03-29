@@ -66,8 +66,11 @@ export default function TermsConsentModal({
           });
           setAgreements(initialAgreements);
         }
-      } catch (err) {
-        console.error("약관 조회 오류:", err);
+      } catch {
+        console.error("[terms-consent-modal] term load", {
+          status: 500,
+          message: "term load failed",
+        });
       } finally {
         setLoading(false);
       }
@@ -126,8 +129,11 @@ export default function TermsConsentModal({
         onConsent();
         onClose();
       }
-    } catch (err) {
-      console.error("약관 동의 저장 오류:", err);
+    } catch {
+      console.error("[terms-consent-modal] term consent save", {
+        status: 500,
+        message: "term consent save failed",
+      });
     } finally {
       setSubmitting(false);
     }

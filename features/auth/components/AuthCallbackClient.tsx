@@ -75,8 +75,11 @@ export default function AuthCallbackClient() {
             setMessage("이메일 인증이 완료되었습니다!\n 창을 직접 닫아주세요.");
           }
         }, 3000);
-      } catch (err) {
-        console.error("콜백 오류:", err);
+      } catch {
+        console.error("[auth/callback] callback", {
+          status: 500,
+          message: "callback failed",
+        });
         setMessage("오류가 발생했습니다.");
         setTimeout(() => router.replace("/auth/login"), 3000);
       }
@@ -94,7 +97,7 @@ export default function AuthCallbackClient() {
 
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
-        .select("role, name, phone_number")
+        .select("role, name, phone_number, deleted_at")
         .eq("id", session.user.id)
         .single();
 
@@ -110,6 +113,24 @@ export default function AuthCallbackClient() {
         });
 
         router.replace("/auth/onboarding");
+        return;
+      }
+
+      if (profile?.deleted_at) {
+        const restoreSessionRes = await fetch("/api/auth/create-restore-session", {
+          method: "POST",
+        });
+        const restoreSessionData = await restoreSessionRes.json();
+        await supabase.auth.signOut();
+
+        if (!restoreSessionRes.ok || typeof restoreSessionData?.sessionKey !== "string") {
+          router.replace("/auth/login?error=auth_failed");
+          return;
+        }
+
+        router.replace(
+          `/auth/restore?s=${encodeURIComponent(restoreSessionData.sessionKey)}`,
+        );
         return;
       }
 

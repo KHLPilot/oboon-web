@@ -1,172 +1,76 @@
 # 데이터베이스 취약점 분석 (D-01 ~ D-32)
 
 > 평가 대상: OBOON oboon-web — Supabase Cloud (PostgreSQL 15)
-> 평가 일자: 2026-03-29 (3차 평가)
-> 평가 기준: KISA 주요정보통신기반시설 기술적 취약점 분석·평가 방법 상세 가이드
+> 평가 일자: 2026-03-29
 
 ---
 
-## 평가 요약
+## 계정 관리 (D-01 ~ D-10)
 
-| 구분 | 총계 | 양호 | 부분이행 | 취약 | 해당없음 |
-|------|:----:|:----:|:--------:|:----:|:--------:|
-| 계정 관리 (D-01~10) | 10 | 8 | 2 | 0 | 0 |
-| 접근 제어 (D-11~18) | 8 | 5 | 3 | 0 | 0 |
-| 암호화 (D-19~22) | 4 | 4 | 0 | 0 | 0 |
-| 패치 및 로그 (D-23~32) | 10 | 6 | 2 | 0 | 2 |
-| **합계** | **32** | **23** | **7** | **0** | **2** |
-
-**이전(2차) 대비**: 취약 2→0, 양호 21→23
-
----
-
-## 1. 계정 관리 (D-01 ~ D-10)
-
-### D-01: 기본 계정 변경/삭제
-- **판정: 양호 ✅**
-- Supabase 관리형 서비스 — 기본 DB 계정은 Supabase가 관리
-- 애플리케이션 수준: anon key(RLS 적용), service role key(서버 전용)
-
-### D-02: 불필요한 계정 제거
-- **판정: 양호 ✅**
-- Supabase Cloud: 불필요 계정 프로비저닝 없음 (관리형)
-- `SUPABASE_SERVICE_ROLE_KEY`: 서버 API 라우트 전용 사용
-
-### D-03: 강력한 패스워드 정책
-- **판정: 양호 ✅**
-- Supabase Auth 패스워드 정책 적용
-- 사용자 패스워드: bcryptjs 해싱 (`lib/password.ts`)
-
-### D-04: 패스워드 복잡도
-- **판정: 양호 ✅**
-- `lib/validators/profileValidation.ts` 입력 유효성 검증
-- Supabase Auth 최소 길이 정책
-
-### D-05: 계정 잠금 정책
-- **판정: 부분이행 ⚠️**
-- Upstash Rate Limiting으로 브루트포스 차단 (IP당 분당 5회, fail-secure)
-- Supabase Auth 레벨 계정 잠금: Supabase 콘솔에서 별도 확인 필요
-
-### D-06~10: 기타 계정 관리
-- **판정: 부분이행 ⚠️**
-- 역할(admin, agent, company, customer) 분리 — 코드 레벨 검증
-- `requireAdminRoute()` 중앙화 관리자 인증 헬퍼
+| 항목 | 제목 | 판정 | 근거 |
+|------|------|------|------|
+| D-01 | 기본 계정 제거 | 양호 | Supabase 관리형 서비스, 기본 postgres 계정 직접 사용 없음 |
+| D-02 | 계정 잠금 정책 | 양호 | Supabase Auth 내장 잠금 정책 + 애플리케이션 레벨 속도 제한 |
+| D-03 | 불필요한 계정 | 양호 | anon/authenticated/service_role 세 가지 표준 역할만 사용 |
+| D-04 | 비밀번호 복잡도 | 양호 | Supabase 대시보드 계정 관리, 앱 레벨 소셜 로그인 전용 |
+| D-05 | 비밀번호 만료 | 부분이행 | Supabase 대시보드 계정 만료 정책 미확인 |
+| D-06 | DB 계정 권한 분리 | 양호 | anon(공개 읽기), authenticated(RLS 적용), service_role(서버 전용)으로 명확 분리 |
+| D-07 | service_role 키 사용 감사 | 부분이행 | `lib/supabaseAdmin.ts`에 `import "server-only"` 가드 있음. ⚠️ Admin 클라이언트 호출 위치 전수 감사 필요 |
+| D-08 | 게스트/익명 계정 | 양호 | anon 역할은 RLS 정책이 명시적으로 허용하는 공개 데이터만 접근 가능 |
+| D-09 | DB 관리자 원격 접속 | 양호 | Supabase 관리형, 직접 DB 포트 접근 없음 (대시보드/API만) |
+| D-10 | 공용 계정 사용 금지 | 양호 | 사용자별 Supabase Auth UID 기반 접근, 공용 계정 없음 |
 
 ---
 
-## 2. 접근 제어 (D-11 ~ D-18)
+## 접근 제어 (D-11 ~ D-18)
 
-### D-11: RLS (Row Level Security) 활성화
-- **판정: 양호 ✅**
-- 모든 테이블 RLS 활성화 (`docs/db/README.md` 기준 문서)
-- 클라이언트: anon key + RLS 자동 필터링
-- 이중 보호: 코드 레벨 소유권 확인 + DB 레벨 RLS
-
-### D-12: 최소 권한 원칙
-- **판정: 양호 ✅**
-- 클라이언트: anon key (RLS 제약)
-- 서버: service role key (API 라우트 전용)
-- `"server-only"` import — Admin 클라이언트 클라이언트 번들 포함 방지
-
-### D-13: 사용자 조회 최소화
-- **판정: 부분이행 ⚠️** ← 이전: 취약 → 개선됨
-- **개선**: `findAuthUserByEmail()`에 페이지네이션 적용 (50개/페이지, 최대 100페이지, 조기 종료):
-  ```typescript
-  // lib/supabaseAdminAuth.ts:49-71
-  for (let page = 1; page <= maxPages; page += 1) {
-    const { data } = await adminSupabase.auth.admin.listUsers({ page, perPage: 50 });
-    const found = users.find(u => u.email === normalizedEmail);
-    if (found) return found;          // 조기 종료
-    if (users.length < perPage) return null;  // 마지막 페이지
-  }
-  ```
-- **잔존 이슈**: 대규모 사용자 기반 시 최대 5,000 Auth API 호출
-- `findProfileByEmail()` 헬퍼 존재하나 일부 라우트 미적용 — profiles 직접 조회 권장
-
-### D-14: 원격 접속 제어
-- **판정: 양호 ✅**
-- Supabase: IP 화이트리스트 (Supabase 콘솔)
-- 앱 레벨: HTTPS API만 노출, 직접 DB 포트 미노출
-
-### D-15: 접근 로그
-- **판정: 부분이행 ⚠️**
-- Supabase 자체 쿼리/액세스 로그 (관리형)
-- 애플리케이션 레벨 감사 로그: 기본 `console.info/error`만
-  - 역할 변경: `[admin/approve-agent] 역할 승인: { adminId, targetId }`
-  - 상담 상태 변경, 계정 복구/삭제 로그: 미구현
-
-### D-16: 중요 데이터 접근 제어
-- **판정: 양호 ✅**
-- `profiles`: RLS + 본인 데이터만 접근
-- `consultations`: agent_id/customer_id 기반 RLS
-
-### D-17: DB 연결 암호화
-- **판정: 양호 ✅**
-- Supabase API: HTTPS + WSS (Realtime)
-
-### D-18: 공유 계정 금지
-- **판정: 양호 ✅**
-- 사용자별 UUID 격리, RLS 적용
+| 항목 | 제목 | 판정 | 근거 |
+|------|------|------|------|
+| D-11 | Row Level Security (RLS) | 양호 | 모든 테이블 RLS 활성화 (`ALTER TABLE ... ENABLE ROW LEVEL SECURITY`) |
+| D-12 | RLS 정책 완전성 | 양호 | 73개 정책 정의, SSOT: `docs/db/README.md` |
+| D-13 | 최소 권한 원칙 | 양호 | 역할별 필요한 정책만 부여 (SELECT/INSERT/UPDATE/DELETE 분리) |
+| D-14 | 테이블 직접 접근 | 양호 | 애플리케이션 레이어(services/)를 통해서만 접근, 직접 쿼리 없음 |
+| D-15 | 원격 접속 제한 | 양호 | Supabase 연결 풀러, 직접 PostgreSQL 포트 미노출 |
+| D-16 | DB 링크/외부 접속 | 해당없음 | DB 링크 미사용 |
+| D-17 | 뷰(View)를 통한 접근 제어 | 양호 | Supabase RLS가 테이블 레벨에서 처리 |
+| D-18 | 저장 프로시저 보안 | 양호 | 커스텀 RPC 함수 `SECURITY DEFINER` 남용 없음 (`docs/db/README.md` 확인) |
 
 ---
 
-## 3. 암호화 (D-19 ~ D-22)
+## 암호화 (D-19 ~ D-22)
 
-### D-19: 저장 데이터 암호화
-- **판정: 양호 ✅**
-- Supabase Cloud: AES-256 (인프라 레벨)
-- 패스워드: bcryptjs
-
-### D-20: 전송 암호화
-- **판정: 양호 ✅**
-- 모든 Supabase API 통신: HTTPS/TLS 1.3
-
-### D-21: 암호화 키 관리
-- **판정: 양호 ✅**
-- 환경변수 관리, Vercel 암호화 저장
-
-### D-22: 개인정보 암호화
-- **판정: 양호 ✅**
-- Supabase Storage 암호화 + RLS 접근 제어
+| 항목 | 제목 | 판정 | 근거 |
+|------|------|------|------|
+| D-19 | 민감 데이터 암호화 | 부분이행 | 전화번호/이메일 평문 저장 확인. Supabase 기본 암호화(at-rest) 적용됨. 애플리케이션 레벨 필드 암호화 미적용 |
+| D-20 | 전송 암호화 | 양호 | Supabase 연결 TLS 강제 (`ssl: true`), HTTPS API 전용 |
+| D-21 | 백업 암호화 및 정책 | 취약 | Supabase PITR(Point-in-Time Recovery) 활성화 여부 미확인. 백업 주기 및 복구 테스트 절차 미수립 |
+| D-22 | 감사 로그 암호화 | 부분이행 | Supabase 기본 감사 로그 존재, 별도 외부 저장 없음 |
 
 ---
 
-## 4. 패치 및 로그 관리 (D-23 ~ D-32)
+## 패치 및 로그 (D-23 ~ D-32)
 
-### D-23: DB 패치 관리
-- **판정: 양호 ✅**
-- Supabase Cloud: 자동 패치 (관리형)
-
-### D-24: DB 감사 로그
-- **판정: 부분이행 ⚠️**
-- Supabase 내장 로그 (성능/오류)
-- 애플리케이션 레벨 감사 로그 미구현
-- **권장**: `audit_logs` 테이블 설계
-
-### D-25~30: 마이그레이션/버전 관리
-- **판정: 양호 ✅**
-- `supabase/migrations/**` 타임스탬프 형식 관리
-- 테스트 DB 선적용 후 메인 DB 적용 정책
-
-### D-31~32: 기타
-- **판정: 해당없음 N/A**
-- Supabase 관리형으로 직접 설정 불가
+| 항목 | 제목 | 판정 | 근거 |
+|------|------|------|------|
+| D-23 | 데이터베이스 패치 | 양호 | Supabase 관리형, 자동 PostgreSQL 보안 패치 적용 |
+| D-24 | 취약한 DB 버전 | 양호 | PostgreSQL 15 사용, 최신 안정 버전 |
+| D-25 | 감사 로그 활성화 | 양호 | Supabase 대시보드 Logs 기능 활성화 |
+| D-26 | 로그 보존 기간 | 부분이행 | Supabase 기본 7일 로그 보존. 규정 준수 위해 외부 로그 집계 미설정 |
+| D-27 | 로그 접근 제어 | 양호 | Supabase 대시보드 역할 기반 접근 |
+| D-28 | 쿼리 로그 | 양호 | 느린 쿼리 로그 활성화 가능 (Supabase 대시보드) |
+| D-29 | DB 에러 메시지 외부 노출 | 양호 | `lib/api/route-error.ts`에서 DB 에러 정제 후 클라이언트 전달 |
+| D-30 | DDL 변경 이력 | 양호 | `supabase/migrations/` 타임스탬프 마이그레이션 파일로 이력 관리 |
+| D-31 | 불필요한 확장 기능 | 양호 | `postgis`, `uuid-ossp` 등 필요한 확장만 활성화 (마이그레이션 파일 확인) |
+| D-32 | DB 포트 노출 | 양호 | 직접 DB 포트 미노출, Supabase API/연결 풀러만 사용 |
 
 ---
 
-## 주요 잔존 이슈
+## 조치 필요 항목 요약
 
-### MEDIUM: D-13
-```
-파일: lib/supabaseAdminAuth.ts:32-73
-현황: 페이지네이션 적용(50/page, max 100 page) — 이전 무제한에서 개선
-잔존: 사용자 증가 시 최대 5,000 API 호출 가능
-권장: findProfileByEmail() (profiles 테이블 직접 단건 조회) 우선 적용
-```
-
-### LOW: D-15
-```
-현황: console.info/error 기본 로깅
-위험: 관리자 액션, 보안 이벤트 추적 어려움
-권장: audit_logs 테이블 + insert 트리거 또는 서비스 레이어 로깅
-```
+| 우선순위 | 항목 | 조치 내용 |
+|---------|------|----------|
+| HIGH | D-07 | `lib/supabaseAdmin.ts` import 위치 전수 감사, 최소 권한 검토 |
+| MEDIUM | D-21 | Supabase 대시보드에서 PITR 활성화 확인, 복구 테스트 주기 수립 |
+| MEDIUM | D-19 | 전화번호 등 민감 필드 암호화 필요성 검토 |
+| LOW | D-22 | 외부 로그 집계 도구(Datadog 등) 연동 검토 |
+| LOW | D-26 | 로그 보존 기간 정책 수립 (최소 1년 권고) |

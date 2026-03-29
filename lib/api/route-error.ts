@@ -32,6 +32,13 @@ type SupabaseErrorOptions = {
   codeMap?: Record<string, { status: number; message: string }>;
 };
 
+type RouteErrorOptions = {
+  status?: number;
+  clientMessage?: string;
+  defaultMessage?: string;
+  codeMap?: Record<string, { status: number; message: string }>;
+};
+
 const DEFAULT_CLIENT_ERROR_MESSAGE = "요청 처리 중 오류가 발생했습니다";
 const DEFAULT_DB_ERROR_MESSAGE = "처리 중 오류가 발생했습니다";
 
@@ -165,6 +172,58 @@ export function handleSupabaseError(
   return apiErrorResponse(
     options.defaultMessage ?? DEFAULT_DB_ERROR_MESSAGE,
     options.status ?? 500,
+  );
+}
+
+export function handleRouteError(
+  operation: string,
+  error: unknown,
+  options: RouteErrorOptions = {},
+): NextResponse {
+  if (error instanceof AppError) {
+    const status = options.status ?? error.statusHint ?? 500;
+    console.error(`[${operation}] route error`, {
+      status,
+      message: error.clientMessage,
+    });
+    return apiErrorResponse(
+      options.clientMessage ?? error.clientMessage,
+      status,
+    );
+  }
+
+  if (isSupabaseLikeError(error)) {
+    const code =
+      typeof error.code === "string" && error.code
+        ? error.code
+        : undefined;
+    const mapped = code
+      ? options.codeMap?.[code] ?? DEFAULT_SUPABASE_CODE_MAP[code as keyof typeof DEFAULT_SUPABASE_CODE_MAP]
+      : undefined;
+    const status = options.status ?? mapped?.status ?? 500;
+
+    console.error(`[${operation}] route error`, {
+      status,
+      message: extractErrorMessage(error),
+    });
+
+    return apiErrorResponse(
+      options.clientMessage ??
+        mapped?.message ??
+        options.defaultMessage ??
+        DEFAULT_DB_ERROR_MESSAGE,
+      status,
+    );
+  }
+
+  const status = options.status ?? 500;
+  console.error(`[${operation}] route error`, {
+    status,
+    message: extractErrorMessage(error),
+  });
+  return apiErrorResponse(
+    options.clientMessage ?? DEFAULT_CLIENT_ERROR_MESSAGE,
+    status,
   );
 }
 

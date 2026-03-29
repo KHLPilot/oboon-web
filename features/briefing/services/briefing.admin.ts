@@ -65,7 +65,7 @@ export async function createBriefingPostWithSeq(args: {
   boardId: string;
   categoryId: string;
   title: string;
-  contentMd: string;
+  contentHtml: string;
   coverImageUrl: string;
   intent: "draft" | "publish";
   tagId: string | null;
@@ -76,7 +76,7 @@ export async function createBriefingPostWithSeq(args: {
     boardId,
     categoryId,
     title,
-    contentMd,
+    contentHtml,
     coverImageUrl,
     intent,
     tagId,
@@ -100,10 +100,10 @@ export async function createBriefingPostWithSeq(args: {
       p_board_id: boardId,
       p_category_id: categoryId,
       p_title: title,
-      p_content_md: contentMd,
+      p_content_html: contentHtml,
       p_cover_image_url: coverImageUrl,
       p_intent: intent,
-      p_author_profile_id: userId,
+      p_user_id: userId,
       p_tag_id: tagId,
     },
   );
@@ -126,4 +126,101 @@ export async function createBriefingPostWithSeq(args: {
   }
 
   return { ok: true as const, slug, categoryKey: cat.key };
+}
+
+export async function fetchBriefingPostForEdit(postId: string) {
+  const supabase = await createSupabaseServer();
+  const admin = await ensureBriefingAdminUser();
+  if (!admin) return null;
+
+  const { data: post, error } = await supabase
+    .from("briefing_posts")
+    .select(
+      "id, slug, title, content_html, content_md, cover_image_url, status, board_id, category_id, post_tags(tag_id)",
+    )
+    .eq("id", postId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!post) return null;
+
+  const tagId =
+    Array.isArray(post.post_tags) && post.post_tags.length > 0
+      ? (post.post_tags[0] as { tag_id: string }).tag_id
+      : null;
+
+  return {
+    id: post.id as string,
+    slug: post.slug as string,
+    title: post.title as string,
+    contentHtml: (post.content_html as string | null) ?? "",
+    contentMd: (post.content_md as string | null) ?? "",
+    coverImageUrl: (post.cover_image_url as string | null) ?? "",
+    status: post.status as "draft" | "published",
+    boardId: post.board_id as string,
+    categoryId: post.category_id as string,
+    tagId,
+  };
+}
+
+export async function updateBriefingPost(args: {
+  postId: string;
+  title: string;
+  contentHtml: string;
+  coverImageUrl: string;
+  intent: "draft" | "publish";
+  tagId: string | null;
+  userId: string;
+}) {
+  const supabase = await createSupabaseServer();
+  const { postId, title, contentHtml, coverImageUrl, intent, tagId } = args;
+
+  const now = new Date().toISOString();
+  const status = intent === "publish" ? "published" : "draft";
+  const publishedAt = intent === "publish" ? now : undefined;
+
+  const updatePayload: Record<string, unknown> = {
+    title,
+    content_html: contentHtml,
+    cover_image_url: coverImageUrl || null,
+    status,
+    updated_at: now,
+  };
+  if (publishedAt) updatePayload.published_at = publishedAt;
+
+  const { error: updateErr } = await supabase
+    .from("briefing_posts")
+    .update(updatePayload)
+    .eq("id", postId);
+
+  if (updateErr) {
+    return { ok: false as const, message: `수정 실패: ${updateErr.message}` };
+  }
+
+  const { error: delTagErr } = await supabase
+    .from("briefing_post_tags")
+    .delete()
+    .eq("post_id", postId);
+
+  if (delTagErr) {
+    return {
+      ok: false as const,
+      message: `태그 삭제 실패: ${delTagErr.message}`,
+    };
+  }
+
+  if (tagId) {
+    const { error: insTagErr } = await supabase
+      .from("briefing_post_tags")
+      .insert({ post_id: postId, tag_id: tagId });
+
+    if (insTagErr && insTagErr.code !== "23505") {
+      return {
+        ok: false as const,
+        message: `태그 할당 실패: ${insTagErr.message}`,
+      };
+    }
+  }
+
+  return { ok: true as const };
 }

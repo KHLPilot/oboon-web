@@ -4,6 +4,7 @@ import { useState } from "react";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import { RefreshCw, UserPlus } from "lucide-react";
+import { maskEmailAddress } from "@/lib/masking";
 import { showAlert } from "@/shared/alert";
 
 type RestoreAccountModalProps = {
@@ -23,6 +24,7 @@ export default function RestoreAccountModal({
 }: RestoreAccountModalProps) {
   const [loading, setLoading] = useState(false);
   const [action, setAction] = useState<"restore" | "recreate" | null>(null);
+  const maskedEmail = maskEmailAddress(email);
 
   const handleRestore = async () => {
     setLoading(true);
@@ -62,7 +64,9 @@ export default function RestoreAccountModal({
         </div>
 
         <p className="ob-typo-body text-(--oboon-text-muted)">
-          <span className="font-medium text-(--oboon-text-title)">{email}</span>
+          <span className="font-medium text-(--oboon-text-title)">
+            {maskedEmail || "이 계정"}
+          </span>
           로 탈퇴한 계정이 있습니다.
           <br />
           어떻게 진행하시겠습니까?

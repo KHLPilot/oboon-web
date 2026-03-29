@@ -4,10 +4,19 @@ import type { User } from "@supabase/supabase-js";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { createRestoreOAuthTempSession } from "@/lib/auth/oauthTempSession";
 import { findAuthUserByEmail } from "@/lib/supabaseAdminAuth";
+import {
+  clearOAuthStateCookie,
+  readOAuthStateCookie,
+  resolveMatchingOAuthState,
+} from "@/lib/auth/oauthState";
+import {
+  checkAuthRateLimit,
+  getClientIp,
+  oauthCallbackIpLimiter,
+} from "@/lib/rateLimit";
 
-const supabaseAdmin = createSupabaseAdminClient();
+const adminSupabase = createSupabaseAdminClient();
 
-const OAUTH_STATE_COOKIE_NAME = "oauth_state";
 type NaverTokenResponse = {
   access_token?: string;
 };
@@ -19,36 +28,32 @@ type NaverProfileResponse = {
   };
 };
 
-function clearOAuthStateCookie(response: NextResponse) {
-  response.cookies.set(OAUTH_STATE_COOKIE_NAME, "", {
-    httpOnly: true,
-    secure: true,
-    sameSite: "strict",
-    maxAge: 0,
-    path: "/",
-  });
-  return response;
+function redirectWithClearedState(siteOrigin: string, path: string): NextResponse {
+  const response = NextResponse.redirect(new URL(path, siteOrigin));
+  return clearOAuthStateCookie(response, "naver");
 }
 
-function redirectWithClearedState(path: string) {
-  const response = NextResponse.redirect(
-    new URL(path, process.env.NEXT_PUBLIC_SITE_URL!),
+function invalidStateResponse(): NextResponse {
+  const response = NextResponse.json(
+    { error: "잘못된 인증 요청입니다." },
+    { status: 400 },
   );
-  return clearOAuthStateCookie(response);
+
+  return clearOAuthStateCookie(response, "naver");
 }
 
-function redirectToAuthFailed() {
-  return redirectWithClearedState("/auth/login?error=auth_failed");
+function isAuthUserBanned(user: User | null | undefined): boolean {
+  return Boolean((user as { banned_until?: string | null } | null)?.banned_until ?? null);
 }
 
 async function resolveAuthUser(email: string, name: string): Promise<User | null> {
-  const existingUser = await findAuthUserByEmail(supabaseAdmin, email);
+  const existingUser = await findAuthUserByEmail(adminSupabase, email);
 
   if (existingUser) {
     return existingUser;
   }
 
-  const { data, error } = await supabaseAdmin.auth.admin.createUser({
+  const { data, error } = await adminSupabase.auth.admin.createUser({
     email,
     email_confirm: true,
     user_metadata: {
@@ -61,30 +66,39 @@ async function resolveAuthUser(email: string, name: string): Promise<User | null
     return data.user;
   }
 
-  console.error("[naver/callback] auth user create failed");
-  return findAuthUserByEmail(supabaseAdmin, email);
+  console.error("[naver/callback] auth user create", {
+    status: 500,
+    message: "auth user create failed",
+  });
+
+  return findAuthUserByEmail(adminSupabase, email);
 }
 
 export async function GET(req: Request) {
-  const url = new URL(req.url);
-  const code = url.searchParams.get("code")?.trim();
-  const state = url.searchParams.get("state")?.trim();
-  const cookieStore = await cookies();
-  const storedState = cookieStore.get(OAUTH_STATE_COOKIE_NAME)?.value?.trim();
+  const rateLimitRes = await checkAuthRateLimit(
+    oauthCallbackIpLimiter,
+    getClientIp(req),
+    { windowMs: 60 * 1000 },
+  );
+  if (rateLimitRes) return rateLimitRes;
 
-  if (!state || !storedState || storedState !== state) {
-    return redirectWithClearedState("/auth/login?error=invalid_state");
+  const url = new URL(req.url);
+  const siteOrigin = process.env.NEXT_PUBLIC_SITE_URL?.trim() || url.origin;
+  const cookieStore = await cookies();
+  const storedState = readOAuthStateCookie("naver", cookieStore);
+  const stateCandidates = url.searchParams
+    .getAll("state")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const code = url.searchParams.get("code")?.trim();
+  const stateForTokenExchange = resolveMatchingOAuthState(storedState, stateCandidates);
+
+  if (!stateForTokenExchange) {
+    return invalidStateResponse();
   }
-  cookieStore.set(OAUTH_STATE_COOKIE_NAME, "", {
-    httpOnly: true,
-    secure: true,
-    sameSite: "strict",
-    maxAge: 0,
-    path: "/",
-  });
 
   if (!code) {
-    return redirectToAuthFailed();
+    return redirectWithClearedState(siteOrigin, "/auth/login?error=no_code");
   }
 
   try {
@@ -99,25 +113,27 @@ export async function GET(req: Request) {
         client_id: process.env.NAVER_CLIENT_ID!,
         client_secret: process.env.NAVER_CLIENT_SECRET!,
         code,
-        state,
+        state: stateForTokenExchange,
       }),
       cache: "no-store",
     });
 
     if (!tokenRes.ok) {
-      console.error("[naver/callback] token exchange failed", {
+      console.error("[naver/callback] token exchange", {
         status: tokenRes.status,
+        message: "token exchange failed",
       });
-      return redirectToAuthFailed();
+      return redirectWithClearedState(siteOrigin, "/auth/login?error=auth_failed");
     }
 
     const tokenData = (await tokenRes.json()) as NaverTokenResponse;
 
     if (!tokenData.access_token) {
-      console.error("[naver/callback] token response missing access token", {
+      console.error("[naver/callback] token exchange", {
         status: tokenRes.status,
+        message: "missing access token",
       });
-      return redirectToAuthFailed();
+      return redirectWithClearedState(siteOrigin, "/auth/login?error=auth_failed");
     }
 
     const profileRes = await fetch("https://openapi.naver.com/v1/nid/me", {
@@ -126,10 +142,11 @@ export async function GET(req: Request) {
     });
 
     if (!profileRes.ok) {
-      console.error("[naver/callback] profile fetch failed", {
+      console.error("[naver/callback] profile fetch", {
         status: profileRes.status,
+        message: "profile fetch failed",
       });
-      return redirectToAuthFailed();
+      return redirectWithClearedState(siteOrigin, "/auth/login?error=auth_failed");
     }
 
     const profileData = (await profileRes.json()) as NaverProfileResponse;
@@ -137,27 +154,35 @@ export async function GET(req: Request) {
     const name = profileData.response?.name?.trim() || "네이버 사용자";
 
     if (!email) {
-      console.error("[naver/callback] profile response missing email", {
+      console.error("[naver/callback] profile fetch", {
         status: profileRes.status,
+        message: "missing email",
       });
-      return redirectToAuthFailed();
+      return redirectWithClearedState(siteOrigin, "/auth/login?error=auth_failed");
     }
 
     const authUser = await resolveAuthUser(email, name);
 
     if (!authUser) {
-      return redirectToAuthFailed();
+      return redirectWithClearedState(siteOrigin, "/auth/login?error=auth_failed");
     }
 
-    const { data: profile, error: profileError } = await supabaseAdmin
+    if (isAuthUserBanned(authUser)) {
+      return redirectWithClearedState(siteOrigin, "/auth/login?error=banned");
+    }
+
+    const { data: profile, error: profileError } = await adminSupabase
       .from("profiles")
       .select("deleted_at")
       .eq("id", authUser.id)
       .maybeSingle();
 
     if (profileError) {
-      console.error("[naver/callback] profile lookup failed");
-      return redirectToAuthFailed();
+      console.error("[naver/callback] profile lookup", {
+        status: 500,
+        message: "profile lookup failed",
+      });
+      return redirectWithClearedState(siteOrigin, "/auth/login?error=auth_failed");
     }
 
     if ((profile as { deleted_at: string | null } | null)?.deleted_at) {
@@ -167,27 +192,35 @@ export async function GET(req: Request) {
       });
 
       return redirectWithClearedState(
+        siteOrigin,
         `/auth/restore?s=${encodeURIComponent(sessionKey)}`,
       );
     }
 
-    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-      type: "magiclink",
-      email,
-    });
+    const { data: linkData, error: linkError } =
+      await adminSupabase.auth.admin.generateLink({
+        type: "magiclink",
+        email,
+      });
 
     if (linkError || !linkData?.properties.hashed_token) {
-      console.error("[naver/callback] magic link generation failed");
-      return redirectToAuthFailed();
+      console.error("[naver/callback] magic link", {
+        status: 500,
+        message: "magic link generation failed",
+      });
+      return redirectWithClearedState(siteOrigin, "/auth/login?error=auth_failed");
     }
 
-    const redirectUrl = new URL("/auth/callback", process.env.NEXT_PUBLIC_SITE_URL!);
+    const redirectUrl = new URL("/auth/callback", siteOrigin);
     redirectUrl.searchParams.set("type", "naver");
     redirectUrl.searchParams.set("token_hash", linkData.properties.hashed_token);
 
-    return redirectWithClearedState(redirectUrl.toString());
+    return redirectWithClearedState(siteOrigin, redirectUrl.toString());
   } catch {
-    console.error("[naver/callback] unexpected error");
-    return redirectToAuthFailed();
+    console.error("[naver/callback] oauth callback", {
+      status: 500,
+      message: "unexpected error",
+    });
+    return redirectWithClearedState(siteOrigin, "/auth/login?error=unknown");
   }
 }

@@ -15,6 +15,7 @@ import {
   ensureGeneralBriefingAdmin,
   fetchGeneralPostPageData,
 } from "@/features/briefing/services/briefing.general.post";
+import BriefingHtmlRenderer from "@/features/briefing/components/BriefingHtmlRenderer.client";
 import { Cover, cx } from "@/features/briefing/components/briefing.ui";
 import { redirect } from "next/navigation";
 import AdminPostActions from "@/features/briefing/components/AdminPostActions.client";
@@ -31,6 +32,7 @@ type PostRow = {
   slug: string;
   title: string;
   content_md: string | null;
+  content_html: string | null;
   created_at: string;
   published_at?: string | null;
   cover_image_url: string | null;
@@ -154,6 +156,7 @@ export default async function GeneralPostPage({
     slug: string;
     title: string;
     content_md: string | null;
+    content_html: string | null;
   }>;
 
   async function deletePostAction() {
@@ -219,11 +222,18 @@ export default async function GeneralPostPage({
               ) : null}
             </div>
             <div className={cx("ob-md", isAdmin ? "pt-14" : "")}>
-              <div className="prose max-w-none">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {post.content_md ?? ""}
-                </ReactMarkdown>
-              </div>
+              {post.content_html ? (
+                <BriefingHtmlRenderer
+                  html={post.content_html}
+                  className="prose max-w-none"
+                />
+              ) : (
+                <div className="prose max-w-none">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {post.content_md ?? ""}
+                  </ReactMarkdown>
+                </div>
+              )}
             </div>
           </div>
 

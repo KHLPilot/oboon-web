@@ -46,9 +46,9 @@ export default function LoginPage() {
     useState<FieldErrorState<LoginField>>(null);
 
   const fieldErrorTimerRef = useRef<number | null>(null);
+  const passwordInputRef = useRef<HTMLInputElement | null>(null);
 
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [inAppInfo, setInAppInfo] = useState<InAppBrowserInfo | null>(null);
@@ -57,7 +57,6 @@ export default function LoginPage() {
   const [restoreModalOpen, setRestoreModalOpen] = useState(false);
   const [deletedAccountInfo, setDeletedAccountInfo] = useState<{
     email: string;
-    restoreToken: string;
   } | null>(null);
 
   // 소셜 로그인 banned 시 이메일 입력 모달
@@ -121,7 +120,7 @@ export default function LoginPage() {
 
       if (data.isDeleted && data.restoreToken) {
         setBannedEmailModalOpen(false);
-        setDeletedAccountInfo({ email: bannedEmail, restoreToken: data.restoreToken });
+        setDeletedAccountInfo({ email: bannedEmail });
         setRestoreModalOpen(true);
       } else if (data.isBanned) {
         // banned지만 deleted가 아닌 경우 (관리자 밴)
@@ -130,8 +129,11 @@ export default function LoginPage() {
       } else {
         showAlert("해당 이메일로 탈퇴한 계정이 없습니다.");
       }
-    } catch (err) {
-      console.error("탈퇴 계정 확인 오류:", err);
+    } catch {
+      console.error("[login] deleted account check", {
+        status: 500,
+        message: "deleted account check failed",
+      });
       setError("계정 확인 중 오류가 발생했습니다.");
     } finally {
       setCheckingBanned(false);
@@ -200,10 +202,11 @@ export default function LoginPage() {
     clearFieldError();
 
     try {
+      const passwordValue = passwordInputRef.current?.value ?? "";
       const { data, error: loginError } =
         await supabase.auth.signInWithPassword({
           email,
-          password,
+          password: passwordValue,
         });
 
       if (loginError) {
@@ -216,7 +219,7 @@ export default function LoginPage() {
           const checkData = await checkDeletedAccount(email);
 
           if (checkData.isDeleted && checkData.restoreToken) {
-            setDeletedAccountInfo({ email, restoreToken: checkData.restoreToken });
+            setDeletedAccountInfo({ email });
             setRestoreModalOpen(true);
             setLoading(false);
             return;
@@ -251,10 +254,11 @@ export default function LoginPage() {
         } else if (isAbortLikeError(profileError)) {
           setError("네트워크가 일시적으로 불안정합니다. 잠시 후 다시 시도해주세요.");
         } else {
-          console.error("Profile Error Detail:", profileError);
-          setError(
-            `권한 오류: ${profileError.message} (관리자에게 문의하세요)`,
-          );
+          console.error("[login] profile lookup", {
+            status: 500,
+            message: "profile lookup failed",
+          });
+          setError("로그인 정보를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.");
         }
         setLoading(false);
         return;
@@ -289,11 +293,6 @@ export default function LoginPage() {
       }
 
       if (profile.role === "agent_pending") {
-        await supabase
-          .from("profiles")
-          .update({ role: "agent" })
-          .eq("id", data.user.id);
-
         router.replace(nextPath ?? "/");
         router.refresh();
         return;
@@ -324,18 +323,7 @@ export default function LoginPage() {
       setError(null);
       clearFieldError();
       trackEvent("login_click", { method: provider });
-
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: {
-          redirectTo: `${window.location.origin}/api/auth/google/callback`,
-        },
-      });
-
-      if (error) {
-        setError("소셜 로그인 중 오류가 발생했습니다.");
-        setLoading(false);
-      }
+      window.location.assign("/api/auth/google/login");
     } catch (err) {
       if (isAbortLikeError(err)) {
         setError("네트워크가 일시적으로 불안정합니다. 잠시 후 다시 시도해주세요.");
@@ -359,12 +347,17 @@ export default function LoginPage() {
   // 계정 복구 처리
   async function handleRestoreAccount() {
     if (!deletedAccountInfo) return;
+    const checkData = await checkDeletedAccount(deletedAccountInfo.email);
+
+    if (!checkData.isDeleted || !checkData.restoreToken) {
+      throw new Error("계정 복구 정보를 확인할 수 없습니다.");
+    }
 
     const res = await fetch("/api/auth/restore-account", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        restoreToken: deletedAccountInfo.restoreToken,
+        restoreToken: checkData.restoreToken,
         email: deletedAccountInfo.email,
       }),
     });
@@ -383,11 +376,16 @@ export default function LoginPage() {
   // 새로 가입 처리 (기존 계정 삭제)
   async function handleRecreateAccount() {
     if (!deletedAccountInfo) return;
+    const checkData = await checkDeletedAccount(deletedAccountInfo.email);
+
+    if (!checkData.isDeleted || !checkData.restoreToken) {
+      throw new Error("계정 처리 정보를 확인할 수 없습니다.");
+    }
 
     const res = await fetch("/api/auth/delete-and-recreate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ restoreToken: deletedAccountInfo.restoreToken }),
+      body: JSON.stringify({ restoreToken: checkData.restoreToken }),
     });
 
     const data = await res.json();
@@ -513,11 +511,10 @@ export default function LoginPage() {
                 <div>
                   <Label>비밀번호</Label>
                   <Input
+                    ref={passwordInputRef}
                     name="password"
                     type="password"
                     required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
                     placeholder={Copy.auth.placeholder.passwordConfirm}
                     autoComplete="current-password"
                     onFocus={clearFieldError}

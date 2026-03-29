@@ -1,0 +1,120 @@
+<h2>A안 상세 디자인</h2>
+<p class="subtitle">/briefing 메인 — 최종 구조 확인</p>
+
+<div class="mockup" style="max-width: 640px; margin: 0 auto;">
+  <div class="mockup-header">/briefing — 전체 페이지 (PageContainer 기준)</div>
+  <div class="mockup-body" style="background: #0f0f13; padding: 20px; display: flex; flex-direction: column; gap: 20px;">
+
+    <!-- 1. Hero -->
+    <div>
+      <div style="font-size: 10px; color: #555; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px;">① 오리지널 히어로 (featured 글)</div>
+      <div style="background: linear-gradient(135deg, #1a1a2e 0%, #2d2d5c 50%, #4a3f7a 100%); border-radius: 16px; height: 180px; position: relative; overflow: hidden;">
+        <div style="position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 60%);"></div>
+        <div style="position: absolute; bottom: 0; left: 0; right: 0; padding: 18px;">
+          <div style="background: #7c6ff7; border-radius: 20px; display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; font-size: 9px; color: white; margin-bottom: 6px;">
+            <span>★</span><span>OBOON Original · 청약 전략</span>
+          </div>
+          <div style="color: white; font-size: 15px; font-weight: 800; line-height: 1.3; margin-bottom: 6px;">2025년 청약 시장, 어디서 기회를 찾아야 할까</div>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="color: rgba(255,255,255,0.4); font-size: 10px;">2025.03.20</span>
+            <span style="background: white; border-radius: 20px; padding: 5px 14px; font-size: 11px; font-weight: 700; color: #1a1a2e;">읽어보기 →</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Original Categories -->
+    <div>
+      <div style="font-size: 10px; color: #555; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px;">② 오리지널 카테고리 그리드</div>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <div style="color: white; font-size: 13px; font-weight: 700;">OBOON Original</div>
+        <div style="color: #7c6ff7; font-size: 10px;">전체 보기 →</div>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+        <div style="background: #1e1e2a; border-radius: 10px; padding: 10px; border: 1px solid #2a2a3a;">
+          <div style="background: #2a2a3a; border-radius: 6px; height: 36px; margin-bottom: 6px;"></div>
+          <div style="color: #d0d0e0; font-size: 10px; font-weight: 600; margin-bottom: 2px;">부동산 기초</div>
+          <div style="color: #555; font-size: 9px;">글 12개</div>
+        </div>
+        <div style="background: #1e1e2a; border-radius: 10px; padding: 10px; border: 1px solid #2a2a3a;">
+          <div style="background: #2a2a3a; border-radius: 6px; height: 36px; margin-bottom: 6px;"></div>
+          <div style="color: #d0d0e0; font-size: 10px; font-weight: 600; margin-bottom: 2px;">청약 전략</div>
+          <div style="color: #555; font-size: 9px;">글 8개</div>
+        </div>
+        <div style="background: #1e1e2a; border-radius: 10px; padding: 10px; border: 1px solid #2a2a3a;">
+          <div style="background: #2a2a3a; border-radius: 6px; height: 36px; margin-bottom: 6px;"></div>
+          <div style="color: #d0d0e0; font-size: 10px; font-weight: 600; margin-bottom: 2px;">투자 분석</div>
+          <div style="color: #555; font-size: 9px;">글 5개</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- divider -->
+    <div style="border-top: 1px solid #2a2a3a;"></div>
+
+    <!-- 3. Search -->
+    <div>
+      <div style="font-size: 10px; color: #555; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px;">③ 검색바</div>
+      <div style="background: #1e1e2a; border: 1px solid #2a2a3a; border-radius: 10px; height: 38px; display: flex; align-items: center; padding: 0 12px; gap: 8px;">
+        <span style="color: #444; font-size: 12px;">🔍</span>
+        <span style="color: #444; font-size: 11px;">브리핑 검색...</span>
+      </div>
+    </div>
+
+    <!-- 4. General Briefing -->
+    <div>
+      <div style="font-size: 10px; color: #555; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px;">④ 일반 브리핑</div>
+      <div style="margin-bottom: 12px;">
+        <div style="color: white; font-size: 13px; font-weight: 700; margin-bottom: 2px;">일반 브리핑</div>
+        <div style="color: #555; font-size: 10px;">단일 주제로 정리된 최신 브리핑 글입니다.</div>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        <div style="background: #1e1e2a; border-radius: 10px; padding: 10px; border: 1px solid #2a2a3a; height: 70px; display: flex; gap: 8px;">
+          <div style="flex: 1;">
+            <div style="background: #2a2a3a; border-radius: 4px; height: 8px; width: 40px; margin-bottom: 6px;"></div>
+            <div style="background: #2a2a3a; border-radius: 4px; height: 8px; width: 80%; margin-bottom: 4px;"></div>
+            <div style="background: #2a2a3a; border-radius: 4px; height: 6px; width: 60%;"></div>
+          </div>
+          <div style="width: 48px; background: #2a2a3a; border-radius: 6px; flex-shrink: 0;"></div>
+        </div>
+        <div style="background: #1e1e2a; border-radius: 10px; padding: 10px; border: 1px solid #2a2a3a; height: 70px; display: flex; gap: 8px;">
+          <div style="flex: 1;">
+            <div style="background: #2a2a3a; border-radius: 4px; height: 8px; width: 40px; margin-bottom: 6px;"></div>
+            <div style="background: #2a2a3a; border-radius: 4px; height: 8px; width: 80%; margin-bottom: 4px;"></div>
+            <div style="background: #2a2a3a; border-radius: 4px; height: 6px; width: 60%;"></div>
+          </div>
+          <div style="width: 48px; background: #2a2a3a; border-radius: 6px; flex-shrink: 0;"></div>
+        </div>
+        <div style="background: #1e1e2a; border-radius: 10px; padding: 10px; border: 1px solid #2a2a3a; height: 70px; display: flex; gap: 8px;">
+          <div style="flex: 1;">
+            <div style="background: #2a2a3a; border-radius: 4px; height: 8px; width: 40px; margin-bottom: 6px;"></div>
+            <div style="background: #2a2a3a; border-radius: 4px; height: 8px; width: 80%; margin-bottom: 4px;"></div>
+            <div style="background: #2a2a3a; border-radius: 4px; height: 6px; width: 60%;"></div>
+          </div>
+          <div style="width: 48px; background: #2a2a3a; border-radius: 6px; flex-shrink: 0;"></div>
+        </div>
+        <div style="background: #1e1e2a; border-radius: 10px; padding: 10px; border: 1px solid #2a2a3a; height: 70px; display: flex; gap: 8px;">
+          <div style="flex: 1;">
+            <div style="background: #2a2a3a; border-radius: 4px; height: 8px; width: 40px; margin-bottom: 6px;"></div>
+            <div style="background: #2a2a3a; border-radius: 4px; height: 8px; width: 80%; margin-bottom: 4px;"></div>
+            <div style="background: #2a2a3a; border-radius: 4px; height: 6px; width: 60%;"></div>
+          </div>
+          <div style="width: 48px; background: #2a2a3a; border-radius: 6px; flex-shrink: 0;"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="section" style="margin-top: 24px;">
+  <h3>변경 사항 요약</h3>
+  <ul style="color: var(--text-secondary); font-size: 14px; line-height: 2;">
+    <li>① 히어로: 기존 <code>BriefingHeroPost</code> 유지 — oboon_original 글만 노출하도록 필터</li>
+    <li>② 오리지널 카테고리 그리드: <code>BriefingOriginalCard</code> 재활용, 새 섹션 추가</li>
+    <li>③ 검색바: 기존 위치에서 오리지널 섹션 아래로 이동</li>
+    <li>④ 일반 브리핑: 기존 <code>BriefingCardGrid</code> 그대로 유지</li>
+    <li><code>fetchBriefingHomeData</code>에 카테고리 데이터 추가 필요</li>
+    <li><code>/briefing/oboon-original</code> 페이지는 그대로 유지 (카테고리 → 상세 진입 경로)</li>
+  </ul>
+</div>

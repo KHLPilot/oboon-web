@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { trackEvent } from "@/lib/analytics";
+import { maskEmailAddress } from "@/lib/masking";
 import {
   sanitizeInput,
   validateName,
@@ -46,7 +47,8 @@ export default function SignupProfileClient() {
   const [checking, setChecking] = useState(true);
   const [verified, setVerified] = useState(false);
 
-  const [autoSigningIn, setAutoSigningIn] = useState(false);
+  const [sessionReady, setSessionReady] = useState(false);
+  const [sessionMismatch, setSessionMismatch] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fatalError, setFatalError] = useState<string | null>(null);
 
@@ -90,7 +92,8 @@ export default function SignupProfileClient() {
   async function openTermModal(termType: string) {
     setTermLoading(true);
     try {
-      const res = await fetch(`/api/terms?type=${termType}`);
+      const params = new URLSearchParams({ type: termType });
+      const res = await fetch(`/api/terms?${params.toString()}`);
       const data = await res.json();
       if (res.ok && data.terms && data.terms.length > 0) {
         const term = data.terms[0];
@@ -100,8 +103,11 @@ export default function SignupProfileClient() {
           content: term.content,
         });
       }
-    } catch (err) {
-      console.error("약관 조회 오류:", err);
+    } catch {
+      console.error("[signup-profile] term load", {
+        status: 500,
+        message: "term load failed",
+      });
     } finally {
       setTermLoading(false);
     }
@@ -150,9 +156,15 @@ export default function SignupProfileClient() {
   const clearFieldError = () => setFieldError(null);
 
   const canSubmit = useMemo(
-    () => verified && Boolean(email),
-    [verified, email],
+    () => verified && sessionReady && Boolean(email),
+    [verified, sessionReady, email],
   );
+  const maskedEmail = maskEmailAddress(email);
+  const loginRedirectPath = useMemo(() => {
+    if (!token || !emailFromQuery) return "/auth/login";
+    const next = `/auth/signup/profile?token=${encodeURIComponent(token)}&email=${encodeURIComponent(emailFromQuery)}`;
+    return `/auth/login?next=${encodeURIComponent(next)}`;
+  }, [emailFromQuery, token]);
 
   const setSanitized =
     (field: "name" | "nickname" | "phone") =>
@@ -256,54 +268,42 @@ export default function SignupProfileClient() {
     };
   }, [token]);
 
-  // 2) verified면 Step1에서 저장한 email/pw로 자동 로그인 시도
+  // 2) verified면 현재 세션이 일치하는지 확인
   useEffect(() => {
     let ignore = false;
 
     (async () => {
       if (!verified) return;
-
-      let ssEmail: string | null = null;
-      let ssPw: string | null = null;
-
-      try {
-        ssEmail = sessionStorage.getItem("oboon_signup_email");
-        ssPw = sessionStorage.getItem("oboon_signup_pw");
-      } catch {
-        // ignore
-      }
-
-      const effectiveEmail = ssEmail ?? emailFromQuery ?? null;
+      const effectiveEmail = emailFromQuery?.trim().toLowerCase() ?? null;
       setEmail(effectiveEmail);
 
-      // password 없으면 자동 로그인 불가
-      if (!effectiveEmail || !ssPw) return;
-
-      setAutoSigningIn(true);
-
       try {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: effectiveEmail,
-          password: ssPw,
-        });
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
         if (ignore) return;
 
-        if (error) {
-          setFatalError(
-            "자동 로그인에 실패했습니다. 로그인 후 다시 진행해주세요.",
-          );
+        if (!user?.email || !effectiveEmail) {
+          setSessionReady(false);
+          setSessionMismatch(false);
           return;
         }
 
-        // 로그인 성공 즉시 pw 삭제
-        try {
-          sessionStorage.removeItem("oboon_signup_pw");
-        } catch {
-          // ignore
+        const sessionEmail = user.email.trim().toLowerCase();
+        const isMatchingSession = sessionEmail === effectiveEmail;
+
+        setSessionReady(isMatchingSession);
+        setSessionMismatch(!isMatchingSession);
+
+        if (isMatchingSession) {
+          setEmail(user.email ?? effectiveEmail);
         }
-      } finally {
-        if (!ignore) setAutoSigningIn(false);
+      } catch {
+        if (ignore) return;
+        setSessionReady(false);
+        setSessionMismatch(false);
+        setFatalError("세션 확인 중 오류가 발생했습니다. 다시 로그인해주세요.");
       }
     })();
 
@@ -311,6 +311,13 @@ export default function SignupProfileClient() {
       ignore = true;
     };
   }, [verified, emailFromQuery, supabase]);
+
+  async function handleContinueWithLogin() {
+    if (sessionMismatch) {
+      await supabase.auth.signOut();
+    }
+    router.push(loginRedirectPath);
+  }
 
   const bubbleId = "signup-profile-field-error";
 
@@ -462,19 +469,15 @@ export default function SignupProfileClient() {
             context: "signup",
           }),
         });
-      } catch (consentErr) {
+      } catch {
         // 동의 기록 실패해도 회원가입은 진행 (나중에 재시도 가능)
-        console.error("약관 동의 기록 오류:", consentErr);
+        console.error("[signup-profile] term consent save", {
+          status: 500,
+          message: "term consent save failed",
+        });
       }
 
       trackEvent("signup_complete", { user_type: userType });
-
-      // cleanup
-      try {
-        sessionStorage.removeItem("oboon_signup_email");
-      } catch {
-        // ignore
-      }
 
       router.replace("/");
       router.refresh();
@@ -506,7 +509,7 @@ export default function SignupProfileClient() {
             </p>
             {email ? (
               <p className="mt-4 ob-typo-body text-(--oboon-text-title)">
-                {email}
+                {maskedEmail}
               </p>
             ) : null}
           </div>
@@ -536,13 +539,28 @@ export default function SignupProfileClient() {
                 </div>
               ) : (
                 <>
-                  {autoSigningIn ? (
+                  {!sessionReady ? (
                     <div className="text-center ob-typo-h4 text-(--oboon-text-title)">
-                      자동 로그인 중...
+                      {sessionMismatch
+                        ? "다른 계정으로 로그인되어 있습니다."
+                        : "이메일 인증이 완료되었습니다. 계속하려면 로그인해주세요."}
+                      <div className="mt-3">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="md"
+                          shape="pill"
+                          className="w-full justify-center border border-(--oboon-border-default)"
+                          onClick={handleContinueWithLogin}
+                        >
+                          {sessionMismatch
+                            ? "다른 계정으로 로그인"
+                            : "로그인 후 계속하기"}
+                        </Button>
+                      </div>
                     </div>
-                  ) : null}
-
-                  <form onSubmit={handleSubmit} className="space-y-4">
+                  ) : (
+                    <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
                       <Label>이름 (실명) *</Label>
                       <Input
@@ -879,7 +897,7 @@ export default function SignupProfileClient() {
                     </Button>
 
                     <div className="pt-1 text-center ob-typo-body text-(--oboon-text-muted)">
-                      자동 로그인이 되지 않으면 <br />
+                      세션이 만료되면 <br />
                       <button
                         type="button"
                         className="
@@ -892,13 +910,14 @@ export default function SignupProfileClient() {
                           hover:text-(--oboon-primary-hover)
                           transition-colors
                         "
-                        onClick={() => router.push("/auth/login")}
+                        onClick={handleContinueWithLogin}
                       >
                         로그인
                       </button>
                       후 다시 진행해주세요.
                     </div>
-                  </form>
+                    </form>
+                  )}
                 </>
               )}
             </Card>

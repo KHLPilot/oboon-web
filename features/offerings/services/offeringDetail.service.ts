@@ -1,12 +1,14 @@
-import { createSupabaseServer } from "@/lib/supabaseServer";
+import "server-only";
+
 import type { PropertyRow } from "@/features/offerings/domain/offeringDetail.types";
-import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import {
   AppError,
   ERR,
   ServiceResult,
   createSupabaseServiceError,
 } from "@/lib/errors";
+import { createServiceAdminClient } from "@/lib/services/supabase-admin";
+import { createServiceServerClient } from "@/lib/services/supabase-server";
 
 type RecordValue = Record<string, unknown>;
 const isRecord = (value: unknown): value is RecordValue =>
@@ -128,7 +130,7 @@ const isPropertyRow = (value: unknown): value is PropertyRow =>
 
 function createOfferingAdminClient() {
   try {
-    return createSupabaseAdminClient();
+    return createServiceAdminClient();
   } catch {
     return null;
   }
@@ -137,7 +139,7 @@ function createOfferingAdminClient() {
 export async function fetchOfferingDetail(
   id: number,
 ): Promise<PropertyRow | null> {
-  const supabase = await createSupabaseServer();
+  const supabase = await createServiceServerClient();
 
   const { data: snapshotRow, error } = await supabase
     .from("property_public_snapshots")
@@ -230,7 +232,7 @@ export async function fetchOfferingDetail(
 
 // 해당 현장에 승인된 상담사가 있는지 확인
 export async function hasApprovedAgent(propertyId: number): Promise<boolean> {
-  const supabase = await createSupabaseServer();
+  const supabase = await createServiceServerClient();
   const { count, error } = await supabase
     .from("property_agents")
     .select("id", { count: "exact", head: true })

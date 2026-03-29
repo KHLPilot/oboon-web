@@ -1,4 +1,5 @@
-import { createClient } from "@supabase/supabase-js";
+import "server-only";
+
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   BatchStats,
@@ -23,6 +24,7 @@ import {
 } from "@/features/reco/constants/highSpeedRailMap";
 import { canonicalizeSubwayLine } from "@/features/reco/constants/subwayIconMap";
 import { AppError, ERR, createSupabaseServiceError, toAppError } from "@/lib/errors";
+import { createServiceAdminClient } from "@/lib/services/supabase-admin";
 
 const FETCH_CATEGORIES: Array<"SUBWAY" | "SCHOOL" | "HOSPITAL"> = [
   "SUBWAY",
@@ -987,7 +989,7 @@ export async function runRecoPoiForProperty(input: {
 
   const topN = Math.max(1, Math.min(10, input.topN ?? DEFAULT_TOP_N));
   const radius = Math.max(100, Math.min(20000, input.radius ?? DEFAULT_RADIUS));
-  const supabase = createClient(url, serviceKey);
+  const supabase = createServiceAdminClient();
   const stats = buildEmptyStats();
 
   const { data: location, error: locationError } = await supabase
@@ -1098,7 +1100,7 @@ export async function runRecoPoiBatch(input?: {
   const radius = Math.max(100, Math.min(20000, input?.radius ?? DEFAULT_RADIUS));
   const concurrency = Math.max(1, input?.concurrency ?? DEFAULT_CONCURRENCY);
 
-  const supabase = createClient(url, serviceKey);
+  const supabase = createServiceAdminClient();
   const stats = buildEmptyStats();
 
   const nowIso = new Date().toISOString();

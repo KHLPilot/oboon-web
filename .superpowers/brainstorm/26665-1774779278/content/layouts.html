@@ -1,0 +1,105 @@
+<h2>브리핑 메인 페이지 레이아웃</h2>
+<p class="subtitle">오리지널 상단 + 일반 브리핑 하단 통합 구조 — 3가지 방향</p>
+
+<div class="cards">
+
+  <!-- Option A -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 16px; background: #0f0f13;">
+      <!-- Hero full-width -->
+      <div style="background: linear-gradient(135deg, #1a1a2e, #4a3f7a); border-radius: 10px; height: 80px; margin-bottom: 8px; display: flex; align-items: flex-end; padding: 10px;">
+        <div>
+          <div style="background: #7c6ff7; border-radius: 20px; display: inline-block; padding: 2px 8px; font-size: 9px; color: white; margin-bottom: 4px;">★ OBOON Original</div>
+          <div style="color: white; font-size: 11px; font-weight: bold;">분양 시장의 흐름을 읽는 법</div>
+        </div>
+      </div>
+      <!-- Category cards 2열 -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; margin-bottom: 8px;">
+        <div style="background: #1e1e2a; border-radius: 6px; padding: 6px; height: 36px; font-size: 8px; color: #9090a0;">부동산 기초</div>
+        <div style="background: #1e1e2a; border-radius: 6px; padding: 6px; height: 36px; font-size: 8px; color: #9090a0;">청약 전략</div>
+        <div style="background: #1e1e2a; border-radius: 6px; padding: 6px; height: 36px; font-size: 8px; color: #9090a0;">투자 분석</div>
+      </div>
+      <!-- Divider -->
+      <div style="border-top: 1px solid #2a2a3a; margin: 6px 0; padding-top: 6px; font-size: 8px; color: #666; margin-bottom: 5px;">일반 브리핑</div>
+      <!-- General cards -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px;">
+        <div style="background: #1e1e2a; border-radius: 6px; height: 30px;"></div>
+        <div style="background: #1e1e2a; border-radius: 6px; height: 30px;"></div>
+        <div style="background: #1e1e2a; border-radius: 6px; height: 30px;"></div>
+        <div style="background: #1e1e2a; border-radius: 6px; height: 30px;"></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 풀 히어로 + 카테고리 그리드</h3>
+      <p>풀 와이드 히어로 배너 → 카테고리 카드 3열 → 구분선 → 일반 브리핑. 오리지널의 존재감이 가장 강하고 웅장한 느낌. 현재 구조에서 가장 자연스럽게 확장.</p>
+    </div>
+  </div>
+
+  <!-- Option B -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 16px; background: #0f0f13;">
+      <!-- Split hero -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; height: 80px;">
+        <div style="background: linear-gradient(135deg, #1a1a2e, #4a3f7a); border-radius: 8px; padding: 8px; display: flex; flex-direction: column; justify-content: flex-end;">
+          <div style="background: #7c6ff7; border-radius: 20px; display: inline-block; padding: 1px 6px; font-size: 8px; color: white; margin-bottom: 3px; width: fit-content;">OBOON Original</div>
+          <div style="color: white; font-size: 9px; font-weight: bold; line-height: 1.3;">분양 시장의<br/>흐름을 읽는 법</div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <div style="background: #1e1e2a; border-radius: 6px; flex: 1; padding: 6px; font-size: 8px; color: #9090a0;">부동산 기초 →</div>
+          <div style="background: #1e1e2a; border-radius: 6px; flex: 1; padding: 6px; font-size: 8px; color: #9090a0;">청약 전략 →</div>
+          <div style="background: #1e1e2a; border-radius: 6px; flex: 1; padding: 6px; font-size: 8px; color: #9090a0;">투자 분석 →</div>
+        </div>
+      </div>
+      <!-- Divider -->
+      <div style="border-top: 1px solid #2a2a3a; margin: 4px 0; padding-top: 5px; font-size: 8px; color: #666; margin-bottom: 5px;">일반 브리핑</div>
+      <!-- General cards -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px;">
+        <div style="background: #1e1e2a; border-radius: 6px; height: 28px;"></div>
+        <div style="background: #1e1e2a; border-radius: 6px; height: 28px;"></div>
+        <div style="background: #1e1e2a; border-radius: 6px; height: 28px;"></div>
+        <div style="background: #1e1e2a; border-radius: 6px; height: 28px;"></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 스플릿 히어로 (글 + 카테고리 나란히)</h3>
+      <p>좌측엔 featured 오리지널 글, 우측엔 카테고리 리스트를 한 블록에 담음. 컴팩트하고 정보 밀도가 높음. 스크롤 없이 오리지널 전체 구조가 보임.</p>
+    </div>
+  </div>
+
+  <!-- Option C -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 16px; background: #0f0f13;">
+      <!-- Compact featured -->
+      <div style="background: linear-gradient(135deg, #1a1a2e, #4a3f7a); border-radius: 10px; height: 60px; margin-bottom: 8px; display: flex; align-items: flex-end; padding: 8px;">
+        <div>
+          <div style="background: #7c6ff7; border-radius: 20px; display: inline-block; padding: 1px 6px; font-size: 8px; color: white; margin-bottom: 3px;">★ OBOON Original</div>
+          <div style="color: white; font-size: 10px; font-weight: bold;">분양 시장의 흐름을 읽는 법</div>
+        </div>
+      </div>
+      <!-- Horizontal scroll categories -->
+      <div style="display: flex; gap: 5px; overflow: hidden; margin-bottom: 8px;">
+        <div style="background: #1e1e2a; border-radius: 20px; padding: 4px 10px; font-size: 8px; color: #9090a0; white-space: nowrap; flex-shrink: 0;">부동산 기초</div>
+        <div style="background: #7c6ff7; border-radius: 20px; padding: 4px 10px; font-size: 8px; color: white; white-space: nowrap; flex-shrink: 0;">청약 전략</div>
+        <div style="background: #1e1e2a; border-radius: 20px; padding: 4px 10px; font-size: 8px; color: #9090a0; white-space: nowrap; flex-shrink: 0;">투자 분석</div>
+        <div style="background: #1e1e2a; border-radius: 20px; padding: 4px 10px; font-size: 8px; color: #9090a0; white-space: nowrap; flex-shrink: 0;">세금</div>
+      </div>
+      <!-- Recent originals 가로 스크롤 -->
+      <div style="display: flex; gap: 5px; overflow: hidden; margin-bottom: 8px;">
+        <div style="background: #1e1e2a; border-radius: 8px; width: 70px; height: 50px; flex-shrink: 0;"></div>
+        <div style="background: #1e1e2a; border-radius: 8px; width: 70px; height: 50px; flex-shrink: 0;"></div>
+        <div style="background: #1e1e2a; border-radius: 8px; width: 70px; height: 50px; flex-shrink: 0;"></div>
+      </div>
+      <!-- Divider -->
+      <div style="border-top: 1px solid #2a2a3a; margin: 4px 0; padding-top: 5px; font-size: 8px; color: #666; margin-bottom: 5px;">일반 브리핑</div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px;">
+        <div style="background: #1e1e2a; border-radius: 6px; height: 28px;"></div>
+        <div style="background: #1e1e2a; border-radius: 6px; height: 28px;"></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. 컴팩트 히어로 + 가로 스크롤</h3>
+      <p>히어로를 얇게 줄이고, 카테고리 칩 + 최신 오리지널 글을 가로 스크롤로. 모바일 친화적이고 경쾌한 느낌. 한 화면에 더 많은 콘텐츠.</p>
+    </div>
+  </div>
+
+</div>

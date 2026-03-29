@@ -4,6 +4,7 @@ import React, { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { createSupabaseClient } from "@/lib/supabaseClient";
+import { maskEmailAddress } from "@/lib/masking";
 import {
   sanitizeInput,
   validateName,
@@ -203,6 +204,7 @@ export default function OnboardingPage() {
   }, [supabase, router]);
 
   const canSubmit = useMemo(() => Boolean(userId && email), [userId, email]);
+  const maskedEmail = maskEmailAddress(email);
 
   // 다른 계정으로 로그인 (로그아웃)
   async function handleSwitchAccount() {
@@ -214,7 +216,8 @@ export default function OnboardingPage() {
   async function openTermDetail(type: string, title: string) {
     setTermLoading(true);
     try {
-      const res = await fetch(`/api/terms?type=${type}`);
+      const params = new URLSearchParams({ type });
+      const res = await fetch(`/api/terms?${params.toString()}`);
       const { terms } = await res.json();
       if (terms?.[0]) {
         setTermModal({ title, content: terms[0].content });
@@ -390,7 +393,9 @@ export default function OnboardingPage() {
             </p>
             {email ? (
               <div className="mt-4">
-                <p className="ob-typo-body text-(--oboon-text-title)">{email}</p>
+                <p className="ob-typo-body text-(--oboon-text-title)">
+                  {maskedEmail}
+                </p>
                 <button
                   type="button"
                   className="mt-2 ob-typo-caption text-(--oboon-text-muted) underline underline-offset-4 hover:text-(--oboon-primary) transition-colors"
@@ -411,7 +416,7 @@ export default function OnboardingPage() {
                 <div>
                   <Label>이메일 주소</Label>
                   <Input
-                    value={email}
+                    value={maskedEmail}
                     disabled
                     className="bg-(--oboon-bg-subtle) text-(--oboon-text-muted)"
                   />

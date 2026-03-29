@@ -53,6 +53,13 @@ function createLimiter(
 /** 인증/검증 엔드포인트: IP당 분당 5회 */
 export const authLimiter = createLimiter("rl:auth", 5, "1 m");
 
+/** OAuth 콜백: IP당 분당 5회 */
+export const oauthCallbackIpLimiter = createLimiter(
+  "rl:auth:oauth-callback",
+  5,
+  "1 m",
+);
+
 /** 이메일 인증 폴링: IP당 분당 20회 (3초 간격 폴링 허용) */
 export const verificationLimiter = createLimiter("rl:verification", 20, "1 m");
 
@@ -78,6 +85,13 @@ export const restoreAccountIpLimiter = createLimiter(
   "rl:auth:restore-account",
   5,
   "1 m",
+);
+
+/** 계정 복구: 이메일당 10분당 5회 */
+export const restoreAccountEmailLimiter = createLimiter(
+  "rl:auth:restore-account-email",
+  5,
+  "10 m",
 );
 
 /** 복구 세션 생성/조회: IP당 분당 10회 */

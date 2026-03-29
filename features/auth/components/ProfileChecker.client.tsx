@@ -74,7 +74,10 @@ export default function ProfileChecker() {
         }
       } catch (err) {
         if (isAbortLikeError(err)) return;
-        console.error("프로필 확인 오류:", err);
+        console.error("[profile-checker] profile check", {
+          status: 500,
+          message: "profile check failed",
+        });
       }
     }
 

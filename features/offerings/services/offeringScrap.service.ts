@@ -52,10 +52,7 @@ export async function getScrapedOfferings(
     .eq("profile_id", profileId)
     .order("created_at", { ascending: false });
 
-  if (scrapError) {
-    console.error("offering_scraps load error:", scrapError.message);
-    return [];
-  }
+  if (scrapError) return [];
 
   if (!scraps || scraps.length === 0) return [];
 
@@ -67,10 +64,7 @@ export async function getScrapedOfferings(
     .select("property_id, snapshot")
     .in("property_id", ids);
 
-  if (snapError) {
-    console.error("property_public_snapshots load error:", snapError.message);
-    return [];
-  }
+  if (snapError) return [];
 
   // 3) 찜 순서(최신순) 유지하며 스냅샷 매핑
   const snapshotMap = new Map<number, unknown>(

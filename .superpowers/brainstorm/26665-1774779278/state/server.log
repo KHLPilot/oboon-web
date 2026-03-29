@@ -1,0 +1,6 @@
+{"type":"server-started","port":53368,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:53368","screen_dir":"/Users/songzo/KHL_Pilot/oboon-web/.superpowers/brainstorm/26665-1774779278/content","state_dir":"/Users/songzo/KHL_Pilot/oboon-web/.superpowers/brainstorm/26665-1774779278/state"}
+{"type":"screen-added","file":"/Users/songzo/KHL_Pilot/oboon-web/.superpowers/brainstorm/26665-1774779278/content/layouts.html"}
+{"type":"screen-added","file":"/Users/songzo/KHL_Pilot/oboon-web/.superpowers/brainstorm/26665-1774779278/content/design-detail.html"}
+{"type":"screen-added","file":"/Users/songzo/KHL_Pilot/oboon-web/.superpowers/brainstorm/26665-1774779278/content/editor-layouts.html"}
+{"type":"screen-added","file":"/Users/songzo/KHL_Pilot/oboon-web/.superpowers/brainstorm/26665-1774779278/content/editor-detail.html"}
+{"type":"server-stopped","reason":"owner process exited"}

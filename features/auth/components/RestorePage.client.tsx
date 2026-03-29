@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
+import { maskEmailAddress } from "@/lib/masking";
 import { showAlert } from "@/shared/alert";
 import { toKoreanErrorMessage } from "@/shared/errorMessage";
 import { RefreshCw, UserPlus } from "lucide-react";
@@ -17,14 +18,74 @@ export default function RestorePage() {
   const restoreSessionKey = searchParams.get("s") || "";
   const restoreTokenParam = searchParams.get("restoreToken") || "";
   const emailParam = searchParams.get("email") || "";
+  const legacyRestoreTokenRef = useRef(restoreTokenParam);
 
-  const [restoreToken, setRestoreToken] = useState(restoreTokenParam);
   const [email, setEmail] = useState(emailParam);
   const [loading, setLoading] = useState(false);
   const [resolvingToken, setResolvingToken] = useState(
     Boolean(restoreSessionKey) || (!restoreTokenParam && Boolean(emailParam)),
   );
   const [error, setError] = useState<string | null>(null);
+  const maskedEmail = maskEmailAddress(email);
+
+  async function resolveRestoreCredentials() {
+    if (restoreSessionKey) {
+      const res = await fetch("/api/auth/restore-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionKey: restoreSessionKey }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "계정 정보를 확인할 수 없습니다.");
+      }
+
+      const nextEmail = typeof data?.email === "string" ? data.email : "";
+      const restoreToken =
+        typeof data?.restoreToken === "string" ? data.restoreToken : "";
+
+      if (!nextEmail || !restoreToken) {
+        throw new Error("계정 정보가 만료되었습니다. 다시 로그인해주세요.");
+      }
+
+      return { email: nextEmail, restoreToken };
+    }
+
+    if (legacyRestoreTokenRef.current && emailParam) {
+      return {
+        email: emailParam,
+        restoreToken: legacyRestoreTokenRef.current,
+      };
+    }
+
+    if (!emailParam) {
+      throw new Error("계정 정보가 없습니다. 다시 로그인해주세요.");
+    }
+
+    const res = await fetch("/api/auth/check-deleted-account", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: emailParam }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.error || "계정 정보를 확인할 수 없습니다.");
+    }
+
+    const restoreToken =
+      typeof data?.restoreToken === "string" ? data.restoreToken : "";
+
+    if (!Boolean(data?.isDeleted) || !restoreToken) {
+      throw new Error("계정 정보가 만료되었습니다. 다시 로그인해주세요.");
+    }
+
+    return {
+      email: emailParam,
+      restoreToken,
+    };
+  }
 
   useEffect(() => {
     if (restoreSessionKey) {
@@ -47,9 +108,6 @@ export default function RestorePage() {
 
           if (!ignore) {
             setEmail(typeof data?.email === "string" ? data.email : "");
-            setRestoreToken(
-              typeof data?.restoreToken === "string" ? data.restoreToken : "",
-            );
           }
         } catch (err: unknown) {
           if (!ignore) {
@@ -75,9 +133,11 @@ export default function RestorePage() {
     }
 
     if (restoreTokenParam) {
-      setRestoreToken(restoreTokenParam);
       setEmail(emailParam);
       setResolvingToken(false);
+      if (emailParam) {
+        router.replace(`/auth/restore?email=${encodeURIComponent(emailParam)}`);
+      }
       return;
     }
 
@@ -104,16 +164,16 @@ export default function RestorePage() {
         }
 
         if (!ignore) {
-          const nextRestoreToken =
-            typeof data?.restoreToken === "string" ? data.restoreToken : "";
-
-          if (!nextRestoreToken) {
+          if (
+            !Boolean(data?.isDeleted) ||
+            typeof data?.restoreToken !== "string" ||
+            !data.restoreToken
+          ) {
             setError("계정 정보가 만료되었습니다. 다시 로그인해주세요.");
             return;
           }
 
           setEmail(emailParam);
-          setRestoreToken(nextRestoreToken);
         }
       } catch (err: unknown) {
         if (!ignore) {
@@ -131,21 +191,23 @@ export default function RestorePage() {
     return () => {
       ignore = true;
     };
-  }, [restoreSessionKey, restoreTokenParam, emailParam]);
+  }, [restoreSessionKey, restoreTokenParam, emailParam, router]);
 
   // 계정 복구
   async function handleRestore() {
-    if (!restoreToken || !email) {
+    if (!email) {
       setError("계정 정보가 없습니다. 다시 로그인해주세요.");
       return;
     }
 
     setLoading(true);
     try {
+      const { restoreToken, email: resolvedEmail } =
+        await resolveRestoreCredentials();
       const res = await fetch("/api/auth/restore-account", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ restoreToken, email }),
+        body: JSON.stringify({ restoreToken, email: resolvedEmail }),
       });
 
       const data = await res.json();
@@ -165,13 +227,14 @@ export default function RestorePage() {
 
   // 새로 가입 (기존 데이터 삭제)
   async function handleRecreate() {
-    if (!restoreToken) {
+    if (!email) {
       setError("계정 정보가 없습니다. 다시 로그인해주세요.");
       return;
     }
 
     setLoading(true);
     try {
+      const { restoreToken } = await resolveRestoreCredentials();
       const res = await fetch("/api/auth/delete-and-recreate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -207,7 +270,7 @@ export default function RestorePage() {
     );
   }
 
-  if (!restoreToken || !email) {
+  if (!email) {
     return (
       <main className="min-h-dvh bg-(--oboon-bg-page) text-(--oboon-text-title)">
         <PageContainer variant="full">
@@ -238,7 +301,7 @@ export default function RestorePage() {
               탈퇴한 계정입니다
             </div>
             <p className="mt-2 ob-typo-body text-(--oboon-text-muted)">
-              {email ? `${email}` : "이 계정"}은 이전에 탈퇴 처리되었습니다.
+              {maskedEmail || "이 계정"}은 이전에 탈퇴 처리되었습니다.
               <br />
               어떻게 진행하시겠습니까?
             </p>

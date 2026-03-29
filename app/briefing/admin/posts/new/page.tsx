@@ -38,7 +38,7 @@ export default async function BriefingPostNewPage() {
     category_id: string;
     title: string;
     cover_image_url: string;
-    content_md: string;
+    content_html: string;
     intent: "draft" | "publish";
     tag_id: string | null; // 단일 태그
   }): Promise<
@@ -58,7 +58,7 @@ export default async function BriefingPostNewPage() {
       const categoryId = String(input.category_id ?? "").trim();
       const title = String(input.title ?? "").trim();
       const coverImageUrl = String(input.cover_image_url ?? "").trim();
-      const contentMd = String(input.content_md ?? "");
+      const contentHtml = String(input.content_html ?? "");
       const intent = input.intent;
       const tagId = input.tag_id ? String(input.tag_id).trim() : null;
 
@@ -73,7 +73,7 @@ export default async function BriefingPostNewPage() {
         boardId,
         categoryId,
         title,
-        contentMd,
+        contentHtml,
         coverImageUrl,
         intent,
         tagId,

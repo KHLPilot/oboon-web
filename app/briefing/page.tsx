@@ -1,10 +1,14 @@
 // app/briefing/page.tsx
+import Link from "next/link";
+
 import PageContainer from "@/components/shared/PageContainer";
 
 import { fetchBriefingHomeData } from "@/features/briefing/services/briefing.home";
-import BriefingHeroPost from "@/features/briefing/components/BriefingHeroPost";
+import { fetchOboonOriginalPageData } from "@/features/briefing/services/briefing.original";
 import BriefingSearchInput from "@/features/briefing/components/BriefingSearchInput";
 import BriefingCardGrid from "@/features/briefing/components/BriefingCardGrid";
+import FeaturedHero from "@/features/briefing/components/oboon-original/FeaturedHero";
+import BriefingOriginalCard from "@/features/briefing/components/oboon-original/BriefingOriginalCard";
 
 type PostRow = {
   id: string;
@@ -78,6 +82,12 @@ function pickName(
   return Array.isArray(v) ? (v?.[0]?.name ?? null) : (v?.name ?? null);
 }
 
+type CategoryRow = {
+  id: string;
+  key: string;
+  name: string;
+};
+
 export default async function BriefingPage({
   searchParams,
 }: {
@@ -86,15 +96,61 @@ export default async function BriefingPage({
   const { page: pageParam } = await searchParams;
   const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
 
-  const { isAdmin, heroPost, generalPosts, generalTotalCount, pageSize } =
-    await fetchBriefingHomeData(page);
+  const [homeData, originalData] = await Promise.all([
+    fetchBriefingHomeData(page),
+    fetchOboonOriginalPageData(),
+  ]);
+
+  const { isAdmin, generalPosts, generalTotalCount, pageSize } = homeData;
+  const { featuredPosts, categories, categoryCountMap } = originalData;
+
+  const catData = (categories ?? []) as CategoryRow[];
 
   return (
     <main className="bg-(--oboon-bg-page)">
       <PageContainer className="pb-20">
-        {/* ===== HERO ===== */}
-        {heroPost && page === 1 && (
-          <BriefingHeroPost post={heroPost} isAdmin={isAdmin} />
+        {/* ===== OBOON Original Featured Hero ===== */}
+        {page === 1 && featuredPosts.length > 0 && (
+          <div className="mb-6">
+            <FeaturedHero posts={featuredPosts} isAdmin={isAdmin} />
+          </div>
+        )}
+
+        {/* ===== 카테고리 카드 (시리즈 탐색) ===== */}
+        {page === 1 && catData.length > 0 && (
+          <div className="mb-10">
+            <div className="mb-3 flex items-end justify-between">
+              <div className="ob-typo-h3 text-(--oboon-text-title)">
+                오리지널 시리즈
+              </div>
+              <Link
+                href="/briefing/oboon-original"
+                className="ob-typo-caption text-(--oboon-text-muted) transition-colors hover:text-(--oboon-text-title)"
+              >
+                전체 보기 →
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+              {catData.slice(0, 8).map((c) => (
+                <BriefingOriginalCard
+                  key={c.id}
+                  original={{
+                    key: c.key,
+                    name: c.name,
+                    description: null,
+                    coverImageUrl: null,
+                  }}
+                  count={categoryCountMap.get(c.id) ?? 0}
+                  href={`/briefing/oboon-original/${encodeURIComponent(c.key)}`}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ===== 구분선 ===== */}
+        {page === 1 && (
+          <hr className="mb-10 border-(--oboon-border-default)" />
         )}
 
         {/* ===== 검색바 ===== */}

@@ -1,5 +1,7 @@
-import { createSupabaseServer } from "@/lib/supabaseServer";
+import "server-only";
+
 import { createSupabaseServiceError } from "@/lib/errors";
+import { createServiceServerClient } from "@/lib/services/supabase-server";
 
 type TermRow = {
   id: string;
@@ -19,7 +21,7 @@ type TermConsentRow = {
 };
 
 export async function fetchActiveTermsByTypes(termTypes: string[]) {
-  const supabase = await createSupabaseServer();
+  const supabase = await createServiceServerClient();
   const { data, error } = await supabase
     .from("terms")
     .select("id, type, version, title, content")
@@ -40,7 +42,7 @@ export async function fetchActiveTermsByTypes(termTypes: string[]) {
 export async function insertTermConsents(
   consentsToInsert: Array<Record<string, unknown>>,
 ) {
-  const supabase = await createSupabaseServer();
+  const supabase = await createServiceServerClient();
   const { data, error } = await supabase
     .from("term_consents")
     .insert(consentsToInsert)
@@ -62,7 +64,7 @@ export async function fetchUserTermConsents(
   userId: string,
   filters?: { context?: string | null; contextId?: string | null; termType?: string | null },
 ) {
-  const supabase = await createSupabaseServer();
+  const supabase = await createServiceServerClient();
 
   let query = supabase
     .from("term_consents")
@@ -97,7 +99,7 @@ export async function deleteUserTermConsent(
   userId: string,
   termType: string,
 ) {
-  const supabase = await createSupabaseServer();
+  const supabase = await createServiceServerClient();
   const { error } = await supabase
     .from("term_consents")
     .delete()
@@ -116,7 +118,7 @@ export async function deleteUserTermConsent(
 }
 
 export async function fetchRequiredSignupTerms() {
-  const supabase = await createSupabaseServer();
+  const supabase = await createServiceServerClient();
   const { data, error } = await supabase
     .from("terms")
     .select("type, version")
@@ -139,7 +141,7 @@ export async function fetchUserConsentsForTypes(
   userId: string,
   termTypes: string[],
 ) {
-  const supabase = await createSupabaseServer();
+  const supabase = await createServiceServerClient();
   const { data, error } = await supabase
     .from("term_consents")
     .select("term_type, term_version")

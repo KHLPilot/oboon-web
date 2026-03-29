@@ -2,29 +2,29 @@
  * QnA 서버 서비스 (비밀번호 검증, 관리자 답변 등)
  */
 
-import { createSupabaseServer } from "@/lib/supabaseServer";
-import { createClient } from "@supabase/supabase-js";
+import "server-only";
+
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { createSupabaseServiceError } from "@/lib/errors";
+import { createServiceAdminClient } from "@/lib/services/supabase-admin";
+import { createServiceServerClient } from "@/lib/services/supabase-server";
 import {
-  QNA_STATUS,
   formatSupportDate,
+  QNA_STATUS,
   type QnADetailViewModel,
   type QnAAnswerViewModel,
   type QnAListItemViewModel,
   type QnAStatusKey,
 } from "../domain/support";
+import { mapQnAListItemViewModel } from "../mappers/support.mapper";
 
-const adminSupabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-);
+const adminSupabase = createServiceAdminClient();
 
 /**
  * 관리자 여부 확인
  */
 export async function ensureQnAAdmin(): Promise<{ userId: string } | null> {
-  const supabase = await createSupabaseServer();
+  const supabase = await createServiceServerClient();
 
   const { data: authData, error: authErr } = await supabase.auth.getUser();
   if (authErr || !authData.user) return null;
@@ -48,7 +48,7 @@ export async function getCurrentUser(): Promise<{
   userId: string;
   isAdmin: boolean;
 } | null> {
-  const supabase = await createSupabaseServer();
+  const supabase = await createServiceServerClient();
 
   const { data: authData, error: authErr } = await supabase.auth.getUser();
   if (authErr || !authData.user) return null;
@@ -77,7 +77,7 @@ export async function fetchQnAListServer(options?: {
   items: QnAListItemViewModel[];
   total: number;
 }> {
-  const supabase = await createSupabaseServer();
+  const supabase = await createServiceServerClient();
   const page = options?.page ?? 1;
   const limit = options?.limit ?? 20;
   const offset = (page - 1) * limit;
@@ -138,30 +138,12 @@ export async function fetchQnAListServer(options?: {
     });
   }
 
-  const items: QnAListItemViewModel[] = (data ?? []).map((row) => {
-    const profilesRaw = row.profiles as
-      | { name: string | null }
-      | Array<{ name: string | null }>
-      | null;
-    const profiles = Array.isArray(profilesRaw) ? profilesRaw[0] : profilesRaw;
-    const authorName = profiles?.name ?? "알 수 없음";
-    const displayAuthor = row.is_anonymous
-      ? row.anonymous_nickname || "익명"
-      : authorName;
-    const canViewSecretTitle =
-      !row.is_secret || row.author_profile_id === user?.id || isAdmin;
-
-    return {
-      id: row.id,
-      title: canViewSecretTitle ? row.title : "비밀글입니다",
-      displayAuthor,
-      isSecret: row.is_secret,
-      statusKey: row.status as QnAStatusKey,
-      statusLabel: QNA_STATUS[row.status as keyof typeof QNA_STATUS],
-      createdAt: row.created_at,
-      formattedDate: formatSupportDate(row.created_at),
-    };
-  });
+  const items: QnAListItemViewModel[] = (data ?? []).map((row) =>
+    mapQnAListItemViewModel(row, {
+      viewerId: user?.id ?? null,
+      isAdmin,
+    }),
+  );
 
   return {
     items,
@@ -180,7 +162,7 @@ export async function createQnAQuestionServer(input: {
   isAnonymous: boolean;
   anonymousNickname?: string;
 }): Promise<{ ok: true; id: string } | { ok: false; message: string }> {
-  const supabase = await createSupabaseServer();
+  const supabase = await createServiceServerClient();
 
   const { data: authData, error: authErr } = await supabase.auth.getUser();
   if (authErr || !authData.user) {
@@ -208,7 +190,12 @@ export async function createQnAQuestionServer(input: {
     .single();
 
   if (error) {
-    console.error("QnA 질문 생성 실패:", error);
+    createSupabaseServiceError(error, {
+      scope: "qna.server",
+      action: "createQnAQuestionServer",
+      defaultMessage: "QnA 등록 중 오류가 발생했습니다.",
+      context: { userId: authData.user.id },
+    });
     return { ok: false, message: "질문 등록에 실패했습니다." };
   }
 
@@ -221,7 +208,7 @@ export async function createQnAQuestionServer(input: {
 export async function fetchQnADetailServer(
   id: string
 ): Promise<QnADetailViewModel | null> {
-  const supabase = await createSupabaseServer();
+  const supabase = await createServiceServerClient();
   const user = await getCurrentUser();
 
   // 질문 조회
@@ -319,7 +306,7 @@ export async function verifyQnAPassword(
   questionId: string,
   password: string
 ): Promise<boolean> {
-  const supabase = await createSupabaseServer();
+  const supabase = await createServiceServerClient();
 
   const { data, error } = await supabase
     .from("qna_questions")
@@ -346,7 +333,7 @@ export async function createQnAAnswer(input: {
     return { ok: false, message: "관리자 권한이 필요합니다." };
   }
 
-  const supabase = await createSupabaseServer();
+  const supabase = await createServiceServerClient();
 
   // 답변 생성
   const { data, error } = await supabase
@@ -360,7 +347,12 @@ export async function createQnAAnswer(input: {
     .single();
 
   if (error) {
-    console.error("QnA 답변 생성 실패:", error);
+    createSupabaseServiceError(error, {
+      scope: "qna.server",
+      action: "createQnAAnswer",
+      defaultMessage: "QnA 답변 등록 중 오류가 발생했습니다.",
+      context: { questionId: input.questionId, userId: admin.userId },
+    });
     return { ok: false, message: "답변 등록에 실패했습니다." };
   }
 
@@ -383,7 +375,7 @@ export async function updateQnAQuestion(input: {
   title: string;
   body: string;
 }): Promise<{ ok: true } | { ok: false; message: string }> {
-  const supabase = await createSupabaseServer();
+  const supabase = await createServiceServerClient();
   const user = await getCurrentUser();
 
   if (!user) {
@@ -418,7 +410,12 @@ export async function updateQnAQuestion(input: {
     .eq("id", input.id);
 
   if (error) {
-    console.error("QnA 수정 실패:", error);
+    createSupabaseServiceError(error, {
+      scope: "qna.server",
+      action: "updateQnAQuestion",
+      defaultMessage: "QnA 수정 중 오류가 발생했습니다.",
+      context: { id: input.id, userId: user.userId },
+    });
     return { ok: false, message: "수정에 실패했습니다." };
   }
 
@@ -460,7 +457,12 @@ export async function deleteQnAQuestion(
     .eq("id", id);
 
   if (error) {
-    console.error("QnA 삭제 실패:", error);
+    createSupabaseServiceError(error, {
+      scope: "qna.server",
+      action: "deleteQnAQuestion",
+      defaultMessage: "QnA 삭제 중 오류가 발생했습니다.",
+      context: { id, userId: user.userId, isAdmin: user.isAdmin },
+    });
     return { ok: false, message: "삭제에 실패했습니다." };
   }
 

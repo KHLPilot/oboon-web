@@ -38,6 +38,7 @@ export async function fetchGeneralPostPageData(slug: string) {
     slug,
     title,
     content_md,
+    content_html,
     created_at,
     published_at,
     cover_image_url,
@@ -67,7 +68,7 @@ export async function fetchGeneralPostPageData(slug: string) {
 
   const { data: relatedData, error: relErr } = await supabase
     .from("briefing_posts")
-    .select("id, slug, title, content_md")
+    .select("id, slug, title, content_md, content_html")
     .eq("status", "published")
     .eq("board_id", boardId)
     .neq("slug", slug)

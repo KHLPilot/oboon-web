@@ -2,9 +2,12 @@
  * FAQ 서버 서비스 (관리자 CRUD)
  */
 
-import { createSupabaseServer } from "@/lib/supabaseServer";
+import "server-only";
+
 import { createSupabaseServiceError } from "@/lib/errors";
+import { createServiceServerClient } from "@/lib/services/supabase-server";
 import type { FAQCategoryRow, FAQItemViewModel } from "../domain/support";
+import { mapFAQItemViewModel } from "../mappers/support.mapper";
 
 type FAQAdminItemViewModel = FAQItemViewModel & {
   categoryId: string;
@@ -16,7 +19,7 @@ type FAQAdminItemViewModel = FAQItemViewModel & {
  * 관리자 여부 확인
  */
 export async function ensureFAQAdmin(): Promise<{ userId: string } | null> {
-  const supabase = await createSupabaseServer();
+  const supabase = await createServiceServerClient();
 
   const { data: authData, error: authErr } = await supabase.auth.getUser();
   if (authErr || !authData.user) return null;
@@ -37,7 +40,7 @@ export async function ensureFAQAdmin(): Promise<{ userId: string } | null> {
  * FAQ 카테고리 목록 조회 (서버)
  */
 export async function fetchFAQCategoriesServer(): Promise<FAQCategoryRow[]> {
-  const supabase = await createSupabaseServer();
+  const supabase = await createServiceServerClient();
 
   const { data, error } = await supabase
     .from("faq_categories")
@@ -45,7 +48,11 @@ export async function fetchFAQCategoriesServer(): Promise<FAQCategoryRow[]> {
     .order("sort_order", { ascending: true });
 
   if (error) {
-    console.error("FAQ 카테고리 조회 실패:", error);
+    createSupabaseServiceError(error, {
+      scope: "faq.server",
+      action: "fetchFAQCategoriesServer",
+      defaultMessage: "FAQ 카테고리 조회 중 오류가 발생했습니다.",
+    });
     return [];
   }
 
@@ -56,7 +63,7 @@ export async function fetchFAQCategoriesServer(): Promise<FAQCategoryRow[]> {
  * 공개 FAQ 카테고리 목록 조회 (API route용)
  */
 export async function fetchPublicFAQCategoriesServer(): Promise<FAQCategoryRow[]> {
-  const supabase = await createSupabaseServer();
+  const supabase = await createServiceServerClient();
 
   const { data, error } = await supabase
     .from("faq_categories")
@@ -81,7 +88,7 @@ export async function fetchPublicFAQCategoriesServer(): Promise<FAQCategoryRow[]
 export async function fetchPublicFAQItemsServer(
   categoryKey?: string | null
 ): Promise<FAQItemViewModel[]> {
-  const supabase = await createSupabaseServer();
+  const supabase = await createServiceServerClient();
 
   let query = supabase
     .from("faq_items")
@@ -116,28 +123,14 @@ export async function fetchPublicFAQItemsServer(
 
   if (!data) return [];
 
-  return data.map((item) => {
-    const categoryRaw = item.faq_categories as
-      | { key: string; name: string }
-      | Array<{ key: string; name: string }>
-      | null;
-    const category = Array.isArray(categoryRaw) ? categoryRaw[0] : categoryRaw;
-
-    return {
-      id: item.id,
-      categoryKey: category?.key ?? "",
-      categoryName: category?.name ?? "",
-      question: item.question,
-      answer: item.answer,
-    };
-  });
+  return data.map(mapFAQItemViewModel);
 }
 
 /**
  * FAQ 아이템 목록 조회 (서버, 관리자용 - 비활성 포함)
  */
 export async function fetchFAQItemsServer(): Promise<FAQAdminItemViewModel[]> {
-  const supabase = await createSupabaseServer();
+  const supabase = await createServiceServerClient();
 
   const { data, error } = await supabase
     .from("faq_items")
@@ -157,28 +150,22 @@ export async function fetchFAQItemsServer(): Promise<FAQAdminItemViewModel[]> {
     .order("sort_order", { ascending: true });
 
   if (error) {
-    console.error("FAQ 아이템 조회 실패:", error);
+    createSupabaseServiceError(error, {
+      scope: "faq.server",
+      action: "fetchFAQItemsServer",
+      defaultMessage: "FAQ 목록 조회 중 오류가 발생했습니다.",
+    });
     return [];
   }
 
   if (!data) return [];
 
-  return data.map((item) => {
-    const category = item.faq_categories as unknown as {
-      key: string;
-      name: string;
-    };
-    return {
-      id: item.id,
-      categoryId: item.category_id,
-      categoryKey: category.key,
-      categoryName: category.name,
-      question: item.question,
-      answer: item.answer,
-      sortOrder: item.sort_order,
-      isActive: item.is_active,
-    };
-  });
+  return data.map((item) => ({
+    ...mapFAQItemViewModel(item),
+    categoryId: item.category_id,
+    sortOrder: item.sort_order,
+    isActive: item.is_active,
+  }));
 }
 
 /**
@@ -195,7 +182,7 @@ export async function createFAQItem(input: {
     return { ok: false, message: "관리자 권한이 필요합니다." };
   }
 
-  const supabase = await createSupabaseServer();
+  const supabase = await createServiceServerClient();
 
   const { data, error } = await supabase
     .from("faq_items")
@@ -210,7 +197,12 @@ export async function createFAQItem(input: {
     .single();
 
   if (error) {
-    console.error("FAQ 생성 실패:", error);
+    createSupabaseServiceError(error, {
+      scope: "faq.server",
+      action: "createFAQItem",
+      defaultMessage: "FAQ 생성 중 오류가 발생했습니다.",
+      context: { categoryId: input.categoryId, userId: admin.userId },
+    });
     return { ok: false, message: "FAQ 생성에 실패했습니다." };
   }
 
@@ -233,7 +225,7 @@ export async function updateFAQItem(input: {
     return { ok: false, message: "관리자 권한이 필요합니다." };
   }
 
-  const supabase = await createSupabaseServer();
+  const supabase = await createServiceServerClient();
 
   const updateData: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
@@ -251,7 +243,12 @@ export async function updateFAQItem(input: {
     .eq("id", input.id);
 
   if (error) {
-    console.error("FAQ 수정 실패:", error);
+    createSupabaseServiceError(error, {
+      scope: "faq.server",
+      action: "updateFAQItem",
+      defaultMessage: "FAQ 수정 중 오류가 발생했습니다.",
+      context: { id: input.id, userId: admin.userId },
+    });
     return { ok: false, message: "FAQ 수정에 실패했습니다." };
   }
 
@@ -269,7 +266,7 @@ export async function deleteFAQItem(
     return { ok: false, message: "관리자 권한이 필요합니다." };
   }
 
-  const supabase = await createSupabaseServer();
+  const supabase = await createServiceServerClient();
 
   const { error } = await supabase
     .from("faq_items")
@@ -277,7 +274,12 @@ export async function deleteFAQItem(
     .eq("id", id);
 
   if (error) {
-    console.error("FAQ 삭제 실패:", error);
+    createSupabaseServiceError(error, {
+      scope: "faq.server",
+      action: "deleteFAQItem",
+      defaultMessage: "FAQ 삭제 중 오류가 발생했습니다.",
+      context: { id, userId: admin.userId },
+    });
     return { ok: false, message: "FAQ 삭제에 실패했습니다." };
   }
 

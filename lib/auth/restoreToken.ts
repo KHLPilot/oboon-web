@@ -1,4 +1,5 @@
 import { createHmac } from "crypto";
+import { constantTimeEqual } from "@/lib/api/internal-auth";
 
 const RESTORE_TOKEN_TTL_MS = 5 * 60 * 1000;
 const MIN_RESTORE_SECRET_LENGTH = 32;
@@ -47,7 +48,7 @@ export function verifyRestoreToken(token: string): string | null {
       .update(`${userId}|${expiresAt}`)
       .digest("hex");
 
-    if (sig !== expected) {
+    if (!constantTimeEqual(sig, expected)) {
       return null;
     }
 

@@ -1,0 +1,158 @@
+<h2>글 작성 페이지 레이아웃</h2>
+<p class="subtitle">3가지 방향 — 클릭해서 선택</p>
+
+<div class="cards">
+
+  <!-- Option A: 사이드바형 -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 14px; background: #0f0f13;">
+      <div style="display: grid; grid-template-columns: 1fr 220px; gap: 8px; height: 200px;">
+        <!-- left: editor -->
+        <div style="background: #1e1e2a; border-radius: 10px; border: 1px solid #2a2a3a; display: flex; flex-direction: column; overflow: hidden;">
+          <!-- toolbar -->
+          <div style="border-bottom: 1px solid #2a2a3a; padding: 6px 10px; display: flex; gap: 6px;">
+            <div style="background: #2a2a3a; border-radius: 4px; width: 20px; height: 16px;"></div>
+            <div style="background: #2a2a3a; border-radius: 4px; width: 20px; height: 16px;"></div>
+            <div style="background: #2a2a3a; border-radius: 4px; width: 20px; height: 16px;"></div>
+            <div style="background: #2a2a3a; border-radius: 4px; width: 20px; height: 16px;"></div>
+            <div style="flex:1;"></div>
+            <div style="background: #2a2a3a; border-radius: 4px; width: 40px; height: 16px;"></div>
+            <div style="background: #2a2a3a; border-radius: 4px; width: 40px; height: 16px;"></div>
+          </div>
+          <!-- title input -->
+          <div style="padding: 8px 12px; border-bottom: 1px solid #2a2a3a;">
+            <div style="color: #555; font-size: 9px; margin-bottom: 4px;">제목</div>
+            <div style="background: #2a2a3a; border-radius: 6px; height: 20px;"></div>
+          </div>
+          <!-- content area -->
+          <div style="flex: 1; padding: 10px 12px;">
+            <div style="background: #2a2a3a; border-radius: 3px; height: 7px; width: 90%; margin-bottom: 5px;"></div>
+            <div style="background: #2a2a3a; border-radius: 3px; height: 7px; width: 70%; margin-bottom: 5px;"></div>
+            <div style="background: #2a2a3a; border-radius: 3px; height: 7px; width: 80%; margin-bottom: 5px;"></div>
+            <div style="background: #2a2a3a; border-radius: 3px; height: 7px; width: 60%;"></div>
+          </div>
+        </div>
+        <!-- right: sidebar -->
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <!-- cover image -->
+          <div style="background: #1e1e2a; border-radius: 8px; border: 1px solid #2a2a3a; padding: 8px; flex-shrink: 0;">
+            <div style="color: #555; font-size: 8px; margin-bottom: 5px;">커버 이미지</div>
+            <div style="background: #2a2a3a; border-radius: 6px; height: 44px; display: flex; align-items: center; justify-content: center;">
+              <span style="color: #444; font-size: 10px;">+ 업로드</span>
+            </div>
+          </div>
+          <!-- board/category -->
+          <div style="background: #1e1e2a; border-radius: 8px; border: 1px solid #2a2a3a; padding: 8px; flex-shrink: 0;">
+            <div style="color: #555; font-size: 8px; margin-bottom: 4px;">보드</div>
+            <div style="background: #2a2a3a; border-radius: 6px; height: 18px; margin-bottom: 6px;"></div>
+            <div style="color: #555; font-size: 8px; margin-bottom: 4px;">카테고리</div>
+            <div style="background: #2a2a3a; border-radius: 6px; height: 18px;"></div>
+          </div>
+          <!-- tag -->
+          <div style="background: #1e1e2a; border-radius: 8px; border: 1px solid #2a2a3a; padding: 8px; flex-shrink: 0;">
+            <div style="color: #555; font-size: 8px; margin-bottom: 4px;">태그</div>
+            <div style="background: #2a2a3a; border-radius: 20px; height: 18px;"></div>
+          </div>
+          <!-- actions -->
+          <div style="margin-top: auto; display: flex; flex-direction: column; gap: 4px;">
+            <div style="background: #2a2a3a; border-radius: 20px; height: 22px; text-align: center; display: flex; align-items: center; justify-content: center;">
+              <span style="color: #666; font-size: 8px;">임시저장</span>
+            </div>
+            <div style="background: #7c6ff7; border-radius: 20px; height: 22px; text-align: center; display: flex; align-items: center; justify-content: center;">
+              <span style="color: white; font-size: 8px; font-weight: 700;">발행</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 사이드바형</h3>
+      <p>에디터(좌) + 메타데이터 패널(우) 분리. 본문에 집중하면서 설정을 사이드에서 처리. Notion, Ghost 스타일. 데스크톱에서 가장 효율적.</p>
+    </div>
+  </div>
+
+  <!-- Option B: 풀스크린형 -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 14px; background: #0f0f13;">
+      <div style="height: 200px; display: flex; flex-direction: column; gap: 6px;">
+        <!-- top bar -->
+        <div style="background: #1e1e2a; border-radius: 8px; border: 1px solid #2a2a3a; padding: 6px 12px; display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+          <div style="background: #7c6ff7; border-radius: 4px; padding: 2px 8px; font-size: 8px; color: white;">OBOON Original</div>
+          <div style="color: #666; font-size: 9px;">›</div>
+          <div style="background: #2a2a3a; border-radius: 4px; padding: 2px 8px; font-size: 8px; color: #888;">청약 전략</div>
+          <div style="flex:1;"></div>
+          <div style="background: #2a2a3a; border-radius: 4px; padding: 2px 8px; font-size: 8px; color: #888;"># 태그</div>
+          <div style="background: #2a2a3a; border-radius: 20px; padding: 3px 10px; font-size: 8px; color: #888;">임시저장</div>
+          <div style="background: #7c6ff7; border-radius: 20px; padding: 3px 10px; font-size: 8px; color: white; font-weight: 700;">발행</div>
+        </div>
+        <!-- title -->
+        <div style="background: #1e1e2a; border-radius: 8px; border: 1px solid #2a2a3a; padding: 8px 14px; flex-shrink: 0;">
+          <div style="background: #2a2a3a; border-radius: 4px; height: 18px; width: 60%;"></div>
+        </div>
+        <!-- cover + editor split -->
+        <div style="flex: 1; display: grid; grid-template-columns: 140px 1fr; gap: 6px; overflow: hidden;">
+          <div style="background: #1e1e2a; border-radius: 8px; border: 1px solid #2a2a3a; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+            <span style="color: #444; font-size: 9px;">커버 이미지</span>
+            <span style="color: #555; font-size: 18px;">+</span>
+          </div>
+          <div style="background: #1e1e2a; border-radius: 8px; border: 1px solid #2a2a3a; padding: 10px 12px;">
+            <div style="background: #2a2a3a; border-radius: 3px; height: 7px; width: 85%; margin-bottom: 5px;"></div>
+            <div style="background: #2a2a3a; border-radius: 3px; height: 7px; width: 65%; margin-bottom: 5px;"></div>
+            <div style="background: #2a2a3a; border-radius: 3px; height: 7px; width: 75%;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 탑바형</h3>
+      <p>보드/카테고리/태그/발행 버튼을 상단 바에 압축. 에디터와 커버이미지가 본문 영역을 넓게 사용. 간결하고 미니멀한 느낌.</p>
+    </div>
+  </div>
+
+  <!-- Option C: 스텝형 -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 14px; background: #0f0f13;">
+      <div style="height: 200px; display: flex; flex-direction: column; gap: 6px;">
+        <!-- step indicator -->
+        <div style="display: flex; align-items: center; gap: 0; flex-shrink: 0; justify-content: center;">
+          <div style="background: #7c6ff7; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 8px; color: white; font-weight: 700;">1</div>
+          <div style="height: 2px; width: 30px; background: #7c6ff7;"></div>
+          <div style="background: #2a2a3a; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 8px; color: #666;">2</div>
+          <div style="height: 2px; width: 30px; background: #2a2a3a;"></div>
+          <div style="background: #2a2a3a; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 8px; color: #666;">3</div>
+        </div>
+        <div style="display: flex; justify-content: center; gap: 28px; flex-shrink: 0;">
+          <span style="font-size: 8px; color: #7c6ff7;">기본 설정</span>
+          <span style="font-size: 8px; color: #555;">본문 작성</span>
+          <span style="font-size: 8px; color: #555;">발행</span>
+        </div>
+        <!-- step 1 content -->
+        <div style="flex: 1; background: #1e1e2a; border-radius: 10px; border: 1px solid #2a2a3a; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+          <div>
+            <div style="color: #555; font-size: 8px; margin-bottom: 4px;">보드</div>
+            <div style="display: flex; gap: 4px;">
+              <div style="background: #7c6ff7; border-radius: 20px; padding: 3px 10px; font-size: 8px; color: white;">OBOON Original</div>
+              <div style="background: #2a2a3a; border-radius: 20px; padding: 3px 10px; font-size: 8px; color: #666;">일반 브리핑</div>
+            </div>
+          </div>
+          <div>
+            <div style="color: #555; font-size: 8px; margin-bottom: 4px;">카테고리</div>
+            <div style="background: #2a2a3a; border-radius: 6px; height: 20px;"></div>
+          </div>
+          <div>
+            <div style="color: #555; font-size: 8px; margin-bottom: 4px;">제목</div>
+            <div style="background: #2a2a3a; border-radius: 6px; height: 20px;"></div>
+          </div>
+          <div style="margin-top: auto; display: flex; justify-content: flex-end;">
+            <div style="background: #7c6ff7; border-radius: 20px; padding: 4px 14px; font-size: 8px; color: white; font-weight: 700;">다음 →</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. 스텝형</h3>
+      <p>① 기본 설정(보드/카테고리/제목/커버) → ② 본문 작성 → ③ 발행 확인. 실수 줄이고 흐름이 명확. 다만 왔다갔다 번거로울 수 있음.</p>
+    </div>
+  </div>
+
+</div>
