@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { isMissingCoverImageUrlError } from "@/features/briefing/services/briefing.schema";
 import { createSupabaseServer } from "@/lib/supabaseServer";
 
 type CoverUpdateBody =
@@ -48,6 +49,13 @@ export async function PATCH(req: NextRequest) {
           .eq("id", id);
 
   if (error) {
+    if (isMissingCoverImageUrlError(error)) {
+      return NextResponse.json(
+        { error: "커버 이미지 컬럼이 아직 적용되지 않은 환경입니다." },
+        { status: 400 },
+      );
+    }
+
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

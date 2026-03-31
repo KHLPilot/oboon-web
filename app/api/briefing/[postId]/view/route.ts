@@ -1,9 +1,34 @@
 import { NextResponse } from "next/server";
 
+import { logApiError } from "@/lib/api/route-error";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { createSupabaseServer } from "@/lib/supabaseServer";
 
-const adminSupabase = createSupabaseAdminClient();
+function isOptionalBriefingViewSchemaError(error: {
+  code?: string | null;
+  message?: string | null;
+}) {
+  const code = typeof error.code === "string" ? error.code : "";
+  const message = typeof error.message === "string" ? error.message : "";
+
+  return (
+    code === "42703" ||
+    code === "42883" ||
+    code === "PGRST202" ||
+    code === "PGRST204" ||
+    message.includes("view_count") ||
+    message.includes("increment_briefing_view_count")
+  );
+}
+
+function createNoopResponse(postId: string, viewerId: string | null) {
+  return NextResponse.json({
+    ok: false,
+    postId,
+    viewCount: null,
+    viewerId,
+  });
+}
 
 export async function POST(
   _req: Request,
@@ -19,6 +44,15 @@ export async function POST(
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  const viewerId = user?.id ?? null;
+
+  let adminSupabase: ReturnType<typeof createSupabaseAdminClient>;
+  try {
+    adminSupabase = createSupabaseAdminClient();
+  } catch (error) {
+    logApiError("briefing.view.createAdminClient", error, { hasViewer: viewerId ? true : false });
+    return createNoopResponse(postId, viewerId);
+  }
 
   const { data: post, error: postError } = await adminSupabase
     .from("briefing_posts")
@@ -27,6 +61,11 @@ export async function POST(
     .maybeSingle();
 
   if (postError) {
+    if (isOptionalBriefingViewSchemaError(postError)) {
+      logApiError("briefing.view.fetchPost", postError, { hasViewer: viewerId ? true : false });
+      return createNoopResponse(postId, viewerId);
+    }
+
     return NextResponse.json({ error: postError.message }, { status: 500 });
   }
 
@@ -40,6 +79,11 @@ export async function POST(
   );
 
   if (incrementError) {
+    if (isOptionalBriefingViewSchemaError(incrementError)) {
+      logApiError("briefing.view.increment", incrementError, { hasViewer: viewerId ? true : false });
+      return createNoopResponse(postId, viewerId);
+    }
+
     return NextResponse.json({ error: incrementError.message }, { status: 500 });
   }
 
@@ -47,6 +91,6 @@ export async function POST(
     ok: true,
     postId,
     viewCount: typeof nextCount === "number" ? nextCount : null,
-    viewerId: user?.id ?? null,
+    viewerId,
   });
 }

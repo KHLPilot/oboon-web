@@ -1587,6 +1587,54 @@ const NaverMap = forwardRef<
       };
     }, []);
 
+    useEffect(() => {
+      const surfaceDedupRef = {
+        lastKey: "",
+        lastAt: 0,
+      };
+
+      const resolveSurfaceElement = (event: Event) => {
+        const path = typeof event.composedPath === "function" ? event.composedPath() : [];
+        for (const node of path) {
+          if (!(node instanceof HTMLElement)) continue;
+          if (node.dataset.mapMarkerSurface === "1") return node;
+        }
+        const target = event.target as HTMLElement | null;
+        return target?.closest("[data-map-marker-surface='1']") as HTMLElement | null;
+      };
+
+      const onSurfaceCapture = (event: Event) => {
+        const surfaceEl = resolveSurfaceElement(event);
+        if (!surfaceEl) return;
+
+        const markerId = focusedIdRef.current;
+        if (!markerId) return;
+
+        const key = `${markerId}:surface`;
+        const now = Date.now();
+        if (
+          surfaceDedupRef.lastKey === key &&
+          now - surfaceDedupRef.lastAt < 450
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+        surfaceDedupRef.lastKey = key;
+        surfaceDedupRef.lastAt = now;
+
+        event.preventDefault();
+        event.stopPropagation();
+        markerClickTsRef.current = Date.now();
+        callbacksRef.current.onMarkerSelect?.(markerId);
+      };
+
+      document.addEventListener("click", onSurfaceCapture, true);
+      return () => {
+        document.removeEventListener("click", onSurfaceCapture, true);
+      };
+    }, []);
+
     // [1-1] iOS Safari BFCache / 탭 복귀 대응
     useEffect(() => {
       const naverObj = window.naver;

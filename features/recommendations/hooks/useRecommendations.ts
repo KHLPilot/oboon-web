@@ -31,6 +31,7 @@ import {
 } from "@/features/offerings/mappers/offering.mapper";
 import { fetchPropertiesForOfferings } from "@/features/offerings/services/offering.query";
 import {
+  clearConditionSession,
   loadConditionSession,
   saveConditionSession,
   type ConditionSessionSnapshot,
@@ -938,13 +939,10 @@ export function useRecommendations() {
       if (!loggedIn) {
         setHasSavedConditionPreset(false);
         setSavedConditionPreset(null);
-        const sessionSnapshot = loadConditionSession();
-        if (active && sessionSnapshot) {
-          setCondition((prev) =>
-            sanitizeGuestCondition(
-              normalizeInputCondition(conditionFromSession(sessionSnapshot, prev)),
-            ),
-          );
+        clearConditionSession();
+        clearRecommendationConditionDraft();
+        if (active) {
+          setCondition(sanitizeGuestCondition(DEFAULT_CONDITION));
         }
       } else {
         // 저장된 조건 불러오기
@@ -1041,7 +1039,11 @@ export function useRecommendations() {
 
     setHasSavedConditionPreset(false);
     setSavedConditionPreset(null);
-    setCondition((prev) => sanitizeGuestCondition(prev));
+    setCondition((prev) => ({
+      ...sanitizeGuestCondition(prev),
+      availableCash: 0,
+      monthlyIncome: 0,
+    }));
   }, [isLoggedIn]);
 
   const metadataById = useMemo(() => {

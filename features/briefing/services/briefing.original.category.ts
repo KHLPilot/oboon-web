@@ -1,5 +1,6 @@
 import { createSupabaseServer } from "@/lib/supabaseServer";
 import { AppError, ERR, createSupabaseServiceError } from "@/lib/errors";
+import { isMissingCoverImageUrlError } from "@/features/briefing/services/briefing.schema";
 
 export const BRIEFING_CATEGORY_PAGE_SIZE = 8;
 
@@ -29,20 +30,43 @@ export async function fetchOboonOriginalCategoryPageData(categoryKey: string, pa
     );
   }
 
-  const { data: cat, error: catErr } = await supabase
+  const categoryResult = await supabase
     .from("briefing_categories")
     .select("id,key,name,description,color,cover_image_url")
     .eq("board_id", board.id)
     .eq("key", categoryKey)
     .maybeSingle();
+  let cat = categoryResult.data;
 
-  if (catErr) {
-    throw createSupabaseServiceError(catErr, {
-      scope: "briefing.original.category",
-      action: "fetchOboonOriginalCategoryPageData.category",
-      defaultMessage: "브리핑 카테고리 조회 중 오류가 발생했습니다.",
-      context: { categoryKey },
-    });
+  if (categoryResult.error) {
+    if (isMissingCoverImageUrlError(categoryResult.error)) {
+      const fallbackResult = await supabase
+        .from("briefing_categories")
+        .select("id,key,name,description,color")
+        .eq("board_id", board.id)
+        .eq("key", categoryKey)
+        .maybeSingle();
+
+      if (fallbackResult.error) {
+        throw createSupabaseServiceError(fallbackResult.error, {
+          scope: "briefing.original.category",
+          action: "fetchOboonOriginalCategoryPageData.category",
+          defaultMessage: "브리핑 카테고리 조회 중 오류가 발생했습니다.",
+          context: { categoryKey },
+        });
+      }
+
+      cat = fallbackResult.data
+        ? { ...fallbackResult.data, cover_image_url: null }
+        : fallbackResult.data;
+    } else {
+      throw createSupabaseServiceError(categoryResult.error, {
+        scope: "briefing.original.category",
+        action: "fetchOboonOriginalCategoryPageData.category",
+        defaultMessage: "브리핑 카테고리 조회 중 오류가 발생했습니다.",
+        context: { categoryKey },
+      });
+    }
   }
 
   const { data: postsData, error: postsErr, count: postsCount } = await supabase

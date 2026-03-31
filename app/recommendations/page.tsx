@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, Search, SlidersHorizontal } from "lucide-react";
 
@@ -196,6 +197,7 @@ function SortDropdown(props: {
 }
 
 export default function RecommendationsPage() {
+  const router = useRouter();
   const cardRefs = useRef(new Map<number, HTMLDivElement>());
   const [sortKey, setSortKey] = useState<SortKey>("default");
   const [desktopView, setDesktopView] = useState<"list" | "map">("map");
@@ -268,6 +270,11 @@ export default function RecommendationsPage() {
 
   const handleSelectFromMap = useCallback(
     (id: number) => {
+      if (selectedId === id) {
+        router.push(`/offerings/${id}`);
+        return;
+      }
+
       const nextSelectedId = id > 0 ? id : null;
       setSelectedId(nextSelectedId);
       if (nextSelectedId !== null) {
@@ -276,7 +283,7 @@ export default function RecommendationsPage() {
         });
       }
     },
-    [scrollToCard, setSelectedId],
+    [router, scrollToCard, selectedId, setSelectedId],
   );
 
   const applySearchQuery = useCallback(() => {

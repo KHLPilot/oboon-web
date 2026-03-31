@@ -1,5 +1,6 @@
 import { AppError, ERR, createSupabaseServiceError } from "@/lib/errors";
 import { createSupabaseServer } from "@/lib/supabaseServer";
+import { isMissingCoverImageUrlError } from "@/features/briefing/services/briefing.schema";
 
 type TagRelation = {
   id: string;
@@ -70,12 +71,35 @@ export async function fetchOboonOriginalPageData(): Promise<{
       .select("category_id, tag:briefing_tags(id,key,name)"),
   ]);
 
+  let categories = categoriesResult.data ?? [];
   if (categoriesResult.error) {
-    throw createSupabaseServiceError(categoriesResult.error, {
-      scope: "briefing.original",
-      action: "fetchOboonOriginalPageData.categories",
-      defaultMessage: "브리핑 카테고리 조회 중 오류가 발생했습니다.",
-    });
+    if (isMissingCoverImageUrlError(categoriesResult.error)) {
+      const fallbackResult = await supabase
+        .from("briefing_categories")
+        .select("id,key,name")
+        .eq("board_id", boardId)
+        .eq("is_active", true)
+        .order("name", { ascending: true });
+
+      if (fallbackResult.error) {
+        throw createSupabaseServiceError(fallbackResult.error, {
+          scope: "briefing.original",
+          action: "fetchOboonOriginalPageData.categories",
+          defaultMessage: "브리핑 카테고리 조회 중 오류가 발생했습니다.",
+        });
+      }
+
+      categories = (fallbackResult.data ?? []).map((category) => ({
+        ...category,
+        cover_image_url: null,
+      }));
+    } else {
+      throw createSupabaseServiceError(categoriesResult.error, {
+        scope: "briefing.original",
+        action: "fetchOboonOriginalPageData.categories",
+        defaultMessage: "브리핑 카테고리 조회 중 오류가 발생했습니다.",
+      });
+    }
   }
   if (tagsResult.error) {
     throw createSupabaseServiceError(tagsResult.error, {
@@ -92,7 +116,7 @@ export async function fetchOboonOriginalPageData(): Promise<{
     });
   }
 
-  const categoryIds = (categoriesResult.data ?? []).map((item) => item.id);
+  const categoryIds = categories.map((item) => item.id);
   const countMap = new Map<string, number>();
 
   if (categoryIds.length > 0) {
@@ -129,7 +153,7 @@ export async function fetchOboonOriginalPageData(): Promise<{
     tagsByCategoryId.set(categoryId, current);
   });
 
-  const series: SeriesItem[] = (categoriesResult.data ?? []).map((category) => ({
+  const series: SeriesItem[] = categories.map((category) => ({
     id: category.id as string,
     key: category.key as string,
     name: category.name as string,

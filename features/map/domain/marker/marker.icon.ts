@@ -289,27 +289,28 @@ function richOverlay({
 
   // Dot(점)의 반지름(약 7~9px) + 여유 공간(4~5px) = 약 12px 정도 위로 띄움
   return `
-  <div style="
-    position: absolute;
-    left: 0; top: 0;
-    transform: translate(-50%, calc(-100% - 18px));
-    z-index: 20;
-    pointer-events: none;
-    filter: drop-shadow(0 2px 4px var(--oboon-map-shadow-default));
-    /* flex 등 레이아웃 영향 제거를 위해 너비 자동 설정 */
-    white-space: nowrap; 
-  ">
-    <div style="
-      background: ${v.bg};
-      border: 1px solid ${v.border};
-      border-radius: 14px;
-      padding: 8px 12px;
-      min-width: 92px;
-      max-width: 240px;
-      pointer-events: auto;
-      position: relative; /* 내부 absolute 요소 기준점 */
-      z-index: 1;
-    ">
+      <div style="
+        position: absolute;
+        left: 0; top: 0;
+        transform: translate(-50%, calc(-100% - 18px));
+        z-index: 20;
+        pointer-events: none;
+        filter: drop-shadow(0 2px 4px var(--oboon-map-shadow-default));
+        /* flex 등 레이아웃 영향 제거를 위해 너비 자동 설정 */
+        white-space: nowrap; 
+      ">
+        <div style="
+          background: ${v.bg};
+          border: 1px solid ${v.border};
+          border-radius: 14px;
+          padding: 8px 12px;
+          min-width: 92px;
+          max-width: 240px;
+          pointer-events: auto;
+          position: relative; /* 내부 absolute 요소 기준점 */
+          z-index: 1;
+          cursor: pointer;
+        " data-map-marker-surface="1">
       <div style="
         display:flex; align-items:center; gap:6px;
         font-size: 11px; font-weight: 800;
@@ -480,7 +481,8 @@ function heroOverlay({
         background: var(--oboon-bg-surface);
         pointer-events: auto;
         z-index: 1;
-      ">
+        cursor: pointer;
+      " data-map-marker-surface="1">
         <div style="
           position: absolute;
           inset: 0;

@@ -1,5 +1,6 @@
 import { createSupabaseServiceError } from "@/lib/errors";
 import { createSupabaseServer } from "@/lib/supabaseServer";
+import { isMissingColumnError, isMissingCoverImageUrlError } from "@/features/briefing/services/briefing.schema";
 
 type EditorDashboardPostRow = {
   id: string;
@@ -28,17 +29,6 @@ type EditorDashboardCategoryRow = {
   cover_image_url: string | null;
 };
 
-function isMissingColumnError(error: {
-  code?: string | null;
-  message?: string | null;
-}, columnName: string) {
-  return (
-    error.code === "42703" &&
-    typeof error.message === "string" &&
-    error.message.includes(columnName)
-  );
-}
-
 export async function fetchEditorDashboardData(userId: string) {
   const supabase = await createSupabaseServer();
 
@@ -62,8 +52,8 @@ export async function fetchEditorDashboardData(userId: string) {
 
   const [
     { data: postsWithViews, error: postsWithViewsError },
-    { data: boards, error: boardsError },
-    { data: categories, error: categoriesError },
+    boardsResult,
+    categoriesResult,
   ] = await Promise.all([
     supabase
       .from("briefing_posts")
@@ -79,6 +69,8 @@ export async function fetchEditorDashboardData(userId: string) {
       .select("id, key, name, board_id, cover_image_url")
       .order("sort_order"),
   ]);
+  let boards = boardsResult.data ?? [];
+  let categories = categoriesResult.data ?? [];
 
   if (postsWithViewsError) {
     if (isMissingColumnError(postsWithViewsError, "view_count")) {
@@ -116,22 +108,64 @@ export async function fetchEditorDashboardData(userId: string) {
     }));
   }
 
-  if (boardsError) {
-    throw createSupabaseServiceError(boardsError, {
-      scope: "briefing.editor",
-      action: "fetchEditorDashboardData.boards",
-      defaultMessage: "브리핑 보드 조회 중 오류가 발생했습니다.",
-      context: { userId },
-    });
+  if (boardsResult.error) {
+    if (isMissingCoverImageUrlError(boardsResult.error)) {
+      const fallbackResult = await supabase
+        .from("briefing_boards")
+        .select("id, key, name")
+        .order("id");
+
+      if (fallbackResult.error) {
+        throw createSupabaseServiceError(fallbackResult.error, {
+          scope: "briefing.editor",
+          action: "fetchEditorDashboardData.boards",
+          defaultMessage: "브리핑 보드 조회 중 오류가 발생했습니다.",
+          context: { userId },
+        });
+      }
+
+      boards = (fallbackResult.data ?? []).map((board) => ({
+        ...board,
+        cover_image_url: null,
+      }));
+    } else {
+      throw createSupabaseServiceError(boardsResult.error, {
+        scope: "briefing.editor",
+        action: "fetchEditorDashboardData.boards",
+        defaultMessage: "브리핑 보드 조회 중 오류가 발생했습니다.",
+        context: { userId },
+      });
+    }
   }
 
-  if (categoriesError) {
-    throw createSupabaseServiceError(categoriesError, {
-      scope: "briefing.editor",
-      action: "fetchEditorDashboardData.categories",
-      defaultMessage: "브리핑 카테고리 조회 중 오류가 발생했습니다.",
-      context: { userId },
-    });
+  if (categoriesResult.error) {
+    if (isMissingCoverImageUrlError(categoriesResult.error)) {
+      const fallbackResult = await supabase
+        .from("briefing_categories")
+        .select("id, key, name, board_id")
+        .order("sort_order");
+
+      if (fallbackResult.error) {
+        throw createSupabaseServiceError(fallbackResult.error, {
+          scope: "briefing.editor",
+          action: "fetchEditorDashboardData.categories",
+          defaultMessage: "브리핑 카테고리 조회 중 오류가 발생했습니다.",
+          context: { userId },
+        });
+      }
+
+      categories = (fallbackResult.data ?? []).map((category) => ({
+        ...category,
+        cover_image_url: null,
+      }));
+    } else {
+      throw createSupabaseServiceError(categoriesResult.error, {
+        scope: "briefing.editor",
+        action: "fetchEditorDashboardData.categories",
+        defaultMessage: "브리핑 카테고리 조회 중 오류가 발생했습니다.",
+        context: { userId },
+      });
+    }
   }
 
   const stats = {
