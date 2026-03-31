@@ -13,6 +13,7 @@ type CategoryRow = {
   id: string;
   key: string;
   name: string;
+  coverImageUrl: string | null;
 };
 
 export default async function BriefingPage() {
@@ -27,6 +28,7 @@ export default async function BriefingPage() {
     id: item.id,
     key: item.key,
     name: item.name,
+    coverImageUrl: item.coverImageUrl,
   })) as CategoryRow[];
   const categoryCountMap = new Map(series.map((item) => [item.id, item.count]));
 

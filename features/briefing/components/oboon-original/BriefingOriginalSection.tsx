@@ -6,6 +6,7 @@ type BriefingOriginalSectionCategory = {
   id: string;
   key: string;
   name: string;
+  coverImageUrl: string | null;
 };
 
 export default function BriefingOriginalSection({
@@ -35,7 +36,7 @@ export default function BriefingOriginalSection({
                 key: category.key,
                 name: category.name,
                 description: null,
-                coverImageUrl: null,
+                coverImageUrl: category.coverImageUrl,
               }}
               count={countMap.get(category.id) ?? 0}
               href={`/briefing/oboon-original/${encodeURIComponent(category.key)}`}

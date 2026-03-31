@@ -19,6 +19,8 @@ export type FeaturedPostRow = {
   category: { key: string | null; name: string | null } | null;
 };
 
+const HERO_EXCERPT_MAX_LENGTH = 110;
+
 function formatDate(iso: string) {
   const d = new Date(iso);
   const yyyy = d.getFullYear();
@@ -34,6 +36,16 @@ function hrefForPost(post: FeaturedPostRow) {
   const key = post.category?.key ?? null;
   if (!key) return "/briefing/oboon-original";
   return `/briefing/oboon-original/${encodeURIComponent(key)}/${encodeURIComponent(post.slug)}`;
+}
+
+function truncateExcerpt(excerpt: string | null): string | null {
+  if (!excerpt) return null;
+
+  const normalized = excerpt.replace(/\s+/g, " ").trim();
+  if (!normalized) return null;
+  if (normalized.length <= HERO_EXCERPT_MAX_LENGTH) return normalized;
+
+  return `${normalized.slice(0, HERO_EXCERPT_MAX_LENGTH).trimEnd()}...`;
 }
 
 export default function FeaturedHero({
@@ -65,6 +77,7 @@ export default function FeaturedHero({
 
   const href = hrefForPost(current);
   const dateStr = formatDate((current.published_at ?? current.created_at) as string);
+  const excerpt = truncateExcerpt(current.excerpt);
 
   return (
     <div
@@ -100,9 +113,9 @@ export default function FeaturedHero({
         </h2>
 
         {/* excerpt */}
-        {current.excerpt && (
-          <p className="mt-2 ob-typo-body text-white/70 line-clamp-2">
-            {current.excerpt}
+        {excerpt && (
+          <p className="mt-2 ob-typo-body text-white/70">
+            {excerpt}
           </p>
         )}
 

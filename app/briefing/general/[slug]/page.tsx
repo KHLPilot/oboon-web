@@ -324,7 +324,7 @@ export default async function GeneralPostPage({
                             strokeWidth="2"
                             strokeLinecap="round"
                             strokeLinejoin="round"
-                            className={leftPanelImage ? "text-(--oboon-text-title)" : "text-(--oboon-bg-surface)"}
+                            className="text-(--oboon-arrow-color)"
                             aria-hidden="true"
                           >
                             <path d="M5 12h14" />

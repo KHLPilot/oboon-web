@@ -156,6 +156,9 @@ input[type="password"]::-webkit-contacts-auto-fill-button {
   --oboon-border-strong: rgba(255, 255, 255, 0.2);
   --oboon-shadow-card: 0 10px 30px rgba(0, 0, 0, 0.35);
 
+  /* Arrow fixed color (always black for visibility) */
+  --oboon-arrow-color: #0f172a;
+
   /* Brand */
   --oboon-primary: #5b8cff;
   --oboon-primary-hover: #1d4fe0;
@@ -282,6 +285,9 @@ input[type="password"]::-webkit-contacts-auto-fill-button {
   --oboon-border-default: rgba(15, 23, 42, 0.16);
   --oboon-border-strong: rgba(15, 23, 42, 0.28);
   --oboon-shadow-card: 0 10px 26px rgba(15, 23, 42, 0.1);
+
+  /* Arrow fixed color (always black for visibility) */
+  --oboon-arrow-color: #0f172a;
 
   --oboon-primary: #2563eb;
   --oboon-primary-hover: #1d4ed8;
