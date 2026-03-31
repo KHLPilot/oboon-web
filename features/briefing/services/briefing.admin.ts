@@ -1,9 +1,30 @@
+import { createSupabaseServiceError } from "@/lib/errors";
 import { createSupabaseServer } from "@/lib/supabaseServer";
+
+function throwBriefingAdminError(
+  action: string,
+  error: { code?: string | null; hint?: string | null; details?: string | null; message?: string | null } | null | undefined,
+  defaultMessage: string,
+  context?: Record<string, string>,
+): never | void {
+  if (!error) return;
+
+  throw createSupabaseServiceError(error, {
+    scope: "briefing.admin",
+    action,
+    defaultMessage,
+    context,
+  });
+}
 
 export async function ensureBriefingAdminUser() {
   const supabase = await createSupabaseServer();
   const { data: authData, error: authErr } = await supabase.auth.getUser();
-  if (authErr) throw authErr;
+  throwBriefingAdminError(
+    "ensureBriefingAdminUser.auth",
+    authErr,
+    "관리자 인증 정보를 확인하지 못했습니다.",
+  );
 
   const user = authData.user;
   if (!user) return null;
@@ -14,7 +35,11 @@ export async function ensureBriefingAdminUser() {
     .eq("id", user.id)
     .maybeSingle();
 
-  if (profErr) throw profErr;
+  throwBriefingAdminError(
+    "ensureBriefingAdminUser.profile",
+    profErr,
+    "관리자 프로필을 확인하지 못했습니다.",
+  );
   if (!profile || profile.deleted_at) return null;
   if (profile.role !== "admin") return null;
 
@@ -32,7 +57,11 @@ export async function fetchBriefingAdminBootstrap() {
     .eq("is_active", true)
     .order("sort_order", { ascending: true });
 
-  if (boardsErr) throw boardsErr;
+  throwBriefingAdminError(
+    "fetchBriefingAdminBootstrap.boards",
+    boardsErr,
+    "브리핑 보드 목록을 불러오지 못했습니다.",
+  );
 
   const boardIds = (boards ?? []).map((b) => b.id);
   const { data: categories, error: catsErr } = await supabase
@@ -42,7 +71,11 @@ export async function fetchBriefingAdminBootstrap() {
     .eq("is_active", true)
     .order("sort_order", { ascending: true });
 
-  if (catsErr) throw catsErr;
+  throwBriefingAdminError(
+    "fetchBriefingAdminBootstrap.categories",
+    catsErr,
+    "브리핑 카테고리 목록을 불러오지 못했습니다.",
+  );
 
   const { data: tags, error: tagsErr } = await supabase
     .from("briefing_tags")
@@ -51,7 +84,11 @@ export async function fetchBriefingAdminBootstrap() {
     .order("sort_order", { ascending: true })
     .order("name", { ascending: true });
 
-  if (tagsErr) throw tagsErr;
+  throwBriefingAdminError(
+    "fetchBriefingAdminBootstrap.tags",
+    tagsErr,
+    "브리핑 태그 목록을 불러오지 못했습니다.",
+  );
 
   return {
     userId: admin.userId,
@@ -69,6 +106,7 @@ export async function createBriefingPostWithSeq(args: {
   coverImageUrl: string;
   intent: "draft" | "publish";
   tagId: string | null;
+  isEditorPick: boolean;
   userId: string;
 }) {
   const supabase = await createSupabaseServer();
@@ -80,6 +118,7 @@ export async function createBriefingPostWithSeq(args: {
     coverImageUrl,
     intent,
     tagId,
+    isEditorPick,
     userId,
   } = args;
 
@@ -89,7 +128,12 @@ export async function createBriefingPostWithSeq(args: {
     .eq("id", categoryId)
     .maybeSingle();
 
-  if (catErr) throw catErr;
+  throwBriefingAdminError(
+    "createBriefingPostWithSeq.category",
+    catErr,
+    "선택한 카테고리를 확인하지 못했습니다.",
+    { categoryId },
+  );
   if (!cat || cat.board_id !== boardId || !cat.is_active) {
     return { ok: false as const, message: "유효하지 않은 카테고리입니다." };
   }
@@ -105,6 +149,7 @@ export async function createBriefingPostWithSeq(args: {
       p_intent: intent,
       p_user_id: userId,
       p_tag_id: tagId,
+      p_is_editor_pick: isEditorPick,
     },
   );
 
@@ -136,12 +181,17 @@ export async function fetchBriefingPostForEdit(postId: string) {
   const { data: post, error } = await supabase
     .from("briefing_posts")
     .select(
-      "id, slug, title, content_html, content_md, cover_image_url, status, board_id, category_id, post_tags(tag_id)",
+      "id, slug, title, content_html, cover_image_url, is_editor_pick, status, board_id, category_id, post_tags:briefing_post_tags(tag_id)",
     )
     .eq("id", postId)
     .maybeSingle();
 
-  if (error) throw error;
+  throwBriefingAdminError(
+    "fetchBriefingPostForEdit.post",
+    error,
+    "수정할 브리핑 글을 불러오지 못했습니다.",
+    { postId },
+  );
   if (!post) return null;
 
   const tagId =
@@ -154,9 +204,9 @@ export async function fetchBriefingPostForEdit(postId: string) {
     slug: post.slug as string,
     title: post.title as string,
     contentHtml: (post.content_html as string | null) ?? "",
-    contentMd: (post.content_md as string | null) ?? "",
     coverImageUrl: (post.cover_image_url as string | null) ?? "",
     status: post.status as "draft" | "published",
+    isEditorPick: Boolean(post.is_editor_pick),
     boardId: post.board_id as string,
     categoryId: post.category_id as string,
     tagId,
@@ -170,10 +220,11 @@ export async function updateBriefingPost(args: {
   coverImageUrl: string;
   intent: "draft" | "publish";
   tagId: string | null;
+  isEditorPick: boolean;
   userId: string;
 }) {
   const supabase = await createSupabaseServer();
-  const { postId, title, contentHtml, coverImageUrl, intent, tagId } = args;
+  const { postId, title, contentHtml, coverImageUrl, intent, tagId, isEditorPick } = args;
 
   const now = new Date().toISOString();
   const status = intent === "publish" ? "published" : "draft";
@@ -183,6 +234,7 @@ export async function updateBriefingPost(args: {
     title,
     content_html: contentHtml,
     cover_image_url: coverImageUrl || null,
+    is_editor_pick: isEditorPick,
     status,
     updated_at: now,
   };

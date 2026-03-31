@@ -1,0 +1,5 @@
+{"type":"server-started","port":59088,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:59088","screen_dir":"/Users/songzo/KHL_Pilot/oboon-web/.superpowers/brainstorm/51766-1774893978/content","state_dir":"/Users/songzo/KHL_Pilot/oboon-web/.superpowers/brainstorm/51766-1774893978/state"}
+{"type":"screen-added","file":"/Users/songzo/KHL_Pilot/oboon-web/.superpowers/brainstorm/51766-1774893978/content/layout-options.html"}
+{"type":"screen-added","file":"/Users/songzo/KHL_Pilot/oboon-web/.superpowers/brainstorm/51766-1774893978/content/tossfeed-layout.html"}
+{"type":"screen-added","file":"/Users/songzo/KHL_Pilot/oboon-web/.superpowers/brainstorm/51766-1774893978/content/layout-v2.html"}
+{"type":"server-stopped","reason":"idle timeout"}

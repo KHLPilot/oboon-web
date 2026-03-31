@@ -45,6 +45,7 @@ export default async function BriefingPostEditPage({
     content_html: string;
     intent: "draft" | "publish";
     tag_id: string | null;
+    is_editor_pick: boolean;
   }): Promise<
     { ok: true; redirectTo: string } | { ok: false; message: string }
   > {
@@ -59,6 +60,7 @@ export default async function BriefingPostEditPage({
       const contentHtml = String(input.content_html ?? "");
       const intent = input.intent;
       const tagId = input.tag_id ? String(input.tag_id).trim() : null;
+      const isEditorPick = Boolean(input.is_editor_pick);
 
       const titleError = validateRequired(title, "제목");
       if (titleError) return { ok: false, message: titleError };
@@ -70,6 +72,7 @@ export default async function BriefingPostEditPage({
         coverImageUrl,
         intent,
         tagId,
+        isEditorPick,
         userId: admin.userId,
       });
 
@@ -112,6 +115,7 @@ export default async function BriefingPostEditPage({
     coverImageUrl: editPost.coverImageUrl,
     contentHtml: editPost.contentHtml,
     tagId: editPost.tagId,
+    isEditorPick: editPost.isEditorPick,
   };
 
   return (

@@ -8,7 +8,7 @@ type HeroPost = {
   id: string;
   slug: string;
   title: string | null;
-  content_md: string | null;
+  excerpt: string | null;
   created_at: string;
   published_at: string | null;
   cover_image_url: string | null;
@@ -19,23 +19,6 @@ type HeroPost = {
 function pickFirst<T>(v: T | T[] | null | undefined): T | null {
   if (!v) return null;
   return Array.isArray(v) ? (v[0] ?? null) : v;
-}
-
-function stripMd(md: string) {
-  return md
-    .replace(/```[\s\S]*?```/g, " ")
-    .replace(/`[^`]*`/g, " ")
-    .replace(/!\[[^\]]*]\([^)]*\)/g, " ")
-    .replace(/\[[^\]]*]\([^)]*\)/g, " ")
-    .replace(/[*_~>#-]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function excerpt(md: string | null, max = 120) {
-  if (!md) return null;
-  const s = stripMd(md);
-  return s.length > max ? `${s.slice(0, max)}…` : s;
 }
 
 function formatDate(iso: string) {
@@ -68,7 +51,7 @@ export default function BriefingHeroPost({
   const category = pickFirst(post.category);
   const href = getHref(post);
   const dateStr = formatDate(post.published_at ?? post.created_at);
-  const ex = excerpt(post.content_md);
+  const ex = post.excerpt;
 
   return (
     <Link href={href} className="group block mb-10">

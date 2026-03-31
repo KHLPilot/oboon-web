@@ -5,10 +5,45 @@ import { createClient } from "@supabase/supabase-js";
 import { createSupabaseServiceError } from "@/lib/errors";
 import { createServiceServerClient } from "@/lib/services/supabase-server";
 
-export const BRIEFING_HOME_PAGE_SIZE = 8;
+type BoardRow = { key?: string | null } | { key?: string | null }[] | null;
+type CategoryRow =
+  | { key?: string | null; name?: string | null }
+  | { key?: string | null; name?: string | null }[]
+  | null;
 
-type BoardRow = { key?: string } | { key?: string }[] | null;
-type CategoryRow = { key?: string } | { key?: string }[] | null;
+type TopPostQueryRow = {
+  id: string;
+  slug: string;
+  title: string;
+  created_at: string;
+  published_at: string | null;
+  board: BoardRow;
+  category: CategoryRow;
+};
+
+type EditorPickQueryRow = {
+  id: string;
+  slug: string;
+  title: string;
+  excerpt: string | null;
+  cover_image_url: string | null;
+  created_at: string;
+  published_at: string | null;
+  board: BoardRow;
+  category: CategoryRow;
+};
+
+type RecentPostQueryRow = {
+  id: string;
+  slug: string;
+  title: string;
+  excerpt: string | null;
+  cover_image_url: string | null;
+  created_at: string;
+  published_at: string | null;
+  board: BoardRow;
+  category: CategoryRow;
+};
 
 export type BriefingSitemapPostRow = {
   slug: string | null;
@@ -17,6 +52,11 @@ export type BriefingSitemapPostRow = {
   board: BoardRow;
   category: CategoryRow;
 };
+
+function pickFirst<T>(value: T | T[] | null | undefined): T | null {
+  if (!value) return null;
+  return Array.isArray(value) ? (value[0] ?? null) : value;
+}
 
 function createPublicSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -30,7 +70,7 @@ function createPublicSupabaseClient() {
 }
 
 export async function fetchPublishedBriefingPostsForSitemap(
-  limit = 500
+  limit = 500,
 ): Promise<BriefingSitemapPostRow[]> {
   const supabase = createPublicSupabaseClient();
   if (!supabase) return [];
@@ -53,14 +93,13 @@ export async function fetchPublishedBriefingPostsForSitemap(
   return (data ?? []) as BriefingSitemapPostRow[];
 }
 
-export async function fetchBriefingHomeData(page = 1) {
+export async function fetchBriefingHomeData() {
   const supabase = await createServiceServerClient();
-  const pageSize = BRIEFING_HOME_PAGE_SIZE;
-  const offset = (Math.max(1, page) - 1) * pageSize;
 
   const { data: auth } = await supabase.auth.getUser();
   const user = auth.user;
   let isAdmin = false;
+
   if (user) {
     const { data: profile } = await supabase
       .from("profiles")
@@ -70,68 +109,189 @@ export async function fetchBriefingHomeData(page = 1) {
     isAdmin = !!profile && !profile.deleted_at && profile.role === "admin";
   }
 
-  const { data: heroData, error: heroErr } = await supabase
-    .from("briefing_posts")
-    .select(
-      `
-      id, slug, title, content_md, created_at, published_at, cover_image_url,
-      board:briefing_boards!inner(key),
-      category:briefing_categories(key,name)
-    `,
-    )
-    .eq("status", "published")
-    .eq("board.key", "oboon_original")
-    .order("published_at", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (heroErr) {
-    createSupabaseServiceError(heroErr, {
-      scope: "briefing.home",
-      action: "fetch hero post",
-      defaultMessage: "브리핑 메인 글을 불러오지 못했습니다.",
-    });
-  }
-
-  const {
-    data: generalData,
-    error: generalErr,
-    count: generalCount,
-  } = await supabase
-    .from("briefing_posts")
-    .select(
-      `
-      id, slug, title, content_md, created_at, published_at, cover_image_url,
-      board:briefing_boards!inner(key),
-      category:briefing_categories(key,name),
-      post_tags:briefing_post_tags(
-        tag:briefing_tags(id,key,name,sort_order,is_active)
-      )
+  const [topResult, editorResult, recentResult, generalRecentResult] = await Promise.all([
+    supabase
+      .from("briefing_posts")
+      .select(
+        `
+        id, slug, title, published_at, created_at,
+        board:briefing_boards!inner(key),
+        category:briefing_categories(key,name)
       `,
-      { count: "exact" }
-    )
-    .eq("status", "published")
-    .eq("board.key", "general")
-    .order("published_at", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false })
-    .range(offset, offset + pageSize - 1);
+      )
+      .eq("status", "published")
+      .order("published_at", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false })
+      .limit(5),
+    supabase
+      .from("briefing_posts")
+      .select(
+        `
+        id, slug, title, excerpt, cover_image_url, published_at, created_at,
+        board:briefing_boards!inner(key),
+        category:briefing_categories(key,name)
+      `,
+      )
+      .eq("status", "published")
+      .eq("is_editor_pick", true)
+      .order("published_at", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false })
+      .limit(3),
+    supabase
+      .from("briefing_posts")
+      .select(
+        `
+        id, slug, title, excerpt, cover_image_url, published_at, created_at,
+        board:briefing_boards!inner(key),
+        category:briefing_categories(key,name)
+      `,
+      )
+      .eq("status", "published")
+      .order("published_at", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false })
+      .limit(8),
+    supabase
+      .from("briefing_posts")
+      .select(
+        `
+        id, slug, title, excerpt, cover_image_url, published_at, created_at,
+        board:briefing_boards!inner(key),
+        category:briefing_categories(key,name)
+      `,
+      )
+      .eq("status", "published")
+      .eq("board.key", "general")
+      .order("published_at", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false })
+      .limit(8),
+  ]);
 
-  if (generalErr) {
-    createSupabaseServiceError(generalErr, {
+  const { data: topData, error: topErr } = topResult;
+  if (topErr) {
+    throw createSupabaseServiceError(topErr, {
       scope: "briefing.home",
-      action: "fetch general posts",
-      defaultMessage: "브리핑 목록을 불러오지 못했습니다.",
-      context: { page, offset },
+      action: "fetch top posts",
+      defaultMessage: "인기 브리핑을 불러오지 못했습니다.",
     });
   }
+
+  const { data: editorData, error: editorErr } = editorResult;
+  if (editorErr) {
+    throw createSupabaseServiceError(editorErr, {
+      scope: "briefing.home",
+      action: "fetch editor picks",
+      defaultMessage: "에디터 픽을 불러오지 못했습니다.",
+    });
+  }
+
+  const { data: recentData, error: recentErr } = recentResult;
+  if (recentErr) {
+    throw createSupabaseServiceError(recentErr, {
+      scope: "briefing.home",
+      action: "fetch recent posts",
+      defaultMessage: "최신 브리핑을 불러오지 못했습니다.",
+    });
+  }
+  const { data: generalRecentData, error: generalRecentErr } = generalRecentResult;
+  if (generalRecentErr) {
+    throw createSupabaseServiceError(generalRecentErr, {
+      scope: "briefing.home",
+      action: "fetch recent general posts",
+      defaultMessage: "일반 브리핑 목록을 불러오지 못했습니다.",
+    });
+  }
+
+  const topPosts = ((topData ?? []) as TopPostQueryRow[]).map((row) => {
+    const board = pickFirst(row.board);
+    const category = pickFirst(row.category);
+
+    return {
+      id: row.id,
+      slug: row.slug,
+      title: row.title,
+      published_at: row.published_at,
+      created_at: row.created_at,
+      boardKey: board?.key ?? null,
+      category: category
+        ? {
+            key: category.key ?? null,
+            name: category.name ?? null,
+          }
+        : null,
+    };
+  });
+
+  const editorPicks = ((editorData ?? []) as EditorPickQueryRow[]).map((row) => {
+    const board = pickFirst(row.board);
+    const category = pickFirst(row.category);
+
+    return {
+      id: row.id,
+      slug: row.slug,
+      title: row.title,
+      excerpt: row.excerpt,
+      cover_image_url: row.cover_image_url,
+      published_at: row.published_at,
+      created_at: row.created_at,
+      boardKey: board?.key ?? null,
+      category: category
+        ? {
+            key: category.key ?? null,
+            name: category.name ?? null,
+          }
+        : null,
+    };
+  });
+
+  const recentPosts = ((recentData ?? []) as RecentPostQueryRow[]).map((row) => {
+    const board = pickFirst(row.board);
+    const category = pickFirst(row.category);
+
+    return {
+      id: row.id,
+      slug: row.slug,
+      title: row.title,
+      excerpt: row.excerpt,
+      cover_image_url: row.cover_image_url,
+      published_at: row.published_at,
+      created_at: row.created_at,
+      boardKey: board?.key ?? null,
+      category: category
+        ? {
+            key: category.key ?? null,
+            name: category.name ?? null,
+          }
+        : null,
+    };
+  });
+
+  const generalRecentPosts = ((generalRecentData ?? []) as RecentPostQueryRow[]).map((row) => {
+    const board = pickFirst(row.board);
+    const category = pickFirst(row.category);
+
+    return {
+      id: row.id,
+      slug: row.slug,
+      title: row.title,
+      excerpt: row.excerpt,
+      cover_image_url: row.cover_image_url,
+      published_at: row.published_at,
+      created_at: row.created_at,
+      boardKey: board?.key ?? null,
+      category: category
+        ? {
+            key: category.key ?? null,
+            name: category.name ?? null,
+          }
+        : null,
+    };
+  });
 
   return {
     isAdmin,
-    heroPost: heroErr ? null : (heroData ?? null),
-    generalPosts: generalErr ? [] : (generalData ?? []),
-    generalTotalCount: generalErr ? 0 : (generalCount ?? 0),
-    page,
-    pageSize,
+    topPosts,
+    editorPicks,
+    recentPosts,
+    generalRecentPosts,
   };
 }

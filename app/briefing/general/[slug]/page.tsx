@@ -2,9 +2,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Heart, MessageCircle, Share2 } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-
 import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
 
@@ -31,7 +28,6 @@ type PostRow = {
   id: string;
   slug: string;
   title: string;
-  content_md: string | null;
   content_html: string | null;
   created_at: string;
   published_at?: string | null;
@@ -92,42 +88,6 @@ function formatDateLong(iso: string) {
   return `${y}.${m}.${day}`;
 }
 
-function stripMdToText(md: string) {
-  return md
-    .replace(/```[\s\S]*?```/g, " ")
-    .replace(/`[^`]*`/g, " ")
-    .replace(/!\[[^\]]*]\([^)]*\)/g, " ")
-    .replace(/\[[^\]]*]\([^)]*\)/g, " ")
-    .replace(/[#>*_~\-]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function makeBulletLines(md: string | null, maxLines = 3) {
-  if (!md) return [];
-  const txt = stripMdToText(md);
-  if (!txt) return [];
-
-  const rawParts = txt
-    .split(/(?<=[\.\?\!])\s+|\n+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  const lines: string[] = [];
-  for (const part of rawParts) {
-    if (lines.length >= maxLines) break;
-    const s = part.length > 42 ? part.slice(0, 42) + "…" : part;
-    lines.push(s);
-  }
-
-  if (lines.length === 0) {
-    const s = txt.length > 120 ? txt.slice(0, 120) + "…" : txt;
-    return [s];
-  }
-
-  return lines;
-}
-
 // 관리자 체크 코드
 
 export default async function GeneralPostPage({
@@ -155,7 +115,7 @@ export default async function GeneralPostPage({
     id: string;
     slug: string;
     title: string;
-    content_md: string | null;
+    excerpt: string | null;
     content_html: string | null;
   }>;
 
@@ -222,18 +182,10 @@ export default async function GeneralPostPage({
               ) : null}
             </div>
             <div className={cx("ob-md", isAdmin ? "pt-14" : "")}>
-              {post.content_html ? (
-                <BriefingHtmlRenderer
-                  html={post.content_html}
-                  className="prose max-w-none"
-                />
-              ) : (
-                <div className="prose max-w-none">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {post.content_md ?? ""}
-                  </ReactMarkdown>
-                </div>
-              )}
+              <BriefingHtmlRenderer
+                html={post.content_html ?? ""}
+                className="prose max-w-none"
+              />
             </div>
           </div>
 
@@ -346,7 +298,6 @@ export default async function GeneralPostPage({
                     const href = `/briefing/general/${encodeURIComponent(
                       r.slug
                     )}`;
-                    const bullets = makeBulletLines(r.content_md ?? null, 3);
 
                     return (
                       <Link key={r.id} href={href} className="block">
@@ -354,16 +305,9 @@ export default async function GeneralPostPage({
                           <div className="ob-typo-h3 text-(--oboon-text-title) line-clamp-2">
                             {r.title}
                           </div>
-                          {bullets.length > 0 ? (
-                            <div className="mt-4 space-y-1">
-                              {bullets.map((t, i) => (
-                                <div
-                                  key={i}
-                                  className="ob-typo-body leading-5 text-(--oboon-text-muted) line-clamp-1"
-                                >
-                                  {t}
-                                </div>
-                              ))}
+                          {r.excerpt ? (
+                            <div className="mt-4 ob-typo-body leading-5 text-(--oboon-text-muted) line-clamp-2">
+                              {r.excerpt}
                             </div>
                           ) : null}
                         </Card>

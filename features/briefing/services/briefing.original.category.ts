@@ -31,7 +31,7 @@ export async function fetchOboonOriginalCategoryPageData(categoryKey: string, pa
 
   const { data: cat, error: catErr } = await supabase
     .from("briefing_categories")
-    .select("id,key,name,description")
+    .select("id,key,name,description,color")
     .eq("board_id", board.id)
     .eq("key", categoryKey)
     .maybeSingle();
@@ -49,7 +49,7 @@ export async function fetchOboonOriginalCategoryPageData(categoryKey: string, pa
     .from("briefing_posts")
     .select(
       `
-      id, slug, title, content_md, created_at, published_at, cover_image_url,
+      id, slug, title, excerpt, created_at, published_at, cover_image_url,
       category:briefing_categories(key,name)
     `,
       { count: "exact" }

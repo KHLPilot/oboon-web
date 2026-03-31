@@ -63,7 +63,7 @@ export default async function BriefingSearchPage({
               href: getPostHref(p),
               slug: p.slug,
               title: p.title,
-              content_md: p.content_md ?? null,
+              excerpt: (p as { excerpt?: string | null }).excerpt ?? null,
               created_at: p.created_at,
               published_at: p.published_at ?? null,
               cover_image_url: p.cover_image_url ?? null,

@@ -41,6 +41,7 @@ export default async function BriefingPostNewPage() {
     content_html: string;
     intent: "draft" | "publish";
     tag_id: string | null; // 단일 태그
+    is_editor_pick: boolean;
   }): Promise<
     { ok: true; redirectTo: string } | { ok: false; message: string }
   > {
@@ -61,6 +62,7 @@ export default async function BriefingPostNewPage() {
       const contentHtml = String(input.content_html ?? "");
       const intent = input.intent;
       const tagId = input.tag_id ? String(input.tag_id).trim() : null;
+      const isEditorPick = Boolean(input.is_editor_pick);
 
       if (!boardId || !categoryId)
         return { ok: false, message: "보드/카테고리를 선택해주세요." };
@@ -77,6 +79,7 @@ export default async function BriefingPostNewPage() {
         coverImageUrl,
         intent,
         tagId,
+        isEditorPick,
         userId,
       });
 

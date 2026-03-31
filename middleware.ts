@@ -2,6 +2,8 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 const isDevelopment = process.env.NODE_ENV === "development";
+const isReactGrabEnabled =
+  isDevelopment && process.env.NEXT_PUBLIC_ENABLE_REACT_GRAB === "true";
 
 function dedupe(values: Array<string | null | undefined>) {
   return Array.from(new Set(values.filter(Boolean))) as string[];
@@ -32,8 +34,8 @@ function getR2ConnectSources() {
 function buildContentSecurityPolicy(nonce: string) {
   const scriptSources = dedupe([
     "'self'",
-    `'nonce-${nonce}'`,
-    "'strict-dynamic'",
+    isDevelopment ? "'unsafe-inline'" : `'nonce-${nonce}'`,
+    isDevelopment ? null : "'strict-dynamic'",
     isDevelopment ? "'unsafe-eval'" : null,
     "https://www.googletagmanager.com",
     "https://*.googletagmanager.com",
@@ -41,7 +43,13 @@ function buildContentSecurityPolicy(nonce: string) {
     "https://*.clarity.ms",
     "https://oapi.map.naver.com",
     "https://t1.daumcdn.net",
-    isDevelopment ? "https://unpkg.com" : null,
+    isReactGrabEnabled ? "https://unpkg.com" : null,
+  ]);
+
+  const styleSources = dedupe([
+    "'self'",
+    "'unsafe-inline'",
+    isReactGrabEnabled ? "https://fonts.googleapis.com" : null,
   ]);
 
   const connectSources = dedupe([
@@ -56,6 +64,7 @@ function buildContentSecurityPolicy(nonce: string) {
     "https://region1.google-analytics.com",
     "https://stats.g.doubleclick.net",
     "https://*.clarity.ms",
+    isReactGrabEnabled ? "https://www.react-grab.com" : null,
     isDevelopment ? "http://localhost:*" : null,
     isDevelopment ? "ws://localhost:*" : null,
     isDevelopment ? "http://127.0.0.1:*" : null,
@@ -70,7 +79,7 @@ function buildContentSecurityPolicy(nonce: string) {
     "form-action 'self'",
     "img-src 'self' data: blob: https:",
     "font-src 'self' https://fonts.gstatic.com",
-    "style-src 'self' 'unsafe-inline'",
+    `style-src ${styleSources.join(" ")}`,
     `script-src ${scriptSources.join(" ")}`,
     `connect-src ${connectSources.join(" ")}`,
     "frame-src 'self' https://*.daumcdn.net https://*.daum.net",
@@ -89,7 +98,11 @@ function applySecurityHeaders(
   contentSecurityPolicy: string,
 ) {
   response.headers.set("Content-Security-Policy", contentSecurityPolicy);
-  response.headers.set("x-nonce", nonce);
+  if (isDevelopment) {
+    response.headers.delete("x-nonce");
+  } else {
+    response.headers.set("x-nonce", nonce);
+  }
   return response;
 }
 
@@ -98,7 +111,11 @@ export async function middleware(request: NextRequest) {
   const contentSecurityPolicy = buildContentSecurityPolicy(nonce);
   const requestHeaders = new Headers(request.headers);
 
-  requestHeaders.set("x-nonce", nonce);
+  if (isDevelopment) {
+    requestHeaders.delete("x-nonce");
+  } else {
+    requestHeaders.set("x-nonce", nonce);
+  }
   requestHeaders.set("Content-Security-Policy", contentSecurityPolicy);
 
   let response = applySecurityHeaders(NextResponse.next({

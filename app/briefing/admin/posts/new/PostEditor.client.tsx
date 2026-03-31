@@ -39,6 +39,7 @@ type InitialValues = {
   coverImageUrl: string;
   contentHtml: string;
   tagId: string | null;
+  isEditorPick: boolean;
 };
 
 type Props = {
@@ -51,6 +52,7 @@ type Props = {
     content_html: string;
     intent: "draft" | "publish";
     tag_id: string | null;
+    is_editor_pick: boolean;
   }) => Promise<
     { ok: true; redirectTo: string } | { ok: false; message: string }
   >;
@@ -63,6 +65,7 @@ type Props = {
     content_html: string;
     intent: "draft" | "publish";
     tag_id: string | null;
+    is_editor_pick: boolean;
   }) => Promise<
     { ok: true; redirectTo: string } | { ok: false; message: string }
   >;
@@ -85,6 +88,7 @@ type DraftPayload = {
   coverImageUrl: string;
   contentHtml: string;
   selectedTagId: string | null;
+  isEditorPick: boolean;
   savedAt: number;
 };
 
@@ -151,6 +155,7 @@ export default function PostEditorClient({
 
   const [tagQuery, setTagQuery] = useState("");
   const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
+  const [isEditorPick, setIsEditorPick] = useState(false);
 
   const selectedTag = useMemo(
     () => tags.find((t) => t.id === selectedTagId) ?? null,
@@ -188,6 +193,7 @@ export default function PostEditorClient({
           setContentHtml(parsed.contentHtml ?? initialValues.contentHtml);
           setEditorInitialValue(parsed.contentHtml ?? initialValues.contentHtml);
           setSelectedTagId(parsed.selectedTagId ?? initialValues.tagId);
+          setIsEditorPick(parsed.isEditorPick ?? initialValues.isEditorPick);
           lastSavedRef.current = parsed.savedAt ?? Date.now();
           setLastSavedAt(lastSavedRef.current);
           setDirty(false);
@@ -204,6 +210,7 @@ export default function PostEditorClient({
       setContentHtml(initialValues.contentHtml);
       setEditorInitialValue(initialValues.contentHtml);
       setSelectedTagId(initialValues.tagId);
+      setIsEditorPick(initialValues.isEditorPick);
       setDirty(false);
     });
   }, [initialValues, postId]);
@@ -220,6 +227,7 @@ export default function PostEditorClient({
         setContentHtml("");
         setEditorInitialValue("");
         setSelectedTagId(null);
+        setIsEditorPick(false);
         lastSavedRef.current = 0;
         setLastSavedAt(0);
         setDirty(false);
@@ -235,6 +243,7 @@ export default function PostEditorClient({
         setContentHtml(parsed.contentHtml ?? "");
         setEditorInitialValue(parsed.contentHtml ?? "");
         setSelectedTagId(parsed.selectedTagId ?? null);
+        setIsEditorPick(parsed.isEditorPick ?? false);
         lastSavedRef.current = parsed.savedAt ?? Date.now();
         setLastSavedAt(lastSavedRef.current);
         setDirty(false);
@@ -251,6 +260,7 @@ export default function PostEditorClient({
     coverImageUrl,
     contentHtml,
     selectedTagId,
+    isEditorPick,
     boardId,
     categoryId,
     mode,
@@ -265,6 +275,7 @@ export default function PostEditorClient({
         coverImageUrl,
         contentHtml,
         selectedTagId,
+        isEditorPick,
         savedAt: Date.now(),
       };
       localStorage.setItem(key, JSON.stringify(payload));
@@ -278,6 +289,7 @@ export default function PostEditorClient({
     coverImageUrl,
     contentHtml,
     selectedTagId,
+    isEditorPick,
     boardId,
     categoryId,
     mode,
@@ -303,6 +315,7 @@ export default function PostEditorClient({
     setContentHtml("");
     setEditorInitialValue("");
     setSelectedTagId(null);
+    setIsEditorPick(false);
     setDirty(false);
     setErrorMsg(null);
   };
@@ -354,6 +367,7 @@ export default function PostEditorClient({
           content_html: contentHtml,
           intent,
           tag_id: selectedTagId,
+          is_editor_pick: isEditorPick,
         });
       } else if (onCreate) {
         res = await onCreate({
@@ -364,6 +378,7 @@ export default function PostEditorClient({
           content_html: contentHtml,
           intent,
           tag_id: selectedTagId,
+          is_editor_pick: isEditorPick,
         });
       } else {
         setErrorMsg("액션이 설정되지 않았습니다.");
@@ -657,6 +672,27 @@ export default function PostEditorClient({
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
+          </div>
+
+          <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-4">
+            <Label>홈 노출</Label>
+            <label className="mt-2 flex cursor-pointer items-start gap-3">
+              <input
+                type="checkbox"
+                checked={isEditorPick}
+                onChange={(e) => setIsEditorPick(e.target.checked)}
+                disabled={isPending}
+                className="mt-0.5 h-4 w-4 rounded border-(--oboon-border-default)"
+              />
+              <div>
+                <div className="ob-typo-body font-medium text-(--oboon-text-title)">
+                  에디터 픽으로 지정
+                </div>
+                <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+                  홈의 에디터 픽 섹션에 우선 노출됩니다.
+                </div>
+              </div>
+            </label>
           </div>
 
           <div className="flex items-center gap-2 px-1">

@@ -2,8 +2,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Heart, MessageCircle, Share2 } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { redirect } from "next/navigation";
 
 import PageContainer from "@/components/shared/PageContainer";
@@ -33,7 +31,6 @@ type PostRow = {
   id: string;
   slug: string;
   title: string;
-  content_md: string | null;
   content_html: string | null;
   created_at: string;
   published_at?: string | null;
@@ -147,7 +144,7 @@ export default async function OboonOriginalPostPage({
     id: string;
     slug: string;
     title: string;
-    content_md: string | null;
+    excerpt: string | null;
     content_html: string | null;
   }>;
   const recCategoryItems = (recCats ?? []) as Array<{
@@ -172,48 +169,6 @@ export default async function OboonOriginalPostPage({
 
     redirect(`/briefing/oboon-original/${encodeURIComponent(categoryKey)}`);
   }
-  // 추천 오리지널 시리즈(카테고리 3개)
-  function stripMdToText(md: string) {
-    return md
-      .replace(/```[\s\S]*?```/g, " ")
-      .replace(/`[^`]*`/g, " ")
-      .replace(/!\[[^\]]*]\([^)]*\)/g, " ")
-      .replace(/\[[^\]]*]\([^)]*\)/g, " ")
-      .replace(/[#>*_~\-]/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-  }
-
-  // "문장/구절"을 2~3줄로 쪼개서 반환
-  function makeBulletLines(md: string | null, maxLines = 3) {
-    if (!md) return [];
-    const txt = stripMdToText(md);
-    if (!txt) return [];
-
-    // 1) 마침표/물음표/느낌표/줄바꿈 기반으로 우선 분리
-    const rawParts = txt
-      .split(/(?<=[\.\?\!])\s+|\n+/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-
-    // 2) 너무 길면 적당히 잘라서 1줄로
-    const lines: string[] = [];
-    for (const part of rawParts) {
-      if (lines.length >= maxLines) break;
-
-      const s = part.length > 42 ? part.slice(0, 42) + "…" : part;
-      lines.push(s);
-    }
-
-    // 3) 문장 분리가 잘 안 됐으면 fallback: 일정 길이로 슬라이스
-    if (lines.length === 0) {
-      const s = txt.length > 120 ? txt.slice(0, 120) + "…" : txt;
-      return [s];
-    }
-
-    return lines;
-  }
-
   return (
     <main className="bg-(--oboon-bg-page)">
       <PageContainer className="pb-20">
@@ -269,18 +224,10 @@ export default async function OboonOriginalPostPage({
 
               {/* 버튼 영역만큼 본문을 아래로 내림 */}
               <div className={cx("ob-md", isAdmin ? "pt-14" : "")}>
-                {post.content_html ? (
-                  <BriefingHtmlRenderer
-                    html={post.content_html}
-                    className="prose max-w-none"
-                  />
-                ) : (
-                  <div className="prose max-w-none">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {post.content_md ?? ""}
-                    </ReactMarkdown>
-                  </div>
-                )}
+                <BriefingHtmlRenderer
+                  html={post.content_html ?? ""}
+                  className="prose max-w-none"
+                />
               </div>
             </div>
           </div>
@@ -412,8 +359,6 @@ export default async function OboonOriginalPostPage({
                       categoryKey
                     )}/${encodeURIComponent(r.slug)}`;
 
-                    const bullets = makeBulletLines(r.content_md ?? null, 3);
-
                     return (
                       <Link key={r.id} href={href} className="block">
                         <Card className="p-5 h-35 shadow-none bg-(--oboon-bg-surface) hover:bg-(--oboon-bg-subtle) transition-colors">
@@ -421,16 +366,9 @@ export default async function OboonOriginalPostPage({
                             {r.title}
                           </div>
 
-                          {bullets.length > 0 ? (
-                            <div className="mt-4 space-y-1">
-                              {bullets.map((t, i) => (
-                                <div
-                                  key={i}
-                                  className="ob-typo-body leading-5 text-(--oboon-text-muted) line-clamp-1"
-                                >
-                                  {t}
-                                </div>
-                              ))}
+                          {r.excerpt ? (
+                            <div className="mt-4 ob-typo-body leading-5 text-(--oboon-text-muted) line-clamp-2">
+                              {r.excerpt}
                             </div>
                           ) : null}
                         </Card>
@@ -443,10 +381,10 @@ export default async function OboonOriginalPostPage({
           </div>
         </Card>
 
-        {/* ===== 추천 오리지널 시리즈 ===== */}
+        {/* ===== 추천 OBOON 오리지널 ===== */}
         <div className="mt-16">
           <div className="mb-4 ob-typo-h3 text-(--oboon-text-title)">
-            추천 오리지널 시리즈
+            추천 OBOON 오리지널
           </div>
 
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">

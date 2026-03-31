@@ -1364,7 +1364,7 @@ export default async function BriefingPage({
           <div className="mb-10">
             <div className="mb-3 flex items-end justify-between">
               <div className="ob-typo-h3 text-(--oboon-text-title)">
-                오리지널 시리즈
+                OBOON 오리지널
               </div>
               <Link
                 href="/briefing/oboon-original"

@@ -15,14 +15,14 @@ export async function searchBriefingPosts(query: string, page = 1) {
     .from("briefing_posts")
     .select(
       `
-      id, slug, title, content_md, created_at, published_at, cover_image_url,
+      id, slug, title, excerpt, created_at, published_at, cover_image_url,
       board:briefing_boards!inner(key),
       category:briefing_categories(key,name)
       `,
       { count: "exact" }
     )
     .eq("status", "published")
-    .or(`title.ilike.${q},content_md.ilike.${q}`)
+    .ilike("title", q)
     .order("published_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
     .range(offset, offset + pageSize - 1);

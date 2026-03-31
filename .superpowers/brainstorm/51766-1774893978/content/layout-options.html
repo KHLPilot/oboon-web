@@ -1,0 +1,122 @@
+<h2>브리핑 홈 랜딩 레이아웃</h2>
+<p class="subtitle">tossfeed 스타일 참고 — 3가지 구조 중 선택해주세요</p>
+
+<div class="cards">
+
+  <!-- Option A -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:#0f0f0f;border-radius:8px 8px 0 0">
+      <!-- Hero -->
+      <div style="background:#1a1a2e;border-radius:6px;padding:12px;margin-bottom:8px;">
+        <div style="font-size:9px;color:#7c8cf8;margin-bottom:4px;text-transform:uppercase;letter-spacing:1px">FEATURED</div>
+        <div style="height:80px;background:linear-gradient(135deg,#2d2d4e,#1a1a2e);border-radius:4px;display:flex;align-items:flex-end;padding:8px;">
+          <div>
+            <div style="height:8px;background:#fff;border-radius:2px;width:120px;margin-bottom:4px;opacity:0.9"></div>
+            <div style="height:6px;background:#fff;border-radius:2px;width:80px;opacity:0.5"></div>
+          </div>
+        </div>
+      </div>
+      <!-- Category pills -->
+      <div style="display:flex;gap:6px;margin-bottom:8px;">
+        <div style="background:#7c8cf8;border-radius:20px;padding:3px 10px;font-size:9px;color:#fff">일반 브리핑</div>
+        <div style="background:#2a2a2a;border-radius:20px;padding:3px 10px;font-size:9px;color:#aaa">오분 오리지널</div>
+        <div style="background:#2a2a2a;border-radius:20px;padding:3px 10px;font-size:9px;color:#aaa">검색</div>
+      </div>
+      <!-- Card grid -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+        <div style="background:#1a1a1a;border-radius:4px;padding:8px;">
+          <div style="height:40px;background:#2a2a2a;border-radius:3px;margin-bottom:6px"></div>
+          <div style="height:6px;background:#333;border-radius:2px;width:90%;margin-bottom:3px"></div>
+          <div style="height:6px;background:#333;border-radius:2px;width:70%"></div>
+        </div>
+        <div style="background:#1a1a1a;border-radius:4px;padding:8px;">
+          <div style="height:40px;background:#2a2a2a;border-radius:3px;margin-bottom:6px"></div>
+          <div style="height:6px;background:#333;border-radius:2px;width:90%;margin-bottom:3px"></div>
+          <div style="height:6px;background:#333;border-radius:2px;width:70%"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — 카테고리 탭 + 히어로</h3>
+      <p>상단 히어로 아래 카테고리 탭(일반/오리지널/검색)으로 섹션 전환. tossfeed와 가장 유사한 구조.</p>
+    </div>
+  </div>
+
+  <!-- Option B -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:#0f0f0f;border-radius:8px 8px 0 0">
+      <!-- Full hero -->
+      <div style="background:linear-gradient(135deg,#1a1a2e,#2d1b4e);border-radius:6px;padding:12px;margin-bottom:8px;height:90px;display:flex;align-items:flex-end">
+        <div style="width:100%">
+          <div style="height:8px;background:#fff;border-radius:2px;width:130px;margin-bottom:4px;opacity:0.95"></div>
+          <div style="height:6px;background:#fff;border-radius:2px;width:90px;opacity:0.5;margin-bottom:8px"></div>
+          <div style="display:flex;gap:6px;">
+            <div style="background:#7c8cf8;border-radius:12px;padding:3px 10px;font-size:8px;color:#fff">자세히 읽기</div>
+            <div style="background:rgba(255,255,255,0.15);border-radius:12px;padding:3px 10px;font-size:8px;color:#fff">오분 오리지널</div>
+          </div>
+        </div>
+      </div>
+      <!-- Sections stacked -->
+      <div style="background:#1a1a1a;border-radius:4px;padding:8px;margin-bottom:6px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+          <div style="height:7px;background:#7c8cf8;border-radius:2px;width:60px"></div>
+          <div style="height:7px;background:#333;border-radius:2px;width:40px"></div>
+        </div>
+        <div style="display:flex;gap:5px;">
+          <div style="flex:1;height:35px;background:#2a2a2a;border-radius:3px"></div>
+          <div style="flex:1;height:35px;background:#2a2a2a;border-radius:3px"></div>
+          <div style="flex:1;height:35px;background:#2a2a2a;border-radius:3px"></div>
+        </div>
+      </div>
+      <div style="background:#1a1a1a;border-radius:4px;padding:8px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+          <div style="height:7px;background:#f87c7c;border-radius:2px;width:60px"></div>
+          <div style="height:7px;background:#333;border-radius:2px;width:40px"></div>
+        </div>
+        <div style="display:flex;gap:5px;">
+          <div style="flex:1;height:35px;background:#2a2a2a;border-radius:3px"></div>
+          <div style="flex:1;height:35px;background:#2a2a2a;border-radius:3px"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — 히어로 + 섹션 블록 스크롤</h3>
+      <p>풀블리드 히어로 아래, "오분 오리지널 → 전체 보기", "일반 브리핑 → 전체 보기" 섹션을 수직 스택. 각 섹션 카드 3~4개 미리보기.</p>
+    </div>
+  </div>
+
+  <!-- Option C -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:#0f0f0f;border-radius:8px 8px 0 0">
+      <!-- Search bar -->
+      <div style="background:#1e1e1e;border:1px solid #333;border-radius:20px;padding:6px 14px;margin-bottom:8px;display:flex;align-items:center;gap:8px;">
+        <div style="width:10px;height:10px;border:1.5px solid #666;border-radius:50%"></div>
+        <div style="height:6px;background:#333;border-radius:2px;width:100px"></div>
+      </div>
+      <!-- Big hero -->
+      <div style="background:linear-gradient(135deg,#1a2e1a,#1a1a2e);border-radius:6px;padding:10px;margin-bottom:6px;height:70px;display:flex;align-items:flex-end">
+        <div style="height:7px;background:#fff;border-radius:2px;width:110px;opacity:0.9"></div>
+      </div>
+      <!-- 2 col below hero -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+        <div style="background:#1a1a1a;border-radius:4px;padding:8px;">
+          <div style="font-size:8px;color:#7c8cf8;margin-bottom:4px;text-transform:uppercase">오분 오리지널</div>
+          <div style="height:6px;background:#333;border-radius:2px;width:90%;margin-bottom:3px"></div>
+          <div style="height:6px;background:#333;border-radius:2px;width:70%;margin-bottom:3px"></div>
+          <div style="height:6px;background:#333;border-radius:2px;width:80%"></div>
+        </div>
+        <div style="background:#1a1a1a;border-radius:4px;padding:8px;">
+          <div style="font-size:8px;color:#aaa;margin-bottom:4px;text-transform:uppercase">일반 브리핑</div>
+          <div style="height:6px;background:#333;border-radius:2px;width:90%;margin-bottom:3px"></div>
+          <div style="height:6px;background:#333;border-radius:2px;width:70%;margin-bottom:3px"></div>
+          <div style="height:6px;background:#333;border-radius:2px;width:80%"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — 검색 상단 + 히어로 + 2컬럼</h3>
+      <p>검색바를 최상단에 배치 후 히어로, 히어로 아래 좌(오리지널)/우(일반) 2컬럼 미리보기. 검색이 핵심 기능일 때 적합.</p>
+    </div>
+  </div>
+
+</div>

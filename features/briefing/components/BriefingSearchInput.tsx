@@ -2,8 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useRef } from "react";
+import { Search } from "lucide-react";
 
-import { cx } from "@/features/briefing/components/briefing.ui";
+import Input from "@/components/ui/Input";
+import Button from "@/components/ui/Button";
 
 export default function BriefingSearchInput({
   initialQuery = "",
@@ -22,56 +24,34 @@ export default function BriefingSearchInput({
   };
 
   return (
-    <div
-      className={cx(
-        "flex items-center gap-2",
-        "bg-(--oboon-bg-surface) border border-(--oboon-border-default)",
-        "rounded-xl px-4 py-2.5",
-        "focus-within:border-(--oboon-primary) transition-colors",
-        className
-      )}
-    >
-      {/* 돋보기 아이콘 */}
-      <svg
-        className="shrink-0 text-(--oboon-text-muted)"
-        width="16"
-        height="16"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-      >
-        <circle cx="11" cy="11" r="8" />
-        <path d="m21 21-4.35-4.35" />
-      </svg>
+    <div className={`flex items-center gap-3 ${className ?? ""}`}>
+      <div className="flex-1">
+        <Input
+          ref={inputRef}
+          type="search"
+          defaultValue={initialQuery}
+          placeholder="브리핑 글 검색 (제목·내용)"
+          className="h-10 w-full rounded-xl px-5 ob-typo-body outline-none focus:ring-2 focus:ring-(--oboon-primary)/30"
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              submit();
+            }
+          }}
+        />
+      </div>
 
-      <input
-        ref={inputRef}
-        type="search"
-        defaultValue={initialQuery}
-        placeholder="브리핑 글 검색 (제목·내용)"
-        className={cx(
-          "flex-1 bg-transparent outline-none",
-          "ob-typo-body text-(--oboon-text-title)",
-          "placeholder:text-(--oboon-text-muted)"
-        )}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") submit();
-        }}
-      />
-
-      <button
+      <Button
         type="button"
+        variant="secondary"
+        shape="pill"
+        size="md"
+        className="h-10 w-10 rounded-full p-0 shrink-0"
         onClick={submit}
-        className={cx(
-          "shrink-0 px-3 py-1 rounded-lg",
-          "bg-(--oboon-primary) text-white",
-          "ob-typo-caption font-semibold",
-          "hover:opacity-90 transition-opacity"
-        )}
+        aria-label="검색"
       >
-        검색
-      </button>
+        <Search className="h-4 w-4" />
+      </Button>
     </div>
   );
 }

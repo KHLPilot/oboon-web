@@ -130,16 +130,21 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const nonce = (await headers()).get("x-nonce") ?? undefined;
   const isProduction = process.env.NODE_ENV === "production";
+  const nonce = isProduction
+    ? ((await headers()).get("x-nonce") ?? undefined)
+    : undefined;
+  const isReactGrabEnabled =
+    process.env.NODE_ENV === "development" &&
+    process.env.NEXT_PUBLIC_ENABLE_REACT_GRAB === "true";
   const clarityProjectId = process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID;
   const gaTrackingId =
     process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || "G-XF92GCM2KV";
 
   return (
     <html lang="ko" className={suit.variable} suppressHydrationWarning>
-      <head>
-        {process.env.NODE_ENV === "development" && (
+      <head suppressHydrationWarning>
+        {isReactGrabEnabled && (
           <Script
             src="https://unpkg.com/react-grab/dist/index.global.js"
             crossOrigin="anonymous"
@@ -147,7 +152,7 @@ export default async function RootLayout({
             nonce={nonce}
           />
         )}
-        {process.env.NODE_ENV === "development" && (
+        {isReactGrabEnabled && (
           <Script
             src="https://unpkg.com/@react-grab/mcp/dist/client.global.js"
             strategy="lazyOnload"

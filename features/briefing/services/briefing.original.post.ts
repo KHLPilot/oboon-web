@@ -57,7 +57,6 @@ export async function fetchOboonOriginalPostPageData(args: {
     id,
     slug,
     title,
-    content_md,
     content_html,
     created_at,
     published_at,
@@ -88,7 +87,7 @@ export async function fetchOboonOriginalPostPageData(args: {
 
   const { data: relatedData, error: relErr } = await supabase
     .from("briefing_posts")
-    .select("id, slug, title, content_md, content_html")
+    .select("id, slug, title, excerpt, content_html")
     .eq("status", "published")
     .eq("board_id", boardId)
     .eq("category_id", cat?.id ?? "")

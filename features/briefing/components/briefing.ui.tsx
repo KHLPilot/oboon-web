@@ -18,11 +18,13 @@ export function Cover({
   className,
   imgClassName,
   mode = "ratio",
+  sizes,
 }: {
   imageUrl?: string;
   className?: string;
   imgClassName?: string;
   mode?: "ratio" | "fill";
+  sizes?: string;
 }) {
   if (!imageUrl) {
     return (
@@ -50,7 +52,7 @@ export function Cover({
         src={imageUrl}
         alt=""
         fill
-        sizes={mode === "ratio" ? "(max-width: 768px) 100vw, 400px" : "100vw"}
+        sizes={sizes ?? (mode === "ratio" ? "(max-width: 768px) 100vw, 400px" : "100vw")}
         className={cx(
           "object-cover transition-transform duration-300",
           imgClassName

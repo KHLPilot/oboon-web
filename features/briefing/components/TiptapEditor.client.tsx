@@ -90,6 +90,7 @@ export default function TiptapEditor({
         HTMLAttributes: { rel: "noopener noreferrer", target: "_blank" },
       }),
     ],
+    immediatelyRender: false,
     content: initialValue,
     editable: !disabled,
     onUpdate({ editor }) {

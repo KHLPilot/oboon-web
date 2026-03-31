@@ -108,6 +108,7 @@ body {
   );
   background: var(--oboon-bg-default);
   color: var(--oboon-text-body);
+  word-break: keep-all; /* 한국어 단어 단위 줄바꿈 */
 }
 
 /* Links */

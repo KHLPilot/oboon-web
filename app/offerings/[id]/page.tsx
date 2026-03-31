@@ -149,7 +149,10 @@ export default async function OfferingDetailRoute({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const nonce = (await headers()).get("x-nonce") ?? undefined;
+  const nonce =
+    process.env.NODE_ENV === "production"
+      ? ((await headers()).get("x-nonce") ?? undefined)
+      : undefined;
   const { id: rawId } = await params;
   const id = Number(rawId);
   if (!Number.isFinite(id)) notFound();

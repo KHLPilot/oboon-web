@@ -2,15 +2,14 @@
 import Link from "next/link";
 
 import Card from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
 import { Cover, cx } from "@/features/briefing/components/briefing.ui";
 
 export type BriefingCardGridItem = {
   id: string;
-  href: string; // ✅ Server에서 만들어 내려보냄
+  href: string;
   slug: string;
   title: string;
-  content_md: string | null;
+  excerpt: string | null;
   created_at: string;
   published_at?: string | null;
   cover_image_url: string | null;
@@ -25,23 +24,6 @@ function formatDate(iso: string) {
   return `${y}.${m}.${day}`;
 }
 
-function stripMd(md: string) {
-  return md
-    .replace(/```[\s\S]*?```/g, "")
-    .replace(/`[^`]*`/g, "")
-    .replace(/!\[[^\]]*]\([^)]*\)/g, "")
-    .replace(/\[[^\]]*]\([^)]*\)/g, "")
-    .replace(/[#>*_~\-]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function excerpt(md: string | null, max = 70) {
-  if (!md) return "";
-  const s = stripMd(md);
-  return s.length > max ? `${s.slice(0, max)}…` : s;
-}
-
 type PaginationProps = {
   currentPage: number;
   totalCount: number;
@@ -52,7 +34,6 @@ function Pagination({ currentPage, totalCount, pageSize }: PaginationProps) {
   const totalPages = Math.ceil(totalCount / pageSize);
   if (totalPages <= 1) return null;
 
-  // 최대 5개 페이지 번호 노출
   const delta = 2;
   const start = Math.max(1, currentPage - delta);
   const end = Math.min(totalPages, currentPage + delta);
@@ -80,20 +61,15 @@ function Pagination({ currentPage, totalCount, pageSize }: PaginationProps) {
 
   return (
     <div className="mt-8 flex items-center justify-center gap-1">
-      {/* prev */}
       {currentPage > 1 ? (
-        <Link href={`?page=${currentPage - 1}`} className={cx(btnBase, btnHover)}>
-          ‹
-        </Link>
+        <Link href={`?page=${currentPage - 1}`} className={cx(btnBase, btnHover)}>‹</Link>
       ) : (
         <span className={cx(btnBase, btnDisabled)}>‹</span>
       )}
 
       {pages.map((p, i) =>
         p === "…" ? (
-          <span key={`ellipsis-${i}`} className="px-1 ob-typo-caption text-(--oboon-text-muted)">
-            …
-          </span>
+          <span key={`ellipsis-${i}`} className="px-1 ob-typo-caption text-(--oboon-text-muted)">…</span>
         ) : (
           <Link
             key={p}
@@ -105,11 +81,8 @@ function Pagination({ currentPage, totalCount, pageSize }: PaginationProps) {
         )
       )}
 
-      {/* next */}
       {currentPage < totalPages ? (
-        <Link href={`?page=${currentPage + 1}`} className={cx(btnBase, btnHover)}>
-          ›
-        </Link>
+        <Link href={`?page=${currentPage + 1}`} className={cx(btnBase, btnHover)}>›</Link>
       ) : (
         <span className={cx(btnBase, btnDisabled)}>›</span>
       )}
@@ -121,55 +94,63 @@ export default function BriefingCardGrid({
   posts,
   className,
   pagination,
+  columns = 3,
 }: {
   posts: BriefingCardGridItem[];
   className?: string;
   pagination?: PaginationProps;
+  columns?: 3 | 4;
 }) {
+  const gridClassName =
+    columns === 4
+      ? "grid grid-cols-1 gap-x-5 gap-y-8 sm:grid-cols-2 lg:grid-cols-4"
+      : "grid grid-cols-1 gap-x-5 gap-y-8 sm:grid-cols-2 lg:grid-cols-3";
+
   return (
     <div className={cx("space-y-8", className)}>
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+      <div className={gridClassName}>
         {posts.map((p) => {
           const createdAt = (p.published_at ?? p.created_at) as string;
-          const badge = p.badgeLabel ?? "브리핑";
 
           return (
             <Link key={p.id} href={p.href} className="group block">
-              <Card
-                className={cx(
-                  "p-5 overflow-hidden shadow-none",
-                  "hover:bg-(--oboon-bg-subtle) transition-colors"
-                )}
-              >
-                <div className="flex min-h-50">
-                  <div className="flex-1 flex flex-col pr-4 min-w-0">
-                    <div className="mb-3">
-                      <Badge variant="status">{badge}</Badge>
-                    </div>
+              <Card className="p-0 overflow-hidden shadow-none bg-transparent border-none">
+                {/* 상단 이미지 — aspect-video (16:9) */}
+                <div className="aspect-video w-full overflow-hidden rounded-2xl border border-(--oboon-border-default)">
+                  <Cover
+                    mode="fill"
+                    imageUrl={p.cover_image_url ?? undefined}
+                    className="h-full w-full"
+                    imgClassName="transition-transform duration-300 group-hover:scale-[1.03]"
+                  />
+                </div>
 
-                    <div className="ob-typo-h3 text-(--oboon-text-title) line-clamp-2">
-                      {p.title}
-                    </div>
-
-                    <div className="mt-2 ob-typo-body text-(--oboon-text-muted) line-clamp-2">
-                      {excerpt(p.content_md, 90)}
-                    </div>
-
-                    <div className="mt-auto ob-typo-caption text-(--oboon-text-muted)">
-                      {formatDate(createdAt)}
-                    </div>
+                {/* 하단 텍스트 */}
+                <div className="pt-3 px-0.5">
+                  {/* 카테고리 + 날짜 */}
+                  <div className="flex items-center gap-2 ob-typo-caption text-(--oboon-text-muted) mb-2">
+                    {p.badgeLabel && (
+                      <>
+                        <span className="font-semibold text-(--oboon-text-subtle) uppercase tracking-wide">
+                          {p.badgeLabel}
+                        </span>
+                        <span>·</span>
+                      </>
+                    )}
+                    <span>{formatDate(createdAt)}</span>
                   </div>
 
-                  <div className="w-37.5 shrink-0">
-                    <div className="h-full w-full overflow-hidden rounded-2xl border border-(--oboon-border-default)">
-                      <Cover
-                        mode="fill"
-                        imageUrl={p.cover_image_url ?? undefined}
-                        className="h-full w-full"
-                        imgClassName="group-hover:scale-[1.03]"
-                      />
-                    </div>
+                  {/* 제목 */}
+                  <div className="ob-typo-h3 text-(--oboon-text-title) line-clamp-2 group-hover:text-(--oboon-primary) transition-colors">
+                    {p.title}
                   </div>
+
+                  {/* excerpt */}
+                  {p.excerpt && (
+                    <div className="mt-1.5 ob-typo-body text-(--oboon-text-muted) line-clamp-2">
+                      {p.excerpt}
+                    </div>
+                  )}
                 </div>
               </Card>
             </Link>
