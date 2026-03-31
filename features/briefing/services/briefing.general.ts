@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createSupabaseServiceError } from "@/lib/errors";
+import { createSupabaseServiceError, logServiceError } from "@/lib/errors";
 import { createServiceServerClient } from "@/lib/services/supabase-server";
 
 const BRIEFING_GENERAL_PAGE_SIZE = 12;
@@ -116,12 +116,12 @@ export async function fetchGeneralBriefingPageData(page = 1) {
   }
 
   if (boardError) {
-    throw createSupabaseServiceError(boardError, {
-      scope: "briefing.general",
-      action: "fetch general board cover",
-      defaultMessage: "일반 브리핑 보드 커버를 불러오지 못했습니다.",
-      context: { page },
-    });
+    logServiceError(
+      "briefing.general",
+      "fetch general board cover",
+      boardError,
+      { page },
+    );
   }
 
   return {
