@@ -1,6 +1,16 @@
 import { createSupabaseServer } from "@/lib/supabaseServer";
 import { createSupabaseServiceError } from "@/lib/errors";
 import { isMissingCoverImageUrlError } from "@/features/briefing/services/briefing.schema";
+import { createServiceAdminClient } from "@/lib/services/supabase-admin";
+
+type BriefingAuthorProfile = {
+  id: string;
+  name: string | null;
+  nickname: string | null;
+  role: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+};
 
 type BriefingCommentRow = {
   id: string;
@@ -121,6 +131,31 @@ function isOptionalBriefingCommentsSchemaError(error: {
   );
 }
 
+function normalizeAuthorProfile(
+  profile:
+    | BriefingAuthorProfile
+    | BriefingAuthorProfile[]
+    | null
+    | undefined,
+): BriefingAuthorProfile | null {
+  if (!profile) return null;
+  return Array.isArray(profile) ? (profile[0] ?? null) : profile;
+}
+
+async function resolveBriefingAuthorProfile(authorProfileId: string | null) {
+  if (!authorProfileId) return null;
+
+  const admin = createServiceAdminClient();
+  const { data, error } = await admin
+    .from("profiles")
+    .select("id, name, nickname, role, avatar_url, bio")
+    .eq("id", authorProfileId)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return data as BriefingAuthorProfile;
+}
+
 export async function fetchOboonOriginalPostPageData(args: {
   categoryKey: string;
   slug: string;
@@ -205,6 +240,7 @@ export async function fetchOboonOriginalPostPageData(args: {
     id,
     slug,
     title,
+    author_profile_id,
     content_html,
     like_count,
     comment_count,
@@ -236,6 +272,22 @@ export async function fetchOboonOriginalPostPageData(args: {
       context: { categoryKey, slug },
     });
   }
+
+  const normalizedAuthor = normalizeAuthorProfile(
+    (post as { author_profile?: BriefingAuthorProfile | BriefingAuthorProfile[] | null } | null)
+      ?.author_profile,
+  );
+  const resolvedAuthor =
+    normalizedAuthor ??
+    (await resolveBriefingAuthorProfile(
+      ((post as { author_profile_id?: string | null } | null)?.author_profile_id ?? null),
+    ));
+  const resolvedPost = post
+    ? {
+        ...post,
+        author_profile: resolvedAuthor,
+      }
+    : post;
 
   const { data: relatedData, error: relErr } = await supabase
     .from("briefing_posts")
@@ -343,7 +395,7 @@ export async function fetchOboonOriginalPostPageData(args: {
           isAdmin,
           boardId,
           category: cat,
-          post,
+          post: resolvedPost,
           relatedPosts: relatedData ?? [],
           initialComments: comments,
           initialNextCursor: nextCursor,
@@ -359,7 +411,7 @@ export async function fetchOboonOriginalPostPageData(args: {
         isAdmin,
         boardId,
         category: cat,
-        post,
+        post: resolvedPost,
         relatedPosts: relatedData ?? [],
         initialComments: [],
         initialNextCursor: null,
@@ -392,7 +444,7 @@ export async function fetchOboonOriginalPostPageData(args: {
     isAdmin,
     boardId,
     category: cat,
-    post,
+    post: resolvedPost,
     relatedPosts: relatedData ?? [],
     initialComments: comments,
     initialNextCursor: nextCursor,

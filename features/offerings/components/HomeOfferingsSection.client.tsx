@@ -30,6 +30,7 @@ import {
   clearConditionSession,
   loadConditionSession,
   saveConditionSession,
+  sanitizeGuestConditionSessionSnapshot,
   type ConditionSessionSnapshot,
 } from "@/features/condition-validation/lib/sessionCondition";
 import type { ConditionCategoryGrades } from "@/features/condition-validation/domain/types";
@@ -138,6 +139,8 @@ type HomeConditionDraft = {
   regions?: OfferingRegionTab[];
   saved_at?: string;
 };
+
+const HOME_CONDITION_DRAFT_STORAGE_KEY = "oboon:home-condition-draft";
 
 type SavedConditionPresetState = {
   available_cash: number | null;
@@ -498,20 +501,7 @@ function buildCustomerFromSessionSnapshot(
 function sanitizeGuestConditionSnapshot(
   snapshot: ConditionSessionSnapshot,
 ): ConditionSessionSnapshot {
-  return {
-    ...snapshot,
-    monthlyExpenses: "",
-    employmentType: null,
-    purchaseTiming: null,
-    moveinTiming: null,
-    ltvInternalScore: 0,
-    existingLoan: null,
-    recentDelinquency: null,
-    cardLoanUsage: null,
-    loanRejection: null,
-    monthlyIncomeRange: null,
-    existingMonthlyRepayment: "none",
-  };
+  return sanitizeGuestConditionSessionSnapshot(snapshot);
 }
 
 function buildSavedConditionPresetSnapshot(
@@ -1085,6 +1075,11 @@ export default function HomeOfferingsSection() {
     setLoanRejection(snapshot.loanRejection);
     setMonthlyIncomeRange(snapshot.monthlyIncomeRange);
     setExistingMonthlyRepayment(snapshot.existingMonthlyRepayment);
+    setGuestCreditGrade(
+      snapshot.ltvInternalScore > 0
+        ? creditGradeFromLtvInternalScore(snapshot.ltvInternalScore)
+        : "good",
+    );
   }, []);
 
   const applyCustomerStateFromRaw = useCallback((raw: Record<string, unknown>) => {
@@ -1103,6 +1098,14 @@ export default function HomeOfferingsSection() {
       toNonNegativeInt(raw.ltv_internal_score) ??
       ltvInternalScoreFromCreditGrade(raw.credit_grade) ??
       0;
+    const derivedGuestCreditGrade =
+      raw.credit_grade === "good" ||
+      raw.credit_grade === "normal" ||
+      raw.credit_grade === "unstable"
+        ? raw.credit_grade
+        : derivedLtvScore > 0
+          ? creditGradeFromLtvInternalScore(derivedLtvScore)
+          : "good";
 
     setAvailableCash(availableCash === null ? "" : formatStoredAmount(availableCash));
     setMonthlyIncome(monthlyIncome === null ? "" : formatStoredAmount(monthlyIncome));
@@ -1119,6 +1122,7 @@ export default function HomeOfferingsSection() {
     );
     setMoveinTiming(isValidMoveinTiming(raw.movein_timing) ? raw.movein_timing : null);
     setLtvInternalScore(Math.min(100, Math.max(0, derivedLtvScore)));
+    setGuestCreditGrade(derivedGuestCreditGrade);
     setExistingLoan(null);
     setRecentDelinquency(null);
     setCardLoanUsage(null);
@@ -1160,6 +1164,7 @@ export default function HomeOfferingsSection() {
       setPurchaseTiming(profileData.cv_purchase_timing ?? null);
       setMoveinTiming(profileData.cv_movein_timing ?? null);
       setLtvInternalScore(Math.min(100, Math.max(0, effectiveLtvScore)));
+      setGuestCreditGrade(creditGradeFromLtvInternalScore(effectiveLtvScore));
       setExistingLoan(profileData.cv_existing_loan_amount ?? null);
       setRecentDelinquency(profileData.cv_recent_delinquency ?? null);
       setCardLoanUsage(profileData.cv_card_loan_usage ?? null);
@@ -1367,12 +1372,51 @@ export default function HomeOfferingsSection() {
       ltv_internal_score: 0,
       existing_monthly_repayment: DEFAULT_EXISTING_MONTHLY_REPAYMENT,
     };
+    const guestLtvInternalScore =
+      ltvInternalScoreFromCreditGrade(guestCreditGrade) ?? 0;
+    setLtvInternalScore(guestLtvInternalScore);
+    saveConditionSession(
+      sanitizeGuestConditionSnapshot({
+        availableCash,
+        monthlyIncome,
+        monthlyExpenses,
+        employmentType,
+        houseOwnership,
+        purchasePurposeV2,
+        purchaseTiming,
+        moveinTiming,
+        ltvInternalScore: guestLtvInternalScore,
+        existingLoan,
+        recentDelinquency,
+        cardLoanUsage,
+        loanRejection,
+        monthlyIncomeRange,
+        existingMonthlyRepayment,
+      }),
+    );
     await applyRecommendationByCustomer(customer, {
       closeModal: true,
       guestMode: true,
       guestCreditGrade,
     });
-  }, [availableCash, monthlyIncome, houseOwnership, purchasePurposeV2, guestCreditGrade, applyRecommendationByCustomer]);
+  }, [
+    availableCash,
+    monthlyIncome,
+    monthlyExpenses,
+    employmentType,
+    houseOwnership,
+    purchasePurposeV2,
+    purchaseTiming,
+    moveinTiming,
+    guestCreditGrade,
+    existingLoan,
+    recentDelinquency,
+    cardLoanUsage,
+    loanRejection,
+    monthlyIncomeRange,
+    existingMonthlyRepayment,
+    applyRecommendationByCustomer,
+  ]);
 
   const handleLoginAndSaveCondition = useCallback(() => {
     setConditionError(null);
@@ -1381,6 +1425,10 @@ export default function HomeOfferingsSection() {
     if (!customer) return;
 
     try {
+      const resolvedGuestLtvInternalScore =
+        isLoggedIn === false
+          ? ltvInternalScoreFromCreditGrade(guestCreditGrade) ?? 0
+          : ltvInternalScore;
       const snapshot: ConditionSessionSnapshot = {
         availableCash,
         monthlyIncome,
@@ -1390,7 +1438,7 @@ export default function HomeOfferingsSection() {
         purchasePurposeV2,
         purchaseTiming,
         moveinTiming,
-        ltvInternalScore,
+        ltvInternalScore: resolvedGuestLtvInternalScore,
         existingLoan,
         recentDelinquency,
         cardLoanUsage,
@@ -1401,11 +1449,18 @@ export default function HomeOfferingsSection() {
       const payload: HomeConditionDraft = {
         snapshot:
           isLoggedIn === false ? sanitizeGuestConditionSnapshot(snapshot) : snapshot,
-        customer,
+        customer:
+          isLoggedIn === false
+            ? {
+                ...customer,
+                ltv_internal_score: resolvedGuestLtvInternalScore,
+                credit_grade: guestCreditGrade,
+              }
+            : customer,
         regions: conditionRegions,
         saved_at: new Date().toISOString(),
       };
-      localStorage.setItem("oboon:home-condition-draft", JSON.stringify(payload));
+      localStorage.setItem(HOME_CONDITION_DRAFT_STORAGE_KEY, JSON.stringify(payload));
     } catch {
       // Ignore storage failure and continue to login.
     }
@@ -1420,6 +1475,7 @@ export default function HomeOfferingsSection() {
     houseOwnership,
     isLoggedIn,
     conditionRegions,
+    guestCreditGrade,
     loanRejection,
     ltvInternalScore,
     monthlyExpenses,
@@ -1547,7 +1603,12 @@ export default function HomeOfferingsSection() {
               await applyRecommendationRef.current(sessionCustomer, {
                 closeModal: false,
                 guestMode: true,
-                guestCreditGrade: "good",
+                guestCreditGrade:
+                  guestSnapshot.ltvInternalScore > 0
+                    ? creditGradeFromLtvInternalScore(
+                        guestSnapshot.ltvInternalScore,
+                      )
+                    : "good",
               });
             } else {
               setShowConditionSetupCard(true);
@@ -1583,7 +1644,7 @@ export default function HomeOfferingsSection() {
       let draftCustomerRaw: Record<string, unknown> | null = null;
       let draftRegions: OfferingRegionTab[] = [];
       try {
-        const rawDraft = localStorage.getItem("oboon:home-condition-draft");
+        const rawDraft = localStorage.getItem(HOME_CONDITION_DRAFT_STORAGE_KEY);
         if (rawDraft) {
           const parsedDraft = JSON.parse(rawDraft) as HomeConditionDraft;
           draftRegions = normalizeConditionRegions(parsedDraft?.regions);
@@ -1613,7 +1674,7 @@ export default function HomeOfferingsSection() {
         setShowConditionSetupCard(false);
         await applyRecommendationRef.current(draftCustomer, { closeModal: false });
         try {
-          localStorage.removeItem("oboon:home-condition-draft");
+          localStorage.removeItem(HOME_CONDITION_DRAFT_STORAGE_KEY);
         } catch {
           // ignore storage cleanup failures
         }
@@ -1716,6 +1777,43 @@ export default function HomeOfferingsSection() {
   // applyRecommendationRef는 항상 최신 콜백을 참조하므로 deps에서 제외
   // → 유저가 필드를 수정해도 이 effect가 재실행되지 않음
   }, [applyCustomerStateFromRaw, applyProfileConditionPreset, applySessionCondition, supabase]);
+
+  const resetConditionForm = useCallback(() => {
+    setAvailableCash("");
+    setMonthlyIncome("");
+    setMonthlyExpenses("");
+    setEmploymentType(null);
+    setHouseOwnership(null);
+    setConditionRegions([]);
+    setPurchasePurposeV2(null);
+    setPurchaseTiming(null);
+    setMoveinTiming(null);
+    setLtvInternalScore(0);
+    setExistingLoan(null);
+    setRecentDelinquency(null);
+    setCardLoanUsage(null);
+    setLoanRejection(null);
+    setMonthlyIncomeRange(null);
+    setExistingMonthlyRepayment("none");
+    setGuestCreditGrade("good");
+    setConditionError(null);
+    setConditionNotice(null);
+    setRecommendedPropertyIds(null);
+    setRecommendedCategoriesById(new Map());
+    setRecommendedRawById(new Map());
+    setAppliedCustomerSummary(null);
+    setShowConditionSetupCard(true);
+
+    if (isLoggedIn === false) {
+      clearConditionSession();
+    }
+
+    try {
+      localStorage.removeItem(HOME_CONDITION_DRAFT_STORAGE_KEY);
+    } catch {
+      // ignore storage cleanup failures
+    }
+  }, [isLoggedIn]);
 
   return (
     <>
@@ -2252,25 +2350,7 @@ export default function HomeOfferingsSection() {
                 type="button"
                 size="sm"
                 variant="secondary"
-                onClick={() => {
-                  setAvailableCash("");
-                  setMonthlyIncome("");
-                  setMonthlyExpenses("");
-                  setEmploymentType(null);
-                  setHouseOwnership(null);
-                  setConditionRegions([]);
-                  setPurchasePurposeV2(null);
-                  setPurchaseTiming(null);
-                  setMoveinTiming(null);
-                  setLtvInternalScore(0);
-                  setExistingMonthlyRepayment("none");
-                  setConditionError(null);
-                  setConditionNotice(null);
-                  setRecommendedPropertyIds(null);
-                  setRecommendedCategoriesById(new Map());
-                  setRecommendedRawById(new Map());
-                  setAppliedCustomerSummary(null);
-                }}
+                onClick={resetConditionForm}
               >
                 초기화
               </Button>

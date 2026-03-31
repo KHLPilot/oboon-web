@@ -45,6 +45,7 @@ export const ROUTES = {
 
   offerings: {
     list: "/offerings",
+    compare: "/offerings/compare",
     detail: (id: string | number) => `/offerings/${id}`,
   },
 } as const;

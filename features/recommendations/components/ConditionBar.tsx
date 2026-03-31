@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useId } from "react"; // useState: ltvModalOpen용
+import { useEffect, useId, useState } from "react";
 import { Lock } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import Button from "@/components/ui/Button";
@@ -118,6 +118,21 @@ function guestCreditGradeToScore(grade: CreditGrade): number {
   return 20;
 }
 
+function guestCreditGradeFromCondition(
+  condition: RecommendationCondition,
+): CreditGrade {
+  if (condition.ltvInternalScore <= 0) return "good";
+  if (condition.creditGrade === "good" || condition.creditGrade === "normal") {
+    return condition.creditGrade;
+  }
+  if (condition.creditGrade === "unstable") return "unstable";
+  if (condition.ltvInternalScore >= guestCreditGradeToScore("good")) return "good";
+  if (condition.ltvInternalScore >= guestCreditGradeToScore("normal")) {
+    return "normal";
+  }
+  return "unstable";
+}
+
 function formatNumericInput(value: string): string {
   const digitsOnly = value.replace(/[^\d]/g, "");
   if (!digitsOnly) return "";
@@ -184,9 +199,16 @@ export default function ConditionBar(props: ConditionBarProps) {
     isLoading = false,
     isSaving = false,
   } = props;
-  const [guestCreditGrade, setGuestCreditGrade] = useState<CreditGrade>("good");
+  const [guestCreditGrade, setGuestCreditGrade] = useState<CreditGrade>(
+    guestCreditGradeFromCondition(condition),
+  );
   const [ltvModalOpen, setLtvModalOpen] = useState(false);
   const toast = useToast();
+
+  useEffect(() => {
+    if (isLoggedIn !== false) return;
+    setGuestCreditGrade(guestCreditGradeFromCondition(condition));
+  }, [condition, isLoggedIn]);
 
   const handleSave = async () => {
     if (!onSave) return;

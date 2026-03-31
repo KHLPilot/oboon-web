@@ -102,6 +102,24 @@ export function hasConditionSessionData(snapshot: ConditionSessionSnapshot | nul
   );
 }
 
+export function sanitizeGuestConditionSessionSnapshot(
+  snapshot: ConditionSessionSnapshot,
+): ConditionSessionSnapshot {
+  return {
+    ...snapshot,
+    monthlyExpenses: "",
+    employmentType: null,
+    purchaseTiming: null,
+    moveinTiming: null,
+    existingLoan: null,
+    recentDelinquency: null,
+    cardLoanUsage: null,
+    loanRejection: null,
+    monthlyIncomeRange: null,
+    existingMonthlyRepayment: "none",
+  };
+}
+
 export function saveConditionSession(snapshot: ConditionSessionSnapshot): void {
   if (typeof window === "undefined") return;
   if (!hasConditionSessionData(snapshot)) return;

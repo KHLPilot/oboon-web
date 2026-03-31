@@ -1,5 +1,15 @@
 import { createSupabaseServer } from "@/lib/supabaseServer";
 import { createSupabaseServiceError } from "@/lib/errors";
+import { createServiceAdminClient } from "@/lib/services/supabase-admin";
+
+type BriefingAuthorProfile = {
+  id: string;
+  name: string | null;
+  nickname: string | null;
+  role: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+};
 
 type BriefingCommentRow = {
   id: string;
@@ -120,6 +130,31 @@ function isOptionalBriefingCommentsSchemaError(error: {
   );
 }
 
+function normalizeAuthorProfile(
+  profile:
+    | BriefingAuthorProfile
+    | BriefingAuthorProfile[]
+    | null
+    | undefined,
+): BriefingAuthorProfile | null {
+  if (!profile) return null;
+  return Array.isArray(profile) ? (profile[0] ?? null) : profile;
+}
+
+async function resolveBriefingAuthorProfile(authorProfileId: string | null) {
+  if (!authorProfileId) return null;
+
+  const admin = createServiceAdminClient();
+  const { data, error } = await admin
+    .from("profiles")
+    .select("id, name, nickname, role, avatar_url, bio")
+    .eq("id", authorProfileId)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return data as BriefingAuthorProfile;
+}
+
 export async function fetchGeneralPostPageData(slug: string) {
   const supabase = await createSupabaseServer();
 
@@ -160,6 +195,7 @@ export async function fetchGeneralPostPageData(slug: string) {
     id,
     slug,
     title,
+    author_profile_id,
     content_html,
     like_count,
     comment_count,
@@ -191,6 +227,22 @@ export async function fetchGeneralPostPageData(slug: string) {
       context: { slug },
     });
   }
+
+  const normalizedAuthor = normalizeAuthorProfile(
+    (data as { author_profile?: BriefingAuthorProfile | BriefingAuthorProfile[] | null } | null)
+      ?.author_profile,
+  );
+  const resolvedAuthor =
+    normalizedAuthor ??
+    (await resolveBriefingAuthorProfile(
+      ((data as { author_profile_id?: string | null } | null)?.author_profile_id ?? null),
+    ));
+  const resolvedPost = data
+    ? {
+        ...data,
+        author_profile: resolvedAuthor,
+      }
+    : data;
 
   const { data: relatedData, error: relErr } = await supabase
     .from("briefing_posts")
@@ -248,7 +300,7 @@ export async function fetchGeneralPostPageData(slug: string) {
         return {
           isAdmin,
           boardId,
-          post: data,
+          post: resolvedPost,
           relatedPosts: relatedData ?? [],
           initialComments: comments,
           initialNextCursor: nextCursor,
@@ -261,7 +313,7 @@ export async function fetchGeneralPostPageData(slug: string) {
       return {
         isAdmin,
         boardId,
-        post: data,
+        post: resolvedPost,
         relatedPosts: relatedData ?? [],
         initialComments: [],
         initialNextCursor: null,
@@ -291,7 +343,7 @@ export async function fetchGeneralPostPageData(slug: string) {
   return {
     isAdmin,
     boardId,
-    post: data,
+    post: resolvedPost,
     relatedPosts: relatedData ?? [],
     initialComments: comments,
     initialNextCursor: nextCursor,

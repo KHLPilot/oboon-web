@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ROUTES } from "@/types/index";
 
 export default function Footer() {
   const pathname = usePathname();
@@ -38,7 +39,7 @@ export default function Footer() {
               <ul className="space-y-2 ob-typo-caption text-(--oboon-text-muted)">
                 <li>
                   <Link
-                    href="/recommendations"
+                    href={ROUTES.recommendations}
                     className="hover:text-(--oboon-text-default)"
                   >
                     맞춤현장
@@ -46,7 +47,7 @@ export default function Footer() {
                 </li>
                 <li>
                   <Link
-                    href="/offerings"
+                    href={ROUTES.offerings.list}
                     className="hover:text-(--oboon-text-default)"
                   >
                     분양 리스트
@@ -54,7 +55,7 @@ export default function Footer() {
                 </li>
                 <li>
                   <Link
-                    href="/compare"
+                    href={ROUTES.offerings.compare}
                     className="hover:text-(--oboon-text-default)"
                   >
                     비교하기

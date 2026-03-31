@@ -347,7 +347,7 @@ function sanitizeGuestCondition(
     monthlyExpenses: 0,
     purchaseTiming: null,
     moveinTiming: null,
-    ltvInternalScore: 0,
+    ltvInternalScore: clamp(Math.round(condition.ltvInternalScore), 0, 100),
     existingLoan: null,
     recentDelinquency: null,
     cardLoanUsage: null,
@@ -880,6 +880,7 @@ export function useRecommendations() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const initialEvaluationRequestedRef = useRef(false);
   const skipAutoEvalRef = useRef(false);
+  const previousIsLoggedInRef = useRef<boolean | null>(null);
 
   const [condition, setCondition] = useState<RecommendationCondition>(
     DEFAULT_CONDITION,
@@ -939,10 +940,16 @@ export function useRecommendations() {
       if (!loggedIn) {
         setHasSavedConditionPreset(false);
         setSavedConditionPreset(null);
-        clearConditionSession();
-        clearRecommendationConditionDraft();
         if (active) {
-          setCondition(sanitizeGuestCondition(DEFAULT_CONDITION));
+          const sessionSnapshot = loadConditionSession();
+          const nextCondition = sessionSnapshot
+            ? sanitizeGuestCondition(
+                normalizeInputCondition(
+                  conditionFromSession(sessionSnapshot, DEFAULT_CONDITION),
+                ),
+              )
+            : sanitizeGuestCondition(DEFAULT_CONDITION);
+          setCondition(nextCondition);
         }
       } else {
         // 저장된 조건 불러오기
@@ -1035,15 +1042,22 @@ export function useRecommendations() {
   }, [supabase]);
 
   useEffect(() => {
-    if (isLoggedIn) return;
+    const previousIsLoggedIn = previousIsLoggedInRef.current;
+    previousIsLoggedInRef.current = isLoggedIn;
+
+    if (previousIsLoggedIn !== true || isLoggedIn !== false) return;
 
     setHasSavedConditionPreset(false);
     setSavedConditionPreset(null);
-    setCondition((prev) => ({
-      ...sanitizeGuestCondition(prev),
-      availableCash: 0,
-      monthlyIncome: 0,
-    }));
+    clearConditionSession();
+    clearRecommendationConditionDraft();
+    setCondition(sanitizeGuestCondition(DEFAULT_CONDITION));
+    setRawRecommendations([]);
+    setSelectedId(null);
+    setRequestError(null);
+    setValidationError(null);
+    initialEvaluationRequestedRef.current = false;
+    skipAutoEvalRef.current = false;
   }, [isLoggedIn]);
 
   const metadataById = useMemo(() => {
