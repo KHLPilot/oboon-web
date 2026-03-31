@@ -55,6 +55,16 @@
     "definition": "CREATE INDEX idx_briefing_categories_board_order ON public.briefing_categories USING btree (board_id, sort_order)"
   },
   {
+    "table_name": "briefing_category_tags",
+    "index_name": "briefing_category_tags_category_id_tag_id_key",
+    "definition": "CREATE UNIQUE INDEX briefing_category_tags_category_id_tag_id_key ON public.briefing_category_tags USING btree (category_id, tag_id)"
+  },
+  {
+    "table_name": "briefing_category_tags",
+    "index_name": "briefing_category_tags_pkey",
+    "definition": "CREATE UNIQUE INDEX briefing_category_tags_pkey ON public.briefing_category_tags USING btree (id)"
+  },
+  {
     "table_name": "briefing_post_tags",
     "index_name": "briefing_post_tags_one_per_post",
     "definition": "CREATE UNIQUE INDEX briefing_post_tags_one_per_post ON public.briefing_post_tags USING btree (post_id)"

@@ -68,6 +68,14 @@ export default function Footer() {
                     커뮤니티
                   </Link>
                 </li>
+                <li>
+                  <Link
+                    href="/briefing"
+                    className="hover:text-(--oboon-text-default)"
+                  >
+                    브리핑
+                  </Link>
+                </li>
               </ul>
             </div>
 

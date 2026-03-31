@@ -100,6 +100,14 @@ function buildErrorLogPayload(
       payload.code = source.code;
     }
 
+    if (typeof source.message === "string" && source.message) {
+      payload.message = source.message;
+    }
+
+    if (typeof source.details === "string" && source.details) {
+      payload.details = source.details;
+    }
+
     if (typeof source.hint === "string" && source.hint) {
       payload.hint = source.hint;
     }

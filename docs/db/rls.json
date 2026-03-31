@@ -25,6 +25,11 @@
     "rls_forced": false
   },
   {
+    "table_name": "briefing_category_tags",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
     "table_name": "briefing_post_tags",
     "rls_enabled": true,
     "rls_forced": false
@@ -236,7 +241,7 @@
   },
   {
     "table_name": "regulation_rules",
-    "rls_enabled": false,
+    "rls_enabled": true,
     "rls_forced": false
   },
   {

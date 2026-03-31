@@ -34,7 +34,13 @@ export default async function BriefingPage() {
     <main className="bg-(--oboon-bg-page)">
       <PageContainer className="pb-0">
         {isAdmin && (
-          <div className="mb-3 flex justify-end">
+          <div className="mb-3 flex justify-end gap-2">
+            <Link
+              href="/briefing/editor"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-1.5 ob-typo-caption font-semibold text-(--oboon-text-body) transition-colors hover:border-(--oboon-primary) hover:text-(--oboon-primary)"
+            >
+              대시보드
+            </Link>
             <Link
               href="/briefing/admin/posts/new"
               className="inline-flex items-center gap-1.5 rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-1.5 ob-typo-caption font-semibold text-(--oboon-text-body) transition-colors hover:border-(--oboon-primary) hover:text-(--oboon-primary)"

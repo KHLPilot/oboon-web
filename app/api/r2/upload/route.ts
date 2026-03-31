@@ -23,6 +23,8 @@ const ALLOWED_UPLOAD_MODES = [
   "property_floor_plan",
   "briefing_cover",
   "briefing_content",
+  "briefing_board_cover",
+  "briefing_category_cover",
   "agent_avatar",
 ] as const;
 
@@ -133,6 +135,9 @@ export async function POST(req: Request) {
     const file = form.get("file") as File | null;
     const propertyId = form.get("propertyId") as string | null;
     const postId = (form.get("postId") as string | null)?.trim() || null;
+    const boardId = (form.get("boardId") as string | null)?.trim() || null;
+    const categoryId =
+      (form.get("categoryId") as string | null)?.trim() || null;
     const userId = (form.get("userId") as string | null)?.trim() || null;
     const mode = parseUploadMode(form.get("mode"));
     const unitType = (form.get("unitType") as string | null)?.trim() || "";
@@ -201,7 +206,9 @@ export async function POST(req: Request) {
 
     if (
       mode === "briefing_cover" ||
-      mode === "briefing_content"
+      mode === "briefing_content" ||
+      mode === "briefing_board_cover" ||
+      mode === "briefing_category_cover"
     ) {
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
@@ -258,6 +265,33 @@ export async function POST(req: Request) {
       }
 
       const key = `briefing/posts/${postId}/content/${randomKeySegment()}.${ext}`;
+
+      await uploadToR2({ key, body: fileBody, contentType: detectedMime });
+
+      return NextResponse.json({ url: getPublicUrl(key) });
+    }
+
+    if (mode === "briefing_board_cover") {
+      if (!boardId) {
+        return NextResponse.json({ error: "boardId required" }, { status: 400 });
+      }
+
+      const key = `briefing/boards/${boardId}/cover.${ext}`;
+
+      await uploadToR2({ key, body: fileBody, contentType: detectedMime });
+
+      return NextResponse.json({ url: getPublicUrl(key) });
+    }
+
+    if (mode === "briefing_category_cover") {
+      if (!categoryId) {
+        return NextResponse.json(
+          { error: "categoryId required" },
+          { status: 400 },
+        );
+      }
+
+      const key = `briefing/categories/${categoryId}/cover.${ext}`;
 
       await uploadToR2({ key, body: fileBody, contentType: detectedMime });
 

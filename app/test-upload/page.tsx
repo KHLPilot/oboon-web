@@ -1,11 +1,13 @@
-"use client";
+import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
-import TestUploadPropertyCreatePage from "@/features/company/components/property-create/TestUploadPropertyCreatePage";
+export const metadata: Metadata = {
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 export default function TestUploadPageRoute() {
-  return (
-    <main className="w-full max-w-full overflow-x-hidden">
-      <TestUploadPropertyCreatePage />
-    </main>
-  );
+  redirect("/company/properties/new");
 }

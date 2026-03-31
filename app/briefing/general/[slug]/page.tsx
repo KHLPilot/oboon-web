@@ -1,27 +1,32 @@
 // app/briefing/general/[slug]/page.tsx
+import Image from "next/image";
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { Heart, MessageCircle, Share2 } from "lucide-react";
+import { notFound, redirect } from "next/navigation";
 import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
 
 import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import BriefingCommentSection from "@/features/briefing/components/BriefingCommentSection.client";
 import {
   deleteGeneralBriefingPost,
   ensureGeneralBriefingAdmin,
   fetchGeneralPostPageData,
 } from "@/features/briefing/services/briefing.general.post";
 import BriefingHtmlRenderer from "@/features/briefing/components/BriefingHtmlRenderer.client";
-import { Cover, cx } from "@/features/briefing/components/briefing.ui";
-import { redirect } from "next/navigation";
+import BriefingLikeShareBar from "@/features/briefing/components/BriefingLikeShareBar.client";
+import BriefingViewTracker from "@/features/briefing/components/BriefingViewTracker.client";
+import { cx } from "@/features/briefing/components/briefing.ui";
 import AdminPostActions from "@/features/briefing/components/AdminPostActions.client";
+import { getAvatarUrlOrDefault } from "@/shared/imageUrl";
 
 type AuthorProfile = {
   id: string;
   name: string;
   nickname: string | null;
   role: string;
+  avatar_url: string | null;
+  bio: string | null;
 };
 
 type PostRow = {
@@ -29,6 +34,8 @@ type PostRow = {
   slug: string;
   title: string;
   content_html: string | null;
+  like_count?: number | null;
+  comment_count?: number | null;
   created_at: string;
   published_at?: string | null;
   cover_image_url: string | null;
@@ -98,7 +105,16 @@ export default async function GeneralPostPage({
   const { slug: rawSlug } = await params;
   const slug = decodeURIComponent(rawSlug);
 
-  const { isAdmin, post: data, relatedPosts } =
+  const {
+    isAdmin,
+    post: data,
+    relatedPosts,
+    initialComments,
+    initialNextCursor,
+    currentUserId,
+    currentUserAvatarUrl,
+    currentUserNickname,
+  } =
     await fetchGeneralPostPageData(slug);
 
   if (!data) notFound();
@@ -107,7 +123,7 @@ export default async function GeneralPostPage({
   const author = post.author_profile;
   const authorName = author?.nickname ?? author?.name ?? "익명";
   const createdAt = (post.published_at ?? post.created_at) as string;
-  const badgeLabel = "일반";
+  const leftPanelImage = post.cover_image_url ?? null;
   const postId = post.id;
 
   const relatedData = relatedPosts;
@@ -117,6 +133,7 @@ export default async function GeneralPostPage({
     title: string;
     excerpt: string | null;
     content_html: string | null;
+    cover_image_url: string | null;
   }>;
 
   async function deletePostAction() {
@@ -133,55 +150,58 @@ export default async function GeneralPostPage({
 
   return (
     <main className="bg-(--oboon-bg-page)">
+      <BriefingViewTracker postId={post.id} />
       <PageContainer className="pb-20">
         {/* ===== Hero ===== */}
-        <div className="mb-8">
-          <Card className="p-5 overflow-hidden shadow-none h-[500px]">
-            <div className="grid grid-cols-1 md:grid-cols-2 h-full gap-5">
-              {/* left */}
-              <div className="relative full">
-                <div className="absolute bottom-4 left-4 right-4">
-                  <div className="grid grid-cols-[1fr_auto] items-end gap-4">
-                    <div className="ob-typo-h1 text-(--oboon-text-title) line-clamp-3">
-                      {post.title}
-                    </div>
-                    <div className="shrink-0 ob-typo-caption text-(--oboon-text-muted) whitespace-nowrap">
-                      {authorName} · {formatDateLong(createdAt)}
-                    </div>
-                  </div>
-                </div>
-              </div>
+        <div className="relative mb-8 h-[320px] overflow-hidden rounded-2xl sm:h-[400px] lg:h-[500px]">
+          {post.cover_image_url ? (
+            <Image
+              src={post.cover_image_url}
+              alt={post.title}
+              fill
+              className="object-cover"
+              priority
+            />
+          ) : (
+            <div className="absolute inset-0 bg-(--oboon-bg-subtle)" />
+          )}
 
-              {/* right image */}
-              <div className="h-full">
-                <div className="relative h-full w-full overflow-hidden rounded-xl border border-(--oboon-border-default)">
-                  <Cover
-                    mode="fill"
-                    imageUrl={post.cover_image_url ?? undefined}
-                    className="h-full w-full"
-                  />
-                </div>
-              </div>
+          {post.cover_image_url && (
+            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
+          )}
+
+          <div className="absolute bottom-8 left-8 right-8">
+            <div
+              className={`ob-typo-h1 line-clamp-3 ${
+                post.cover_image_url ? "text-white" : "text-(--oboon-text-title)"
+              }`}
+            >
+              {post.title}
             </div>
-          </Card>
+            <div
+              className={`mt-2 ob-typo-caption ${
+                post.cover_image_url ? "text-white/70" : "text-(--oboon-text-muted)"
+              }`}
+            >
+              {authorName} · {formatDateLong(createdAt)}
+            </div>
+          </div>
+
+          {isAdmin ? (
+            <div className="absolute bottom-8 right-8 z-10">
+              <AdminPostActions
+                editHref={`/briefing/admin/posts/${post.id}/edit`}
+                deleteAction={deletePostAction}
+                postTitle={post.title}
+              />
+            </div>
+          ) : null}
         </div>
 
         {/* ===== 본문 + 사이드바 ===== */}
         <div className="mt-15 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_440px]">
           <div className="min-w-0">
-            {/* content */}
-            <div className="relative">
-              {isAdmin ? (
-                <div className="absolute z-10">
-                  <AdminPostActions
-                    editHref={`/briefing/admin/posts/${post.id}/edit`}
-                    deleteAction={deletePostAction}
-                    postTitle={post.title}
-                  />
-                </div>
-              ) : null}
-            </div>
-            <div className={cx("ob-md", isAdmin ? "pt-14" : "")}>
+            <div className={cx("ob-md")}>
               <BriefingHtmlRenderer
                 html={post.content_html ?? ""}
                 className="prose max-w-none"
@@ -193,74 +213,108 @@ export default async function GeneralPostPage({
           <div className="space-y-4">
             <Card className="p-5 shadow-none">
               <div className="flex items-start justify-between gap-3">
-                <Badge variant="status">{badgeLabel}</Badge>
-                <Link href="/briefing">
+                <Badge variant="status">
+                  {author?.role === "admin" ? "오분 에디터" : "작성자"}
+                </Badge>
+                <Link href={author?.id ? `/briefing/author/${author.id}` : "/briefing"}>
                   <Button variant="secondary" size="sm" shape="pill">
-                    전체 글 보기
+                    에디터 글 더보기
                   </Button>
                 </Link>
               </div>
 
-              <div className="mt-4 flex items-start gap-3">
-                <div className="h-12 w-12 shrink-0 rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle)" />
+              <div className="mt-4 flex items-center gap-3">
+                <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-subtle)">
+                  <Image
+                    src={getAvatarUrlOrDefault(author?.avatar_url)}
+                    alt={`${authorName} 아바타`}
+                    fill
+                    className="object-cover"
+                    sizes="56px"
+                  />
+                </div>
                 <div className="min-w-0">
-                  <div className="ob-typo-body font-medium text-(--oboon-text-title)">
+                  <div className="ob-typo-h3 text-(--oboon-text-title)">
                     {authorName}
                   </div>
-                  <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+                  <div className="mt-0.5 ob-typo-caption text-(--oboon-text-muted)">
                     {author?.role === "admin" ? "오분 에디터" : "작성자"}
                   </div>
                 </div>
               </div>
 
-              <div className="mt-4 pl-1 ob-typo-caption leading-5 text-(--oboon-text-muted)">
-                오분 브리핑의 일반 글입니다. 핵심만 빠르게 읽을 수 있도록
-                정리합니다.
-              </div>
+              {author?.bio ? (
+                <div className="mt-3 ob-typo-caption leading-5 text-(--oboon-text-muted)">
+                  {author.bio}
+                </div>
+              ) : null}
 
-              <div className="mt-4 flex items-center gap-2">
-                <button
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-surface) hover:bg-(--oboon-bg-subtle)"
-                  aria-label="좋아요"
-                >
-                  <Heart className="h-4 w-4 text-(--oboon-text-muted)" />
-                </button>
-                <button
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-surface) hover:bg-(--oboon-bg-subtle)"
-                  aria-label="댓글"
-                >
-                  <MessageCircle className="h-4 w-4 text-(--oboon-text-muted)" />
-                </button>
-                <button
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-surface) hover:bg-(--oboon-bg-subtle)"
-                  aria-label="공유"
-                >
-                  <Share2 className="h-4 w-4 text-(--oboon-text-muted)" />
-                </button>
-              </div>
+              {isAdmin ? (
+                <div className="mt-4 border-t border-(--oboon-border-default) pt-4">
+                  <Link
+                    href="/briefing/editor"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-1.5 ob-typo-caption font-medium text-(--oboon-text-muted) transition-colors hover:border-(--oboon-primary) hover:text-(--oboon-primary)"
+                  >
+                    대시보드
+                  </Link>
+                </div>
+              ) : null}
+
             </Card>
           </div>
         </div>
 
+        <BriefingLikeShareBar
+          postId={post.id}
+          initialLikeCount={post.like_count ?? 0}
+        />
+
+        <BriefingCommentSection
+          postId={post.id}
+          initialComments={initialComments}
+          initialNextCursor={initialNextCursor}
+          currentUserId={currentUserId}
+          currentUserAvatarUrl={currentUserAvatarUrl}
+          currentUserNickname={currentUserNickname}
+        />
+
         {/* ===== 관련 글 ===== */}
-        <Card className="mt-40 shadow-none overflow-hidden p-0">
-          <div className="grid h-[500px] grid-cols-1 lg:grid-cols-2">
+        <Card className="mt-16 sm:mt-24 lg:mt-40 shadow-none overflow-hidden p-0">
+          <div className="grid h-[380px] grid-cols-1 lg:grid-cols-2">
             <div className="bg-(--oboon-bg-subtle)">
-              <div className="h-full rounded-2xl bg-(--oboon-bg-surface) p-10">
-                <div className="mb-4 grid grid-cols-[1fr_auto] items-end">
-                  <div>
-                    <Badge variant="status">{badgeLabel}</Badge>
-                  </div>
-                  <div className="shrink-0 whitespace-nowrap">
+              <div className="relative overflow-hidden rounded-2xl">
+                {leftPanelImage ? (
+                  <Image
+                    src={leftPanelImage}
+                    alt="배경"
+                    fill
+                    className="object-cover"
+                  />
+                ) : (
+                  <div className="absolute inset-0 bg-(--oboon-bg-subtle)" />
+                )}
+
+                {leftPanelImage ? (
+                  <div className="absolute inset-0 bg-gradient-to-b from-black/30 to-black/75" />
+                ) : null}
+
+                <div className="relative flex h-full min-h-[380px] flex-col justify-between p-5 md:p-6 lg:p-8">
+                  <div className="flex justify-end">
                     <Link href="/briefing" className="inline-block">
                       <Badge
                         variant="status"
-                        className="inline-flex items-center gap-1.5 whitespace-nowrap px-0.5 py-0.5"
+                        className={`inline-flex items-center gap-2 whitespace-nowrap rounded-full pl-3 pr-1.5 py-1.5 ${
+                          leftPanelImage ? "border-white/30 bg-white/10 text-white" : ""
+                        }`}
                       >
-                        <span className="leading-none text-[12px] font-medium">
+                        <span className="text-[13px] font-medium leading-none">
                           더보기
                         </span>
-                        <span className="shrink-0 flex h-4 w-4 items-center justify-center rounded-full bg-(--oboon-text-title)">
+                        <span
+                          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${
+                            leftPanelImage ? "bg-white" : "bg-(--oboon-text-title)"
+                          }`}
+                        >
                           <svg
                             width="10"
                             height="10"
@@ -270,7 +324,7 @@ export default async function GeneralPostPage({
                             strokeWidth="2"
                             strokeLinecap="round"
                             strokeLinejoin="round"
-                            className="text-(--oboon-bg-surface)"
+                            className={leftPanelImage ? "text-(--oboon-text-title)" : "text-(--oboon-bg-surface)"}
                             aria-hidden="true"
                           >
                             <path d="M5 12h14" />
@@ -280,20 +334,56 @@ export default async function GeneralPostPage({
                       </Badge>
                     </Link>
                   </div>
-                </div>
 
-                <div className="ob-typo-h1 text-(--oboon-text-title)">
-                  일반 브리핑
-                </div>
-                <div className="mt-4 ob-typo-body leading-6 text-(--oboon-text-subtle)">
-                  오분의 관점으로 정리한 일반 브리핑 글 모음입니다.
+                  <div>
+                    <div className={`ob-typo-h1 ${leftPanelImage ? "text-white" : "text-(--oboon-text-title)"}`}>
+                      일반 브리핑
+                    </div>
+                    <div
+                      className={`mt-3 ob-typo-body leading-6 ${
+                        leftPanelImage ? "text-white/70" : "text-(--oboon-text-subtle)"
+                      }`}
+                    >
+                      오분의 관점으로 정리한 일반 브리핑 글 모음입니다.
+                    </div>
+
+                    {(post.post_tags ?? []).length > 0 ? (
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {(post.post_tags ?? [])
+                          .map((pt) => pt?.tag)
+                          .filter(
+                            (
+                              tag,
+                            ): tag is {
+                              id: string;
+                              name: string;
+                              sort_order: number | null;
+                              is_active: boolean;
+                            } => tag != null && tag.is_active === true,
+                          )
+                          .slice(0, 4)
+                          .map((tag) => (
+                            <span
+                              key={tag.id}
+                              className={`rounded-full border px-2.5 py-0.5 ob-typo-caption ${
+                                leftPanelImage
+                                  ? "border-white/30 text-white/80"
+                                  : "border-(--oboon-border-default) text-(--oboon-text-muted)"
+                              }`}
+                            >
+                              {tag.name}
+                            </span>
+                          ))}
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               </div>
             </div>
 
             <div className="bg-(--oboon-bg-subtle)">
-              <div className="h-full bg-(--oboon-bg-subtle) p-5">
-                <div className="space-y-5">
+              <div className="h-full bg-(--oboon-bg-subtle) p-3 md:p-4 lg:p-5">
+                <div className="space-y-3">
                   {relatedItems.map((r) => {
                     const href = `/briefing/general/${encodeURIComponent(
                       r.slug
@@ -301,15 +391,31 @@ export default async function GeneralPostPage({
 
                     return (
                       <Link key={r.id} href={href} className="block">
-                        <Card className="p-5 h-[140px] shadow-none bg-(--oboon-bg-surface) hover:bg-(--oboon-bg-subtle) transition-colors">
-                          <div className="ob-typo-h3 text-(--oboon-text-title) line-clamp-2">
-                            {r.title}
-                          </div>
-                          {r.excerpt ? (
-                            <div className="mt-4 ob-typo-body leading-5 text-(--oboon-text-muted) line-clamp-2">
-                              {r.excerpt}
+                        <Card className="overflow-hidden p-0 shadow-none bg-(--oboon-bg-surface) hover:bg-(--oboon-bg-subtle) transition-colors">
+                          <div className="flex min-h-[104px] items-stretch">
+                            <div className="relative w-28 shrink-0 overflow-hidden">
+                              {r.cover_image_url ? (
+                                <Image
+                                  src={r.cover_image_url}
+                                  alt={r.title}
+                                  fill
+                                  className="object-cover"
+                                />
+                              ) : (
+                                <div className="h-full w-full bg-(--oboon-bg-subtle)" />
+                              )}
                             </div>
-                          ) : null}
+                            <div className="min-w-0 flex-1 p-3 md:p-4">
+                              <div className="ob-typo-h4 text-(--oboon-text-title) line-clamp-2">
+                                {r.title}
+                              </div>
+                              {r.excerpt ? (
+                                <div className="mt-1 ob-typo-caption text-(--oboon-text-muted) line-clamp-2">
+                                  {r.excerpt}
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
                         </Card>
                       </Link>
                     );

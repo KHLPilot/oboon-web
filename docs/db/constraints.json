@@ -90,6 +90,30 @@
     "definition": "UNIQUE (board_id, key)"
   },
   {
+    "table_name": "briefing_category_tags",
+    "constraint_name": "briefing_category_tags_category_id_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (category_id) REFERENCES briefing_categories(id) ON DELETE CASCADE"
+  },
+  {
+    "table_name": "briefing_category_tags",
+    "constraint_name": "briefing_category_tags_tag_id_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (tag_id) REFERENCES briefing_tags(id) ON DELETE CASCADE"
+  },
+  {
+    "table_name": "briefing_category_tags",
+    "constraint_name": "briefing_category_tags_pkey",
+    "constraint_type": "p",
+    "definition": "PRIMARY KEY (id)"
+  },
+  {
+    "table_name": "briefing_category_tags",
+    "constraint_name": "briefing_category_tags_category_id_tag_id_key",
+    "constraint_type": "u",
+    "definition": "UNIQUE (category_id, tag_id)"
+  },
+  {
     "table_name": "briefing_post_tags",
     "constraint_name": "briefing_post_tags_post_id_fkey",
     "constraint_type": "f",

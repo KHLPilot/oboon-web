@@ -41,12 +41,14 @@ export default async function OboonOriginalCategoryPage({
             name={category.name}
             description={category.description ?? null}
             color={(category as { color?: string | null }).color ?? null}
+            coverImageUrl={(category as { cover_image_url?: string | null }).cover_image_url ?? null}
             categoryKey={categoryKey}
             postCount={totalCount}
           />
         </div>
 
         <BriefingCardGrid
+          columns={4}
           posts={postItems.map((p) => ({
             id: p.id,
             href: `/briefing/oboon-original/${encodeURIComponent(

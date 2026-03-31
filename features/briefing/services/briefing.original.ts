@@ -55,7 +55,7 @@ export async function fetchOboonOriginalPageData(): Promise<{
   const [categoriesResult, tagsResult, categoryTagsResult] = await Promise.all([
     supabase
       .from("briefing_categories")
-      .select("id,key,name")
+      .select("id,key,name,cover_image_url")
       .eq("board_id", boardId)
       .eq("is_active", true)
       .order("name", { ascending: true }),
@@ -133,7 +133,7 @@ export async function fetchOboonOriginalPageData(): Promise<{
     id: category.id as string,
     key: category.key as string,
     name: category.name as string,
-    coverImageUrl: null,
+    coverImageUrl: (category as { cover_image_url?: string | null }).cover_image_url ?? null,
     count: countMap.get(category.id as string) ?? 0,
     tags: tagsByCategoryId.get(category.id as string) ?? [],
   }));

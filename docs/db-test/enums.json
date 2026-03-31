@@ -1,0 +1,162 @@
+[
+  {
+    "enum_name": "community_post_status",
+    "sort_order": 1,
+    "enum_value": "draft"
+  },
+  {
+    "enum_name": "community_post_status",
+    "sort_order": 2,
+    "enum_value": "published"
+  },
+  {
+    "enum_name": "community_post_status",
+    "sort_order": 3,
+    "enum_value": "hidden"
+  },
+  {
+    "enum_name": "community_post_status",
+    "sort_order": 4,
+    "enum_value": "deleted"
+  },
+  {
+    "enum_name": "community_post_status",
+    "sort_order": 5,
+    "enum_value": "thinking"
+  },
+  {
+    "enum_name": "community_post_status",
+    "sort_order": 6,
+    "enum_value": "visited"
+  },
+  {
+    "enum_name": "confirm_request_status",
+    "sort_order": 1,
+    "enum_value": "pending"
+  },
+  {
+    "enum_name": "confirm_request_status",
+    "sort_order": 2,
+    "enum_value": "approved"
+  },
+  {
+    "enum_name": "confirm_request_status",
+    "sort_order": 3,
+    "enum_value": "rejected"
+  },
+  {
+    "enum_name": "content_status",
+    "sort_order": 1,
+    "enum_value": "draft"
+  },
+  {
+    "enum_name": "content_status",
+    "sort_order": 2,
+    "enum_value": "published"
+  },
+  {
+    "enum_name": "content_status",
+    "sort_order": 3,
+    "enum_value": "archived"
+  },
+  {
+    "enum_name": "property_poi_category",
+    "sort_order": 1,
+    "enum_value": "HOSPITAL"
+  },
+  {
+    "enum_name": "property_poi_category",
+    "sort_order": 2,
+    "enum_value": "MART"
+  },
+  {
+    "enum_name": "property_poi_category",
+    "sort_order": 3,
+    "enum_value": "SUBWAY"
+  },
+  {
+    "enum_name": "property_poi_category",
+    "sort_order": 4,
+    "enum_value": "SCHOOL"
+  },
+  {
+    "enum_name": "property_poi_category",
+    "sort_order": 5,
+    "enum_value": "DEPARTMENT_STORE"
+  },
+  {
+    "enum_name": "property_poi_category",
+    "sort_order": 6,
+    "enum_value": "SHOPPING_MALL"
+  },
+  {
+    "enum_name": "property_poi_category",
+    "sort_order": 7,
+    "enum_value": "CLINIC_DAILY"
+  },
+  {
+    "enum_name": "property_poi_category",
+    "sort_order": 8,
+    "enum_value": "HIGH_SPEED_RAIL"
+  },
+  {
+    "enum_name": "property_reco_job_status",
+    "sort_order": 1,
+    "enum_value": "pending"
+  },
+  {
+    "enum_name": "property_reco_job_status",
+    "sort_order": 2,
+    "enum_value": "running"
+  },
+  {
+    "enum_name": "property_reco_job_status",
+    "sort_order": 3,
+    "enum_value": "done"
+  },
+  {
+    "enum_name": "property_reco_job_status",
+    "sort_order": 4,
+    "enum_value": "failed"
+  },
+  {
+    "enum_name": "property_school_level",
+    "sort_order": 1,
+    "enum_value": "ELEMENTARY"
+  },
+  {
+    "enum_name": "property_school_level",
+    "sort_order": 2,
+    "enum_value": "MIDDLE"
+  },
+  {
+    "enum_name": "property_school_level",
+    "sort_order": 3,
+    "enum_value": "HIGH"
+  },
+  {
+    "enum_name": "property_school_level",
+    "sort_order": 4,
+    "enum_value": "UNIVERSITY"
+  },
+  {
+    "enum_name": "property_school_level",
+    "sort_order": 5,
+    "enum_value": "OTHER"
+  },
+  {
+    "enum_name": "property_school_level",
+    "sort_order": 6,
+    "enum_value": "KINDERGARTEN"
+  },
+  {
+    "enum_name": "visit_method",
+    "sort_order": 1,
+    "enum_value": "gps"
+  },
+  {
+    "enum_name": "visit_method",
+    "sort_order": 2,
+    "enum_value": "manual"
+  }
+]

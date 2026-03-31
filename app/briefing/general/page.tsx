@@ -3,6 +3,7 @@ import Link from "next/link";
 import PageContainer from "@/components/shared/PageContainer";
 import BriefingCardGrid from "@/features/briefing/components/BriefingCardGrid";
 import BriefingSearchInput from "@/features/briefing/components/BriefingSearchInput";
+import OboonOriginalCategoryHero from "@/features/briefing/components/oboon-original/OboonOriginalCategoryHero";
 import { fetchGeneralBriefingPageData } from "@/features/briefing/services/briefing.general";
 
 function pickFirst<T>(value: T | T[] | null | undefined): T | null {
@@ -73,7 +74,7 @@ export default async function BriefingGeneralPage({
   const { page: pageParam } = await searchParams;
   const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
 
-  const { isAdmin, posts, totalCount, pageSize } =
+  const { isAdmin, posts, totalCount, pageSize, heroCoverImageUrl } =
     await fetchGeneralBriefingPageData(page);
 
   return (
@@ -90,11 +91,17 @@ export default async function BriefingGeneralPage({
           </div>
         )}
 
-        <div className="mb-8">
-          <div className="ob-typo-h2 text-(--oboon-text-title)">일반 브리핑</div>
-          <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
-            단일 주제로 정리된 최신 브리핑 글입니다.
-          </div>
+        <div className="mb-10">
+          <OboonOriginalCategoryHero
+            name="일반 브리핑"
+            description="단일 주제로 정리된 최신 브리핑 글입니다."
+            color={null}
+            categoryKey="general"
+            postCount={totalCount}
+            coverImageUrl={heroCoverImageUrl}
+            eyebrowLabel="브리핑"
+            countLabel="브리핑"
+          />
         </div>
 
         <div className="mb-8">

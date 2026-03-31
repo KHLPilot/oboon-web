@@ -134,9 +134,7 @@ export default async function RootLayout({
   const nonce = isProduction
     ? ((await headers()).get("x-nonce") ?? undefined)
     : undefined;
-  const isReactGrabEnabled =
-    process.env.NODE_ENV === "development" &&
-    process.env.NEXT_PUBLIC_ENABLE_REACT_GRAB === "true";
+  const isReactGrabEnabled = process.env.NODE_ENV === "development";
   const clarityProjectId = process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID;
   const gaTrackingId =
     process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || "G-XF92GCM2KV";

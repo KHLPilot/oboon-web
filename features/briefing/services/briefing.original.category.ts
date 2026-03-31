@@ -31,7 +31,7 @@ export async function fetchOboonOriginalCategoryPageData(categoryKey: string, pa
 
   const { data: cat, error: catErr } = await supabase
     .from("briefing_categories")
-    .select("id,key,name,description,color")
+    .select("id,key,name,description,color,cover_image_url")
     .eq("board_id", board.id)
     .eq("key", categoryKey)
     .maybeSingle();

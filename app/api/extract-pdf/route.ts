@@ -18,8 +18,9 @@ import {
 } from './prompts';
 import { logApiError } from '@/lib/api/route-error';
 import { extractImagesFromPDF, renderPagesAsImages, convertImageToBase64 } from '@/lib/pdf-utils';
-import { createSupabaseServer } from '@/lib/supabaseServer';
 import { DeleteObjectCommand, GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { requireAuthenticatedUser } from '@/lib/api/route-security';
+import { checkRateLimit, extractPdfLimiter } from '@/lib/rateLimit';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -2896,11 +2897,22 @@ export async function POST(req: Request) {
   let cleanupTempKeys = false;
   const requestStartedAt = Date.now();
   try {
-    console.info("extract-pdf env check", {
-      vercelEnv: process.env.VERCEL_ENV ?? null,
-      nodeEnv: process.env.NODE_ENV ?? null,
-      hasGoogleKey: Boolean(process.env.GOOGLE_GENERATIVE_AI_API_KEY),
-    });
+    const auth = await requireAuthenticatedUser();
+    if (!auth.ok) {
+      return auth.response;
+    }
+
+    const rateLimitResponse = await checkRateLimit(
+      extractPdfLimiter,
+      auth.user.id,
+      {
+        windowMs: 10 * 60 * 1000,
+        message: 'PDF 분석 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.',
+      },
+    );
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
 
     const contentType = req.headers.get('content-type') || '';
     const inputFiles: ExtractInputFile[] = [];
@@ -2960,20 +2972,12 @@ export async function POST(req: Request) {
         return Response.json({ error: 'fileKeys가 비어 있습니다.' }, { status: 400 });
       }
 
-      const supabase = await createSupabaseServer();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        return Response.json({ error: '로그인이 필요합니다.' }, { status: 401 });
-      }
-
       const uniqueKeys = Array.from(new Set(fileKeys));
       tempKeysToCleanup = cleanupTempKeys ? uniqueKeys : [];
       let totalSize = 0;
 
       for (const key of uniqueKeys) {
-        if (!key.startsWith(`pdf-temp/${user.id}/`)) {
+        if (!key.startsWith(`pdf-temp/${auth.user.id}/`)) {
           return Response.json({ error: '허용되지 않은 파일 키입니다.' }, { status: 403 });
         }
 

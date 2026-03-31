@@ -2,8 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 const isDevelopment = process.env.NODE_ENV === "development";
-const isReactGrabEnabled =
-  isDevelopment && process.env.NEXT_PUBLIC_ENABLE_REACT_GRAB === "true";
+const isReactGrabEnabled = isDevelopment;
 
 function dedupe(values: Array<string | null | undefined>) {
   return Array.from(new Set(values.filter(Boolean))) as string[];
