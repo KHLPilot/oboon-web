@@ -527,8 +527,8 @@ export default function ConditionBar(props: ConditionBarProps) {
             monthlyIncomeRange: formValues.monthlyIncomeRange,
           });
         }}
-        initialEmploymentType={condition.employmentType ?? "employee"}
-        initialHouseOwnership={condition.houseOwnership ?? "none"}
+        initialEmploymentType={condition.employmentType ?? null}
+        initialHouseOwnership={condition.houseOwnership ?? null}
         initialValues={{
           existingLoan: condition.existingLoan,
           recentDelinquency: condition.recentDelinquency,
