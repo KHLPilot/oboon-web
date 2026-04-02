@@ -20,7 +20,7 @@ import Link from "next/link";
 import FlippableRecommendationCard from "@/features/recommendations/components/FlippableRecommendationCard";
 import MiniMap from "@/features/recommendations/components/MiniMap";
 import MobileConditionSheet from "@/features/recommendations/components/MobileConditionSheet";
-import RecommendationOfferingCard from "@/features/recommendations/components/OfferingCard";
+import OfferingCard from "@/features/offerings/components/OfferingCard";
 import RecommendationCardSkeleton from "@/features/recommendations/components/RecommendationCardSkeleton";
 import RecommendationConditionPanel from "@/features/recommendations/components/RecommendationConditionPanel";
 import { RecommendationPreviewContent } from "@/features/recommendations/components/GaugeOverlay";
@@ -697,13 +697,15 @@ export default function RecommendationsPage() {
                           className="min-w-0"
                         >
                           <div className="sm:hidden">
-                            <RecommendationOfferingCard
-                              property={item}
-                              isSelected={visibleSelectedId === item.property.id}
-                              onClick={() => {
-                                handleSelectFromCard(item.property.id);
+                            <OfferingCard
+                              offering={item.offering}
+                              evalResult={item.evalResult}
+                              isSelected={visibleSelectedId === Number(item.offering.id)}
+                              onCardClick={() => {
+                                handleSelectFromCard(Number(item.offering.id));
                                 setMobileDetailItem(item);
                               }}
+                              interactionMode="button"
                             />
                           </div>
                           <div className="hidden sm:block">
