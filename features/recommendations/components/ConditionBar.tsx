@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
 import { Lock } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import Button from "@/components/ui/Button";
@@ -199,16 +199,9 @@ export default function ConditionBar(props: ConditionBarProps) {
     isLoading = false,
     isSaving = false,
   } = props;
-  const [guestCreditGrade, setGuestCreditGrade] = useState<CreditGrade>(
-    guestCreditGradeFromCondition(condition),
-  );
+  const guestCreditGrade = guestCreditGradeFromCondition(condition);
   const [ltvModalOpen, setLtvModalOpen] = useState(false);
   const toast = useToast();
-
-  useEffect(() => {
-    if (isLoggedIn !== false) return;
-    setGuestCreditGrade(guestCreditGradeFromCondition(condition));
-  }, [condition, isLoggedIn]);
 
   const handleSave = async () => {
     if (!onSave) return;
@@ -370,7 +363,7 @@ export default function ConditionBar(props: ConditionBarProps) {
               <div className={FIELD_LABEL_CLASSNAME}>신용 상태</div>
               <Select<CreditGrade>
                 value={guestCreditGrade}
-                onChange={setGuestCreditGrade}
+                onChange={(creditGrade) => onChange({ creditGrade })}
                 options={CREDIT_GRADE_OPTIONS}
               />
             </div>

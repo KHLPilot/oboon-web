@@ -142,6 +142,7 @@ if (error) {
 9. 응답은 최소 데이터만 반환한다.
 10. `dangerouslySetInnerHTML`이 필요한 경우 DOMPurify 또는 동등한 새니타이징을 적용한다.
 11. OAuth 토큰 교환 시 `client_secret`은 URL 쿼리에 넣지 않고 POST body로만 전송한다.
+12. `@/lib/supabaseAdmin` 을 새로 사용할 때는 `docs/reference/supabase-service-role-audit.md` 에 사용 사유를 남긴다.
 
 ## 커밋 전 체크리스트
 
@@ -154,3 +155,4 @@ if (error) {
 - [ ] `select("*")` 대신 필요한 컬럼만 조회했는가?
 - [ ] HTML 렌더링이 있다면 새니타이징이 적용됐는가?
 - [ ] OAuth secret이 URL에 포함되지 않았는가?
+- [ ] `service_role` 사용 시 audit 문서와 PR 설명에 이유를 남겼는가?

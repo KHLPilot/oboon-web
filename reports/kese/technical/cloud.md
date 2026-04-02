@@ -11,7 +11,7 @@
 | CL-02 | IAM 최소 권한 | 양호 | R2 전용 Access Key 분리, Supabase 역할 분리(anon/authenticated/service_role) |
 | CL-03 | 루트 계정 사용 금지 | 부분이행 | Cloudflare 루트 계정 사용 여부 미확인. 루트 계정 MFA + 서브 토큰 사용 권고 |
 | CL-04 | 접근 키 관리 | 양호 | 환경변수로만 관리, 소스 내 하드코딩 없음 |
-| CL-05 | 스토리지 공개 접근 | 취약 | Cloudflare R2 버킷의 퍼블릭 도메인(`CLOUDFLARE_R2_PUBLIC_URL`) 설정 존재. 계약서·신분증 등 민감 파일의 접근 정책 확인 필요 |
+| CL-05 | 스토리지 공개 접근 | 취약 | Cloudflare R2 퍼블릭 도메인 설정은 남아 있다. 다만 2026-04-03 기준 `app/api/r2/upload/sign-pdf/route.ts` 에서 `pdf-temp/` 업로드 응답의 퍼블릭 URL 반환은 제거했다. 버킷 정책과 민감 경로 차단 여부는 콘솔 확인이 계속 필요하다 |
 | CL-06 | 스토리지 암호화 | 양호 | Cloudflare R2 기본 at-rest 암호화 적용 |
 | CL-07 | 전송 암호화 | 양호 | R2 업로드 서버 사이드 서명 URL, HTTPS 전용 |
 | CL-08 | 네트워크 접근 제어 | 양호 | Vercel Edge Network 기본 DDoS 방어, IP 기반 접근 제한 없음(서버리스) |
@@ -28,7 +28,7 @@
 
 | 우선순위 | 항목 | 조치 내용 |
 |---------|------|----------|
-| HIGH | CL-05 | R2 버킷 공개 접근 설정 확인, 민감 파일(`pdf-temp/`, 신분증) 서명 URL 전용 접근 강제 |
+| HIGH | CL-05 | R2 버킷 공개 접근 설정 확인, 민감 파일(`pdf-temp/`, 신분증) 버킷 정책 차단 또는 전용 비공개 버킷 분리 |
 | MEDIUM | CL-03 | Cloudflare 루트 계정 MFA 활성화 확인, 서비스 토큰 사용 |
 | LOW | CL-10 | 중앙 로그 집계(Vercel Log Drains 등) 및 보존 정책 수립 |
 | LOW | CL-12 | 중요 비밀키(서비스 롤 키, OAuth 시크릿) 전용 Secrets Manager 이관 검토 |

@@ -62,7 +62,7 @@ export default function Header() {
       { label: "비교하기", href: ROUTES.offerings.compare, exact: true },
       { label: "브리핑", href: ROUTES.briefing },
       { label: "커뮤니티", href: "/community" },
-      { label: "고객센터", href: "/support" },
+      // { label: "고객센터", href: "/support" },
     ],
     [],
   );
@@ -292,7 +292,7 @@ export default function Header() {
                     onClick={() => router.push("/admin")}
                   >
                     <LayoutDashboard className="w-4 h-4" />
-                    <span className="hidden lg:inline">관리자 대시보드</span>
+                    <span className="hidden lg:inline">대시보드</span>
                     <span className="hidden sm:inline lg:hidden ob-typo-caption">대시보드</span>
                   </Button>
                 </div>

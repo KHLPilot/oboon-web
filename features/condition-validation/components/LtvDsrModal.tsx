@@ -293,38 +293,40 @@ function LtvDsrModalBody({
       </div>
 
       {/* 결과 미리보기 */}
-      <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-3">
+      <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-2 xs:p-3">
         <div className="mb-2 ob-typo-body font-semibold text-(--oboon-text-title)">
           평가 결과 미리보기
         </div>
         {isReady ? (
           <>
-            <div className="grid grid-cols-1 xs:grid-cols-3 gap-2 text-center">
-              <div className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-2">
-                <div className="ob-typo-caption text-(--oboon-text-muted)">LTV 점수</div>
-                <div className="mt-1 ob-typo-subtitle font-bold" style={{ color: ltvColor }}>
-                  {preview.ltvPoints}/10
+            <div className="grid grid-cols-3 gap-1 xs:gap-2 text-center">
+              <div className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-1.5 xs:p-2">
+                <div className="text-[10px] xs:ob-typo-caption text-(--oboon-text-muted) leading-tight">LTV 점수</div>
+                <div className="mt-1 ob-typo-body font-bold xs:ob-typo-subtitle" style={{ color: ltvColor }}>
+                  {preview.ltvPoints}점
                 </div>
-                <div className="mt-0.5 ob-typo-caption" style={{ color: ltvColor }}>
+                <div className="mt-0.5 text-[10px] xs:ob-typo-caption leading-tight" style={{ color: ltvColor }}>
                   {preview.ltvLabel}
                 </div>
               </div>
-              <div className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-2">
-                <div className="ob-typo-caption text-(--oboon-text-muted)">DSR 점수</div>
-                <div className="mt-1 ob-typo-subtitle font-bold" style={{ color: dsrColor }}>
-                  {preview.dsrPoints}/10
+              <div className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-1.5 xs:p-2">
+                <div className="text-[10px] xs:ob-typo-caption text-(--oboon-text-muted) leading-tight">DSR 점수</div>
+                <div className="mt-1 ob-typo-body font-bold xs:ob-typo-subtitle" style={{ color: dsrColor }}>
+                  {preview.dsrPoints}점
                 </div>
-                <div className="mt-0.5 ob-typo-caption" style={{ color: dsrColor }}>
+                <div className="mt-0.5 text-[10px] xs:ob-typo-caption leading-tight" style={{ color: dsrColor }}>
                   {preview.dsrLabel}
-                  {preview.dsrEstimate !== null ? ` (${Math.round(preview.dsrEstimate)}%)` : ""}
+                  {preview.dsrEstimate !== null ? (
+                    <span className="block xs:inline"> ({Math.round(preview.dsrEstimate)}%)</span>
+                  ) : null}
                 </div>
               </div>
-              <div className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-2">
-                <div className="ob-typo-caption text-(--oboon-text-muted)">합산</div>
-                <div className="mt-1 ob-typo-subtitle font-bold" style={{ color: totalColor }}>
-                  {preview.totalPoints}/20
+              <div className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-1.5 xs:p-2">
+                <div className="text-[10px] xs:ob-typo-caption text-(--oboon-text-muted) leading-tight">합산</div>
+                <div className="mt-1 ob-typo-body font-bold xs:ob-typo-subtitle" style={{ color: totalColor }}>
+                  {preview.totalPoints}점
                 </div>
-                <div className="mt-0.5 ob-typo-caption text-(--oboon-text-muted)">LTV+DSR</div>
+                <div className="mt-0.5 text-[10px] xs:ob-typo-caption text-(--oboon-text-muted) leading-tight">LTV+DSR</div>
               </div>
             </div>
             <p className="mt-2 ob-typo-caption text-(--oboon-text-muted)">

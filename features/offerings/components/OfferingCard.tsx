@@ -112,9 +112,11 @@ function MetricDot(props: {
   const meta = gradeToneMeta(category.grade);
 
   return (
-    <div className="inline-flex items-center gap-1.5">
-      <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", meta.dotClassName)} />
-      <span className="ob-typo-caption text-(--oboon-text-muted)">{label}</span>
+    <div className="flex flex-col gap-0.5 sm:inline-flex sm:flex-row sm:items-center sm:gap-1.5">
+      <div className="flex items-center gap-1">
+        <span className={cn("h-2 w-2 sm:h-2.5 sm:w-2.5 shrink-0 rounded-full", meta.dotClassName)} />
+        <span className="ob-typo-caption text-(--oboon-text-muted)">{label}</span>
+      </div>
       <span className={cn("ob-typo-caption", meta.textClassName)}>
         {valueLabel ?? meta.detailLabel}
       </span>
@@ -249,7 +251,7 @@ export default function OfferingCard({
         }}
         className={cn(
           "group cursor-pointer overflow-hidden rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:shadow-(--oboon-shadow-card)",
-          flushImageToEdge ? "flex items-stretch p-0" : "p-3 lg:p-4",
+          flushImageToEdge ? "flex items-stretch p-0" : "p-2.5 xs:p-3 lg:p-4",
           isSelected && "lg:shadow-(--oboon-shadow-card)",
         )}
       >
@@ -275,29 +277,28 @@ export default function OfferingCard({
               </div>
             ) : null}
 
-            <div className="flex min-w-0 flex-1 flex-col gap-3 p-3 lg:p-4">
-              <div className="space-y-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
+            <div className="flex min-w-0 flex-1 flex-col gap-2 xs:gap-3 p-2.5 xs:p-3 lg:p-4">
+              <div className="space-y-2 xs:space-y-3">
+                <div className="min-w-0">
+                  <div className="flex items-start justify-between gap-2">
                     <h2 className="line-clamp-1 leading-tight sm:line-clamp-2 sm:leading-normal ob-typo-subtitle text-(--oboon-text-title)">
                       {offering.title}
                     </h2>
-                    <p className="mt-px sm:mt-1 line-clamp-2 ob-typo-caption text-(--oboon-text-muted)">
-                      {regionBadge}
-                      {offering.propertyType ? ` · ${offering.propertyType}` : ""}
-                      {offering.status ? ` · ${offering.status}` : ""}
-                    </p>
-                    <div className="mt-2 ob-typo-body2 text-(--oboon-text-title)">
-                      {priceRange}
-                    </div>
+                    <Badge
+                      className={cn("shrink-0 border ob-typo-caption", evalFinalMeta.badgeClassName, "max-xs:!px-2 max-xs:!py-0.5 max-xs:!text-[11px]")}
+                    >
+                      <span className="sm:hidden">{evalFinalMeta.detailLabel}</span>
+                      <span className="hidden sm:inline">{evalFinalBadgeLabel}</span>
+                    </Badge>
                   </div>
-
-                  <Badge
-                    className={cn("shrink-0 border ob-typo-caption", evalFinalMeta.badgeClassName)}
-                  >
-                    <span className="sm:hidden">{evalFinalMeta.detailLabel}</span>
-                    <span className="hidden sm:inline">{evalFinalBadgeLabel}</span>
-                  </Badge>
+                  <p className="mt-px sm:mt-1 line-clamp-2 ob-typo-caption text-(--oboon-text-muted)">
+                    {regionBadge}
+                    {offering.propertyType ? ` · ${offering.propertyType}` : ""}
+                    {offering.status ? ` · ${offering.status}` : ""}
+                  </p>
+                  <div className="mt-1.5 truncate ob-typo-caption xs:ob-typo-body2 text-(--oboon-text-title)">
+                    {priceRange}
+                  </div>
                 </div>
 
                 <div className="h-px bg-(--oboon-border-default)" />
@@ -312,8 +313,8 @@ export default function OfferingCard({
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-2 xs:space-y-3">
+                    <div className="grid grid-cols-3 gap-2 xs:gap-3">
                       <MetricDot label="현금" category={evalResult.categories.cash} />
                       <MetricDot
                         label="부담률"
@@ -344,21 +345,21 @@ export default function OfferingCard({
           </>
         ) : (
           /* ── 세로형 (compact) 레이아웃 ── */
-          <div className="space-y-3">
+          <div className="space-y-2 xs:space-y-3">
             <div
               className={cn(
-                "grid items-start gap-3",
+                "grid items-start gap-2 xs:gap-3",
                 shouldRenderImage ? "grid-cols-[auto_minmax(0,1fr)]" : "grid-cols-1",
               )}
             >
               {shouldRenderImage ? (
-                <div className="relative aspect-square w-[72px] shrink-0 overflow-hidden rounded-xl bg-(--oboon-bg-subtle)">
+                <div className="relative aspect-square w-[56px] xs:w-[72px] shrink-0 overflow-hidden rounded-xl bg-(--oboon-bg-subtle)">
                   {hasValidImage ? (
                     <Image
                       src={normalizedImageUrl}
                       alt={offering.title}
                       fill
-                      sizes="72px"
+                      sizes="(max-width: 479px) 56px, 72px"
                       className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
                       priority={priority}
                     />
@@ -372,26 +373,23 @@ export default function OfferingCard({
 
               <div className="min-w-0">
                 <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <h2 className="line-clamp-1 leading-tight sm:line-clamp-2 sm:leading-normal ob-typo-subtitle text-(--oboon-text-title)">
-                      {offering.title}
-                    </h2>
-                    <p className="mt-px sm:mt-1 line-clamp-2 ob-typo-caption text-(--oboon-text-muted)">
-                      {regionBadge}
-                      {offering.propertyType ? ` · ${offering.propertyType}` : ""}
-                      {offering.status ? ` · ${offering.status}` : ""}
-                    </p>
-                    <div className="mt-2 ob-typo-body2 text-(--oboon-text-title)">
-                      {priceRange}
-                    </div>
-                  </div>
-
+                  <h2 className="line-clamp-1 leading-tight ob-typo-subtitle text-(--oboon-text-title)">
+                    {offering.title}
+                  </h2>
                   <Badge
-                    className={cn("shrink-0 self-start border ob-typo-caption", evalFinalMeta.badgeClassName)}
+                    className={cn("shrink-0 self-start border ob-typo-caption", evalFinalMeta.badgeClassName, "max-xs:!px-2 max-xs:!py-0.5 max-xs:!text-[11px]")}
                   >
                     <span className="sm:hidden">{evalFinalMeta.detailLabel}</span>
                     <span className="hidden sm:inline">{evalFinalBadgeLabel}</span>
                   </Badge>
+                </div>
+                <p className="mt-px line-clamp-2 ob-typo-caption text-(--oboon-text-muted)">
+                  {regionBadge}
+                  {offering.propertyType ? ` · ${offering.propertyType}` : ""}
+                  {offering.status ? ` · ${offering.status}` : ""}
+                </p>
+                <div className="mt-1.5 truncate ob-typo-caption xs:ob-typo-body2 text-(--oboon-text-title)">
+                  {priceRange}
                 </div>
               </div>
             </div>
@@ -408,8 +406,8 @@ export default function OfferingCard({
                 </div>
               </div>
             ) : (
-              <div className="space-y-3">
-                <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-2 xs:space-y-3">
+                <div className="grid grid-cols-3 gap-2 xs:gap-3">
                   <MetricDot label="현금" category={evalResult.categories.cash} />
                   <MetricDot
                     label="부담률"
@@ -591,15 +589,15 @@ export default function OfferingCard({
           </div>
         ) : mobileRecommendationLayout ? (
           <>
-            <div className="space-y-3 p-3 sm:hidden">
-              <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3">
-                <div className="relative aspect-square w-[72px] shrink-0 overflow-hidden rounded-xl bg-(--oboon-bg-subtle)">
+            <div className="space-y-2 xs:space-y-3 p-2.5 xs:p-3 sm:hidden">
+              <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-2 xs:gap-3">
+                <div className="relative aspect-square w-[56px] xs:w-[72px] shrink-0 overflow-hidden rounded-xl bg-(--oboon-bg-subtle)">
                   {hasValidImage ? (
                     <Image
                       src={normalizedImageUrl}
                       alt={offering.title || "offering"}
                       fill
-                      sizes="72px"
+                      sizes="(max-width: 479px) 56px, 72px"
                       className={cn(
                         "object-cover",
                         !disableHover &&
@@ -619,15 +617,9 @@ export default function OfferingCard({
 
                 <div className="min-w-0">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <h3 className="line-clamp-1 ob-typo-subtitle leading-tight text-(--oboon-text-title)">
-                        {offering.title}
-                      </h3>
-                      <p className="mt-px line-clamp-1 ob-typo-caption text-(--oboon-text-muted)">
-                        {mobileMetaLabel}
-                      </p>
-                    </div>
-
+                    <h3 className="block min-w-0 flex-1 truncate ob-typo-subtitle leading-tight text-(--oboon-text-title)">
+                      {offering.title}
+                    </h3>
                     {onHistoryDelete ? (
                       <button
                         type="button"
@@ -645,7 +637,10 @@ export default function OfferingCard({
                       />
                     )}
                   </div>
-                  <div className="mt-2 ob-typo-body2 text-(--oboon-text-title)">
+                  <p className="mt-px line-clamp-1 ob-typo-caption text-(--oboon-text-muted)">
+                    {mobileMetaLabel}
+                  </p>
+                  <div className="mt-1.5 truncate ob-typo-caption xs:ob-typo-body2 text-(--oboon-text-title)">
                     {priceRange}
                   </div>
                 </div>
@@ -653,39 +648,44 @@ export default function OfferingCard({
 
               <div className="h-px bg-(--oboon-border-default)" />
 
-              <div className="flex flex-wrap items-center gap-1.5">
-                <OfferingBadge
-                  type="region"
-                  value={regionBadge}
-                />
-                {onHistoryDelete ? (
+              <div className="flex items-center gap-1.5">
+                <div className="flex min-w-0 flex-1 items-center gap-1 xs:gap-1.5 overflow-x-auto scrollbar-none">
                   <OfferingBadge
-                    type="status"
-                    value={statusBadgeValue}
+                    type="region"
+                    value={regionBadge}
+                    className="shrink-0 max-xs:!px-2 max-xs:!py-0.5 max-xs:!text-[11px]"
                   />
-                ) : null}
-                {offering.propertyType ? (
-                  <OfferingBadge
-                    type="propertyType"
-                    value={offering.propertyType}
-                  />
-                ) : null}
-                {isConsultable ? (
-                  <Badge className={subtlePrimaryBadgeClassName}>
-                    상담 가능
-                  </Badge>
-                ) : null}
-                {offering.hasAppraiserComment ? (
-                  <Badge className={subtlePrimaryBadgeClassName}>
-                    감정 평가
-                  </Badge>
-                ) : null}
-                <div className="ml-auto">
+                  {onHistoryDelete ? (
+                    <OfferingBadge
+                      type="status"
+                      value={statusBadgeValue}
+                    />
+                  ) : null}
+                  {offering.propertyType ? (
+                    <OfferingBadge
+                      type="propertyType"
+                      value={offering.propertyType}
+                      className="shrink-0 max-xs:!px-2 max-xs:!py-0.5 max-xs:!text-[11px]"
+                    />
+                  ) : null}
+                  {isConsultable ? (
+                    <Badge className={cn(subtlePrimaryBadgeClassName, "shrink-0 max-xs:!px-2 max-xs:!py-0.5 max-xs:!text-[11px]")}>
+                      상담 가능
+                    </Badge>
+                  ) : null}
+                  {offering.hasAppraiserComment ? (
+                    <Badge className={cn(subtlePrimaryBadgeClassName, "shrink-0 max-xs:!px-2 max-xs:!py-0.5 max-xs:!text-[11px]")}>
+                      감정 평가
+                    </Badge>
+                  ) : null}
+                </div>
+                <div className="shrink-0">
                   <ScrapButton
                     propertyId={Number(offering.id)}
                     initialScrapped={initialScrapped}
                     isLoggedIn={isLoggedIn}
                     variant="icon"
+                    className="max-xs:!w-6 max-xs:!h-6"
                   />
                 </div>
               </div>

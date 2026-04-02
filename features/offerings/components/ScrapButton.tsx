@@ -10,6 +10,7 @@ interface ScrapButtonProps {
   /** "icon" — 카드 오버레이용 원형 버튼 (기본) */
   /** "full" — 상세 페이지용 텍스트 포함 버튼 */
   variant?: "icon" | "full";
+  className?: string;
 }
 
 export default function ScrapButton({
@@ -17,6 +18,7 @@ export default function ScrapButton({
   initialScrapped,
   isLoggedIn,
   variant = "icon",
+  className,
 }: ScrapButtonProps) {
   const { scrapped, loading, toggle } = useScrap({
     propertyId,
@@ -71,14 +73,19 @@ export default function ScrapButton({
           ? "text-rose-500"
           : "text-(--oboon-text-muted) hover:text-rose-500",
         loading ? "opacity-60 cursor-not-allowed" : "",
+        className ?? "",
       ]
         .filter(Boolean)
         .join(" ")}
       style={{ backgroundColor: "var(--oboon-bg-surface-frost)" }}
     >
       <Heart
-        size={16}
-        className={scrapped ? "fill-rose-500 stroke-rose-500" : ""}
+        className={[
+          "h-4 w-4 max-xs:!h-3.5 max-xs:!w-3.5",
+          scrapped ? "fill-rose-500 stroke-rose-500" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
       />
     </button>
   );

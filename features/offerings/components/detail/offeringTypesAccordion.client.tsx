@@ -410,10 +410,10 @@ function MetaGrid({
       variant="secondary"
       size="sm"
       shape="pill"
-      className="h-6 px-2 text-xs"
+      className="h-5 px-1 text-[10px] sm:h-6 sm:px-2 sm:text-xs"
       aria-label={areaUnit === "sqm" ? "평 단위로 보기" : "제곱미터 단위로 보기"}
     >
-      <ArrowRightLeft className="h-3.5 w-3.5" />
+      <ArrowRightLeft className="hidden sm:block sm:h-3.5 sm:w-3.5" />
       {areaUnit === "sqm" ? "평" : "㎡"}
     </Button>
   );

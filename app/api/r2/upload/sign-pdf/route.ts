@@ -9,7 +9,6 @@ export const runtime = "nodejs";
 const MAX_PDF_SIZE = 150 * 1024 * 1024;
 const SIGN_EXPIRES_IN_SECONDS = 60 * 10;
 const R2_BUCKET_NAME = process.env.CLOUDFLARE_R2_BUCKET_NAME!;
-const R2_PUBLIC_BASE_URL = process.env.CLOUDFLARE_R2_PUBLIC_URL!;
 const R2_ACCOUNT_HOST = `${process.env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`;
 const R2_BUCKET_HOST = `${R2_BUCKET_NAME}.${R2_ACCOUNT_HOST}`;
 
@@ -116,10 +115,18 @@ export async function POST(req: Request) {
       signed.path,
       signed.query as Record<string, string | string[] | undefined>,
     );
-    const expiresAt = new Date(Date.now() + SIGN_EXPIRES_IN_SECONDS * 1000).toISOString();
-    const publicUrl = `${R2_PUBLIC_BASE_URL.replace(/\/+$/, "")}/${key}`;
+    const expiresAt = new Date(
+      Date.now() + SIGN_EXPIRES_IN_SECONDS * 1000,
+    ).toISOString();
 
-    return NextResponse.json({ uploadUrl, key, publicUrl, expiresAt });
+    return NextResponse.json(
+      { uploadUrl, key, expiresAt },
+      {
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      },
+    );
   } catch (error) {
     console.error("POST /api/r2/upload/sign-pdf error:", error);
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });

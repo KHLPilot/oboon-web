@@ -15,7 +15,7 @@
 | D-04 | 비밀번호 복잡도 | 양호 | Supabase 대시보드 계정 관리, 앱 레벨 소셜 로그인 전용 |
 | D-05 | 비밀번호 만료 | 부분이행 | Supabase 대시보드 계정 만료 정책 미확인 |
 | D-06 | DB 계정 권한 분리 | 양호 | anon(공개 읽기), authenticated(RLS 적용), service_role(서버 전용)으로 명확 분리 |
-| D-07 | service_role 키 사용 감사 | 부분이행 | `lib/supabaseAdmin.ts`에 `import "server-only"` 가드 있음. ⚠️ Admin 클라이언트 호출 위치 전수 감사 필요 |
+| D-07 | service_role 키 사용 감사 | 양호 | `lib/supabaseAdmin.ts`에 `import "server-only"` 가드가 있고, 2026-04-03 기준 `docs/reference/supabase-service-role-audit.md` 에 사용처 인벤토리를 기록함 |
 | D-08 | 게스트/익명 계정 | 양호 | anon 역할은 RLS 정책이 명시적으로 허용하는 공개 데이터만 접근 가능 |
 | D-09 | DB 관리자 원격 접속 | 양호 | Supabase 관리형, 직접 DB 포트 접근 없음 (대시보드/API만) |
 | D-10 | 공용 계정 사용 금지 | 양호 | 사용자별 Supabase Auth UID 기반 접근, 공용 계정 없음 |
@@ -69,7 +69,7 @@
 
 | 우선순위 | 항목 | 조치 내용 |
 |---------|------|----------|
-| HIGH | D-07 | `lib/supabaseAdmin.ts` import 위치 전수 감사, 최소 권한 검토 |
+| MEDIUM | D-07 | 인벤토리 기준으로 공개/반공개 조회 라우트부터 authed client 전환 후보를 순차 검토 |
 | MEDIUM | D-21 | Supabase 대시보드에서 PITR 활성화 확인, 복구 테스트 주기 수립 |
 | MEDIUM | D-19 | 전화번호 등 민감 필드 암호화 필요성 검토 |
 | LOW | D-22 | 외부 로그 집계 도구(Datadog 등) 연동 검토 |

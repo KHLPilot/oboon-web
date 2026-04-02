@@ -1337,7 +1337,7 @@ export default function OfferingDetailLeft({
               <div className="ob-typo-subtitle text-(--oboon-text-title)">
                 면적·비율
               </div>
-              <div className="mt-3 grid grid-cols-1 gap-y-4 md:grid-cols-2 md:gap-x-10">
+              <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-4 md:gap-x-10">
                 {visibleAreaRatioItems.map((item) => (
                   <div key={item.label}>
                     <div className="ob-typo-caption text-(--oboon-text-muted)">
@@ -1357,7 +1357,7 @@ export default function OfferingDetailLeft({
               <div className="ob-typo-subtitle text-(--oboon-text-title)">
                 규모·주차·난방·기타
               </div>
-              <div className="mt-3 grid grid-cols-1 gap-y-4 md:grid-cols-2 md:gap-x-10">
+              <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-4 md:gap-x-10">
                 {visibleScaleEtcItems.map((item) => (
                   <div key={item.label}>
                     <div className="ob-typo-caption text-(--oboon-text-muted)">
