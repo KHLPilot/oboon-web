@@ -28,8 +28,8 @@ type LtvDsrModalProps = {
     existingMonthlyRepayment: MonthlyLoanRepayment;
     formValues: LtvDsrPersistedValues;
   }) => void;
-  initialEmploymentType: EmploymentType;
-  initialHouseOwnership: "none" | "one" | "two_or_more";
+  initialEmploymentType: EmploymentType | null;
+  initialHouseOwnership: "none" | "one" | "two_or_more" | null;
   estimatedNewLoanPaymentManwon?: number;
   initialValues?: LtvDsrPersistedValues;
   initialLtvInternalScore?: number;
@@ -144,12 +144,12 @@ function LtvDsrModalBody({
     (!hasLoan || (recentDelinquency !== null && loanRejection !== null));
 
   const input: LtvDsrInput = {
-    houseOwnership: initialHouseOwnership,
+    houseOwnership: initialHouseOwnership ?? "none",
     existingLoan: resolvedLoan,
     recentDelinquency: hasLoan ? resolvedDelinquency : "none",
     cardLoanUsage: resolvedCardLoan,
     loanRejection: hasLoan ? resolvedLoanRejection : "none",
-    employmentType: initialEmploymentType,
+    employmentType: initialEmploymentType ?? "employee",
     monthlyIncomeRange: resolvedIncomeRange,
     existingMonthlyRepayment: resolvedRepayment,
   };
@@ -194,7 +194,7 @@ function LtvDsrModalBody({
               <span className="ml-1 opacity-60">(자동 연동)</span>
             </span>
             <Select
-              value={initialHouseOwnership}
+              value={(initialHouseOwnership ?? "") as "none" | "one" | "two_or_more"}
               onChange={() => {}}
               disabled
               options={HOUSE_OWNERSHIP_OPTIONS}
@@ -206,7 +206,7 @@ function LtvDsrModalBody({
               <span className="ml-1 opacity-60">(자동 연동)</span>
             </span>
             <Select
-              value={initialEmploymentType}
+              value={(initialEmploymentType ?? "") as EmploymentType}
               onChange={() => {}}
               disabled
               options={EMPLOYMENT_TYPE_OPTIONS}
