@@ -45,7 +45,6 @@ import {
 import { fetchPropertiesForOfferings } from "@/features/offerings/services/offering.query";
 import FlippableRecommendationCard from "@/features/recommendations/components/FlippableRecommendationCard";
 import { RecommendationPreviewContent } from "@/features/recommendations/components/GaugeOverlay";
-import RecommendationOfferingCard from "@/features/recommendations/components/OfferingCard";
 import type { RecommendationItem } from "@/features/recommendations/hooks/useRecommendations";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { formatManwonPreview } from "@/lib/format/currency";
@@ -2065,7 +2064,7 @@ export default function HomeOfferingsSection() {
           {isLoggedIn === false ? (
             /* ── 비로그인 폼 ── */
             <div className="mt-4 grid grid-cols-1 gap-4">
-              <div className="grid grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 xs:grid-cols-2 gap-2.5">
                 {/* 가용 현금 */}
                 <div>
                   <label className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
@@ -2194,7 +2193,7 @@ export default function HomeOfferingsSection() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 xs:grid-cols-2 gap-2.5">
                 {/* 가용 현금 */}
                 <div>
                   <label className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
@@ -2419,8 +2418,8 @@ export default function HomeOfferingsSection() {
           setMonthlyIncomeRange(formValues.monthlyIncomeRange);
           setExistingMonthlyRepayment(repayment);
         }}
-        initialEmploymentType={employmentType ?? "employee"}
-        initialHouseOwnership={houseOwnership ?? "none"}
+        initialEmploymentType={employmentType ?? null}
+        initialHouseOwnership={houseOwnership ?? null}
         initialValues={{
           existingLoan,
           recentDelinquency,
@@ -2612,12 +2611,14 @@ function ResponsiveOfferingRow({
 
               if (recommendationItem) {
                 return (
-                  <RecommendationOfferingCard
+                  <OfferingCard
                     key={offering.id}
-                    property={recommendationItem}
-                    isSelected={activeSelectedId === recommendationItem.property.id}
+                    offering={recommendationItem.offering}
+                    evalResult={recommendationItem.evalResult}
+                    isSelected={activeSelectedId === Number(recommendationItem.offering.id)}
                     navigateOnClick={false}
-                    onClick={() => handleMobileDetailOpen(recommendationItem)}
+                    onCardClick={() => handleMobileDetailOpen(recommendationItem)}
+                    interactionMode="button"
                   />
                 );
               }
@@ -2656,10 +2657,12 @@ function ResponsiveOfferingRow({
                   if (recommendationItem) {
                     return (
                       <div key={offering.id} className="w-[17.5rem] shrink-0 snap-start">
-                        <RecommendationOfferingCard
-                          property={recommendationItem}
-                          isSelected={activeSelectedId === recommendationItem.property.id}
-                          onClick={() => handleSelect(recommendationItem.property.id)}
+                        <OfferingCard
+                          offering={recommendationItem.offering}
+                          evalResult={recommendationItem.evalResult}
+                          isSelected={activeSelectedId === Number(recommendationItem.offering.id)}
+                          onCardClick={() => handleSelect(Number(recommendationItem.offering.id))}
+                          interactionMode="button"
                         />
                       </div>
                     );
