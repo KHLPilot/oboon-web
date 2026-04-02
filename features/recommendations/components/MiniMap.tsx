@@ -535,7 +535,7 @@ export default function MiniMap(props: MiniMapProps) {
         <div className="flex h-full items-center justify-center px-8 text-center">
           <div className="space-y-2">
             <div className="ob-typo-h3 text-(--oboon-text-title)">
-              {Copy.offerings.map.empty}
+              {Copy.offerings.map.empty.title}
             </div>
             <p className="ob-typo-body text-(--oboon-text-muted)">
               현장 상세 페이지에서 더 많은 위치 정보를 확인할 수 있습니다.

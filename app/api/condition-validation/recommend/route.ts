@@ -16,6 +16,8 @@ import type {
   GuestCustomerInput,
   GuestEvaluationResult,
   MoveinTiming,
+  UnitTypeEvaluationResult,
+  UnitTypeValidationProfile,
   ValidationAssetType,
   PropertyValidationProfile,
   PurchaseTiming,
@@ -28,6 +30,19 @@ type ValidationProfileRow = {
   contract_ratio: number | string;
   regulation_area: string;
   transfer_restriction: boolean | null;
+};
+
+type UnitValidationProfileRow = {
+  property_id: string;
+  unit_type_id: number;
+  unit_type_name: string | null;
+  exclusive_area: number | string | null;
+  list_price_manwon: number | string;
+  asset_type: string;
+  contract_ratio: number | string;
+  regulation_area: string;
+  transfer_restriction: boolean | null;
+  is_price_public: boolean | null;
 };
 
 type PropertyRow = {
@@ -97,6 +112,7 @@ type EvaluatedRecommendationBase = {
   property_image_url: string | null;
   show_detailed_metrics: boolean;
   displayMetrics: DisplayMetrics;
+  unit_type_results: UnitTypeEvaluationResult[];
 };
 
 type FullEvaluatedRecommendation = EvaluatedRecommendationBase & {
@@ -507,6 +523,165 @@ async function loadValidationProfilesByPropertyIds(
   return new Map(rows.map((row) => [String(row.property_id), row]));
 }
 
+function toFiniteNumberLocal(value: unknown): number | null {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string") {
+    const normalized = value.replaceAll(",", "").trim();
+    if (!normalized) return null;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function normalizePriceToManwon(value: number): number {
+  return Math.abs(value) >= 10_000_000 ? value / 10_000 : value;
+}
+
+function parseAssetTypeLocal(raw: string): ValidationAssetType | null {
+  if (
+    raw === "apartment" ||
+    raw === "officetel" ||
+    raw === "commercial" ||
+    raw === "knowledge_industry"
+  ) {
+    return raw;
+  }
+  return null;
+}
+
+async function loadUnitValidationProfilesByPropertyIds(
+  adminSupabase: ReturnType<typeof createAdminSupabase>,
+  ids: number[],
+): Promise<Map<string, UnitTypeValidationProfile[]>> {
+  const resultMap = new Map<string, UnitTypeValidationProfile[]>();
+  if (ids.length === 0) return resultMap;
+
+  const chunkSize = 200;
+  const rows: UnitValidationProfileRow[] = [];
+
+  for (let i = 0; i < ids.length; i += chunkSize) {
+    const chunk = ids.slice(i, i + chunkSize).map((id) => String(id));
+    const { data, error } = await adminSupabase
+      .from("property_unit_validation_profiles")
+      .select(
+        "property_id,unit_type_id,unit_type_name,exclusive_area,list_price_manwon,asset_type,contract_ratio,regulation_area,transfer_restriction,is_price_public",
+      )
+      .in("property_id", chunk)
+      .returns<UnitValidationProfileRow[]>();
+    if (error) {
+      // 테이블이 없으면 빈 맵 반환 (폴백 처리는 상위에서)
+      if (error.code === "42P01" || error.code === "PGRST205") break;
+      throw new Error(error.message);
+    }
+    rows.push(...(data ?? []));
+  }
+
+  for (const row of rows) {
+    const assetType = parseAssetTypeLocal(String(row.asset_type));
+    const listPriceRaw = toFiniteNumberLocal(row.list_price_manwon);
+    const contractRatioRaw = toFiniteNumberLocal(row.contract_ratio);
+    if (!assetType || listPriceRaw === null || contractRatioRaw === null) continue;
+
+    const listPriceManwon = normalizePriceToManwon(listPriceRaw);
+    if (listPriceManwon <= 0) continue;
+
+    const contractRatio = contractRatioRaw > 1 ? contractRatioRaw / 100 : contractRatioRaw;
+    const profile: UnitTypeValidationProfile = {
+      propertyId: String(row.property_id),
+      unitTypeId: row.unit_type_id,
+      unitTypeName: row.unit_type_name ?? null,
+      exclusiveArea: toFiniteNumberLocal(row.exclusive_area),
+      listPriceManwon,
+      isPricePublic: row.is_price_public !== false,
+      assetType,
+      contractRatio,
+      regulationArea:
+        row.regulation_area === "adjustment_target" || row.regulation_area === "speculative_overheated"
+          ? row.regulation_area
+          : "non_regulated",
+      transferRestriction: Boolean(row.transfer_restriction),
+    };
+
+    const key = String(row.property_id);
+    const existing = resultMap.get(key) ?? [];
+    existing.push(profile);
+    resultMap.set(key, existing);
+  }
+
+  return resultMap;
+}
+
+function evaluateUnitTypes(params: {
+  unitProfiles: UnitTypeValidationProfile[];
+  customer: FullCustomerInput | GuestCustomerInput;
+  isGuestMode: boolean;
+  monthlyIncome: number;
+}): UnitTypeEvaluationResult[] {
+  const { unitProfiles, customer, isGuestMode, monthlyIncome } = params;
+
+  return unitProfiles.map((unitProfile): UnitTypeEvaluationResult => {
+    const profile: PropertyValidationProfile = {
+      propertyId: unitProfile.propertyId,
+      propertyName: null,
+      assetType: unitProfile.assetType,
+      listPrice: unitProfile.listPriceManwon,
+      contractRatio: unitProfile.contractRatio,
+      regulationArea: unitProfile.regulationArea,
+      transferRestriction: unitProfile.transferRestriction,
+      source: "validation_profile",
+      matchedPropertyId: toPositiveInt(unitProfile.propertyId),
+    };
+
+    const result = isGuestMode
+      ? evaluateGuestCondition({ profile, customer: customer as GuestCustomerInput })
+      : evaluateFullCondition({ profile, customer: customer as FullCustomerInput });
+
+    const contractAmount = unitProfile.listPriceManwon * unitProfile.contractRatio;
+    const loanAmount = unitProfile.listPriceManwon * (unitProfile.listPriceManwon <= 90000 ? 0.55 : 0.45);
+    const monthlyPaymentEst = result.metrics.monthlyPaymentEst;
+    const monthlyBurdenPercent =
+      monthlyIncome > 0
+        ? Math.round((monthlyPaymentEst / monthlyIncome) * 10000) / 100
+        : null;
+
+    return {
+      unitTypeId: unitProfile.unitTypeId,
+      unitTypeName: unitProfile.unitTypeName,
+      exclusiveArea: unitProfile.exclusiveArea,
+      listPriceManwon: unitProfile.listPriceManwon,
+      isPricePublic: unitProfile.isPricePublic,
+      finalGrade: result.finalGrade,
+      totalScore: result.totalScore,
+      summaryMessage: result.summaryMessage,
+      gradeLabel: result.gradeLabel,
+      metrics: {
+        contractAmount: Math.round(contractAmount),
+        loanAmount: Math.round(loanAmount),
+        monthlyPaymentEst: Math.round(monthlyPaymentEst),
+        monthlyBurdenPercent,
+      },
+    };
+  });
+}
+
+const GRADE_ORDER: Record<string, number> = {
+  GREEN: 0,
+  LIME: 1,
+  YELLOW: 2,
+  ORANGE: 3,
+  RED: 4,
+};
+
+function pickBestUnitResult(
+  results: UnitTypeEvaluationResult[],
+): UnitTypeEvaluationResult | null {
+  if (results.length === 0) return null;
+  return results.reduce((best, curr) =>
+    (GRADE_ORDER[curr.finalGrade] ?? 4) < (GRADE_ORDER[best.finalGrade] ?? 4) ? curr : best,
+  );
+}
+
 async function loadPropertyImageMapByIds(
   adminSupabase: ReturnType<typeof createAdminSupabase>,
   ids: number[],
@@ -593,11 +768,11 @@ export async function POST(request: Request) {
 
     const properties = await loadRecommendationProperties(adminSupabase);
     const propertyIds = properties.map((property) => property.id);
-    const profileByPropertyId = await loadValidationProfilesByPropertyIds(
-      adminSupabase,
-      propertyIds,
-    );
-    const propertyImageMap = await loadPropertyImageMapByIds(adminSupabase, propertyIds);
+    const [profileByPropertyId, unitProfilesByPropertyId, propertyImageMap] = await Promise.all([
+      loadValidationProfilesByPropertyIds(adminSupabase, propertyIds),
+      loadUnitValidationProfilesByPropertyIds(adminSupabase, propertyIds),
+      loadPropertyImageMapByIds(adminSupabase, propertyIds),
+    ]);
 
     const evaluated: EvaluatedRecommendation[] = properties
       .map((property): EvaluatedRecommendation | null => {
@@ -612,6 +787,15 @@ export async function POST(request: Request) {
           profileRow: profileByPropertyId.get(String(property.id)),
         });
         if (!profile) return null;
+
+        // 타입별 평가
+        const unitProfiles = unitProfilesByPropertyId.get(String(property.id)) ?? [];
+        const unitTypeResults = evaluateUnitTypes({
+          unitProfiles,
+          customer: isGuestMode ? guestCustomer : fullCustomer,
+          isGuestMode,
+          monthlyIncome: isGuestMode ? guestCustomer.monthlyIncome : fullCustomer.monthlyIncome,
+        });
 
         if (isGuestMode) {
           const result = evaluateGuestCondition({ profile, customer: guestCustomer });
@@ -631,6 +815,7 @@ export async function POST(request: Request) {
             evaluationMode: "guest",
             result,
             displayMetrics,
+            unit_type_results: unitTypeResults,
           };
         }
 
@@ -651,6 +836,7 @@ export async function POST(request: Request) {
           evaluationMode: "full",
           result,
           displayMetrics,
+          unit_type_results: unitTypeResults,
         };
       })
       .filter((item): item is EvaluatedRecommendation => item !== null)
@@ -666,9 +852,15 @@ export async function POST(request: Request) {
         return a.displayMetrics.min_cash - b.displayMetrics.min_cash;
       });
 
+    // 타입별 평가 결과 중 하나라도 RED가 아니면 현장 포함
     const filtered = includeRed
       ? evaluated
-      : evaluated.filter((item) => item.result.finalGrade !== "RED");
+      : evaluated.filter((item) => {
+          if (item.unit_type_results.length > 0) {
+            return item.unit_type_results.some((u) => u.finalGrade !== "RED");
+          }
+          return item.result.finalGrade !== "RED";
+        });
 
     const selected = filtered.slice(0, limit);
 
@@ -747,6 +939,19 @@ export async function POST(request: Request) {
           monthly_payment_est: item.displayMetrics.monthly_payment_est,
           monthly_burden_percent: item.displayMetrics.monthly_burden_percent,
         },
+        best_unit_type: pickBestUnitResult(item.unit_type_results) ?? null,
+        unit_type_results: item.unit_type_results.map((u) => ({
+          unit_type_id: u.unitTypeId,
+          unit_type_name: u.unitTypeName,
+          exclusive_area: u.exclusiveArea,
+          list_price_manwon: u.listPriceManwon,
+          is_price_public: u.isPricePublic,
+          final_grade: u.finalGrade,
+          total_score: u.totalScore,
+          summary_message: u.summaryMessage,
+          grade_label: u.gradeLabel,
+          metrics: u.metrics,
+        })),
       })),
       evaluated_at: new Date().toISOString(),
     });

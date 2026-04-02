@@ -491,9 +491,12 @@ export default function OfferingsMapView({
 
   if (mappableOfferings.length === 0) {
     return (
-      <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-6">
-        <p className="ob-typo-body text-(--oboon-text-muted)">
-          {Copy.offerings.map.empty}
+      <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-6 space-y-2">
+        <p className="ob-typo-body font-semibold text-(--oboon-text-title)">
+          {Copy.offerings.map.empty.title}
+        </p>
+        <p className="ob-typo-caption text-(--oboon-text-muted)">
+          {Copy.offerings.map.empty.subtitle}
         </p>
       </div>
     );

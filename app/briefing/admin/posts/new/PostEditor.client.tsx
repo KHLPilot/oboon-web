@@ -622,7 +622,7 @@ export default function PostEditorClient({
                     태그 선택
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-[280px] p-2">
+                <DropdownMenuContent align="start" className="w-[min(280px,calc(100vw-1rem))] p-2">
                   <div className="p-1">
                     <Input
                       value={tagQuery}

@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
-import { Calendar, Menu } from "lucide-react";
+import { Calendar, LayoutDashboard, Menu } from "lucide-react";
 import NotificationBell from "@/features/notifications/components/NotificationBell.client";
 import { useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
@@ -206,7 +206,7 @@ export default function Header() {
               style={{ color: "var(--oboon-text-title)" }}
             >
               <span className="oboon-logo" aria-hidden />
-              <span>OBOON</span>
+              <span className="hidden xs:inline">OBOON</span>
             </Link>
 
             {/* Desktop nav */}
@@ -245,31 +245,58 @@ export default function Header() {
             {/* Role actions */}
             {userRole === "agent" && (
               <>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  shape="pill"
-                  className="flex items-center gap-2"
+                {/* < xs (< 320px): 원형 아이콘 버튼 */}
+                <button
+                  type="button"
+                  aria-label="예약 관리"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-(--oboon-primary) bg-(--oboon-primary) text-(--oboon-on-primary) transition-colors hover:bg-(--oboon-primary-hover) sm:hidden"
                   onClick={() => router.push("/agent/consultations")}
                 >
-                  <Calendar className="w-4 h-4" />
-                  <span className="hidden lg:inline">예약 관리</span>
-                  <span className="lg:hidden">예약</span>
-                </Button>
+                  <Calendar className="h-4 w-4" />
+                </button>
+                {/* xs+: pill 버튼 (텍스트는 sm부터) */}
+                <div className="hidden sm:block">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    shape="pill"
+                    className="flex items-center gap-2"
+                    onClick={() => router.push("/agent/consultations")}
+                  >
+                    <Calendar className="w-4 h-4" />
+                    <span className="hidden lg:inline">예약 관리</span>
+                    <span className="hidden sm:inline lg:hidden">예약</span>
+                  </Button>
+                </div>
               </>
             )}
 
             {userRole === "admin" && (
-              <Button
-                variant="primary"
-                size="sm"
-                shape="pill"
-                className="flex items-center gap-2"
-                onClick={() => router.push("/admin")}
-              >
-                <span className="hidden lg:inline">관리자 대시보드</span>
-                <span className="lg:hidden ob-typo-caption">대시보드</span>
-              </Button>
+              <>
+                {/* < xs (< 320px): 원형 아이콘 버튼 */}
+                <button
+                  type="button"
+                  aria-label="관리자 대시보드"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-(--oboon-primary) bg-(--oboon-primary) text-(--oboon-on-primary) transition-colors hover:bg-(--oboon-primary-hover) sm:hidden"
+                  onClick={() => router.push("/admin")}
+                >
+                  <LayoutDashboard className="h-4 w-4" />
+                </button>
+                {/* xs+: pill 버튼 (텍스트는 sm부터) */}
+                <div className="hidden sm:block">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    shape="pill"
+                    className="flex items-center gap-2"
+                    onClick={() => router.push("/admin")}
+                  >
+                    <LayoutDashboard className="w-4 h-4" />
+                    <span className="hidden lg:inline">관리자 대시보드</span>
+                    <span className="hidden sm:inline lg:hidden ob-typo-caption">대시보드</span>
+                  </Button>
+                </div>
+              </>
             )}
 
             <ThemeToggle />

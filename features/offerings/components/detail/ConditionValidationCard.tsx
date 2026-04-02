@@ -30,6 +30,7 @@ import type {
   MonthlyIncomeRange,
   MoveinTiming,
   PurchaseTiming,
+  UnitTypeResultItem,
 } from "@/features/condition-validation/domain/types";
 import type { ParsedCustomerInput } from "@/features/condition-validation/domain/validation";
 import { formatManwonPreview, formatManwonWithEok } from "@/lib/format/currency";
@@ -991,6 +992,47 @@ export default function ConditionValidationCard({
             </div>
           ) : null}
 
+          {/* Unit type results */}
+          {guestResponse.unit_type_results && guestResponse.unit_type_results.length > 0 ? (
+            <div className="rounded-lg border border-(--oboon-border-default) overflow-hidden">
+              <div className="px-3 py-2 border-b border-(--oboon-border-default) bg-(--oboon-bg-subtle)">
+                <span className="ob-typo-caption font-semibold text-(--oboon-text-muted)">타입별 확인</span>
+              </div>
+              {guestResponse.unit_type_results.map((item: UnitTypeResultItem, idx, arr) => {
+                const meta = grade5Meta(item.final_grade);
+                const unitLabel =
+                  item.final_grade === "RED"
+                    ? "조건 미충족"
+                    : item.final_grade === "ORANGE"
+                      ? "조건 검토 필요"
+                      : "가능";
+                return (
+                  <div
+                    key={item.unit_type_id}
+                    className={`flex items-center justify-between gap-2 px-3 py-2${idx < arr.length - 1 ? " border-b" : ""}`}
+                    style={{ borderColor: meta.borderColor }}
+                  >
+                    <span className="ob-typo-caption font-medium text-(--oboon-text-title) shrink-0">
+                      {item.unit_type_name ?? `타입 ${item.unit_type_id}`}
+                      {item.exclusive_area ? ` ${item.exclusive_area}㎡` : ""}
+                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="ob-typo-caption text-(--oboon-text-muted)">
+                        {formatManwonWithEok(item.list_price_manwon)}
+                      </span>
+                      <span
+                        className="ob-typo-caption font-semibold"
+                        style={{ color: meta.color }}
+                      >
+                        ● {unitLabel}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+
           {/* Login CTA */}
           <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-3 text-center space-y-2">
             <p className="ob-typo-caption font-semibold text-(--oboon-text-title)">
@@ -1109,6 +1151,47 @@ export default function ConditionValidationCard({
                   ))}
                 </div>
               ) : null}
+            </div>
+          ) : null}
+
+          {/* Unit type results */}
+          {response?.unit_type_results && response.unit_type_results.length > 0 ? (
+            <div className="rounded-lg border border-(--oboon-border-default) overflow-hidden">
+              <div className="px-3 py-2 border-b border-(--oboon-border-default) bg-(--oboon-bg-subtle)">
+                <span className="ob-typo-caption font-semibold text-(--oboon-text-muted)">타입별 확인</span>
+              </div>
+              {response.unit_type_results.map((item: UnitTypeResultItem, idx, arr) => {
+                const meta = grade5Meta(item.final_grade);
+                const unitLabel =
+                  item.final_grade === "RED"
+                    ? "조건 미충족"
+                    : item.final_grade === "ORANGE"
+                      ? "조건 검토 필요"
+                      : "가능";
+                return (
+                  <div
+                    key={item.unit_type_id}
+                    className={`flex items-center justify-between gap-2 px-3 py-2${idx < arr.length - 1 ? " border-b" : ""}`}
+                    style={{ borderColor: meta.borderColor }}
+                  >
+                    <span className="ob-typo-caption font-medium text-(--oboon-text-title) shrink-0">
+                      {item.unit_type_name ?? `타입 ${item.unit_type_id}`}
+                      {item.exclusive_area ? ` ${item.exclusive_area}㎡` : ""}
+                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="ob-typo-caption text-(--oboon-text-muted)">
+                        {formatManwonWithEok(item.list_price_manwon)}
+                      </span>
+                      <span
+                        className="ob-typo-caption font-semibold"
+                        style={{ color: meta.color }}
+                      >
+                        ● {unitLabel}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           ) : null}
 

@@ -292,9 +292,6 @@ export default function OfferingCard({
                       <p className="mt-px line-clamp-1 ob-typo-caption text-(--oboon-text-muted)">
                         {mobileMetaLabel}
                       </p>
-                      <div className="mt-2 ob-typo-body2 text-(--oboon-text-title)">
-                        {priceRange}
-                      </div>
                     </div>
 
                     {onHistoryDelete ? (
@@ -313,6 +310,9 @@ export default function OfferingCard({
                         className="shrink-0 self-start"
                       />
                     )}
+                  </div>
+                  <div className="mt-2 ob-typo-body2 text-(--oboon-text-title)">
+                    {priceRange}
                   </div>
                 </div>
               </div>

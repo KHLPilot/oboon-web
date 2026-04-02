@@ -10,10 +10,14 @@ import {
   evaluateCondition,
   reasonMessageByCode,
 } from "@/features/condition-validation/domain/evaluator";
-import { loadPropertyProfile } from "@/features/condition-validation/server/profile-resolver";
+import {
+  loadPropertyProfile,
+  loadUnitValidationProfiles,
+} from "@/features/condition-validation/server/profile-resolver";
 import type {
   ConditionCustomerInput,
   PropertyValidationProfile,
+  UnitTypeValidationProfile,
 } from "@/features/condition-validation/domain/types";
 
 type PriceVisibility = "public" | "non_public" | "unknown";
@@ -303,6 +307,38 @@ export async function POST(request: Request) {
     }
 
     const result = evaluateCondition({ profile, customer });
+
+    // 타입별 평가
+    const unitProfiles = await loadUnitValidationProfiles({
+      adminSupabase,
+      propertyId: propertyIdInput,
+    });
+    const unitTypeResults = unitProfiles
+      .map((unitProfile: UnitTypeValidationProfile) => {
+        const unitPropertyProfile: PropertyValidationProfile = {
+          propertyId: unitProfile.propertyId,
+          propertyName: null,
+          assetType: unitProfile.assetType,
+          listPrice: unitProfile.listPriceManwon,
+          contractRatio: unitProfile.contractRatio,
+          regulationArea: unitProfile.regulationArea,
+          transferRestriction: unitProfile.transferRestriction,
+          source: "validation_profile",
+          matchedPropertyId: profile.matchedPropertyId,
+        };
+        const unitResult = evaluateCondition({ profile: unitPropertyProfile, customer });
+        return {
+          unit_type_id: unitProfile.unitTypeId,
+          unit_type_name: unitProfile.unitTypeName,
+          exclusive_area: unitProfile.exclusiveArea,
+          list_price_manwon: unitProfile.listPriceManwon,
+          is_price_public: unitProfile.isPricePublic,
+          final_grade: unitResult.finalGrade,
+          total_score: unitResult.totalScore,
+          summary_message: unitResult.summaryMessage,
+        };
+      });
+
     const priceVisibility = await resolvePriceVisibility({
       adminSupabase,
       matchedPropertyId: profile.matchedPropertyId,
@@ -410,6 +446,7 @@ export async function POST(request: Request) {
             ),
           }
         : undefined,
+      unit_type_results: unitTypeResults,
       evaluated_at: new Date().toISOString(),
     });
   } catch (error) {

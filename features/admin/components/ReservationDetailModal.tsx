@@ -182,7 +182,7 @@ export default function ReservationDetailModal({
         </div>
 
         <div className="mt-3 border-t border-(--oboon-border-default) pt-3">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 xs:grid-cols-2 gap-3">
             <div className="flex items-center gap-2">
               <Avatar
                 name={row.customer?.name}
@@ -250,7 +250,7 @@ export default function ReservationDetailModal({
       ) : null}
 
       {row.status === "requested" ? (
-        <div className="mt-4 grid grid-cols-2 gap-2">
+        <div className="mt-4 grid grid-cols-1 xs:grid-cols-2 gap-2">
           <Button
             className="h-10 w-full"
             variant="danger"
@@ -287,7 +287,7 @@ export default function ReservationDetailModal({
           }}
         >
           <div
-            className="w-full max-w-[480px] rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-4 shadow-(--oboon-shadow-card)"
+            className="w-full max-w-[min(480px,calc(100vw-1rem))] rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-4 shadow-(--oboon-shadow-card)"
             onMouseDown={(event) => event.stopPropagation()}
           >
             <div className="ob-typo-h3 text-(--oboon-text-title)">예약 요청 거절</div>
@@ -315,7 +315,7 @@ export default function ReservationDetailModal({
                 </div>
               ) : null}
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-2">
+            <div className="mt-4 grid grid-cols-1 xs:grid-cols-2 gap-2">
               <Button
                 className="h-10 w-full"
                 variant="secondary"

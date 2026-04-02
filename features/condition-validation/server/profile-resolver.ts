@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   PropertyValidationProfile,
   RegulationArea,
+  UnitTypeValidationProfile,
   ValidationAssetType,
 } from "@/features/condition-validation/domain/types";
 
@@ -252,6 +253,130 @@ export async function loadPropertyProfile(params: {
 
   if (!row) return null;
   return buildProfileFromPropertyRow(row);
+}
+
+type UnitValidationProfileRow = {
+  property_id: string;
+  unit_type_id: number;
+  unit_type_name: string | null;
+  exclusive_area: number | string | null;
+  list_price_manwon: number | string;
+  asset_type: string;
+  contract_ratio: number | string;
+  regulation_area: string;
+  transfer_restriction: boolean | null;
+  is_price_public: boolean | null;
+};
+
+export async function loadUnitValidationProfiles(params: {
+  adminSupabase: SupabaseClient;
+  propertyId: string;
+}): Promise<UnitTypeValidationProfile[]> {
+  const { adminSupabase, propertyId } = params;
+
+  const candidates = Array.from(
+    new Set([propertyId, propertyId.trim(), String(Number(propertyId))].filter(
+      (v) => v && v !== "NaN",
+    )),
+  );
+
+  for (const candidate of candidates) {
+    const { data, error } = await adminSupabase
+      .from("property_unit_validation_profiles")
+      .select(
+        "property_id,unit_type_id,unit_type_name,exclusive_area,list_price_manwon,asset_type,contract_ratio,regulation_area,transfer_restriction,is_price_public",
+      )
+      .eq("property_id", candidate)
+      .returns<UnitValidationProfileRow[]>();
+
+    if (error) {
+      if (!isMissingTableError(error)) throw new Error(error.message);
+      break;
+    }
+    if (!data || data.length === 0) continue;
+
+    return data
+      .map((row): UnitTypeValidationProfile | null => {
+        const assetType = parseAssetType(String(row.asset_type));
+        const regulationArea = parseRegulationArea(String(row.regulation_area));
+        const listPriceRaw = toFiniteNumber(row.list_price_manwon);
+        const contractRatio = parseContractRatio(row.contract_ratio);
+        if (!assetType || !regulationArea || listPriceRaw === null || contractRatio === null) {
+          return null;
+        }
+        return {
+          propertyId: candidate,
+          unitTypeId: row.unit_type_id,
+          unitTypeName: row.unit_type_name ?? null,
+          exclusiveArea: toFiniteNumber(row.exclusive_area),
+          listPriceManwon: normalizePriceToManwon(listPriceRaw),
+          isPricePublic: row.is_price_public !== false,
+          assetType,
+          contractRatio,
+          regulationArea,
+          transferRestriction: Boolean(row.transfer_restriction),
+        };
+      })
+      .filter((v): v is UnitTypeValidationProfile => v !== null);
+  }
+
+  // 폴백: property_unit_types에서 동적 계산
+  const parsedId = Number(propertyId);
+  if (!Number.isFinite(parsedId) || parsedId <= 0) return [];
+
+  const { data: property } = await adminSupabase
+    .from("properties")
+    .select(
+      "id, property_type, property_unit_types(id,type_name,exclusive_area,price_min,price_max,is_price_public)",
+    )
+    .eq("id", Math.floor(parsedId))
+    .maybeSingle<{
+      id: number;
+      property_type: string | null;
+      property_unit_types: Array<{
+        id: number;
+        type_name: string | null;
+        exclusive_area: number | string | null;
+        price_min: number | string | null;
+        price_max: number | string | null;
+        is_price_public?: boolean | null;
+      }> | null;
+    }>();
+
+  if (!property) return [];
+
+  const assetType = inferAssetType(property.property_type);
+  const contractRatio = defaultContractRatio(assetType);
+
+  return (property.property_unit_types ?? [])
+    .map((unit): UnitTypeValidationProfile | null => {
+      const priceMax = toFiniteNumber(unit.price_max);
+      const priceMin = toFiniteNumber(unit.price_min);
+      const rawPrice =
+        priceMax !== null && priceMax > 0
+          ? priceMax
+          : priceMin !== null && priceMin > 0
+            ? priceMin
+            : null;
+      if (rawPrice === null) return null;
+
+      const listPriceManwon = normalizePriceToManwon(rawPrice);
+      if (listPriceManwon <= 0) return null;
+
+      return {
+        propertyId: String(property.id),
+        unitTypeId: unit.id,
+        unitTypeName: unit.type_name ?? null,
+        exclusiveArea: toFiniteNumber(unit.exclusive_area),
+        listPriceManwon,
+        isPricePublic: unit.is_price_public !== false,
+        assetType,
+        contractRatio,
+        regulationArea: "non_regulated",
+        transferRestriction: false,
+      };
+    })
+    .filter((v): v is UnitTypeValidationProfile => v !== null);
 }
 
 export function resolveProfileForRecommendation(params: {

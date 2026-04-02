@@ -187,7 +187,7 @@ function LtvDsrModalBody({
 
       <div className="space-y-3">
         {/* 보유 주택 + 직업 형태 — 고정 (2열) */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 xs:grid-cols-2 gap-3">
           <div>
             <span className={LABEL_CLASS}>
               보유 주택
@@ -226,7 +226,7 @@ function LtvDsrModalBody({
 
         {/* hasLoan: 연체 + 카드론 (2열) / !hasLoan: 카드론만 (1열) */}
         {hasLoan ? (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 xs:grid-cols-2 gap-3">
             <div>
               <span className={LABEL_CLASS}>2. 최근 1년 대출 연체</span>
               <Select
@@ -268,7 +268,7 @@ function LtvDsrModalBody({
         )}
 
         {/* 월 평균 세후 소득 + 월 대출 상환액 (2열) */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 xs:grid-cols-2 gap-3">
           <div>
             <span className={LABEL_CLASS}>
               {hasLoan ? "5." : "3."} 월 평균 세후 소득
@@ -299,7 +299,7 @@ function LtvDsrModalBody({
         </div>
         {isReady ? (
           <>
-            <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="grid grid-cols-1 xs:grid-cols-3 gap-2 text-center">
               <div className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-2">
                 <div className="ob-typo-caption text-(--oboon-text-muted)">LTV 점수</div>
                 <div className="mt-1 ob-typo-subtitle font-bold" style={{ color: ltvColor }}>

@@ -18,6 +18,9 @@ type RegulationArea =
   | "speculative_overheated";
 
 type UnitPriceRow = {
+  id: number;
+  type_name: string | null;
+  exclusive_area: number | string | null;
   price_min: number | string | null;
   price_max: number | string | null;
   is_price_public?: boolean | null;
@@ -327,7 +330,7 @@ export async function GET(req: Request) {
       const { data: properties, error: propertiesError } = await adminSupabase
         .from("properties")
         .select(
-          "id, property_type, property_locations(region_1depth,region_2depth,region_3depth), property_unit_types(price_min,price_max,is_price_public)",
+          "id, property_type, property_locations(region_1depth,region_2depth,region_3depth), property_unit_types(id,type_name,exclusive_area,price_min,price_max,is_price_public)",
         )
         .order("id", { ascending: true })
         .range(from, from + chunkSize - 1)
@@ -433,6 +436,63 @@ export async function GET(req: Request) {
         }
 
         upserted += payload.length;
+      }
+
+      // 타입별 프로파일 upsert
+      const unitPayload = properties.flatMap((property) => {
+        const propertyId = String(property.id);
+        const assetType = inferAssetType(property.property_type);
+        const contractRatio = defaultContractRatio(assetType);
+        const location = pickPrimaryLocation(property.property_locations);
+        const rule = resolveRegulationRule(ruleMap, location);
+        const regulationArea =
+          rule?.regulationArea ?? "non_regulated";
+        const transferRestriction = Boolean(
+          profileByPropertyId.get(propertyId)?.transfer_restriction,
+        );
+
+        return (property.property_unit_types ?? []).flatMap((unit) => {
+          const priceMax = toFiniteNumber(unit.price_max);
+          const priceMin = toFiniteNumber(unit.price_min);
+          const rawPrice =
+            priceMax !== null && priceMax > 0
+              ? priceMax
+              : priceMin !== null && priceMin > 0
+                ? priceMin
+                : null;
+          if (rawPrice === null) return [];
+
+          const listPriceManwon = normalizePriceToManwon(rawPrice);
+          if (listPriceManwon <= 0) return [];
+
+          const exclusiveArea = toFiniteNumber(unit.exclusive_area);
+
+          return [
+            {
+              property_id: propertyId,
+              unit_type_id: unit.id,
+              unit_type_name: unit.type_name ?? null,
+              exclusive_area: exclusiveArea,
+              list_price_manwon: listPriceManwon,
+              asset_type: assetType,
+              contract_ratio: contractRatio,
+              regulation_area: regulationArea,
+              transfer_restriction: transferRestriction,
+              is_price_public: unit.is_price_public !== false,
+              updated_at: now.toISOString(),
+            },
+          ];
+        });
+      });
+
+      if (!dryRun && unitPayload.length > 0) {
+        const { error: unitUpsertError } = await adminSupabase
+          .from("property_unit_validation_profiles")
+          .upsert(unitPayload, { onConflict: "property_id,unit_type_id" });
+
+        if (unitUpsertError && !unitUpsertError.message.includes("does not exist")) {
+          throw new Error(unitUpsertError.message);
+        }
       }
 
       if (maxRows > 0 && scanned >= maxRows) {

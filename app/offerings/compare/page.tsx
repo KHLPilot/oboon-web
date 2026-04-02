@@ -132,7 +132,7 @@ function CompareHeader({
   mobileVisibleIndices: number[];
 }) {
   return (
-    <div className="grid grid-cols-2 gap-2 md:gap-4 md:grid-cols-3">
+    <div className="grid grid-cols-1 xs:grid-cols-2 gap-2 md:gap-4 md:grid-cols-3">
       {items.map((item, i) => {
         const hiddenOnMobile = !mobileVisibleIndices.includes(i);
 

@@ -217,6 +217,39 @@ export type ConditionRecommendationItem = {
   };
 };
 
+// ===== Unit Type Validation Types =====
+
+export type UnitTypeValidationProfile = {
+  propertyId: string;
+  unitTypeId: number;
+  unitTypeName: string | null;
+  exclusiveArea: number | null;
+  listPriceManwon: number;
+  isPricePublic: boolean;
+  assetType: ValidationAssetType;
+  contractRatio: number;
+  regulationArea: RegulationArea;
+  transferRestriction: boolean;
+};
+
+export type UnitTypeEvaluationResult = {
+  unitTypeId: number;
+  unitTypeName: string | null;
+  exclusiveArea: number | null;
+  listPriceManwon: number;
+  isPricePublic: boolean;
+  finalGrade: FinalGrade5;
+  totalScore: number;
+  summaryMessage: string;
+  gradeLabel: string;
+  metrics: {
+    contractAmount: number;
+    loanAmount: number;
+    monthlyPaymentEst: number;
+    monthlyBurdenPercent: number | null;
+  };
+};
+
 // ===== New System Types (v2) =====
 
 export type EmploymentType = "employee" | "self_employed" | "freelancer" | "other";
@@ -396,6 +429,18 @@ export type GuestEvaluationResult = {
   };
 };
 
+export type UnitTypeResultItem = {
+  unit_type_id: number;
+  unit_type_name: string | null;
+  exclusive_area: number | null;
+  list_price_manwon: number;
+  is_price_public: boolean;
+  final_grade: FinalGrade5;
+  total_score: number;
+  summary_message: string;
+  grade_label?: string;
+};
+
 export type GuestEvaluationResponse = {
   ok: boolean;
   result?: {
@@ -418,6 +463,7 @@ export type GuestEvaluationResponse = {
     monthly_payment_est: number;
     monthly_burden_percent: number | null;
   };
+  unit_type_results?: UnitTypeResultItem[];
   error?: {
     code?: string;
     message?: string;
@@ -449,6 +495,7 @@ export type FullEvaluationResponse = {
     monthly_surplus: number;
     dsr_percent: number | null;
   };
+  unit_type_results?: UnitTypeResultItem[];
   error?: {
     code?: string;
     message?: string;

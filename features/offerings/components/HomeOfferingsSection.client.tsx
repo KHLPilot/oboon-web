@@ -2342,8 +2342,6 @@ export default function HomeOfferingsSection() {
             <p className="mt-3 ob-typo-caption text-(--oboon-primary)">{conditionNotice}</p>
           ) : null}
 
-          <hr className="mt-4 border-(--oboon-border-default)" />
-
           <div className="mt-4 flex flex-col gap-2">
             <div className="flex items-center justify-between gap-2">
               <Button
@@ -2361,7 +2359,7 @@ export default function HomeOfferingsSection() {
                   variant="secondary"
                   onClick={handleLoginAndSaveCondition}
                 >
-                  로그인하고 조건 저장하기
+                  로그인하고 조건 저장
                 </Button>
               ) : isLoggedIn && !hasSavedConditionPreset ? (
                 <Button
@@ -2371,7 +2369,7 @@ export default function HomeOfferingsSection() {
                   loading={conditionSaveLoading}
                   onClick={() => void handleSaveConditionPreset()}
                 >
-                  조건 저장하기
+                  조건 저장
                 </Button>
               ) : isLoggedIn && hasSavedConditionPreset && isConditionDirty ? (
                 <Button
@@ -2403,7 +2401,7 @@ export default function HomeOfferingsSection() {
               }
               className="w-full"
             >
-              적용하기
+              평가하기
             </Button>
           </div>
         </div>

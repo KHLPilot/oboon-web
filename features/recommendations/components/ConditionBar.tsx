@@ -231,7 +231,7 @@ export default function ConditionBar(props: ConditionBarProps) {
     <div className="space-y-4">
       {isLoggedIn !== false ? (
         // ── 로그인 사용자: 전체 필드 그리드 ────────────────────────────────────
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="grid grid-cols-1 xs:grid-cols-2 gap-3 lg:grid-cols-4">
           {/* 직업 */}
           <div>
             <div className={FIELD_LABEL_CLASSNAME}>직업</div>
@@ -272,8 +272,8 @@ export default function ConditionBar(props: ConditionBarProps) {
             />
           </div>
 
-          {/* 신용 상태 — 2칸 */}
-          <div className="col-span-2">
+          {/* 신용 상태 — 2칸 (xs 이상에서만) */}
+          <div className="xs:col-span-2">
             <div className={FIELD_LABEL_CLASSNAME}>신용 상태</div>
             <button
               type="button"
@@ -335,7 +335,7 @@ export default function ConditionBar(props: ConditionBarProps) {
           </div>
 
           {/* 지역 */}
-          <div className="col-span-2 lg:col-span-1">
+          <div className="xs:col-span-2 lg:col-span-1">
             <div className={FIELD_LABEL_CLASSNAME}>지역</div>
             <MultiSelect<OfferingRegionTab>
               values={condition.regions}
@@ -348,7 +348,7 @@ export default function ConditionBar(props: ConditionBarProps) {
       ) : (
         // ── 비로그인: 기본 5개 + soft gate ──────────────────────────────────
         <>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 xs:grid-cols-2 lg:grid-cols-4">
             <div>
               <NumberField
                 label="가용 현금"
@@ -395,7 +395,7 @@ export default function ConditionBar(props: ConditionBarProps) {
 
           {/* Soft gate: 로그인 전용 상세 필드 */}
           <div className="relative overflow-hidden rounded-xl border border-(--oboon-border-default)">
-            <div className="pointer-events-none select-none blur-sm opacity-50 grid grid-cols-1 gap-3 p-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="pointer-events-none select-none blur-sm opacity-50 grid grid-cols-1 gap-3 p-3 xs:grid-cols-2 lg:grid-cols-4">
               <div>
                 <div className={FIELD_LABEL_CLASSNAME}>직업</div>
                 <div className="h-11 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)" />
@@ -404,7 +404,7 @@ export default function ConditionBar(props: ConditionBarProps) {
                 <div className={FIELD_LABEL_CLASSNAME}>월 지출</div>
                 <div className="h-11 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)" />
               </div>
-              <div className="sm:col-span-2 lg:col-span-2">
+              <div className="xs:col-span-2 lg:col-span-2">
                 <div className={FIELD_LABEL_CLASSNAME}>신용 상태 (LTV+DSR)</div>
                 <div className="h-11 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)" />
               </div>
@@ -416,7 +416,7 @@ export default function ConditionBar(props: ConditionBarProps) {
                 <div className={FIELD_LABEL_CLASSNAME}>희망 입주</div>
                 <div className="h-11 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)" />
               </div>
-              <div className="sm:col-span-2 lg:col-span-2">
+              <div className="xs:col-span-2 lg:col-span-2">
                 <div className={FIELD_LABEL_CLASSNAME}>지역</div>
                 <div className="h-11 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)" />
               </div>
@@ -442,55 +442,56 @@ export default function ConditionBar(props: ConditionBarProps) {
           </div>
         </>
       )}
-
-      <div className="flex items-center justify-end gap-3 pt-2">
-        <Button
-          type="button"
-          onClick={() => onChange(RESET_CONDITION)}
-          variant="ghost"
-          size="sm"
-          className="h-8 px-2 ob-typo-button text-(--oboon-text-muted)"
-        >
-          초기화
-        </Button>
-        {isLoggedIn === false && onLoginAndSave ? (
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between gap-2">
           <Button
             type="button"
-            variant="secondary"
+            onClick={() => onChange(RESET_CONDITION)}
+            variant="ghost"
             size="sm"
-            shape="pill"
-            className="h-8 px-4 shrink-0"
-            onClick={() => void onLoginAndSave()}
+            className="h-8 px-2 ob-typo-button text-(--oboon-text-muted)"
           >
-            로그인하고 조건 저장하기
+            초기화
           </Button>
-        ) : isLoggedIn && !hasSavedConditionPreset && onSave ? (
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            shape="pill"
-            className="h-8 px-4 shrink-0"
-            loading={isSaving}
-            disabled={!isReadyToEvaluate}
-            onClick={() => void handleSave()}
-          >
-            조건 저장하기
-          </Button>
-        ) : isLoggedIn && hasSavedConditionPreset && isConditionDirty && onSave ? (
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            shape="pill"
-            className="h-8 px-4 shrink-0"
-            loading={isSaving}
-            disabled={!isReadyToEvaluate}
-            onClick={() => void handleSave()}
-          >
-            조건 업데이트
-          </Button>
-        ) : null}
+          {isLoggedIn === false && onLoginAndSave ? (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              shape="pill"
+              className="h-8 px-4 shrink-0"
+              onClick={() => void onLoginAndSave()}
+            >
+              로그인하고 조건 저장
+            </Button>
+          ) : isLoggedIn && !hasSavedConditionPreset && onSave ? (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              shape="pill"
+              className="h-8 px-4 shrink-0"
+              loading={isSaving}
+              disabled={!isReadyToEvaluate}
+              onClick={() => void handleSave()}
+            >
+              조건 저장
+            </Button>
+          ) : isLoggedIn && hasSavedConditionPreset && isConditionDirty && onSave ? (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              shape="pill"
+              className="h-8 px-4 shrink-0"
+              loading={isSaving}
+              disabled={!isReadyToEvaluate}
+              onClick={() => void handleSave()}
+            >
+              조건 업데이트
+            </Button>
+          ) : null}
+        </div>
         <Button
           variant="primary"
           size="sm"

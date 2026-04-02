@@ -733,7 +733,7 @@ function AgentConsultationsPageContent() {
                 <div className="mt-1 ob-typo-caption text-(--oboon-primary)">
                   지난달 대비 {statusMonthlyDelta.percent}% {statusMonthlyDelta.text}
                 </div>
-                <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-5">
+                <div className="mt-3 grid grid-cols-1 xs:grid-cols-2 gap-3 sm:grid-cols-5">
                   {[
                     { label: "확정", count: confirmedCount },
                     { label: "방문 완료", count: visitedCount },

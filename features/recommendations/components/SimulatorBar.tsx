@@ -241,7 +241,7 @@ export default function SimulatorBar({ condition, onEvaluate, isLoading = false,
 
       {/* 월 소득 (+ 고정지출: 로그인 시에만) */}
       {isLoggedIn ? (
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
+        <div className="grid grid-cols-1 gap-2 xs:grid-cols-2 xs:gap-3">
           <SliderField
             label="월 소득"
             valueLabel={formatManwonPreview(simCondition.monthlyIncome)}
@@ -278,7 +278,7 @@ export default function SimulatorBar({ condition, onEvaluate, isLoading = false,
 
       {/* 셀렉트 그리드 */}
       {isLoggedIn ? (
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-2 xs:grid-cols-2 xs:gap-3 lg:grid-cols-4">
           {/* 직업 */}
           <div>
             <div className={FIELD_LABEL_CLASSNAME}>직업</div>
@@ -299,8 +299,8 @@ export default function SimulatorBar({ condition, onEvaluate, isLoading = false,
             />
           </div>
 
-          {/* 신용 상태 — 2칸 */}
-          <div className="col-span-2">
+          {/* 신용 상태 — 2칸 (xs 이상에서만) */}
+          <div className="xs:col-span-2">
             <div className={FIELD_LABEL_CLASSNAME}>신용 상태 (LTV+DSR)</div>
             <button
               type="button"
@@ -364,7 +364,7 @@ export default function SimulatorBar({ condition, onEvaluate, isLoading = false,
         </div>
       ) : (
         /* 비로그인: 게스트 평가에 필요한 공개 항목만 표시 */
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-2 xs:grid-cols-2 xs:gap-3 lg:grid-cols-4">
           {/* 보유 주택 */}
           <div>
             <div className={FIELD_LABEL_CLASSNAME}>보유 주택</div>

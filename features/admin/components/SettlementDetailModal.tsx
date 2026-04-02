@@ -302,7 +302,7 @@ export default function SettlementDetailModal({
             </div>
 
             <div className="mt-3 border-t border-(--oboon-border-default) pt-3">
-              <div className="grid grid-cols-2 items-center gap-3">
+              <div className="grid grid-cols-1 xs:grid-cols-2 items-center gap-3">
                 <div className="flex items-center gap-2">
                   <Avatar name={row.customer_name} url={row.customer_avatar_url} />
                   <div>
@@ -342,7 +342,7 @@ export default function SettlementDetailModal({
             <div className="ob-typo-body text-(--oboon-text-title)">
               고객 정산 계좌 정보
             </div>
-            <div className="mt-3 grid grid-cols-3 gap-3">
+            <div className="mt-3 grid grid-cols-1 xs:grid-cols-3 gap-3">
               <div className="min-w-0">
                 <div className="ob-typo-body text-(--oboon-text-muted)">
                   은행

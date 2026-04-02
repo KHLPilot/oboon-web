@@ -42,7 +42,7 @@ function LeftSkeleton() {
       </div>
 
       {/* 통계 카드 2×2 → md 4열 */}
-      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="mt-4 grid grid-cols-1 xs:grid-cols-2 gap-3 md:grid-cols-4">
         <StatCardSkeleton />
         <StatCardSkeleton />
         <StatCardSkeleton />
@@ -56,7 +56,7 @@ function LeftSkeleton() {
       <div className="mt-3 lg:hidden">
         <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-4 space-y-3">
           <Skeleton className="h-5 w-32" />
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 xs:grid-cols-2 gap-2">
             {[0, 1, 2, 3].map((i) => (
               <Skeleton key={i} className="h-9 rounded-xl" />
             ))}
@@ -138,7 +138,7 @@ function RightSkeleton() {
           <Skeleton className="h-5 w-32" />
           <Skeleton className="h-3.5 w-44" />
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 xs:grid-cols-2 gap-2">
           {[0, 1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-9 rounded-xl" />
           ))}

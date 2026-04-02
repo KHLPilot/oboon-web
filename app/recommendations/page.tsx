@@ -132,17 +132,33 @@ function ResultChip(props: {
       ? "bg-(--oboon-grade-lime-bg) text-(--oboon-grade-lime-text)"
       : "bg-(--oboon-grade-yellow-bg) text-(--oboon-grade-yellow-text)";
 
+  const dotColor =
+    tone === "GREEN"
+      ? "bg-(--oboon-grade-green)"
+      : tone === "LIME"
+      ? "bg-(--oboon-grade-lime)"
+      : "bg-(--oboon-grade-yellow)";
+
   if (count === 0) return null;
 
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1 rounded-full px-2.5 py-1 ob-typo-caption",
-        toneClassName,
-      )}
-    >
-      {label} {count}개
-    </span>
+    <>
+      {/* 모바일: 컬러 점 + 숫자 */}
+      <span className="inline-flex items-center gap-1.5 ob-typo-body text-(--oboon-text-muted) sm:hidden">
+        <span className={cn("h-2 w-2 shrink-0 rounded-full", dotColor)} />
+        {count}개
+      </span>
+
+      {/* 데스크탑: 기존 필 배지 */}
+      <span
+        className={cn(
+          "hidden sm:inline-flex items-center gap-1 rounded-full px-2.5 py-1 ob-typo-caption",
+          toneClassName,
+        )}
+      >
+        {label} {count}개
+      </span>
+    </>
   );
 }
 
@@ -480,7 +496,7 @@ export default function RecommendationsPage() {
 
             {showResultToolbar ? (
               <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-                <div className="flex min-w-0 items-center gap-1 sm:gap-2 overflow-hidden whitespace-nowrap">
+                <div className="flex min-w-0 items-center gap-3 sm:gap-2 overflow-hidden whitespace-nowrap">
                   <ResultChip label={grade5DetailLabel("GREEN")} count={gradeCounts.GREEN} tone="GREEN" />
                   <ResultChip label={grade5DetailLabel("LIME")} count={gradeCounts.LIME} tone="LIME" />
                   <ResultChip label={grade5DetailLabel("YELLOW")} count={gradeCounts.YELLOW} tone="YELLOW" />

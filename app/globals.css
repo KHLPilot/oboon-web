@@ -4,6 +4,13 @@
 @import "tailwindcss";
 
 /* =========================================================
+   Custom Breakpoints
+   ========================================================= */
+@theme {
+  --breakpoint-xs: 320px;
+}
+
+/* =========================================================
    Font Faces (SUIT: Thin~Heavy)
    ========================================================= */
 
@@ -606,6 +613,22 @@ h3 {
     /* Body / Caption */
     --oboon-font-size-body: 15px;
     --oboon-font-size-caption: 13px;
+  }
+}
+
+/* =========================
+   Galaxy Fold / 극소형 화면 (320px 이하)
+   ========================= */
+@media (max-width: 320px) {
+  :root {
+    /* Headings */
+    --oboon-font-size-h1: 22px;
+    --oboon-font-size-h2: 18px;
+    --oboon-font-size-h3: 16px;
+
+    /* Body / Caption */
+    --oboon-font-size-body: 14px;
+    --oboon-font-size-caption: 12px;
   }
 }
 
