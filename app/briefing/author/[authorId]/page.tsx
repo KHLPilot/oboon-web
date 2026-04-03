@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -5,7 +6,9 @@ import { notFound } from "next/navigation";
 import PageContainer from "@/components/shared/PageContainer";
 import BriefingCardGrid from "@/features/briefing/components/BriefingCardGrid";
 import { fetchAuthorPageData } from "@/features/briefing/services/briefing.author";
+import { buildBriefingAuthorMetadata } from "@/shared/briefing-seo";
 import { getAvatarUrlOrDefault } from "@/shared/imageUrl";
+import { seoDefaultOgImage } from "@/shared/seo";
 import { createSupabaseServer } from "@/lib/supabaseServer";
 
 type Tab = "general" | "oboon-original";
@@ -36,6 +39,52 @@ type AuthorPostRow = {
       }[]
     | null;
 };
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ authorId: string }>;
+}): Promise<Metadata> {
+  const { authorId } = await params;
+  const { profile } = await fetchAuthorPageData(authorId, "general");
+
+  if (!profile) {
+    return {
+      robots: { index: false, follow: false },
+    };
+  }
+
+  const author = profile as AuthorProfile;
+  const authorName = author.nickname ?? author.name ?? "익명";
+  const roleLabel = author.role === "admin" ? "오분 에디터" : "작성자";
+  const seo = buildBriefingAuthorMetadata({
+    authorId,
+    authorName,
+    roleLabel,
+    bio: author.bio,
+  });
+
+  return {
+    title: seo.title,
+    description: seo.description,
+    alternates: {
+      canonical: seo.canonicalPath,
+    },
+    robots: seo.robots,
+    openGraph: {
+      title: seo.openGraphTitle,
+      description: seo.description,
+      url: seo.canonicalPath,
+      images: [seoDefaultOgImage],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: seo.openGraphTitle,
+      description: seo.description,
+      images: [seoDefaultOgImage],
+    },
+  };
+}
 
 export default async function AuthorPage({
   params,

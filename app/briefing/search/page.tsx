@@ -1,9 +1,12 @@
 // app/briefing/search/page.tsx
+import type { Metadata } from "next";
 import PageContainer from "@/components/shared/PageContainer";
 
 import { searchBriefingPosts } from "@/features/briefing/services/briefing.search";
 import BriefingSearchInput from "@/features/briefing/components/BriefingSearchInput";
 import BriefingCardGrid from "@/features/briefing/components/BriefingCardGrid";
+import { buildBriefingSearchMetadata } from "@/shared/briefing-seo";
+import { seoDefaultOgImage } from "@/shared/seo";
 
 function pickFirst<T>(v: T | T[] | null | undefined): T | null {
   if (!v) return null;
@@ -21,6 +24,36 @@ function getPostHref(post: {
     return `/briefing/oboon-original/${encodeURIComponent(category.key)}/${encodeURIComponent(post.slug)}`;
   }
   return `/briefing/general/${encodeURIComponent(post.slug)}`;
+}
+
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}): Promise<Metadata> {
+  const { q } = await searchParams;
+  const seo = buildBriefingSearchMetadata(q ?? "");
+
+  return {
+    title: seo.title,
+    description: seo.description,
+    alternates: {
+      canonical: seo.canonicalPath,
+    },
+    robots: seo.robots,
+    openGraph: {
+      title: seo.openGraphTitle,
+      description: seo.description,
+      url: seo.canonicalPath,
+      images: [seoDefaultOgImage],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: seo.openGraphTitle,
+      description: seo.description,
+      images: [seoDefaultOgImage],
+    },
+  };
 }
 
 export default async function BriefingSearchPage({

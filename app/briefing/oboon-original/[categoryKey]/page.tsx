@@ -1,9 +1,57 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import PageContainer from "@/components/shared/PageContainer";
 import BriefingCardGrid from "@/features/briefing/components/BriefingCardGrid";
 import OboonOriginalCategoryHero from "@/features/briefing/components/oboon-original/OboonOriginalCategoryHero";
 import { fetchOboonOriginalCategoryPageData } from "@/features/briefing/services/briefing.original.category";
+import { buildBriefingCategoryMetadata } from "@/shared/briefing-seo";
+import { seoDefaultOgImage } from "@/shared/seo";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ categoryKey: string }>;
+}): Promise<Metadata> {
+  const { categoryKey: rawKey } = await params;
+  const categoryKey = decodeURIComponent(rawKey);
+  const { category } = await fetchOboonOriginalCategoryPageData(categoryKey, 1);
+
+  if (!category) {
+    return {
+      robots: { index: false, follow: false },
+    };
+  }
+
+  const seo = buildBriefingCategoryMetadata({
+    categoryKey,
+    categoryName: category.name,
+    description: category.description ?? null,
+  });
+  const ogImage =
+    (category as { cover_image_url?: string | null }).cover_image_url ??
+    seoDefaultOgImage;
+
+  return {
+    title: seo.title,
+    description: seo.description,
+    alternates: {
+      canonical: seo.canonicalPath,
+    },
+    openGraph: {
+      title: seo.openGraphTitle,
+      description: seo.description,
+      url: seo.canonicalPath,
+      images: [ogImage],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: seo.openGraphTitle,
+      description: seo.description,
+      images: [ogImage],
+    },
+  };
+}
 
 export default async function OboonOriginalCategoryPage({
   params,
