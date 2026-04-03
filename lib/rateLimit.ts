@@ -108,6 +108,27 @@ export const guestConditionEvaluationIpLimiter = createLimiter(
   "1 m",
 );
 
+/** 맞춤현장 추천: IP당 분당 12회 */
+export const conditionRecommendationIpLimiter = createLimiter(
+  "rl:condition-validation:recommend",
+  12,
+  "1 m",
+);
+
+/** 공개 조건 평가: IP당 분당 10회 */
+export const conditionEvaluationIpLimiter = createLimiter(
+  "rl:condition-validation:evaluate",
+  10,
+  "1 m",
+);
+
+/** 로그인 상세 조건 평가: 사용자당 분당 20회 */
+export const conditionEvaluationUserLimiter = createLimiter(
+  "rl:condition-validation:evaluate-v2",
+  20,
+  "1 m",
+);
+
 /** PDF 추출: 사용자당 10분당 8회 */
 export const extractPdfLimiter = createLimiter("rl:extract-pdf", 8, "10 m");
 

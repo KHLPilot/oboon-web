@@ -1,5 +1,11 @@
 "use client";
 
+/**
+ * @deprecated ConditionWizard (features/recommendations/components/ConditionWizard.tsx)의
+ * Step 2(ConditionWizardStep2)로 대체됨.
+ * ConditionValidationCard 마이그레이션 완료 후 삭제 예정.
+ */
+
 import { useMemo, useState } from "react";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";

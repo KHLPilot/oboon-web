@@ -3,7 +3,7 @@
 > 평가 대상: OBOON `oboon-web`
 > 평가 일자: 2026-04-03
 > 방식: 저장소/라우트 코드 정적 재점검
-> 비고: 2026-04-03 기준 핵심 보호선 재확인 결과 판정 변화 없음. 현재 셸에는 `node`/`npm`/`pnpm` 이 없어 lint/typecheck는 미실행.
+> 비고: 2026-04-03 기준 핵심 보호선을 재점검했으며, `condition-validation` 계열 공개/로그인 평가 엔드포인트의 호출 보호 부족을 확인했다. 이번 점검에서는 로컬 `pnpm typecheck`, `pnpm lint`, `pnpm build`도 수행했다.
 
 ---
 
@@ -15,7 +15,7 @@
 | WS-02 | Cross-Site Scripting (XSS) | 양호 | `lib/briefing/sanitizeHtml.ts`, `features/briefing/components/BriefingHtmlRenderer.client.tsx:8-15` 에서 SSR/CSR 공통 sanitize 후 렌더 |
 | WS-03 | Command Injection | 양호 | 사용자 입력 기반 shell 실행 흔적 없음 |
 | WS-07 | 경로 조작 | 양호 | PDF key 경로는 사용자 ID prefix 검사를 수행하는 경로가 존재함 |
-| WS-08 | 파일 업로드/고비용 처리 보호 | 양호 | `app/api/extract-pdf/route.ts:2900-2915` 에서 multipart/JSON 공통 로그인 + 사용자 기준 rate limit 적용 |
+| WS-08 | 파일 업로드/고비용 처리 보호 | 부분이행 | `app/api/extract-pdf/route.ts` 는 보호되지만 `app/api/condition-validation/recommend/route.ts`, `app/api/condition-validation/evaluate/route.ts`, `app/api/condition-validation/evaluate-v2/route.ts` 는 인증 또는 rate limit 보호가 불균등하다 |
 | WS-09 | SSRF/외부 API 프록시 | 양호 | `app/api/geo/address/route.ts`, `app/api/geo/reverse/route.ts` 에 로그인, 입력 검증, rate limit, 캐시 적용 |
 | WS-10 | 안전하지 않은 역직렬화 | 양호 | 위험한 역직렬화 패턴은 확인하지 못함 |
 
@@ -49,7 +49,7 @@
 | 항목 | 제목 | 판정 | 근거 |
 |------|------|------|------|
 | WS-41 | 보안 헤더 | 양호 | `next.config.js`, `middleware.ts` 에서 HSTS(prod), `X-Frame-Options`, `nosniff`, `Permissions-Policy` 적용 |
-| WS-45 | 공개 엔드포인트 최소화 | 부분이행 | 직접 취약점은 해소되었으나 상태 확인성 엔드포인트와 운영 노출 범위는 정기 재검토 필요 |
+| WS-45 | 공개 엔드포인트 최소화 | 부분이행 | `/api/condition-validation/recommend` 와 `/api/condition-validation/evaluate` 가 공개 호출 가능하며 계산량 대비 호출 통제가 부족하다 |
 
 ---
 
@@ -76,7 +76,20 @@
   - multipart와 JSON 경로 모두 동일한 보호 정책을 탄다.
 - 판정: 조치 완료
 
-### 3. Kakao 지오코딩 프록시 abuse 방어 조치 완료
+### 3. 조건 검증/추천 엔드포인트 호출 보호 미흡
+
+- 파일:
+  - `app/api/condition-validation/recommend/route.ts:737-867`
+  - `app/api/condition-validation/evaluate/route.ts:117-239`
+  - `app/api/condition-validation/evaluate-v2/route.ts:80-243`
+  - `app/api/condition-validation/evaluate-guest/route.ts:40-46`
+- 설명:
+  - `evaluate-guest` 는 IP 기준 limiter가 적용되어 있으나, 공개 추천 경로인 `recommend` 와 공개 평가 경로인 `evaluate` 는 limiter가 없다.
+  - 로그인 전용 `evaluate-v2` 도 인증은 있으나 호출 빈도 제한이 없어 내부 계정 또는 탈취 계정 기준 abuse 대응이 부족하다.
+  - `recommend` 는 전체 현장 목록과 검증 프로필/타입별 프로필을 일괄 로드하고 각 현장에 대해 평가를 반복 수행하므로 비용성 요청으로 분류해야 한다.
+- 판정: 부분이행
+
+### 4. Kakao 지오코딩 프록시 abuse 방어 조치 완료
 
 - 파일:
   - `app/api/geo/address/route.ts:1-151`
@@ -86,7 +99,7 @@
   - 외부 API 키 쿼터를 무인증 호출이 직접 소모하는 구조는 제거되었다.
 - 판정: 조치 완료
 
-### 4. 공개 테스트 경로 축소 조치 완료
+### 5. 공개 테스트 경로 축소 조치 완료
 
 - 파일: `app/test-upload/page.tsx:1-12`
 - 설명:

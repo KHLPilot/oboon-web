@@ -4,10 +4,17 @@ import { cookies } from "next/headers";
 import { z } from "zod";
 
 import { evaluateFullCondition } from "@/features/condition-validation/domain/fullCustomerEvaluator";
-import { loadPropertyProfile } from "@/features/condition-validation/server/profile-resolver";
-import type { FullCustomerInput } from "@/features/condition-validation/domain/types";
+import {
+  loadPropertyProfile,
+  loadUnitValidationProfiles,
+} from "@/features/condition-validation/server/profile-resolver";
+import type { FullCustomerInput, UnitTypeValidationProfile } from "@/features/condition-validation/domain/types";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { AppError, ERR } from "@/lib/errors";
+import {
+  checkAuthRateLimit,
+  conditionEvaluationUserLimiter,
+} from "@/lib/rateLimit";
 
 function createAdminSupabase() {
   try {
@@ -84,6 +91,16 @@ export async function POST(request: Request) {
     );
   }
 
+  const rateLimitRes = await checkAuthRateLimit(
+    conditionEvaluationUserLimiter,
+    userId,
+    {
+      windowMs: 60 * 1000,
+      message: "조건 상세 평가 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.",
+    },
+  );
+  if (rateLimitRes) return rateLimitRes;
+
   let payload: unknown = null;
   try {
     payload = await request.json();
@@ -145,6 +162,40 @@ export async function POST(request: Request) {
 
     const result = evaluateFullCondition({ profile, customer });
 
+    const resolvedPropertyId =
+      profile.matchedPropertyId != null
+        ? String(profile.matchedPropertyId)
+        : propertyIdInput;
+    const unitProfiles = await loadUnitValidationProfiles({
+      adminSupabase,
+      propertyId: resolvedPropertyId,
+    });
+    const unitTypeResults = unitProfiles.map((unitProfile: UnitTypeValidationProfile) => {
+      const unitPropertyProfile = {
+        propertyId: unitProfile.propertyId,
+        propertyName: null,
+        assetType: unitProfile.assetType,
+        listPrice: unitProfile.listPriceManwon,
+        contractRatio: unitProfile.contractRatio,
+        regulationArea: unitProfile.regulationArea,
+        transferRestriction: unitProfile.transferRestriction,
+        source: "validation_profile" as const,
+        matchedPropertyId: profile.matchedPropertyId,
+      };
+      const unitResult = evaluateFullCondition({ profile: unitPropertyProfile, customer });
+      return {
+        unit_type_id: unitProfile.unitTypeId,
+        unit_type_name: unitProfile.unitTypeName,
+        exclusive_area: unitProfile.exclusiveArea,
+        list_price_manwon: unitProfile.listPriceManwon,
+        is_price_public: unitProfile.isPricePublic,
+        final_grade: unitResult.finalGrade,
+        total_score: unitResult.totalScore,
+        summary_message: unitResult.summaryMessage,
+        grade_label: unitResult.gradeLabel,
+      };
+    });
+
     return NextResponse.json({
       ok: true,
       result: {
@@ -199,6 +250,7 @@ export async function POST(request: Request) {
         monthly_surplus: result.metrics.monthlySurplus,
         dsr_percent: result.metrics.dsrPercent,
       },
+      unit_type_results: unitTypeResults,
       evaluated_at: new Date().toISOString(),
     });
   } catch (error) {

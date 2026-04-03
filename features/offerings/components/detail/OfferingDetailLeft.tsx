@@ -1200,25 +1200,27 @@ export default function OfferingDetailLeft({
                             className="flex flex-1 flex-col items-center"
                           >
                             {/* label + badge */}
-                            <div className="mb-2 flex flex-col items-center gap-0.5 px-2">
+                            <div className="mb-2 grid min-h-[44px] content-start justify-items-center gap-0.5 px-2">
                               <p
                                 className="ob-typo-subtitle whitespace-nowrap text-center"
                                 style={{ color: labelColor(status) }}
                               >
                                 {step.label}
                               </p>
-                              {status === "active" && (
-                                <span
-                                  className="ob-typo-caption rounded-full px-1.5 py-px"
-                                  style={{
-                                    backgroundColor:
-                                      "color-mix(in srgb, var(--oboon-primary) 12%, transparent)",
-                                    color: "var(--oboon-primary)",
-                                  }}
-                                >
-                                  진행 중
-                                </span>
-                              )}
+                              <span
+                                aria-hidden={status !== "active"}
+                                className={cn(
+                                  "ob-typo-caption rounded-full px-1.5 py-px",
+                                  status === "active" ? undefined : "invisible",
+                                )}
+                                style={{
+                                  backgroundColor:
+                                    "color-mix(in srgb, var(--oboon-primary) 12%, transparent)",
+                                  color: "var(--oboon-primary)",
+                                }}
+                              >
+                                진행 중
+                              </span>
                             </div>
                             {/* dot + horizontal lines */}
                             <div className="flex w-full items-center">

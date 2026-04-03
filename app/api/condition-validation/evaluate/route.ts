@@ -5,6 +5,11 @@ import { z } from "zod";
 import { handleStructuredApiError } from "@/lib/api/route-error";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { AppError, ERR } from "@/lib/errors";
+import {
+  checkAuthRateLimit,
+  conditionEvaluationIpLimiter,
+  getClientIp,
+} from "@/lib/rateLimit";
 
 import {
   evaluateCondition,
@@ -239,6 +244,16 @@ async function persistEvaluation(params: {
 }
 
 export async function POST(request: Request) {
+  const rateLimitRes = await checkAuthRateLimit(
+    conditionEvaluationIpLimiter,
+    getClientIp(request),
+    {
+      windowMs: 60 * 1000,
+      message: "조건 평가 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.",
+    },
+  );
+  if (rateLimitRes) return rateLimitRes;
+
   let payload: unknown = null;
 
   try {
@@ -308,10 +323,15 @@ export async function POST(request: Request) {
 
     const result = evaluateCondition({ profile, customer });
 
-    // 타입별 평가
+    // 타입별 평가 — profile.matchedPropertyId(숫자 ID) 우선 사용.
+    // propertyIdInput이 현장 이름 문자열인 경우 숫자 변환 실패로 빈 배열이 반환되는 문제 방지.
+    const resolvedPropertyId =
+      profile.matchedPropertyId != null
+        ? String(profile.matchedPropertyId)
+        : propertyIdInput;
     const unitProfiles = await loadUnitValidationProfiles({
       adminSupabase,
-      propertyId: propertyIdInput,
+      propertyId: resolvedPropertyId,
     });
     const unitTypeResults = unitProfiles
       .map((unitProfile: UnitTypeValidationProfile) => {

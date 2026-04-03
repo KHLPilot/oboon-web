@@ -1,7 +1,13 @@
 // features/map/NaverMap.tsx
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 
 import { loadNaverMaps } from "@/features/map/services/naver.loader";
 import type { MarkerType } from "@/features/map/domain/marker/marker.type";
@@ -311,6 +317,7 @@ const NaverMap = forwardRef<
   ) => {
     const mapContainerRef = useRef<HTMLDivElement>(null);
     const mapRef = useRef<NaverMapInstance | null>(null);
+    const [loadError, setLoadError] = useState<string | null>(null);
 
     // 최신 markers 스냅샷 (id -> marker data)
     const markerDataByIdRef = useRef<Map<number, MapMarker>>(new Map());
@@ -1374,153 +1381,171 @@ const NaverMap = forwardRef<
       let isMounted = true;
       const mountedListeners = listenersRef.current;
       const clientId = process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID;
-      if (!clientId) return;
+      if (!clientId) {
+        setLoadError("missing-client-id");
+        return;
+      }
 
-      loadNaverMaps(clientId).then((naverObj) => {
-        if (!isMounted || !mapContainerRef.current) return;
-        const latestInitialCenter = initialCenterRef.current;
+      setLoadError(null);
 
-        const map = new naverObj.maps.Map(mapContainerRef.current, {
-          center: new naverObj.maps.LatLng(
-            latestInitialCenter?.lat ?? 37.5127,
-            latestInitialCenter?.lng ?? 126.9706,
-          ),
-          zoom: latestInitialCenter ? Math.max(initialZoom, GPS_FOCUS_ZOOM) : initialZoom,
-          zoomControl: false,
-        });
-        mapRef.current = map;
-        callbacksRef.current.onMapReady?.();
-        callbacksRef.current.onZoomChange?.(map.getZoom());
+      loadNaverMaps(clientId)
+        .then((naverObj) => {
+          if (!isMounted || !mapContainerRef.current) return;
+          setLoadError(null);
+          const latestInitialCenter = initialCenterRef.current;
 
-        /**
-         * iOS Safari / WKWebView(Whale 등)에서 초기 레이아웃 타이밍 때문에
-         * 오버레이(HTML content marker)가 첫 렌더에서 보이지 않는 케이스가 있어,
-         * 초기 2-RAF + 짧은 setTimeout으로 resize를 강제한다.
-         */
-        const triggerInitialResize = () => {
-          // 2-RAF: 레이아웃/페인트/합성 이후로 미룸
-          requestAnimationFrame(() => {
+          const map = new naverObj.maps.Map(mapContainerRef.current, {
+            center: new naverObj.maps.LatLng(
+              latestInitialCenter?.lat ?? 37.5127,
+              latestInitialCenter?.lng ?? 126.9706,
+            ),
+            zoom: latestInitialCenter
+              ? Math.max(initialZoom, GPS_FOCUS_ZOOM)
+              : initialZoom,
+            zoomControl: false,
+          });
+          mapRef.current = map;
+          callbacksRef.current.onMapReady?.();
+          callbacksRef.current.onZoomChange?.(map.getZoom());
+
+          /**
+           * iOS Safari / WKWebView(Whale 등)에서 초기 레이아웃 타이밍 때문에
+           * 오버레이(HTML content marker)가 첫 렌더에서 보이지 않는 케이스가 있어,
+           * 초기 2-RAF + 짧은 setTimeout으로 resize를 강제한다.
+           */
+          const triggerInitialResize = () => {
+            // 2-RAF: 레이아웃/페인트/합성 이후로 미룸
             requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                if (!mapRef.current) return;
+                naverObj.maps.Event.trigger(mapRef.current, "resize");
+                // resize 직후 가시영역/스타일 동기화
+                scheduleVisibleSync();
+                applyFocusHoverDeltaStyles(naverObj);
+                fitMapToMarkers(naverObj, sourceMarkersRef.current);
+              });
+            });
+            // 일부 iOS에서 1회 더 필요할 때가 있어 보수적으로 1번만 추가
+            window.setTimeout(() => {
               if (!mapRef.current) return;
               naverObj.maps.Event.trigger(mapRef.current, "resize");
-              // resize 직후 가시영역/스타일 동기화
+
+              markerByIdRef.current.forEach((_mk, id) => {
+                applyMarkerStyleById(naverObj, id);
+              });
+
               scheduleVisibleSync();
               applyFocusHoverDeltaStyles(naverObj);
               fitMapToMarkers(naverObj, sourceMarkersRef.current);
-            });
-          });
-          // 일부 iOS에서 1회 더 필요할 때가 있어 보수적으로 1번만 추가
-          window.setTimeout(() => {
-            if (!mapRef.current) return;
-            naverObj.maps.Event.trigger(mapRef.current, "resize");
+            }, 250);
+          };
+          triggerInitialResize();
 
-            markerByIdRef.current.forEach((_mk, id) => {
-              applyMarkerStyleById(naverObj, id);
-            });
+          sourceMarkersRef.current = markers;
+          if (markers.length > 0) {
+            refreshDisplayMarkers(naverObj);
+            fitMapToMarkers(naverObj, markers);
+          }
+          applyRegionFocusOverlay(naverObj);
 
-            scheduleVisibleSync();
-            applyFocusHoverDeltaStyles(naverObj);
-            fitMapToMarkers(naverObj, sourceMarkersRef.current);
-          }, 250);
-        };
-        triggerInitialResize();
+          const clickListener = naverObj.maps.Event.addListener(
+            map,
+            "click",
+            (e?: unknown) => {
+              // 마커 클릭 직후 발생하는 지도 클릭 버블링성 이벤트는 무시
+              if (Date.now() - markerClickTsRef.current < 250) return;
 
-        sourceMarkersRef.current = markers;
-        if (markers.length > 0) {
-          refreshDisplayMarkers(naverObj);
-          fitMapToMarkers(naverObj, markers);
-        }
-        applyRegionFocusOverlay(naverObj);
-
-        const clickListener = naverObj.maps.Event.addListener(
-          map,
-          "click",
-          (e?: unknown) => {
-            // 마커 클릭 직후 발생하는 지도 클릭 버블링성 이벤트는 무시
-            if (Date.now() - markerClickTsRef.current < 250) return;
-
-            const event = e as MapClickEvent | undefined;
-            if (callbacksRef.current.mode === "select") {
-              const lat =
-                (typeof event?.coord?.lat === "function"
-                  ? event.coord.lat()
-                  : event?.coord?.lat) ??
-                (typeof event?.latlng?.lat === "function"
-                  ? event.latlng.lat()
-                  : event?.latlng?.lat);
-              const lng =
-                (typeof event?.coord?.lng === "function"
-                  ? event.coord.lng()
-                  : event?.coord?.lng) ??
-                (typeof event?.latlng?.lng === "function"
-                  ? event.latlng.lng()
-                  : event?.latlng?.lng);
-              if (typeof lat === "number" && typeof lng === "number") {
-                callbacksRef.current.onSelectPosition?.(lat, lng);
+              const event = e as MapClickEvent | undefined;
+              if (callbacksRef.current.mode === "select") {
+                const lat =
+                  (typeof event?.coord?.lat === "function"
+                    ? event.coord.lat()
+                    : event?.coord?.lat) ??
+                  (typeof event?.latlng?.lat === "function"
+                    ? event.latlng.lat()
+                    : event?.latlng?.lat);
+                const lng =
+                  (typeof event?.coord?.lng === "function"
+                    ? event.coord.lng()
+                    : event?.coord?.lng) ??
+                  (typeof event?.latlng?.lng === "function"
+                    ? event.latlng.lng()
+                    : event?.latlng?.lng);
+                if (typeof lat === "number" && typeof lng === "number") {
+                  callbacksRef.current.onSelectPosition?.(lat, lng);
+                }
+                return;
               }
-              return;
-            }
-            callbacksRef.current.onClearFocus?.();
-          },
-        );
-        const dragStartListener = naverObj.maps.Event.addListener(
-          map,
-          "dragstart",
-          () => {
-            isInteractingRef.current = true;
-            callbacksRef.current.onMapMoveStart?.();
-          },
-        );
+              callbacksRef.current.onClearFocus?.();
+            },
+          );
+          const dragStartListener = naverObj.maps.Event.addListener(
+            map,
+            "dragstart",
+            () => {
+              isInteractingRef.current = true;
+              callbacksRef.current.onMapMoveStart?.();
+            },
+          );
 
-        const idleListener = naverObj.maps.Event.addListener(
-          map,
-          "idle",
-          () => {
-            isInteractingRef.current = false;
-            refreshDisplayMarkersRef.current(naverObj);
-            const pendingClusterCenter = pendingClusterCenterRef.current;
-            if (pendingClusterCenter) {
-              pendingClusterCenterRef.current = null;
-              setMapCenter(
-                map,
-                new naverObj.maps.LatLng(
-                  pendingClusterCenter.lat,
-                  pendingClusterCenter.lng,
-                ),
-              );
-            }
-            applyRegionFocusOverlayRef.current(naverObj);
-            scheduleVisibleSync();
-            // idle에서 델타만 반영 (전체 loop 금지)
-            applyFocusHoverDeltaStyles(naverObj);
-          },
-        );
+          const idleListener = naverObj.maps.Event.addListener(
+            map,
+            "idle",
+            () => {
+              isInteractingRef.current = false;
+              refreshDisplayMarkersRef.current(naverObj);
+              const pendingClusterCenter = pendingClusterCenterRef.current;
+              if (pendingClusterCenter) {
+                pendingClusterCenterRef.current = null;
+                setMapCenter(
+                  map,
+                  new naverObj.maps.LatLng(
+                    pendingClusterCenter.lat,
+                    pendingClusterCenter.lng,
+                  ),
+                );
+              }
+              applyRegionFocusOverlayRef.current(naverObj);
+              scheduleVisibleSync();
+              // idle에서 델타만 반영 (전체 loop 금지)
+              applyFocusHoverDeltaStyles(naverObj);
+            },
+          );
 
-        const zoomListener = naverObj.maps.Event.addListener(
-          map,
-          "zoom_changed",
-          () => {
-            isInteractingRef.current = true;
-            callbacksRef.current.onMapMoveStart?.();
-            callbacksRef.current.onZoomChange?.(map.getZoom());
-            refreshDisplayMarkersRef.current(naverObj);
-            applyRegionFocusOverlayRef.current(naverObj);
-            // 현 정책상 focused만 갱신하면 충분
-            const fid = focusedIdRef.current;
-            if (fid) applyMarkerStyleById(naverObj, fid);
-          },
-        );
+          const zoomListener = naverObj.maps.Event.addListener(
+            map,
+            "zoom_changed",
+            () => {
+              isInteractingRef.current = true;
+              callbacksRef.current.onMapMoveStart?.();
+              callbacksRef.current.onZoomChange?.(map.getZoom());
+              refreshDisplayMarkersRef.current(naverObj);
+              applyRegionFocusOverlayRef.current(naverObj);
+              // 현 정책상 focused만 갱신하면 충분
+              const fid = focusedIdRef.current;
+              if (fid) applyMarkerStyleById(naverObj, fid);
+            },
+          );
 
-        mountedListeners.push(
-          clickListener,
-          dragStartListener,
-          idleListener,
-          zoomListener,
-        );
-      });
+          mountedListeners.push(
+            clickListener,
+            dragStartListener,
+            idleListener,
+            zoomListener,
+          );
+        })
+        .catch((error) => {
+          if (!isMounted) return;
+          mapRef.current = null;
+          setLoadError("sdk-load-failed");
+          if (process.env.NODE_ENV !== "production") {
+            console.error("[NaverMap] Failed to initialize map.", error);
+          }
+        });
 
       return () => {
         isMounted = false;
+        mapRef.current = null;
         clearRegionFocusOverlay();
         const naverObj = window.naver;
         const listeners = [...mountedListeners];
@@ -1719,6 +1744,31 @@ const NaverMap = forwardRef<
     return (
       <div className="relative w-full h-full">
         <div ref={mapContainerRef} className="w-full h-full" />
+        {loadError ? (
+          <div
+            className="absolute inset-0 z-20 flex items-center justify-center px-4 text-center"
+            style={{
+              background: "rgba(255, 255, 255, 0.84)",
+              backdropFilter: "blur(4px)",
+            }}
+          >
+            <div
+              className="max-w-xs rounded-2xl px-4 py-3"
+              style={{
+                border: "1px solid rgba(15, 23, 42, 0.1)",
+                background: "rgba(255, 255, 255, 0.96)",
+                boxShadow: "0 18px 40px rgba(15, 23, 42, 0.12)",
+              }}
+            >
+              <p className="text-sm font-semibold text-slate-900">
+                지도를 불러오지 못했습니다.
+              </p>
+              <p className="mt-1 text-xs leading-5 text-slate-600">
+                네이버 지도 스크립트가 차단되었거나 인증에 실패했습니다.
+              </p>
+            </div>
+          </div>
+        ) : null}
         {!interactive ? (
           <div className="absolute inset-0 z-10" aria-hidden="true" />
         ) : null}

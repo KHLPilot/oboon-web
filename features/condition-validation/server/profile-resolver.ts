@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type {
@@ -6,6 +7,7 @@ import type {
   UnitTypeValidationProfile,
   ValidationAssetType,
 } from "@/features/condition-validation/domain/types";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 
 type UnitPriceRow = {
   price_min: number | string | null;
@@ -28,6 +30,10 @@ type PropertyFallbackRow = {
   property_type: string | null;
   property_unit_types: UnitPriceRow[] | null;
 };
+
+const CONDITION_PROFILE_CACHE_TTL_SECONDS = 60 * 5;
+const PROPERTY_SELECT_FIELDS =
+  "id, name, property_type, property_unit_types(price_min,price_max,is_price_public)";
 
 function isMissingTableError(error: { code?: string | null; message?: string | null }): boolean {
   const code = error.code ?? "";
@@ -182,18 +188,22 @@ function buildProfileFromPropertyRow(row: PropertyFallbackRow): PropertyValidati
   };
 }
 
-export async function loadPropertyProfile(params: {
-  adminSupabase: SupabaseClient;
-  propertyIdInput: string;
-}): Promise<PropertyValidationProfile | null> {
-  const { adminSupabase, propertyIdInput } = params;
-  const candidates = Array.from(
+function getPropertyIdCandidates(propertyIdInput: string): string[] {
+  return Array.from(
     new Set([
       propertyIdInput,
       propertyIdInput.trim(),
       String(Number(propertyIdInput)),
     ].filter((value) => value && value !== "NaN")),
   );
+}
+
+async function loadPropertyProfileFromSource(params: {
+  adminSupabase: SupabaseClient;
+  propertyIdInput: string;
+}): Promise<PropertyValidationProfile | null> {
+  const { adminSupabase, propertyIdInput } = params;
+  const candidates = getPropertyIdCandidates(propertyIdInput);
 
   for (const candidate of candidates) {
     const { data, error } = await adminSupabase
@@ -216,15 +226,13 @@ export async function loadPropertyProfile(params: {
     if (profile) return profile;
   }
 
-  const selectFields =
-    "id, name, property_type, property_unit_types(price_min,price_max,is_price_public)";
   const parsedId = Number(propertyIdInput);
 
   let row: PropertyFallbackRow | null = null;
   if (Number.isFinite(parsedId) && parsedId > 0) {
     const { data } = await adminSupabase
       .from("properties")
-      .select(selectFields)
+      .select(PROPERTY_SELECT_FIELDS)
       .eq("id", Math.floor(parsedId))
       .maybeSingle<PropertyFallbackRow>();
     if (data) row = data;
@@ -233,7 +241,7 @@ export async function loadPropertyProfile(params: {
   if (!row) {
     const { data: exactName } = await adminSupabase
       .from("properties")
-      .select(selectFields)
+      .select(PROPERTY_SELECT_FIELDS)
       .eq("name", propertyIdInput)
       .maybeSingle<PropertyFallbackRow>();
     if (exactName) row = exactName;
@@ -242,7 +250,7 @@ export async function loadPropertyProfile(params: {
   if (!row) {
     const { data: fuzzyRows } = await adminSupabase
       .from("properties")
-      .select(selectFields)
+      .select(PROPERTY_SELECT_FIELDS)
       .ilike("name", `%${propertyIdInput}%`)
       .limit(1)
       .returns<PropertyFallbackRow[]>();
@@ -253,6 +261,32 @@ export async function loadPropertyProfile(params: {
 
   if (!row) return null;
   return buildProfileFromPropertyRow(row);
+}
+
+const loadPropertyProfileCached = unstable_cache(
+  async (propertyIdInput: string) =>
+    loadPropertyProfileFromSource({
+      adminSupabase: createSupabaseAdminClient(),
+      propertyIdInput,
+    }),
+  ["condition-validation-property-profile"],
+  { revalidate: CONDITION_PROFILE_CACHE_TTL_SECONDS },
+);
+
+export async function loadPropertyProfile(params: {
+  adminSupabase: SupabaseClient;
+  propertyIdInput: string;
+}): Promise<PropertyValidationProfile | null> {
+  const normalizedPropertyIdInput = params.propertyIdInput.trim();
+
+  if (process.env.NODE_ENV === "test") {
+    return loadPropertyProfileFromSource({
+      adminSupabase: params.adminSupabase,
+      propertyIdInput: normalizedPropertyIdInput,
+    });
+  }
+
+  return loadPropertyProfileCached(normalizedPropertyIdInput);
 }
 
 type UnitValidationProfileRow = {
@@ -268,17 +302,13 @@ type UnitValidationProfileRow = {
   is_price_public: boolean | null;
 };
 
-export async function loadUnitValidationProfiles(params: {
+async function loadUnitValidationProfilesFromSource(params: {
   adminSupabase: SupabaseClient;
   propertyId: string;
 }): Promise<UnitTypeValidationProfile[]> {
   const { adminSupabase, propertyId } = params;
 
-  const candidates = Array.from(
-    new Set([propertyId, propertyId.trim(), String(Number(propertyId))].filter(
-      (v) => v && v !== "NaN",
-    )),
-  );
+  const candidates = getPropertyIdCandidates(propertyId);
 
   for (const candidate of candidates) {
     const { data, error } = await adminSupabase
@@ -377,6 +407,32 @@ export async function loadUnitValidationProfiles(params: {
       };
     })
     .filter((v): v is UnitTypeValidationProfile => v !== null);
+}
+
+const loadUnitValidationProfilesCached = unstable_cache(
+  async (propertyId: string) =>
+    loadUnitValidationProfilesFromSource({
+      adminSupabase: createSupabaseAdminClient(),
+      propertyId,
+    }),
+  ["condition-validation-unit-profiles"],
+  { revalidate: CONDITION_PROFILE_CACHE_TTL_SECONDS },
+);
+
+export async function loadUnitValidationProfiles(params: {
+  adminSupabase: SupabaseClient;
+  propertyId: string;
+}): Promise<UnitTypeValidationProfile[]> {
+  const normalizedPropertyId = params.propertyId.trim();
+
+  if (process.env.NODE_ENV === "test") {
+    return loadUnitValidationProfilesFromSource({
+      adminSupabase: params.adminSupabase,
+      propertyId: normalizedPropertyId,
+    });
+  }
+
+  return loadUnitValidationProfilesCached(normalizedPropertyId);
 }
 
 export function resolveProfileForRecommendation(params: {

@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils/cn";
 
-import ConditionBar from "@/features/recommendations/components/ConditionBar";
+import ConditionWizard from "@/features/recommendations/components/ConditionWizard";
 import SimulatorBar from "@/features/recommendations/components/SimulatorBar";
 import type {
   RecommendationCondition,
@@ -82,7 +82,7 @@ export default function RecommendationConditionPanel(
       ) : null}
 
       {mode === "input" ? (
-        <ConditionBar
+        <ConditionWizard
           condition={condition}
           isLoggedIn={isLoggedIn}
           hasSavedConditionPreset={hasSavedConditionPreset}

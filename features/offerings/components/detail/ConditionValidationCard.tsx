@@ -100,6 +100,51 @@ function parseNullableNumericInput(value: string): number | null {
   return parsed;
 }
 
+function formatAreaLabel(area: number | null) {
+  if (area === null) return null;
+  return `${area.toLocaleString("ko-KR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })}㎡`;
+}
+
+function formatUnitTypeTitle(item: UnitTypeResultItem) {
+  const rawName = item.unit_type_name?.trim();
+  if (rawName) {
+    if (
+      rawName.includes("타입") ||
+      rawName.includes("㎡") ||
+      /[A-Za-z]$/.test(rawName)
+    ) {
+      return rawName;
+    }
+    return `${rawName}타입`;
+  }
+
+  const areaLabel = formatAreaLabel(item.exclusive_area);
+  if (areaLabel) {
+    return `전용 ${areaLabel}`;
+  }
+
+  return `타입 ${item.unit_type_id}`;
+}
+
+function getUnitTypeStatusMeta(item: UnitTypeResultItem) {
+  const label = item.grade_label?.trim() || grade5DetailLabel(item.final_grade);
+  switch (item.final_grade) {
+    case "GREEN":
+      return { key: "green" as const, label };
+    case "LIME":
+      return { key: "lime" as const, label };
+    case "YELLOW":
+      return { key: "yellow" as const, label };
+    case "ORANGE":
+      return { key: "orange" as const, label };
+    case "RED":
+      return { key: "red" as const, label };
+  }
+}
+
 function hasStoredProfileAutoFill(profileAutoFill: ProfileAutoFillData | null | undefined): boolean {
   if (!profileAutoFill) return false;
 
@@ -263,6 +308,10 @@ export default function ConditionValidationCard({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [response, setResponse] = useState<FullEvaluationResponse | null>(null);
   const [showResultDetails, setShowResultDetails] = useState(false);
+  const [showUnitTypeDetails, setShowUnitTypeDetails] = useState(false);
+  const [openCategory, setOpenCategory] = useState<string | null>(null);
+  const [openUnitTypeGroup, setOpenUnitTypeGroup] = useState<string | null>(null);
+  const [openUnitType, setOpenUnitType] = useState<string | null>(null);
   const autoEvaluatedRef = useRef(false);
 
   // Derived
@@ -625,6 +674,146 @@ export default function ConditionValidationCard({
   const shouldShowAlternativeButton =
     result?.final_grade === "RED" || result?.final_grade === "ORANGE";
 
+  const renderUnitTypeResults = (
+    items: UnitTypeResultItem[],
+    prefix: "guest" | "full",
+  ) => {
+    const groupedItems = [
+      {
+        key: "green" as const,
+        label: grade5DetailLabel("GREEN"),
+        items: items.filter((item) => getUnitTypeStatusMeta(item).key === "green"),
+      },
+      {
+        key: "lime" as const,
+        label: grade5DetailLabel("LIME"),
+        items: items.filter((item) => getUnitTypeStatusMeta(item).key === "lime"),
+      },
+      {
+        key: "yellow" as const,
+        label: grade5DetailLabel("YELLOW"),
+        items: items.filter((item) => getUnitTypeStatusMeta(item).key === "yellow"),
+      },
+      {
+        key: "orange" as const,
+        label: grade5DetailLabel("ORANGE"),
+        items: items.filter((item) => getUnitTypeStatusMeta(item).key === "orange"),
+      },
+      {
+        key: "red" as const,
+        label: grade5DetailLabel("RED"),
+        items: items.filter((item) => getUnitTypeStatusMeta(item).key === "red"),
+      },
+    ].filter((group) => group.items.length > 0);
+
+    return (
+      <div className="max-h-[min(34vh,18rem)] overflow-y-auto overscroll-contain rounded-lg border border-(--oboon-border-default)">
+        {groupedItems.map((group, groupIdx, groups) => (
+          <div
+            key={`${prefix}-${group.key}`}
+            className={groupIdx < groups.length - 1 ? "border-b border-(--oboon-border-default)" : ""}
+          >
+            {(() => {
+              const groupKey = `${prefix}-${group.key}`;
+              const isGroupOpen = openUnitTypeGroup === groupKey;
+              return (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpenUnitTypeGroup(isGroupOpen ? null : groupKey);
+                      if (isGroupOpen) {
+                        setOpenUnitType((current) =>
+                          current?.startsWith(`${prefix}-`) ? null : current,
+                        );
+                      }
+                    }}
+                    className="flex w-full items-center justify-between gap-3 bg-(--oboon-bg-subtle) px-3 py-1.5"
+                  >
+                    <span className="ob-typo-caption font-semibold text-(--oboon-text-title)">
+                      {group.label}
+                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="ob-typo-caption text-(--oboon-text-muted)">
+                        {group.items.length}개
+                      </span>
+                      {isGroupOpen ? (
+                        <ChevronUp className="h-3.5 w-3.5 text-(--oboon-text-muted)" />
+                      ) : (
+                        <ChevronDown className="h-3.5 w-3.5 text-(--oboon-text-muted)" />
+                      )}
+                    </div>
+                  </button>
+                  {isGroupOpen
+                    ? group.items.map((item, idx, arr) => {
+              const meta = grade5Meta(item.final_grade);
+              const { label: unitLabel } = getUnitTypeStatusMeta(item);
+              const unitKey = `${prefix}-${item.unit_type_id}`;
+              const isOpen = openUnitType === unitKey;
+              return (
+                <div
+                  key={unitKey}
+                  className={idx < arr.length - 1 ? "border-b border-(--oboon-border-default)" : ""}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setOpenUnitType(isOpen ? null : unitKey)}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-2"
+                    style={{ backgroundColor: meta.bgColor }}
+                  >
+                    <span className="ob-typo-caption font-medium text-(--oboon-text-title) text-left">
+                      {formatUnitTypeTitle(item)}
+                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span
+                        className="ob-typo-caption font-semibold"
+                        style={{ color: meta.color }}
+                      >
+                        ● {unitLabel}
+                      </span>
+                      {isOpen ? (
+                        <ChevronUp className="h-3 w-3 text-(--oboon-text-muted)" />
+                      ) : (
+                        <ChevronDown className="h-3 w-3 text-(--oboon-text-muted)" />
+                      )}
+                    </div>
+                  </button>
+                  {isOpen ? (
+                    <div
+                      className="space-y-1.5 px-3 pb-2 ob-typo-caption text-(--oboon-text-muted)"
+                      style={{ backgroundColor: meta.bgColor }}
+                    >
+                      {item.exclusive_area !== null ? (
+                        <div className="flex items-center justify-between gap-3">
+                          <span>전용면적</span>
+                          <span className="font-semibold text-(--oboon-text-title)">
+                            {formatAreaLabel(item.exclusive_area)}
+                          </span>
+                        </div>
+                      ) : null}
+                      <div className="flex items-center justify-between gap-3">
+                        <span>분양가</span>
+                        <span className="font-semibold text-(--oboon-text-title)">
+                          {formatManwonWithEok(item.list_price_manwon)}
+                        </span>
+                      </div>
+                      {item.summary_message ? (
+                        <p>{item.summary_message}</p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              );
+                    })
+                    : null}
+                </>
+              );
+            })()}
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   // ── Main render ───────────────────────────────────────────────────────────────
   return (
@@ -974,18 +1163,41 @@ export default function ConditionValidationCard({
               ).map(({ key, label }, idx, arr) => {
                 const cat = guestResponse.categories![key];
                 const meta = grade5Meta(cat.grade);
+                const catKey = `guest-${key}`;
+                const isOpen = openCategory === catKey;
                 return (
                   <div
                     key={key}
-                    className={`flex items-center justify-between gap-2 px-3 py-2${idx < arr.length - 1 ? " border-b" : ""}`}
-                    style={{ backgroundColor: meta.bgColor, borderColor: meta.borderColor }}
+                    className={idx < arr.length - 1 ? "border-b border-(--oboon-border-default)" : ""}
                   >
-                    <span className="ob-typo-caption font-medium text-(--oboon-text-title) shrink-0">
-                      {label}
-                    </span>
-                    <span className="ob-typo-caption font-semibold text-(--oboon-text-title) truncate text-right">
-                      {cat.score}/{cat.max_score} · {grade5DetailLabel(cat.grade)}
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setOpenCategory(isOpen ? null : catKey)}
+                      className="flex w-full items-center justify-between gap-2 px-3 py-2"
+                      style={{ backgroundColor: meta.bgColor }}
+                    >
+                      <span className="ob-typo-caption font-medium text-(--oboon-text-title) shrink-0">
+                        {label}
+                      </span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="ob-typo-caption font-semibold text-(--oboon-text-title)">
+                          {grade5DetailLabel(cat.grade)}
+                        </span>
+                        {isOpen ? (
+                          <ChevronUp className="h-3 w-3 text-(--oboon-text-muted)" />
+                        ) : (
+                          <ChevronDown className="h-3 w-3 text-(--oboon-text-muted)" />
+                        )}
+                      </div>
+                    </button>
+                    {isOpen ? (
+                      <div
+                        className="px-3 pb-2 ob-typo-caption text-(--oboon-text-muted)"
+                        style={{ backgroundColor: meta.bgColor }}
+                      >
+                        {cat.reason}
+                      </div>
+                    ) : null}
                   </div>
                 );
               })}
@@ -994,43 +1206,23 @@ export default function ConditionValidationCard({
 
           {/* Unit type results */}
           {guestResponse.unit_type_results && guestResponse.unit_type_results.length > 0 ? (
-            <div className="rounded-lg border border-(--oboon-border-default) overflow-hidden">
-              <div className="px-3 py-2 border-b border-(--oboon-border-default) bg-(--oboon-bg-subtle)">
-                <span className="ob-typo-caption font-semibold text-(--oboon-text-muted)">타입별 확인</span>
-              </div>
-              {guestResponse.unit_type_results.map((item: UnitTypeResultItem, idx, arr) => {
-                const meta = grade5Meta(item.final_grade);
-                const unitLabel =
-                  item.final_grade === "RED"
-                    ? "조건 미충족"
-                    : item.final_grade === "ORANGE"
-                      ? "조건 검토 필요"
-                      : "가능";
-                return (
-                  <div
-                    key={item.unit_type_id}
-                    className={`flex items-center justify-between gap-2 px-3 py-2${idx < arr.length - 1 ? " border-b" : ""}`}
-                    style={{ borderColor: meta.borderColor }}
-                  >
-                    <span className="ob-typo-caption font-medium text-(--oboon-text-title) shrink-0">
-                      {item.unit_type_name ?? `타입 ${item.unit_type_id}`}
-                      {item.exclusive_area ? ` ${item.exclusive_area}㎡` : ""}
-                    </span>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="ob-typo-caption text-(--oboon-text-muted)">
-                        {formatManwonWithEok(item.list_price_manwon)}
-                      </span>
-                      <span
-                        className="ob-typo-caption font-semibold"
-                        style={{ color: meta.color }}
-                      >
-                        ● {unitLabel}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <>
+              <button
+                type="button"
+                onClick={() => setShowUnitTypeDetails((prev) => !prev)}
+                className="flex w-full items-center justify-between rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-1.5 ob-typo-caption text-(--oboon-text-muted) hover:border-(--oboon-border-hover) transition-colors"
+              >
+                <span>타입별 확인</span>
+                {showUnitTypeDetails ? (
+                  <ChevronUp className="h-3.5 w-3.5" />
+                ) : (
+                  <ChevronDown className="h-3.5 w-3.5" />
+                )}
+              </button>
+              {showUnitTypeDetails
+                ? renderUnitTypeResults(guestResponse.unit_type_results, "guest")
+                : null}
+            </>
           ) : null}
 
           {/* Login CTA */}
@@ -1110,24 +1302,43 @@ export default function ConditionValidationCard({
                   { key: "ltv_dsr" as const, label: "LTV+DSR" },
                   { key: "ownership" as const, label: "주택 보유" },
                   { key: "purpose" as const, label: "구매 목적" },
-                  { key: "timing" as const, label: "분양·입주 시점" },
                 ] as const
               ).map(({ key, label }, idx, arr) => {
                 const cat = categories[key];
                 const meta = grade5Meta(cat.grade);
+                const catKey = `full-${key}`;
+                const isOpen = openCategory === catKey;
                 return (
                   <div
                     key={key}
-                    className={`flex items-center justify-between gap-2 px-3 py-2${idx < arr.length - 1 ? " border-b" : ""}`}
-                    style={{
-                      backgroundColor: meta.bgColor,
-                      borderColor: meta.borderColor,
-                    }}
+                    className={idx < arr.length - 1 ? "border-b border-(--oboon-border-default)" : ""}
                   >
-                    <span className="ob-typo-caption font-medium text-(--oboon-text-title) shrink-0">{label}</span>
-                    <span className="ob-typo-caption font-semibold text-(--oboon-text-title) truncate text-right">
-                      {cat.score}/{cat.max_score} · {grade5DetailLabel(cat.grade)}
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setOpenCategory(isOpen ? null : catKey)}
+                      className="flex w-full items-center justify-between gap-2 px-3 py-2"
+                      style={{ backgroundColor: meta.bgColor }}
+                    >
+                      <span className="ob-typo-caption font-medium text-(--oboon-text-title) shrink-0">{label}</span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="ob-typo-caption font-semibold text-(--oboon-text-title)">
+                          {grade5DetailLabel(cat.grade)}
+                        </span>
+                        {isOpen ? (
+                          <ChevronUp className="h-3 w-3 text-(--oboon-text-muted)" />
+                        ) : (
+                          <ChevronDown className="h-3 w-3 text-(--oboon-text-muted)" />
+                        )}
+                      </div>
+                    </button>
+                    {isOpen ? (
+                      <div
+                        className="px-3 pb-2 ob-typo-caption text-(--oboon-text-muted)"
+                        style={{ backgroundColor: meta.bgColor }}
+                      >
+                        {cat.reason}
+                      </div>
+                    ) : null}
                   </div>
                 );
               })}
@@ -1156,43 +1367,23 @@ export default function ConditionValidationCard({
 
           {/* Unit type results */}
           {response?.unit_type_results && response.unit_type_results.length > 0 ? (
-            <div className="rounded-lg border border-(--oboon-border-default) overflow-hidden">
-              <div className="px-3 py-2 border-b border-(--oboon-border-default) bg-(--oboon-bg-subtle)">
-                <span className="ob-typo-caption font-semibold text-(--oboon-text-muted)">타입별 확인</span>
-              </div>
-              {response.unit_type_results.map((item: UnitTypeResultItem, idx, arr) => {
-                const meta = grade5Meta(item.final_grade);
-                const unitLabel =
-                  item.final_grade === "RED"
-                    ? "조건 미충족"
-                    : item.final_grade === "ORANGE"
-                      ? "조건 검토 필요"
-                      : "가능";
-                return (
-                  <div
-                    key={item.unit_type_id}
-                    className={`flex items-center justify-between gap-2 px-3 py-2${idx < arr.length - 1 ? " border-b" : ""}`}
-                    style={{ borderColor: meta.borderColor }}
-                  >
-                    <span className="ob-typo-caption font-medium text-(--oboon-text-title) shrink-0">
-                      {item.unit_type_name ?? `타입 ${item.unit_type_id}`}
-                      {item.exclusive_area ? ` ${item.exclusive_area}㎡` : ""}
-                    </span>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="ob-typo-caption text-(--oboon-text-muted)">
-                        {formatManwonWithEok(item.list_price_manwon)}
-                      </span>
-                      <span
-                        className="ob-typo-caption font-semibold"
-                        style={{ color: meta.color }}
-                      >
-                        ● {unitLabel}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <>
+              <button
+                type="button"
+                onClick={() => setShowUnitTypeDetails((prev) => !prev)}
+                className="flex w-full items-center justify-between rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-1.5 ob-typo-caption text-(--oboon-text-muted) hover:border-(--oboon-border-hover) transition-colors"
+              >
+                <span>타입별 확인</span>
+                {showUnitTypeDetails ? (
+                  <ChevronUp className="h-3.5 w-3.5" />
+                ) : (
+                  <ChevronDown className="h-3.5 w-3.5" />
+                )}
+              </button>
+              {showUnitTypeDetails
+                ? renderUnitTypeResults(response.unit_type_results, "full")
+                : null}
+            </>
           ) : null}
 
           {/* Alternative recommend button */}

@@ -1,8 +1,14 @@
+import { unstable_cache } from "next/cache";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { handleStructuredApiError } from "@/lib/api/route-error";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { AppError, ERR } from "@/lib/errors";
+import {
+  checkAuthRateLimit,
+  conditionRecommendationIpLimiter,
+  getClientIp,
+} from "@/lib/rateLimit";
 
 import { evaluateFullCondition } from "@/features/condition-validation/domain/fullCustomerEvaluator";
 import { evaluateGuestCondition } from "@/features/condition-validation/domain/guestEvaluator";
@@ -129,6 +135,13 @@ type EvaluatedRecommendation =
   | FullEvaluatedRecommendation
   | GuestEvaluatedRecommendation;
 
+type RecommendationContextSnapshot = {
+  properties: PropertyRow[];
+  profileEntries: Array<[string, ValidationProfileRow]>;
+  unitProfileEntries: Array<[string, UnitTypeValidationProfile[]]>;
+  propertyImageEntries: Array<[number, string | null]>;
+};
+
 const amountSchema = z.preprocess((value) => {
   if (typeof value === "string") {
     const normalized = value.replaceAll(",", "").trim();
@@ -143,6 +156,7 @@ const manwonAmountSchema = amountSchema
   .refine((value) => Number.isInteger(value), { message: "must be integer in manwon unit" });
 
 const closedStatusValue = OFFERING_STATUS_VALUES[OFFERING_STATUS_VALUES.length - 1];
+const RECOMMENDATION_CONTEXT_CACHE_TTL_SECONDS = 60 * 5;
 
 function compareNullableNumber(
   a: number | null,
@@ -708,7 +722,39 @@ async function loadPropertyImageMapByIds(
   return imageMap;
 }
 
+const loadRecommendationContextCached = unstable_cache(
+  async (): Promise<RecommendationContextSnapshot> => {
+    const adminSupabase = createAdminSupabase();
+    const properties = await loadRecommendationProperties(adminSupabase);
+    const propertyIds = properties.map((property) => property.id);
+    const [profileByPropertyId, unitProfilesByPropertyId, propertyImageMap] = await Promise.all([
+      loadValidationProfilesByPropertyIds(adminSupabase, propertyIds),
+      loadUnitValidationProfilesByPropertyIds(adminSupabase, propertyIds),
+      loadPropertyImageMapByIds(adminSupabase, propertyIds),
+    ]);
+
+    return {
+      properties,
+      profileEntries: Array.from(profileByPropertyId.entries()),
+      unitProfileEntries: Array.from(unitProfilesByPropertyId.entries()),
+      propertyImageEntries: Array.from(propertyImageMap.entries()),
+    };
+  },
+  ["condition-validation-recommendation-context"],
+  { revalidate: RECOMMENDATION_CONTEXT_CACHE_TTL_SECONDS },
+);
+
 export async function POST(request: Request) {
+  const rateLimitRes = await checkAuthRateLimit(
+    conditionRecommendationIpLimiter,
+    getClientIp(request),
+    {
+      windowMs: 60 * 1000,
+      message: "맞춤 현장 추천 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.",
+    },
+  );
+  if (rateLimitRes) return rateLimitRes;
+
   let payload: unknown = null;
 
   try {
@@ -735,7 +781,6 @@ export async function POST(request: Request) {
   }
 
   try {
-    const adminSupabase = createAdminSupabase();
     const input = parsed.data.customer;
     const limit = parsed.data.options?.limit ?? 24;
     const includeRed = parsed.data.options?.include_red ?? false;
@@ -766,13 +811,11 @@ export async function POST(request: Request) {
     };
     const todayStamp = getTodayKstStamp();
 
-    const properties = await loadRecommendationProperties(adminSupabase);
-    const propertyIds = properties.map((property) => property.id);
-    const [profileByPropertyId, unitProfilesByPropertyId, propertyImageMap] = await Promise.all([
-      loadValidationProfilesByPropertyIds(adminSupabase, propertyIds),
-      loadUnitValidationProfilesByPropertyIds(adminSupabase, propertyIds),
-      loadPropertyImageMapByIds(adminSupabase, propertyIds),
-    ]);
+    const recommendationContext = await loadRecommendationContextCached();
+    const properties = recommendationContext.properties;
+    const profileByPropertyId = new Map(recommendationContext.profileEntries);
+    const unitProfilesByPropertyId = new Map(recommendationContext.unitProfileEntries);
+    const propertyImageMap = new Map(recommendationContext.propertyImageEntries);
 
     const evaluated: EvaluatedRecommendation[] = properties
       .map((property): EvaluatedRecommendation | null => {
