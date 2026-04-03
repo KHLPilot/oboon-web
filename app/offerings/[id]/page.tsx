@@ -6,9 +6,12 @@ import { cache } from "react";
 import OfferingDetailPage from "@/features/offerings/components/detail/OfferingDetailPage";
 import { fetchOfferingDetail } from "@/features/offerings/services/offeringDetail.service";
 import { formatPriceRange } from "@/shared/price";
+import {
+  buildBreadcrumbJsonLd,
+  seoDefaultOgImage,
+} from "@/shared/seo";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://oboon.co.kr";
-const defaultOgImage = `${siteUrl}/logo.svg`;
 
 type UnitType = {
   price_min: number | null;
@@ -120,7 +123,7 @@ export async function generateMetadata({
     : `${property.name} 분양 정보. 분양가: ${priceRange}.`;
   const canonicalPath = `/offerings/${property.id}`;
   const imageUrl = pickImage(property);
-  const ogImage = imageUrl || defaultOgImage;
+  const ogImage = imageUrl || seoDefaultOgImage;
 
   return {
     title: `${property.name} 분양 정보`,
@@ -206,6 +209,11 @@ export default async function OfferingDetailRoute({
         }
       : undefined,
   };
+  const breadcrumbStructuredData = buildBreadcrumbJsonLd([
+    { name: "홈", path: "/" },
+    { name: "분양 리스트", path: "/offerings" },
+    { name: property.name, path: `/offerings/${property.id}` },
+  ]);
 
   return (
     <>
@@ -214,6 +222,13 @@ export default async function OfferingDetailRoute({
         nonce={nonce}
         dangerouslySetInnerHTML={{
           __html: JSON.stringify(structuredData).replace(/</g, "\\u003c"),
+        }}
+      />
+      <script
+        type="application/ld+json"
+        nonce={nonce}
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(breadcrumbStructuredData).replace(/</g, "\\u003c"),
         }}
       />
       <OfferingDetailPage id={id} />

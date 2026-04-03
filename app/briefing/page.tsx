@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import PageContainer from "@/components/shared/PageContainer";
@@ -8,12 +9,34 @@ import BriefingOriginalSection from "@/features/briefing/components/oboon-origin
 import FeaturedHero from "@/features/briefing/components/oboon-original/FeaturedHero";
 import { fetchBriefingHomeData } from "@/features/briefing/services/briefing.home";
 import { fetchOboonOriginalPageData } from "@/features/briefing/services/briefing.original";
+import { briefingHubDescriptions } from "@/shared/briefing-content";
+import { seoDefaultOgImage } from "@/shared/seo";
 
 type CategoryRow = {
   id: string;
   key: string;
   name: string;
   coverImageUrl: string | null;
+};
+
+export const metadata: Metadata = {
+  title: "브리핑",
+  description: briefingHubDescriptions.root,
+  alternates: {
+    canonical: "/briefing",
+  },
+  openGraph: {
+    title: "브리핑 | OBOON",
+    description: briefingHubDescriptions.root,
+    url: "/briefing",
+    images: [seoDefaultOgImage],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "브리핑 | OBOON",
+    description: briefingHubDescriptions.root,
+    images: [seoDefaultOgImage],
+  },
 };
 
 export default async function BriefingPage() {
@@ -51,7 +74,17 @@ export default async function BriefingPage() {
             </Link>
           </div>
         )}
-        <FeaturedHero posts={recentPosts} />
+        <div className="relative">
+          <div className="pointer-events-none absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
+            <Link
+              href="/briefing/about"
+              className="pointer-events-auto inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-black/35 px-3 py-1.5 ob-typo-caption font-medium text-white backdrop-blur-md transition-colors hover:border-white/35 hover:bg-black/45"
+            >
+              브리핑 소개
+            </Link>
+          </div>
+          <FeaturedHero posts={recentPosts} />
+        </div>
 
         <section className="mb-6 mt-14 grid grid-cols-1 gap-12 md:grid-cols-2 md:gap-10">
           <BriefingTopList posts={topPosts} />

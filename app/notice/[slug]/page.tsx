@@ -8,6 +8,7 @@ import {
   NOTICE_CATEGORY_LABEL,
 } from "@/features/notice/data/notices";
 import { fetchPublicNoticeBySlug } from "@/features/notice/services/notices.server";
+import { seoDefaultOgImage } from "@/shared/seo";
 
 export async function generateMetadata({
   params,
@@ -24,6 +25,21 @@ export async function generateMetadata({
   return {
     title: `${notice.title} | 공지사항`,
     description: notice.summary,
+    alternates: {
+      canonical: `/notice/${encodeURIComponent(notice.slug)}`,
+    },
+    openGraph: {
+      title: `${notice.title} | 공지사항 | OBOON`,
+      description: notice.summary,
+      url: `/notice/${encodeURIComponent(notice.slug)}`,
+      images: [seoDefaultOgImage],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${notice.title} | 공지사항 | OBOON`,
+      description: notice.summary,
+      images: [seoDefaultOgImage],
+    },
   };
 }
 

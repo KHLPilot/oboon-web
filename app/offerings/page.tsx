@@ -1,16 +1,14 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import OfferingsClient from "./OfferingsClient";
-
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://oboon.co.kr";
-const defaultOgImage = `${siteUrl}/logo.svg`;
+import { seoDefaultOgImage } from "@/shared/seo";
 
 export const metadata: Metadata = {
-  title: "오분 분양 리스트",
+  title: "분양 리스트",
   description:
-    "오분 분양 플랫폼에서 분양 정보를 비교하고 분양상담사와 상담을 연결하세요.",
+    "OBOON 분양 플랫폼에서 분양 정보를 비교하고 분양상담사와 상담을 연결하세요.",
   keywords: [
-    "오분",
+    "OBOON",
     "oboon",
     "분양",
     "분양플랫폼",
@@ -22,18 +20,18 @@ export const metadata: Metadata = {
     canonical: "/offerings",
   },
   openGraph: {
-    title: "오분 분양 리스트 | OBOON",
+    title: "분양 리스트 | OBOON",
     description:
-      "오분 분양 플랫폼에서 분양 정보를 비교하고 분양상담사와 상담을 연결하세요.",
+      "OBOON 분양 플랫폼에서 분양 정보를 비교하고 분양상담사와 상담을 연결하세요.",
     url: "/offerings",
-    images: [defaultOgImage],
+    images: [seoDefaultOgImage],
   },
   twitter: {
     card: "summary_large_image",
-    title: "오분 분양 리스트 | OBOON",
+    title: "분양 리스트 | OBOON",
     description:
-      "오분 분양 플랫폼에서 분양 정보를 비교하고 분양상담사와 상담을 연결하세요.",
-    images: [defaultOgImage],
+      "OBOON 분양 플랫폼에서 분양 정보를 비교하고 분양상담사와 상담을 연결하세요.",
+    images: [seoDefaultOgImage],
   },
 };
 

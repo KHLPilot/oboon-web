@@ -94,6 +94,14 @@ export default async function AuthorPage({
               {author.bio}
             </div>
           ) : null}
+          <div className="mt-4">
+            <Link
+              href="/briefing/about"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-1.5 ob-typo-caption font-medium text-(--oboon-text-muted) transition-colors hover:border-(--oboon-primary) hover:text-(--oboon-primary)"
+            >
+              브리핑 소개 및 편집 원칙
+            </Link>
+          </div>
         </div>
 
         <div className="mb-6 flex gap-4 border-b border-(--oboon-border-default)">

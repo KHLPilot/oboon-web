@@ -1,6 +1,8 @@
 // app/briefing/oboon-original/[categoryKey]/[slug]/page.tsx
 import Image from "next/image";
 import Link from "next/link";
+import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
 import PageContainer from "@/components/shared/PageContainer";
@@ -16,6 +18,11 @@ import BriefingViewTracker from "@/features/briefing/components/BriefingViewTrac
 import BriefingOriginalCard from "@/features/briefing/components/oboon-original/BriefingOriginalCard";
 import { cx } from "@/features/briefing/components/briefing.ui";
 import { getAvatarUrlOrDefault } from "@/shared/imageUrl";
+import {
+  buildArticleJsonLd,
+  buildBreadcrumbJsonLd,
+  seoDefaultOgImage,
+} from "@/shared/seo";
 
 import {
   deleteBriefingPost,
@@ -98,11 +105,76 @@ function formatDateLong(iso: string) {
   return `${y}.${m}.${day}`;
 }
 
+function stripHtmlToText(html: string | null | undefined) {
+  if (!html) return "";
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ categoryKey: string; slug: string }>;
+}): Promise<Metadata> {
+  const { categoryKey: rawCategoryKey, slug: rawSlug } = await params;
+  const categoryKey = decodeURIComponent(rawCategoryKey);
+  const slug = decodeURIComponent(rawSlug);
+  const { category: cat, post: data } = await fetchOboonOriginalPostPageData({
+    categoryKey,
+    slug,
+  });
+
+  if (!cat || !data) {
+    return {
+      robots: { index: false, follow: false },
+    };
+  }
+
+  const post = normalizePostRow(data);
+  const description =
+    stripHtmlToText(post.content_html).slice(0, 160) ||
+    `${post.title} 오리지널 브리핑을 OBOON에서 확인하세요.`;
+  const canonicalPath = `/briefing/oboon-original/${encodeURIComponent(categoryKey)}/${encodeURIComponent(post.slug)}`;
+  const ogImage =
+    post.cover_image_url ||
+    ((cat as { cover_image_url?: string | null }).cover_image_url ?? null) ||
+    seoDefaultOgImage;
+
+  return {
+    title: post.title,
+    description,
+    alternates: {
+      canonical: canonicalPath,
+    },
+    openGraph: {
+      title: `${post.title} | OBOON`,
+      description,
+      url: canonicalPath,
+      type: "article",
+      images: [ogImage],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${post.title} | OBOON`,
+      description,
+      images: [ogImage],
+    },
+  };
+}
+
 export default async function OboonOriginalPostPage({
   params,
 }: {
   params: Promise<{ categoryKey: string; slug: string }>;
 }) {
+  const nonce =
+    process.env.NODE_ENV === "production"
+      ? ((await headers()).get("x-nonce") ?? undefined)
+      : undefined;
   const { categoryKey: rawCategoryKey, slug: rawSlug } = await params;
   const categoryKey = decodeURIComponent(rawCategoryKey);
   const slug = decodeURIComponent(rawSlug);
@@ -147,6 +219,30 @@ export default async function OboonOriginalPostPage({
     post.cover_image_url ??
     null;
   const postId = post.id;
+  const canonicalPath =
+    `/briefing/oboon-original/${encodeURIComponent(categoryKey)}/${encodeURIComponent(post.slug)}`;
+  const description =
+    stripHtmlToText(post.content_html).slice(0, 160) ||
+    `${post.title} 오리지널 브리핑을 OBOON에서 확인하세요.`;
+  const articleStructuredData = buildArticleJsonLd({
+    headline: post.title,
+    description,
+    path: canonicalPath,
+    image: leftPanelImage || seoDefaultOgImage,
+    datePublished: createdAt,
+    dateModified: createdAt,
+    authorName,
+  });
+  const breadcrumbStructuredData = buildBreadcrumbJsonLd([
+    { name: "홈", path: "/" },
+    { name: "브리핑", path: "/briefing" },
+    { name: "오리지널 브리핑", path: "/briefing/oboon-original" },
+    {
+      name: cat.name,
+      path: `/briefing/oboon-original/${encodeURIComponent(categoryKey)}`,
+    },
+    { name: post.title, path: canonicalPath },
+  ]);
 
   async function deletePostAction() {
     "use server";
@@ -161,6 +257,20 @@ export default async function OboonOriginalPostPage({
   }
   return (
     <main className="bg-(--oboon-bg-page)">
+      <script
+        type="application/ld+json"
+        nonce={nonce}
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(articleStructuredData).replace(/</g, "\\u003c"),
+        }}
+      />
+      <script
+        type="application/ld+json"
+        nonce={nonce}
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(breadcrumbStructuredData).replace(/</g, "\\u003c"),
+        }}
+      />
       <BriefingViewTracker postId={post.id} />
       <PageContainer className="pb-20">
         {/* ===== Hero ===== */}

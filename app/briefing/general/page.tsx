@@ -1,10 +1,33 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import PageContainer from "@/components/shared/PageContainer";
 import BriefingCardGrid from "@/features/briefing/components/BriefingCardGrid";
 import BriefingSearchInput from "@/features/briefing/components/BriefingSearchInput";
 import OboonOriginalCategoryHero from "@/features/briefing/components/oboon-original/OboonOriginalCategoryHero";
+import { briefingGeneralMetadata } from "@/shared/briefing-content";
+import { seoDefaultOgImage } from "@/shared/seo";
 import { fetchGeneralBriefingPageData } from "@/features/briefing/services/briefing.general";
+
+export const metadata: Metadata = {
+  title: briefingGeneralMetadata.title,
+  description: briefingGeneralMetadata.description,
+  alternates: {
+    canonical: briefingGeneralMetadata.canonicalPath,
+  },
+  openGraph: {
+    title: briefingGeneralMetadata.openGraphTitle,
+    description: briefingGeneralMetadata.description,
+    url: briefingGeneralMetadata.canonicalPath,
+    images: [seoDefaultOgImage],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: briefingGeneralMetadata.openGraphTitle,
+    description: briefingGeneralMetadata.description,
+    images: [seoDefaultOgImage],
+  },
+};
 
 function pickFirst<T>(value: T | T[] | null | undefined): T | null {
   if (!value) return null;
@@ -94,7 +117,7 @@ export default async function BriefingGeneralPage({
         <div className="mb-10">
           <OboonOriginalCategoryHero
             name="일반 브리핑"
-            description="단일 주제로 정리된 최신 브리핑 글입니다."
+            description={briefingGeneralMetadata.description}
             color={null}
             categoryKey="general"
             postCount={totalCount}
@@ -102,6 +125,23 @@ export default async function BriefingGeneralPage({
             eyebrowLabel="브리핑"
             countLabel="브리핑"
           />
+        </div>
+
+        <div className="mb-5 flex items-center justify-between gap-3 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-4 py-3">
+          <div className="min-w-0">
+            <div className="ob-typo-caption font-semibold text-(--oboon-text-title)">
+              브리핑 소개
+            </div>
+            <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+              저자 표기 방식, 편집 원칙, 출처 기준을 확인할 수 있습니다.
+            </div>
+          </div>
+          <Link
+            href="/briefing/about"
+            className="shrink-0 ob-typo-caption font-medium text-(--oboon-primary) transition-colors hover:text-(--oboon-primary-strong)"
+          >
+            자세히 보기
+          </Link>
         </div>
 
         <div className="mb-8">

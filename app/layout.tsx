@@ -8,9 +8,9 @@ import ProfileChecker from "app/components/ProfileChecker";
 import Header from "@/components/shared/Header";
 import Footer from "@/components/shared/Footer";
 import Providers from "./providers";
+import { seoDefaultOgImage } from "@/shared/seo";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://oboon.co.kr";
-const defaultOgImage = `${siteUrl}/logo.svg`;
 const structuredData = {
   "@context": "https://schema.org",
   "@graph": [
@@ -41,23 +41,19 @@ export const metadata: Metadata = {
     template: "%s | OBOON",
   },
   description: "분양 정보 탐색부터 상담 연결까지 한 번에 진행하는 OBOON 분양 플랫폼.",
-  alternates: {
-    canonical: "/",
-  },
   openGraph: {
     title: "OBOON 분양 플랫폼",
     description: "분양 정보 탐색부터 상담 연결까지 한 번에 진행하는 OBOON 분양 플랫폼.",
-    url: "/",
     siteName: "OBOON",
     locale: "ko_KR",
     type: "website",
-    images: [defaultOgImage],
+    images: [seoDefaultOgImage],
   },
   twitter: {
     card: "summary_large_image",
     title: "OBOON 분양 플랫폼",
     description: "분양 정보 탐색부터 상담 연결까지 한 번에 진행하는 OBOON 분양 플랫폼.",
-    images: [defaultOgImage],
+    images: [seoDefaultOgImage],
   },
   robots: {
     index: true,

@@ -11,10 +11,26 @@ import {
   type NoticeCategory,
 } from "@/features/notice/data/notices";
 import { fetchPublicNotices } from "@/features/notice/services/notices.server";
+import { seoDefaultOgImage } from "@/shared/seo";
 
 export const metadata: Metadata = {
   title: "공지사항",
   description: "OBOON 서비스 공지사항과 점검 안내를 확인할 수 있습니다.",
+  alternates: {
+    canonical: "/notice",
+  },
+  openGraph: {
+    title: "공지사항 | OBOON",
+    description: "OBOON 서비스 공지사항과 점검 안내를 확인할 수 있습니다.",
+    url: "/notice",
+    images: [seoDefaultOgImage],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "공지사항 | OBOON",
+    description: "OBOON 서비스 공지사항과 점검 안내를 확인할 수 있습니다.",
+    images: [seoDefaultOgImage],
+  },
 };
 
 function toTab(value: string | undefined): NoticeCategory {

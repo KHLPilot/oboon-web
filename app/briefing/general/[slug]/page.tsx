@@ -1,6 +1,8 @@
 // app/briefing/general/[slug]/page.tsx
 import Image from "next/image";
 import Link from "next/link";
+import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
@@ -19,6 +21,11 @@ import BriefingViewTracker from "@/features/briefing/components/BriefingViewTrac
 import { cx } from "@/features/briefing/components/briefing.ui";
 import AdminPostActions from "@/features/briefing/components/AdminPostActions.client";
 import { getAvatarUrlOrDefault } from "@/shared/imageUrl";
+import {
+  buildArticleJsonLd,
+  buildBreadcrumbJsonLd,
+  seoDefaultOgImage,
+} from "@/shared/seo";
 
 type AuthorProfile = {
   id: string;
@@ -95,6 +102,60 @@ function formatDateLong(iso: string) {
   return `${y}.${m}.${day}`;
 }
 
+function stripHtmlToText(html: string | null | undefined) {
+  if (!html) return "";
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug: rawSlug } = await params;
+  const slug = decodeURIComponent(rawSlug);
+  const { post: data } = await fetchGeneralPostPageData(slug);
+
+  if (!data) {
+    return {
+      robots: { index: false, follow: false },
+    };
+  }
+
+  const post = normalizePostRow(data);
+  const description =
+    stripHtmlToText(post.content_html).slice(0, 160) ||
+    `${post.title} 브리핑 글을 OBOON에서 확인하세요.`;
+  const canonicalPath = `/briefing/general/${encodeURIComponent(post.slug)}`;
+  const ogImage = post.cover_image_url || seoDefaultOgImage;
+
+  return {
+    title: post.title,
+    description,
+    alternates: {
+      canonical: canonicalPath,
+    },
+    openGraph: {
+      title: `${post.title} | OBOON`,
+      description,
+      url: canonicalPath,
+      type: "article",
+      images: [ogImage],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${post.title} | OBOON`,
+      description,
+      images: [ogImage],
+    },
+  };
+}
+
 // 관리자 체크 코드
 
 export default async function GeneralPostPage({
@@ -102,6 +163,10 @@ export default async function GeneralPostPage({
 }: {
   params: Promise<{ slug: string }>;
 }) {
+  const nonce =
+    process.env.NODE_ENV === "production"
+      ? ((await headers()).get("x-nonce") ?? undefined)
+      : undefined;
   const { slug: rawSlug } = await params;
   const slug = decodeURIComponent(rawSlug);
 
@@ -125,6 +190,25 @@ export default async function GeneralPostPage({
   const createdAt = (post.published_at ?? post.created_at) as string;
   const leftPanelImage = post.cover_image_url ?? null;
   const postId = post.id;
+  const canonicalPath = `/briefing/general/${encodeURIComponent(post.slug)}`;
+  const description =
+    stripHtmlToText(post.content_html).slice(0, 160) ||
+    `${post.title} 브리핑 글을 OBOON에서 확인하세요.`;
+  const articleStructuredData = buildArticleJsonLd({
+    headline: post.title,
+    description,
+    path: canonicalPath,
+    image: post.cover_image_url || seoDefaultOgImage,
+    datePublished: createdAt,
+    dateModified: createdAt,
+    authorName,
+  });
+  const breadcrumbStructuredData = buildBreadcrumbJsonLd([
+    { name: "홈", path: "/" },
+    { name: "브리핑", path: "/briefing" },
+    { name: "일반 브리핑", path: "/briefing/general" },
+    { name: post.title, path: canonicalPath },
+  ]);
 
   const relatedData = relatedPosts;
   const relatedItems = (relatedData ?? []) as Array<{
@@ -150,6 +234,20 @@ export default async function GeneralPostPage({
 
   return (
     <main className="bg-(--oboon-bg-page)">
+      <script
+        type="application/ld+json"
+        nonce={nonce}
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(articleStructuredData).replace(/</g, "\\u003c"),
+        }}
+      />
+      <script
+        type="application/ld+json"
+        nonce={nonce}
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(breadcrumbStructuredData).replace(/</g, "\\u003c"),
+        }}
+      />
       <BriefingViewTracker postId={post.id} />
       <PageContainer className="pb-20">
         {/* ===== Hero ===== */}

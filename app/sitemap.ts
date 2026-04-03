@@ -18,7 +18,6 @@ const publicPaths = [
   "/community",
   "/notice",
   "/support",
-  "/support/faq",
   "/support/qna",
 ] as const;
 
@@ -156,11 +155,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: latestSiteModified,
     },
     "/support": {
-      changeFrequency: "weekly",
-      priority: 0.7,
-      lastModified: latestSiteModified,
-    },
-    "/support/faq": {
       changeFrequency: "weekly",
       priority: 0.7,
       lastModified: latestSiteModified,

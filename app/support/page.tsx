@@ -1,49 +1,27 @@
-"use client";
+import type { Metadata } from "next";
+import SupportPageClient from "./SupportPageClient";
+import { seoDefaultOgImage } from "@/shared/seo";
 
-import { useState, useEffect } from "react";
-import { FAQCategoryTabs } from "@/features/support/components/faq/FAQCategoryTabs";
-import { FAQAccordion } from "@/features/support/components/faq/FAQAccordion";
-import { FAQListSkeleton } from "@/features/support/components/faq/FAQListSkeleton";
-import type { FAQItemViewModel, FAQCategoryKey } from "@/features/support/domain/support";
+export const metadata: Metadata = {
+  title: "고객센터",
+  description: "자주 묻는 질문과 1:1 문의를 확인할 수 있는 OBOON 고객센터입니다.",
+  alternates: {
+    canonical: "/support",
+  },
+  openGraph: {
+    title: "고객센터 | OBOON",
+    description: "자주 묻는 질문과 1:1 문의를 확인할 수 있는 OBOON 고객센터입니다.",
+    url: "/support",
+    images: [seoDefaultOgImage],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "고객센터 | OBOON",
+    description: "자주 묻는 질문과 1:1 문의를 확인할 수 있는 OBOON 고객센터입니다.",
+    images: [seoDefaultOgImage],
+  },
+};
 
 export default function SupportFAQPage() {
-  const [items, setItems] = useState<FAQItemViewModel[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedCategory, setSelectedCategory] = useState<FAQCategoryKey | "all">("all");
-
-  useEffect(() => {
-    async function loadFAQ() {
-      try {
-        const res = await fetch("/api/support/faq");
-        if (res.ok) {
-          const data = await res.json();
-          setItems(data.items ?? []);
-        }
-      } catch (err) {
-        console.error("FAQ 로딩 실패:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadFAQ();
-  }, []);
-
-  const filteredItems =
-    selectedCategory === "all"
-      ? items
-      : items.filter((item) => item.categoryKey === selectedCategory);
-
-  return (
-    <div>
-      <div className="mb-6">
-        <FAQCategoryTabs value={selectedCategory} onChange={setSelectedCategory} />
-      </div>
-
-      {loading ? (
-        <FAQListSkeleton />
-      ) : (
-        <FAQAccordion items={filteredItems} />
-      )}
-    </div>
-  );
+  return <SupportPageClient />;
 }

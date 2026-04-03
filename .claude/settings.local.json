@@ -41,7 +41,8 @@
       "Read(//opt/homebrew/lib/node_modules/pnpm/bin/**)",
       "Bash(PATH=\"/opt/homebrew/opt/node@21/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin\" pnpm lint)",
       "Bash(PATH=\"/opt/homebrew/opt/node@21/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin\" pnpm build)",
-      "Bash(PATH=\"/opt/homebrew/opt/node@21/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin\" pnpm typecheck)"
+      "Bash(PATH=\"/opt/homebrew/opt/node@21/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin\" pnpm typecheck)",
+      "WebFetch(domain:oboon.co.kr)"
     ]
   }
 }

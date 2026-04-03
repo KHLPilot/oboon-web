@@ -19,10 +19,26 @@ import {
 } from "@/features/offerings/services/offering.compare";
 import { getScrapedPropertyIds } from "@/features/offerings/services/offeringScrap.service";
 import { createSupabaseServer } from "@/lib/supabaseServer";
+import { seoDefaultOgImage } from "@/shared/seo";
 
 export const metadata: Metadata = {
-  title: "현장 비교 | OBOON",
+  title: "현장 비교",
   description: "분양 현장을 나란히 비교해 최적의 현장을 찾아보세요.",
+  alternates: {
+    canonical: "/offerings/compare",
+  },
+  openGraph: {
+    title: "현장 비교 | OBOON",
+    description: "분양 현장을 나란히 비교해 최적의 현장을 찾아보세요.",
+    url: "/offerings/compare",
+    images: [seoDefaultOgImage],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "현장 비교 | OBOON",
+    description: "분양 현장을 나란히 비교해 최적의 현장을 찾아보세요.",
+    images: [seoDefaultOgImage],
+  },
 };
 
 interface ComparePageProps {
