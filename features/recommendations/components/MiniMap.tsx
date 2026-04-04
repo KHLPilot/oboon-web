@@ -46,12 +46,6 @@ type HeroInfraState = {
 
 type ClusterStage = "province" | "city" | "district" | "marker";
 
-const ALL_KOREA_VIEW_BOUNDS = {
-  south: 33.0,
-  west: 125.8,
-  north: 38.75,
-  east: 130.95,
-};
 const PROVINCE_CLUSTER_ZOOM = 9;
 const CITY_CLUSTER_ZOOM = PROVINCE_CLUSTER_ZOOM + 1;
 const DISTRICT_CLUSTER_ZOOM = CITY_CLUSTER_ZOOM + 1;
@@ -312,6 +306,7 @@ export default function MiniMap(props: MiniMapProps) {
   const { center: initialCenter, status: initialLocationStatus } =
     useCurrentLocationCenter();
   const lastViewportKeyRef = useRef<string>("");
+  const hasAppliedLocationViewportRef = useRef(false);
   const activeSelectedId =
     selectedId !== null && selectedId > 0 ? selectedId : null;
   const clusterStage: ClusterStage = useMemo(() => {
@@ -387,6 +382,7 @@ export default function MiniMap(props: MiniMapProps) {
       const viewportKey = `location:${locationKey}`;
       if (lastViewportKeyRef.current !== viewportKey) {
         lastViewportKeyRef.current = viewportKey;
+        hasAppliedLocationViewportRef.current = true;
         map.setView(initialCenter.lat, initialCenter.lng, GPS_FOCUS_ZOOM);
         retryTimer = window.setTimeout(() => {
           mapApiRef.current?.setView(
@@ -401,15 +397,16 @@ export default function MiniMap(props: MiniMapProps) {
       };
     }
 
-    if (initialLocationStatus === "pending" || initialLocationStatus === "idle") {
+    if (
+      initialLocationStatus === "pending" ||
+      initialLocationStatus === "idle" ||
+      hasAppliedLocationViewportRef.current
+    ) {
       return;
     }
 
-    const viewportKey = "nationwide";
-    if (lastViewportKeyRef.current !== viewportKey) {
-      lastViewportKeyRef.current = viewportKey;
-      map.fitToBounds(ALL_KOREA_VIEW_BOUNDS);
-    }
+    // 위치를 얻지 못한 경우에는 현재 뷰를 유지한다.
+    // 자동 전국 줌은 위치 성공 직후의 viewport를 덮어써서 사용성 저하를 만들 수 있다.
     return () => {
       if (retryTimer !== null) window.clearTimeout(retryTimer);
     };

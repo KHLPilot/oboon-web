@@ -79,25 +79,38 @@ type Props = {
   condition: RecommendationCondition;
   onChange: (patch: Partial<RecommendationCondition>) => void;
   onNext: () => void;
+  onReset: () => void;
 };
 
 export default function ConditionWizardStep1({
   condition,
   onChange,
   onNext,
+  onReset,
 }: Props) {
   const isReady =
+    condition.employmentType !== null &&
+    condition.houseOwnership !== null &&
     condition.availableCash > 0 &&
     condition.monthlyIncome > 0 &&
-    condition.houseOwnership !== null;
+    condition.monthlyExpenses > 0;
 
   return (
     <div className="space-y-4">
-      <div>
-        <p className="ob-typo-subtitle font-semibold text-(--oboon-text-title)">
-          재무 정보
-        </p>
-        <p className="mt-0.5 ob-typo-caption text-(--oboon-text-muted)">
+      <div className="space-y-0.5">
+        <div className="flex items-start justify-between gap-3">
+          <p className="ob-typo-subtitle font-semibold text-(--oboon-text-title)">
+            재무 정보
+          </p>
+          <button
+            type="button"
+            onClick={onReset}
+            className="shrink-0 ob-typo-caption text-(--oboon-text-muted) transition-colors hover:text-(--oboon-text-body)"
+          >
+            전체 초기화
+          </button>
+        </div>
+        <p className="ob-typo-caption text-(--oboon-text-muted)">
           기본 자금 조건을 입력해주세요
         </p>
       </div>
@@ -127,7 +140,7 @@ export default function ConditionWizardStep1({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 xs:grid-cols-2 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 xs:grid-cols-2">
         <div>
           <NumberField
             label="가용 현금"

@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils/cn";
 
-const STEP_LABELS = ["재무", "신용/대출", "라이프스타일"] as const;
+const STEP_LABELS = ["재무", "대출", "계획"] as const;
 
 type Props = {
   currentStep: 0 | 1 | 2;

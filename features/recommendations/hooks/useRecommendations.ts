@@ -191,6 +191,15 @@ type RecommendationProfilePresetRow = {
   cv_existing_monthly_repayment?: RecommendationCondition["existingMonthlyRepayment"];
 } | null;
 
+type RecommendationRequestRow = {
+  available_cash_manwon?: number | null;
+  monthly_income_manwon?: number | null;
+  owned_house_count?: number | null;
+  credit_grade?: CreditGrade | null;
+  purchase_purpose?: PurchasePurpose | null;
+  input_payload?: unknown;
+} | null;
+
 type RecommendationConditionDraft = {
   snapshot?: ConditionSessionSnapshot;
   saved_at?: string;
@@ -260,6 +269,11 @@ function toPositiveInt(value: unknown): number | null {
 
   const normalized = Math.round(parsed);
   return normalized > 0 ? normalized : null;
+}
+
+function toUnknownRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
 }
 
 function pickFirstNonEmpty(...values: Array<string | null | undefined>) {
@@ -434,6 +448,124 @@ function conditionFromProfile(
     monthlyIncomeRange: profile.cv_monthly_income_range ?? prev.monthlyIncomeRange,
     existingMonthlyRepayment:
       profile.cv_existing_monthly_repayment ?? prev.existingMonthlyRepayment,
+    regions: prev.regions,
+  });
+}
+
+function conditionFromRequest(
+  request: RecommendationRequestRow,
+  prev: RecommendationCondition,
+): RecommendationCondition {
+  if (!request) return prev;
+
+  const payloadRecord = toUnknownRecord(request.input_payload);
+  const payloadCustomer = toUnknownRecord(payloadRecord?.customer);
+
+  return normalizeInputCondition({
+    ...prev,
+    availableCash:
+      toPositiveInt(payloadCustomer?.available_cash) ??
+      toPositiveInt(request.available_cash_manwon) ??
+      prev.availableCash,
+    monthlyIncome:
+      toPositiveInt(payloadCustomer?.monthly_income) ??
+      toPositiveInt(request.monthly_income_manwon) ??
+      prev.monthlyIncome,
+    monthlyExpenses:
+      toPositiveInt(payloadCustomer?.monthly_expenses) ?? prev.monthlyExpenses,
+    employmentType:
+      payloadCustomer?.employment_type === "employee" ||
+      payloadCustomer?.employment_type === "self_employed" ||
+      payloadCustomer?.employment_type === "freelancer" ||
+      payloadCustomer?.employment_type === "other"
+        ? payloadCustomer.employment_type
+        : prev.employmentType,
+    houseOwnership:
+      payloadCustomer?.house_ownership === "none" ||
+      payloadCustomer?.house_ownership === "one" ||
+      payloadCustomer?.house_ownership === "two_or_more"
+        ? payloadCustomer.house_ownership
+        : request.owned_house_count === 1
+          ? "one"
+          : (request.owned_house_count ?? 0) >= 2
+            ? "two_or_more"
+            : prev.houseOwnership,
+    purchasePurposeV2:
+      payloadCustomer?.purchase_purpose_v2 === "residence" ||
+      payloadCustomer?.purchase_purpose_v2 === "investment_rent" ||
+      payloadCustomer?.purchase_purpose_v2 === "investment_capital" ||
+      payloadCustomer?.purchase_purpose_v2 === "long_term"
+        ? payloadCustomer.purchase_purpose_v2
+        : request.purchase_purpose === "both"
+          ? "long_term"
+          : request.purchase_purpose === "investment"
+            ? "investment_capital"
+            : prev.purchasePurposeV2,
+    purchaseTiming:
+      payloadCustomer?.purchase_timing === "within_3months" ||
+      payloadCustomer?.purchase_timing === "within_6months" ||
+      payloadCustomer?.purchase_timing === "within_1year" ||
+      payloadCustomer?.purchase_timing === "over_1year" ||
+      payloadCustomer?.purchase_timing === "by_property"
+        ? payloadCustomer.purchase_timing
+        : prev.purchaseTiming,
+    moveinTiming:
+      payloadCustomer?.movein_timing === "immediate" ||
+      payloadCustomer?.movein_timing === "within_1year" ||
+      payloadCustomer?.movein_timing === "within_2years" ||
+      payloadCustomer?.movein_timing === "within_3years" ||
+      payloadCustomer?.movein_timing === "anytime"
+        ? payloadCustomer.movein_timing
+        : prev.moveinTiming,
+    ltvInternalScore:
+      toPositiveInt(payloadCustomer?.ltv_internal_score) ??
+      (request.credit_grade === "good"
+        ? 80
+        : request.credit_grade === "normal"
+          ? 55
+          : request.credit_grade === "unstable"
+            ? 20
+            : prev.ltvInternalScore),
+    existingLoan:
+      payloadCustomer?.existing_loan === "none" ||
+      payloadCustomer?.existing_loan === "under_1eok" ||
+      payloadCustomer?.existing_loan === "1to3eok" ||
+      payloadCustomer?.existing_loan === "over_3eok"
+        ? payloadCustomer.existing_loan
+        : prev.existingLoan,
+    recentDelinquency:
+      payloadCustomer?.recent_delinquency === "none" ||
+      payloadCustomer?.recent_delinquency === "once" ||
+      payloadCustomer?.recent_delinquency === "twice_or_more"
+        ? payloadCustomer.recent_delinquency
+        : prev.recentDelinquency,
+    cardLoanUsage:
+      payloadCustomer?.card_loan_usage === "none" ||
+      payloadCustomer?.card_loan_usage === "1to2" ||
+      payloadCustomer?.card_loan_usage === "3_or_more"
+        ? payloadCustomer.card_loan_usage
+        : prev.cardLoanUsage,
+    loanRejection:
+      payloadCustomer?.loan_rejection === "none" ||
+      payloadCustomer?.loan_rejection === "yes"
+        ? payloadCustomer.loan_rejection
+        : prev.loanRejection,
+    monthlyIncomeRange:
+      payloadCustomer?.monthly_income_range === "under_200" ||
+      payloadCustomer?.monthly_income_range === "200to300" ||
+      payloadCustomer?.monthly_income_range === "300to500" ||
+      payloadCustomer?.monthly_income_range === "500to700" ||
+      payloadCustomer?.monthly_income_range === "over_700"
+        ? payloadCustomer.monthly_income_range
+        : prev.monthlyIncomeRange,
+    existingMonthlyRepayment:
+      payloadCustomer?.existing_monthly_repayment === "none" ||
+      payloadCustomer?.existing_monthly_repayment === "under_50" ||
+      payloadCustomer?.existing_monthly_repayment === "50to100" ||
+      payloadCustomer?.existing_monthly_repayment === "100to200" ||
+      payloadCustomer?.existing_monthly_repayment === "over_200"
+        ? payloadCustomer.existing_monthly_repayment
+        : prev.existingMonthlyRepayment,
     regions: prev.regions,
   });
 }
@@ -955,31 +1087,48 @@ export function useRecommendations() {
       } else {
         // 저장된 조건 불러오기
         const userId = authResult.data.user!.id;
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles")
-          .select([
-            "cv_available_cash_manwon",
-            "cv_monthly_income_manwon",
-            "cv_employment_type",
-            "cv_monthly_expenses_manwon",
-            "cv_house_ownership",
-            "cv_purchase_purpose_v2",
-            "cv_purchase_timing",
-            "cv_movein_timing",
-            "cv_ltv_internal_score",
-            "cv_existing_loan_amount",
-            "cv_recent_delinquency",
-            "cv_card_loan_usage",
-            "cv_loan_rejection",
-            "cv_monthly_income_range",
-            "cv_existing_monthly_repayment",
-          ].join(","))
-          .eq("id", userId)
-          .single();
+        const [{ data: profile, error: profileError }, { data: requests, error: requestError }] =
+          await Promise.all([
+            supabase
+              .from("profiles")
+              .select([
+                "cv_available_cash_manwon",
+                "cv_monthly_income_manwon",
+                "cv_employment_type",
+                "cv_monthly_expenses_manwon",
+                "cv_house_ownership",
+                "cv_purchase_purpose_v2",
+                "cv_purchase_timing",
+                "cv_movein_timing",
+                "cv_ltv_internal_score",
+                "cv_existing_loan_amount",
+                "cv_recent_delinquency",
+                "cv_card_loan_usage",
+                "cv_loan_rejection",
+                "cv_monthly_income_range",
+                "cv_existing_monthly_repayment",
+              ].join(","))
+              .eq("id", userId)
+              .single(),
+            supabase
+              .from("condition_validation_requests")
+              .select(
+                "available_cash_manwon, monthly_income_manwon, owned_house_count, credit_grade, purchase_purpose, input_payload",
+              )
+              .eq("customer_id", userId)
+              .order("requested_at", { ascending: false })
+              .limit(1),
+          ]);
 
         if (profileError) {
           console.error("[useRecommendations] profile load failed:", profileError);
         }
+        if (requestError) {
+          console.error("[useRecommendations] request load failed:", requestError);
+        }
+
+        const latestRequest =
+          ((requests?.[0] ?? null) as RecommendationRequestRow) ?? null;
 
         if (active && profile) {
           const p = profile as unknown as RecommendationProfilePresetRow;
@@ -989,13 +1138,15 @@ export function useRecommendations() {
           setHasSavedConditionPreset(useProfile);
 
           setCondition((prev) => {
-            const next = useProfile
-              ? conditionFromProfile(p, prev)
-              : draftSnapshot
-                ? normalizeInputCondition(conditionFromSession(draftSnapshot, prev))
-              : sessionSnapshot
-                ? conditionFromSession(sessionSnapshot, prev)
-                : prev;
+            const next = latestRequest
+              ? conditionFromRequest(latestRequest, prev)
+              : useProfile
+                ? conditionFromProfile(p, prev)
+                : draftSnapshot
+                  ? normalizeInputCondition(conditionFromSession(draftSnapshot, prev))
+                  : sessionSnapshot
+                    ? conditionFromSession(sessionSnapshot, prev)
+                    : prev;
 
             return normalizeInputCondition(next);
           });
@@ -1018,7 +1169,11 @@ export function useRecommendations() {
           setSavedConditionPreset(null);
           const draftSnapshot = loadRecommendationConditionDraft();
           const sessionSnapshot = loadConditionSession();
-          if (draftSnapshot) {
+          if (latestRequest) {
+            setCondition((prev) =>
+              normalizeInputCondition(conditionFromRequest(latestRequest, prev)),
+            );
+          } else if (draftSnapshot) {
             setCondition((prev) =>
               normalizeInputCondition(conditionFromSession(draftSnapshot, prev)),
             );

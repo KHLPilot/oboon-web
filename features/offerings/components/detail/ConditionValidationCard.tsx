@@ -1,20 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, ChevronDown, ChevronUp, Lock } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, ChevronDown, ChevronUp } from "lucide-react";
 
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
-import Input from "@/components/ui/Input";
-import Select from "@/components/ui/Select";
-import LtvDsrModal from "@/features/condition-validation/components/LtvDsrModal";
+import { useToast } from "@/components/ui/Toast";
+import ConditionWizard from "@/features/recommendations/components/ConditionWizard";
+import { shouldAutoEvaluateDetailValidation } from "@/features/offerings/components/detail/conditionValidationAutoEvaluate";
 import { grade5DetailLabel } from "@/features/condition-validation/lib/grade5Labels";
 import {
   loadConditionSession,
   saveConditionSession,
   type ConditionSessionSnapshot,
 } from "@/features/condition-validation/lib/sessionCondition";
-import { ltvScoreToPoints } from "@/features/condition-validation/domain/ltvDsrCalculator";
 import type {
   CardLoanUsage,
   CreditGrade,
@@ -33,7 +32,9 @@ import type {
   UnitTypeResultItem,
 } from "@/features/condition-validation/domain/types";
 import type { ParsedCustomerInput } from "@/features/condition-validation/domain/validation";
-import { formatManwonPreview, formatManwonWithEok } from "@/lib/format/currency";
+import { formatManwonWithEok } from "@/lib/format/currency";
+import type { RecommendationCondition } from "@/features/recommendations/hooks/useRecommendations";
+import { createSupabaseClient } from "@/lib/supabaseClient";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -42,6 +43,24 @@ type Grade5Meta = {
   bgColor: string;
   borderColor: string;
   label: string;
+};
+
+type SavedConditionState = {
+  availableCashManwon: number | null;
+  monthlyIncomeManwon: number | null;
+  monthlyExpensesManwon: number | null;
+  employmentType: EmploymentType | null;
+  houseOwnership: "none" | "one" | "two_or_more" | null;
+  purchasePurposeV2: FullPurchasePurpose | null;
+  purchaseTiming: PurchaseTiming | null;
+  moveinTiming: MoveinTiming | null;
+  ltvInternalScore: number | null;
+  existingLoan: ExistingLoanAmount | null;
+  recentDelinquency: DelinquencyCount | null;
+  cardLoanUsage: CardLoanUsage | null;
+  loanRejection: LoanRejection | null;
+  monthlyIncomeRange: MonthlyIncomeRange | null;
+  existingMonthlyRepayment: MonthlyLoanRepayment | null;
 };
 
 function grade5Meta(grade: FinalGrade5): Grade5Meta {
@@ -85,12 +104,6 @@ function grade5Meta(grade: FinalGrade5): Grade5Meta {
 }
 
 // ─── Input helpers ─────────────────────────────────────────────────────────────
-
-function formatNumericInput(value: string): string {
-  const digitsOnly = value.replace(/[^\d]/g, "");
-  if (!digitsOnly) return "";
-  return Number(digitsOnly).toLocaleString("ko-KR");
-}
 
 function parseNullableNumericInput(value: string): number | null {
   const normalized = value.replaceAll(",", "").trim();
@@ -168,6 +181,30 @@ function hasStoredProfileAutoFill(profileAutoFill: ProfileAutoFillData | null | 
   );
 }
 
+function toSavedConditionState(
+  profileAutoFill: ProfileAutoFillData | null | undefined,
+): SavedConditionState | null {
+  if (!profileAutoFill || !hasStoredProfileAutoFill(profileAutoFill)) return null;
+
+  return {
+    availableCashManwon: profileAutoFill.availableCashManwon,
+    monthlyIncomeManwon: profileAutoFill.monthlyIncomeManwon,
+    monthlyExpensesManwon: profileAutoFill.monthlyExpensesManwon,
+    employmentType: profileAutoFill.employmentType,
+    houseOwnership: profileAutoFill.houseOwnership,
+    purchasePurposeV2: profileAutoFill.purchasePurposeV2,
+    purchaseTiming: profileAutoFill.purchaseTiming,
+    moveinTiming: profileAutoFill.moveinTiming,
+    ltvInternalScore: profileAutoFill.ltvInternalScore,
+    existingLoan: profileAutoFill.existingLoan,
+    recentDelinquency: profileAutoFill.recentDelinquency,
+    cardLoanUsage: profileAutoFill.cardLoanUsage,
+    loanRejection: profileAutoFill.loanRejection,
+    monthlyIncomeRange: profileAutoFill.monthlyIncomeRange,
+    existingMonthlyRepayment: profileAutoFill.existingMonthlyRepayment,
+  };
+}
+
 // ─── Props ─────────────────────────────────────────────────────────────────────
 
 /** 마이페이지에서 저장한 맞춤 정보 — 자동 채움 + 자동 검증에 사용 */
@@ -211,52 +248,6 @@ type ConditionValidationCardProps = {
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
-const EMPLOYMENT_OPTIONS: { value: EmploymentType; label: string }[] = [
-  { value: "employee", label: "직장인" },
-  { value: "self_employed", label: "자영업" },
-  { value: "freelancer", label: "프리랜서" },
-  { value: "other", label: "기타" },
-];
-
-const OWNERSHIP_OPTIONS: { value: "none" | "one" | "two_or_more"; label: string }[] = [
-  { value: "none", label: "무주택" },
-  { value: "one", label: "1주택" },
-  { value: "two_or_more", label: "2주택 이상" },
-];
-
-const PURPOSE_OPTIONS: { value: FullPurchasePurpose; label: string }[] = [
-  { value: "residence", label: "실거주" },
-  { value: "long_term", label: "장기보유" },
-  { value: "investment_rent", label: "투자(임대)" },
-  { value: "investment_capital", label: "투자(시세)" },
-];
-
-const PURCHASE_TIMING_OPTIONS: { value: PurchaseTiming; label: string }[] = [
-  { value: "within_3months", label: "3개월 이내" },
-  { value: "within_6months", label: "6개월 이내" },
-  { value: "within_1year", label: "1년 이내" },
-  { value: "over_1year", label: "1년 이후" },
-  { value: "by_property", label: "현장에 따라" },
-];
-
-const MOVEIN_TIMING_OPTIONS: { value: MoveinTiming; label: string }[] = [
-  { value: "immediate", label: "즉시" },
-  { value: "within_1year", label: "1년 이내" },
-  { value: "within_2years", label: "2년 이내" },
-  { value: "within_3years", label: "3년 이내" },
-  { value: "anytime", label: "상관없음" },
-];
-
-const CREDIT_GRADE_OPTIONS: { value: CreditGrade; label: string }[] = [
-  { value: "good", label: "양호" },
-  { value: "normal", label: "보통" },
-  { value: "unstable", label: "불안정" },
-];
-
-const LTV_STATUS_LABELS: Record<string, string> = {
-  not_set: "미설정 (클릭하여 평가)",
-};
-
 // ─── Main Component ────────────────────────────────────────────────────────────
 
 export default function ConditionValidationCard({
@@ -272,22 +263,22 @@ export default function ConditionValidationCard({
   onAlternativeRecommendRequest,
   onLoginRequest,
 }: ConditionValidationCardProps) {
+  const supabase = createSupabaseClient();
+  const toast = useToast();
   // Form state
-  const [employmentType, setEmploymentType] = useState<EmploymentType>("employee");
+  const [employmentType, setEmploymentType] = useState<EmploymentType | null>(null);
   const [availableCash, setAvailableCash] = useState("");
   const [monthlyIncome, setMonthlyIncome] = useState("");
   const [monthlyExpenses, setMonthlyExpenses] = useState("");
-  const [houseOwnership, setHouseOwnership] = useState<"none" | "one" | "two_or_more">("none");
-  const [purchasePurpose, setPurchasePurpose] = useState<FullPurchasePurpose>("residence");
-  const [purchaseTiming, setPurchaseTiming] = useState<PurchaseTiming>("by_property");
-  const [moveinTiming, setMoveinTiming] = useState<MoveinTiming>("anytime");
+  const [houseOwnership, setHouseOwnership] = useState<"none" | "one" | "two_or_more" | null>(null);
+  const [purchasePurpose, setPurchasePurpose] = useState<FullPurchasePurpose | null>(null);
+  const [purchaseTiming, setPurchaseTiming] = useState<PurchaseTiming | null>(null);
+  const [moveinTiming, setMoveinTiming] = useState<MoveinTiming | null>(null);
 
   // 비로그인 전용 간이 신용 상태 (로그인 시 LTV/DSR로 대체)
   const [guestCreditGrade, setGuestCreditGrade] = useState<CreditGrade>("good");
 
-  // LTV/DSR state from modal
   const [ltvInternalScore, setLtvInternalScore] = useState<number | null>(null);
-  const [ltvPoints, setLtvPoints] = useState<number | null>(null);
   const [existingLoan, setExistingLoan] = useState<ExistingLoanAmount | null>(null);
   const [recentDelinquency, setRecentDelinquency] = useState<DelinquencyCount | null>(null);
   const [cardLoanUsage, setCardLoanUsage] = useState<CardLoanUsage | null>(null);
@@ -295,11 +286,14 @@ export default function ConditionValidationCard({
   const [monthlyIncomeRange, setMonthlyIncomeRange] = useState<MonthlyIncomeRange | null>(null);
   const [existingMonthlyRepayment, setExistingMonthlyRepayment] =
     useState<MonthlyLoanRepayment>("none");
-  const [ltvModalOpen, setLtvModalOpen] = useState(false);
 
   // 비로그인 간편 검증 결과
   const [guestResponse, setGuestResponse] = useState<GuestEvaluationResponse | null>(null);
   const [guestLoading, setGuestLoading] = useState(false);
+  const [saveLoading, setSaveLoading] = useState(false);
+  const [savedConditionState, setSavedConditionState] = useState<SavedConditionState | null>(
+    () => toSavedConditionState(profileAutoFill),
+  );
 
   // UI state
   const [isInputSectionVisible, setIsInputSectionVisible] = useState(true);
@@ -320,29 +314,6 @@ export default function ConditionValidationCard({
   const metrics = response?.ok ? response.metrics : undefined;
   const showModifyButton = !isInputSectionVisible;
 
-  const availableCashNum = parseNullableNumericInput(availableCash);
-  const monthlyIncomeNum = parseNullableNumericInput(monthlyIncome);
-  const availableCashPreview = availableCashNum !== null ? formatManwonPreview(availableCashNum) : "";
-  const monthlyIncomePreview = monthlyIncomeNum !== null ? formatManwonPreview(monthlyIncomeNum) : "";
-
-  const ltvStatusLabel =
-    ltvInternalScore !== null && ltvPoints !== null
-      ? `LTV 점수 ${ltvInternalScore}점 → ${ltvPoints}/10pt`
-      : LTV_STATUS_LABELS.not_set;
-
-  const ltvStatusColor =
-    ltvInternalScore !== null && ltvPoints !== null
-      ? ltvPoints >= 8
-        ? "text-(--oboon-safe)"
-        : ltvPoints >= 5
-          ? "text-(--oboon-warning)"
-          : "text-(--oboon-danger)"
-      : "text-(--oboon-text-muted)";
-
-  // Estimate loan payment for LTV modal preview
-  // Using a rough 0.5% monthly payment estimate, no property price available on client
-  const estimatedNewLoanPaymentManwon = 0;
-
   const applySessionCondition = useCallback((snapshot: ConditionSessionSnapshot) => {
     if (snapshot.employmentType) setEmploymentType(snapshot.employmentType);
     if (snapshot.availableCash) setAvailableCash(snapshot.availableCash);
@@ -359,23 +330,37 @@ export default function ConditionValidationCard({
     if (snapshot.monthlyIncomeRange) setMonthlyIncomeRange(snapshot.monthlyIncomeRange);
     setExistingMonthlyRepayment(snapshot.existingMonthlyRepayment);
     if (snapshot.ltvInternalScore > 0) {
-      const { points } = ltvScoreToPoints(snapshot.ltvInternalScore);
       setLtvInternalScore(snapshot.ltvInternalScore);
-      setLtvPoints(points);
     }
   }, []);
 
-  const validate = (): string | null => {
+  const validate = useCallback((): string | null => {
     if (!propertyId) return "현장 정보를 찾을 수 없습니다.";
+    if (employmentType === null) return "직업 형태를 선택해주세요.";
     const cash = parseNullableNumericInput(availableCash);
     if (cash === null) return "가용 현금을 올바르게 입력해주세요.";
     const income = parseNullableNumericInput(monthlyIncome);
     if (income === null) return "월 세후 소득을 올바르게 입력해주세요.";
     const expenses = parseNullableNumericInput(monthlyExpenses);
     if (expenses === null) return "월 고정 지출을 올바르게 입력해주세요.";
+    if (houseOwnership === null) return "주택 보유를 선택해주세요.";
+    if (purchasePurpose === null) return "구매 목적을 선택해주세요.";
+    if (purchaseTiming === null) return "분양 희망 시점을 선택해주세요.";
+    if (moveinTiming === null) return "입주 가능 시점을 선택해주세요.";
     if (ltvInternalScore === null) return "신용 상태(LTV+DSR) 평가를 완료해주세요.";
     return null;
-  };
+  }, [
+    availableCash,
+    employmentType,
+    houseOwnership,
+    ltvInternalScore,
+    monthlyExpenses,
+    monthlyIncome,
+    moveinTiming,
+    propertyId,
+    purchasePurpose,
+    purchaseTiming,
+  ]);
 
   /** API를 직접 값으로 호출 — form state에 의존하지 않음 */
   const evaluateWithValues = useCallback(
@@ -428,12 +413,12 @@ export default function ConditionValidationCard({
     [propertyId, onLoginRequest],
   );
 
-  const handleEvaluate = async () => {
+  const handleEvaluate = async (): Promise<boolean> => {
     setErrorMessage(null);
     const validationError = validate();
     if (validationError) {
       setErrorMessage(validationError);
-      return;
+      return false;
     }
 
     saveConditionSession({
@@ -455,34 +440,39 @@ export default function ConditionValidationCard({
     });
 
     await evaluateWithValues({
-      employment_type: employmentType,
+      employment_type: employmentType ?? "employee",
       available_cash: parseNullableNumericInput(availableCash) ?? 0,
       monthly_income: parseNullableNumericInput(monthlyIncome) ?? 0,
       monthly_expenses: parseNullableNumericInput(monthlyExpenses) ?? 0,
-      house_ownership: houseOwnership,
-      purchase_purpose: purchasePurpose,
-      purchase_timing: purchaseTiming,
-      movein_timing: moveinTiming,
+      house_ownership: houseOwnership ?? "none",
+      purchase_purpose: purchasePurpose ?? "residence",
+      purchase_timing: purchaseTiming ?? "by_property",
+      movein_timing: moveinTiming ?? "anytime",
       ltv_internal_score: ltvInternalScore ?? 0,
       existing_monthly_repayment: existingMonthlyRepayment,
     });
+    return true;
   };
 
-  const handleGuestEvaluate = async () => {
+  const handleGuestEvaluate = async (): Promise<boolean> => {
     setErrorMessage(null);
     if (!propertyId) {
       setErrorMessage("현장 정보를 찾을 수 없습니다.");
-      return;
+      return false;
     }
     const cash = parseNullableNumericInput(availableCash);
     if (cash === null) {
       setErrorMessage("가용 현금을 올바르게 입력해주세요.");
-      return;
+      return false;
     }
     const income = parseNullableNumericInput(monthlyIncome);
     if (income === null) {
       setErrorMessage("월 세후 소득을 올바르게 입력해주세요.");
-      return;
+      return false;
+    }
+    if (houseOwnership === null || purchasePurpose === null) {
+      setErrorMessage("주택 보유와 구매 목적을 선택해주세요.");
+      return false;
     }
 
     setGuestLoading(true);
@@ -505,13 +495,15 @@ export default function ConditionValidationCard({
       const data = (await res.json().catch(() => null)) as GuestEvaluationResponse | null;
       if (!res.ok || !data?.ok) {
         setErrorMessage(data?.error?.message ?? "조건 검증에 실패했습니다.");
-        return;
+        return false;
       }
 
       setGuestResponse(data);
       setIsInputSectionVisible(false);
+      return true;
     } catch {
       setErrorMessage("조건 검증 처리 중 네트워크 오류가 발생했습니다.");
+      return false;
     } finally {
       setGuestLoading(false);
     }
@@ -521,6 +513,10 @@ export default function ConditionValidationCard({
   useEffect(() => {
     autoEvaluatedRef.current = false;
   }, [propertyId]);
+
+  useEffect(() => {
+    setSavedConditionState(toSavedConditionState(profileAutoFill));
+  }, [profileAutoFill]);
 
   useEffect(() => {
     if (!profileAutoFill) return;
@@ -545,12 +541,8 @@ export default function ConditionValidationCard({
     if (profileAutoFill.existingMonthlyRepayment)
       setExistingMonthlyRepayment(profileAutoFill.existingMonthlyRepayment);
     if (profileAutoFill.ltvInternalScore != null) {
-      const { points } = ltvScoreToPoints(profileAutoFill.ltvInternalScore);
       setLtvInternalScore(profileAutoFill.ltvInternalScore);
-      setLtvPoints(points);
     }
-
-    if (!isLoggedIn || autoEvaluatedRef.current) return;
 
     const autoCash = profileAutoFill.availableCashManwon;
     const autoIncome = profileAutoFill.monthlyIncomeManwon;
@@ -566,6 +558,17 @@ export default function ConditionValidationCard({
       autoExpenses < 0 ||
       autoLtvScore == null ||
       autoLtvScore <= 0
+    ) {
+      return;
+    }
+
+    if (
+      !shouldAutoEvaluateDetailValidation({
+        source: "profile_autofill",
+        isLoggedIn,
+        propertyId,
+        alreadyEvaluated: autoEvaluatedRef.current,
+      })
     ) {
       return;
     }
@@ -593,8 +596,6 @@ export default function ConditionValidationCard({
 
     applySessionCondition(sessionSnapshot);
 
-    if (!isLoggedIn || autoEvaluatedRef.current) return;
-
     const sessionCash = parseNullableNumericInput(sessionSnapshot.availableCash);
     const sessionIncome = parseNullableNumericInput(sessionSnapshot.monthlyIncome);
     const sessionExpenses = parseNullableNumericInput(sessionSnapshot.monthlyExpenses);
@@ -604,6 +605,17 @@ export default function ConditionValidationCard({
       sessionIncome == null ||
       sessionExpenses == null ||
       sessionSnapshot.ltvInternalScore <= 0
+    ) {
+      return;
+    }
+
+    if (
+      !shouldAutoEvaluateDetailValidation({
+        source: "session_restore",
+        isLoggedIn,
+        propertyId,
+        alreadyEvaluated: autoEvaluatedRef.current,
+      })
     ) {
       return;
     }
@@ -673,6 +685,177 @@ export default function ConditionValidationCard({
 
   const shouldShowAlternativeButton =
     result?.final_grade === "RED" || result?.final_grade === "ORANGE";
+
+  const wizardCondition: RecommendationCondition = {
+    availableCash: parseNullableNumericInput(availableCash) ?? 0,
+    monthlyIncome: parseNullableNumericInput(monthlyIncome) ?? 0,
+    ownedHouseCount:
+      houseOwnership === "two_or_more" ? 2 : houseOwnership === "one" ? 1 : 0,
+    creditGrade: guestCreditGrade,
+    purchasePurpose:
+      purchasePurpose === "residence"
+        ? "residence"
+        : purchasePurpose === "long_term"
+          ? "both"
+          : "investment",
+    employmentType,
+    monthlyExpenses: parseNullableNumericInput(monthlyExpenses) ?? 0,
+    houseOwnership,
+    purchasePurposeV2: purchasePurpose,
+    purchaseTiming,
+    moveinTiming,
+    ltvInternalScore: ltvInternalScore ?? 0,
+    existingLoan,
+    recentDelinquency,
+    cardLoanUsage,
+    loanRejection,
+    monthlyIncomeRange,
+    existingMonthlyRepayment,
+    regions: [],
+  };
+
+  const currentConditionState: SavedConditionState = useMemo(() => ({
+    availableCashManwon: parseNullableNumericInput(availableCash),
+    monthlyIncomeManwon: parseNullableNumericInput(monthlyIncome),
+    monthlyExpensesManwon: parseNullableNumericInput(monthlyExpenses),
+    employmentType,
+    houseOwnership,
+    purchasePurposeV2: purchasePurpose,
+    purchaseTiming,
+    moveinTiming,
+    ltvInternalScore,
+    existingLoan,
+    recentDelinquency,
+    cardLoanUsage,
+    loanRejection,
+    monthlyIncomeRange,
+    existingMonthlyRepayment,
+  }), [
+    availableCash,
+    cardLoanUsage,
+    employmentType,
+    existingLoan,
+    existingMonthlyRepayment,
+    houseOwnership,
+    loanRejection,
+    ltvInternalScore,
+    monthlyExpenses,
+    monthlyIncome,
+    monthlyIncomeRange,
+    moveinTiming,
+    purchasePurpose,
+    purchaseTiming,
+    recentDelinquency,
+  ]);
+
+  const hasSavedConditionPreset = savedConditionState !== null;
+  const isConditionDirty =
+    savedConditionState !== null &&
+    JSON.stringify(savedConditionState) !== JSON.stringify(currentConditionState);
+
+  const handleWizardChange = (patch: Partial<RecommendationCondition>) => {
+    if (patch.availableCash !== undefined) {
+      setAvailableCash(
+        patch.availableCash > 0 ? patch.availableCash.toLocaleString("ko-KR") : "",
+      );
+    }
+    if (patch.monthlyIncome !== undefined) {
+      setMonthlyIncome(
+        patch.monthlyIncome > 0 ? patch.monthlyIncome.toLocaleString("ko-KR") : "",
+      );
+    }
+    if (patch.monthlyExpenses !== undefined) {
+      setMonthlyExpenses(
+        patch.monthlyExpenses > 0 ? patch.monthlyExpenses.toLocaleString("ko-KR") : "",
+      );
+    }
+    if (patch.employmentType !== undefined) setEmploymentType(patch.employmentType);
+    if (patch.houseOwnership !== undefined) setHouseOwnership(patch.houseOwnership);
+    if (patch.purchasePurposeV2 !== undefined) setPurchasePurpose(patch.purchasePurposeV2);
+    if (patch.purchaseTiming !== undefined) setPurchaseTiming(patch.purchaseTiming);
+    if (patch.moveinTiming !== undefined) setMoveinTiming(patch.moveinTiming);
+    if (patch.creditGrade !== undefined) setGuestCreditGrade(patch.creditGrade);
+    if (patch.ltvInternalScore !== undefined) setLtvInternalScore(patch.ltvInternalScore);
+    if (patch.existingLoan !== undefined) setExistingLoan(patch.existingLoan);
+    if (patch.recentDelinquency !== undefined) setRecentDelinquency(patch.recentDelinquency);
+    if (patch.cardLoanUsage !== undefined) setCardLoanUsage(patch.cardLoanUsage);
+    if (patch.loanRejection !== undefined) setLoanRejection(patch.loanRejection);
+    if (patch.monthlyIncomeRange !== undefined) setMonthlyIncomeRange(patch.monthlyIncomeRange);
+    if (patch.existingMonthlyRepayment !== undefined) {
+      setExistingMonthlyRepayment(patch.existingMonthlyRepayment);
+    }
+  };
+
+  const handleSaveCondition = useCallback(async (): Promise<boolean> => {
+    if (!isLoggedIn) {
+      onLoginRequest();
+      return false;
+    }
+
+    const validationError = validate();
+    if (validationError) {
+      setErrorMessage(validationError);
+      return false;
+    }
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      onLoginRequest();
+      return false;
+    }
+
+    setSaveLoading(true);
+    setErrorMessage(null);
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          cv_available_cash_manwon: currentConditionState.availableCashManwon,
+          cv_monthly_income_manwon: currentConditionState.monthlyIncomeManwon,
+          cv_monthly_expenses_manwon: currentConditionState.monthlyExpensesManwon,
+          cv_employment_type: currentConditionState.employmentType,
+          cv_house_ownership: currentConditionState.houseOwnership,
+          cv_purchase_purpose_v2: currentConditionState.purchasePurposeV2,
+          cv_purchase_timing: currentConditionState.purchaseTiming,
+          cv_movein_timing: currentConditionState.moveinTiming,
+          cv_ltv_internal_score: currentConditionState.ltvInternalScore,
+          cv_existing_loan_amount: currentConditionState.existingLoan,
+          cv_recent_delinquency: currentConditionState.recentDelinquency,
+          cv_card_loan_usage: currentConditionState.cardLoanUsage,
+          cv_loan_rejection: currentConditionState.loanRejection,
+          cv_monthly_income_range: currentConditionState.monthlyIncomeRange,
+          cv_existing_monthly_repayment:
+            currentConditionState.existingMonthlyRepayment,
+        })
+        .eq("id", user.id);
+
+      if (error) {
+        setErrorMessage("조건 저장 중 오류가 발생했습니다.");
+        return false;
+      }
+
+      setSavedConditionState(currentConditionState);
+      toast.success(hasSavedConditionPreset ? "조건이 업데이트되었습니다." : "조건이 저장되었습니다.");
+      return true;
+    } catch {
+      setErrorMessage("조건 저장 중 오류가 발생했습니다.");
+      return false;
+    } finally {
+      setSaveLoading(false);
+    }
+  }, [
+    currentConditionState,
+    hasSavedConditionPreset,
+    isLoggedIn,
+    onLoginRequest,
+    supabase,
+    toast,
+    validate,
+  ]);
 
   const renderUnitTypeResults = (
     items: UnitTypeResultItem[],
@@ -842,280 +1025,24 @@ export default function ConditionValidationCard({
       {/* Input Section */}
       {isInputSectionVisible ? (
         <div className="mt-2.5 space-y-2.5">
-          {isLoggedIn ? (
-            <>
-              {/* Employment type / Available cash */}
-              <div className="grid grid-cols-2 gap-2.5">
-                <div className="min-w-0">
-                  <div className="mb-1 ob-typo-caption text-(--oboon-text-muted)">직업 형태</div>
-                  <Select<EmploymentType>
-                    value={employmentType}
-                    onChange={setEmploymentType}
-                    options={EMPLOYMENT_OPTIONS}
-                  />
-                </div>
-                <div className="min-w-0">
-                  <label className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
-                    가용 현금 (만원)
-                  </label>
-                  <div className="relative">
-                    <Input
-                      value={availableCash}
-                      onChange={(e) => setAvailableCash(formatNumericInput(e.target.value))}
-                      inputMode="numeric"
-                      placeholder="예: 5,000"
-                      className={availableCashPreview ? "pr-16" : undefined}
-                    />
-                    {availableCashPreview ? (
-                      <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center ob-typo-caption text-(--oboon-text-muted) truncate max-w-[56px]">
-                        {availableCashPreview}
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-
-              {/* Monthly income / Monthly expenses */}
-              <div className="grid grid-cols-2 gap-2.5">
-                <div className="min-w-0">
-                  <label className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
-                    월 소득 (만원)
-                  </label>
-                  <div className="relative">
-                    <Input
-                      value={monthlyIncome}
-                      onChange={(e) => setMonthlyIncome(formatNumericInput(e.target.value))}
-                      inputMode="numeric"
-                      placeholder="예: 400"
-                      className={monthlyIncomePreview ? "pr-16" : undefined}
-                    />
-                    {monthlyIncomePreview ? (
-                      <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center ob-typo-caption text-(--oboon-text-muted) truncate max-w-[56px]">
-                        {monthlyIncomePreview}
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="min-w-0">
-                  <label className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
-                    월 지출 (만원)
-                  </label>
-                  <Input
-                    value={monthlyExpenses}
-                    onChange={(e) => setMonthlyExpenses(formatNumericInput(e.target.value))}
-                    inputMode="numeric"
-                    placeholder="예: 150"
-                  />
-                </div>
-              </div>
-
-              {/* LTV/DSR button */}
-              <div>
-                <div className="mb-1 ob-typo-caption text-(--oboon-text-muted)">신용 상태 (LTV+DSR)</div>
-                <button
-                  type="button"
-                  onClick={() => setLtvModalOpen(true)}
-                  className="w-full rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-2 text-left transition-colors hover:border-(--oboon-border-hover)"
-                >
-                  <span className={["ob-typo-caption", ltvStatusColor].join(" ")}>
-                    {ltvStatusLabel}
-                  </span>
-                </button>
-              </div>
-
-              {/* House ownership / Purchase purpose */}
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <div className="mb-1 ob-typo-caption text-(--oboon-text-muted)">주택 보유</div>
-                  <Select<"none" | "one" | "two_or_more">
-                    value={houseOwnership}
-                    onChange={setHouseOwnership}
-                    options={OWNERSHIP_OPTIONS}
-                  />
-                </div>
-                <div>
-                  <div className="mb-1 ob-typo-caption text-(--oboon-text-muted)">구매 목적</div>
-                  <Select<FullPurchasePurpose>
-                    value={purchasePurpose}
-                    onChange={setPurchasePurpose}
-                    options={PURPOSE_OPTIONS}
-                  />
-                </div>
-              </div>
-
-              {/* Purchase timing / Move-in timing */}
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <div className="mb-1 ob-typo-caption text-(--oboon-text-muted)">분양 희망 시점</div>
-                  <Select<PurchaseTiming>
-                    value={purchaseTiming}
-                    onChange={setPurchaseTiming}
-                    options={PURCHASE_TIMING_OPTIONS}
-                  />
-                </div>
-                <div>
-                  <div className="mb-1 ob-typo-caption text-(--oboon-text-muted)">입주 가능 시점</div>
-                  <Select<MoveinTiming>
-                    value={moveinTiming}
-                    onChange={setMoveinTiming}
-                    options={MOVEIN_TIMING_OPTIONS}
-                  />
-                </div>
-              </div>
-
-              <Button className="w-full" loading={loading} onClick={() => void handleEvaluate()}>
-                조건 검증하기
-              </Button>
-            </>
-          ) : (
-            <>
-              {/* 비로그인: 기본 필드 (현금 / 소득) */}
-              <div className="grid grid-cols-2 gap-2.5">
-                <div className="min-w-0">
-                  <label className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
-                    가용 현금 (만원)
-                  </label>
-                  <div className="relative">
-                    <Input
-                      value={availableCash}
-                      onChange={(e) => setAvailableCash(formatNumericInput(e.target.value))}
-                      inputMode="numeric"
-                      placeholder="예: 5,000"
-                      className={availableCashPreview ? "pr-16" : undefined}
-                    />
-                    {availableCashPreview ? (
-                      <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center ob-typo-caption text-(--oboon-text-muted) truncate max-w-[56px]">
-                        {availableCashPreview}
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="min-w-0">
-                  <label className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
-                    월 소득 (만원)
-                  </label>
-                  <div className="relative">
-                    <Input
-                      value={monthlyIncome}
-                      onChange={(e) => setMonthlyIncome(formatNumericInput(e.target.value))}
-                      inputMode="numeric"
-                      placeholder="예: 400"
-                      className={monthlyIncomePreview ? "pr-16" : undefined}
-                    />
-                    {monthlyIncomePreview ? (
-                      <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center ob-typo-caption text-(--oboon-text-muted) truncate max-w-[56px]">
-                        {monthlyIncomePreview}
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-
-              {/* 비로그인: 기본 필드 (신용 상태) */}
-              <div>
-                <div className="mb-1 ob-typo-caption text-(--oboon-text-muted)">신용 상태</div>
-                <Select<CreditGrade>
-                  value={guestCreditGrade}
-                  onChange={setGuestCreditGrade}
-                  options={CREDIT_GRADE_OPTIONS}
-                />
-              </div>
-
-              {/* 비로그인: 기본 필드 (주택 보유 / 구매 목적) */}
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <div className="mb-1 ob-typo-caption text-(--oboon-text-muted)">주택 보유</div>
-                  <Select<"none" | "one" | "two_or_more">
-                    value={houseOwnership}
-                    onChange={setHouseOwnership}
-                    options={OWNERSHIP_OPTIONS}
-                  />
-                </div>
-                <div>
-                  <div className="mb-1 ob-typo-caption text-(--oboon-text-muted)">구매 목적</div>
-                  <Select<FullPurchasePurpose>
-                    value={purchasePurpose}
-                    onChange={setPurchasePurpose}
-                    options={PURPOSE_OPTIONS}
-                  />
-                </div>
-              </div>
-
-              {/* 비로그인: soft gate — 잠긴 상세 조건 */}
-              <div className="relative overflow-hidden rounded-xl border border-(--oboon-border-default)">
-                {/* 블러 처리된 필드들 */}
-                <div className="pointer-events-none select-none blur-sm opacity-50 p-3 space-y-2.5">
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <div className="min-w-0">
-                      <div className="mb-1 ob-typo-caption text-(--oboon-text-muted)">직업 형태</div>
-                      <Select<EmploymentType>
-                        value={employmentType}
-                        onChange={() => undefined}
-                        options={EMPLOYMENT_OPTIONS}
-                      />
-                    </div>
-                    <div className="min-w-0">
-                      <label className="mb-1 block ob-typo-caption text-(--oboon-text-muted)">
-                        월 지출 (만원)
-                      </label>
-                      <Input value="" onChange={() => undefined} placeholder="예: 150" />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="mb-1 ob-typo-caption text-(--oboon-text-muted)">신용 상태 (LTV+DSR)</div>
-                    <div className="w-full rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-2">
-                      <span className="ob-typo-caption text-(--oboon-text-muted)">미설정 (클릭하여 평가)</span>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <div>
-                      <div className="mb-1 ob-typo-caption text-(--oboon-text-muted)">분양 희망 시점</div>
-                      <Select<PurchaseTiming>
-                        value={purchaseTiming}
-                        onChange={() => undefined}
-                        options={PURCHASE_TIMING_OPTIONS}
-                      />
-                    </div>
-                    <div>
-                      <div className="mb-1 ob-typo-caption text-(--oboon-text-muted)">입주 가능 시점</div>
-                      <Select<MoveinTiming>
-                        value={moveinTiming}
-                        onChange={() => undefined}
-                        options={MOVEIN_TIMING_OPTIONS}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* 잠금 오버레이 */}
-                <button
-                  type="button"
-                  onClick={onLoginRequest}
-                  className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-(--oboon-bg-surface)/80 backdrop-blur-[1px] transition-colors hover:bg-(--oboon-bg-subtle)/80"
-                >
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-(--oboon-bg-elevated) border border-(--oboon-border-default) shadow-sm">
-                    <Lock className="h-4 w-4 text-(--oboon-text-muted)" />
-                  </div>
-                  <div className="text-center px-4">
-                    <p className="ob-typo-caption font-semibold text-(--oboon-text-title)">
-                      로그인하면 더 자세한 조건으로 검증할 수 있습니다
-                    </p>
-                    <p className="mt-0.5 ob-typo-caption text-(--oboon-text-muted)">
-                      직업 · 지출 · 신용 · 분양·입주 시점 추가 입력
-                    </p>
-                  </div>
-                </button>
-              </div>
-
-              <Button
-                className="w-full"
-                loading={guestLoading}
-                onClick={() => void handleGuestEvaluate()}
-              >
-                간편 검증하기
-              </Button>
-            </>
-          )}
+          <ConditionWizard
+            condition={wizardCondition}
+            isLoggedIn={isLoggedIn}
+            hasSavedConditionPreset={hasSavedConditionPreset}
+            isConditionDirty={isConditionDirty}
+            isLoading={isLoggedIn ? loading : guestLoading}
+            isSaving={saveLoading}
+            onChange={handleWizardChange}
+            evaluateOnFinish
+            finishLabel="평가하기"
+            onSave={isLoggedIn ? handleSaveCondition : undefined}
+            onEvaluate={() =>
+              isLoggedIn ? handleEvaluate() : handleGuestEvaluate()
+            }
+            onLoginAndSave={async () => {
+              onLoginRequest();
+            }}
+          />
         </div>
       ) : null}
 
@@ -1423,34 +1350,6 @@ export default function ConditionValidationCard({
       <p className="mt-2 ob-typo-caption text-(--oboon-text-muted)">
         * 본 검증은 참고용이며 실제 계약 가능 여부는 현장 상담을 통해 확인하세요.
       </p>
-
-      {/* LTV/DSR Modal */}
-      <LtvDsrModal
-        open={ltvModalOpen}
-        onClose={() => setLtvModalOpen(false)}
-        onConfirm={(result) => {
-          setLtvInternalScore(result.ltvInternalScore);
-          setLtvPoints(result.ltvPoints);
-          setExistingLoan(result.formValues.existingLoan);
-          setRecentDelinquency(result.formValues.recentDelinquency);
-          setCardLoanUsage(result.formValues.cardLoanUsage);
-          setLoanRejection(result.formValues.loanRejection);
-          setMonthlyIncomeRange(result.formValues.monthlyIncomeRange);
-          setExistingMonthlyRepayment(result.existingMonthlyRepayment);
-        }}
-        initialEmploymentType={employmentType}
-        initialHouseOwnership={houseOwnership}
-        estimatedNewLoanPaymentManwon={estimatedNewLoanPaymentManwon}
-        initialValues={{
-          existingLoan,
-          recentDelinquency,
-          cardLoanUsage,
-          loanRejection,
-          monthlyIncomeRange,
-          existingMonthlyRepayment,
-        }}
-        initialLtvInternalScore={ltvInternalScore ?? 0}
-      />
     </Card>
   );
 }

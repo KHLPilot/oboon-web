@@ -539,7 +539,7 @@ export default function ConditionWizardStep2({
           신용 / 대출
         </p>
         <p className="mt-0.5 ob-typo-caption text-(--oboon-text-muted)">
-          대출 가능성을 평가합니다. 주택·직업 정보는 자동 연동됩니다.
+          대출 가능성을 평가합니다.
         </p>
       </div>
 

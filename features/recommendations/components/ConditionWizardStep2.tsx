@@ -7,7 +7,6 @@ import type {
   CardLoanUsage,
   CreditGrade,
   DelinquencyCount,
-  EmploymentType,
   ExistingLoanAmount,
   LoanRejection,
   LtvDsrInput,
@@ -17,19 +16,6 @@ import type {
 import type { RecommendationCondition } from "@/features/recommendations/hooks/useRecommendations";
 
 const LABEL = "mb-1.5 block ob-typo-caption text-(--oboon-text-muted)";
-
-const HOUSE_OPTIONS = [
-  { value: "none" as const, label: "무주택" },
-  { value: "one" as const, label: "1주택" },
-  { value: "two_or_more" as const, label: "2주택 이상" },
-];
-
-const EMPLOYMENT_OPTIONS: Array<{ value: EmploymentType; label: string }> = [
-  { value: "employee", label: "직장인(고정급)" },
-  { value: "self_employed", label: "자영업" },
-  { value: "freelancer", label: "프리랜서" },
-  { value: "other", label: "기타" },
-];
 
 const LOAN_OPTIONS: Array<{ value: ExistingLoanAmount; label: string }> = [
   { value: "none", label: "없음" },
@@ -84,6 +70,27 @@ function gradeColor(points: number, max: number): string {
   if (pct >= 0.4) return "var(--oboon-grade-yellow)";
   if (pct >= 0.2) return "var(--oboon-grade-orange)";
   return "var(--oboon-grade-red)";
+}
+
+function compactPreviewLabel(label: string): string {
+  switch (label) {
+    case "대출 가능성 높음":
+      return "높음";
+    case "대출 가능 보통":
+      return "보통";
+    case "대출 가능 낮음":
+      return "낮음";
+    case "대출 확인 필요":
+      return "확인";
+    case "대출 불가능":
+      return "불가";
+    case "위험":
+      return "주의";
+    case "LTV+DSR":
+      return "종합";
+    default:
+      return label;
+  }
 }
 
 function guestCreditGradeToScore(grade: CreditGrade): number {
@@ -141,6 +148,7 @@ type Props = {
   onNext: () => void;
   onBack: () => void;
   onLoginAndSave?: () => void | Promise<void>;
+  onReset: () => void;
 };
 
 export default function ConditionWizardStep2({
@@ -150,6 +158,7 @@ export default function ConditionWizardStep2({
   onNext,
   onBack,
   onLoginAndSave,
+  onReset,
 }: Props) {
   const hasLoan =
     condition.existingLoan !== null && condition.existingLoan !== "none";
@@ -251,57 +260,37 @@ export default function ConditionWizardStep2({
 
   return (
     <div className="space-y-4">
-      <div>
-        <p className="ob-typo-subtitle font-semibold text-(--oboon-text-title)">
-          신용 / 대출
-        </p>
-        <p className="mt-0.5 ob-typo-caption text-(--oboon-text-muted)">
-          대출 가능성을 평가합니다. 주택·직업 정보는 자동 연동됩니다.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 gap-3 xs:grid-cols-2">
-        <div>
-          <span className={LABEL}>
-            보유 주택 <span className="opacity-60">(자동 연동)</span>
-          </span>
-          <Select
-            value={
-              (condition.houseOwnership ?? "") as
-                | "none"
-                | "one"
-                | "two_or_more"
-            }
-            onChange={() => {}}
-            disabled
-            options={HOUSE_OPTIONS}
-          />
+      <div className="space-y-0.5">
+        <div className="flex items-start justify-between gap-3">
+          <p className="ob-typo-subtitle font-semibold text-(--oboon-text-title)">
+            신용 / 대출
+          </p>
+          <button
+            type="button"
+            onClick={onReset}
+            className="shrink-0 ob-typo-caption text-(--oboon-text-muted) transition-colors hover:text-(--oboon-text-body)"
+          >
+            전체 초기화
+          </button>
         </div>
-        <div>
-          <span className={LABEL}>
-            직업 형태 <span className="opacity-60">(자동 연동)</span>
-          </span>
-          <Select
-            value={(condition.employmentType ?? "") as EmploymentType}
-            onChange={() => {}}
-            disabled
-            options={EMPLOYMENT_OPTIONS}
-          />
-        </div>
+        <p className="ob-typo-caption text-(--oboon-text-muted)">
+          대출 가능성을 평가합니다.
+        </p>
       </div>
 
       <div className="space-y-3">
         {hasLoan ? (
           <>
-            <div className="grid grid-cols-1 gap-3 xs:grid-cols-2 md:grid-cols-3">
-              <div>
-                <span className={LABEL}>1. 현재 대출</span>
-                <Select<ExistingLoanAmount>
-                  value={(condition.existingLoan ?? "") as ExistingLoanAmount}
-                  onChange={(existingLoan) => patchLoggedIn({ existingLoan })}
-                  options={LOAN_OPTIONS}
-                />
-              </div>
+            <div>
+              <span className={LABEL}>1. 현재 대출</span>
+              <Select<ExistingLoanAmount>
+                value={(condition.existingLoan ?? "") as ExistingLoanAmount}
+                onChange={(existingLoan) => patchLoggedIn({ existingLoan })}
+                options={LOAN_OPTIONS}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 xs:grid-cols-2">
               <div>
                 <span className={LABEL}>2. 최근 1년 대출 연체</span>
                 <Select<DelinquencyCount>
@@ -313,24 +302,25 @@ export default function ConditionWizardStep2({
                 />
               </div>
               <div>
-                <span className={LABEL}>3. 카드론 / 현금서비스</span>
-                <Select<CardLoanUsage>
-                  value={(condition.cardLoanUsage ?? "") as CardLoanUsage}
-                  onChange={(cardLoanUsage) => patchLoggedIn({ cardLoanUsage })}
-                  options={CARD_LOAN_OPTIONS}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 xs:grid-cols-2 md:grid-cols-3">
-              <div>
-                <span className={LABEL}>4. 대출 심사 거절 경험</span>
+                <span className={LABEL}>3. 대출 심사 거절 경험</span>
                 <Select<LoanRejection>
                   value={(condition.loanRejection ?? "") as LoanRejection}
                   onChange={(loanRejection) => patchLoggedIn({ loanRejection })}
                   options={LOAN_REJECTION_OPTIONS}
                 />
               </div>
+            </div>
+
+            <div>
+              <span className={LABEL}>4. 카드론 / 현금서비스</span>
+              <Select<CardLoanUsage>
+                value={(condition.cardLoanUsage ?? "") as CardLoanUsage}
+                onChange={(cardLoanUsage) => patchLoggedIn({ cardLoanUsage })}
+                options={CARD_LOAN_OPTIONS}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 xs:grid-cols-2">
               <div>
                 <span className={LABEL}>5. 월 평균 세후 소득</span>
                 <Select<MonthlyIncomeRange>
@@ -355,7 +345,7 @@ export default function ConditionWizardStep2({
           </>
         ) : (
           <>
-            <div className="grid grid-cols-1 gap-3">
+            <div>
               <div>
                 <span className={LABEL}>1. 현재 대출</span>
                 <Select<ExistingLoanAmount>
@@ -366,15 +356,16 @@ export default function ConditionWizardStep2({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 xs:grid-cols-2 md:grid-cols-3">
-              <div>
-                <span className={LABEL}>2. 카드론 / 현금서비스 사용</span>
-                <Select<CardLoanUsage>
-                  value={(condition.cardLoanUsage ?? "") as CardLoanUsage}
-                  onChange={(cardLoanUsage) => patchLoggedIn({ cardLoanUsage })}
-                  options={CARD_LOAN_OPTIONS}
-                />
-              </div>
+            <div>
+              <span className={LABEL}>2. 카드론 / 현금서비스 사용</span>
+              <Select<CardLoanUsage>
+                value={(condition.cardLoanUsage ?? "") as CardLoanUsage}
+                onChange={(cardLoanUsage) => patchLoggedIn({ cardLoanUsage })}
+                options={CARD_LOAN_OPTIONS}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 xs:grid-cols-2">
               <div>
                 <span className={LABEL}>3. 월 평균 세후 소득</span>
                 <Select<MonthlyIncomeRange>
@@ -410,48 +401,42 @@ export default function ConditionWizardStep2({
               {(
                 [
                   {
-                    label: "LTV 점수",
+                    label: "LTV",
                     value: preview.ltvPoints,
                     max: 10,
-                    sub: preview.ltvLabel,
+                    result: compactPreviewLabel(preview.ltvLabel),
                   },
                   {
-                    label: "DSR 점수",
+                    label: "DSR",
                     value: preview.dsrPoints,
                     max: 10,
-                    sub: preview.dsrLabel,
+                    result: compactPreviewLabel(preview.dsrLabel),
                   },
                   {
                     label: "합산",
                     value: preview.totalPoints,
                     max: 20,
-                    sub: "LTV+DSR",
+                    result: compactPreviewLabel("LTV+DSR"),
                   },
                 ] as const
-              ).map(({ label, value, max, sub }) => (
+              ).map(({ label, value, max, result }) => (
                 <div
                   key={label}
-                  className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-2"
+                  className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-2 py-2.5"
                 >
                   <div className="ob-typo-caption text-(--oboon-text-muted)">
                     {label}
                   </div>
                   <div
-                    className="mt-1 ob-typo-subtitle font-bold"
+                    className="mt-1 ob-typo-caption font-semibold"
                     style={{ color: gradeColor(value, max) }}
                   >
-                    {value}점
-                  </div>
-                  <div
-                    className="ob-typo-caption"
-                    style={{ color: gradeColor(value, max) }}
-                  >
-                    {sub}
+                    {result}
                   </div>
                 </div>
               ))}
             </div>
-            <p className="mt-2 ob-typo-caption text-(--oboon-text-muted)">
+            <p className="mt-2 ob-typo-caption text-(--oboon-text-muted) leading-tight">
               * DSR는 현장 대출 조건 기준으로 최종 계산됩니다. 이 수치는 근사값입니다.
             </p>
           </>

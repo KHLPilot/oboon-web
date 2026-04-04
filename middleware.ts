@@ -85,6 +85,8 @@ function buildContentSecurityPolicy(nonce: string) {
       "data:",
       "blob:",
       "https:",
+      "https://static.naver.net",
+      isDevelopment ? "http://static.naver.net" : null,
       isDevelopment ? "http://*.map.naver.net" : null,
     ]).join(" ")}`,
     "font-src 'self' https://fonts.gstatic.com",

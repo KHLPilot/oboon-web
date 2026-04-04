@@ -50,6 +50,14 @@ type Props = {
   onChange: (patch: Partial<RecommendationCondition>) => void;
   onBack: () => void;
   onFinish: () => void;
+  onReset: () => void;
+  finishLabel?: string;
+  saveLabel?: string | null;
+  onSave?: () => void;
+  isSaving?: boolean;
+  isSaveDisabled?: boolean;
+  isFinishing?: boolean;
+  finishingLabel?: string;
 };
 
 export default function ConditionWizardStep3({
@@ -57,16 +65,36 @@ export default function ConditionWizardStep3({
   onChange,
   onBack,
   onFinish,
+  onReset,
+  finishLabel = "완료 ✓",
+  saveLabel = null,
+  onSave,
+  isSaving = false,
+  isSaveDisabled = false,
+  isFinishing = false,
+  finishingLabel = "처리 중...",
 }: Props) {
-  const isReady = condition.purchasePurposeV2 !== null;
+  const isReady =
+    condition.purchasePurposeV2 !== null &&
+    condition.purchaseTiming !== null &&
+    condition.moveinTiming !== null;
 
   return (
     <div className="space-y-4">
-      <div>
-        <p className="ob-typo-subtitle font-semibold text-(--oboon-text-title)">
-          라이프스타일
-        </p>
-        <p className="mt-0.5 ob-typo-caption text-(--oboon-text-muted)">
+      <div className="space-y-0.5">
+        <div className="flex items-start justify-between gap-3">
+          <p className="ob-typo-subtitle font-semibold text-(--oboon-text-title)">
+            라이프스타일
+          </p>
+          <button
+            type="button"
+            onClick={onReset}
+            className="shrink-0 ob-typo-caption text-(--oboon-text-muted) transition-colors hover:text-(--oboon-text-body)"
+          >
+            전체 초기화
+          </button>
+        </div>
+        <p className="ob-typo-caption text-(--oboon-text-muted)">
           분양 목적과 희망 조건을 선택해주세요
         </p>
       </div>
@@ -114,17 +142,38 @@ export default function ConditionWizardStep3({
         <button
           type="button"
           onClick={onBack}
-          className="h-10 flex-1 rounded-full border border-(--oboon-border-default) ob-typo-button text-(--oboon-text-muted)"
+          disabled={isFinishing}
+          className="h-10 flex-1 rounded-full border border-(--oboon-border-default) ob-typo-button text-(--oboon-text-muted) disabled:cursor-not-allowed disabled:opacity-40"
         >
           이전
         </button>
+        {saveLabel && onSave ? (
+          <button
+            type="button"
+            disabled={isSaveDisabled || isSaving}
+            onClick={onSave}
+            className="h-10 flex-1 rounded-full border border-(--oboon-border-default) ob-typo-button text-(--oboon-text-body) disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {isSaving ? "저장 중..." : saveLabel}
+          </button>
+        ) : null}
         <button
           type="button"
-          disabled={!isReady}
+          disabled={!isReady || isFinishing}
           onClick={onFinish}
-          className="h-10 flex-1 rounded-full bg-(--oboon-primary) text-white ob-typo-button disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-(--oboon-primary) text-white ob-typo-button disabled:cursor-not-allowed disabled:opacity-40"
         >
-          완료 ✓
+          {isFinishing ? (
+            <>
+              <span
+                aria-hidden="true"
+                className="inline-block h-4 w-4 rounded-full border-2 border-(--oboon-spinner-ring) border-t-(--oboon-spinner-head) animate-spin"
+              />
+              <span>{finishingLabel}</span>
+            </>
+          ) : (
+            finishLabel
+          )}
         </button>
       </div>
     </div>

@@ -3,12 +3,28 @@
 import { useState } from "react";
 import Button from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
-import { saveConditionSession } from "@/features/condition-validation/lib/sessionCondition";
 import WizardStepIndicator from "@/features/recommendations/components/WizardStepIndicator";
 import ConditionWizardStep1 from "@/features/recommendations/components/ConditionWizardStep1";
 import ConditionWizardStep2 from "@/features/recommendations/components/ConditionWizardStep2";
 import ConditionWizardStep3 from "@/features/recommendations/components/ConditionWizardStep3";
 import type { RecommendationCondition } from "@/features/recommendations/hooks/useRecommendations";
+
+type Props = {
+  condition: RecommendationCondition;
+  isLoggedIn?: boolean;
+  hasSavedConditionPreset?: boolean;
+  isConditionDirty?: boolean;
+  onChange: (patch: Partial<RecommendationCondition>) => void;
+  onEvaluate: (override?: RecommendationCondition) => void | Promise<boolean>;
+  onSave?: () => void | Promise<boolean>;
+  onLoginAndSave?: () => void | Promise<void>;
+  isLoading?: boolean;
+  isSaving?: boolean;
+  evaluateOnFinish?: boolean;
+  finishLabel?: string;
+};
+
+type Step = 0 | 1 | 2;
 
 const RESET_CONDITION: RecommendationCondition = {
   availableCash: 0,
@@ -32,41 +48,6 @@ const RESET_CONDITION: RecommendationCondition = {
   regions: [],
 };
 
-type Props = {
-  condition: RecommendationCondition;
-  isLoggedIn?: boolean;
-  hasSavedConditionPreset?: boolean;
-  isConditionDirty?: boolean;
-  onChange: (patch: Partial<RecommendationCondition>) => void;
-  onEvaluate: (override?: RecommendationCondition) => void | Promise<boolean>;
-  onSave?: () => void | Promise<boolean>;
-  onLoginAndSave?: () => void | Promise<void>;
-  isLoading?: boolean;
-  isSaving?: boolean;
-};
-
-type Step = 0 | 1 | 2;
-
-function saveWizardSession(condition: RecommendationCondition) {
-  saveConditionSession({
-    availableCash: condition.availableCash.toString(),
-    monthlyIncome: condition.monthlyIncome.toString(),
-    monthlyExpenses: condition.monthlyExpenses.toString(),
-    employmentType: condition.employmentType,
-    houseOwnership: condition.houseOwnership,
-    purchasePurposeV2: condition.purchasePurposeV2,
-    purchaseTiming: condition.purchaseTiming,
-    moveinTiming: condition.moveinTiming,
-    ltvInternalScore: condition.ltvInternalScore,
-    existingLoan: condition.existingLoan,
-    recentDelinquency: condition.recentDelinquency,
-    cardLoanUsage: condition.cardLoanUsage,
-    loanRejection: condition.loanRejection,
-    monthlyIncomeRange: condition.monthlyIncomeRange,
-    existingMonthlyRepayment: condition.existingMonthlyRepayment,
-  });
-}
-
 export default function ConditionWizard({
   condition,
   isLoggedIn = true,
@@ -78,10 +59,13 @@ export default function ConditionWizard({
   onLoginAndSave,
   isLoading = false,
   isSaving = false,
+  evaluateOnFinish = false,
+  finishLabel,
 }: Props) {
   const [currentStep, setCurrentStep] = useState<Step>(0);
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
   const [showFinalActions, setShowFinalActions] = useState(false);
+  const [isFinishing, setIsFinishing] = useState(false);
   const toast = useToast();
 
   const markCompleted = (step: number) => {
@@ -90,16 +74,23 @@ export default function ConditionWizard({
 
   const handleNext = (fromStep: Step) => {
     markCompleted(fromStep);
-    saveWizardSession(condition);
 
     if (fromStep < 2) {
       setCurrentStep((fromStep + 1) as Step);
     }
   };
 
-  const handleFinish = () => {
+  const handleFinish = async () => {
     markCompleted(2);
-    saveWizardSession(condition);
+    if (evaluateOnFinish) {
+      setIsFinishing(true);
+      try {
+        await onEvaluate();
+      } finally {
+        setIsFinishing(false);
+      }
+      return;
+    }
     setShowFinalActions(true);
   };
 
@@ -115,6 +106,7 @@ export default function ConditionWizard({
     setCurrentStep(0);
     setCompletedSteps(new Set());
     setShowFinalActions(false);
+    setIsFinishing(false);
   };
 
   const isReadyToEvaluate =
@@ -124,9 +116,28 @@ export default function ConditionWizard({
     condition.purchasePurposeV2 !== null &&
     (isLoggedIn ? condition.ltvInternalScore > 0 : true);
 
+  const saveLabel =
+    isLoggedIn === false && onLoginAndSave
+      ? "로그인하고 조건 저장"
+      : isLoggedIn && !hasSavedConditionPreset && onSave
+        ? "조건 저장"
+        : isLoggedIn && hasSavedConditionPreset && isConditionDirty && onSave
+          ? "조건 업데이트"
+          : null;
+
+  const handleStepSave = () => {
+    if (isLoggedIn === false && onLoginAndSave) {
+      void onLoginAndSave();
+      return;
+    }
+    if (onSave) {
+      void handleSave();
+    }
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex justify-center">
         <WizardStepIndicator
           currentStep={showFinalActions ? 2 : currentStep}
           completedSteps={completedSteps}
@@ -137,13 +148,6 @@ export default function ConditionWizard({
             }
           }}
         />
-        <button
-          type="button"
-          onClick={handleReset}
-          className="ml-2 shrink-0 ob-typo-caption text-(--oboon-text-muted) transition-colors hover:text-(--oboon-text-body)"
-        >
-          초기화
-        </button>
       </div>
 
       {!showFinalActions && (
@@ -153,6 +157,7 @@ export default function ConditionWizard({
               condition={condition}
               onChange={onChange}
               onNext={() => handleNext(0)}
+              onReset={handleReset}
             />
           )}
           {currentStep === 1 && (
@@ -163,6 +168,7 @@ export default function ConditionWizard({
               onNext={() => handleNext(1)}
               onBack={() => setCurrentStep(0)}
               onLoginAndSave={onLoginAndSave}
+              onReset={handleReset}
             />
           )}
           {currentStep === 2 && (
@@ -170,7 +176,15 @@ export default function ConditionWizard({
               condition={condition}
               onChange={onChange}
               onBack={() => setCurrentStep(1)}
-              onFinish={handleFinish}
+              onFinish={() => void handleFinish()}
+              onReset={handleReset}
+              finishLabel={finishLabel}
+              saveLabel={saveLabel}
+              onSave={saveLabel ? handleStepSave : undefined}
+              isSaving={isSaving}
+              isSaveDisabled={!isReadyToEvaluate}
+              isFinishing={isFinishing}
+              finishingLabel="평가 중..."
             />
           )}
         </>
@@ -181,40 +195,7 @@ export default function ConditionWizard({
           <p className="ob-typo-body font-semibold text-(--oboon-text-title)">
             입력한 조건으로 맞춤 현장을 평가할 준비가 됐어요
           </p>
-          <div className="flex flex-col gap-2">
-            {isLoggedIn === false && onLoginAndSave ? (
-              <Button
-                variant="secondary"
-                shape="pill"
-                onClick={() => void onLoginAndSave()}
-              >
-                로그인하고 조건 저장
-              </Button>
-            ) : isLoggedIn && !hasSavedConditionPreset && onSave ? (
-              <Button
-                variant="secondary"
-                shape="pill"
-                loading={isSaving}
-                disabled={!isReadyToEvaluate}
-                onClick={() => void handleSave()}
-              >
-                조건 저장
-              </Button>
-            ) : isLoggedIn &&
-              hasSavedConditionPreset &&
-              isConditionDirty &&
-              onSave ? (
-              <Button
-                variant="secondary"
-                shape="pill"
-                loading={isSaving}
-                disabled={!isReadyToEvaluate}
-                onClick={() => void handleSave()}
-              >
-                조건 업데이트
-              </Button>
-            ) : null}
-
+          <div>
             <Button
               variant="primary"
               shape="pill"

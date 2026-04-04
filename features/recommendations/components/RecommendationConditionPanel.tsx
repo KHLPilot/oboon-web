@@ -87,6 +87,7 @@ export default function RecommendationConditionPanel(
           isLoggedIn={isLoggedIn}
           hasSavedConditionPreset={hasSavedConditionPreset}
           isConditionDirty={isConditionDirty}
+          evaluateOnFinish
           onChange={onChange}
           onEvaluate={onEvaluate}
           onSave={isLoggedIn ? onSave : undefined}
