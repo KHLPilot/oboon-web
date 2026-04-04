@@ -1220,7 +1220,11 @@ export function useRecommendations() {
       return;
     }
 
-    void runEvaluate(condition);
+    const timer = setTimeout(() => {
+      void runEvaluate(condition);
+    }, 400);
+
+    return () => clearTimeout(timer);
   }, [condition, isBootstrapping, isReadyToEvaluate, mode, runEvaluate]);
 
   const updateCondition = useCallback(
