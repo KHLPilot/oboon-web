@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Button from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import WizardStepIndicator from "@/features/recommendations/components/WizardStepIndicator";
@@ -66,6 +66,7 @@ export default function ConditionWizard({
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
   const [showFinalActions, setShowFinalActions] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
+  const finishInFlightRef = useRef(false);
   const toast = useToast();
 
   const markCompleted = (step: number) => {
@@ -81,13 +82,16 @@ export default function ConditionWizard({
   };
 
   const handleFinish = async () => {
+    if (finishInFlightRef.current) return;
     markCompleted(2);
     if (evaluateOnFinish) {
+      finishInFlightRef.current = true;
       setIsFinishing(true);
       try {
         await onEvaluate();
       } finally {
         setIsFinishing(false);
+        finishInFlightRef.current = false;
       }
       return;
     }
@@ -107,6 +111,7 @@ export default function ConditionWizard({
     setCompletedSteps(new Set());
     setShowFinalActions(false);
     setIsFinishing(false);
+    finishInFlightRef.current = false;
   };
 
   const isReadyToEvaluate =

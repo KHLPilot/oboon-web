@@ -307,6 +307,7 @@ export default function ConditionValidationCard({
   const [openUnitTypeGroup, setOpenUnitTypeGroup] = useState<string | null>(null);
   const [openUnitType, setOpenUnitType] = useState<string | null>(null);
   const autoEvaluatedRef = useRef(false);
+  const evaluateInFlightRef = useRef(false);
 
   // Derived
   const result = response?.ok ? response.result : undefined;
@@ -377,6 +378,8 @@ export default function ConditionValidationCard({
       existing_monthly_repayment: MonthlyLoanRepayment;
     }) => {
       if (!propertyId) return;
+      if (evaluateInFlightRef.current) return;
+      evaluateInFlightRef.current = true;
       setLoading(true);
       setErrorMessage(null);
       try {
@@ -407,6 +410,7 @@ export default function ConditionValidationCard({
       } catch {
         setErrorMessage("조건 검증 처리 중 네트워크 오류가 발생했습니다.");
       } finally {
+        evaluateInFlightRef.current = false;
         setLoading(false);
       }
     },
