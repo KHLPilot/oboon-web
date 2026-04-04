@@ -5,7 +5,7 @@ import { handleStructuredApiError } from "@/lib/api/route-error";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { AppError, ERR } from "@/lib/errors";
 import {
-  checkAuthRateLimit,
+  checkRateLimit,
   conditionRecommendationIpLimiter,
   getClientIp,
 } from "@/lib/rateLimit";
@@ -745,7 +745,7 @@ const loadRecommendationContextCached = unstable_cache(
 );
 
 export async function POST(request: Request) {
-  const rateLimitRes = await checkAuthRateLimit(
+  const rateLimitRes = await checkRateLimit(
     conditionRecommendationIpLimiter,
     getClientIp(request),
     {
