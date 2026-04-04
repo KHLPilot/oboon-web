@@ -36,6 +36,7 @@ import {
   saveConditionSession,
   type ConditionSessionSnapshot,
 } from "@/features/condition-validation/lib/sessionCondition";
+import { shouldAutoEvaluateRecommendations } from "@/features/recommendations/lib/recommendation-evaluation";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { toKoreanErrorMessage } from "@/shared/errorMessage";
 import { formatPriceRange } from "@/shared/price";
@@ -878,7 +879,7 @@ export function useRecommendations() {
   const supabase = useMemo(() => createSupabaseClient(), []);
   const requestSeqRef = useRef(0);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const initialEvaluationRequestedRef = useRef(false);
+  const hasUserTriggeredEvaluationRef = useRef(false);
   const skipAutoEvalRef = useRef(false);
   const previousIsLoggedInRef = useRef<boolean | null>(null);
 
@@ -1056,7 +1057,7 @@ export function useRecommendations() {
     setSelectedId(null);
     setRequestError(null);
     setValidationError(null);
-    initialEvaluationRequestedRef.current = false;
+    hasUserTriggeredEvaluationRef.current = false;
     skipAutoEvalRef.current = false;
   }, [isLoggedIn]);
 
@@ -1204,30 +1205,18 @@ export function useRecommendations() {
     condition.ltvInternalScore > 0;
 
   useEffect(() => {
-    if (isBootstrapping || initialEvaluationRequestedRef.current) {
-      return;
-    }
-    if (!isReadyToEvaluate) {
-      return;
-    }
+    const skipNextAutoEvaluation = skipAutoEvalRef.current;
 
-    initialEvaluationRequestedRef.current = true;
-    void runEvaluate(condition);
-  }, [condition, isBootstrapping, isReadyToEvaluate, runEvaluate]);
-
-  useEffect(() => {
-    if (
-      isBootstrapping ||
-      !initialEvaluationRequestedRef.current ||
-      mode !== "sim"
-    ) {
-      return;
-    }
-    if (!isReadyToEvaluate) {
-      return;
-    }
-    if (skipAutoEvalRef.current) {
-      skipAutoEvalRef.current = false;
+    if (!shouldAutoEvaluateRecommendations({
+      isBootstrapping,
+      hasUserTriggeredEvaluation: hasUserTriggeredEvaluationRef.current,
+      mode,
+      isReadyToEvaluate,
+      skipNextAutoEvaluation,
+    })) {
+      if (skipNextAutoEvaluation) {
+        skipAutoEvalRef.current = false;
+      }
       return;
     }
 
@@ -1271,6 +1260,7 @@ export function useRecommendations() {
     }
 
     setValidationError(null);
+    hasUserTriggeredEvaluationRef.current = true;
     if (override != null) {
       skipAutoEvalRef.current = true;
       setCondition(isLoggedIn ? evalCondition : sanitizeGuestCondition(evalCondition));

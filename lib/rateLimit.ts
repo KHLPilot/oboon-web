@@ -27,6 +27,11 @@ type MinimalRateLimitResult = {
   remaining: number;
 };
 
+function resolveSecureFailMode(limiter: Ratelimit | null): RateLimitMode {
+  if (limiter) return "secure";
+  return process.env.NODE_ENV === "production" ? "secure" : "open";
+}
+
 function createRedis(): Redis | null {
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -288,6 +293,6 @@ export async function checkAuthRateLimit(
 ): Promise<Response | null> {
   return checkRateLimit(limiter, identifier, {
     ...options,
-    failMode: "secure",
+    failMode: resolveSecureFailMode(limiter),
   });
 }
