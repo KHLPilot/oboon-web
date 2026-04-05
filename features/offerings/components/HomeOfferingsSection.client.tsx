@@ -30,6 +30,10 @@ import {
   sanitizeGuestConditionSessionSnapshot,
   type ConditionSessionSnapshot,
 } from "@/features/condition-validation/lib/sessionCondition";
+import {
+  pickLoggedInConditionSource,
+  pickLoggedOutConditionSource,
+} from "@/features/condition-validation/lib/conditionSourcePolicy";
 import type { ConditionCategoryGrades } from "@/features/condition-validation/domain/types";
 import OfferingCard from "@/features/offerings/components/OfferingCard";
 import { OfferingCardSkeleton } from "@/features/offerings/components/OfferingCardSkeleton";
@@ -518,6 +522,28 @@ function sanitizeGuestConditionSnapshot(
   snapshot: ConditionSessionSnapshot,
 ): ConditionSessionSnapshot {
   return sanitizeGuestConditionSessionSnapshot(snapshot);
+}
+
+function loadHomeConditionDraft(): HomeConditionDraft | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = window.localStorage.getItem(HOME_CONDITION_DRAFT_STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as HomeConditionDraft;
+  } catch {
+    return null;
+  }
+}
+
+function clearHomeConditionDraft(): void {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.removeItem(HOME_CONDITION_DRAFT_STORAGE_KEY);
+  } catch {
+    // ignore storage cleanup failure
+  }
 }
 
 function buildSavedConditionPresetSnapshot(
@@ -1777,7 +1803,12 @@ export default function HomeOfferingsSection() {
         // 비로그인: 세션 임시 저장값 복원
         try {
           const snapshot = loadConditionSession();
-          if (snapshot) {
+          const homeDraft = loadHomeConditionDraft();
+          const source = pickLoggedOutConditionSource({
+            hasSession: Boolean(snapshot),
+            hasDraft: Boolean(homeDraft?.snapshot || homeDraft?.customer),
+          });
+          if (source === "session" && snapshot) {
             const guestSnapshot = sanitizeGuestConditionSnapshot(snapshot);
             applySessionCondition(guestSnapshot);
             const sessionCustomer = buildCustomerFromSessionSnapshot(guestSnapshot);
@@ -1793,6 +1824,43 @@ export default function HomeOfferingsSection() {
                       )
                     : "good",
               });
+            } else {
+              setShowConditionSetupCard(true);
+            }
+          } else if (source === "draft" && homeDraft) {
+            const draftSnapshot = homeDraft.snapshot
+              ? sanitizeGuestConditionSnapshot(homeDraft.snapshot)
+              : null;
+            const draftCustomer = buildCustomerPayloadFromRaw(
+              toUnknownRecord(homeDraft.customer),
+            );
+            const appliedRegions = Array.isArray(homeDraft.regions)
+              ? homeDraft.regions.filter((value): value is OfferingRegionTab =>
+                  OFFERING_REGION_TABS.includes(value),
+                )
+              : [];
+            setConditionRegions(appliedRegions);
+
+            if (draftSnapshot) {
+              applySessionCondition(draftSnapshot);
+            } else if (draftCustomer) {
+              applyCustomerStateFromRaw(draftCustomer);
+            }
+
+            const guestCustomer =
+              draftCustomer ??
+              (draftSnapshot ? buildCustomerFromSessionSnapshot(draftSnapshot) : null);
+
+            if (guestCustomer) {
+              setShowConditionSetupCard(false);
+              await applyRecommendationRef.current(guestCustomer, {
+                closeModal: false,
+                guestMode: true,
+                guestCreditGrade: creditGradeFromLtvInternalScore(
+                  guestCustomer.ltv_internal_score,
+                ),
+              });
+              clearHomeConditionDraft();
             } else {
               setShowConditionSetupCard(true);
             }
@@ -1864,15 +1932,26 @@ export default function HomeOfferingsSection() {
         applyProfileConditionPreset(profileData, presetCustomer);
         setShowConditionSetupCard(false);
         await applyRecommendationRef.current(presetCustomer, { closeModal: false });
+        clearHomeConditionDraft();
         return;
       }
 
+      const homeDraft = loadHomeConditionDraft();
+
       if (requestResult.error) {
         console.error("[home condition request] load error:", requestResult.error);
-      } else {
-        const latest = (requestResult.data?.[0] ?? null) as ConditionValidationRequestRow | null;
-        const latestCustomer = latest ? buildCustomerFromSavedRow(latest) : null;
-        if (latest && latestCustomer) {
+      }
+      const latest = (requestResult.data?.[0] ?? null) as ConditionValidationRequestRow | null;
+      const latestCustomer = latest ? buildCustomerFromSavedRow(latest) : null;
+      const sessionSnapshot = loadConditionSession();
+      const source = pickLoggedInConditionSource({
+        hasProfile: Boolean(profileData && presetCustomer),
+        hasRequest: Boolean(latest && latestCustomer),
+        hasDraft: Boolean(homeDraft?.snapshot || homeDraft?.customer),
+        hasSession: Boolean(sessionSnapshot),
+      });
+
+      if (source === "request" && latest && latestCustomer) {
           const requestPayload = toUnknownRecord(latest.input_payload);
           const requestCustomer = toUnknownRecord(requestPayload?.customer) ?? {
             available_cash: latest.available_cash_manwon,
@@ -1885,14 +1964,43 @@ export default function HomeOfferingsSection() {
           setShowConditionSetupCard(false);
           await applyRecommendationRef.current(latestCustomer, { closeModal: false });
           return;
+      }
+
+      if (source === "draft" && homeDraft) {
+        const draftCustomer = buildCustomerPayloadFromRaw(
+          toUnknownRecord(homeDraft.customer),
+        );
+        const draftSnapshot = homeDraft.snapshot ?? null;
+        const draftRegions = Array.isArray(homeDraft.regions)
+          ? homeDraft.regions.filter((value): value is OfferingRegionTab =>
+              OFFERING_REGION_TABS.includes(value),
+            )
+          : [];
+        setConditionRegions(draftRegions);
+
+        if (draftSnapshot) {
+          applySessionCondition(draftSnapshot);
+        } else if (draftCustomer) {
+          applyCustomerStateFromRaw(draftCustomer);
+        }
+
+        const restoredCustomer =
+          draftCustomer ??
+          (draftSnapshot ? buildCustomerFromSessionSnapshot(draftSnapshot) : null);
+        if (restoredCustomer) {
+          setShowConditionSetupCard(false);
+          await applyRecommendationRef.current(restoredCustomer, {
+            closeModal: false,
+          });
+          clearHomeConditionDraft();
+          return;
         }
       }
 
-      try {
-        const snapshot = loadConditionSession();
-        if (snapshot) {
-          applySessionCondition(snapshot);
-          const sessionCustomer = buildCustomerFromSessionSnapshot(snapshot);
+      if (source === "session" && sessionSnapshot) {
+        try {
+          applySessionCondition(sessionSnapshot);
+          const sessionCustomer = buildCustomerFromSessionSnapshot(sessionSnapshot);
           if (sessionCustomer) {
             setShowConditionSetupCard(false);
             await applyRecommendationRef.current(sessionCustomer, {
@@ -1900,9 +2008,9 @@ export default function HomeOfferingsSection() {
             });
             return;
           }
+        } catch {
+          // Ignore session restore failures and fall back to empty state.
         }
-      } catch {
-        // Ignore session restore failures and fall back to empty state.
       }
 
       setShowConditionSetupCard(true);

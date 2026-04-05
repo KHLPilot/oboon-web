@@ -19,6 +19,7 @@ import { grade5DetailLabel } from "@/features/condition-validation/lib/grade5Lab
 import { formatManwonWithEok, formatPercent } from "@/lib/format/currency";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { trackEvent } from "@/lib/analytics";
+import { pickLoggedInConditionSource } from "@/features/condition-validation/lib/conditionSourcePolicy";
 import {
   normalizeOfferingStatusValue,
   statusLabelOf,
@@ -56,6 +57,15 @@ type RecommendationCustomerInput = {
   purchase_purpose: "residence" | "investment" | "both";
 };
 
+type ConditionValidationRequestRow = {
+  available_cash_manwon: number | null;
+  monthly_income_manwon: number | null;
+  owned_house_count: number | null;
+  credit_grade: "good" | "normal" | "unstable" | null;
+  purchase_purpose: "residence" | "investment" | "both" | null;
+  input_payload?: unknown;
+};
+
 function pickFirst<T>(value: T | T[] | null | undefined): T | null {
   if (!value) return null;
   return Array.isArray(value) ? (value[0] ?? null) : value;
@@ -74,6 +84,143 @@ function toFiniteInteger(value: unknown): number | null {
     return Math.round(parsed);
   }
   return null;
+}
+
+function toUnknownRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function houseOwnershipFromOwnedHouseCount(
+  ownedHouseCount: number | null | undefined,
+): "none" | "one" | "two_or_more" | null {
+  if (ownedHouseCount === 1) return "one";
+  if ((ownedHouseCount ?? 0) >= 2) return "two_or_more";
+  return ownedHouseCount === 0 ? "none" : null;
+}
+
+function purchasePurposeV2FromLegacy(
+  purchasePurpose: "residence" | "investment" | "both" | null | undefined,
+): "residence" | "investment_rent" | "investment_capital" | "long_term" | null {
+  if (purchasePurpose === "both") return "long_term";
+  if (purchasePurpose === "investment") return "investment_capital";
+  if (purchasePurpose === "residence") return "residence";
+  return null;
+}
+
+function ltvInternalScoreFromCreditGrade(
+  creditGrade: "good" | "normal" | "unstable" | null | undefined,
+): number | null {
+  if (creditGrade === "good") return 80;
+  if (creditGrade === "normal") return 55;
+  if (creditGrade === "unstable") return 20;
+  return null;
+}
+
+function profileAutoFillFromRequest(
+  request: ConditionValidationRequestRow | null,
+): ProfileAutoFillData | null {
+  if (!request) return null;
+
+  const payloadRecord = toUnknownRecord(request.input_payload);
+  const payloadCustomer = toUnknownRecord(payloadRecord?.customer);
+
+  const employmentType =
+    payloadCustomer?.employment_type === "employee" ||
+    payloadCustomer?.employment_type === "self_employed" ||
+    payloadCustomer?.employment_type === "freelancer" ||
+    payloadCustomer?.employment_type === "other"
+      ? payloadCustomer.employment_type
+      : null;
+
+  const houseOwnership =
+    payloadCustomer?.house_ownership === "none" ||
+    payloadCustomer?.house_ownership === "one" ||
+    payloadCustomer?.house_ownership === "two_or_more"
+      ? payloadCustomer.house_ownership
+      : houseOwnershipFromOwnedHouseCount(request.owned_house_count);
+
+  const purchasePurposeV2 =
+    payloadCustomer?.purchase_purpose_v2 === "residence" ||
+    payloadCustomer?.purchase_purpose_v2 === "investment_rent" ||
+    payloadCustomer?.purchase_purpose_v2 === "investment_capital" ||
+    payloadCustomer?.purchase_purpose_v2 === "long_term"
+      ? payloadCustomer.purchase_purpose_v2
+      : purchasePurposeV2FromLegacy(request.purchase_purpose);
+
+  const purchaseTiming =
+    payloadCustomer?.purchase_timing === "within_3months" ||
+    payloadCustomer?.purchase_timing === "within_6months" ||
+    payloadCustomer?.purchase_timing === "within_1year" ||
+    payloadCustomer?.purchase_timing === "over_1year" ||
+    payloadCustomer?.purchase_timing === "by_property"
+      ? payloadCustomer.purchase_timing
+      : null;
+
+  const moveinTiming =
+    payloadCustomer?.movein_timing === "immediate" ||
+    payloadCustomer?.movein_timing === "within_1year" ||
+    payloadCustomer?.movein_timing === "within_2years" ||
+    payloadCustomer?.movein_timing === "within_3years" ||
+    payloadCustomer?.movein_timing === "anytime"
+      ? payloadCustomer.movein_timing
+      : null;
+
+  const existingMonthlyRepayment =
+    payloadCustomer?.existing_monthly_repayment === "none" ||
+    payloadCustomer?.existing_monthly_repayment === "under_50" ||
+    payloadCustomer?.existing_monthly_repayment === "50to100" ||
+    payloadCustomer?.existing_monthly_repayment === "100to200" ||
+    payloadCustomer?.existing_monthly_repayment === "over_200"
+      ? payloadCustomer.existing_monthly_repayment
+      : null;
+
+  return {
+    availableCashManwon: toFiniteInteger(payloadCustomer?.available_cash) ?? toFiniteInteger(request.available_cash_manwon),
+    monthlyIncomeManwon: toFiniteInteger(payloadCustomer?.monthly_income) ?? toFiniteInteger(request.monthly_income_manwon),
+    monthlyExpensesManwon: toFiniteInteger(payloadCustomer?.monthly_expenses),
+    employmentType,
+    houseOwnership,
+    purchasePurposeV2,
+    purchaseTiming,
+    moveinTiming,
+    ltvInternalScore:
+      toFiniteInteger(payloadCustomer?.ltv_internal_score) ??
+      ltvInternalScoreFromCreditGrade(request.credit_grade),
+    existingLoan:
+      payloadCustomer?.existing_loan === "none" ||
+      payloadCustomer?.existing_loan === "under_1eok" ||
+      payloadCustomer?.existing_loan === "1to3eok" ||
+      payloadCustomer?.existing_loan === "over_3eok"
+        ? payloadCustomer.existing_loan
+        : null,
+    recentDelinquency:
+      payloadCustomer?.recent_delinquency === "none" ||
+      payloadCustomer?.recent_delinquency === "once" ||
+      payloadCustomer?.recent_delinquency === "twice_or_more"
+        ? payloadCustomer.recent_delinquency
+        : null,
+    cardLoanUsage:
+      payloadCustomer?.card_loan_usage === "none" ||
+      payloadCustomer?.card_loan_usage === "1to2" ||
+      payloadCustomer?.card_loan_usage === "3_or_more"
+        ? payloadCustomer.card_loan_usage
+        : null,
+    loanRejection:
+      payloadCustomer?.loan_rejection === "none" ||
+      payloadCustomer?.loan_rejection === "yes"
+        ? payloadCustomer.loan_rejection
+        : null,
+    monthlyIncomeRange:
+      payloadCustomer?.monthly_income_range === "under_200" ||
+      payloadCustomer?.monthly_income_range === "200to300" ||
+      payloadCustomer?.monthly_income_range === "300to500" ||
+      payloadCustomer?.monthly_income_range === "500to700" ||
+      payloadCustomer?.monthly_income_range === "over_700"
+        ? payloadCustomer.monthly_income_range
+        : null,
+    existingMonthlyRepayment,
+  };
 }
 
 function gradeMeta(grade: ConditionRecommendationItem["final_grade"]): {
@@ -210,18 +357,32 @@ export default function OfferingDetailRight({
             if (isMounted) setInitialScrapped(scrapRow !== null);
           }
 
-          const { data: profileWithPreset } = await supabase
-            .from("profiles")
-            .select(
-              "role, cv_available_cash_manwon, cv_monthly_income_manwon, cv_owned_house_count, cv_credit_grade, cv_purchase_purpose, cv_employment_type, cv_monthly_expenses_manwon, cv_house_ownership, cv_purchase_purpose_v2, cv_purchase_timing, cv_movein_timing, cv_ltv_internal_score, cv_existing_loan_amount, cv_recent_delinquency, cv_card_loan_usage, cv_loan_rejection, cv_monthly_income_range, cv_existing_monthly_repayment",
-            )
-            .eq("id", currentUser.id)
-            .maybeSingle();
-          const { data: profileRoleOnly } = await supabase
-            .from("profiles")
-            .select("role")
-            .eq("id", currentUser.id)
-            .maybeSingle();
+          const [
+            { data: profileWithPreset },
+            { data: profileRoleOnly },
+            { data: requestRows },
+          ] = await Promise.all([
+            supabase
+              .from("profiles")
+              .select(
+                "role, cv_available_cash_manwon, cv_monthly_income_manwon, cv_owned_house_count, cv_credit_grade, cv_purchase_purpose, cv_employment_type, cv_monthly_expenses_manwon, cv_house_ownership, cv_purchase_purpose_v2, cv_purchase_timing, cv_movein_timing, cv_ltv_internal_score, cv_existing_loan_amount, cv_recent_delinquency, cv_card_loan_usage, cv_loan_rejection, cv_monthly_income_range, cv_existing_monthly_repayment",
+              )
+              .eq("id", currentUser.id)
+              .maybeSingle(),
+            supabase
+              .from("profiles")
+              .select("role")
+              .eq("id", currentUser.id)
+              .maybeSingle(),
+            supabase
+              .from("condition_validation_requests")
+              .select(
+                "available_cash_manwon, monthly_income_manwon, owned_house_count, credit_grade, purchase_purpose, input_payload",
+              )
+              .eq("customer_id", currentUser.id)
+              .order("requested_at", { ascending: false })
+              .limit(1),
+          ]);
           if (!isMounted) return;
           const role = (profileWithPreset?.role ??
             profileRoleOnly?.role) as string | null;
@@ -250,8 +411,22 @@ export default function OfferingDetailRight({
             monthlyIncome !== null &&
             monthlyIncome >= 0 &&
             ownedHouseCount >= 0;
+          const latestRequest =
+            ((requestRows?.[0] ?? null) as ConditionValidationRequestRow | null) ?? null;
+          const requestAutoFill = profileAutoFillFromRequest(latestRequest);
+          const requestAvailableCash = requestAutoFill?.availableCashManwon ?? null;
+          const requestMonthlyIncome = requestAutoFill?.monthlyIncomeManwon ?? null;
+          const requestHouseOwnership = requestAutoFill?.houseOwnership;
+          const requestLtvScore = requestAutoFill?.ltvInternalScore ?? null;
+          const source = pickLoggedInConditionSource({
+            hasProfile: hasPreset,
+            hasRequest: Boolean(requestAutoFill),
+            hasDraft: false,
+            hasSession: false,
+          });
+
           setConditionValidationPreset(
-            hasPreset
+            source === "profile" && hasPreset
               ? {
                   availableCash,
                   monthlyIncome,
@@ -259,7 +434,34 @@ export default function OfferingDetailRight({
                   creditGrade,
                   purchasePurpose,
                 }
-              : null,
+              : source === "request" &&
+                  requestAvailableCash !== null &&
+                  requestMonthlyIncome !== null &&
+                  requestHouseOwnership
+                ? {
+                    availableCash: requestAvailableCash,
+                    monthlyIncome: requestMonthlyIncome,
+                    ownedHouseCount:
+                      requestHouseOwnership === "one"
+                        ? 1
+                        : requestHouseOwnership === "two_or_more"
+                          ? 2
+                          : 0,
+                    creditGrade:
+                      requestLtvScore !== null && requestLtvScore < 40
+                        ? "unstable"
+                        : requestLtvScore !== null && requestLtvScore < 70
+                          ? "normal"
+                          : "good",
+                    purchasePurpose:
+                      requestAutoFill?.purchasePurposeV2 === "long_term"
+                        ? "both"
+                        : requestAutoFill?.purchasePurposeV2 === "investment_capital" ||
+                            requestAutoFill?.purchasePurposeV2 === "investment_rent"
+                          ? "investment"
+                          : "residence",
+                  }
+                : null,
           );
 
           // v2 맞춤 정보 — 자동 채움 + 자동 검증용
@@ -275,7 +477,7 @@ export default function OfferingDetailRight({
           const validIncomeRanges = ["under_200", "200to300", "300to500", "500to700", "over_700"] as const;
           const validRepayments = ["none", "under_50", "50to100", "100to200", "over_200"] as const;
 
-          setProfileAutoFill({
+          const profileBasedAutoFill: ProfileAutoFillData = {
             availableCashManwon: toFiniteInteger(profileWithPreset?.cv_available_cash_manwon),
             monthlyIncomeManwon: toFiniteInteger(profileWithPreset?.cv_monthly_income_manwon),
             monthlyExpensesManwon: toFiniteInteger(profileWithPreset?.cv_monthly_expenses_manwon),
@@ -313,10 +515,15 @@ export default function OfferingDetailRight({
             existingMonthlyRepayment: validRepayments.includes(profileWithPreset?.cv_existing_monthly_repayment as typeof validRepayments[number])
               ? (profileWithPreset?.cv_existing_monthly_repayment as typeof validRepayments[number])
               : null,
-          });
+          };
+
+          setProfileAutoFill(
+            source === "profile" ? profileBasedAutoFill : requestAutoFill,
+          );
         } else {
           setUserRole(null);
           setConditionValidationPreset(null);
+          setProfileAutoFill(null);
         }
 
         const { data: propertyAgents } = await supabase

@@ -222,20 +222,51 @@ export default function ConditionWizardStep2({
           />
         </div>
 
-        <div className="flex flex-col items-center gap-2 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-4 text-center">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-elevated)">
-            <Lock className="h-4 w-4 text-(--oboon-text-muted)" />
+        <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-elevated)">
+              <Lock className="h-4 w-4 text-(--oboon-text-muted)" />
+            </div>
+            <div>
+              <p className="ob-typo-body font-semibold text-(--oboon-text-title)">
+                정밀 신용 평가
+              </p>
+              <p className="ob-typo-caption text-(--oboon-text-muted)">
+                로그인하면 실제 대출 리스크를 더 자세히 반영합니다.
+              </p>
+            </div>
           </div>
-          <p className="ob-typo-caption font-semibold text-(--oboon-text-title)">
-            로그인하면 더 정확한 신용 평가를 받을 수 있어요
-          </p>
-          <button
-            type="button"
-            onClick={() => void onLoginAndSave?.()}
-            className="ob-typo-caption text-(--oboon-primary) underline"
-          >
-            로그인하고 계속
-          </button>
+
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              "현재 대출",
+              "연체 이력",
+              "카드론 사용",
+              "대출 거절 경험",
+            ].map((item) => (
+              <div
+                key={item}
+                className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-2"
+              >
+                <div className="ob-typo-caption font-medium text-(--oboon-text-title)">
+                  {item}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-3 flex flex-col items-center gap-2 text-center">
+            <p className="ob-typo-caption text-(--oboon-text-muted)">
+              기본 신용 상태만으로는 대략적인 판단만 가능합니다.
+            </p>
+            <button
+              type="button"
+              onClick={() => void onLoginAndSave?.()}
+              className="inline-flex h-10 items-center justify-center rounded-full bg-(--oboon-primary) px-4 text-white ob-typo-button"
+            >
+              로그인하고 정밀 신용 평가 열기
+            </button>
+          </div>
         </div>
 
         <div className="flex gap-2">
@@ -251,7 +282,7 @@ export default function ConditionWizardStep2({
             onClick={onNext}
             className="h-10 flex-1 rounded-full bg-(--oboon-primary) text-white ob-typo-button"
           >
-            건너뛰기
+            다음
           </button>
         </div>
       </div>

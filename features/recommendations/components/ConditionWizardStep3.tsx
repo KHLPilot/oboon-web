@@ -1,5 +1,8 @@
 "use client";
 
+"use client";
+
+import { Lock } from "lucide-react";
 import Select from "@/components/ui/Select";
 import { MultiSelect } from "@/components/ui/MultiSelect";
 import type {
@@ -12,6 +15,7 @@ import {
   type OfferingRegionTab,
 } from "@/features/offerings/domain/offering.types";
 import type { RecommendationCondition } from "@/features/recommendations/hooks/useRecommendations";
+import { isStep3ReadyByAuth } from "@/features/recommendations/lib/recommendationInputPolicy";
 
 const LABEL = "mb-1.5 block ob-typo-caption text-(--oboon-text-muted)";
 
@@ -47,6 +51,7 @@ const REGION_OPTIONS = OFFERING_REGION_TABS.filter((r) => r !== "전체").map(
 
 type Props = {
   condition: RecommendationCondition;
+  isLoggedIn: boolean;
   onChange: (patch: Partial<RecommendationCondition>) => void;
   onBack: () => void;
   onFinish: () => void;
@@ -62,6 +67,7 @@ type Props = {
 
 export default function ConditionWizardStep3({
   condition,
+  isLoggedIn,
   onChange,
   onBack,
   onFinish,
@@ -74,10 +80,7 @@ export default function ConditionWizardStep3({
   isFinishing = false,
   finishingLabel = "처리 중...",
 }: Props) {
-  const isReady =
-    condition.purchasePurposeV2 !== null &&
-    condition.purchaseTiming !== null &&
-    condition.moveinTiming !== null;
+  const isReady = isStep3ReadyByAuth(condition, isLoggedIn);
 
   return (
     <div className="space-y-4">
@@ -109,34 +112,90 @@ export default function ConditionWizardStep3({
           />
         </div>
 
-        <div>
-          <span className={LABEL}>분양 시점</span>
-          <Select<PurchaseTiming>
-            value={(condition.purchaseTiming ?? "") as PurchaseTiming}
-            onChange={(purchaseTiming) => onChange({ purchaseTiming })}
-            options={PURCHASE_TIMING_OPTIONS}
-          />
-        </div>
+        {isLoggedIn ? (
+          <div>
+            <span className={LABEL}>분양 시점</span>
+            <Select<PurchaseTiming>
+              value={(condition.purchaseTiming ?? "") as PurchaseTiming}
+              onChange={(purchaseTiming) => onChange({ purchaseTiming })}
+              options={PURCHASE_TIMING_OPTIONS}
+            />
+          </div>
+        ) : null}
 
-        <div>
-          <span className={LABEL}>희망 입주</span>
-          <Select<MoveinTiming>
-            value={(condition.moveinTiming ?? "") as MoveinTiming}
-            onChange={(moveinTiming) => onChange({ moveinTiming })}
-            options={MOVEIN_OPTIONS}
-          />
-        </div>
+        {isLoggedIn ? (
+          <div>
+            <span className={LABEL}>희망 입주</span>
+            <Select<MoveinTiming>
+              value={(condition.moveinTiming ?? "") as MoveinTiming}
+              onChange={(moveinTiming) => onChange({ moveinTiming })}
+              options={MOVEIN_OPTIONS}
+            />
+          </div>
+        ) : null}
 
-        <div>
-          <span className={LABEL}>지역</span>
-          <MultiSelect<OfferingRegionTab>
-            values={condition.regions}
-            onChange={(regions) => onChange({ regions })}
-            options={REGION_OPTIONS}
-            placeholder="전체"
-          />
-        </div>
+        {isLoggedIn ? (
+          <div>
+            <span className={LABEL}>지역</span>
+            <MultiSelect<OfferingRegionTab>
+              values={condition.regions}
+              onChange={(regions) => onChange({ regions })}
+              options={REGION_OPTIONS}
+              placeholder="전체"
+            />
+          </div>
+        ) : null}
       </div>
+
+      {!isLoggedIn ? (
+        <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-elevated)">
+              <Lock className="h-4 w-4 text-(--oboon-text-muted)" />
+            </div>
+            <div>
+              <p className="ob-typo-body font-semibold text-(--oboon-text-title)">
+                생활 조건 반영
+              </p>
+              <p className="ob-typo-caption text-(--oboon-text-muted)">
+                로그인하면 추천 정확도를 높이는 생활 조건을 더 입력할 수 있어요.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              "월 지출",
+              "직업",
+              "분양 시점",
+              "희망 입주",
+              "지역",
+            ].map((item) => (
+              <div
+                key={item}
+                className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-2"
+              >
+                <div className="ob-typo-caption font-medium text-(--oboon-text-title)">
+                  {item}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-3 flex flex-col items-center gap-2 text-center">
+            <p className="ob-typo-caption text-(--oboon-text-muted)">
+              입력값이 많을수록 추천 현장 정렬이 더 정확해집니다.
+            </p>
+            <button
+              type="button"
+              onClick={onSave}
+              className="inline-flex h-10 items-center justify-center rounded-full bg-(--oboon-primary) px-4 text-white ob-typo-button"
+            >
+              로그인하고 맞춤 조건 더 입력하기
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="flex gap-2">
         <button

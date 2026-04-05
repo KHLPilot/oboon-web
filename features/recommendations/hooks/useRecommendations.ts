@@ -36,6 +36,7 @@ import {
   saveConditionSession,
   type ConditionSessionSnapshot,
 } from "@/features/condition-validation/lib/sessionCondition";
+import { pickLoggedInConditionSource } from "@/features/condition-validation/lib/conditionSourcePolicy";
 import { shouldAutoEvaluateRecommendations } from "@/features/recommendations/lib/recommendation-evaluation";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { toKoreanErrorMessage } from "@/shared/errorMessage";
@@ -1136,17 +1137,24 @@ export function useRecommendations() {
           const draftSnapshot = loadRecommendationConditionDraft();
           const useProfile = hasStoredProfileCondition(p);
           setHasSavedConditionPreset(useProfile);
+          const source = pickLoggedInConditionSource({
+            hasProfile: useProfile,
+            hasRequest: Boolean(latestRequest),
+            hasDraft: Boolean(draftSnapshot),
+            hasSession: Boolean(sessionSnapshot),
+          });
 
           setCondition((prev) => {
-            const next = latestRequest
-              ? conditionFromRequest(latestRequest, prev)
-              : useProfile
+            const next =
+              source === "profile"
                 ? conditionFromProfile(p, prev)
-                : draftSnapshot
-                  ? normalizeInputCondition(conditionFromSession(draftSnapshot, prev))
-                  : sessionSnapshot
-                    ? conditionFromSession(sessionSnapshot, prev)
-                    : prev;
+                : source === "request" && latestRequest
+                  ? conditionFromRequest(latestRequest, prev)
+                  : source === "draft" && draftSnapshot
+                    ? normalizeInputCondition(conditionFromSession(draftSnapshot, prev))
+                    : source === "session" && sessionSnapshot
+                      ? conditionFromSession(sessionSnapshot, prev)
+                      : prev;
 
             return normalizeInputCondition(next);
           });
@@ -1161,7 +1169,7 @@ export function useRecommendations() {
             setSavedConditionPreset(null);
           }
 
-          if (draftSnapshot && !useProfile) {
+          if (draftSnapshot) {
             clearRecommendationConditionDraft();
           }
         } else if (active) {
@@ -1169,16 +1177,22 @@ export function useRecommendations() {
           setSavedConditionPreset(null);
           const draftSnapshot = loadRecommendationConditionDraft();
           const sessionSnapshot = loadConditionSession();
-          if (latestRequest) {
+          const source = pickLoggedInConditionSource({
+            hasProfile: false,
+            hasRequest: Boolean(latestRequest),
+            hasDraft: Boolean(draftSnapshot),
+            hasSession: Boolean(sessionSnapshot),
+          });
+          if (source === "request" && latestRequest) {
             setCondition((prev) =>
               normalizeInputCondition(conditionFromRequest(latestRequest, prev)),
             );
-          } else if (draftSnapshot) {
+          } else if (source === "draft" && draftSnapshot) {
             setCondition((prev) =>
               normalizeInputCondition(conditionFromSession(draftSnapshot, prev)),
             );
             clearRecommendationConditionDraft();
-          } else if (sessionSnapshot) {
+          } else if (source === "session" && sessionSnapshot) {
             setCondition((prev) =>
               normalizeInputCondition(conditionFromSession(sessionSnapshot, prev)),
             );

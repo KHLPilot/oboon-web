@@ -6,6 +6,7 @@ import Select from "@/components/ui/Select";
 import { formatManwonPreview } from "@/lib/format/currency";
 import type { EmploymentType } from "@/features/condition-validation/domain/types";
 import type { RecommendationCondition } from "@/features/recommendations/hooks/useRecommendations";
+import { isStep1ReadyByAuth } from "@/features/recommendations/lib/recommendationInputPolicy";
 
 const LABEL = "mb-1.5 block ob-typo-caption text-(--oboon-text-muted)";
 const INPUT_CLS = [
@@ -77,6 +78,7 @@ function NumberField({
 
 type Props = {
   condition: RecommendationCondition;
+  isLoggedIn: boolean;
   onChange: (patch: Partial<RecommendationCondition>) => void;
   onNext: () => void;
   onReset: () => void;
@@ -84,16 +86,12 @@ type Props = {
 
 export default function ConditionWizardStep1({
   condition,
+  isLoggedIn,
   onChange,
   onNext,
   onReset,
 }: Props) {
-  const isReady =
-    condition.employmentType !== null &&
-    condition.houseOwnership !== null &&
-    condition.availableCash > 0 &&
-    condition.monthlyIncome > 0 &&
-    condition.monthlyExpenses > 0;
+  const isReady = isStep1ReadyByAuth(condition, isLoggedIn);
 
   return (
     <div className="space-y-4">
@@ -116,14 +114,16 @@ export default function ConditionWizardStep1({
       </div>
 
       <div className="grid grid-cols-1 gap-3 xs:grid-cols-2">
-        <div>
-          <span className={LABEL}>직업</span>
-          <Select<EmploymentType>
-            value={(condition.employmentType ?? "") as EmploymentType}
-            onChange={(employmentType) => onChange({ employmentType })}
-            options={EMPLOYMENT_OPTIONS}
-          />
-        </div>
+        {isLoggedIn ? (
+          <div>
+            <span className={LABEL}>직업</span>
+            <Select<EmploymentType>
+              value={(condition.employmentType ?? "") as EmploymentType}
+              onChange={(employmentType) => onChange({ employmentType })}
+              options={EMPLOYMENT_OPTIONS}
+            />
+          </div>
+        ) : null}
 
         <div>
           <span className={LABEL}>보유 주택</span>
@@ -159,14 +159,16 @@ export default function ConditionWizardStep1({
           />
         </div>
 
-        <div>
-          <NumberField
-            label="월 지출"
-            value={condition.monthlyExpenses}
-            placeholder="예: 150"
-            onChange={(monthlyExpenses) => onChange({ monthlyExpenses })}
-          />
-        </div>
+        {isLoggedIn ? (
+          <div>
+            <NumberField
+              label="월 지출"
+              value={condition.monthlyExpenses}
+              placeholder="예: 150"
+              onChange={(monthlyExpenses) => onChange({ monthlyExpenses })}
+            />
+          </div>
+        ) : null}
       </div>
 
       <button

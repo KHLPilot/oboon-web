@@ -160,6 +160,7 @@ export default function ConditionWizard({
           {currentStep === 0 && (
             <ConditionWizardStep1
               condition={condition}
+              isLoggedIn={isLoggedIn}
               onChange={onChange}
               onNext={() => handleNext(0)}
               onReset={handleReset}
@@ -179,6 +180,7 @@ export default function ConditionWizard({
           {currentStep === 2 && (
             <ConditionWizardStep3
               condition={condition}
+              isLoggedIn={isLoggedIn}
               onChange={onChange}
               onBack={() => setCurrentStep(1)}
               onFinish={() => void handleFinish()}
