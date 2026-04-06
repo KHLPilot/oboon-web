@@ -121,6 +121,10 @@ function formatAreaLabel(area: number | null) {
   })}㎡`;
 }
 
+function formatStoredAmount(value: number): string {
+  return value.toLocaleString("ko-KR");
+}
+
 function formatUnitTypeTitle(item: UnitTypeResultItem) {
   const rawName = item.unit_type_name?.trim();
   if (rawName) {
@@ -593,8 +597,6 @@ export default function ConditionValidationCard({
   }, [evaluateWithValues, isLoggedIn, profileAutoFill, propertyId]);
 
   useEffect(() => {
-    if (hasStoredProfileAutoFill(profileAutoFill)) return;
-
     const sessionSnapshot = loadConditionSession();
     if (!sessionSnapshot) return;
 
@@ -789,6 +791,58 @@ export default function ConditionValidationCard({
       setExistingMonthlyRepayment(patch.existingMonthlyRepayment);
     }
   };
+
+  const handleRestoreDefaultCondition = useCallback(() => {
+    if (!savedConditionState) return false;
+
+    setAvailableCash(
+      savedConditionState.availableCashManwon == null
+        ? ""
+        : formatStoredAmount(savedConditionState.availableCashManwon),
+    );
+    setMonthlyIncome(
+      savedConditionState.monthlyIncomeManwon == null
+        ? ""
+        : formatStoredAmount(savedConditionState.monthlyIncomeManwon),
+    );
+    setMonthlyExpenses(
+      savedConditionState.monthlyExpensesManwon == null
+        ? ""
+        : formatStoredAmount(savedConditionState.monthlyExpensesManwon),
+    );
+    setEmploymentType(savedConditionState.employmentType);
+    setHouseOwnership(savedConditionState.houseOwnership);
+    setPurchasePurpose(savedConditionState.purchasePurposeV2);
+    setPurchaseTiming(savedConditionState.purchaseTiming);
+    setMoveinTiming(savedConditionState.moveinTiming);
+    setLtvInternalScore(savedConditionState.ltvInternalScore);
+    setGuestCreditGrade(
+      savedConditionState.ltvInternalScore == null
+        ? "good"
+        : savedConditionState.ltvInternalScore >= 70
+          ? "good"
+          : savedConditionState.ltvInternalScore >= 40
+            ? "normal"
+            : "unstable",
+    );
+    setExistingLoan(savedConditionState.existingLoan);
+    setRecentDelinquency(savedConditionState.recentDelinquency);
+    setCardLoanUsage(savedConditionState.cardLoanUsage);
+    setLoanRejection(savedConditionState.loanRejection);
+    setMonthlyIncomeRange(savedConditionState.monthlyIncomeRange);
+    setExistingMonthlyRepayment(
+      savedConditionState.existingMonthlyRepayment ?? "none",
+    );
+    return true;
+  }, [savedConditionState]);
+
+  useEffect(() => {
+    if (!isInputSectionVisible || isLoggedIn === false) return;
+    const latestSession = loadConditionSession();
+    if (latestSession) {
+      applySessionCondition(latestSession);
+    }
+  }, [isInputSectionVisible, isLoggedIn, applySessionCondition]);
 
   const handleSaveCondition = useCallback(async (): Promise<boolean> => {
     if (!isLoggedIn) {
@@ -1029,6 +1083,20 @@ export default function ConditionValidationCard({
       {/* Input Section */}
       {isInputSectionVisible ? (
         <div className="mt-2.5 space-y-2.5">
+          {isLoggedIn && hasSavedConditionPreset && isConditionDirty ? (
+            <div className="flex items-center justify-between gap-2 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-2">
+              <p className="ob-typo-caption text-(--oboon-text-muted)">
+                저장된 기본 조건과 다릅니다.
+              </p>
+              <button
+                type="button"
+                onClick={handleRestoreDefaultCondition}
+                className="shrink-0 ob-typo-caption font-medium text-(--oboon-primary) underline underline-offset-4 hover:opacity-70"
+              >
+                기본 조건으로
+              </button>
+            </div>
+          ) : null}
           <ConditionWizard
             condition={wizardCondition}
             isLoggedIn={isLoggedIn}

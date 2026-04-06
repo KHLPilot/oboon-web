@@ -5,37 +5,34 @@ import {
   shouldAutoEvaluateRecommendations,
 } from "../features/recommendations/lib/recommendation-evaluation.ts";
 
-test("ready 상태여도 사용자가 평가를 누르기 전에는 자동 평가하지 않는다", () => {
+test("ready 상태면 최초 진입에도 자동 평가한다", () => {
   const shouldRun = shouldAutoEvaluateRecommendations({
     isBootstrapping: false,
-    hasUserTriggeredEvaluation: false,
-    mode: "input",
+    hasRestoredCondition: true,
+    alreadyAutoEvaluated: false,
     isReadyToEvaluate: true,
-    skipNextAutoEvaluation: false,
-  });
-
-  assert.equal(shouldRun, false);
-});
-
-test("사용자가 한 번 평가한 뒤 시뮬레이터에서 조건이 바뀌면 자동 재평가할 수 있다", () => {
-  const shouldRun = shouldAutoEvaluateRecommendations({
-    isBootstrapping: false,
-    hasUserTriggeredEvaluation: true,
-    mode: "sim",
-    isReadyToEvaluate: true,
-    skipNextAutoEvaluation: false,
   });
 
   assert.equal(shouldRun, true);
 });
 
-test("직전 수동 평가로 상태를 동기화한 경우 다음 자동 평가는 건너뛴다", () => {
+test("복원된 조건이 없으면 자동 평가하지 않는다", () => {
   const shouldRun = shouldAutoEvaluateRecommendations({
     isBootstrapping: false,
-    hasUserTriggeredEvaluation: true,
-    mode: "sim",
+    hasRestoredCondition: false,
+    alreadyAutoEvaluated: false,
     isReadyToEvaluate: true,
-    skipNextAutoEvaluation: true,
+  });
+
+  assert.equal(shouldRun, false);
+});
+
+test("페이지 진입 후 이미 자동 평가했다면 다시 자동 평가하지 않는다", () => {
+  const shouldRun = shouldAutoEvaluateRecommendations({
+    isBootstrapping: false,
+    hasRestoredCondition: true,
+    alreadyAutoEvaluated: true,
+    isReadyToEvaluate: true,
   });
 
   assert.equal(shouldRun, false);

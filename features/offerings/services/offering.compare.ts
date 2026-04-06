@@ -2,6 +2,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { createSupabaseServer } from "@/lib/supabaseServer";
 import { evaluateFullCondition } from "@/features/condition-validation/domain/fullCustomerEvaluator";
+import { buildScheduleAwareTimingCategory } from "@/features/condition-validation/lib/timing-satisfaction";
 import type {
   EmploymentType,
   FullCustomerInput,
@@ -381,9 +382,24 @@ export async function getOfferingsForCompare(
           propertyIdInput: id,
         });
         if (profile) {
+          const timeline = pickFirst(snapshot.property_timeline);
           const evaluation = evaluateFullCondition({
             profile,
             customer: viewerCustomer,
+            timingOverride: buildScheduleAwareTimingCategory({
+              purchaseTiming: viewerCustomer.purchaseTiming,
+              moveinTiming: viewerCustomer.moveinTiming,
+              timeline: timeline
+                ? {
+                    announcementDate: timeline.announcement_date,
+                    applicationStart: timeline.application_start,
+                    applicationEnd: timeline.application_end,
+                    contractStart: timeline.contract_start,
+                    contractEnd: timeline.contract_end,
+                    moveInDate: timeline.move_in_date,
+                  }
+                : null,
+            }),
           });
           item.conditionResult = evaluation.finalGrade;
           item.conditionCategories = {

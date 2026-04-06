@@ -23,6 +23,7 @@ type MobileConditionSheetProps = {
   onEvaluate: (override?: RecommendationCondition) => Promise<boolean>;
   onSave?: () => void | Promise<boolean>;
   onLoginAndSave?: () => void | Promise<void>;
+  onRestoreDefault?: () => boolean;
   onModeChange: (mode: RecommendationMode) => void;
 };
 
@@ -96,6 +97,7 @@ export default function MobileConditionSheet(props: MobileConditionSheetProps) {
     onEvaluate,
     onSave,
     onLoginAndSave,
+    onRestoreDefault,
     onModeChange,
   } = props;
   const [open, setOpen] = useState(false);
@@ -205,6 +207,7 @@ export default function MobileConditionSheet(props: MobileConditionSheetProps) {
               onEvaluate={handleEvaluate}
               onSave={onSave}
               onLoginAndSave={onLoginAndSave}
+              onRestoreDefault={onRestoreDefault}
               onModeChange={onModeChange}
             />
           </div>

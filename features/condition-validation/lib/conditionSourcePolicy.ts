@@ -16,10 +16,14 @@ export function pickLoggedInConditionSource(flags: {
   hasDraft: boolean;
   hasSession: boolean;
 }): LoggedInConditionSource {
-  if (flags.hasProfile) return "profile";
+  // 1순위: 상담사 요청 조건
   if (flags.hasRequest) return "request";
-  if (flags.hasDraft) return "draft";
+  // 2순위: 최근 평가한 조건 (sessionStorage)
   if (flags.hasSession) return "session";
+  // 3순위: 저장된 기본 조건 (profile)
+  if (flags.hasProfile) return "profile";
+  // 4순위: 임시 저장 조건 (localStorage draft)
+  if (flags.hasDraft) return "draft";
   return "default";
 }
 

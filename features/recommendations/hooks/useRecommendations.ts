@@ -1015,6 +1015,8 @@ export function useRecommendations() {
   const hasUserTriggeredEvaluationRef = useRef(false);
   const skipAutoEvalRef = useRef(false);
   const previousIsLoggedInRef = useRef<boolean | null>(null);
+  const restoredConditionForAutoEvalRef = useRef(false);
+  const autoEvaluatedOnEntryRef = useRef(false);
 
   const [condition, setCondition] = useState<RecommendationCondition>(
     DEFAULT_CONDITION,
@@ -1084,6 +1086,8 @@ export function useRecommendations() {
               )
             : sanitizeGuestCondition(DEFAULT_CONDITION);
           setCondition(nextCondition);
+          restoredConditionForAutoEvalRef.current = Boolean(sessionSnapshot);
+          autoEvaluatedOnEntryRef.current = false;
         }
       } else {
         // 저장된 조건 불러오기
@@ -1158,6 +1162,8 @@ export function useRecommendations() {
 
             return normalizeInputCondition(next);
           });
+          restoredConditionForAutoEvalRef.current = source !== "default";
+          autoEvaluatedOnEntryRef.current = false;
 
           if (useProfile) {
             setSavedConditionPreset((prev) =>
@@ -1197,6 +1203,8 @@ export function useRecommendations() {
               normalizeInputCondition(conditionFromSession(sessionSnapshot, prev)),
             );
           }
+          restoredConditionForAutoEvalRef.current = source !== "default";
+          autoEvaluatedOnEntryRef.current = false;
         }
       }
       setIsBootstrapping(false);
@@ -1228,6 +1236,8 @@ export function useRecommendations() {
     setValidationError(null);
     hasUserTriggeredEvaluationRef.current = false;
     skipAutoEvalRef.current = false;
+    restoredConditionForAutoEvalRef.current = false;
+    autoEvaluatedOnEntryRef.current = false;
   }, [isLoggedIn]);
 
   const metadataById = useMemo(() => {
@@ -1374,27 +1384,22 @@ export function useRecommendations() {
     condition.ltvInternalScore > 0;
 
   useEffect(() => {
-    const skipNextAutoEvaluation = skipAutoEvalRef.current;
-
     if (!shouldAutoEvaluateRecommendations({
       isBootstrapping,
-      hasUserTriggeredEvaluation: hasUserTriggeredEvaluationRef.current,
-      mode,
+      hasRestoredCondition: restoredConditionForAutoEvalRef.current,
+      alreadyAutoEvaluated: autoEvaluatedOnEntryRef.current,
       isReadyToEvaluate,
-      skipNextAutoEvaluation,
     })) {
-      if (skipNextAutoEvaluation) {
-        skipAutoEvalRef.current = false;
-      }
       return;
     }
 
     const timer = setTimeout(() => {
+      autoEvaluatedOnEntryRef.current = true;
       void runEvaluate(condition);
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [condition, isBootstrapping, isReadyToEvaluate, mode, runEvaluate]);
+  }, [condition, isBootstrapping, isReadyToEvaluate, runEvaluate]);
 
   const updateCondition = useCallback(
     (patch: Partial<RecommendationCondition>) => {
@@ -1416,6 +1421,7 @@ export function useRecommendations() {
   );
 
   const evaluate = useCallback(async (override?: RecommendationCondition) => {
+    const isSimulatorOverride = override != null && mode === "sim";
     const evalCondition =
       override == null
         ? condition
@@ -1434,29 +1440,26 @@ export function useRecommendations() {
 
     setValidationError(null);
     hasUserTriggeredEvaluationRef.current = true;
-    if (override != null) {
+    if (override != null && !isSimulatorOverride) {
       skipAutoEvalRef.current = true;
       setCondition(isLoggedIn ? evalCondition : sanitizeGuestCondition(evalCondition));
     }
-    saveConditionSession(
-      buildConditionSession(
-        isLoggedIn ? evalCondition : sanitizeGuestCondition(evalCondition),
-      ),
-    );
+    if (!isSimulatorOverride) {
+      saveConditionSession(
+        buildConditionSession(
+          isLoggedIn ? evalCondition : sanitizeGuestCondition(evalCondition),
+        ),
+      );
+    }
+    restoredConditionForAutoEvalRef.current = false;
+    autoEvaluatedOnEntryRef.current = true;
     return runEvaluate(evalCondition);
   }, [condition, isLoggedIn, mode, runEvaluate]);
 
   const changeMode = useCallback((nextMode: RecommendationMode) => {
     setValidationError(null);
-    setCondition((prev) => {
-      const nextCondition =
-        nextMode === "sim"
-          ? normalizeSimulatorCondition(prev, isLoggedIn)
-          : prev;
-      return isLoggedIn ? nextCondition : sanitizeGuestCondition(nextCondition);
-    });
     setMode(nextMode);
-  }, [isLoggedIn]);
+  }, []);
 
   const saveCondition = useCallback(async (): Promise<boolean> => {
     if (!isLoggedIn) return false;
@@ -1465,7 +1468,7 @@ export function useRecommendations() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return false;
 
-      const { error } = await supabase
+      const { error, data: updated } = await supabase
         .from("profiles")
         .update({
           cv_available_cash_manwon: condition.availableCash || null,
@@ -1484,17 +1487,22 @@ export function useRecommendations() {
           cv_monthly_income_range: condition.monthlyIncomeRange,
           cv_existing_monthly_repayment: condition.existingMonthlyRepayment,
         })
-        .eq("id", user.id);
+        .eq("id", user.id)
+        .select("id");
 
       if (error) {
         console.error("[saveCondition] profiles update failed:", error);
       }
-      if (!error) {
+      if (!error && (!updated || updated.length === 0)) {
+        console.warn("[saveCondition] profiles update: 0 rows affected (RLS blocked or row missing)");
+      }
+      const saved = !error && Array.isArray(updated) && updated.length > 0;
+      if (saved) {
         setHasSavedConditionPreset(true);
         setSavedConditionPreset(buildSavedConditionBaseline(condition));
         clearRecommendationConditionDraft();
       }
-      return !error;
+      return saved;
     } finally {
       setIsSavingCondition(false);
     }
@@ -1519,6 +1527,15 @@ export function useRecommendations() {
     router.push("/auth/login?next=/recommendations");
   }, [condition, router]);
 
+  const restoreSavedCondition = useCallback(() => {
+    if (!savedConditionPreset) return false;
+
+    setValidationError(null);
+    setCondition(savedConditionPreset);
+    saveConditionSession(buildConditionSession(savedConditionPreset));
+    return true;
+  }, [savedConditionPreset]);
+
   return {
     condition,
     mode,
@@ -1536,6 +1553,7 @@ export function useRecommendations() {
     evaluate,
     saveCondition,
     loginAndSaveCondition,
+    restoreSavedCondition,
     isSavingCondition,
     hasSavedConditionPreset,
     isConditionDirty,

@@ -29,7 +29,7 @@ import NaverMap, {
 import { UXCopy } from "@/shared/uxCopy";
 import OfferingBadge from "@/features/offerings/components/OfferingBadges";
 import { useToast } from "@/components/ui/Toast";
-import { isOfferingStatusValue } from "@/features/offerings/domain/offering.constants";
+import { normalizeOfferingStatusValue } from "@/features/offerings/domain/offering.constants";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import type {
   PropertyFacilityRow,
@@ -382,10 +382,7 @@ export default function OfferingDetailLeft({
   const isPricePrivate = hasPrivatePriceUnits && !hasPublicPriceUnits;
 
   const address = fmtAddr(loc0);
-  const statusValue =
-    typeof p.status === "string" && isOfferingStatusValue(p.status)
-      ? p.status
-      : null;
+  const statusValue = normalizeOfferingStatusValue(p.status);
 
   const galleryImageUrls = buildGalleryImageUrls(p);
   const modelhouseImageRows = asArray<PropertyModelhouseImageRow>(

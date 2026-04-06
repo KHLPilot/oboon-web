@@ -243,6 +243,7 @@ function buildSummary(grade: FinalGrade5, score: number): string {
 export function evaluateFullCondition(params: {
   profile: PropertyValidationProfile;
   customer: FullCustomerInput;
+  timingOverride?: FullEvaluationCategoryResult;
 }): FullEvaluationResult {
   const { profile, customer } = params;
 
@@ -268,7 +269,8 @@ export function evaluateFullCondition(params: {
   });
   const ownership = ownershipCategory(customer.houseOwnership);
   const purpose = purposeCategory(customer.purchasePurpose);
-  const timing = timingCategory(customer.purchaseTiming, customer.moveinTiming);
+  const timing =
+    params.timingOverride ?? timingCategory(customer.purchaseTiming, customer.moveinTiming);
 
   const totalScore =
     cash.score +

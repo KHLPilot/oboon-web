@@ -23,8 +23,8 @@ import MobileConditionSheet from "@/features/recommendations/components/MobileCo
 import OfferingCard from "@/features/offerings/components/OfferingCard";
 import RecommendationCardSkeleton from "@/features/recommendations/components/RecommendationCardSkeleton";
 import RecommendationConditionPanel from "@/features/recommendations/components/RecommendationConditionPanel";
+import RecommendationResultChips from "@/features/recommendations/components/RecommendationResultChips";
 import { RecommendationPreviewContent } from "@/features/recommendations/components/GaugeOverlay";
-import { grade5DetailLabel } from "@/features/condition-validation/lib/grade5Labels";
 import type {
   RecommendationCondition,
   RecommendationItem,
@@ -33,6 +33,7 @@ import { ROUTES } from "@/types/index";
 import {
   useRecommendations,
 } from "@/features/recommendations/hooks/useRecommendations";
+import { classifyRecommendation } from "@/features/recommendations/lib/recommendation-visibility.mjs";
 import { cn } from "@/lib/utils/cn";
 import { Copy } from "@/shared/copy";
 
@@ -115,50 +116,6 @@ function MobileCardDetailSheet(props: {
         </div>
       </div>
     </div>
-  );
-}
-
-function ResultChip(props: {
-  label: string;
-  count: number;
-  tone: "GREEN" | "LIME" | "YELLOW";
-}) {
-  const { label, count, tone } = props;
-
-  const toneClassName =
-    tone === "GREEN"
-      ? "bg-(--oboon-grade-green-bg) text-(--oboon-grade-green-text)"
-      : tone === "LIME"
-      ? "bg-(--oboon-grade-lime-bg) text-(--oboon-grade-lime-text)"
-      : "bg-(--oboon-grade-yellow-bg) text-(--oboon-grade-yellow-text)";
-
-  const dotColor =
-    tone === "GREEN"
-      ? "bg-(--oboon-grade-green)"
-      : tone === "LIME"
-      ? "bg-(--oboon-grade-lime)"
-      : "bg-(--oboon-grade-yellow)";
-
-  if (count === 0) return null;
-
-  return (
-    <>
-      {/* 모바일: 컬러 점 + 숫자 */}
-      <span className="inline-flex items-center gap-1.5 ob-typo-body text-(--oboon-text-muted) sm:hidden">
-        <span className={cn("h-2 w-2 shrink-0 rounded-full", dotColor)} />
-        {count}개
-      </span>
-
-      {/* 데스크탑: 기존 필 배지 */}
-      <span
-        className={cn(
-          "hidden sm:inline-flex items-center gap-1 rounded-full px-2.5 py-1 ob-typo-caption",
-          toneClassName,
-        )}
-      >
-        {label} {count}개
-      </span>
-    </>
   );
 }
 
@@ -245,6 +202,7 @@ export default function RecommendationsPage() {
     evaluate,
     saveCondition,
     loginAndSaveCondition,
+    restoreSavedCondition,
     isSavingCondition,
     hasSavedConditionPreset,
     isConditionDirty,
@@ -377,19 +335,27 @@ export default function RecommendationsPage() {
     return next.sort(compareByDefault);
   }, [searchedResults, sortKey]);
 
+  const { primaryItems, alternativeItems } = useMemo(() => {
+    const primary: RecommendationItem[] = [];
+    const alternative: RecommendationItem[] = [];
+    for (const item of sortedResults) {
+      const grades = Object.values(item.evalResult.categories).map(
+        (c) => c.grade,
+      );
+      const type = classifyRecommendation(grades);
+      if (type === "primary") primary.push(item);
+      else if (type === "alternative") alternative.push(item);
+    }
+    return { primaryItems: primary, alternativeItems: alternative };
+  }, [sortedResults]);
+
   const gradeCounts = useMemo(
-    () =>
-      sortedResults.reduce(
-        (acc, item) => {
-          const grade = item.evalResult.finalGrade;
-          if (grade === "GREEN") acc.GREEN += 1;
-          else if (grade === "LIME") acc.LIME += 1;
-          else if (grade === "YELLOW" || grade === "ORANGE") acc.YELLOW += 1;
-          return acc;
-        },
-        { GREEN: 0, LIME: 0, YELLOW: 0 },
-      ),
-    [sortedResults],
+    () => ({
+      GREEN: primaryItems.filter((i) => i.evalResult.finalGrade === "GREEN").length,
+      LIME: primaryItems.filter((i) => i.evalResult.finalGrade === "LIME").length,
+      ALTERNATIVE: alternativeItems.length,
+    }),
+    [primaryItems, alternativeItems],
   );
   const flipScope = useMemo(
     () =>
@@ -491,16 +457,13 @@ export default function RecommendationsPage() {
               onEvaluate={handleEvaluate}
               onSave={saveCondition}
               onLoginAndSave={loginAndSaveCondition}
+              onRestoreDefault={restoreSavedCondition}
               onModeChange={changeMode}
             />
 
             {showResultToolbar ? (
               <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-                <div className="flex min-w-0 items-center gap-3 sm:gap-2 overflow-hidden whitespace-nowrap">
-                  <ResultChip label={grade5DetailLabel("GREEN")} count={gradeCounts.GREEN} tone="GREEN" />
-                  <ResultChip label={grade5DetailLabel("LIME")} count={gradeCounts.LIME} tone="LIME" />
-                  <ResultChip label={grade5DetailLabel("YELLOW")} count={gradeCounts.YELLOW} tone="YELLOW" />
-                </div>
+                <RecommendationResultChips counts={gradeCounts} />
                 <div className="flex shrink-0 items-center gap-2">
                   <SortDropdown
                     value={sortKey}
@@ -613,6 +576,7 @@ export default function RecommendationsPage() {
                   onEvaluate={handleEvaluate}
                   onSave={saveCondition}
                   onLoginAndSave={loginAndSaveCondition}
+                  onRestoreDefault={restoreSavedCondition}
                   onModeChange={changeMode}
                 />
               </div>
@@ -687,10 +651,52 @@ export default function RecommendationsPage() {
                   />
                 ) : null}
 
-                {!showSkeleton && sortedResults.length > 0
-                  ? (
+                {!showSkeleton && primaryItems.length > 0 ? (
+                  <div className="space-y-3 sm:grid sm:grid-cols-2 sm:gap-4 sm:space-y-0 lg:grid-cols-3">
+                    {primaryItems.map((item) => (
+                      <div
+                        key={item.property.id}
+                        ref={(node) => registerCardRef(item.property.id, node)}
+                        className="min-w-0"
+                      >
+                        <div className="sm:hidden">
+                          <OfferingCard
+                            offering={item.offering}
+                            evalResult={item.evalResult}
+                            isSelected={visibleSelectedId === Number(item.offering.id)}
+                            onCardClick={() => {
+                              handleSelectFromCard(Number(item.offering.id));
+                              setMobileDetailItem(item);
+                            }}
+                            interactionMode="button"
+                          />
+                        </div>
+                        <div className="hidden sm:block">
+                          <FlippableRecommendationCard
+                            item={item}
+                            isSelected={visibleSelectedId === item.property.id}
+                            isFlipped={flippedId === item.property.id}
+                            disableFlip={item.evalResult.isMasked}
+                            onFlip={() => handleFlipFromCard(item.property.id)}
+                            onSelect={() => handleSelectFromCard(item.property.id)}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                {!showSkeleton && alternativeItems.length > 0 ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="h-px flex-1 bg-(--oboon-border-default)" />
+                      <span className="shrink-0 ob-typo-caption text-(--oboon-text-muted)">
+                        대안 현장 {alternativeItems.length}개 — 한 항목이 아쉽지만 고려해볼 수 있어요
+                      </span>
+                      <div className="h-px flex-1 bg-(--oboon-border-default)" />
+                    </div>
                     <div className="space-y-3 sm:grid sm:grid-cols-2 sm:gap-4 sm:space-y-0 lg:grid-cols-3">
-                      {sortedResults.map((item) => (
+                      {alternativeItems.map((item) => (
                         <div
                           key={item.property.id}
                           ref={(node) => registerCardRef(item.property.id, node)}
@@ -721,15 +727,16 @@ export default function RecommendationsPage() {
                         </div>
                       ))}
                     </div>
-                  )
-                  : null}
+                  </div>
+                ) : null}
               </div>
             </section>
           ) : (
             <aside className="h-[500px] sm:h-[520px] md:h-[620px]">
               <div className="relative h-full">
                 <MiniMap
-                  items={sortedResults}
+                  items={[...primaryItems, ...alternativeItems]}
+                  gradeCounts={gradeCounts}
                   selectedId={visibleSelectedId}
                   onSelect={handleSelectFromMap}
                 />

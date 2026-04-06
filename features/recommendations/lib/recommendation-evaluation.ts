@@ -1,11 +1,8 @@
-type RecommendationMode = "input" | "sim";
-
 type ShouldAutoEvaluateRecommendationsParams = {
   isBootstrapping: boolean;
-  hasUserTriggeredEvaluation: boolean;
-  mode: RecommendationMode;
+  hasRestoredCondition: boolean;
+  alreadyAutoEvaluated: boolean;
   isReadyToEvaluate: boolean;
-  skipNextAutoEvaluation: boolean;
 };
 
 export function shouldAutoEvaluateRecommendations(
@@ -13,16 +10,14 @@ export function shouldAutoEvaluateRecommendations(
 ): boolean {
   const {
     isBootstrapping,
-    hasUserTriggeredEvaluation,
-    mode,
+    hasRestoredCondition,
+    alreadyAutoEvaluated,
     isReadyToEvaluate,
-    skipNextAutoEvaluation,
   } = params;
 
   if (isBootstrapping) return false;
-  if (!hasUserTriggeredEvaluation) return false;
-  if (mode !== "sim") return false;
+  if (!hasRestoredCondition) return false;
+  if (alreadyAutoEvaluated) return false;
   if (!isReadyToEvaluate) return false;
-  if (skipNextAutoEvaluation) return false;
   return true;
 }

@@ -606,7 +606,7 @@ export default function OfferingDetailRight({
       propertyId={propertyId}
       propertyName={propertyName}
       presetCustomer={resolvedConditionPreset}
-      profileAutoFill={isLoggedIn && userRole === "user" ? profileAutoFill : null}
+      profileAutoFill={isLoggedIn ? profileAutoFill : null}
       isLoggedIn={isLoggedIn}
       hasBookableAgent={hasBookableAgent}
       isBookingBlockedRole={isBookingBlockedRole}

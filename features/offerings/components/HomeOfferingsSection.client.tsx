@@ -1785,6 +1785,51 @@ export default function HomeOfferingsSection() {
     supabase,
   ]);
 
+  // 저장된 기본 조건으로 복원 (로그인 사용자, 홈 모달용)
+  const handleRestoreDefaultCondition = useCallback(() => {
+    if (!savedConditionPreset) return false;
+    setAvailableCash(
+      savedConditionPreset.available_cash == null
+        ? ""
+        : formatStoredAmount(savedConditionPreset.available_cash),
+    );
+    setMonthlyIncome(
+      savedConditionPreset.monthly_income == null
+        ? ""
+        : formatStoredAmount(savedConditionPreset.monthly_income),
+    );
+    setMonthlyExpenses(
+      savedConditionPreset.monthly_expenses == null
+        ? ""
+        : formatStoredAmount(savedConditionPreset.monthly_expenses),
+    );
+    setEmploymentType(savedConditionPreset.employment_type);
+    setHouseOwnership(savedConditionPreset.house_ownership);
+    setPurchasePurposeV2(savedConditionPreset.purchase_purpose_v2);
+    setPurchaseTiming(savedConditionPreset.purchase_timing);
+    setMoveinTiming(savedConditionPreset.movein_timing);
+    setLtvInternalScore(savedConditionPreset.ltv_internal_score);
+    setGuestCreditGrade(creditGradeFromLtvInternalScore(savedConditionPreset.ltv_internal_score));
+    setExistingLoan(savedConditionPreset.existing_loan_amount);
+    setRecentDelinquency(savedConditionPreset.recent_delinquency);
+    setCardLoanUsage(savedConditionPreset.card_loan_usage);
+    setLoanRejection(savedConditionPreset.loan_rejection);
+    setMonthlyIncomeRange(savedConditionPreset.monthly_income_range);
+    setExistingMonthlyRepayment(savedConditionPreset.existing_monthly_repayment);
+    return true;
+  }, [savedConditionPreset]);
+
+  // 모달이 열릴 때 세션에서 최신 조건 동기화
+  // (맞춤 현장 페이지에서 평가 후 홈으로 돌아올 때 Next.js 캐시로 인해
+  //  init effect가 재실행되지 않을 수 있으므로 모달 open 시 재동기화)
+  useEffect(() => {
+    if (!conditionModalOpen || isLoggedIn === false) return;
+    const latestSession = loadConditionSession();
+    if (latestSession) {
+      applySessionCondition(latestSession);
+    }
+  }, [conditionModalOpen, isLoggedIn, applySessionCondition]);
+
   useEffect(() => {
     let mounted = true;
 
@@ -1875,9 +1920,6 @@ export default function HomeOfferingsSection() {
       setHomeUserId(user.id);
       setIsLoggedIn(true);
       setConditionRegions([]);
-      // 로그인 감지 시 세션 조건 클리어 — 로그인 후 로그아웃했을 때
-      // 이전 사용자 조건이 게스트 세션에 남아 복원되는 것을 방지
-      clearConditionSession();
 
       // 찜한 현장 ID 목록 로드
       const { data: scraps } = await supabase
@@ -1928,14 +1970,6 @@ export default function HomeOfferingsSection() {
         return;
       }
 
-      if (profileData && presetCustomer) {
-        applyProfileConditionPreset(profileData, presetCustomer);
-        setShowConditionSetupCard(false);
-        await applyRecommendationRef.current(presetCustomer, { closeModal: false });
-        clearHomeConditionDraft();
-        return;
-      }
-
       const homeDraft = loadHomeConditionDraft();
 
       if (requestResult.error) {
@@ -1951,6 +1985,12 @@ export default function HomeOfferingsSection() {
         hasSession: Boolean(sessionSnapshot),
       });
 
+      // session을 사용하지 않는 경우에만 클리어.
+      // (이전 사용자의 게스트 세션이 로그인 사용자에게 보이는 것을 방지)
+      if (source !== "session") {
+        clearConditionSession();
+      }
+
       if (source === "request" && latest && latestCustomer) {
           const requestPayload = toUnknownRecord(latest.input_payload);
           const requestCustomer = toUnknownRecord(requestPayload?.customer) ?? {
@@ -1964,6 +2004,14 @@ export default function HomeOfferingsSection() {
           setShowConditionSetupCard(false);
           await applyRecommendationRef.current(latestCustomer, { closeModal: false });
           return;
+      }
+
+      if (source === "profile" && profileData && presetCustomer) {
+        applyProfileConditionPreset(profileData, presetCustomer);
+        setShowConditionSetupCard(false);
+        await applyRecommendationRef.current(presetCustomer, { closeModal: false });
+        clearHomeConditionDraft();
+        return;
       }
 
       if (source === "draft" && homeDraft) {
@@ -2269,7 +2317,21 @@ export default function HomeOfferingsSection() {
           <p className="mt-1 ob-typo-subtitle text-(--oboon-text-muted)">
             조건을 입력하면 맞춤 현장을 계산해요.
           </p>
-          <div className="mt-4">
+          <div className="mt-4 space-y-3">
+            {isLoggedIn !== false && hasSavedConditionPreset && isConditionDirty ? (
+              <div className="flex items-center justify-between gap-2 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-2">
+                <p className="ob-typo-caption text-(--oboon-text-muted)">
+                  저장된 기본 조건과 다릅니다.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleRestoreDefaultCondition}
+                  className="shrink-0 ob-typo-caption font-medium text-(--oboon-primary) underline underline-offset-4 hover:opacity-70"
+                >
+                  기본 조건으로
+                </button>
+              </div>
+            ) : null}
             <ConditionWizard
               condition={wizardCondition}
               isLoggedIn={isLoggedIn !== false}

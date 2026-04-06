@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { z } from "zod";
 
 import { evaluateFullCondition } from "@/features/condition-validation/domain/fullCustomerEvaluator";
+import { buildScheduleAwareTimingCategory } from "@/features/condition-validation/lib/timing-satisfaction";
 import {
   loadPropertyProfile,
   loadUnitValidationProfiles,
@@ -15,6 +16,15 @@ import {
   checkAuthRateLimit,
   conditionEvaluationUserLimiter,
 } from "@/lib/rateLimit";
+
+type PropertyTimelineRow = {
+  announcement_date: string | null;
+  application_start: string | null;
+  application_end: string | null;
+  contract_start: string | null;
+  contract_end: string | null;
+  move_in_date: string | null;
+};
 
 function createAdminSupabase() {
   try {
@@ -146,6 +156,18 @@ export async function POST(request: Request) {
       );
     }
 
+    const { data: propertyRow } = await adminSupabase
+      .from("properties")
+      .select(
+        "property_timeline(announcement_date,application_start,application_end,contract_start,contract_end,move_in_date)",
+      )
+      .eq("id", propertyIdInput)
+      .maybeSingle<{ property_timeline: PropertyTimelineRow[] | PropertyTimelineRow | null }>();
+
+    const timeline = Array.isArray(propertyRow?.property_timeline)
+      ? (propertyRow.property_timeline[0] ?? null)
+      : (propertyRow?.property_timeline ?? null);
+
     const c = parsed.data.customer;
     const customer: FullCustomerInput = {
       employmentType: c.employment_type,
@@ -160,7 +182,22 @@ export async function POST(request: Request) {
       existingMonthlyRepayment: c.existing_monthly_repayment,
     };
 
-    const result = evaluateFullCondition({ profile, customer });
+    const timingOverride = buildScheduleAwareTimingCategory({
+      purchaseTiming: customer.purchaseTiming,
+      moveinTiming: customer.moveinTiming,
+      timeline: timeline
+        ? {
+            announcementDate: timeline.announcement_date,
+            applicationStart: timeline.application_start,
+            applicationEnd: timeline.application_end,
+            contractStart: timeline.contract_start,
+            contractEnd: timeline.contract_end,
+            moveInDate: timeline.move_in_date,
+          }
+        : null,
+    });
+
+    const result = evaluateFullCondition({ profile, customer, timingOverride });
 
     const resolvedPropertyId =
       profile.matchedPropertyId != null
@@ -182,7 +219,11 @@ export async function POST(request: Request) {
         source: "validation_profile" as const,
         matchedPropertyId: profile.matchedPropertyId,
       };
-      const unitResult = evaluateFullCondition({ profile: unitPropertyProfile, customer });
+      const unitResult = evaluateFullCondition({
+        profile: unitPropertyProfile,
+        customer,
+        timingOverride,
+      });
       return {
         unit_type_id: unitProfile.unitTypeId,
         unit_type_name: unitProfile.unitTypeName,

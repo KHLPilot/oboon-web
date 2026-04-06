@@ -11,12 +11,18 @@ import NaverMap, {
 import MapLocationStatusPill from "@/features/map/components/MapLocationStatusPill";
 import { useCurrentLocationCenter } from "@/features/map/hooks/useCurrentLocationCenter";
 import { grade5DetailLabel } from "@/features/condition-validation/lib/grade5Labels";
+import RecommendationResultChips from "@/features/recommendations/components/RecommendationResultChips";
 import type { RecommendationItem } from "@/features/recommendations/hooks/useRecommendations";
 import { formatPercent } from "@/lib/format/currency";
 import { Copy } from "@/shared/copy";
 
 type MiniMapProps = {
   items: RecommendationItem[];
+  gradeCounts: {
+    GREEN: number;
+    LIME: number;
+    ALTERNATIVE: number;
+  };
   selectedId: number | null;
   onSelect: (id: number) => void;
 };
@@ -297,7 +303,7 @@ function buildHeroInfraBadges(payload: RecoPoisResponse): HeroInfraState {
 }
 
 export default function MiniMap(props: MiniMapProps) {
-  const { items, selectedId, onSelect } = props;
+  const { items, gradeCounts, selectedId, onSelect } = props;
   const mapApiRef = useRef<NaverMapHandle | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const heroInfraCacheRef = useRef<Record<number, HeroInfraState>>({});
@@ -482,6 +488,13 @@ export default function MiniMap(props: MiniMapProps) {
   return (
     <div className="relative h-full overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)">
       <MapLocationStatusPill status={initialLocationStatus} />
+      {(gradeCounts.GREEN > 0 || gradeCounts.LIME > 0 || gradeCounts.ALTERNATIVE > 0) ? (
+        <div className="pointer-events-none absolute left-4 top-16 z-20 sm:top-4">
+          <div className="pointer-events-auto rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-surface)/88 px-3 py-2 shadow-[0_12px_28px_rgba(0,0,0,0.18)] backdrop-blur-md">
+            <RecommendationResultChips counts={gradeCounts} className="gap-2 sm:gap-2" />
+          </div>
+        </div>
+      ) : null}
       {markers.length > 0 ? (
         <>
           <NaverMap

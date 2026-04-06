@@ -22,6 +22,7 @@ type RecommendationConditionPanelProps = {
   onEvaluate: (override?: RecommendationCondition) => void | Promise<boolean>;
   onSave?: () => void | Promise<boolean>;
   onLoginAndSave?: () => void | Promise<void>;
+  onRestoreDefault?: () => boolean;
   onModeChange: (mode: RecommendationMode) => void;
 };
 
@@ -41,6 +42,7 @@ export default function RecommendationConditionPanel(
     onEvaluate,
     onSave,
     onLoginAndSave,
+    onRestoreDefault,
     onModeChange,
   } = props;
 
@@ -78,6 +80,21 @@ export default function RecommendationConditionPanel(
       {errorMessage ? (
         <div className="rounded-2xl border border-(--oboon-danger-border) bg-(--oboon-danger-bg) px-4 py-3">
           <p className="ob-typo-body text-(--oboon-danger-text)">{errorMessage}</p>
+        </div>
+      ) : null}
+
+      {isLoggedIn && hasSavedConditionPreset && isConditionDirty && onRestoreDefault ? (
+        <div className="flex items-center justify-between gap-2 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-2">
+          <p className="ob-typo-caption text-(--oboon-text-muted)">
+            저장된 기본 조건과 다릅니다.
+          </p>
+          <button
+            type="button"
+            onClick={onRestoreDefault}
+            className="shrink-0 ob-typo-caption font-medium text-(--oboon-primary) underline underline-offset-4 hover:opacity-70"
+          >
+            기본 조건으로
+          </button>
         </div>
       ) : null}
 

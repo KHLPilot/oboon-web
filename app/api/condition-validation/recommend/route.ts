@@ -12,7 +12,9 @@ import {
 
 import { evaluateFullCondition } from "@/features/condition-validation/domain/fullCustomerEvaluator";
 import { evaluateGuestCondition } from "@/features/condition-validation/domain/guestEvaluator";
+import { buildScheduleAwareTimingCategory } from "@/features/condition-validation/lib/timing-satisfaction";
 import { resolveProfileForRecommendation } from "@/features/condition-validation/server/profile-resolver";
+import { shouldShowRecommendationForCategoryGrades } from "@/features/recommendations/lib/recommendation-visibility.mjs";
 import { normalizeOfferingStatusValue } from "@/features/offerings/domain/offering.constants";
 import { OFFERING_STATUS_VALUES } from "@/features/offerings/domain/offering.types";
 import type {
@@ -118,7 +120,7 @@ type EvaluatedRecommendationBase = {
   property_image_url: string | null;
   show_detailed_metrics: boolean;
   displayMetrics: DisplayMetrics;
-  unit_type_results: UnitTypeEvaluationResult[];
+  unit_type_results: EvaluatedUnitTypeRecommendation[];
 };
 
 type FullEvaluatedRecommendation = EvaluatedRecommendationBase & {
@@ -134,6 +136,10 @@ type GuestEvaluatedRecommendation = EvaluatedRecommendationBase & {
 type EvaluatedRecommendation =
   | FullEvaluatedRecommendation
   | GuestEvaluatedRecommendation;
+
+type EvaluatedUnitTypeRecommendation = UnitTypeEvaluationResult & {
+  passesCategoryVisibility: boolean;
+};
 
 type RecommendationContextSnapshot = {
   properties: PropertyRow[];
@@ -297,6 +303,20 @@ function pickTimelineRow(property: PropertyRow): PropertyTimelineRow | null {
     return property.property_timeline[0] ?? null;
   }
   return property.property_timeline ?? null;
+}
+
+function toTimingSatisfactionTimeline(
+  timeline: PropertyTimelineRow | null,
+): Parameters<typeof buildScheduleAwareTimingCategory>[0]["timeline"] {
+  if (!timeline) return null;
+  return {
+    announcementDate: timeline.announcement_date,
+    applicationStart: timeline.application_start,
+    applicationEnd: timeline.application_end,
+    contractStart: timeline.contract_start,
+    contractEnd: timeline.contract_end,
+    moveInDate: timeline.move_in_date,
+  };
 }
 
 function isOngoingWindow(
@@ -631,10 +651,12 @@ function evaluateUnitTypes(params: {
   customer: FullCustomerInput | GuestCustomerInput;
   isGuestMode: boolean;
   monthlyIncome: number;
-}): UnitTypeEvaluationResult[] {
-  const { unitProfiles, customer, isGuestMode, monthlyIncome } = params;
+  timeline: PropertyTimelineRow | null;
+  todayStamp: number;
+}): EvaluatedUnitTypeRecommendation[] {
+  const { unitProfiles, customer, isGuestMode, monthlyIncome, timeline, todayStamp } = params;
 
-  return unitProfiles.map((unitProfile): UnitTypeEvaluationResult => {
+  return unitProfiles.map((unitProfile): EvaluatedUnitTypeRecommendation => {
     const profile: PropertyValidationProfile = {
       propertyId: unitProfile.propertyId,
       propertyName: null,
@@ -647,9 +669,25 @@ function evaluateUnitTypes(params: {
       matchedPropertyId: toPositiveInt(unitProfile.propertyId),
     };
 
-    const result = isGuestMode
-      ? evaluateGuestCondition({ profile, customer: customer as GuestCustomerInput })
-      : evaluateFullCondition({ profile, customer: customer as FullCustomerInput });
+    let result: FullEvaluationResult | GuestEvaluationResult;
+    let passesCategoryVisibility: boolean;
+
+    if (isGuestMode) {
+      result = evaluateGuestCondition({ profile, customer: customer as GuestCustomerInput });
+      passesCategoryVisibility = passesGuestCategoryVisibility(result);
+    } else {
+      result = evaluateFullCondition({
+        profile,
+        customer: customer as FullCustomerInput,
+        timingOverride: buildScheduleAwareTimingCategory({
+          purchaseTiming: (customer as FullCustomerInput).purchaseTiming,
+          moveinTiming: (customer as FullCustomerInput).moveinTiming,
+          timeline: toTimingSatisfactionTimeline(timeline),
+          todayStamp,
+        }),
+      });
+      passesCategoryVisibility = passesFullCategoryVisibility(result);
+    }
 
     const contractAmount = unitProfile.listPriceManwon * unitProfile.contractRatio;
     const loanAmount = unitProfile.listPriceManwon * (unitProfile.listPriceManwon <= 90000 ? 0.55 : 0.45);
@@ -669,6 +707,7 @@ function evaluateUnitTypes(params: {
       totalScore: result.totalScore,
       summaryMessage: result.summaryMessage,
       gradeLabel: result.gradeLabel,
+      passesCategoryVisibility,
       metrics: {
         contractAmount: Math.round(contractAmount),
         loanAmount: Math.round(loanAmount),
@@ -677,6 +716,27 @@ function evaluateUnitTypes(params: {
       },
     };
   });
+}
+
+function passesGuestCategoryVisibility(result: GuestEvaluationResult): boolean {
+  return shouldShowRecommendationForCategoryGrades([
+    result.categories.cash.grade,
+    result.categories.income.grade,
+    result.categories.credit.grade,
+    result.categories.ownership.grade,
+    result.categories.purpose.grade,
+  ]);
+}
+
+function passesFullCategoryVisibility(result: FullEvaluationResult): boolean {
+  return shouldShowRecommendationForCategoryGrades([
+    result.categories.cash.grade,
+    result.categories.income.grade,
+    result.categories.ltvDsr.grade,
+    result.categories.ownership.grade,
+    result.categories.purpose.grade,
+    result.categories.timing.grade,
+  ]);
 }
 
 const GRADE_ORDER: Record<string, number> = {
@@ -830,6 +890,7 @@ export async function POST(request: Request) {
           profileRow: profileByPropertyId.get(String(property.id)),
         });
         if (!profile) return null;
+        const timeline = pickTimelineRow(property);
 
         // 타입별 평가
         const unitProfiles = unitProfilesByPropertyId.get(String(property.id)) ?? [];
@@ -838,6 +899,8 @@ export async function POST(request: Request) {
           customer: isGuestMode ? guestCustomer : fullCustomer,
           isGuestMode,
           monthlyIncome: isGuestMode ? guestCustomer.monthlyIncome : fullCustomer.monthlyIncome,
+          timeline,
+          todayStamp,
         });
 
         if (isGuestMode) {
@@ -862,7 +925,16 @@ export async function POST(request: Request) {
           };
         }
 
-        const result = evaluateFullCondition({ profile, customer: fullCustomer });
+        const result = evaluateFullCondition({
+          profile,
+          customer: fullCustomer,
+          timingOverride: buildScheduleAwareTimingCategory({
+            purchaseTiming: fullCustomer.purchaseTiming,
+            moveinTiming: fullCustomer.moveinTiming,
+            timeline: toTimingSatisfactionTimeline(timeline),
+            todayStamp,
+          }),
+        });
         const displayMetrics = computeDisplayMetrics(
           profile,
           result.metrics.monthlyPaymentEst,
@@ -895,14 +967,16 @@ export async function POST(request: Request) {
         return a.displayMetrics.min_cash - b.displayMetrics.min_cash;
       });
 
-    // 타입별 평가 결과 중 하나라도 RED가 아니면 현장 포함
+    // 모든 평가 카테고리가 GREEN/LIME인 결과만 노출
     const filtered = includeRed
       ? evaluated
       : evaluated.filter((item) => {
           if (item.unit_type_results.length > 0) {
-            return item.unit_type_results.some((u) => u.finalGrade !== "RED");
+            return item.unit_type_results.some((u) => u.passesCategoryVisibility);
           }
-          return item.result.finalGrade !== "RED";
+          return item.evaluationMode === "guest"
+            ? passesGuestCategoryVisibility(item.result)
+            : passesFullCategoryVisibility(item.result);
         });
 
     const selected = filtered.slice(0, limit);
