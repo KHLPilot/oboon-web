@@ -1,7 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useRef, type ReactNode } from "react";
-import { EditorContent, useEditor } from "@tiptap/react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type ReactNode,
+} from "react";
+import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
 import { Table } from "@tiptap/extension-table";
@@ -11,12 +18,15 @@ import TableCell from "@tiptap/extension-table-cell";
 import Color from "@tiptap/extension-color";
 import { TextStyle } from "@tiptap/extension-text-style";
 import Link from "@tiptap/extension-link";
+import { cn } from "@/lib/utils/cn";
 
 type Props = {
   initialValue?: string;
   onChange: (html: string) => void;
   disabled?: boolean;
   placeholder?: string;
+  onImageUpload?: (file: File) => Promise<string>;
+  onImageUploadStateChange?: (isUploading: boolean) => void;
 };
 
 function ToolbarButton({
@@ -58,17 +68,128 @@ function Divider() {
   return <div className="mx-1 h-4 w-px bg-(--oboon-border-default)" />;
 }
 
+function isImageFile(file: File) {
+  return file.type.startsWith("image/");
+}
+
+function getTransferredImageFiles(dataTransfer: DataTransfer | null): File[] {
+  if (!dataTransfer) return [];
+
+  const files = Array.from(dataTransfer.files ?? []).filter(isImageFile);
+  if (files.length > 0) {
+    return files;
+  }
+
+  return Array.from(dataTransfer.items ?? [])
+    .filter((item) => item.kind === "file")
+    .map((item) => item.getAsFile())
+    .filter((file): file is File => Boolean(file && isImageFile(file)));
+}
+
 export default function TiptapEditor({
   initialValue = "",
   onChange,
   disabled = false,
   placeholder,
+  onImageUpload,
+  onImageUploadStateChange,
 }: Props) {
   const onChangeRef = useRef(onChange);
+  const editorRef = useRef<Editor | null>(null);
+  const imageUploadInputRef = useRef<HTMLInputElement>(null);
+  const disabledRef = useRef(disabled);
+  const activeUploadCountRef = useRef(0);
+  const [imageUploadStatus, setImageUploadStatus] = useState<string | null>(
+    null,
+  );
+  const [imageUploadError, setImageUploadError] = useState<string | null>(null);
 
   useEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
+
+  useEffect(() => {
+    disabledRef.current = disabled;
+  }, [disabled]);
+
+  const insertImageAt = useCallback(
+    (editor: Editor, pos: number, src: string) => {
+      editor
+        .chain()
+        .focus()
+        .insertContentAt(pos, {
+          type: "image",
+          attrs: { src },
+        })
+        .run();
+    },
+    [],
+  );
+
+  const uploadImageFiles = useCallback(
+    async (files: File[], pos?: number) => {
+      const imageFiles = files.filter(isImageFile);
+      if (imageFiles.length === 0) return;
+
+      if (disabledRef.current) return;
+
+      if (!onImageUpload) {
+        setImageUploadError("이미지 업로드가 설정되지 않았습니다.");
+        return;
+      }
+
+      const initialEditor = editorRef.current;
+      if (!initialEditor) return;
+
+      setImageUploadError(null);
+      activeUploadCountRef.current += 1;
+      if (activeUploadCountRef.current === 1) {
+        onImageUploadStateChange?.(true);
+      }
+      setImageUploadStatus(
+        imageFiles.length === 1
+          ? `이미지 업로드 중: ${imageFiles[0].name}`
+          : `이미지 ${imageFiles.length}개 업로드 중`,
+      );
+
+      let nextPos =
+        typeof pos === "number" ? pos : initialEditor.state.selection.from;
+
+      try {
+        for (const file of imageFiles) {
+          const src = await onImageUpload(file);
+          const activeEditor = editorRef.current;
+          if (!activeEditor || disabledRef.current) {
+            break;
+          }
+
+          insertImageAt(activeEditor, nextPos, src);
+          nextPos += 1;
+        }
+      } catch (error) {
+        setImageUploadError(
+          error instanceof Error
+            ? error.message
+            : "이미지 업로드에 실패했습니다.",
+        );
+      } finally {
+        activeUploadCountRef.current = Math.max(
+          0,
+          activeUploadCountRef.current - 1,
+        );
+        if (activeUploadCountRef.current === 0) {
+          onImageUploadStateChange?.(false);
+          setImageUploadStatus(null);
+        } else {
+          setImageUploadStatus("이미지 업로드 중");
+        }
+        if (imageUploadInputRef.current) {
+          imageUploadInputRef.current.value = "";
+        }
+      }
+    },
+    [insertImageAt, onImageUpload, onImageUploadStateChange],
+  );
 
   const editor = useEditor({
     extensions: [
@@ -80,7 +201,12 @@ export default function TiptapEditor({
       }),
       TextStyle,
       Color,
-      Image.configure({ inline: false }),
+      Image.extend({
+        draggable: true,
+      }).configure({
+        inline: false,
+        HTMLAttributes: { class: "ob-editor-inline-image" },
+      }),
       Table.configure({ resizable: false }),
       TableRow,
       TableHeader,
@@ -91,15 +217,54 @@ export default function TiptapEditor({
       }),
     ],
     immediatelyRender: false,
+    enableInputRules: false,
     content: initialValue,
     editable: !disabled,
     onUpdate({ editor }) {
       onChangeRef.current(editor.getHTML());
     },
+    onCreate({ editor }) {
+      editorRef.current = editor;
+    },
+    onDestroy() {
+      editorRef.current = null;
+    },
     editorProps: {
       attributes: {
-        class: "outline-none min-h-[320px] px-4 py-3 text-sm leading-7",
+        class:
+          "ob-richtext outline-none min-h-[320px] px-4 py-3 text-sm leading-7",
         "data-placeholder": placeholder ?? "",
+      },
+      handleDrop(view, event, _slice, moved) {
+        if (moved) return false;
+        if (disabledRef.current) return false;
+
+        const files = getTransferredImageFiles(event.dataTransfer);
+        if (files.length === 0) return false;
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        const coords = view.posAtCoords({
+          left: event.clientX,
+          top: event.clientY,
+        });
+        const pos = coords?.pos ?? view.state.selection.from;
+
+        void uploadImageFiles(files, pos);
+        return true;
+      },
+      handlePaste(_view, event) {
+        if (disabledRef.current) return false;
+
+        const files = getTransferredImageFiles(event.clipboardData);
+        if (files.length === 0) return false;
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        void uploadImageFiles(files, editorRef.current?.state.selection.from);
+        return true;
       },
     },
   });
@@ -118,14 +283,6 @@ export default function TiptapEditor({
     if (!editor) return;
     editor.setEditable(!disabled);
   }, [editor, disabled]);
-
-  const addImage = useCallback(() => {
-    if (!editor) return;
-    const url = window.prompt("이미지 URL을 입력하세요:");
-    if (url) {
-      editor.chain().focus().setImage({ src: url }).run();
-    }
-  }, [editor]);
 
   const setLink = useCallback(() => {
     if (!editor) return;
@@ -147,6 +304,20 @@ export default function TiptapEditor({
       .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
       .run();
   }, [editor]);
+
+  const openImagePicker = useCallback(() => {
+    if (disabled || !onImageUpload) return;
+    imageUploadInputRef.current?.click();
+  }, [disabled, onImageUpload]);
+
+  const handleImageInputChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const files = Array.from(event.target.files ?? []);
+      if (files.length === 0) return;
+      void uploadImageFiles(files);
+    },
+    [uploadImageFiles],
+  );
 
   if (!editor) return null;
 
@@ -208,7 +379,7 @@ export default function TiptapEditor({
           disabled={disabled}
           title="인용구"
         >
-          &quot;
+          인용
         </ToolbarButton>
 
         <Divider />
@@ -231,9 +402,9 @@ export default function TiptapEditor({
         <Divider />
 
         <ToolbarButton
-          onClick={addImage}
-          disabled={disabled}
-          title="이미지 삽입"
+          onClick={openImagePicker}
+          disabled={disabled || !onImageUpload}
+          title="이미지 업로드"
         >
           🖼
         </ToolbarButton>
@@ -261,12 +432,34 @@ export default function TiptapEditor({
         </ToolbarButton>
       </div>
 
+      <input
+        ref={imageUploadInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleImageInputChange}
+        disabled={disabled || !onImageUpload}
+      />
+
+      {imageUploadStatus || imageUploadError ? (
+        <div
+          className={[
+            "border-b border-(--oboon-border-default) px-4 py-2 text-[12px]",
+            imageUploadError
+              ? "bg-(--oboon-danger-bg) text-(--oboon-danger-text)"
+              : "bg-(--oboon-bg-subtle) text-(--oboon-text-muted)",
+          ].join(" ")}
+        >
+          {imageUploadError ?? imageUploadStatus}
+        </div>
+      ) : null}
+
       <EditorContent
         editor={editor}
-        className={[
-          "ob-md flex-1 text-(--oboon-text-title)",
-          disabled ? "cursor-not-allowed opacity-60" : "",
-        ].join(" ")}
+        className={cn(
+          "ob-md ob-richtext-editor flex-1 text-(--oboon-text-title)",
+          disabled && "cursor-not-allowed opacity-60",
+        )}
       />
     </div>
   );

@@ -302,7 +302,7 @@ export default async function GeneralPostPage({
             <div className={cx("ob-md")}>
               <BriefingHtmlRenderer
                 html={post.content_html ?? ""}
-                className="prose max-w-none"
+                className="max-w-none"
               />
             </div>
           </div>

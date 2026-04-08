@@ -513,6 +513,205 @@ h3 {
 }
 
 /* =========================================================
+   Briefing Rich Text
+   - Shared styles for briefing detail render + Tiptap editor canvas
+   ========================================================= */
+.ob-richtext,
+.ob-richtext-editor .ProseMirror {
+  color: var(--oboon-text-body);
+  font-family: var(--oboon-font-family-base);
+  font-size: var(--oboon-font-size-body);
+  line-height: var(--oboon-line-height-loose);
+}
+
+.ob-richtext > :first-child,
+.ob-richtext-editor .ProseMirror > :first-child {
+  margin-top: 0;
+}
+
+.ob-richtext > :last-child,
+.ob-richtext-editor .ProseMirror > :last-child {
+  margin-bottom: 0;
+}
+
+.ob-richtext p,
+.ob-richtext-editor .ProseMirror p {
+  margin: 0 0 1rem;
+}
+
+.ob-richtext h1,
+.ob-richtext-editor .ProseMirror h1 {
+  margin: 2rem 0 0.875rem;
+  color: var(--oboon-text-title);
+  font-size: calc(var(--oboon-font-size-h1) * 1.08);
+  font-weight: var(--oboon-font-weight-bold);
+  line-height: var(--oboon-line-height-tight);
+}
+
+.ob-richtext h2,
+.ob-richtext-editor .ProseMirror h2 {
+  margin: 1.75rem 0 0.75rem;
+  color: var(--oboon-text-title);
+  font-size: calc(var(--oboon-font-size-h2) * 1.04);
+  font-weight: var(--oboon-font-weight-semibold);
+  line-height: var(--oboon-line-height-tight);
+}
+
+.ob-richtext h3,
+.ob-richtext-editor .ProseMirror h3 {
+  margin: 1.5rem 0 0.625rem;
+  color: var(--oboon-text-title);
+  font-size: var(--oboon-font-size-h3);
+  font-weight: var(--oboon-font-weight-semibold);
+  line-height: var(--oboon-line-height-tight);
+}
+
+.ob-richtext ul,
+.ob-richtext ol,
+.ob-richtext-editor .ProseMirror ul,
+.ob-richtext-editor .ProseMirror ol {
+  margin: 0 0 1rem;
+  padding-left: 1.375rem;
+  list-style-position: outside;
+}
+
+.ob-richtext ul,
+.ob-richtext-editor .ProseMirror ul {
+  list-style: disc;
+}
+
+.ob-richtext ol,
+.ob-richtext-editor .ProseMirror ol {
+  list-style: decimal;
+}
+
+.ob-richtext li,
+.ob-richtext-editor .ProseMirror li {
+  margin: 0.3rem 0;
+}
+
+.ob-richtext blockquote,
+.ob-richtext-editor .ProseMirror blockquote {
+  margin: 1.25rem 0;
+  padding: 0.875rem 1rem;
+  border-left: 3px solid var(--oboon-primary);
+  background: color-mix(in srgb, var(--oboon-primary) 8%, transparent);
+  color: var(--oboon-text-body);
+}
+
+.ob-richtext hr,
+.ob-richtext-editor .ProseMirror hr {
+  margin: 1.5rem 0;
+  border: 0;
+  border-top: 1px solid var(--oboon-border-default);
+}
+
+.ob-richtext pre,
+.ob-richtext-editor .ProseMirror pre {
+  margin: 1.25rem 0;
+  padding: 0.875rem 1rem;
+  overflow-x: auto;
+  border: 1px solid var(--oboon-border-default);
+  border-radius: 0.875rem;
+  background: color-mix(in srgb, var(--oboon-bg-subtle) 82%, transparent);
+}
+
+.ob-richtext code,
+.ob-richtext-editor .ProseMirror code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.92em;
+}
+
+.ob-richtext :not(pre) > code,
+.ob-richtext-editor .ProseMirror :not(pre) > code {
+  padding: 0.12rem 0.4rem;
+  border-radius: 0.45rem;
+  background: color-mix(in srgb, var(--oboon-bg-subtle) 88%, transparent);
+}
+
+.ob-richtext a,
+.ob-richtext-editor .ProseMirror a {
+  color: var(--oboon-primary);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+  transition: color 160ms ease, text-decoration-color 160ms ease;
+}
+
+.ob-richtext a:hover,
+.ob-richtext-editor .ProseMirror a:hover {
+  color: var(--oboon-primary-hover);
+}
+
+.ob-richtext img,
+.ob-richtext-editor .ProseMirror img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 1.25rem auto;
+  border-radius: 1rem;
+}
+
+.ob-richtext-editor .ob-editor-inline-image {
+  cursor: grab;
+}
+
+.ob-richtext-editor .ob-editor-inline-image:active {
+  cursor: grabbing;
+}
+
+.ob-richtext table,
+.ob-richtext-editor .ProseMirror table {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin: 1.25rem 0;
+  overflow-x: auto;
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+
+.ob-richtext th,
+.ob-richtext td,
+.ob-richtext-editor .ProseMirror th,
+.ob-richtext-editor .ProseMirror td {
+  position: relative;
+  min-width: 120px;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--oboon-border-default);
+  text-align: left;
+  vertical-align: top;
+}
+
+.ob-richtext th,
+.ob-richtext-editor .ProseMirror th {
+  color: var(--oboon-text-title);
+  font-weight: var(--oboon-font-weight-semibold);
+  background: color-mix(in srgb, var(--oboon-bg-subtle) 92%, transparent);
+}
+
+.ob-richtext td,
+.ob-richtext-editor .ProseMirror td {
+  background: color-mix(in srgb, var(--oboon-bg-surface) 94%, transparent);
+}
+
+.ob-richtext-editor .ProseMirror {
+  min-height: 320px;
+}
+
+.ob-richtext-editor .ProseMirror:focus {
+  outline: none;
+}
+
+.ob-richtext-editor .ProseMirror .selectedCell::after {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  background: color-mix(in srgb, var(--oboon-primary) 12%, transparent);
+}
+
+/* =========================================================
    Feature / Component Reserved Tokens (REVIEW — keep)
    ========================================================= */
 

@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/DropdownMenu";
 
 import TiptapEditor from "@/features/briefing/components/TiptapEditor.client";
+import { uploadBriefingImage } from "@/features/briefing/lib/uploadBriefingImage";
 
 export type EditorBootstrap = {
   boards: Array<{ id: string; key: string; name: string }>;
@@ -109,6 +110,7 @@ export default function PostEditorClient({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isInlineImageUploading, setIsInlineImageUploading] = useState(false);
   const [boardId, setBoardId] = useState(bootstrap.defaultBoardId);
   const [categoryId, setCategoryId] = useState(bootstrap.defaultCategoryId);
 
@@ -307,6 +309,8 @@ export default function PostEditorClient({
   }, [dirty]);
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const getBriefingUploadId = () =>
+    mode === "edit" && postId ? postId : uploadTempIdRef.current;
 
   const onResetDraft = () => {
     localStorage.removeItem(storageKey(mode, boardId, categoryId, postId));
@@ -328,29 +332,26 @@ export default function PostEditorClient({
     setUploadError(null);
 
     try {
-      const uploadId =
-        mode === "edit" && postId ? postId : uploadTempIdRef.current;
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("mode", "briefing_cover");
-      formData.append("postId", uploadId);
-
-      const res = await fetch("/api/r2/upload", {
-        method: "POST",
-        body: formData,
+      const url = await uploadBriefingImage({
+        file,
+        mode: "briefing_cover",
+        postId: getBriefingUploadId(),
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error((data as { error?: string }).error ?? "업로드 실패");
-      }
-      const data = (await res.json()) as { url: string };
-      setCoverImageUrl(data.url);
+      setCoverImageUrl(url);
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : "업로드 실패");
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
+  };
+
+  const handleInlineImageUpload = async (file: File) => {
+    return uploadBriefingImage({
+      file,
+      mode: "briefing_content",
+      postId: getBriefingUploadId(),
+    });
   };
 
   const submit = (intent: "draft" | "publish") => {
@@ -455,7 +456,9 @@ export default function PostEditorClient({
             <TiptapEditor
               initialValue={editorInitialValue}
               onChange={setContentHtml}
-              disabled={isPending}
+              disabled={isPending || isInlineImageUploading}
+              onImageUpload={handleInlineImageUpload}
+              onImageUploadStateChange={setIsInlineImageUploading}
             />
           </div>
         </div>
@@ -724,7 +727,7 @@ export default function PostEditorClient({
               size="md"
               shape="pill"
               onClick={() => submit("draft")}
-              disabled={isPending}
+              disabled={isPending || isInlineImageUploading}
               className="w-full"
             >
               임시 저장
@@ -734,7 +737,7 @@ export default function PostEditorClient({
               size="md"
               shape="pill"
               onClick={() => submit("publish")}
-              disabled={isPending}
+              disabled={isPending || isInlineImageUploading}
               className="w-full"
             >
               발행

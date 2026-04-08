@@ -1,4 +1,5 @@
 import { sanitizeBriefingHtml } from "@/lib/briefing/sanitizeHtml";
+import { cn } from "@/lib/utils/cn";
 
 type Props = {
   html: string;
@@ -10,7 +11,7 @@ export default function BriefingHtmlRenderer({ html, className }: Props) {
 
   return (
     <div
-      className={className}
+      className={cn("ob-richtext", className)}
       dangerouslySetInnerHTML={{ __html: sanitized }}
     />
   );
