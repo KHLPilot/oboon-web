@@ -12,10 +12,6 @@ import {
   validationMeta,
 } from "./offeringPriceTableLayout";
 
-function cn(...classes: Array<string | undefined | false | null>) {
-  return classes.filter(Boolean).join(" ");
-}
-
 function formatTypeTitle(typeName: string | null) {
   const raw = (typeName ?? "").trim();
   if (!raw) return "타입";
