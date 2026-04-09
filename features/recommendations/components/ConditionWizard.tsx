@@ -63,19 +63,12 @@ export default function ConditionWizard({
   finishLabel,
 }: Props) {
   const [currentStep, setCurrentStep] = useState<Step>(0);
-  const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
   const [showFinalActions, setShowFinalActions] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
   const finishInFlightRef = useRef(false);
   const toast = useToast();
 
-  const markCompleted = (step: number) => {
-    setCompletedSteps((prev) => new Set([...prev, step]));
-  };
-
   const handleNext = (fromStep: Step) => {
-    markCompleted(fromStep);
-
     if (fromStep < 2) {
       setCurrentStep((fromStep + 1) as Step);
     }
@@ -83,7 +76,6 @@ export default function ConditionWizard({
 
   const handleFinish = async () => {
     if (finishInFlightRef.current) return;
-    markCompleted(2);
     if (evaluateOnFinish) {
       finishInFlightRef.current = true;
       setIsFinishing(true);
@@ -108,7 +100,6 @@ export default function ConditionWizard({
   const handleReset = () => {
     onChange(RESET_CONDITION);
     setCurrentStep(0);
-    setCompletedSteps(new Set());
     setShowFinalActions(false);
     setIsFinishing(false);
     finishInFlightRef.current = false;
@@ -142,16 +133,14 @@ export default function ConditionWizard({
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-center">
+      <div
+        className={[
+          "flex justify-center",
+          isLoggedIn && hasSavedConditionPreset && isConditionDirty ? "pt-2" : "",
+        ].join(" ")}
+      >
         <WizardStepIndicator
           currentStep={showFinalActions ? 2 : currentStep}
-          completedSteps={completedSteps}
-          onStepClick={(step) => {
-            if (completedSteps.has(step)) {
-              setCurrentStep(step);
-              setShowFinalActions(false);
-            }
-          }}
         />
       </div>
 

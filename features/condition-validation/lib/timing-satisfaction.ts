@@ -81,6 +81,17 @@ function addYearsStamp(baseStamp: number, years: number): number {
   return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
 }
 
+function diffMonthsBetween(startStamp: number, endStamp: number): number {
+  const start = new Date(startStamp);
+  const end = new Date(endStamp);
+  const rawMonths =
+    (end.getUTCFullYear() - start.getUTCFullYear()) * 12 +
+    (end.getUTCMonth() - start.getUTCMonth());
+  const adjusted =
+    end.getUTCDate() < start.getUTCDate() ? rawMonths - 1 : rawMonths;
+  return Math.max(0, adjusted);
+}
+
 function isOngoingWindow(
   startStamp: number | null,
   endStamp: number | null,
@@ -257,4 +268,63 @@ export function buildScheduleAwareTimingCategory(params: {
     maxScore: 10,
     reasonMessage: `분양시점 ${purchase.score}/5 · ${purchase.label} · 입주시점 ${movein.score}/5 · ${movein.label}`,
   };
+}
+
+export function deriveScheduleAwareTimingMonthsDiff(params: {
+  purchaseTiming: PurchaseTiming;
+  moveinTiming: MoveinTiming;
+  timeline: TimingSatisfactionTimeline | null | undefined;
+  todayStamp?: number;
+}): number | null {
+  const todayStamp = params.todayStamp ?? getCurrentKstDateStamp();
+
+  const purchaseGapMonths = (() => {
+    if (params.purchaseTiming === "by_property") return null;
+    const availabilityStamp = resolvePurchaseAvailabilityStamp(
+      params.timeline,
+      todayStamp,
+    );
+    if (availabilityStamp === null) return null;
+
+    const requestedStamp =
+      params.purchaseTiming === "within_3months"
+        ? addMonthsStamp(todayStamp, 3)
+        : params.purchaseTiming === "within_6months"
+          ? addMonthsStamp(todayStamp, 6)
+          : params.purchaseTiming === "within_1year"
+            ? addYearsStamp(todayStamp, 1)
+            : addYearsStamp(todayStamp, 1);
+
+    if (params.purchaseTiming === "over_1year") {
+      if (availabilityStamp > requestedStamp) return 0;
+      return Math.max(1, diffMonthsBetween(availabilityStamp, requestedStamp));
+    }
+
+    if (availabilityStamp <= requestedStamp) return 0;
+    return diffMonthsBetween(requestedStamp, availabilityStamp);
+  })();
+
+  const moveinGapMonths = (() => {
+    if (params.moveinTiming === "anytime") return null;
+    const moveInStamp = parseIsoDateStamp(params.timeline?.moveInDate);
+    if (moveInStamp === null) return null;
+
+    const requestedStamp =
+      params.moveinTiming === "immediate"
+        ? todayStamp
+        : params.moveinTiming === "within_1year"
+          ? addYearsStamp(todayStamp, 1)
+          : params.moveinTiming === "within_2years"
+            ? addYearsStamp(todayStamp, 2)
+            : addYearsStamp(todayStamp, 3);
+
+    if (moveInStamp <= requestedStamp) return 0;
+    return diffMonthsBetween(requestedStamp, moveInStamp);
+  })();
+
+  if (purchaseGapMonths === null && moveinGapMonths === null) {
+    return null;
+  }
+
+  return Math.max(purchaseGapMonths ?? 0, moveinGapMonths ?? 0);
 }

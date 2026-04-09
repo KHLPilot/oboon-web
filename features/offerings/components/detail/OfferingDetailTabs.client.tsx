@@ -6,9 +6,11 @@ import Button from "@/components/ui/Button";
 type Tab = {
   id: string; // section id
   label: string;
+  mobileOnly?: boolean;
 };
 
 type Props = {
+  hasConditionValidation?: boolean;
   hasMemo?: boolean;
   hasPrices?: boolean;
   hasTimeline?: boolean;
@@ -16,6 +18,7 @@ type Props = {
 };
 
 export default function OfferingDetailTabs({
+  hasConditionValidation = true,
   hasMemo = true,
   hasPrices = true,
   hasTimeline = true,
@@ -24,16 +27,19 @@ export default function OfferingDetailTabs({
   const tabs: Tab[] = useMemo(
     () =>
       [
+        hasConditionValidation
+          ? { id: "condition-validation", label: "조건 검증" }
+          : null,
         hasMemo ? { id: "memo", label: "감정평가사 메모" } : null,
         hasPrices ? { id: "prices", label: "분양가 표" } : null,
-        hasInfra ? { id: "infra", label: "주변 인프라" } : null,
-        hasTimeline ? { id: "timeline", label: "일정" } : null,
         { id: "location", label: "위치" },
-        { id: "basic", label: "기본 정보" },
+        hasInfra ? { id: "infra", label: "주변 인프라" } : null,
+        hasTimeline ? { id: "timeline", label: "일정", mobileOnly: true } : null,
         { id: "compare", label: "현장 비교" },
+        { id: "basic", label: "기본 정보" },
         { id: "community", label: "커뮤니티" },
       ].filter((tab): tab is Tab => tab !== null),
-    [hasMemo, hasPrices, hasTimeline, hasInfra],
+    [hasConditionValidation, hasMemo, hasPrices, hasTimeline, hasInfra],
   );
 
   const [activeId, setActiveId] = useState<string>(tabs[0]?.id ?? "basic");
@@ -91,7 +97,6 @@ export default function OfferingDetailTabs({
     }
 
     el.scrollIntoView({ behavior: "smooth", block: "start" });
-    history.replaceState(null, "", `#${id}`);
 
     // ✅ smooth scroll이 끝난 뒤 잠금 해제 (환경별로 약간 여유)
     programmaticTimerRef.current = window.setTimeout(() => {
@@ -157,6 +162,7 @@ export default function OfferingDetailTabs({
       <div className="hidden md:flex md:flex-wrap md:gap-2">
         {tabs.map((t) => {
           const isActive = activeId === t.id;
+          if (t.mobileOnly) return null;
 
           return (
             <Button

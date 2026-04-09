@@ -244,9 +244,21 @@ export type UnitTypeEvaluationResult = {
   gradeLabel: string;
   metrics: {
     contractAmount: number;
+    minCash: number;
+    recommendedCash: number;
     loanAmount: number;
     monthlyPaymentEst: number;
     monthlyBurdenPercent: number | null;
+    timingMonthsDiff: number | null;
+  };
+  categories?: {
+    cash: { grade: FinalGrade5; score: number; maxScore: number; reason: string };
+    income: { grade: FinalGrade5; score: number; maxScore: number; reason: string };
+    ltv_dsr?: { grade: FinalGrade5; score: number; maxScore: number; reason: string };
+    credit?: { grade: FinalGrade5; score: number; maxScore: number; reason: string };
+    ownership: { grade: FinalGrade5; score: number; maxScore: number; reason: string };
+    purpose: { grade: FinalGrade5; score: number; maxScore: number; reason: string };
+    timing?: { grade: FinalGrade5; score: number; maxScore: number; reason: string };
   };
 };
 
@@ -439,6 +451,30 @@ export type UnitTypeResultItem = {
   total_score: number;
   summary_message: string;
   grade_label?: string;
+  metrics?: {
+    contract_amount?: number;
+    min_cash?: number;
+    recommended_cash?: number;
+    loan_amount?: number;
+    monthly_payment_est?: number;
+    monthly_burden_percent?: number | null;
+    timing_months_diff?: number | null;
+  };
+  categories?: {
+    cash?: { grade: FinalGrade5; score: number; max_score: number; reason: string };
+    income?: { grade: FinalGrade5; score: number; max_score: number; reason: string };
+    ltv_dsr?: { grade: FinalGrade5; score: number; max_score: number; reason: string };
+    credit?: { grade: FinalGrade5; score: number; max_score: number; reason: string };
+    ownership?: { grade: FinalGrade5; score: number; max_score: number; reason: string };
+    purpose?: { grade: FinalGrade5; score: number; max_score: number; reason: string };
+    timing?: { grade: FinalGrade5; score: number; max_score: number; reason: string };
+  };
+  recommendation_context?: {
+    available_cash_manwon?: number;
+    monthly_income_manwon?: number;
+    house_ownership?: "none" | "one" | "two_or_more" | null;
+    purchase_purpose?: FullPurchasePurpose | null;
+  };
 };
 
 export type GuestEvaluationResponse = {
@@ -459,9 +495,14 @@ export type GuestEvaluationResponse = {
   };
   metrics?: {
     contract_amount: number;
+    min_cash: number;
+    recommended_cash: number;
     loan_amount: number;
     monthly_payment_est: number;
     monthly_burden_percent: number | null;
+  };
+  display?: {
+    price_visibility?: "public" | "non_public" | "unknown";
   };
   unit_type_results?: UnitTypeResultItem[];
   error?: {
@@ -490,10 +531,17 @@ export type FullEvaluationResponse = {
   };
   metrics?: {
     contract_amount: number;
+    min_cash: number;
+    recommended_cash: number;
     loan_amount: number;
     monthly_payment_est: number;
     monthly_surplus: number;
+    monthly_burden_percent: number | null;
     dsr_percent: number | null;
+    timing_months_diff?: number | null;
+  };
+  display?: {
+    price_visibility?: "public" | "non_public" | "unknown";
   };
   unit_type_results?: UnitTypeResultItem[];
   error?: {

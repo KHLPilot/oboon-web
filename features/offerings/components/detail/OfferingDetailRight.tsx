@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { createPortal } from "react-dom";
+import { CalendarDays, Check, Clock } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -16,7 +17,6 @@ import ConditionValidationCard, {
 } from "@/features/offerings/components/detail/ConditionValidationCard";
 import type { ConditionRecommendationItem } from "@/features/condition-validation/domain/types";
 import { grade5DetailLabel } from "@/features/condition-validation/lib/grade5Labels";
-import { formatManwonWithEok, formatPercent } from "@/lib/format/currency";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { trackEvent } from "@/lib/analytics";
 import { pickLoggedInConditionSource } from "@/features/condition-validation/lib/conditionSourcePolicy";
@@ -25,12 +25,14 @@ import {
   statusLabelOf,
 } from "@/features/offerings/domain/offering.constants";
 import ScrapButton from "@/features/offerings/components/ScrapButton";
+import type { PropertyTimelineRow } from "@/features/offerings/domain/offeringDetail.types";
 
 interface OfferingDetailRightProps {
   propertyId?: number;
   propertyName?: string;
   propertyImageUrl?: string;
   hasApprovedAgent?: boolean;
+  propertyTimeline?: PropertyTimelineRow[] | PropertyTimelineRow | null;
 }
 
 interface AgentInfo {
@@ -244,11 +246,64 @@ function isLikelyImageUrl(url: string | null | undefined) {
   return /\.(jpg|jpeg|png|webp|gif|avif|svg)(\?.*)?$/i.test(url);
 }
 
+function pickFirstNonEmpty(...values: Array<string | null | undefined>) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim().length > 0) return value.trim();
+  }
+  return null;
+}
+
+function asArray<T>(value: T | T[] | null | undefined): T[] {
+  if (!value) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+function firstRow<T>(value: T | T[] | null | undefined): T | null {
+  return asArray(value)[0] ?? null;
+}
+
+function parseDate(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const normalized = value.trim();
+  if (/^\d{4}-\d{2}$/.test(normalized)) return new Date(`${normalized}-01`);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return new Date(normalized);
+  return null;
+}
+
+function getStepStatus(
+  startDate: string | null | undefined,
+  endDate?: string | null | undefined,
+): "done" | "active" | "upcoming" {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const start = parseDate(startDate);
+  const end = parseDate(endDate);
+  const effectiveEnd = end ?? start;
+  if (!start) return "upcoming";
+  if (effectiveEnd && effectiveEnd < today) return "done";
+  if (start <= today) return "active";
+  return "upcoming";
+}
+
+function fmtDateTbd(value: string | null | undefined): string {
+  if (!value) return "미정";
+  const normalized = value.trim();
+  if (/^\d{4}-\d{2}$/.test(normalized) || /^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    return normalized;
+  }
+  return "미정";
+}
+
+function fmtRangeTbd(a: string | null | undefined, b: string | null | undefined): string {
+  return `${fmtDateTbd(a)} ~ ${fmtDateTbd(b)}`;
+}
+
 export default function OfferingDetailRight({
   propertyId,
   propertyName,
   propertyImageUrl,
   hasApprovedAgent = false,
+  propertyTimeline = null,
 }: OfferingDetailRightProps) {
   const router = useRouter();
   const supabase = createSupabaseClient();
@@ -262,11 +317,12 @@ export default function OfferingDetailRight({
   const [profileAutoFill, setProfileAutoFill] = useState<ProfileAutoFillData | null>(null);
   const [isRecommendModalOpen, setIsRecommendModalOpen] = useState(false);
   const [recommendItems, setRecommendItems] = useState<ConditionRecommendationItem[]>([]);
-  const [mobileConditionSlot, setMobileConditionSlot] = useState<HTMLElement | null>(null);
+  const [conditionValidationSlot, setConditionValidationSlot] = useState<HTMLElement | null>(null);
   const [initialScrapped, setInitialScrapped] = useState(false);
   const isLoggedIn = Boolean(user);
   const isBookingBlockedRole = userRole === "agent" || userRole === "admin";
   const hasBookableAgent = hasApprovedAgent && agents.length > 0;
+  const timeline = firstRow(propertyTimeline);
 
   const resolvedConditionPreset = useMemo(() => {
     if (!isLoggedIn || userRole !== "user") return null;
@@ -596,9 +652,28 @@ export default function OfferingDetailRight({
   ]);
 
   useEffect(() => {
-    setMobileConditionSlot(
-      document.getElementById("offering-mobile-condition-validation-slot"),
-    );
+    const findSlot = () =>
+      document.getElementById("offering-condition-validation-slot");
+
+    const initialSlot = findSlot();
+    if (initialSlot) {
+      setConditionValidationSlot(initialSlot);
+      return;
+    }
+
+    const observer = new MutationObserver(() => {
+      const nextSlot = findSlot();
+      if (!nextSlot) return;
+      setConditionValidationSlot(nextSlot);
+      observer.disconnect();
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+    });
+
+    return () => observer.disconnect();
   }, []);
 
   const conditionValidationCard = (
@@ -608,13 +683,42 @@ export default function OfferingDetailRight({
       presetCustomer={resolvedConditionPreset}
       profileAutoFill={isLoggedIn ? profileAutoFill : null}
       isLoggedIn={isLoggedIn}
-      hasBookableAgent={hasBookableAgent}
-      isBookingBlockedRole={isBookingBlockedRole}
-      onConsultationRequest={openConsultationFlow}
       onAlternativeRecommendRequest={openAlternativeOfferings}
       onLoginRequest={() => router.push("/auth/login")}
     />
   );
+
+  const timelineSummarySteps = useMemo(() => {
+    if (!timeline) return [];
+
+    return [
+      {
+        label: "모집공고",
+        value: fmtDateTbd(timeline.announcement_date),
+        status: getStepStatus(timeline.announcement_date),
+      },
+      {
+        label: "청약 접수",
+        value: fmtRangeTbd(timeline.application_start, timeline.application_end),
+        status: getStepStatus(timeline.application_start, timeline.application_end),
+      },
+      {
+        label: "당첨자 발표",
+        value: fmtDateTbd(timeline.winner_announce),
+        status: getStepStatus(timeline.winner_announce),
+      },
+      {
+        label: "계약",
+        value: fmtRangeTbd(timeline.contract_start, timeline.contract_end),
+        status: getStepStatus(timeline.contract_start, timeline.contract_end),
+      },
+      {
+        label: "입주 예정",
+        value: pickFirstNonEmpty(timeline.move_in_text) ?? fmtDateTbd(timeline.move_in_date),
+        status: getStepStatus(timeline.move_in_date),
+      },
+    ];
+  }, [timeline]);
 
   return (
     <>
@@ -678,12 +782,119 @@ export default function OfferingDetailRight({
           )}
         </Card>
 
-        {conditionValidationCard}
+        {timelineSummarySteps.length > 0 ? (
+          <Card className="hidden p-4 lg:block">
+            <div className="flex items-start gap-2">
+              <div className="mt-0.5 text-(--oboon-text-muted)">
+                <CalendarDays className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="ob-typo-h3 text-(--oboon-text-title)">분양 일정</div>
+                <div className="ob-typo-caption text-(--oboon-text-muted)">
+                  공고부터 계약, 입주 예정까지 핵심 일정만 요약합니다.
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-3">
+              {(() => {
+                const dotStyle = (status: "done" | "active" | "upcoming") =>
+                  status === "done"
+                    ? {
+                        backgroundColor: "transparent",
+                        borderColor: "var(--oboon-safe)",
+                        color: "var(--oboon-safe)",
+                      }
+                    : status === "active"
+                      ? {
+                          backgroundColor: "transparent",
+                          borderColor: "var(--oboon-primary)",
+                          color: "var(--oboon-primary)",
+                        }
+                      : {
+                          backgroundColor: "transparent",
+                          borderColor: "var(--oboon-border-default)",
+                          color: "var(--oboon-text-muted)",
+                        };
+
+                const lineColor = (status: "done" | "active" | "upcoming") =>
+                  status === "done"
+                    ? "var(--oboon-safe)"
+                    : "var(--oboon-border-default)";
+
+                const labelColor = (status: "done" | "active" | "upcoming") =>
+                  status === "active"
+                    ? "var(--oboon-primary)"
+                    : status === "done"
+                      ? "var(--oboon-text-primary)"
+                      : "var(--oboon-text-muted)";
+
+                const dateColor = (status: "done" | "active" | "upcoming") =>
+                  status === "upcoming"
+                    ? "var(--oboon-text-muted)"
+                    : "var(--oboon-text-secondary)";
+
+                const DotIcon = ({
+                  status,
+                  idx,
+                }: {
+                  status: "done" | "active" | "upcoming";
+                  idx: number;
+                }) =>
+                  status === "done" ? (
+                    <Check className="h-3.5 w-3.5" />
+                  ) : status === "active" ? (
+                    <Clock className="h-3.5 w-3.5" />
+                  ) : (
+                    <span className="ob-typo-caption font-bold">{idx + 1}</span>
+                  );
+
+                return (
+                  <div>
+                    {timelineSummarySteps.map((step, idx) => (
+                      <div key={step.label} className="flex gap-3">
+                        <div className="flex w-6 flex-col items-center shrink-0">
+                          <div
+                            className="grid h-6 w-6 place-items-center rounded-full border-2"
+                            style={dotStyle(step.status)}
+                          >
+                            <DotIcon status={step.status} idx={idx} />
+                          </div>
+                          {idx < timelineSummarySteps.length - 1 ? (
+                            <div
+                              className="mt-1 w-px flex-1"
+                              style={{ backgroundColor: lineColor(step.status), minHeight: 28 }}
+                            />
+                          ) : null}
+                        </div>
+
+                        <div className={idx < timelineSummarySteps.length - 1 ? "min-w-0 flex-1 pb-5" : "min-w-0 flex-1"}>
+                          <div
+                            className="ob-typo-body2"
+                            style={{ color: labelColor(step.status) }}
+                          >
+                            {step.label}
+                          </div>
+                          <div
+                            className="mt-0.5 ob-typo-caption"
+                            style={{ color: dateColor(step.status) }}
+                          >
+                            {step.value}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+          </Card>
+        ) : null}
       </div>
 
-      {mobileConditionSlot
-        ? createPortal(conditionValidationCard, mobileConditionSlot)
-        : <div className="mt-4 lg:hidden">{conditionValidationCard}</div>}
+      {conditionValidationSlot
+        ? createPortal(conditionValidationCard, conditionValidationSlot)
+        : null}
 
       {/* =========================
           Mobile bottom fixed CTA
@@ -837,39 +1048,8 @@ export default function OfferingDetailRight({
                               </p>
                             </div>
 
-                            {item.show_detailed_metrics !== false ? (
-                              <div className="mt-2 grid auto-rows-fr grid-cols-2 gap-1.5">
-                                <div className="rounded-md border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-1.5">
-                                  <div className="ob-typo-caption text-(--oboon-text-muted)">최소 현금</div>
-                                  <div className="mt-0.5 ob-typo-body2 font-semibold text-(--oboon-text-title)">
-                                    {formatManwonWithEok(item.metrics.min_cash)}
-                                  </div>
-                                </div>
-                                <div className="rounded-md border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-1.5">
-                                  <div className="ob-typo-caption text-(--oboon-text-muted)">권장 현금</div>
-                                  <div className="mt-0.5 ob-typo-body2 font-semibold text-(--oboon-text-title)">
-                                    {formatManwonWithEok(item.metrics.recommended_cash)}
-                                  </div>
-                                </div>
-                                <div className="rounded-md border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-1.5">
-                                  <div className="ob-typo-caption text-(--oboon-text-muted)">예상 월상환</div>
-                                  <div className="mt-0.5 ob-typo-body2 font-semibold text-(--oboon-text-title)">
-                                    {formatManwonWithEok(item.metrics.monthly_payment_est)}
-                                  </div>
-                                </div>
-                                <div className="rounded-md border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-1.5">
-                                  <div className="ob-typo-caption text-(--oboon-text-muted)">월 부담률</div>
-                                  <div className="mt-0.5 ob-typo-body2 font-semibold text-(--oboon-text-title)">
-                                    {item.metrics.monthly_burden_percent == null
-                                      ? "계산 불가"
-                                      : formatPercent(item.metrics.monthly_burden_percent)}
-                                  </div>
-                                </div>
-                              </div>
-                            ) : null}
-
                             <Button
-                              className={`${item.show_detailed_metrics !== false ? "mt-3" : "mt-2"} w-full`}
+                              className="mt-2 w-full"
                               size="sm"
                               onClick={() => {
                                 setIsRecommendModalOpen(false);

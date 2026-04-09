@@ -12,12 +12,14 @@ interface BadgeProps {
     | "warning"
     | "danger";
   className?: string;
+  style?: React.CSSProperties;
 }
 
 export const Badge = ({
   children,
   variant = "default",
   className = "",
+  style,
 }: BadgeProps) => {
   let variantStyles = "";
 
@@ -64,6 +66,7 @@ export const Badge = ({
         variantStyles,
         className,
       ].join(" ")}
+      style={style}
     >
       {children}
     </span>

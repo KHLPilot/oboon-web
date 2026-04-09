@@ -7,6 +7,7 @@ import localFont from "next/font/local";
 import ProfileChecker from "app/components/ProfileChecker";
 import Header from "@/components/shared/Header";
 import Footer from "@/components/shared/Footer";
+import ScrollToTopOnRouteChange from "@/components/shared/ScrollToTopOnRouteChange";
 import Providers from "./providers";
 import { seoDefaultOgImage } from "@/shared/seo";
 
@@ -213,6 +214,7 @@ export default async function RootLayout({
       </head>
       <body className="min-h-dvh flex flex-col">
         <Providers>
+          <ScrollToTopOnRouteChange />
           <ProfileChecker />
           <Header />
           <main

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, Search, SlidersHorizontal } from "lucide-react";
 
@@ -16,7 +16,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/DropdownMenu";
 import OfferingsViewToggle from "@/features/offerings/components/OfferingsViewToggle";
-import Link from "next/link";
 import FlippableRecommendationCard from "@/features/recommendations/components/FlippableRecommendationCard";
 import MiniMap from "@/features/recommendations/components/MiniMap";
 import MobileConditionSheet from "@/features/recommendations/components/MobileConditionSheet";
@@ -24,12 +23,11 @@ import OfferingCard from "@/features/offerings/components/OfferingCard";
 import RecommendationCardSkeleton from "@/features/recommendations/components/RecommendationCardSkeleton";
 import RecommendationConditionPanel from "@/features/recommendations/components/RecommendationConditionPanel";
 import RecommendationResultChips from "@/features/recommendations/components/RecommendationResultChips";
-import { RecommendationPreviewContent } from "@/features/recommendations/components/GaugeOverlay";
+import RecommendationUnitTypeSheet from "@/features/recommendations/components/RecommendationUnitTypeSheet";
 import type {
   RecommendationCondition,
   RecommendationItem,
 } from "@/features/recommendations/hooks/useRecommendations";
-import { ROUTES } from "@/types/index";
 import {
   useRecommendations,
 } from "@/features/recommendations/hooks/useRecommendations";
@@ -77,45 +75,6 @@ function compareByDefault(a: RecommendationItem, b: RecommendationItem) {
       b.evalResult.metrics.minCash,
       "asc",
     )
-  );
-}
-
-function MobileCardDetailSheet(props: {
-  item: RecommendationItem | null;
-  onClose: () => void;
-}) {
-  const { item, onClose } = props;
-  if (!item) return null;
-
-  return (
-    <div className="sm:hidden">
-      <div
-        className="fixed inset-0 z-(--oboon-z-modal) bg-(--oboon-overlay) backdrop-blur-sm"
-        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }}
-        aria-hidden="true"
-      />
-      <div className="fixed inset-x-0 bottom-0 z-(--oboon-z-modal) flex max-h-[88dvh] flex-col rounded-t-xl border border-b-0 border-(--oboon-border-default) bg-(--oboon-bg-surface) shadow-(--oboon-shadow-card)">
-
-        {/* 콘텐츠 (스크롤) */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-          <RecommendationPreviewContent
-            property={item.property}
-            evalResult={item.evalResult}
-            showFinalBadge
-            showSummary
-          />
-        </div>
-
-        {/* CTA (고정) */}
-        <div className="shrink-0 border-t border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-5 py-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
-          <Button asChild variant="primary" shape="pill" className="w-full">
-            <Link href={ROUTES.offerings.detail(item.property.id)}>
-              현장 상세 보기
-            </Link>
-          </Button>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -171,9 +130,13 @@ function SortDropdown(props: {
 
 export default function RecommendationsPage() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const cardRefs = useRef(new Map<number, HTMLDivElement>());
+  const viewParam = searchParams.get("view");
+  const resolvedDesktopView = viewParam === "list" ? "list" : "map";
   const [sortKey, setSortKey] = useState<SortKey>("default");
-  const [desktopView, setDesktopView] = useState<"list" | "map">("map");
+  const [desktopView, setDesktopView] = useState<"list" | "map">(resolvedDesktopView);
   const [desktopFilterOpen, setDesktopFilterOpen] = useState(true);
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -184,7 +147,8 @@ export default function RecommendationsPage() {
     id: null,
     scope: "",
   });
-  const [mobileDetailItem, setMobileDetailItem] = useState<RecommendationItem | null>(null);
+  const [mobileUnitSheetItem, setMobileUnitSheetItem] =
+    useState<RecommendationItem | null>(null);
 
   const {
     condition,
@@ -212,6 +176,30 @@ export default function RecommendationsPage() {
   useEffect(() => {
     document.title = "맞춤 현장 | OBOON";
   }, []);
+
+  useEffect(() => {
+    setDesktopView(resolvedDesktopView);
+  }, [resolvedDesktopView]);
+
+  const updateDesktopView = useCallback(
+    (nextView: "list" | "map") => {
+      setDesktopView(nextView);
+      setFlipState({ id: null, scope: "" });
+
+      const nextSearchParams = new URLSearchParams(searchParams.toString());
+      if (nextView === "map") {
+        nextSearchParams.delete("view");
+      } else {
+        nextSearchParams.set("view", nextView);
+      }
+
+      const nextQuery = nextSearchParams.toString();
+      router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, {
+        scroll: false,
+      });
+    },
+    [pathname, router, searchParams],
+  );
 
   const registerCardRef = useCallback(
     (id: number, node: HTMLDivElement | null) => {
@@ -461,27 +449,28 @@ export default function RecommendationsPage() {
               onModeChange={changeMode}
             />
 
-            {showResultToolbar ? (
-              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+              {showResultToolbar ? (
                 <RecommendationResultChips counts={gradeCounts} />
-                <div className="flex shrink-0 items-center gap-2">
-                  <SortDropdown
-                    value={sortKey}
-                    onChange={(nextSortKey) => {
-                      setSortKey(nextSortKey);
-                      setFlipState({ id: null, scope: "" });
-                    }}
-                  />
-                  <OfferingsViewToggle
-                    value={desktopView}
-                    onChange={(nextView) => {
-                      setDesktopView(nextView);
-                      setFlipState({ id: null, scope: "" });
-                    }}
-                  />
-                </div>
+              ) : (
+                <div />
+              )}
+              <div className="flex shrink-0 items-center gap-2">
+                <SortDropdown
+                  value={sortKey}
+                  onChange={(nextSortKey) => {
+                    setSortKey(nextSortKey);
+                    setFlipState({ id: null, scope: "" });
+                  }}
+                />
+                <OfferingsViewToggle
+                  value={desktopView}
+                  onChange={updateDesktopView}
+                />
               </div>
-            ) : results.length > 0 ? (
+            </div>
+
+            {!showResultToolbar && results.length > 0 ? (
               <p className="ob-typo-caption text-(--oboon-text-muted)">
                 검색 조건에 맞는 현장을 찾지 못했어요.
               </p>
@@ -535,10 +524,7 @@ export default function RecommendationsPage() {
 
               <OfferingsViewToggle
                 value={desktopView}
-                onChange={(nextView) => {
-                  setDesktopView(nextView);
-                  setFlipState({ id: null, scope: "" });
-                }}
+                onChange={updateDesktopView}
               />
 
               <Button
@@ -652,64 +638,34 @@ export default function RecommendationsPage() {
                 ) : null}
 
                 {!showSkeleton && primaryItems.length > 0 ? (
-                  <div className="space-y-3 sm:grid sm:grid-cols-2 sm:gap-4 sm:space-y-0 lg:grid-cols-3">
-                    {primaryItems.map((item) => (
-                      <div
-                        key={item.property.id}
-                        ref={(node) => registerCardRef(item.property.id, node)}
-                        className="min-w-0"
-                      >
-                        <div className="sm:hidden">
-                          <OfferingCard
-                            offering={item.offering}
-                            evalResult={item.evalResult}
-                            isSelected={visibleSelectedId === Number(item.offering.id)}
-                            onCardClick={() => {
-                              handleSelectFromCard(Number(item.offering.id));
-                              setMobileDetailItem(item);
-                            }}
-                            interactionMode="button"
-                          />
-                        </div>
-                        <div className="hidden sm:block">
-                          <FlippableRecommendationCard
-                            item={item}
-                            isSelected={visibleSelectedId === item.property.id}
-                            isFlipped={flippedId === item.property.id}
-                            disableFlip={item.evalResult.isMasked}
-                            onFlip={() => handleFlipFromCard(item.property.id)}
-                            onSelect={() => handleSelectFromCard(item.property.id)}
-                          />
-                        </div>
+                  <div className="space-y-4">
+                    <div className="rounded-2xl border border-(--oboon-grade-green-border) bg-linear-to-r from-(--oboon-grade-green-bg)/55 to-transparent px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-(--oboon-grade-green)" />
+                        <p className="ob-typo-body2 font-semibold text-(--oboon-text-title)">추천 현장</p>
+                        <span className="ob-typo-caption text-(--oboon-text-muted)">{primaryItems.length}개</span>
                       </div>
-                    ))}
-                  </div>
-                ) : null}
-
-                {!showSkeleton && alternativeItems.length > 0 ? (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <div className="h-px flex-1 bg-(--oboon-border-default)" />
-                      <span className="shrink-0 ob-typo-caption text-(--oboon-text-muted)">
-                        대안 현장 {alternativeItems.length}개 — 한 항목이 아쉽지만 고려해볼 수 있어요
-                      </span>
-                      <div className="h-px flex-1 bg-(--oboon-border-default)" />
+                      <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+                        현재 조건에서 우선 검토해볼 현장입니다.
+                      </p>
                     </div>
                     <div className="space-y-3 sm:grid sm:grid-cols-2 sm:gap-4 sm:space-y-0 lg:grid-cols-3">
-                      {alternativeItems.map((item) => (
+                      {primaryItems.map((item) => (
                         <div
                           key={item.property.id}
                           ref={(node) => registerCardRef(item.property.id, node)}
-                          className="min-w-0"
+                          className="min-w-0 space-y-3"
                         >
                           <div className="sm:hidden">
                             <OfferingCard
                               offering={item.offering}
                               evalResult={item.evalResult}
+                              recommendationTier="primary"
+                              navigateOnClick={false}
                               isSelected={visibleSelectedId === Number(item.offering.id)}
                               onCardClick={() => {
                                 handleSelectFromCard(Number(item.offering.id));
-                                setMobileDetailItem(item);
+                                setMobileUnitSheetItem(item);
                               }}
                               interactionMode="button"
                             />
@@ -717,6 +673,57 @@ export default function RecommendationsPage() {
                           <div className="hidden sm:block">
                             <FlippableRecommendationCard
                               item={item}
+                              recommendationTier="primary"
+                              isSelected={visibleSelectedId === item.property.id}
+                              isFlipped={flippedId === item.property.id}
+                              disableFlip={item.evalResult.isMasked}
+                              onFlip={() => handleFlipFromCard(item.property.id)}
+                              onSelect={() => handleSelectFromCard(item.property.id)}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {!showSkeleton && alternativeItems.length > 0 ? (
+                  <div className="space-y-4">
+                    <div className="rounded-2xl border border-(--oboon-grade-yellow-border) bg-linear-to-r from-(--oboon-grade-yellow-bg)/55 to-transparent px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-(--oboon-grade-yellow)" />
+                        <p className="ob-typo-body2 font-semibold text-(--oboon-text-title)">대안 현장</p>
+                        <span className="ob-typo-caption text-(--oboon-text-muted)">{alternativeItems.length}개</span>
+                      </div>
+                      <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+                        한두 항목이 아쉽지만 조건 조정이나 비교 후보로 볼 수 있습니다.
+                      </p>
+                    </div>
+                    <div className="space-y-3 sm:grid sm:grid-cols-2 sm:gap-4 sm:space-y-0 lg:grid-cols-3">
+                      {alternativeItems.map((item) => (
+                        <div
+                          key={item.property.id}
+                          ref={(node) => registerCardRef(item.property.id, node)}
+                          className="min-w-0 space-y-3"
+                        >
+                          <div className="sm:hidden">
+                            <OfferingCard
+                              offering={item.offering}
+                              evalResult={item.evalResult}
+                              recommendationTier="alternative"
+                              navigateOnClick={false}
+                              isSelected={visibleSelectedId === Number(item.offering.id)}
+                              onCardClick={() => {
+                                handleSelectFromCard(Number(item.offering.id));
+                                setMobileUnitSheetItem(item);
+                              }}
+                              interactionMode="button"
+                            />
+                          </div>
+                          <div className="hidden sm:block">
+                            <FlippableRecommendationCard
+                              item={item}
+                              recommendationTier="alternative"
                               isSelected={visibleSelectedId === item.property.id}
                               isFlipped={flippedId === item.property.id}
                               disableFlip={item.evalResult.isMasked}
@@ -746,9 +753,9 @@ export default function RecommendationsPage() {
         </div>
       </PageContainer>
 
-      <MobileCardDetailSheet
-        item={mobileDetailItem}
-        onClose={() => setMobileDetailItem(null)}
+      <RecommendationUnitTypeSheet
+        item={mobileUnitSheetItem}
+        onClose={() => setMobileUnitSheetItem(null)}
       />
     </main>
   );

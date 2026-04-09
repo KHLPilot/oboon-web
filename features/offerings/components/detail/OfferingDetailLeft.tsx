@@ -42,6 +42,7 @@ import type {
   PropertyTimelineRow,
   PropertyUnitTypeRow,
 } from "@/features/offerings/domain/offeringDetail.types";
+import type { UnitTypeResultItem } from "@/features/condition-validation/domain/types";
 import { formatPriceRange } from "@/shared/price";
 import {
   buildInfraSections,
@@ -354,6 +355,8 @@ export default function OfferingDetailLeft({
   const locationMapRef = useRef<NaverMapHandle | null>(null);
   const [isModelhouseConsultEnabled, setIsModelhouseConsultEnabled] =
     useState(false);
+  const [showFullDescription, setShowFullDescription] = useState(false);
+  const [unitTypeValidationResults, setUnitTypeValidationResults] = useState<UnitTypeResultItem[] | null>(null);
 
   const loc0 = firstRow<PropertyLocationRow>(p.property_locations);
   const specs0 = firstRow<PropertySpecRow>(p.property_specs);
@@ -405,6 +408,31 @@ export default function OfferingDetailLeft({
   const estimatedMemo = pickFirstNonEmpty(p.estimated_comment);
   const hasMemo = confirmedMemo !== null || estimatedMemo !== null;
   const propertyDescription = pickFirstNonEmpty(p.description);
+  const shouldCollapseDescription =
+    (propertyDescription?.trim().length ?? 0) > 120;
+
+  useEffect(() => {
+    const handleUnitTypeResults = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        propertyId?: number;
+        unitTypeResults?: UnitTypeResultItem[] | null;
+      }>;
+      if (customEvent.detail?.propertyId !== p.id) return;
+      setUnitTypeValidationResults(customEvent.detail?.unitTypeResults ?? null);
+    };
+
+    window.addEventListener(
+      "oboon:detail-unit-type-results",
+      handleUnitTypeResults as EventListener,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "oboon:detail-unit-type-results",
+        handleUnitTypeResults as EventListener,
+      );
+    };
+  }, [p.id]);
 
   useEffect(() => {
     let mounted = true;
@@ -780,14 +808,28 @@ export default function OfferingDetailLeft({
             <div className="ob-typo-caption text-(--oboon-text-muted)">
               현장 설명
             </div>
-            <div className="mt-2 whitespace-pre-wrap wrap-break-word ob-typo-body text-(--oboon-text-title)">
+            <div
+              className={[
+                "mt-2 whitespace-pre-wrap wrap-break-word ob-typo-body text-(--oboon-text-title)",
+                shouldCollapseDescription && !showFullDescription
+                  ? "line-clamp-3"
+                  : "",
+              ].join(" ")}
+            >
               {propertyDescription}
             </div>
+            {shouldCollapseDescription ? (
+              <button
+                type="button"
+                className="mt-2 ob-typo-caption font-medium text-(--oboon-primary)"
+                onClick={() => setShowFullDescription((value) => !value)}
+              >
+                {showFullDescription ? "접기" : "더보기"}
+              </button>
+            ) : null}
           </Card>
         </div>
       ) : null}
-
-      <div id="offering-mobile-condition-validation-slot" className="mt-3 lg:hidden" />
 
       {/* Tabs (sticky) */}
       <div
@@ -799,6 +841,7 @@ export default function OfferingDetailLeft({
         ].join(" ")}
       >
         <OfferingDetailTabs
+          hasConditionValidation
           hasMemo={hasMemo}
           hasPrices={hasPriceTable}
           hasTimeline={hasTimeline}
@@ -806,13 +849,20 @@ export default function OfferingDetailLeft({
         />
       </div>
 
+      <div
+        id="condition-validation"
+        className="mt-4 scroll-mt-30 lg:scroll-mt-30"
+      >
+        <div id="offering-condition-validation-slot" />
+      </div>
+
       {/* Memo */}
       {hasMemo ? (
-        <div id="memo" className="mt-4 scroll-mt-30 lg:scroll-mt-30">
+        <div id="memo" className="mt-10 scroll-mt-30 lg:scroll-mt-30">
           <SectionTitle
             icon={<Info className="h-5 w-5" />}
             title="감정평가사 메모"
-            desc="등록된 항목만 노출합니다."
+            desc="이 현장을 보는 감정평가사의 시각을 확인하세요"
           />
 
           <div className="mt-3 space-y-3">
@@ -859,16 +909,54 @@ export default function OfferingDetailLeft({
           />
 
           <div className="mt-3">
-            <Card className="p-3">
-              <OfferingUnitTypesAccordion
-                unitTypes={unitTypes}
-                emptyText={UXCopy.checking}
-                imagePlaceholderText={UXCopy.imagePlaceholder}
-              />
-            </Card>
+            <OfferingUnitTypesAccordion
+              unitTypes={unitTypes}
+              emptyText={UXCopy.checking}
+              imagePlaceholderText={UXCopy.imagePlaceholder}
+              validationResults={unitTypeValidationResults}
+            />
           </div>
         </div>
       ) : null}
+
+      <div id="location" className="mt-10 scroll-mt-30 lg:scroll-mt-30">
+        <SectionTitle
+          icon={<MapPin className="h-5 w-5" />}
+          title="현장/모델하우스 위치"
+          desc="현장 위치와 모델하우스 위치를 한 번에 확인합니다."
+        />
+
+        <div className="mt-3">
+          <Card className="p-3">
+            {locationMarkers.length > 0 ? (
+              <div className="h-[25rem] overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)">
+                <NaverMap
+                  ref={locationMapRef}
+                  markers={locationMarkers}
+                  focusedId={effectiveFocusedLocationMarkerId}
+                  showFocusedAsRich={false}
+                  richMarkerIds={richLocationMarkerIds}
+                  fitToMarkers={shouldFitLocationMarkers}
+                  mode="base"
+                  onMarkerSelect={(id) => {
+                    setFocusedLocationMarkerId(id);
+                    const marker = locationMarkers.find((item) => item.id === id);
+                    if (marker?.type === "modelhouse") {
+                      locationMapRef.current?.setView(marker.lat, marker.lng);
+                    }
+                  }}
+                  onMarkerAction={handleMarkerAction}
+                  onClearFocus={() => setFocusedLocationMarkerId(null)}
+                />
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-(--oboon-border-default) p-4 text-center ob-typo-body text-(--oboon-text-muted)">
+                등록된 위치 좌표가 없어 지도를 표시할 수 없습니다.
+              </div>
+            )}
+          </Card>
+        </div>
+      </div>
 
       <div id="infra" className="mt-10 scroll-mt-30 lg:scroll-mt-30">
         <SectionTitle
@@ -1016,7 +1104,7 @@ export default function OfferingDetailLeft({
 
       {/* Timeline */}
       {hasTimeline ? (
-        <div id="timeline" className="mt-10 scroll-mt-30 lg:scroll-mt-30">
+        <div id="timeline" className="mt-10 scroll-mt-30 lg:hidden lg:scroll-mt-30">
           <SectionTitle
             icon={<CalendarDays className="h-5 w-5" />}
             title="분양 일정"
@@ -1074,18 +1162,18 @@ export default function OfferingDetailLeft({
                 const dotStyle = (st: "done" | "active" | "upcoming") =>
                   st === "done"
                     ? {
-                        backgroundColor: "var(--oboon-safe)",
+                        backgroundColor: "transparent",
                         borderColor: "var(--oboon-safe)",
-                        color: "#fff",
+                        color: "var(--oboon-safe)",
                       }
                     : st === "active"
                       ? {
-                          backgroundColor: "var(--oboon-primary)",
+                          backgroundColor: "transparent",
                           borderColor: "var(--oboon-primary)",
-                          color: "#fff",
+                          color: "var(--oboon-primary)",
                         }
                       : {
-                          backgroundColor: "var(--oboon-bg-surface)",
+                          backgroundColor: "transparent",
                           borderColor: "var(--oboon-border-default)",
                           color: "var(--oboon-text-muted)",
                         };
@@ -1263,44 +1351,16 @@ export default function OfferingDetailLeft({
         </div>
       ) : null}
 
-      <div id="location" className="mt-10 scroll-mt-30 lg:scroll-mt-30">
-        <SectionTitle
-          icon={<MapPin className="h-5 w-5" />}
-          title="현장/모델하우스 위치"
-          desc="분양 일정 아래에서 위치를 바로 확인할 수 있습니다."
-        />
-
-        <div className="mt-3">
-          <Card className="p-3">
-            {locationMarkers.length > 0 ? (
-              <div className="h-[25rem] overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)">
-                <NaverMap
-                  ref={locationMapRef}
-                  markers={locationMarkers}
-                  focusedId={effectiveFocusedLocationMarkerId}
-                  showFocusedAsRich={false}
-                  richMarkerIds={richLocationMarkerIds}
-                  fitToMarkers={shouldFitLocationMarkers}
-                  mode="base"
-                  onMarkerSelect={(id) => {
-                    setFocusedLocationMarkerId(id);
-                    const marker = locationMarkers.find((item) => item.id === id);
-                    if (marker?.type === "modelhouse") {
-                      locationMapRef.current?.setView(marker.lat, marker.lng);
-                    }
-                  }}
-                  onMarkerAction={handleMarkerAction}
-                  onClearFocus={() => setFocusedLocationMarkerId(null)}
-                />
-              </div>
-            ) : (
-              <div className="rounded-xl border border-dashed border-(--oboon-border-default) p-4 text-center ob-typo-body text-(--oboon-text-muted)">
-                등록된 위치 좌표가 없어 지도를 표시할 수 없습니다.
-              </div>
-            )}
-          </Card>
+      {/* Inline Compare Widget */}
+      {currentCompareItem ? (
+        <div id="compare" className="mt-10 scroll-mt-30 lg:scroll-mt-30">
+          <OfferingInlineCompare
+            currentItem={currentCompareItem}
+            availableItems={availableItemsForCompare}
+            scrappedIds={scrappedIdsForCompare}
+          />
         </div>
-      </div>
+      ) : null}
 
       {/* Basic */}
       <div id="basic" className="mt-10 scroll-mt-30 lg:scroll-mt-30">
@@ -1372,17 +1432,6 @@ export default function OfferingDetailLeft({
           ) : null}
         </div>
       </div>
-
-      {/* Inline Compare Widget */}
-      {currentCompareItem ? (
-        <div id="compare" className="mt-10 scroll-mt-30 lg:scroll-mt-30">
-          <OfferingInlineCompare
-            currentItem={currentCompareItem}
-            availableItems={availableItemsForCompare}
-            scrappedIds={scrappedIdsForCompare}
-          />
-        </div>
-      ) : null}
 
       {/* Community Widget */}
       <div id="community" className="mt-10 scroll-mt-30 lg:scroll-mt-30">

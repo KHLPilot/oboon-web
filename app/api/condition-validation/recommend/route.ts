@@ -12,7 +12,10 @@ import {
 
 import { evaluateFullCondition } from "@/features/condition-validation/domain/fullCustomerEvaluator";
 import { evaluateGuestCondition } from "@/features/condition-validation/domain/guestEvaluator";
-import { buildScheduleAwareTimingCategory } from "@/features/condition-validation/lib/timing-satisfaction";
+import {
+  buildScheduleAwareTimingCategory,
+  deriveScheduleAwareTimingMonthsDiff,
+} from "@/features/condition-validation/lib/timing-satisfaction";
 import { resolveProfileForRecommendation } from "@/features/condition-validation/server/profile-resolver";
 import { shouldShowRecommendationForCategoryGrades } from "@/features/recommendations/lib/recommendation-visibility.mjs";
 import { normalizeOfferingStatusValue } from "@/features/offerings/domain/offering.constants";
@@ -81,6 +84,19 @@ type PropertyRow = {
       }
     | null;
   property_unit_types: Array<{
+    price_min: number | string | null;
+    price_max: number | string | null;
+    is_price_public?: boolean | null;
+  }> | null;
+};
+
+type PropertyUnitFallbackRow = {
+  id: number;
+  property_type: string | null;
+  property_unit_types: Array<{
+    id: number;
+    type_name: string | null;
+    exclusive_area: number | string | null;
     price_min: number | string | null;
     price_max: number | string | null;
     is_price_public?: boolean | null;
@@ -584,6 +600,31 @@ function parseAssetTypeLocal(raw: string): ValidationAssetType | null {
   return null;
 }
 
+function normalizeTextLocal(value: string | null | undefined): string {
+  return (value ?? "").toLowerCase().replace(/\s+/g, "");
+}
+
+function inferAssetTypeLocal(raw: string | null): ValidationAssetType {
+  const normalized = normalizeTextLocal(raw);
+  if (normalized.includes("오피스텔") || normalized.includes("officetel")) {
+    return "officetel";
+  }
+  if (normalized.includes("아파트") || normalized.includes("apartment")) {
+    return "apartment";
+  }
+  if (normalized.includes("지식산업")) {
+    return "knowledge_industry";
+  }
+  if (normalized.includes("상가") || normalized.includes("상업")) {
+    return "commercial";
+  }
+  return "apartment";
+}
+
+function defaultContractRatioLocal(): number {
+  return 0.1;
+}
+
 async function loadUnitValidationProfilesByPropertyIds(
   adminSupabase: ReturnType<typeof createAdminSupabase>,
   ids: number[],
@@ -643,6 +684,66 @@ async function loadUnitValidationProfilesByPropertyIds(
     resultMap.set(key, existing);
   }
 
+  const missingIds = ids.filter((id) => {
+    const units = resultMap.get(String(id));
+    return !units || units.length === 0;
+  });
+
+  if (missingIds.length === 0) return resultMap;
+
+  for (let i = 0; i < missingIds.length; i += chunkSize) {
+    const chunk = missingIds.slice(i, i + chunkSize);
+    const { data: properties, error } = await adminSupabase
+      .from("properties")
+      .select(
+        "id, property_type, property_unit_types(id,type_name,exclusive_area,price_min,price_max,is_price_public)",
+      )
+      .in("id", chunk)
+      .returns<PropertyUnitFallbackRow[]>();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    for (const property of properties ?? []) {
+      const assetType = inferAssetTypeLocal(property.property_type);
+      const contractRatio = defaultContractRatioLocal();
+      const units = (property.property_unit_types ?? [])
+        .map((unit): UnitTypeValidationProfile | null => {
+          const priceMax = toFiniteNumberLocal(unit.price_max);
+          const priceMin = toFiniteNumberLocal(unit.price_min);
+          const rawPrice =
+            priceMax !== null && priceMax > 0
+              ? priceMax
+              : priceMin !== null && priceMin > 0
+                ? priceMin
+                : null;
+          if (rawPrice === null) return null;
+
+          const listPriceManwon = normalizePriceToManwon(rawPrice);
+          if (listPriceManwon <= 0) return null;
+
+          return {
+            propertyId: String(property.id),
+            unitTypeId: unit.id,
+            unitTypeName: unit.type_name ?? null,
+            exclusiveArea: toFiniteNumberLocal(unit.exclusive_area),
+            listPriceManwon,
+            isPricePublic: unit.is_price_public !== false,
+            assetType,
+            contractRatio,
+            regulationArea: "non_regulated",
+            transferRestriction: false,
+          };
+        })
+        .filter((unit): unit is UnitTypeValidationProfile => unit !== null);
+
+      if (units.length > 0) {
+        resultMap.set(String(property.id), units);
+      }
+    }
+  }
+
   return resultMap;
 }
 
@@ -690,12 +791,100 @@ function evaluateUnitTypes(params: {
     }
 
     const contractAmount = unitProfile.listPriceManwon * unitProfile.contractRatio;
+    const minCash = unitProfile.listPriceManwon * unitProfile.contractRatio;
+    const recommendedCash = minCash + unitProfile.listPriceManwon * 0.1;
     const loanAmount = unitProfile.listPriceManwon * (unitProfile.listPriceManwon <= 90000 ? 0.55 : 0.45);
     const monthlyPaymentEst = result.metrics.monthlyPaymentEst;
     const monthlyBurdenPercent =
       monthlyIncome > 0
         ? Math.round((monthlyPaymentEst / monthlyIncome) * 10000) / 100
         : null;
+    const timingMonthsDiff =
+      isGuestMode || !timeline
+        ? null
+        : deriveScheduleAwareTimingMonthsDiff({
+            purchaseTiming: (customer as FullCustomerInput).purchaseTiming,
+            moveinTiming: (customer as FullCustomerInput).moveinTiming,
+            timeline: toTimingSatisfactionTimeline(timeline),
+            todayStamp,
+          });
+
+    let categories: EvaluatedUnitTypeRecommendation["categories"];
+    if (isGuestMode) {
+      const guestResult = result as GuestEvaluationResult;
+      categories = {
+        cash: {
+          grade: guestResult.categories.cash.grade,
+          score: guestResult.categories.cash.score,
+          maxScore: guestResult.categories.cash.maxScore,
+          reason: guestResult.categories.cash.reasonMessage,
+        },
+        income: {
+          grade: guestResult.categories.income.grade,
+          score: guestResult.categories.income.score,
+          maxScore: guestResult.categories.income.maxScore,
+          reason: guestResult.categories.income.reasonMessage,
+        },
+        credit: {
+          grade: guestResult.categories.credit.grade,
+          score: guestResult.categories.credit.score,
+          maxScore: guestResult.categories.credit.maxScore,
+          reason: guestResult.categories.credit.reasonMessage,
+        },
+        ownership: {
+          grade: guestResult.categories.ownership.grade,
+          score: guestResult.categories.ownership.score,
+          maxScore: guestResult.categories.ownership.maxScore,
+          reason: guestResult.categories.ownership.reasonMessage,
+        },
+        purpose: {
+          grade: guestResult.categories.purpose.grade,
+          score: guestResult.categories.purpose.score,
+          maxScore: guestResult.categories.purpose.maxScore,
+          reason: guestResult.categories.purpose.reasonMessage,
+        },
+      };
+    } else {
+      const fullResult = result as FullEvaluationResult;
+      categories = {
+        cash: {
+          grade: fullResult.categories.cash.grade,
+          score: fullResult.categories.cash.score,
+          maxScore: fullResult.categories.cash.maxScore,
+          reason: fullResult.categories.cash.reasonMessage,
+        },
+        income: {
+          grade: fullResult.categories.income.grade,
+          score: fullResult.categories.income.score,
+          maxScore: fullResult.categories.income.maxScore,
+          reason: fullResult.categories.income.reasonMessage,
+        },
+        ltv_dsr: {
+          grade: fullResult.categories.ltvDsr.grade,
+          score: fullResult.categories.ltvDsr.score,
+          maxScore: fullResult.categories.ltvDsr.maxScore,
+          reason: fullResult.categories.ltvDsr.reasonMessage,
+        },
+        ownership: {
+          grade: fullResult.categories.ownership.grade,
+          score: fullResult.categories.ownership.score,
+          maxScore: fullResult.categories.ownership.maxScore,
+          reason: fullResult.categories.ownership.reasonMessage,
+        },
+        purpose: {
+          grade: fullResult.categories.purpose.grade,
+          score: fullResult.categories.purpose.score,
+          maxScore: fullResult.categories.purpose.maxScore,
+          reason: fullResult.categories.purpose.reasonMessage,
+        },
+        timing: {
+          grade: fullResult.categories.timing.grade,
+          score: fullResult.categories.timing.score,
+          maxScore: fullResult.categories.timing.maxScore,
+          reason: fullResult.categories.timing.reasonMessage,
+        },
+      };
+    }
 
     return {
       unitTypeId: unitProfile.unitTypeId,
@@ -710,10 +899,14 @@ function evaluateUnitTypes(params: {
       passesCategoryVisibility,
       metrics: {
         contractAmount: Math.round(contractAmount),
+        minCash: Math.round(minCash),
+        recommendedCash: Math.round(recommendedCash),
         loanAmount: Math.round(loanAmount),
         monthlyPaymentEst: Math.round(monthlyPaymentEst),
         monthlyBurdenPercent,
+        timingMonthsDiff,
       },
+      categories,
     };
   });
 }
@@ -1067,7 +1260,89 @@ export async function POST(request: Request) {
           total_score: u.totalScore,
           summary_message: u.summaryMessage,
           grade_label: u.gradeLabel,
-          metrics: u.metrics,
+          metrics: {
+            contract_amount: u.metrics.contractAmount,
+            min_cash: u.metrics.minCash,
+            recommended_cash: u.metrics.recommendedCash,
+            loan_amount: u.metrics.loanAmount,
+            monthly_payment_est: u.metrics.monthlyPaymentEst,
+            monthly_burden_percent: u.metrics.monthlyBurdenPercent,
+            timing_months_diff: u.metrics.timingMonthsDiff,
+          },
+          categories: u.categories
+            ? {
+                cash: u.categories.cash
+                  ? {
+                      grade: u.categories.cash.grade,
+                      score: u.categories.cash.score,
+                      max_score: u.categories.cash.maxScore,
+                      reason: u.categories.cash.reason,
+                    }
+                  : undefined,
+                income: u.categories.income
+                  ? {
+                      grade: u.categories.income.grade,
+                      score: u.categories.income.score,
+                      max_score: u.categories.income.maxScore,
+                      reason: u.categories.income.reason,
+                    }
+                  : undefined,
+                ltv_dsr: u.categories.ltv_dsr
+                  ? {
+                      grade: u.categories.ltv_dsr.grade,
+                      score: u.categories.ltv_dsr.score,
+                      max_score: u.categories.ltv_dsr.maxScore,
+                      reason: u.categories.ltv_dsr.reason,
+                    }
+                  : undefined,
+                credit: u.categories.credit
+                  ? {
+                      grade: u.categories.credit.grade,
+                      score: u.categories.credit.score,
+                      max_score: u.categories.credit.maxScore,
+                      reason: u.categories.credit.reason,
+                    }
+                  : undefined,
+                ownership: u.categories.ownership
+                  ? {
+                      grade: u.categories.ownership.grade,
+                      score: u.categories.ownership.score,
+                      max_score: u.categories.ownership.maxScore,
+                      reason: u.categories.ownership.reason,
+                    }
+                  : undefined,
+                purpose: u.categories.purpose
+                  ? {
+                      grade: u.categories.purpose.grade,
+                      score: u.categories.purpose.score,
+                      max_score: u.categories.purpose.maxScore,
+                      reason: u.categories.purpose.reason,
+                    }
+                  : undefined,
+                timing: u.categories.timing
+                  ? {
+                      grade: u.categories.timing.grade,
+                      score: u.categories.timing.score,
+                      max_score: u.categories.timing.maxScore,
+                      reason: u.categories.timing.reason,
+                    }
+                  : undefined,
+              }
+            : undefined,
+          recommendation_context: {
+            available_cash_manwon: isGuestMode
+              ? guestCustomer.availableCash
+              : fullCustomer.availableCash,
+            monthly_income_manwon: isGuestMode
+              ? guestCustomer.monthlyIncome
+              : fullCustomer.monthlyIncome,
+            house_ownership: isGuestMode
+              ? guestCustomer.houseOwnership
+              : fullCustomer.houseOwnership,
+            purchase_purpose: isGuestMode
+              ? guestCustomer.purchasePurpose
+              : fullCustomer.purchasePurpose,
+          },
         })),
       })),
       evaluated_at: new Date().toISOString(),

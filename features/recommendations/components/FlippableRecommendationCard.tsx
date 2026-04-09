@@ -18,12 +18,13 @@ import type { RecommendationItem } from "@/features/recommendations/hooks/useRec
 import { trackEvent } from "@/lib/analytics";
 import { cn } from "@/lib/utils/cn";
 
-import { RecommendationPreviewContent } from "./GaugeOverlay";
+import RecommendationUnitTypePanel from "./RecommendationUnitTypePanel";
 
 type FlippableRecommendationCardProps = {
   item: RecommendationItem;
   isSelected: boolean;
   isFlipped: boolean;
+  recommendationTier?: "primary" | "alternative";
   size?: "desktop" | "mobile";
   disableFlip?: boolean;
   initialScrapped?: boolean;
@@ -82,11 +83,19 @@ function usePrefersReducedMotion() {
   return prefersReducedMotion;
 }
 
-function surfaceClassName(isSelected: boolean) {
+function surfaceClassName(
+  isSelected: boolean,
+  recommendationTier: "primary" | "alternative",
+) {
   return cn(
     "h-full overflow-hidden p-0 transition-[transform,box-shadow,border-color] duration-200",
     "border-(--oboon-border-strong) bg-(--oboon-bg-surface)",
+    recommendationTier === "alternative" &&
+      "border-(--oboon-grade-yellow-border) bg-linear-to-br from-(--oboon-grade-yellow-bg)/45 via-(--oboon-bg-surface) to-(--oboon-bg-surface)",
     isSelected && "border-(--oboon-primary) ring-1 ring-(--oboon-primary)",
+    isSelected &&
+      recommendationTier === "alternative" &&
+      "border-(--oboon-grade-yellow-border) ring-(--oboon-grade-yellow-border)",
   );
 }
 
@@ -95,31 +104,42 @@ function BackFaceCard(props: {
   isSelected: boolean;
   compact?: boolean;
   onFlip: () => void;
+  recommendationTier: "primary" | "alternative";
 }) {
-  const { item, isSelected, compact = false, onFlip } = props;
+  const { item, isSelected, compact = false, onFlip, recommendationTier } = props;
 
   return (
-    <Card className={surfaceClassName(isSelected)}>
+    <Card
+      className={surfaceClassName(isSelected, recommendationTier)}
+      role="button"
+      tabIndex={0}
+      onClick={onFlip}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onFlip();
+        }
+      }}
+    >
       <div className="flex h-full flex-col">
-        <button
-          type="button"
+        <div
           className={cn(
-            "min-h-0 flex flex-1 items-center text-left focus-visible:outline-none",
+            "min-h-0 flex flex-1 flex-col text-left",
             compact ? "px-3.5 py-3.5" : "px-5 py-5",
           )}
-          onClick={onFlip}
-          aria-label={`${item.property.name} 앞면 보기`}
         >
-          <div className="w-full">
-            <RecommendationPreviewContent
-              property={item.property}
-              evalResult={item.evalResult}
-              compact={compact}
-              showFinalBadge={false}
-              showSummary={false}
+          <div className="w-full flex-1">
+            <RecommendationUnitTypePanel
+              item={item}
+              mobile={compact}
+              embedded
+              maxItems={2}
+              heading="추천 순 타입별 정보"
+              showPropertyName={false}
+              footerNote="더 많은 타입은 현장 상세에서 확인"
             />
           </div>
-        </button>
+        </div>
 
         <div
           className={cn(
@@ -155,8 +175,15 @@ function MaskedRecommendationCard(props: {
   isSelected: boolean;
   compact?: boolean;
   onSelect: () => void;
+  recommendationTier?: "primary" | "alternative";
 }) {
-  const { item, isSelected, compact = false, onSelect } = props;
+  const {
+    item,
+    isSelected,
+    compact = false,
+    onSelect,
+    recommendationTier = "primary",
+  } = props;
   const { offering, property, evalResult } = item;
   const hasImage = isLikelyImageUrl(offering.imageUrl);
   const finalTone = getGrade5ToneMeta(evalResult.finalGrade);
@@ -168,7 +195,7 @@ function MaskedRecommendationCard(props: {
       onClick={onSelect}
       onFocusCapture={onSelect}
     >
-      <Card className={surfaceClassName(isSelected)}>
+      <Card className={surfaceClassName(isSelected, recommendationTier)}>
         <div className="flex h-full flex-col">
           <div className="relative aspect-video w-full bg-(--oboon-bg-subtle)">
             {hasImage && offering.imageUrl ? (
@@ -290,6 +317,7 @@ export default function FlippableRecommendationCard(
     item,
     isSelected,
     isFlipped,
+    recommendationTier = "primary",
     size = "desktop",
     disableFlip = false,
     initialScrapped = false,
@@ -301,15 +329,17 @@ export default function FlippableRecommendationCard(
   const prefersReducedMotion = usePrefersReducedMotion();
   const compact = size === "mobile";
   const cardHeightClass = compact ? MOBILE_CARD_HEIGHT_CLASS : DESKTOP_CARD_HEIGHT_CLASS;
+  const isFlipDisabled = disableFlip || item.unitTypes.length === 0;
 
   const frontFace = (
     <HomeOfferingCard
       offering={item.offering}
       conditionCategories={item.conditionCategories}
+      recommendationTier={recommendationTier}
       isSelected={isSelected}
       interactionMode="button"
       onCardClick={onFlip}
-      cardAriaLabel={`${item.property.name} 카드 뒤집기`}
+      cardAriaLabel={`${item.property.name} 타입별 정보 보기`}
       disableHover
       compactLayout={compact}
       initialScrapped={initialScrapped}
@@ -319,7 +349,7 @@ export default function FlippableRecommendationCard(
     />
   );
 
-  if (disableFlip) {
+  if (isFlipDisabled) {
     return (
       <div className={cardHeightClass}>
         <MaskedRecommendationCard
@@ -327,6 +357,7 @@ export default function FlippableRecommendationCard(
           isSelected={isSelected}
           compact={compact}
           onSelect={onSelect}
+          recommendationTier={recommendationTier}
         />
       </div>
     );
@@ -338,6 +369,7 @@ export default function FlippableRecommendationCard(
       isSelected={isSelected}
       compact={compact}
       onFlip={onFlip}
+      recommendationTier={recommendationTier}
     />
   );
 

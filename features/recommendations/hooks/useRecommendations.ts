@@ -38,6 +38,11 @@ import {
 } from "@/features/condition-validation/lib/sessionCondition";
 import { pickLoggedInConditionSource } from "@/features/condition-validation/lib/conditionSourcePolicy";
 import { shouldAutoEvaluateRecommendations } from "@/features/recommendations/lib/recommendation-evaluation";
+import {
+  normalizeRecommendationUnitTypes,
+  type RawRecommendationUnitTypeResult,
+  type RecommendationUnitType,
+} from "@/features/recommendations/lib/recommendationUnitTypes";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { toKoreanErrorMessage } from "@/shared/errorMessage";
 import { formatPriceRange } from "@/shared/price";
@@ -126,7 +131,15 @@ export type RecommendationItem = {
   property: RecommendationProperty;
   conditionCategories: ConditionCategoryGrades;
   evalResult: RecommendationEvalResult;
+  unitTypes: RecommendationUnitType[];
+  bestUnitType: RecommendationUnitType | null;
 };
+
+export type {
+  RecommendationUnitType,
+  RecommendationUnitTypeCategory,
+  RecommendationUnitTypeCategoryKey,
+} from "@/features/recommendations/lib/recommendationUnitTypes";
 
 type RawRecommendationItem = {
   property_id?: number | string;
@@ -156,6 +169,8 @@ type RawRecommendationItem = {
     monthly_payment_est?: number | null;
     monthly_burden_percent?: number | null;
   } | null;
+  best_unit_type?: RawRecommendationUnitTypeResult | null;
+  unit_type_results?: RawRecommendationUnitTypeResult[] | null;
 };
 
 type RawRecommendationResponse = {
@@ -901,6 +916,7 @@ function mergeRecommendationItem(
   const ownershipScore = toFiniteNumber(item.categories?.ownership?.score);
   const purposeScore = toFiniteNumber(item.categories?.purpose?.score);
   const timingScore = toFiniteNumber(item.categories?.timing?.score);
+  const unitTypes = normalizeRecommendationUnitTypes(item);
   const recommendationOffering = buildRecommendationOffering({
     id,
     offering,
@@ -1004,6 +1020,8 @@ function mergeRecommendationItem(
         monthlyBurdenPercent,
       },
     },
+    unitTypes,
+    bestUnitType: unitTypes[0] ?? null,
   };
 }
 

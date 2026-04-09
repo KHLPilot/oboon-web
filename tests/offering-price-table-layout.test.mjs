@@ -13,10 +13,6 @@ const accordionPath = path.join(
   process.cwd(),
   "features/offerings/components/detail/offeringTypesAccordion.client.tsx",
 );
-const categoryPanelPath = path.join(
-  process.cwd(),
-  "features/offerings/components/detail/ConditionValidationCategoryPanel.tsx",
-);
 
 test("전용면적 중심 보조 정보는 전용면적을 첫 토큰으로 만든다", () => {
   const summary = buildOfferingUnitSpecSummary({

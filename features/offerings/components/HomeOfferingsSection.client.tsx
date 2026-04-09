@@ -727,6 +727,8 @@ function buildHomeRecommendationItem(
         monthlyBurdenPercent,
       },
     },
+    unitTypes: [],
+    bestUnitType: null,
   };
 }
 

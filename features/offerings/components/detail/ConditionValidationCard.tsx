@@ -1,14 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ChevronDown, ChevronUp } from "lucide-react";
+import { AlertTriangle, ShieldCheck } from "lucide-react";
 
 import Button from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 import Card from "@/components/ui/Card";
 import { useToast } from "@/components/ui/Toast";
 import ConditionWizard from "@/features/recommendations/components/ConditionWizard";
 import { shouldAutoEvaluateDetailValidation } from "@/features/offerings/components/detail/conditionValidationAutoEvaluate";
 import { grade5DetailLabel } from "@/features/condition-validation/lib/grade5Labels";
+import { getGrade5ToneMeta } from "@/features/condition-validation/lib/grade5Theme";
 import {
   loadConditionSession,
   saveConditionSession,
@@ -29,18 +31,23 @@ import type {
   MonthlyIncomeRange,
   MoveinTiming,
   PurchaseTiming,
-  UnitTypeResultItem,
 } from "@/features/condition-validation/domain/types";
 import type { ParsedCustomerInput } from "@/features/condition-validation/domain/validation";
 import { formatManwonWithEok } from "@/lib/format/currency";
 import type { RecommendationCondition } from "@/features/recommendations/hooks/useRecommendations";
 import { createSupabaseClient } from "@/lib/supabaseClient";
+import ConditionValidationCategoryPanel from "./ConditionValidationCategoryPanel";
+import {
+  buildFullConditionCategoryDisplay,
+  buildGuestConditionCategoryDisplay,
+  normalizeDetailUnitTypeResults,
+} from "./conditionValidationDisplay";
+import type { RecommendationUnitType } from "@/features/recommendations/lib/recommendationUnitTypes";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Grade5Meta = {
   color: string;
-  bgColor: string;
   borderColor: string;
   label: string;
 };
@@ -68,39 +75,71 @@ function grade5Meta(grade: FinalGrade5): Grade5Meta {
     case "GREEN":
       return {
         color: "var(--oboon-grade-green)",
-        bgColor: "var(--oboon-grade-green-bg)",
         borderColor: "var(--oboon-grade-green-border)",
         label: grade5DetailLabel(grade),
       };
     case "LIME":
       return {
         color: "var(--oboon-grade-lime)",
-        bgColor: "var(--oboon-grade-lime-bg)",
         borderColor: "var(--oboon-grade-lime-border)",
         label: grade5DetailLabel(grade),
       };
     case "YELLOW":
       return {
         color: "var(--oboon-grade-yellow)",
-        bgColor: "var(--oboon-grade-yellow-bg)",
         borderColor: "var(--oboon-grade-yellow-border)",
         label: grade5DetailLabel(grade),
       };
     case "ORANGE":
       return {
         color: "var(--oboon-grade-orange)",
-        bgColor: "var(--oboon-grade-orange-bg)",
         borderColor: "var(--oboon-grade-orange-border)",
         label: grade5DetailLabel(grade),
       };
     case "RED":
       return {
         color: "var(--oboon-grade-red)",
-        bgColor: "var(--oboon-grade-red-bg)",
         borderColor: "var(--oboon-grade-red-border)",
         label: grade5DetailLabel(grade),
       };
   }
+}
+
+type UnitTypeSummary = {
+  title: string;
+  count: number;
+  leadTitle: string | null;
+  leadUnit: RecommendationUnitType | null;
+  units: RecommendationUnitType[];
+  note: string;
+};
+
+function isPositiveGrade(grade: FinalGrade5) {
+  return grade === "GREEN" || grade === "LIME";
+}
+
+function isAvailableUnit(unit: RecommendationUnitType) {
+  if (!isPositiveGrade(unit.finalGrade)) return false;
+  if (unit.categories.length === 0) return true;
+  return unit.categories.every((category) => isPositiveGrade(category.grade));
+}
+
+function buildUnitTypeSummary(units: RecommendationUnitType[]): UnitTypeSummary | null {
+  if (units.length === 0) return null;
+
+  const availableUnits = units.filter(isAvailableUnit);
+  const sourceUnits = availableUnits.length > 0 ? availableUnits : units;
+  const topUnits = sourceUnits.slice(0, 2);
+  const leadUnit = topUnits[0] ?? null;
+
+  return {
+    title: availableUnits.length > 0 ? "가능한 타입" : "대안 타입",
+    count: sourceUnits.length,
+    leadTitle: leadUnit ? `가장 유리한 타입은 ${leadUnit.title}입니다.` : null,
+    leadUnit,
+    units: topUnits,
+    note: "전체 타입별 결과는 아래 분양가표에서 확인할 수 있습니다.",
+  };
 }
 
 // ─── Input helpers ─────────────────────────────────────────────────────────────
@@ -113,53 +152,8 @@ function parseNullableNumericInput(value: string): number | null {
   return parsed;
 }
 
-function formatAreaLabel(area: number | null) {
-  if (area === null) return null;
-  return `${area.toLocaleString("ko-KR", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  })}㎡`;
-}
-
 function formatStoredAmount(value: number): string {
   return value.toLocaleString("ko-KR");
-}
-
-function formatUnitTypeTitle(item: UnitTypeResultItem) {
-  const rawName = item.unit_type_name?.trim();
-  if (rawName) {
-    if (
-      rawName.includes("타입") ||
-      rawName.includes("㎡") ||
-      /[A-Za-z]$/.test(rawName)
-    ) {
-      return rawName;
-    }
-    return `${rawName}타입`;
-  }
-
-  const areaLabel = formatAreaLabel(item.exclusive_area);
-  if (areaLabel) {
-    return `전용 ${areaLabel}`;
-  }
-
-  return `타입 ${item.unit_type_id}`;
-}
-
-function getUnitTypeStatusMeta(item: UnitTypeResultItem) {
-  const label = item.grade_label?.trim() || grade5DetailLabel(item.final_grade);
-  switch (item.final_grade) {
-    case "GREEN":
-      return { key: "green" as const, label };
-    case "LIME":
-      return { key: "lime" as const, label };
-    case "YELLOW":
-      return { key: "yellow" as const, label };
-    case "ORANGE":
-      return { key: "orange" as const, label };
-    case "RED":
-      return { key: "red" as const, label };
-  }
 }
 
 function hasStoredProfileAutoFill(profileAutoFill: ProfileAutoFillData | null | undefined): boolean {
@@ -243,9 +237,6 @@ type ConditionValidationCardProps = {
   /** 로그인 유저의 저장된 맞춤 정보 — 자동 채움 및 자동 검증에 사용 */
   profileAutoFill?: ProfileAutoFillData | null;
   isLoggedIn: boolean;
-  hasBookableAgent: boolean;
-  isBookingBlockedRole: boolean;
-  onConsultationRequest: () => void;
   onAlternativeRecommendRequest: (customer: ParsedCustomerInput) => Promise<void> | void;
   onLoginRequest: () => void;
 };
@@ -261,9 +252,6 @@ export default function ConditionValidationCard({
   presetCustomer: _presetCustomer, // eslint-disable-line @typescript-eslint/no-unused-vars
   profileAutoFill,
   isLoggedIn,
-  hasBookableAgent,
-  isBookingBlockedRole,
-  onConsultationRequest,
   onAlternativeRecommendRequest,
   onLoginRequest,
 }: ConditionValidationCardProps) {
@@ -305,11 +293,6 @@ export default function ConditionValidationCard({
   const [recommendLoading, setRecommendLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [response, setResponse] = useState<FullEvaluationResponse | null>(null);
-  const [showResultDetails, setShowResultDetails] = useState(false);
-  const [showUnitTypeDetails, setShowUnitTypeDetails] = useState(false);
-  const [openCategory, setOpenCategory] = useState<string | null>(null);
-  const [openUnitTypeGroup, setOpenUnitTypeGroup] = useState<string | null>(null);
-  const [openUnitType, setOpenUnitType] = useState<string | null>(null);
   const autoEvaluatedRef = useRef(false);
   const evaluateInFlightRef = useRef(false);
 
@@ -318,6 +301,76 @@ export default function ConditionValidationCard({
   const categories = response?.ok ? response.categories : undefined;
   const metrics = response?.ok ? response.metrics : undefined;
   const showModifyButton = !isInputSectionVisible;
+  const availableCashManwon = parseNullableNumericInput(availableCash);
+  const monthlyIncomeManwon = parseNullableNumericInput(monthlyIncome);
+  const isFullPricePublic = response?.display?.price_visibility === "public";
+  const isGuestPricePublic = guestResponse?.display?.price_visibility === "public";
+  const guestCategoryItems = useMemo(
+    () =>
+      buildGuestConditionCategoryDisplay({
+        categories: guestResponse?.categories,
+        metrics: guestResponse?.metrics,
+        inputs: {
+          availableCash: availableCashManwon,
+          houseOwnership,
+          purchasePurpose,
+        },
+        isPricePublic: isGuestPricePublic,
+      }),
+    [
+      availableCashManwon,
+      guestResponse?.categories,
+      guestResponse?.metrics,
+      houseOwnership,
+      isGuestPricePublic,
+      purchasePurpose,
+    ],
+  );
+  const fullCategoryItems = useMemo(
+    () =>
+      buildFullConditionCategoryDisplay({
+        categories,
+        metrics,
+        inputs: {
+          availableCash: availableCashManwon,
+          monthlyIncome: monthlyIncomeManwon,
+          employmentType,
+          houseOwnership,
+          purchasePurpose,
+        },
+        isPricePublic: isFullPricePublic,
+      }),
+    [
+      availableCashManwon,
+      categories,
+      employmentType,
+      houseOwnership,
+      isFullPricePublic,
+      metrics,
+      monthlyIncomeManwon,
+      purchasePurpose,
+    ],
+  );
+  const guestUnitTypes = useMemo(
+    () => normalizeDetailUnitTypeResults(guestResponse?.unit_type_results),
+    [guestResponse?.unit_type_results],
+  );
+  const fullUnitTypes = useMemo(
+    () => normalizeDetailUnitTypeResults(response?.unit_type_results),
+    [response?.unit_type_results],
+  );
+  const fullUnitTypeSummary = useMemo(
+    () => buildUnitTypeSummary(fullUnitTypes),
+    [fullUnitTypes],
+  );
+  const guestUnitTypeSummary = useMemo(
+    () => buildUnitTypeSummary(guestUnitTypes),
+    [guestUnitTypes],
+  );
+  const isGuestResultVisible = Boolean(
+    guestResponse?.ok && guestResponse.result && !isInputSectionVisible && !isLoggedIn,
+  );
+  const isFullResultVisible = Boolean(result && !isInputSectionVisible);
 
   const applySessionCondition = useCallback((snapshot: ConditionSessionSnapshot) => {
     if (snapshot.employmentType) setEmploymentType(snapshot.employmentType);
@@ -410,7 +463,6 @@ export default function ConditionValidationCard({
 
         setResponse(data);
         setIsInputSectionVisible(false);
-        setShowResultDetails(false);
       } catch {
         setErrorMessage("조건 검증 처리 중 네트워크 오류가 발생했습니다.");
       } finally {
@@ -642,15 +694,6 @@ export default function ConditionValidationCard({
     });
   }, [applySessionCondition, evaluateWithValues, isLoggedIn, profileAutoFill, propertyId]);
 
-  const handleConsultAction = () => {
-    if (!isLoggedIn) {
-      onLoginRequest();
-      return;
-    }
-    if (isBookingBlockedRole || !hasBookableAgent) return;
-    onConsultationRequest();
-  };
-
   const handleAlternativeRecommend = async () => {
     setErrorMessage(null);
     const cash = parseNullableNumericInput(availableCash) ?? 0;
@@ -680,14 +723,6 @@ export default function ConditionValidationCard({
       setRecommendLoading(false);
     }
   };
-
-  const consultButtonLabel = !isLoggedIn
-    ? "로그인 후 상담 연결"
-    : isBookingBlockedRole
-      ? "일반 회원만 이용 가능"
-      : !hasBookableAgent
-        ? "상담 가능 상담사 없음"
-        : "이 조건으로 상담 예약";
 
   const shouldShowAlternativeButton =
     result?.final_grade === "RED" || result?.final_grade === "ORANGE";
@@ -844,6 +879,36 @@ export default function ConditionValidationCard({
     }
   }, [isInputSectionVisible, isLoggedIn, applySessionCondition]);
 
+  useEffect(() => {
+    if (!propertyId || typeof window === "undefined") return;
+
+    const unitTypeResults = isFullResultVisible ? response?.unit_type_results ?? null : null;
+
+    window.dispatchEvent(
+      new CustomEvent("oboon:detail-unit-type-results", {
+        detail: {
+          propertyId,
+          unitTypeResults,
+        },
+      }),
+    );
+
+    return () => {
+      window.dispatchEvent(
+        new CustomEvent("oboon:detail-unit-type-results", {
+          detail: {
+            propertyId,
+            unitTypeResults: null,
+          },
+        }),
+      );
+    };
+  }, [
+    isFullResultVisible,
+    propertyId,
+    response?.unit_type_results,
+  ]);
+
   const handleSaveCondition = useCallback(async (): Promise<boolean> => {
     if (!isLoggedIn) {
       onLoginRequest();
@@ -915,156 +980,155 @@ export default function ConditionValidationCard({
     validate,
   ]);
 
-  const renderUnitTypeResults = (
-    items: UnitTypeResultItem[],
-    prefix: "guest" | "full",
-  ) => {
-    const groupedItems = [
+  const renderMetricsGrid = (sourceMetrics:
+    | FullEvaluationResponse["metrics"]
+    | GuestEvaluationResponse["metrics"]
+    | undefined) => {
+    if (!sourceMetrics) return null;
+
+    const items = [
+      { label: "계약금", value: formatManwonWithEok(sourceMetrics.contract_amount) },
+      { label: "예상 대출", value: formatManwonWithEok(sourceMetrics.loan_amount) },
+      { label: "월상환", value: formatManwonWithEok(sourceMetrics.monthly_payment_est) },
       {
-        key: "green" as const,
-        label: grade5DetailLabel("GREEN"),
-        items: items.filter((item) => getUnitTypeStatusMeta(item).key === "green"),
+        label: "월 부담률",
+        value:
+          sourceMetrics.monthly_burden_percent == null
+            ? "계산 불가"
+            : `${Math.round(sourceMetrics.monthly_burden_percent * 10) / 10}%`,
       },
-      {
-        key: "lime" as const,
-        label: grade5DetailLabel("LIME"),
-        items: items.filter((item) => getUnitTypeStatusMeta(item).key === "lime"),
-      },
-      {
-        key: "yellow" as const,
-        label: grade5DetailLabel("YELLOW"),
-        items: items.filter((item) => getUnitTypeStatusMeta(item).key === "yellow"),
-      },
-      {
-        key: "orange" as const,
-        label: grade5DetailLabel("ORANGE"),
-        items: items.filter((item) => getUnitTypeStatusMeta(item).key === "orange"),
-      },
-      {
-        key: "red" as const,
-        label: grade5DetailLabel("RED"),
-        items: items.filter((item) => getUnitTypeStatusMeta(item).key === "red"),
-      },
-    ].filter((group) => group.items.length > 0);
+    ];
 
     return (
-      <div className="max-h-[min(34vh,18rem)] overflow-y-auto overscroll-contain rounded-lg border border-(--oboon-border-default)">
-        {groupedItems.map((group, groupIdx, groups) => (
+      <div className="grid grid-cols-2 overflow-hidden rounded-2xl border border-(--oboon-border-default)">
+        {items.map(({ label, value }, idx) => (
           <div
-            key={`${prefix}-${group.key}`}
-            className={groupIdx < groups.length - 1 ? "border-b border-(--oboon-border-default)" : ""}
+            key={label}
+            className={`bg-(--oboon-bg-surface) px-3 py-2.5${
+              idx % 2 === 0 ? " border-r border-(--oboon-border-default)" : ""
+            }${idx < 2 ? " border-b border-(--oboon-border-default)" : ""}`}
           >
-            {(() => {
-              const groupKey = `${prefix}-${group.key}`;
-              const isGroupOpen = openUnitTypeGroup === groupKey;
-              return (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOpenUnitTypeGroup(isGroupOpen ? null : groupKey);
-                      if (isGroupOpen) {
-                        setOpenUnitType((current) =>
-                          current?.startsWith(`${prefix}-`) ? null : current,
-                        );
-                      }
-                    }}
-                    className="flex w-full items-center justify-between gap-3 bg-(--oboon-bg-subtle) px-3 py-1.5"
-                  >
-                    <span className="ob-typo-caption font-semibold text-(--oboon-text-title)">
-                      {group.label}
-                    </span>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="ob-typo-caption text-(--oboon-text-muted)">
-                        {group.items.length}개
-                      </span>
-                      {isGroupOpen ? (
-                        <ChevronUp className="h-3.5 w-3.5 text-(--oboon-text-muted)" />
-                      ) : (
-                        <ChevronDown className="h-3.5 w-3.5 text-(--oboon-text-muted)" />
-                      )}
-                    </div>
-                  </button>
-                  {isGroupOpen
-                    ? group.items.map((item, idx, arr) => {
-              const meta = grade5Meta(item.final_grade);
-              const { label: unitLabel } = getUnitTypeStatusMeta(item);
-              const unitKey = `${prefix}-${item.unit_type_id}`;
-              const isOpen = openUnitType === unitKey;
-              return (
-                <div
-                  key={unitKey}
-                  className={idx < arr.length - 1 ? "border-b border-(--oboon-border-default)" : ""}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setOpenUnitType(isOpen ? null : unitKey)}
-                    className="flex w-full items-center justify-between gap-2 px-3 py-2"
-                    style={{ backgroundColor: meta.bgColor }}
-                  >
-                    <span className="ob-typo-caption font-medium text-(--oboon-text-title) text-left">
-                      {formatUnitTypeTitle(item)}
-                    </span>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <span
-                        className="ob-typo-caption font-semibold"
-                        style={{ color: meta.color }}
-                      >
-                        ● {unitLabel}
-                      </span>
-                      {isOpen ? (
-                        <ChevronUp className="h-3 w-3 text-(--oboon-text-muted)" />
-                      ) : (
-                        <ChevronDown className="h-3 w-3 text-(--oboon-text-muted)" />
-                      )}
-                    </div>
-                  </button>
-                  {isOpen ? (
-                    <div
-                      className="space-y-1.5 px-3 pb-2 ob-typo-caption text-(--oboon-text-muted)"
-                      style={{ backgroundColor: meta.bgColor }}
-                    >
-                      {item.exclusive_area !== null ? (
-                        <div className="flex items-center justify-between gap-3">
-                          <span>전용면적</span>
-                          <span className="font-semibold text-(--oboon-text-title)">
-                            {formatAreaLabel(item.exclusive_area)}
-                          </span>
-                        </div>
-                      ) : null}
-                      <div className="flex items-center justify-between gap-3">
-                        <span>분양가</span>
-                        <span className="font-semibold text-(--oboon-text-title)">
-                          {formatManwonWithEok(item.list_price_manwon)}
-                        </span>
-                      </div>
-                      {item.summary_message ? (
-                        <p>{item.summary_message}</p>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-              );
-                    })
-                    : null}
-                </>
-              );
-            })()}
+            <div className="ob-typo-caption text-(--oboon-text-muted)">{label}</div>
+            <div className="mt-0.5 ob-typo-body2 font-semibold text-(--oboon-text-title)">
+              {value}
+            </div>
           </div>
         ))}
       </div>
     );
   };
 
+  const renderMatchCard = (params: {
+    matchRate: number;
+    grade: FinalGrade5;
+    label: string;
+    title?: string;
+  }) => {
+    const tone = getGrade5ToneMeta(params.grade);
+
+    return (
+      <div
+        className="rounded-2xl border-2 bg-(--oboon-bg-surface) px-4 py-4 shadow-[0_0_0_1px_color-mix(in_srgb,var(--oboon-border-default)_35%,transparent)]"
+        style={{ borderColor: tone.borderColor }}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="ob-typo-caption text-(--oboon-text-muted)">
+              {params.title ?? "매칭률"}
+            </div>
+            <div className="mt-1 ob-typo-h2 font-bold leading-none text-(--oboon-text-title)">
+              {params.matchRate}%
+            </div>
+          </div>
+          <Badge
+            className="shrink-0 bg-transparent"
+            style={{ borderColor: tone.borderColor, color: tone.color }}
+          >
+            {params.label}
+          </Badge>
+        </div>
+      </div>
+    );
+  };
+
+  const renderUnitTypeSummary = (summary: UnitTypeSummary | null) => {
+    if (!summary) {
+      return (
+        <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-4 py-4">
+          <p className="ob-typo-body2 text-(--oboon-text-muted)">
+            확인 가능한 타입 결과가 아직 없습니다.
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-4 py-4">
+        <div className="ob-typo-caption font-semibold text-(--oboon-text-title)">
+          {summary.title} {summary.count}개
+        </div>
+        {summary.leadTitle ? (
+          <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+            {summary.leadTitle}
+          </p>
+        ) : null}
+
+        <div className="mt-3 space-y-2">
+          {summary.units.map((unit) => {
+            const tone = getGrade5ToneMeta(unit.finalGrade);
+            return (
+              <div
+                key={unit.unitTypeId}
+                className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="ob-typo-body2 font-semibold text-(--oboon-text-title)">
+                      {unit.title}
+                    </div>
+                    <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+                      매칭률 {unit.totalScore == null ? "-" : `${Math.round(unit.totalScore)}%`}
+                    </div>
+                  </div>
+                  <Badge
+                    className="shrink-0 bg-transparent"
+                    style={{ borderColor: tone.borderColor, color: tone.color }}
+                  >
+                    {unit.gradeLabel ?? tone.chipLabel}
+                  </Badge>
+                </div>
+                <div className="mt-2 ob-typo-caption text-(--oboon-text-title)">
+                  {unit.priceLabel} · 월 부담률{" "}
+                  {unit.monthlyBurdenPercent == null
+                    ? "계산 불가"
+                    : `${Math.round(unit.monthlyBurdenPercent * 10) / 10}%`}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <p className="mt-3 ob-typo-caption text-(--oboon-text-muted)">
+          {summary.note}
+        </p>
+      </div>
+    );
+  };
+
   // ── Main render ───────────────────────────────────────────────────────────────
   return (
-    <Card className="p-3.5">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <div className="ob-typo-h3 text-(--oboon-text-title)">조건 검증</div>
-          <p className="mt-0.5 ob-typo-caption text-(--oboon-text-muted)">
-            {propertyName ? `${propertyName} 현장 기준` : "현장 기준"}으로 내 조건을 확인합니다.
-          </p>
+    <section className="space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-2">
+          <div className="mt-0.5 text-(--oboon-text-muted)">
+            <ShieldCheck className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="ob-typo-h3 text-(--oboon-text-title)">조건 검증</div>
+            <p className="mt-0.5 ob-typo-caption text-(--oboon-text-muted)">
+              {propertyName ? `${propertyName} 현장 기준` : "현장 기준"}으로 내 조건을 확인합니다.
+            </p>
+          </div>
         </div>
         {showModifyButton ? (
           <Button
@@ -1080,9 +1144,8 @@ export default function ConditionValidationCard({
         ) : null}
       </div>
 
-      {/* Input Section */}
       {isInputSectionVisible ? (
-        <div className="mt-2.5 space-y-2.5">
+        <Card className="p-3.5">
           {isLoggedIn && hasSavedConditionPreset && isConditionDirty ? (
             <div className="flex items-center justify-between gap-2 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-2">
               <p className="ob-typo-caption text-(--oboon-text-muted)">
@@ -1115,313 +1178,121 @@ export default function ConditionValidationCard({
               onLoginRequest();
             }}
           />
-        </div>
+        </Card>
       ) : null}
 
-      {/* Guest Result */}
-      {guestResponse?.ok && guestResponse.result && !isInputSectionVisible && !isLoggedIn ? (
-        <div className="mt-2.5 space-y-2">
-          {/* Grade summary */}
-          {(() => {
-            const meta = grade5Meta(guestResponse.result.final_grade);
-            const matchRate = Math.round(
-              (guestResponse.result.total_score / guestResponse.result.max_score) * 100,
-            );
-            return (
-              <div
-                className="rounded-xl border px-3 py-3 flex items-center justify-between gap-3"
-                style={{ borderColor: meta.borderColor, backgroundColor: meta.bgColor }}
-              >
-                <div>
-                  <div className="ob-typo-caption text-(--oboon-text-muted)">간편 매칭률</div>
-                  <div className="mt-0.5 ob-typo-h2 font-bold text-(--oboon-text-title) leading-none">
-                    {matchRate}%
-                  </div>
-                </div>
-                <div
-                  className="rounded-full px-3 py-1 ob-typo-caption font-semibold text-(--oboon-text-title) shrink-0"
-                  style={{ backgroundColor: meta.color }}
-                >
-                  {guestResponse.result.grade_label}
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Category breakdown */}
-          {guestResponse.categories ? (
-            <div className="rounded-lg border border-(--oboon-border-default) overflow-hidden">
-              {(
-                [
-                  { key: "cash" as const, label: "자금력" },
-                  { key: "income" as const, label: "소득/부담" },
-                  { key: "credit" as const, label: "신용" },
-                  { key: "ownership" as const, label: "주택 보유" },
-                  { key: "purpose" as const, label: "구매 목적" },
-                ] as const
-              ).map(({ key, label }, idx, arr) => {
-                const cat = guestResponse.categories![key];
-                const meta = grade5Meta(cat.grade);
-                const catKey = `guest-${key}`;
-                const isOpen = openCategory === catKey;
-                return (
-                  <div
-                    key={key}
-                    className={idx < arr.length - 1 ? "border-b border-(--oboon-border-default)" : ""}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setOpenCategory(isOpen ? null : catKey)}
-                      className="flex w-full items-center justify-between gap-2 px-3 py-2"
-                      style={{ backgroundColor: meta.bgColor }}
-                    >
-                      <span className="ob-typo-caption font-medium text-(--oboon-text-title) shrink-0">
-                        {label}
-                      </span>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <span className="ob-typo-caption font-semibold text-(--oboon-text-title)">
-                          {grade5DetailLabel(cat.grade)}
-                        </span>
-                        {isOpen ? (
-                          <ChevronUp className="h-3 w-3 text-(--oboon-text-muted)" />
-                        ) : (
-                          <ChevronDown className="h-3 w-3 text-(--oboon-text-muted)" />
-                        )}
-                      </div>
-                    </button>
-                    {isOpen ? (
-                      <div
-                        className="px-3 pb-2 ob-typo-caption text-(--oboon-text-muted)"
-                        style={{ backgroundColor: meta.bgColor }}
-                      >
-                        {cat.reason}
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
-          ) : null}
-
-          {/* Unit type results */}
-          {guestResponse.unit_type_results && guestResponse.unit_type_results.length > 0 ? (
-            <>
-              <button
-                type="button"
-                onClick={() => setShowUnitTypeDetails((prev) => !prev)}
-                className="flex w-full items-center justify-between rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-1.5 ob-typo-caption text-(--oboon-text-muted) hover:border-(--oboon-border-hover) transition-colors"
-              >
-                <span>타입별 확인</span>
-                {showUnitTypeDetails ? (
-                  <ChevronUp className="h-3.5 w-3.5" />
-                ) : (
-                  <ChevronDown className="h-3.5 w-3.5" />
-                )}
-              </button>
-              {showUnitTypeDetails
-                ? renderUnitTypeResults(guestResponse.unit_type_results, "guest")
-                : null}
-            </>
-          ) : null}
-
-          {/* Login CTA */}
-          <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-3 text-center space-y-2">
-            <p className="ob-typo-caption font-semibold text-(--oboon-text-title)">
-              로그인하면 더 정밀하게 검증할 수 있습니다
-            </p>
-            <p className="ob-typo-caption text-(--oboon-text-muted)">
-              직업·지출·신용 상세·분양·입주 시점까지 반영
-            </p>
-            <Button className="w-full" onClick={onLoginRequest}>
-              로그인 후 정밀 검증하기
-            </Button>
-          </div>
-        </div>
-      ) : null}
-
-      {/* Error */}
       {errorMessage ? (
-        <div className="mt-2.5 flex items-center gap-1.5 rounded-xl border border-(--oboon-danger-border) bg-(--oboon-danger-bg) px-3 py-2 text-(--oboon-danger-text)">
+        <div className="flex items-center gap-1.5 rounded-xl border border-(--oboon-danger-border) bg-(--oboon-danger-bg) px-3 py-2 text-(--oboon-danger-text)">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           <span className="ob-typo-caption">{errorMessage}</span>
         </div>
       ) : null}
 
-      {/* Result */}
-      {result && !isInputSectionVisible ? (
-        <div className="mt-2.5 space-y-2">
-          {/* Grade summary */}
-          {(() => {
-            const meta = grade5Meta(result.final_grade);
-            const matchRate = Math.round((result.total_score / result.max_score) * 100);
-            return (
-              <div
-                className="rounded-xl border px-3 py-3 flex items-center justify-between gap-3"
-                style={{ borderColor: meta.borderColor, backgroundColor: meta.bgColor }}
-              >
-                <div>
-                  <div className="ob-typo-caption text-(--oboon-text-muted)">매칭률</div>
-                  <div className="mt-0.5 ob-typo-h2 font-bold text-(--oboon-text-title) leading-none">
-                    {matchRate}%
-                  </div>
-                </div>
-                <div
-                  className="rounded-full px-3 py-1 ob-typo-caption font-semibold text-(--oboon-text-title) shrink-0"
-                  style={{ backgroundColor: meta.color }}
-                >
-                  {result.grade_label ?? meta.label}
+      {isGuestResultVisible ? (
+        <div className="space-y-3">
+          {renderMatchCard({
+            title: "간편 매칭률",
+            matchRate: Math.round(
+              ((guestResponse?.result?.total_score ?? 0) /
+                (guestResponse?.result?.max_score ?? 1)) *
+                100,
+            ),
+            grade: guestResponse?.result?.final_grade ?? "GREEN",
+            label: guestResponse?.result?.grade_label ?? grade5DetailLabel("GREEN"),
+          })}
+
+          <div className="grid gap-3 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,0.95fr)]">
+            <div className="space-y-3">
+              <div className="grid gap-3">
+                <h3 className="ob-typo-subtitle text-(--oboon-text-title)">카테고리별 상세 결과</h3>
+                <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-3">
+                  <ConditionValidationCategoryPanel items={guestCategoryItems} />
                 </div>
               </div>
-            );
-          })()}
 
-          {/* Category detail toggle */}
-          {categories ? (
-            <button
-              type="button"
-              onClick={() => setShowResultDetails((prev) => !prev)}
-              className="flex w-full items-center justify-between rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-1.5 ob-typo-caption text-(--oboon-text-muted) hover:border-(--oboon-border-hover) transition-colors"
-            >
-              <span>카테고리별 상세 결과</span>
-              {showResultDetails ? (
-                <ChevronUp className="h-3.5 w-3.5" />
-              ) : (
-                <ChevronDown className="h-3.5 w-3.5" />
-              )}
-            </button>
-          ) : null}
-
-          {/* Category breakdown */}
-          {showResultDetails && categories ? (
-            <div className="rounded-lg border border-(--oboon-border-default) overflow-hidden">
-              {(
-                [
-                  { key: "cash" as const, label: "자금력" },
-                  { key: "income" as const, label: "소득" },
-                  { key: "ltv_dsr" as const, label: "LTV+DSR" },
-                  { key: "ownership" as const, label: "주택 보유" },
-                  { key: "purpose" as const, label: "구매 목적" },
-                ] as const
-              ).map(({ key, label }, idx, arr) => {
-                const cat = categories[key];
-                const meta = grade5Meta(cat.grade);
-                const catKey = `full-${key}`;
-                const isOpen = openCategory === catKey;
-                return (
-                  <div
-                    key={key}
-                    className={idx < arr.length - 1 ? "border-b border-(--oboon-border-default)" : ""}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setOpenCategory(isOpen ? null : catKey)}
-                      className="flex w-full items-center justify-between gap-2 px-3 py-2"
-                      style={{ backgroundColor: meta.bgColor }}
-                    >
-                      <span className="ob-typo-caption font-medium text-(--oboon-text-title) shrink-0">{label}</span>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <span className="ob-typo-caption font-semibold text-(--oboon-text-title)">
-                          {grade5DetailLabel(cat.grade)}
-                        </span>
-                        {isOpen ? (
-                          <ChevronUp className="h-3 w-3 text-(--oboon-text-muted)" />
-                        ) : (
-                          <ChevronDown className="h-3 w-3 text-(--oboon-text-muted)" />
-                        )}
-                      </div>
-                    </button>
-                    {isOpen ? (
-                      <div
-                        className="px-3 pb-2 ob-typo-caption text-(--oboon-text-muted)"
-                        style={{ backgroundColor: meta.bgColor }}
-                      >
-                        {cat.reason}
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })}
-
-              {/* Metrics */}
-              {metrics ? (
-                <div className="grid grid-cols-2 border-t border-(--oboon-border-default)">
-                  {[
-                    { label: "계약금", value: formatManwonWithEok(metrics.contract_amount) },
-                    { label: "예상 대출", value: formatManwonWithEok(metrics.loan_amount) },
-                    { label: "월상환", value: formatManwonWithEok(metrics.monthly_payment_est) },
-                    { label: "월 잉여", value: formatManwonWithEok(metrics.monthly_surplus) },
-                  ].map(({ label, value }, idx) => (
-                    <div
-                      key={label}
-                      className={`px-3 py-2${idx % 2 === 0 ? " border-r border-(--oboon-border-default)" : ""}${idx < 2 ? " border-b border-(--oboon-border-default)" : ""}`}
-                    >
-                      <div className="ob-typo-caption text-(--oboon-text-muted)">{label}</div>
-                      <div className="mt-0.5 ob-typo-caption font-semibold text-(--oboon-text-title)">{value}</div>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
+              <div className="grid gap-3">
+                <h3 className="ob-typo-subtitle text-(--oboon-text-title)">핵심 수치</h3>
+                {renderMetricsGrid(guestResponse?.metrics)}
+              </div>
             </div>
-          ) : null}
 
-          {/* Unit type results */}
-          {response?.unit_type_results && response.unit_type_results.length > 0 ? (
-            <>
-              <button
-                type="button"
-                onClick={() => setShowUnitTypeDetails((prev) => !prev)}
-                className="flex w-full items-center justify-between rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-1.5 ob-typo-caption text-(--oboon-text-muted) hover:border-(--oboon-border-hover) transition-colors"
-              >
-                <span>타입별 확인</span>
-                {showUnitTypeDetails ? (
-                  <ChevronUp className="h-3.5 w-3.5" />
-                ) : (
-                  <ChevronDown className="h-3.5 w-3.5" />
-                )}
-              </button>
-              {showUnitTypeDetails
-                ? renderUnitTypeResults(response.unit_type_results, "full")
-                : null}
-            </>
-          ) : null}
+            <div className="space-y-3 xl:sticky xl:top-24 xl:self-start">
+              <div className="grid gap-3">
+                <h3 className="ob-typo-subtitle text-(--oboon-text-title)">타입 결과 요약</h3>
+                {renderUnitTypeSummary(guestUnitTypeSummary)}
+              </div>
 
-          {/* Alternative recommend button */}
-          {shouldShowAlternativeButton ? (
-            <Button
-              className="w-full"
-              variant="secondary"
-              loading={recommendLoading}
-              onClick={() => void handleAlternativeRecommend()}
-            >
-              대안 현장 추천 보기
-            </Button>
-          ) : null}
-
-          {/* Consult button */}
-          <Button
-            className="w-full"
-            variant={result.final_grade === "RED" ? "warning" : "primary"}
-            disabled={isBookingBlockedRole || !hasBookableAgent}
-            onClick={handleConsultAction}
-          >
-            {consultButtonLabel}
-          </Button>
-
-          {isBookingBlockedRole ? (
-            <p className="ob-typo-caption text-(--oboon-text-muted)">
-              관리자/상담사 계정은 상담 예약을 진행할 수 없습니다.
-            </p>
-          ) : !hasBookableAgent ? (
-            <p className="ob-typo-caption text-(--oboon-text-muted)">
-              현재 이 현장에는 예약 가능한 상담사가 없습니다.
-            </p>
-          ) : null}
+              <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-3 text-center space-y-2">
+                <p className="ob-typo-caption font-semibold text-(--oboon-text-title)">
+                  로그인하면 더 정밀하게 검증할 수 있습니다
+                </p>
+                <p className="ob-typo-caption text-(--oboon-text-muted)">
+                  직업·지출·신용 상세·분양·입주 시점까지 반영
+                </p>
+                <Button className="w-full" onClick={onLoginRequest}>
+                  로그인 후 정밀 검증하기
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
       ) : null}
 
-      <p className="mt-2 ob-typo-caption text-(--oboon-text-muted)">
+      {isFullResultVisible ? (
+        <div className="space-y-3">
+          {renderMatchCard({
+            matchRate: Math.round(((result?.total_score ?? 0) / (result?.max_score ?? 1)) * 100),
+            grade: result?.final_grade ?? "GREEN",
+            label: result?.grade_label ?? grade5Meta(result?.final_grade ?? "GREEN").label,
+          })}
+
+          <div className="grid gap-3 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,0.95fr)]">
+            <div className="space-y-3">
+              <div className="grid gap-3">
+                <h3 className="ob-typo-subtitle text-(--oboon-text-title)">카테고리별 상세 결과</h3>
+                <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-3">
+                  <ConditionValidationCategoryPanel items={fullCategoryItems} />
+                </div>
+              </div>
+
+              <div className="grid gap-3">
+                <h3 className="ob-typo-subtitle text-(--oboon-text-title)">핵심 수치</h3>
+                {renderMetricsGrid(metrics)}
+              </div>
+            </div>
+
+            <div className="space-y-3 xl:sticky xl:top-24 xl:self-start">
+              <div className="grid gap-3">
+                <h3 className="ob-typo-subtitle text-(--oboon-text-title)">타입 결과 요약</h3>
+                {renderUnitTypeSummary(fullUnitTypeSummary)}
+              </div>
+
+              {shouldShowAlternativeButton ? (
+                <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-3 space-y-2">
+                  <div className="ob-typo-caption font-semibold text-(--oboon-text-title)">
+                    다음 액션
+                  </div>
+                  <p className="ob-typo-caption text-(--oboon-text-muted)">
+                    현재 조건에서 더 잘 맞는 현장이 있는지 바로 비교해볼 수 있습니다.
+                  </p>
+                  <Button
+                    className="w-full"
+                    variant="secondary"
+                    loading={recommendLoading}
+                    onClick={() => void handleAlternativeRecommend()}
+                  >
+                    대안 현장 추천 보기
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <p className="ob-typo-caption text-(--oboon-text-muted)">
         * 본 검증은 참고용이며 실제 계약 가능 여부는 현장 상담을 통해 확인하세요.
       </p>
-    </Card>
+    </section>
   );
 }

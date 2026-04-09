@@ -4,7 +4,10 @@ import { cookies } from "next/headers";
 import { z } from "zod";
 
 import { evaluateFullCondition } from "@/features/condition-validation/domain/fullCustomerEvaluator";
-import { buildScheduleAwareTimingCategory } from "@/features/condition-validation/lib/timing-satisfaction";
+import {
+  buildScheduleAwareTimingCategory,
+  deriveScheduleAwareTimingMonthsDiff,
+} from "@/features/condition-validation/lib/timing-satisfaction";
 import {
   loadPropertyProfile,
   loadUnitValidationProfiles,
@@ -16,6 +19,8 @@ import {
   checkAuthRateLimit,
   conditionEvaluationUserLimiter,
 } from "@/lib/rateLimit";
+
+type PriceVisibility = "public" | "non_public" | "unknown";
 
 type PropertyTimelineRow = {
   announcement_date: string | null;
@@ -36,6 +41,61 @@ function createAdminSupabase() {
       500,
     );
   }
+}
+
+function getCashRule(assetType: UnitTypeValidationProfile["assetType"]) {
+  if (assetType === "apartment") {
+    return { minExtraRate: 0.08, recommendedExtraRate: 0.12 };
+  }
+  if (assetType === "officetel") {
+    return { minExtraRate: 0.1, recommendedExtraRate: 0.15 };
+  }
+  return { minExtraRate: 0.12, recommendedExtraRate: 0.18 };
+}
+
+function calculateCashThresholds(args: {
+  assetType: UnitTypeValidationProfile["assetType"];
+  listPrice: number;
+  contractRatio: number;
+}) {
+  const { assetType, listPrice, contractRatio } = args;
+  const contractAmount = listPrice * contractRatio;
+  const cashRule = getCashRule(assetType);
+
+  return {
+    contractAmount,
+    minCash: contractAmount + listPrice * cashRule.minExtraRate,
+    recommendedCash: contractAmount + listPrice * cashRule.recommendedExtraRate,
+  };
+}
+
+async function resolvePriceVisibility(params: {
+  adminSupabase: ReturnType<typeof createAdminSupabase>;
+  matchedPropertyId: number | null;
+}): Promise<PriceVisibility> {
+  const { adminSupabase, matchedPropertyId } = params;
+  if (!matchedPropertyId || !Number.isFinite(matchedPropertyId)) {
+    return "unknown";
+  }
+
+  const { data, error } = await adminSupabase
+    .from("properties")
+    .select("property_unit_types(is_price_public)")
+    .eq("id", matchedPropertyId)
+    .maybeSingle<{ property_unit_types: Array<{ is_price_public?: boolean | null }> | null }>();
+
+  if (error || !data) {
+    return "unknown";
+  }
+
+  const unitTypes = data.property_unit_types ?? [];
+  if (unitTypes.length === 0) {
+    return "unknown";
+  }
+
+  return unitTypes.some((row) => row.is_price_public !== false)
+    ? "public"
+    : "non_public";
 }
 
 async function requireUser(): Promise<string | null> {
@@ -198,6 +258,33 @@ export async function POST(request: Request) {
     });
 
     const result = evaluateFullCondition({ profile, customer, timingOverride });
+    const priceVisibility = await resolvePriceVisibility({
+      adminSupabase,
+      matchedPropertyId: profile.matchedPropertyId,
+    });
+    const cashThresholds = calculateCashThresholds({
+      assetType: profile.assetType,
+      listPrice: profile.listPrice,
+      contractRatio: profile.contractRatio,
+    });
+    const monthlyBurdenPercent =
+      customer.monthlyIncome > 0
+        ? Math.round((result.metrics.monthlyPaymentEst / customer.monthlyIncome) * 100)
+        : null;
+    const timingMonthsDiff = deriveScheduleAwareTimingMonthsDiff({
+      purchaseTiming: customer.purchaseTiming,
+      moveinTiming: customer.moveinTiming,
+      timeline: timeline
+        ? {
+            announcementDate: timeline.announcement_date,
+            applicationStart: timeline.application_start,
+            applicationEnd: timeline.application_end,
+            contractStart: timeline.contract_start,
+            contractEnd: timeline.contract_end,
+            moveInDate: timeline.move_in_date,
+          }
+        : null,
+    });
 
     const resolvedPropertyId =
       profile.matchedPropertyId != null
@@ -224,6 +311,17 @@ export async function POST(request: Request) {
         customer,
         timingOverride,
       });
+      const unitCashThresholds = calculateCashThresholds({
+        assetType: unitProfile.assetType,
+        listPrice: unitProfile.listPriceManwon,
+        contractRatio: unitProfile.contractRatio,
+      });
+      const unitMonthlyBurdenPercent =
+        customer.monthlyIncome > 0
+          ? Math.round((unitResult.metrics.monthlyPaymentEst / customer.monthlyIncome) * 10000) /
+            100
+          : null;
+
       return {
         unit_type_id: unitProfile.unitTypeId,
         unit_type_name: unitProfile.unitTypeName,
@@ -234,6 +332,59 @@ export async function POST(request: Request) {
         total_score: unitResult.totalScore,
         summary_message: unitResult.summaryMessage,
         grade_label: unitResult.gradeLabel,
+        metrics: {
+          contract_amount: Math.round(unitCashThresholds.contractAmount),
+          min_cash: Math.round(unitCashThresholds.minCash),
+          recommended_cash: Math.round(unitCashThresholds.recommendedCash),
+          loan_amount: Math.round(unitResult.metrics.loanAmount),
+          monthly_payment_est: Math.round(unitResult.metrics.monthlyPaymentEst),
+          monthly_burden_percent: unitMonthlyBurdenPercent,
+          timing_months_diff: timingMonthsDiff,
+        },
+        categories: {
+          cash: {
+            grade: unitResult.categories.cash.grade,
+            score: unitResult.categories.cash.score,
+            max_score: unitResult.categories.cash.maxScore,
+            reason: unitResult.categories.cash.reasonMessage,
+          },
+          income: {
+            grade: unitResult.categories.income.grade,
+            score: unitResult.categories.income.score,
+            max_score: unitResult.categories.income.maxScore,
+            reason: unitResult.categories.income.reasonMessage,
+          },
+          ltv_dsr: {
+            grade: unitResult.categories.ltvDsr.grade,
+            score: unitResult.categories.ltvDsr.score,
+            max_score: unitResult.categories.ltvDsr.maxScore,
+            reason: unitResult.categories.ltvDsr.reasonMessage,
+          },
+          ownership: {
+            grade: unitResult.categories.ownership.grade,
+            score: unitResult.categories.ownership.score,
+            max_score: unitResult.categories.ownership.maxScore,
+            reason: unitResult.categories.ownership.reasonMessage,
+          },
+          purpose: {
+            grade: unitResult.categories.purpose.grade,
+            score: unitResult.categories.purpose.score,
+            max_score: unitResult.categories.purpose.maxScore,
+            reason: unitResult.categories.purpose.reasonMessage,
+          },
+          timing: {
+            grade: unitResult.categories.timing.grade,
+            score: unitResult.categories.timing.score,
+            max_score: unitResult.categories.timing.maxScore,
+            reason: unitResult.categories.timing.reasonMessage,
+          },
+        },
+        recommendation_context: {
+          available_cash_manwon: customer.availableCash,
+          monthly_income_manwon: customer.monthlyIncome,
+          house_ownership: customer.houseOwnership,
+          purchase_purpose: customer.purchasePurpose,
+        },
       };
     });
 
@@ -286,10 +437,17 @@ export async function POST(request: Request) {
       },
       metrics: {
         contract_amount: result.metrics.contractAmount,
+        min_cash: cashThresholds.minCash,
+        recommended_cash: cashThresholds.recommendedCash,
         loan_amount: result.metrics.loanAmount,
         monthly_payment_est: result.metrics.monthlyPaymentEst,
         monthly_surplus: result.metrics.monthlySurplus,
+        monthly_burden_percent: monthlyBurdenPercent,
         dsr_percent: result.metrics.dsrPercent,
+        timing_months_diff: timingMonthsDiff,
+      },
+      display: {
+        price_visibility: priceVisibility,
       },
       unit_type_results: unitTypeResults,
       evaluated_at: new Date().toISOString(),

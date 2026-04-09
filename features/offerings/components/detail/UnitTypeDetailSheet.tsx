@@ -74,14 +74,144 @@ function fmtText(s: string | null) {
 
 function formatDetailMoney(value: number | null | undefined) {
   if (value == null || !Number.isFinite(value) || value <= 0) return "확인 필요";
-  const rounded = Math.round((value / 10000) * 10) / 10;
-  return `${rounded.toFixed(1).replace(/\.0+$/, "")}억`;
+  const manwon = Math.round(value);
+  const eok = Math.floor(manwon / 10000);
+  const restManwon = manwon % 10000;
+
+  if (eok === 0) {
+    return `${manwon.toLocaleString("ko-KR")}만원`;
+  }
+
+  if (restManwon === 0) {
+    return `${eok.toLocaleString("ko-KR")}억원`;
+  }
+
+  return `${eok.toLocaleString("ko-KR")}억 ${restManwon.toLocaleString("ko-KR")}만원`;
+}
+
+function formatRangeBucket(remainder: number, thresholds: [number, number]) {
+  if (remainder < thresholds[0]) return "초반";
+  if (remainder < thresholds[1]) return "중반";
+  return "후반";
+}
+
+function formatApproxMoneyValue(value: number | null | undefined) {
+  if (value == null || !Number.isFinite(value) || value <= 0) return "확인 필요";
+
+  const manwon = Math.round(value);
+  if (manwon < 100) return "100만원 미만";
+
+  if (manwon < 1000) {
+    const band = Math.floor(manwon / 100) * 100;
+    const bucket = formatRangeBucket(manwon % 100, [25, 75]);
+    return `${band.toLocaleString("ko-KR")}만원대 ${bucket}`;
+  }
+
+  if (manwon < 10000) {
+    const band = Math.floor(manwon / 1000);
+    const bucket = formatRangeBucket(manwon % 1000, [250, 750]);
+    return `${band.toLocaleString("ko-KR")}천만원대 ${bucket}`;
+  }
+
+  const eok = Math.floor(manwon / 10000);
+  const restManwon = manwon % 10000;
+  if (restManwon === 0) {
+    return `${eok.toLocaleString("ko-KR")}억원대`;
+  }
+
+  if (restManwon < 1000) {
+    const band = Math.floor(restManwon / 100) * 100;
+    const bucket = formatRangeBucket(restManwon % 100, [25, 75]);
+    return `${eok.toLocaleString("ko-KR")}억 ${band.toLocaleString("ko-KR")}만원대 ${bucket}`;
+  }
+
+  const band = Math.floor(restManwon / 1000);
+  const bucket = formatRangeBucket(restManwon % 1000, [250, 750]);
+  return `${eok.toLocaleString("ko-KR")}억 ${band.toLocaleString("ko-KR")}천만원대 ${bucket}`;
+}
+
+function normalizePriceToManwon(value: number | null | undefined) {
+  if (value == null || !Number.isFinite(value) || value <= 0) return null;
+  // 일부 원시 가격은 원 단위로 내려오므로, 계산용으로만 만원 단위로 정규화한다.
+  return Math.abs(value) >= 10_000_000 ? value / 10_000 : value;
+}
+
+function scaleDetailMoney(value: number | null | undefined, ratio: number) {
+  if (value == null || !Number.isFinite(value) || value <= 0) return null;
+  if (!Number.isFinite(ratio) || ratio <= 0) return null;
+  return Math.round(value * ratio);
+}
+
+function formatDetailMoneyRange(
+  value: number | null | undefined,
+  basePrice: number | null | undefined,
+  minPrice: number | null | undefined,
+  maxPrice: number | null | undefined,
+) {
+  if (value == null || !Number.isFinite(value) || value <= 0) return "확인 필요";
+  if (
+    basePrice == null ||
+    !Number.isFinite(basePrice) ||
+    basePrice <= 0 ||
+    minPrice == null ||
+    maxPrice == null ||
+    !Number.isFinite(minPrice) ||
+    !Number.isFinite(maxPrice) ||
+    minPrice <= 0 ||
+    maxPrice <= 0
+  ) {
+    return formatDetailMoney(value);
+  }
+
+  const minValue = scaleDetailMoney(value, minPrice / basePrice);
+  const maxValue = scaleDetailMoney(value, maxPrice / basePrice);
+  if (minValue == null || maxValue == null) return formatDetailMoney(value);
+  if (minValue === maxValue) return formatDetailMoney(minValue);
+  return `${formatDetailMoney(minValue)} ~ ${formatDetailMoney(maxValue)}`;
+}
+
+function formatApproxMoneyRange(
+  value: number | null | undefined,
+  basePrice: number | null | undefined,
+  minPrice: number | null | undefined,
+  maxPrice: number | null | undefined,
+) {
+  if (value == null || !Number.isFinite(value) || value <= 0) return "확인 필요";
+  if (
+    basePrice == null ||
+    !Number.isFinite(basePrice) ||
+    basePrice <= 0 ||
+    minPrice == null ||
+    maxPrice == null ||
+    !Number.isFinite(minPrice) ||
+    !Number.isFinite(maxPrice) ||
+    minPrice <= 0 ||
+    maxPrice <= 0
+  ) {
+    return formatApproxMoneyValue(value);
+  }
+
+  const minValue = scaleDetailMoney(value, minPrice / basePrice);
+  const maxValue = scaleDetailMoney(value, maxPrice / basePrice);
+  if (minValue == null || maxValue == null) return formatApproxMoneyValue(value);
+  if (minValue === maxValue) return formatApproxMoneyValue(minValue);
+  return `${formatApproxMoneyValue(minValue)} ~ ${formatApproxMoneyValue(maxValue)}`;
 }
 
 function formatDetailPercent(value: number | null | undefined) {
   if (value == null || !Number.isFinite(value)) return "계산 불가";
   const rounded = Math.round(value * 10) / 10;
   return `${rounded.toFixed(1).replace(/\.0+$/, "")}%`;
+}
+
+function formatApproxPercent(value: number | null | undefined) {
+  if (value == null || !Number.isFinite(value)) return "계산 불가";
+  if (value < 10) return `${Math.round(value)}%대`;
+
+  const rounded = Math.round(value);
+  const band = Math.floor(rounded / 10) * 10;
+  const bucket = formatRangeBucket(rounded % 10, [4, 7]);
+  return `${band}%대 ${bucket}`;
 }
 
 function buildCategoryDisplayItems(validation: UnitTypeResultItem | null) {
@@ -240,7 +370,6 @@ function ImageModal({
         if (e.target === e.currentTarget) onClose();
       }}
       onWheel={(e) => e.preventDefault()}
-      onTouchMove={(e) => e.preventDefault()}
       onPointerMove={(e) => {
         if (e.cancelable) e.preventDefault();
       }}
@@ -439,6 +568,13 @@ export default function UnitTypeDetailSheet({
       ? unit.floor_plan_url.trim()
       : null;
   const title = (unit.type_name ?? "").trim() || "타입";
+  const basePrice = validation?.list_price_manwon ?? null;
+  const minPrice = normalizePriceToManwon(unit.price_min);
+  const maxPrice = normalizePriceToManwon(unit.price_max);
+  const isPricePublic = validation?.is_price_public !== false;
+  const formatMoneyValue = isPricePublic ? formatDetailMoneyRange : formatApproxMoneyRange;
+  const formatMoneySingle = isPricePublic ? formatDetailMoney : formatApproxMoneyValue;
+  const formatPercentValue = isPricePublic ? formatDetailPercent : formatApproxPercent;
 
   return (
     <>
@@ -462,7 +598,8 @@ export default function UnitTypeDetailSheet({
           // Mobile: bottom sheet
           "bottom-0 left-0 right-0 max-h-[85dvh] rounded-t-2xl",
           // Desktop: right panel
-          "lg:inset-y-0 lg:left-auto lg:right-0 lg:w-[420px] lg:max-h-none lg:rounded-none lg:rounded-l-2xl",
+          "lg:top-[var(--oboon-header-offset)] lg:bottom-0 lg:left-auto lg:right-0 lg:w-[420px] lg:rounded-none lg:rounded-l-2xl",
+          "lg:max-h-[calc(100dvh-var(--oboon-header-offset))]",
           // Animation
           open ? "translate-y-0 lg:translate-x-0" : "translate-y-full lg:translate-x-full",
         )}
@@ -473,19 +610,21 @@ export default function UnitTypeDetailSheet({
         </div>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3">
-          <span className="ob-typo-h3 text-(--oboon-text-title)">{title}</span>
-          <button
-            type="button"
-            aria-label="닫기"
-            onClick={onClose}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-(--oboon-bg-subtle)"
-          >
-            <X className="h-5 w-5 text-(--oboon-text-title)" />
-          </button>
+        <div className="sticky top-0 z-10 border-b border-(--oboon-border-default) bg-(--oboon-bg-surface)/95 backdrop-blur">
+          <div className="flex items-center justify-between px-4 py-3">
+            <span className="ob-typo-h3 text-(--oboon-text-title)">{title}</span>
+            <button
+              type="button"
+              aria-label="닫기"
+              onClick={onClose}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-(--oboon-bg-subtle)"
+            >
+              <X className="h-5 w-5 text-(--oboon-text-title)" />
+            </button>
+          </div>
         </div>
 
-        <div className="px-4 pb-8 space-y-4">
+        <div className="px-4 pb-8 pt-5 space-y-4">
           {/* 1. 분양가 정보 */}
           <section className="space-y-2">
             <h4 className="ob-typo-h4 text-(--oboon-text-title)">분양가 정보</h4>
@@ -514,11 +653,47 @@ export default function UnitTypeDetailSheet({
               <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-default) p-4">
                 <dl className="space-y-3">
                   {[
-                    { label: "계약금", value: formatDetailMoney(validation.metrics?.contract_amount) },
-                    { label: "초기 필요 자금", value: formatDetailMoney(validation.metrics?.min_cash) },
-                    { label: "권장 보유 현금", value: formatDetailMoney(validation.metrics?.recommended_cash) },
-                    { label: "예상 대출", value: formatDetailMoney(validation.metrics?.loan_amount) },
-                    { label: "월 부담률", value: formatDetailPercent(validation.metrics?.monthly_burden_percent) },
+                    {
+                      label: "계약금",
+                      value: formatMoneyValue(
+                        validation.metrics?.contract_amount,
+                        basePrice,
+                        minPrice,
+                        maxPrice,
+                      ),
+                    },
+                    {
+                      label: "초기 필요 자금",
+                      value: formatMoneyValue(
+                        validation.metrics?.min_cash,
+                        basePrice,
+                        minPrice,
+                        maxPrice,
+                      ),
+                    },
+                    {
+                      label: "권장 보유 현금",
+                      value: formatMoneyValue(
+                        validation.metrics?.recommended_cash,
+                        basePrice,
+                        minPrice,
+                        maxPrice,
+                      ),
+                    },
+                    {
+                      label: "예상 대출",
+                      value: formatMoneyValue(
+                        validation.metrics?.loan_amount,
+                        basePrice,
+                        minPrice,
+                        maxPrice,
+                      ),
+                    },
+                    {
+                      label: "예상 월 상환액",
+                      value: formatMoneySingle(validation.metrics?.monthly_payment_est),
+                    },
+                    { label: "월 부담률", value: formatPercentValue(validation.metrics?.monthly_burden_percent) },
                   ].map(({ label, value }) => (
                     <div key={label} className="flex items-center justify-between gap-3">
                       <dt className="ob-typo-caption text-(--oboon-text-muted)">{label}</dt>

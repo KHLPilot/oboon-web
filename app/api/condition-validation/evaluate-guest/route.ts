@@ -14,6 +14,8 @@ import {
   guestConditionEvaluationIpLimiter,
 } from "@/lib/rateLimit";
 
+type PriceVisibility = "public" | "non_public" | "unknown";
+
 function createAdminSupabase() {
   try {
     return createSupabaseAdminClient();
@@ -24,6 +26,61 @@ function createAdminSupabase() {
       500,
     );
   }
+}
+
+function getCashRule(assetType: "apartment" | "officetel" | "commercial" | "knowledge_industry") {
+  if (assetType === "apartment") {
+    return { minExtraRate: 0.08, recommendedExtraRate: 0.12 };
+  }
+  if (assetType === "officetel") {
+    return { minExtraRate: 0.1, recommendedExtraRate: 0.15 };
+  }
+  return { minExtraRate: 0.12, recommendedExtraRate: 0.18 };
+}
+
+function calculateCashThresholds(args: {
+  assetType: "apartment" | "officetel" | "commercial" | "knowledge_industry";
+  listPrice: number;
+  contractRatio: number;
+}) {
+  const { assetType, listPrice, contractRatio } = args;
+  const contractAmount = listPrice * contractRatio;
+  const cashRule = getCashRule(assetType);
+
+  return {
+    contractAmount,
+    minCash: contractAmount + listPrice * cashRule.minExtraRate,
+    recommendedCash: contractAmount + listPrice * cashRule.recommendedExtraRate,
+  };
+}
+
+async function resolvePriceVisibility(params: {
+  adminSupabase: ReturnType<typeof createAdminSupabase>;
+  matchedPropertyId: number | null;
+}): Promise<PriceVisibility> {
+  const { adminSupabase, matchedPropertyId } = params;
+  if (!matchedPropertyId || !Number.isFinite(matchedPropertyId)) {
+    return "unknown";
+  }
+
+  const { data, error } = await adminSupabase
+    .from("properties")
+    .select("property_unit_types(is_price_public)")
+    .eq("id", matchedPropertyId)
+    .maybeSingle<{ property_unit_types: Array<{ is_price_public?: boolean | null }> | null }>();
+
+  if (error || !data) {
+    return "unknown";
+  }
+
+  const unitTypes = data.property_unit_types ?? [];
+  if (unitTypes.length === 0) {
+    return "unknown";
+  }
+
+  return unitTypes.some((row) => row.is_price_public !== false)
+    ? "public"
+    : "non_public";
 }
 
 const requestSchema = z.object({
@@ -90,6 +147,15 @@ export async function POST(request: NextRequest) {
     };
 
     const result = evaluateGuestCondition({ profile, customer });
+    const priceVisibility = await resolvePriceVisibility({
+      adminSupabase,
+      matchedPropertyId: profile.matchedPropertyId,
+    });
+    const cashThresholds = calculateCashThresholds({
+      assetType: profile.assetType,
+      listPrice: profile.listPrice,
+      contractRatio: profile.contractRatio,
+    });
 
     return NextResponse.json({
       ok: true,
@@ -134,9 +200,14 @@ export async function POST(request: NextRequest) {
       },
       metrics: {
         contract_amount: result.metrics.contractAmount,
+        min_cash: cashThresholds.minCash,
+        recommended_cash: cashThresholds.recommendedCash,
         loan_amount: result.metrics.loanAmount,
         monthly_payment_est: result.metrics.monthlyPaymentEst,
         monthly_burden_percent: result.metrics.monthlyBurdenPercent,
+      },
+      display: {
+        price_visibility: priceVisibility,
       },
     });
   } catch (error) {

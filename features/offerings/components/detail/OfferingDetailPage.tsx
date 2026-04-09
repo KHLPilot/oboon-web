@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import PageContainer from "@/components/shared/PageContainer";
 import OfferingDetailLeft from "@/features/offerings/components/detail/OfferingDetailLeft";
 import OfferingDetailRight from "@/features/offerings/components/detail/OfferingDetailRight";
+import OfferingDetailScrollReset from "@/features/offerings/components/detail/OfferingDetailScrollReset.client";
 import OfferingViewTracker from "@/features/offerings/components/detail/OfferingViewTracker.client";
 import {
   fetchOfferingDetail,
@@ -68,6 +69,7 @@ export default async function OfferingDetailPage({ id }: { id: number }) {
 
   return (
     <PageContainer>
+      <OfferingDetailScrollReset />
       <OfferingViewTracker propertyId={property.id} />
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
         <div className="lg:pr-5">
@@ -86,6 +88,7 @@ export default async function OfferingDetailPage({ id }: { id: number }) {
             propertyName={property.name}
             propertyImageUrl={property.image_url ?? undefined}
             hasApprovedAgent={hasAgent}
+            propertyTimeline={property.property_timeline}
           />
         </div>
       </div>

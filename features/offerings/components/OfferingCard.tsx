@@ -4,7 +4,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import type { CSSProperties, FocusEventHandler, MouseEventHandler } from "react";
+import type { CSSProperties, FocusEventHandler, MouseEventHandler, ReactNode } from "react";
 
 import type { Offering } from "@/types/index";
 import { ROUTES } from "@/types/index";
@@ -167,6 +167,8 @@ export default function OfferingCard({
   flushImageToEdge = false,
   hideImage = false,
   navigateOnClick = true,
+  footerSlot,
+  recommendationTier = "primary",
 }: {
   offering: Offering;
   conditionCategories?: ConditionCategoryGrades | null;
@@ -189,13 +191,15 @@ export default function OfferingCard({
   flushImageToEdge?: boolean;
   hideImage?: boolean;
   navigateOnClick?: boolean;
+  footerSlot?: ReactNode;
+  recommendationTier?: "primary" | "alternative";
 }) {
   const priceRange = formatPriceRange(
     offering.priceMin억,
     offering.priceMax억,
     {
       unknownLabel: offering.isPricePrivate
-        ? UXCopy.pricePrivateShort
+        ? UXCopy.pricePrivate
         : UXCopy.priceRangeShort,
     },
   );
@@ -251,8 +255,13 @@ export default function OfferingCard({
         }}
         className={cn(
           "group cursor-pointer overflow-hidden rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:shadow-(--oboon-shadow-card)",
+          recommendationTier === "alternative" &&
+            "border-(--oboon-grade-yellow-border) bg-linear-to-br from-(--oboon-grade-yellow-bg)/45 via-(--oboon-bg-surface) to-(--oboon-bg-surface)",
           flushImageToEdge ? "flex items-stretch p-0" : "p-2.5 xs:p-3 lg:p-4",
           isSelected && "lg:shadow-(--oboon-shadow-card)",
+          isSelected &&
+            recommendationTier === "alternative" &&
+            "ring-1 ring-(--oboon-grade-yellow-border)",
         )}
       >
         {flushImageToEdge ? (
@@ -435,6 +444,11 @@ export default function OfferingCard({
             )}
           </div>
         )}
+        {footerSlot ? (
+          <div className="border-t border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-3 sm:px-4">
+            {footerSlot}
+          </div>
+        ) : null}
       </article>
     );
   }
@@ -755,6 +769,11 @@ export default function OfferingCard({
           </div>
         )}
       </div>
+      {footerSlot ? (
+        <div className="border-t border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-3 sm:px-4">
+          {footerSlot}
+        </div>
+      ) : null}
     </Card>
   );
 
