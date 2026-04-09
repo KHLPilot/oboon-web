@@ -1,81 +1,19 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import Image from "next/image";
-import { ArrowRightLeft, Maximize2, X } from "lucide-react";
-import Button from "@/components/ui/Button";
+import { useMemo, useState } from "react";
+import { ChevronRight } from "lucide-react";
+import type { UnitTypeResultItem } from "@/features/condition-validation/domain/types";
 import { UXCopy } from "@/shared/uxCopy";
 import { formatPriceRange } from "@/shared/price";
-
-type UnitTypeRow = {
-  id: number;
-  type_name: string | null;
-  price_min: number | null;
-  price_max: number | null;
-  is_price_public?: boolean | null;
-  is_public?: boolean | null;
-
-  // 평면도 이미지 URL
-  floor_plan_url: string | null;
-
-  // 8개 메타 정보
-  exclusive_area: number | null; // 전용면적
-  supply_area: number | null; // 공급면적
-  rooms: number | null; // 방
-  bathrooms: number | null; // 욕실
-  building_layout: string | null; // 구조
-  orientation: string | null; // 향
-  unit_count: number | null; // 세대수
-  supply_count: number | null; // 공급
-};
-type AreaUnit = "sqm" | "pyeong";
+import UnitTypeDetailSheet, { type UnitTypeRow } from "./UnitTypeDetailSheet";
+import {
+  buildOfferingUnitConditionState,
+  buildOfferingUnitSpecSummary,
+  validationMeta,
+} from "./offeringPriceTableLayout";
 
 function cn(...classes: Array<string | undefined | false | null>) {
   return classes.filter(Boolean).join(" ");
-}
-
-function fallbackText() {
-  return (
-    (UXCopy as unknown as { checkingShort?: string }).checkingShort ??
-    UXCopy.checking ??
-    "확인중이에요"
-  );
-}
-
-function fmtArea(n: number | null, unit: AreaUnit) {
-  if (n === null) return fallbackText();
-  if (unit === "sqm") {
-    const v = Math.round(n * 10) / 10;
-    return `${v}㎡`;
-  }
-  const pyeong = n / 3.305785;
-  const v = Math.round(pyeong * 10) / 10;
-  return `${v}평`;
-}
-
-function fmtCount(n: number | null, unitLabel = "개") {
-  if (n === null) return fallbackText();
-  return `${n}${unitLabel}`;
-}
-
-function fmtGenCount(n: number | null, unitLabel = "세대") {
-  if (n == null) return fallbackText();
-  return `${n}${unitLabel}`;
-}
-
-function fmtText(s: string | null) {
-  const t = (s ?? "").trim();
-  return t ? t : fallbackText();
-}
-
-function hasTextValue(s: string | null | undefined) {
-  return typeof s === "string" && s.trim().length > 0;
-}
-
-function pickImageUrl(u: UnitTypeRow) {
-  const a = typeof u.floor_plan_url === "string" ? u.floor_plan_url.trim() : "";
-  if (a) return a;
-  return null;
 }
 
 function formatTypeTitle(typeName: string | null) {
@@ -84,482 +22,117 @@ function formatTypeTitle(typeName: string | null) {
   return raw;
 }
 
-/* -----------------------------
-   Local modal (이미지 확대)
--------------------------------- */
-function clamp(n: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, n));
-}
-
-function ImageModal({
-  open,
-  onClose,
-  title,
-  src,
-}: {
-  open: boolean;
-  onClose: () => void;
-  title: string;
-  src: string | null;
-}) {
-  const [zoomed, setZoomed] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
-  const [imageNatural, setImageNatural] = useState({ width: 0, height: 0 });
-
-  // pan state
-  const [pos, setPos] = useState({ x: 0, y: 0 });
-  const draggingRef = useRef(false);
-  const didDragRef = useRef(false);
-  const startRef = useRef({ px: 0, py: 0, x: 0, y: 0 });
-
-  const viewportRef = useRef<HTMLDivElement | null>(null);
-
-  const isMobile =
-    typeof window !== "undefined" &&
-    window.matchMedia("(max-width: 768px)").matches;
-
-  // drag 정도
-  const DRAG_GAIN = isMobile ? 1.6 : 1.0;
-
-  // zoom 배율
-  const ZOOM = isMobile ? 2.8 : 2.2;
-
-  // 모달이 닫히면 상태 초기화
-  useEffect(() => {
-    if (!open) {
-      queueMicrotask(() => {
-        setZoomed(false);
-        setPos({ x: 0, y: 0 });
-        setIsDragging(false);
-      });
-      draggingRef.current = false;
-    }
-  }, [open]);
-
-  useLayoutEffect(() => {
-    const el = viewportRef.current;
-    if (!open || !el) return;
-
-    const updateSize = () => {
-      const rect = el.getBoundingClientRect();
-      setViewportSize({ width: rect.width, height: rect.height });
-    };
-    updateSize();
-
-    const observer = new ResizeObserver(updateSize);
-    observer.observe(el);
-    window.addEventListener("resize", updateSize);
-
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", updateSize);
-    };
-  }, [open]);
-
-  // zoom 토글 시 pan 초기화(확대 시는 중앙부터 시작)
-  useEffect(() => {
-    queueMicrotask(() => setPos({ x: 0, y: 0 }));
-  }, [zoomed]);
-
-  // 모달 외부 클릭 차단
-  useEffect(() => {
-    if (!open) return;
-
-    const scrollY = window.scrollY;
-    const prev = {
-      overflow: document.body.style.overflow,
-      position: document.body.style.position,
-      top: document.body.style.top,
-      width: document.body.style.width,
-      touchAction: document.body.style.touchAction,
-    };
-
-    document.body.style.overflow = "hidden";
-    document.body.style.position = "fixed";
-    document.body.style.top = `-${scrollY}px`;
-    document.body.style.width = "100%";
-    document.body.style.touchAction = "none";
-
-    return () => {
-      document.body.style.overflow = prev.overflow;
-      document.body.style.position = prev.position;
-      document.body.style.top = prev.top;
-      document.body.style.width = prev.width;
-      document.body.style.touchAction = prev.touchAction;
-
-      window.scrollTo(0, scrollY);
-    };
-  }, [open]);
-
-  const panBounds = useMemo(() => {
-    const vw = viewportSize.width;
-    const vh = viewportSize.height;
-    const iw = imageNatural.width;
-    const ih = imageNatural.height;
-
-    if (!vw || !vh || !iw || !ih) return { maxX: 0, maxY: 0 };
-
-    // object-contain 기준 렌더 크기 계산
-    const imageRatio = iw / ih;
-    const viewportRatio = vw / vh;
-    let baseW = 0;
-    let baseH = 0;
-
-    if (imageRatio > viewportRatio) {
-      baseW = vw;
-      baseH = vw / imageRatio;
-    } else {
-      baseH = vh;
-      baseW = vh * imageRatio;
-    }
-
-    const scaledW = baseW * ZOOM;
-    const scaledH = baseH * ZOOM;
-
-    return {
-      maxX: Math.max(0, (scaledW - vw) / 2),
-      maxY: Math.max(0, (scaledH - vh) / 2),
-    };
-  }, [viewportSize.height, viewportSize.width, imageNatural.height, imageNatural.width, ZOOM]);
-
-  if (!open) return null;
-
-  return (
-    <div
-      className="fixed inset-0 z-999999 flex items-center justify-center bg-black/70 backdrop-blur pointer-events-auto touch-none overscroll-none"
-      onPointerDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-      onWheel={(e) => e.preventDefault()}
-      onTouchMove={(e) => e.preventDefault()}
-      onPointerMove={(e) => {
-        // 확대(pan) 중이 아니라면 배경 드래그 스크롤을 막는다
-        if (e.cancelable) e.preventDefault();
-      }}
-    >
-      <div className="relative w-[92vw] max-w-4xl pointer-events-auto touch-auto">
-        {/* Header: 제목 + 닫기 버튼 같은 높이 */}
-        <div className="mb-3 flex items-center">
-          <div className="min-w-0 ob-typo-h2 text-(--oboon-text-title) truncate">
-            {title}
-          </div>
-
-          <button
-            type="button"
-            aria-label="닫기"
-            onClick={onClose}
-            className="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-(--oboon-bg-subtle)"
-          >
-            <X className="h-5 w-5 text-(--oboon-text-title)" />
-          </button>
-        </div>
-
-        {/* Image viewport */}
-        <div
-          ref={viewportRef}
-          className={cn(
-            "relative overflow-hidden rounded-2xl bg-black",
-            zoomed ? "cursor-grab" : "cursor-zoom-in",
-            zoomed && isDragging ? "cursor-grabbing" : ""
-          )}
-          // 확대 상태에서만 pan 활성화
-          onPointerDown={(e) => {
-            if (!zoomed) return;
-            didDragRef.current = false;
-            draggingRef.current = true;
-            setIsDragging(true);
-            (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-            startRef.current = {
-              px: e.clientX,
-              py: e.clientY,
-              x: pos.x,
-              y: pos.y,
-            };
-          }}
-          onPointerMove={(e) => {
-            if (!zoomed || !draggingRef.current) return;
-
-            const dx = (e.clientX - startRef.current.px) * DRAG_GAIN;
-            const dy = (e.clientY - startRef.current.py) * DRAG_GAIN;
-
-            if (!didDragRef.current && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) {
-              didDragRef.current = true;
-            }
-            const nextX = startRef.current.x + dx;
-            const nextY = startRef.current.y + dy;
-
-            setPos({
-              x: clamp(nextX, -panBounds.maxX, panBounds.maxX),
-              y: clamp(nextY, -panBounds.maxY, panBounds.maxY),
-            });
-          }}
-          onPointerUp={(e) => {
-            if (!zoomed) return;
-            draggingRef.current = false;
-            setIsDragging(false);
-            try {
-              (e.currentTarget as HTMLElement).releasePointerCapture(
-                e.pointerId
-              );
-            } catch {}
-            window.setTimeout(() => {
-              didDragRef.current = false;
-            }, 0);
-          }}
-          onPointerCancel={(e) => {
-            draggingRef.current = false;
-            setIsDragging(false);
-            try {
-              (e.currentTarget as HTMLElement).releasePointerCapture(
-                e.pointerId
-              );
-            } catch {}
-          }}
-          // 클릭(탭)으로 확대/축소 토글
-          onClick={() => {
-            if (didDragRef.current) {
-              didDragRef.current = false;
-              return;
-            }
-            setZoomed((v) => !v);
-          }}
-        >
-          <div className="relative h-[68vh] w-full max-h-[78vh] select-none sm:h-[74vh]">
-            {src ? (
-              <div
-                className="absolute inset-0"
-                style={{
-                  touchAction: "none",
-                  transform: zoomed
-                    ? `translate3d(${pos.x}px, ${pos.y}px, 0) scale(${ZOOM})`
-                    : "translate3d(0,0,0) scale(1)",
-                  transformOrigin: "center",
-                  transition: isDragging ? "none" : "transform 260ms ease-out",
-                }}
-              >
-                <Image
-                  src={src}
-                  alt={`${title} 평면도`}
-                  fill
-                  draggable={false}
-                  onLoadingComplete={(img) => {
-                    setImageNatural({
-                      width: img.naturalWidth || 0,
-                      height: img.naturalHeight || 0,
-                    });
-                  }}
-                  className={cn("select-none object-contain")}
-                  sizes="(max-width: 768px) 92vw, 1000px"
-                />
-              </div>
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-sm text-white/70">
-                이미지가 없습니다.
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Hint */}
-        <div className="mt-2 text-center text-xs text-white/60">
-          {zoomed ? "드래그로 이동, 클릭하면 축소" : "클릭하면 확대"}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* -----------------------------
-  MetaCard (8개 카드 공통)
--------------------------------- */
-function MetaCard({
-  label,
-  value,
-  rightAction,
-}: {
-  label: string;
-  value: string;
-  rightAction?: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-2">
-      <div className="ob-typo-caption font-medium text-(--oboon-text-muted)">
-        {label}
-      </div>
-      <div className="mt-1 flex items-center justify-between gap-2">
-        <div className="ob-typo-h4 text-(--oboon-text-title)">{value}</div>
-        {rightAction ? <div className="shrink-0">{rightAction}</div> : null}
-      </div>
-    </div>
-  );
-}
-
-function MetaGrid({
-  u,
-  areaUnit,
-  onToggleAreaUnit,
-}: {
-  u: UnitTypeRow;
-  areaUnit: AreaUnit;
-  onToggleAreaUnit: () => void;
-}) {
-  const areaToggleButton = (
-    <Button
-      onClick={onToggleAreaUnit}
-      variant="secondary"
-      size="sm"
-      shape="pill"
-      className="h-5 px-1 text-[10px] sm:h-6 sm:px-2 sm:text-xs"
-      aria-label={areaUnit === "sqm" ? "평 단위로 보기" : "제곱미터 단위로 보기"}
-    >
-      <ArrowRightLeft className="hidden sm:block sm:h-3.5 sm:w-3.5" />
-      {areaUnit === "sqm" ? "평" : "㎡"}
-    </Button>
-  );
-
-  return (
-    <div className="mt-3 grid grid-cols-2 gap-2">
-      <MetaCard
-        label="전용면적"
-        value={fmtArea(u.exclusive_area, areaUnit)}
-        rightAction={areaToggleButton}
-      />
-      <MetaCard
-        label="공급면적"
-        value={fmtArea(u.supply_area, areaUnit)}
-        rightAction={areaToggleButton}
-      />
-      <MetaCard label="방" value={fmtCount(u.rooms)} />
-      <MetaCard label="욕실" value={fmtCount(u.bathrooms)} />
-      {hasTextValue(u.building_layout) ? (
-        <MetaCard label="구조" value={fmtText(u.building_layout)} />
-      ) : null}
-      {hasTextValue(u.orientation) ? (
-        <MetaCard label="향" value={fmtText(u.orientation)} />
-      ) : null}
-      <MetaCard label="세대수" value={fmtGenCount(u.unit_count)} />
-      <MetaCard label="공급 규모" value={fmtGenCount(u.supply_count)} />
-    </div>
-  );
-}
-
 export default function OfferingUnitTypesAccordion({
   unitTypes,
   emptyText,
   imagePlaceholderText,
+  validationResults = null,
 }: {
   unitTypes: UnitTypeRow[];
   emptyText: string;
   imagePlaceholderText: string;
+  validationResults?: UnitTypeResultItem[] | null;
 }) {
   const rows = useMemo(() => {
     return (unitTypes ?? []).filter((u) => u.is_public !== false);
   }, [unitTypes]);
 
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [zoom, setZoom] = useState<{
-    open: boolean;
-    title: string;
-    src: string | null;
-  }>({ open: false, title: "", src: null });
-  const [areaUnit, setAreaUnit] = useState<AreaUnit>("sqm");
+  const [selectedUnitId, setSelectedUnitId] = useState<number | null>(null);
 
-  if (!rows.length) {
-    return (
-      <div className="ob-typo-h4 text-(--oboon-text-muted)">{emptyText}</div>
-    );
+  const validationMap = useMemo(
+    () => new Map((validationResults ?? []).map((item) => [item.unit_type_id, item])),
+    [validationResults],
+  );
+
+  const selectedUnit = rows.find((r) => r.id === selectedUnitId) ?? null;
+  const selectedValidation =
+    selectedUnitId != null ? (validationMap.get(selectedUnitId) ?? null) : null;
+
+  function scrollToConditionValidation() {
+    const target = document.getElementById("condition-validation");
+    target?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  const selectedUnit =
-    rows.find((row) => row.id === selectedId) ?? rows[0];
-  const title = formatTypeTitle(selectedUnit.type_name);
-  const img = pickImageUrl(selectedUnit);
+  if (!rows.length) {
+    return <div className="ob-typo-h4 text-(--oboon-text-muted)">{emptyText}</div>;
+  }
 
   return (
     <>
-      <div className="flex gap-1 overflow-x-auto border-b border-(--oboon-border-default) pb-0.5">
-        {rows.map((u) => {
-          const isActive = u.id === selectedUnit.id;
+      <div className="space-y-3">
+        {rows.map((unit) => {
+          const title = formatTypeTitle(unit.type_name);
+          const validation = validationMap.get(unit.id) ?? null;
+          const conditionState = buildOfferingUnitConditionState(validation);
+          const meta =
+            validation && conditionState.mode === "result"
+              ? validationMeta(validation.final_grade)
+              : null;
+
           return (
             <button
-              key={u.id}
+              key={unit.id}
               type="button"
-              onClick={() => setSelectedId(u.id)}
-              className={cn(
-                "shrink-0 border-b-2 px-3 py-2 ob-typo-h4 transition-colors",
-                isActive
-                  ? "border-(--oboon-primary) text-(--oboon-text-title)"
-                  : "border-transparent text-(--oboon-text-muted) hover:text-(--oboon-text-title)",
-              )}
+              className="w-full overflow-hidden rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) text-left"
+              onClick={() => setSelectedUnitId(unit.id)}
+              aria-haspopup="dialog"
             >
-              {formatTypeTitle(u.type_name)}
+              <div className="px-4 py-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="ob-typo-h4 text-(--oboon-text-title)">{title}</div>
+                    <div className="mt-2 ob-typo-h2 text-(--oboon-text-title)">
+                      {formatPriceRange(unit.price_min, unit.price_max, {
+                        unknownLabel:
+                          unit.is_price_public === false
+                            ? UXCopy.pricePrivate
+                            : UXCopy.priceRange,
+                      })}
+                    </div>
+                    <div className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+                      {buildOfferingUnitSpecSummary(unit)}
+                    </div>
+                  </div>
+                  <ChevronRight className="mt-1 h-5 w-5 shrink-0 text-(--oboon-text-muted)" />
+                </div>
+              </div>
+
+              <div className="border-t border-(--oboon-border-default) px-4 py-3">
+                {conditionState.mode === "cta" ? (
+                  <span className="ob-typo-caption text-(--oboon-text-primary)">
+                    {conditionState.label}
+                  </span>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {meta ? (
+                      <span
+                        className="rounded-full px-2 py-0.5 ob-typo-caption font-semibold"
+                        style={{ color: meta.color, backgroundColor: meta.bgColor }}
+                      >
+                        {conditionState.badgeLabel}
+                      </span>
+                    ) : null}
+                    <span className="ob-typo-caption text-(--oboon-text-muted)">
+                      {conditionState.metricLine}
+                    </span>
+                  </div>
+                )}
+              </div>
             </button>
           );
         })}
       </div>
 
-      <div className="mt-5 ob-typo-h2 text-(--oboon-text-title)">
-        {formatPriceRange(selectedUnit.price_min, selectedUnit.price_max, {
-          unknownLabel:
-            selectedUnit.is_price_public === false
-              ? UXCopy.pricePrivate
-              : UXCopy.priceRange,
-        })}
-      </div>
-
-      {/* Image (click -> modal) */}
-      <div className="relative mx-auto mt-3 h-full w-full max-w-4xl pointer-events-auto touch-auto">
-        <div
-          className={cn(
-            "relative w-full overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-default)",
-            img ? "" : "aspect-video",
-          )}
-        >
-          {img ? (
-            <Button
-              type="button"
-              variant="ghost"
-              className="relative h-auto w-full p-0"
-              onClick={() => setZoom({ open: true, title, src: img })}
-              aria-label={`${title} 평면도 확대`}
-            >
-              <Image
-                src={img}
-                alt={`${title} 평면도`}
-                width={1600}
-                height={1200}
-                className="h-auto w-full object-contain"
-                sizes="(max-width: 768px) 100vw, 700px"
-              />
-              <div className="absolute right-2 top-2 inline-flex items-center gap-2 rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-surface)/90 px-3 py-1.5 ob-typo-caption text-(--oboon-text-muted)">
-                <Maximize2 className="h-4 w-4" />
-                확대
-              </div>
-            </Button>
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-sm text-(--oboon-text-muted)">
-              {imagePlaceholderText}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* 8 Meta cards */}
-      <MetaGrid
-        u={selectedUnit}
-        areaUnit={areaUnit}
-        onToggleAreaUnit={() =>
-          setAreaUnit((prev) => (prev === "sqm" ? "pyeong" : "sqm"))
-        }
-      />
-
-      {/* Modal */}
-      <ImageModal
-        open={zoom.open}
-        onClose={() => setZoom({ open: false, title: "", src: null })}
-        title={zoom.title}
-        src={zoom.src}
+      <UnitTypeDetailSheet
+        open={selectedUnitId !== null}
+        unit={selectedUnit}
+        validation={selectedValidation}
+        imagePlaceholderText={imagePlaceholderText}
+        onClose={() => setSelectedUnitId(null)}
+        onScrollToConditionValidation={() => {
+          setSelectedUnitId(null);
+          scrollToConditionValidation();
+        }}
       />
     </>
   );
