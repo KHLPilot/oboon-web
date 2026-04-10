@@ -451,19 +451,7 @@ export default function RecommendationsPage() {
 
             <MobileConditionSheet
               condition={condition}
-              mode={mode}
               isLoggedIn={isLoggedIn}
-              hasSavedConditionPreset={hasSavedConditionPreset}
-              isConditionDirty={isConditionDirty}
-              errorMessage={activeError}
-              isLoading={isEvaluating}
-              isSaving={isSavingCondition}
-              onChange={updateCondition}
-              onEvaluate={handleEvaluate}
-              onSave={saveCondition}
-              onLoginAndSave={loginAndSaveCondition}
-              onRestoreDefault={restoreSavedCondition}
-              onModeChange={changeMode}
             />
 
             <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
