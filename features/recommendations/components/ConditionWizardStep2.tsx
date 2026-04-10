@@ -246,6 +246,112 @@ export default function ConditionWizardStep2({
     });
   };
 
+  if (!isLoggedIn && progressive) {
+    const showGuestCard = guestCreditGrade !== "";
+    const showGuestActions = guestCreditGrade !== "";
+
+    return (
+      <div className="space-y-5">
+        <div className="space-y-0.5">
+          <div className="flex items-start justify-between gap-3">
+            <p className="ob-typo-subtitle font-semibold text-(--oboon-text-title)">
+              신용 / 대출
+            </p>
+            <button
+              type="button"
+              onClick={onReset}
+              className="shrink-0 ob-typo-caption text-(--oboon-text-muted) transition-colors hover:text-(--oboon-text-body)"
+            >
+              전체 초기화
+            </button>
+          </div>
+          <p className="ob-typo-caption text-(--oboon-text-muted)">
+            대출 가능성을 평가합니다.
+          </p>
+        </div>
+
+        <ProgressiveSlot visible={true}>
+          <div className="space-y-2 rounded-xl border border-(--oboon-border-default) p-3">
+            <span className={LABEL}>신용 상태</span>
+            <Select<CreditGrade>
+              value={guestCreditGrade as CreditGrade}
+              onChange={handleGuestCreditChange}
+              options={CREDIT_OPTIONS}
+            />
+          </div>
+        </ProgressiveSlot>
+
+        <ProgressiveSlot visible={showGuestCard}>
+          <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-elevated)">
+                <Lock className="h-4 w-4 text-(--oboon-text-muted)" />
+              </div>
+              <div>
+                <p className="ob-typo-body font-semibold text-(--oboon-text-title)">
+                  정밀 신용 평가
+                </p>
+                <p className="ob-typo-caption text-(--oboon-text-muted)">
+                  로그인하면 실제 대출 리스크를 더 자세히 반영합니다.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                "현재 대출",
+                "연체 이력",
+                "카드론 사용",
+                "대출 거절 경험",
+              ].map((item) => (
+                <div
+                  key={item}
+                  className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-2"
+                >
+                  <div className="ob-typo-caption font-medium text-(--oboon-text-title)">
+                    {item}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-3 flex flex-col items-center gap-2 text-center">
+              <p className="ob-typo-caption text-(--oboon-text-muted)">
+                기본 신용 상태만으로는 대략적인 판단만 가능합니다.
+              </p>
+              <button
+                type="button"
+                onClick={() => void onLoginAndSave?.()}
+                className="inline-flex h-10 items-center justify-center rounded-full bg-(--oboon-primary) px-4 text-white ob-typo-button"
+              >
+                로그인하고 정밀 신용 평가 열기
+              </button>
+            </div>
+          </div>
+        </ProgressiveSlot>
+
+        <ProgressiveSlot visible={showGuestActions}>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onBack}
+              className="h-10 flex-1 rounded-full border border-(--oboon-border-default) ob-typo-button text-(--oboon-text-muted)"
+            >
+              이전
+            </button>
+            <button
+              type="button"
+              onClick={onNext}
+              className="h-10 flex-1 rounded-full bg-(--oboon-primary) text-white ob-typo-button"
+            >
+              다음
+            </button>
+          </div>
+        </ProgressiveSlot>
+      </div>
+    );
+  }
+
   if (!isLoggedIn) {
     return (
       <div className="space-y-4">
