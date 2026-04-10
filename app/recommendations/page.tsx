@@ -31,7 +31,10 @@ import type {
 import {
   useRecommendations,
 } from "@/features/recommendations/hooks/useRecommendations";
-import { classifyRecommendation } from "@/features/recommendations/lib/recommendation-visibility.mjs";
+import {
+  shouldShowMatchedRecommendationForPropertyListing,
+  classifyRecommendationForPropertyListing,
+} from "@/features/recommendations/lib/recommendation-visibility.mjs";
 import { cn } from "@/lib/utils/cn";
 import { Copy } from "@/shared/copy";
 
@@ -327,12 +330,26 @@ export default function RecommendationsPage() {
     const primary: RecommendationItem[] = [];
     const alternative: RecommendationItem[] = [];
     for (const item of sortedResults) {
-      const grades = Object.values(item.evalResult.categories).map(
-        (c) => c.grade,
-      );
-      const type = classifyRecommendation(grades);
-      if (type === "primary") primary.push(item);
-      else if (type === "alternative") alternative.push(item);
+      const isMatched = shouldShowMatchedRecommendationForPropertyListing({
+        cash: item.evalResult.categories.cash.grade,
+        income: item.evalResult.categories.income.grade,
+        ltvDsr: item.evalResult.categories.ltvDsr?.grade,
+        ownership: item.evalResult.categories.ownership.grade,
+        purpose: item.evalResult.categories.purpose.grade,
+        timing: item.evalResult.categories.timing?.grade,
+      });
+      const isAlternative = classifyRecommendationForPropertyListing({
+        cash: item.evalResult.categories.cash.grade,
+        income: item.evalResult.categories.income.grade,
+        ltvDsr: item.evalResult.categories.ltvDsr?.grade,
+        ownership: item.evalResult.categories.ownership.grade,
+        purpose: item.evalResult.categories.purpose.grade,
+        timing: item.evalResult.categories.timing?.grade,
+      });
+      if (isMatched) primary.push(item);
+      else if (isAlternative === "primary" || isAlternative === "alternative") {
+        alternative.push(item);
+      }
     }
     return { primaryItems: primary, alternativeItems: alternative };
   }, [sortedResults]);
@@ -382,7 +399,7 @@ export default function RecommendationsPage() {
 
   return (
     <main className="bg-(--oboon-bg-page)">
-      <PageContainer className="pt-3 sm:pt-4 md:pt-4 pb-10">
+      <PageContainer>
         <div className="space-y-4">
           <div>
             <div className="ob-typo-h1 text-(--oboon-text-title)">

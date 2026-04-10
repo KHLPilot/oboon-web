@@ -296,8 +296,9 @@ export async function POST(request: Request) {
     });
     const unitTypeResults = unitProfiles.map((unitProfile: UnitTypeValidationProfile) => {
       const unitPropertyProfile = {
+        ...profile,
         propertyId: unitProfile.propertyId,
-        propertyName: null,
+        propertyName: profile.propertyName,
         assetType: unitProfile.assetType,
         listPrice: unitProfile.listPriceManwon,
         contractRatio: unitProfile.contractRatio,

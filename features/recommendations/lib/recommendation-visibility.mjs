@@ -7,6 +7,65 @@ export function shouldShowRecommendationForCategoryGrades(grades) {
 }
 
 /**
+ * @param {{
+ *   cash: string;
+ *   income: string;
+ *   ltvDsr?: string | null;
+ *   credit?: string | null;
+ *   ownership: string;
+ *   purpose?: string | null;
+ *   timing?: string | null;
+ * }} params
+ */
+export function shouldShowRecommendationForPropertyListing({
+  cash,
+  income,
+  ltvDsr,
+  credit,
+  ownership,
+  purpose: _purpose,
+  timing,
+}) {
+  return shouldShowRecommendationForCategoryGrades([
+    cash,
+    income,
+    ltvDsr ?? credit,
+    ownership,
+    timing,
+  ]);
+}
+
+/**
+ * @param {{
+ *   cash: string;
+ *   income: string;
+ *   ltvDsr?: string | null;
+ *   credit?: string | null;
+ *   ownership: string;
+ *   purpose?: string | null;
+ *   timing?: string | null;
+ * }} params
+ */
+export function shouldShowMatchedRecommendationForPropertyListing({
+  cash,
+  income,
+  ltvDsr,
+  credit,
+  ownership,
+  purpose,
+  timing,
+}) {
+  return shouldShowRecommendationForCategoryGrades([
+    cash,
+    income,
+    ltvDsr ?? credit,
+    ownership,
+    purpose,
+    timing,
+  ]);
+}
+
+/**
  * 카테고리 등급 배열로 현장 분류를 결정한다.
  *
  * - "primary"     : 모든 카테고리가 GREEN 또는 LIME
@@ -26,4 +85,33 @@ export function classifyRecommendation(grades) {
   if (yellowCount === 0) return "primary";
   if (yellowCount === 1) return "alternative";
   return "excluded";
+}
+
+/**
+ * @param {{
+ *   cash: string;
+ *   income: string;
+ *   ltvDsr?: string | null;
+ *   credit?: string | null;
+ *   ownership: string;
+ *   purpose?: string | null;
+ *   timing?: string | null;
+ * }} params
+ */
+export function classifyRecommendationForPropertyListing({
+  cash,
+  income,
+  ltvDsr,
+  credit,
+  ownership,
+  purpose: _purpose,
+  timing,
+}) {
+  return classifyRecommendation([
+    cash,
+    income,
+    ltvDsr ?? credit,
+    ownership,
+    timing,
+  ]);
 }

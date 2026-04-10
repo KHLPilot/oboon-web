@@ -47,24 +47,6 @@ function sortCategoriesForSummary(
   });
 }
 
-function buildCategoryStatusSummary(categories: RecommendationUnitTypeCategory[]) {
-  const summaryOrder: RecommendationUnitTypeCategory["grade"][] = [
-    "GREEN",
-    "LIME",
-    "YELLOW",
-    "ORANGE",
-    "RED",
-  ];
-
-  return summaryOrder
-    .map((grade) => {
-      const count = categories.filter((category) => category.grade === grade).length;
-      if (count === 0) return null;
-      return `${grade5DetailLabel(grade)} ${count}개`;
-    })
-    .filter((value): value is string => Boolean(value));
-}
-
 function UnitTypeCard(props: {
   unit: RecommendationUnitType;
   isOpen: boolean;
@@ -75,7 +57,6 @@ function UnitTypeCard(props: {
   const gradeLabel = unit.gradeLabel ?? tone.chipLabel;
   const sortedCategories = sortCategoriesForSummary(unit.categories);
   const summaryCategories = sortedCategories.slice(0, 3);
-  const categoryStatusSummary = buildCategoryStatusSummary(unit.categories);
   const remainingCategoryCount = Math.max(unit.categories.length - summaryCategories.length, 0);
   const metricSummary = [
     unit.listPriceManwon !== null ? formatManwonWithEok(unit.listPriceManwon) : unit.priceLabel,
@@ -122,11 +103,6 @@ function UnitTypeCard(props: {
         {isOpen ? (
           <div className="space-y-1.5">
             <p className="ob-typo-caption text-(--oboon-text-title)">{metricSummary}</p>
-            {categoryStatusSummary.length > 0 ? (
-              <p className="ob-typo-caption text-(--oboon-text-muted)">
-                {categoryStatusSummary.join(", ")}
-              </p>
-            ) : null}
 
             {summaryCategories.length > 0 ? (
               <div className="space-y-2">
@@ -152,28 +128,6 @@ function UnitTypeCard(props: {
                     </span>
                   ) : null}
                 </div>
-
-                {summaryCategories.map((category) => {
-                  const categoryTone = getGrade5ToneMeta(category.grade);
-                  if (!category.reason) return null;
-
-                  return (
-                    <div
-                      key={`${category.key}-reason`}
-                      className={cn(
-                        "rounded-xl border px-3 py-2",
-                        categoryTone.badgeClassName,
-                      )}
-                    >
-                      <div className="ob-typo-caption font-medium text-(--oboon-text-title)">
-                        {category.label}
-                      </div>
-                      <p className="mt-1 ob-typo-caption leading-5 text-(--oboon-text-muted)">
-                        {category.reason}
-                      </p>
-                    </div>
-                  );
-                })}
               </div>
             ) : null}
           </div>

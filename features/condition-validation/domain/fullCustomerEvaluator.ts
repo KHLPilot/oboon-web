@@ -17,6 +17,7 @@ import {
   repaymentRangeToMidpoint,
   employmentIncomeMultiplier,
 } from "./ltvDsrCalculator";
+import { scorePurposeMatch } from "./purposeMatchScoring";
 
 function getLoanRatio(assetType: ValidationAssetType, listPrice: number): number {
   if (assetType === "apartment") return listPrice <= 90000 ? 0.55 : 0.45;
@@ -196,15 +197,41 @@ function ownershipCategory(
   return { grade: categoryGrade5(score, 10), score, maxScore: 10, reasonMessage: msg };
 }
 
-function purposeCategory(purpose: FullPurchasePurpose): FullEvaluationCategoryResult {
-  const map: Record<FullPurchasePurpose, { score: number; msg: string }> = {
-    residence: { score: 5, msg: "실거주" },
-    long_term: { score: 4, msg: "장기보유(실거주+투자)" },
-    investment_rent: { score: 3, msg: "투자(임대수익)" },
-    investment_capital: { score: 2, msg: "투자(시세차익)" },
+function purposeCategory(
+  profile: PropertyValidationProfile,
+  purpose: FullPurchasePurpose,
+): FullEvaluationCategoryResult {
+  const match = scorePurposeMatch({
+    property: profile,
+    purpose,
+  });
+  const matchTail = match.reason.split(". ").slice(1).join(". ").trim();
+
+  const purposeFitScore =
+    purpose === "residence"
+      ? match.residenceFitScore
+      : purpose === "investment_rent" || purpose === "investment_capital"
+        ? match.investmentFitScore
+        : Math.round((match.residenceFitScore + match.investmentFitScore) / 2);
+
+  const score = Math.max(0, Math.min(5, Math.round(purposeFitScore / 20)));
+  const reasonMessage =
+    purpose === "residence"
+      ? match.residenceFitScore >= match.investmentFitScore
+        ? match.reason
+        : `이 현장은 투자 적합도가 더 높아 실거주 목적과는 다소 덜 맞아요. ${matchTail || "투자 신호가 더 강해요."}`
+      : purpose === "long_term"
+        ? `이 현장은 장기 보유 관점에서 실거주와 투자 성향이 함께 반영돼요. ${matchTail || "균형형 수요가 보입니다."}`
+        : match.investmentFitScore >= match.residenceFitScore
+          ? match.reason
+          : `이 현장은 실거주 적합도가 더 높아 투자 목적과는 다소 덜 맞아요. ${matchTail || "주거 신호가 더 강해요."}`;
+
+  return {
+    grade: categoryGrade5(score, 5),
+    score,
+    maxScore: 5,
+    reasonMessage,
   };
-  const { score, msg } = map[purpose];
-  return { grade: categoryGrade5(score, 5), score, maxScore: 5, reasonMessage: msg };
 }
 
 function timingCategory(
@@ -268,7 +295,7 @@ export function evaluateFullCondition(params: {
     monthlyPaymentEst,
   });
   const ownership = ownershipCategory(customer.houseOwnership);
-  const purpose = purposeCategory(customer.purchasePurpose);
+  const purpose = purposeCategory(profile, customer.purchasePurpose);
   const timing =
     params.timingOverride ?? timingCategory(customer.purchaseTiming, customer.moveinTiming);
 

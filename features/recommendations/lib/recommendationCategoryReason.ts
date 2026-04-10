@@ -89,6 +89,7 @@ export function buildRecommendationCategoryReason(args: {
         rawReason,
       });
     case "purpose":
+      if (rawReason) return fallbackReason(rawReason);
       return buildPurposeReason({
         grade: args.grade,
         purchasePurpose: inputs.purchasePurpose ?? inputs.purchasePurposeV2,

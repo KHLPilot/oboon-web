@@ -336,14 +336,15 @@ export async function POST(request: Request) {
     const unitTypeResults = unitProfiles
       .map((unitProfile: UnitTypeValidationProfile) => {
         const unitPropertyProfile: PropertyValidationProfile = {
+          ...profile,
           propertyId: unitProfile.propertyId,
-          propertyName: null,
+          propertyName: profile.propertyName,
           assetType: unitProfile.assetType,
           listPrice: unitProfile.listPriceManwon,
           contractRatio: unitProfile.contractRatio,
           regulationArea: unitProfile.regulationArea,
           transferRestriction: unitProfile.transferRestriction,
-          source: "validation_profile",
+          source: profile.source,
           matchedPropertyId: profile.matchedPropertyId,
         };
         const unitResult = evaluateCondition({ profile: unitPropertyProfile, customer });

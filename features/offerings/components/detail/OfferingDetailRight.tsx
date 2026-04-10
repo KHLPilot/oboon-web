@@ -17,6 +17,7 @@ import ConditionValidationCard, {
 } from "@/features/offerings/components/detail/ConditionValidationCard";
 import type { ConditionRecommendationItem } from "@/features/condition-validation/domain/types";
 import { grade5DetailLabel } from "@/features/condition-validation/lib/grade5Labels";
+import { formatManwonWithEok, formatPercent } from "@/lib/format/currency";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { trackEvent } from "@/lib/analytics";
 import { pickLoggedInConditionSource } from "@/features/condition-validation/lib/conditionSourcePolicy";
@@ -1048,8 +1049,39 @@ export default function OfferingDetailRight({
                               </p>
                             </div>
 
+                            {item.show_detailed_metrics !== false ? (
+                              <div className="mt-2 grid auto-rows-fr grid-cols-2 gap-1.5">
+                                <div className="rounded-md border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-1.5">
+                                  <div className="ob-typo-caption text-(--oboon-text-muted)">최소 현금</div>
+                                  <div className="mt-0.5 ob-typo-body2 font-semibold text-(--oboon-text-title)">
+                                    {formatManwonWithEok(item.metrics.min_cash)}
+                                  </div>
+                                </div>
+                                <div className="rounded-md border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-1.5">
+                                  <div className="ob-typo-caption text-(--oboon-text-muted)">권장 현금</div>
+                                  <div className="mt-0.5 ob-typo-body2 font-semibold text-(--oboon-text-title)">
+                                    {formatManwonWithEok(item.metrics.recommended_cash)}
+                                  </div>
+                                </div>
+                                <div className="rounded-md border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-1.5">
+                                  <div className="ob-typo-caption text-(--oboon-text-muted)">예상 월상환</div>
+                                  <div className="mt-0.5 ob-typo-body2 font-semibold text-(--oboon-text-title)">
+                                    {formatManwonWithEok(item.metrics.monthly_payment_est)}
+                                  </div>
+                                </div>
+                                <div className="rounded-md border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-1.5">
+                                  <div className="ob-typo-caption text-(--oboon-text-muted)">월 부담률</div>
+                                  <div className="mt-0.5 ob-typo-body2 font-semibold text-(--oboon-text-title)">
+                                    {item.metrics.monthly_burden_percent == null
+                                      ? "계산 불가"
+                                      : formatPercent(item.metrics.monthly_burden_percent)}
+                                  </div>
+                                </div>
+                              </div>
+                            ) : null}
+
                             <Button
-                              className="mt-2 w-full"
+                              className={`${item.show_detailed_metrics !== false ? "mt-3" : "mt-2"} w-full`}
                               size="sm"
                               onClick={() => {
                                 setIsRecommendModalOpen(false);

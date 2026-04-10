@@ -8,6 +8,7 @@ import type {
   ValidationAssetType,
 } from "./types";
 import { grade5DetailLabel } from "@/features/condition-validation/lib/grade5Labels";
+import { scorePurposeMatch } from "./purposeMatchScoring";
 
 // ─── 상수 ──────────────────────────────────────────────────────────────────────
 
@@ -175,16 +176,40 @@ function ownershipCategory(
 
 /** 매수목적 8점: 실거주(8) / 장기보유(6) / 투자임대(4) / 시세차익(2) */
 function purposeCategory(
+  profile: PropertyValidationProfile,
   purchasePurpose: GuestCustomerInput["purchasePurpose"],
 ): GuestEvaluationCategoryResult {
-  const map = {
-    residence: { score: 8, msg: "실거주" },
-    long_term: { score: 6, msg: "장기보유" },
-    investment_rent: { score: 4, msg: "투자(임대)" },
-    investment_capital: { score: 2, msg: "투자(시세)" },
+  const match = scorePurposeMatch({
+    property: profile,
+    purpose: purchasePurpose,
+  });
+  const matchTail = match.reason.split(". ").slice(1).join(". ").trim();
+
+  const purposeFitScore =
+    purchasePurpose === "residence"
+      ? match.residenceFitScore
+      : purchasePurpose === "investment_rent" || purchasePurpose === "investment_capital"
+        ? match.investmentFitScore
+        : Math.round((match.residenceFitScore + match.investmentFitScore) / 2);
+
+  const score = Math.max(0, Math.min(8, Math.round(purposeFitScore / 12.5)));
+  const reasonMessage =
+    purchasePurpose === "residence"
+      ? match.residenceFitScore >= match.investmentFitScore
+        ? match.reason
+        : `이 현장은 투자 적합도가 더 높아 실거주 목적과는 다소 덜 맞아요. ${matchTail || "투자 신호가 더 강해요."}`
+      : purchasePurpose === "long_term"
+        ? `이 현장은 장기 보유 관점에서 실거주와 투자 성향이 함께 반영돼요. ${matchTail || "균형형 수요가 보입니다."}`
+        : match.investmentFitScore >= match.residenceFitScore
+          ? match.reason
+          : `이 현장은 실거주 적합도가 더 높아 투자 목적과는 다소 덜 맞아요. ${matchTail || "주거 신호가 더 강해요."}`;
+
+  return {
+    grade: categoryGrade5(score, 8),
+    score,
+    maxScore: 8,
+    reasonMessage,
   };
-  const { score, msg } = map[purchasePurpose];
-  return { grade: categoryGrade5(score, 8), score, maxScore: 8, reasonMessage: msg };
 }
 
 // ─── 메인 평가 함수 ─────────────────────────────────────────────────────────────
@@ -214,7 +239,7 @@ export function evaluateGuestCondition(params: {
   const income = incomeCategory(customer.monthlyIncome, loanAmount, customer.creditGrade);
   const credit = creditCategory(customer.creditGrade);
   const ownership = ownershipCategory(customer.houseOwnership);
-  const purpose = purposeCategory(customer.purchasePurpose);
+  const purpose = purposeCategory(profile, customer.purchasePurpose);
 
   const totalScore =
     cash.score + income.score + credit.score + ownership.score + purpose.score;

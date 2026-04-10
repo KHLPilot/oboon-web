@@ -711,8 +711,11 @@ function ImageModal({
                   alt={`${title} 평면도`}
                   fill
                   draggable={false}
-                  onLoadingComplete={(img) =>
-                    setImageNatural({ width: img.naturalWidth || 0, height: img.naturalHeight || 0 })
+                  onLoad={(event) =>
+                    setImageNatural({
+                      width: event.currentTarget.naturalWidth || 0,
+                      height: event.currentTarget.naturalHeight || 0,
+                    })
                   }
                   className="select-none object-contain"
                   sizes="(max-width: 768px) 92vw, 1000px"

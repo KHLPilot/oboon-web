@@ -28,12 +28,48 @@ type PropertyFallbackRow = {
   id: number;
   name: string | null;
   property_type: string | null;
+  property_specs:
+    | Array<{
+        id: number;
+        sale_type: string | null;
+        developer: string | null;
+        builder: string | null;
+        household_total: number | string | null;
+        parking_per_household: number | string | null;
+        heating_type: string | null;
+        amenities: string | null;
+        floor_area_ratio: number | string | null;
+        building_coverage_ratio: number | string | null;
+      }>
+    | {
+        id: number;
+        sale_type: string | null;
+        developer: string | null;
+        builder: string | null;
+        household_total: number | string | null;
+        parking_per_household: number | string | null;
+        heating_type: string | null;
+        amenities: string | null;
+        floor_area_ratio: number | string | null;
+        building_coverage_ratio: number | string | null;
+      }
+    | null;
+  property_timeline:
+    | Array<{
+        id: number;
+        move_in_date: string | null;
+      }>
+    | {
+        id: number;
+        move_in_date: string | null;
+      }
+    | null;
   property_unit_types: UnitPriceRow[] | null;
 };
 
 const CONDITION_PROFILE_CACHE_TTL_SECONDS = 60 * 5;
 const PROPERTY_SELECT_FIELDS =
-  "id, name, property_type, property_unit_types(price_min,price_max,is_price_public)";
+  "id, name, property_type, property_specs(id,sale_type,developer,builder,household_total,parking_per_household,heating_type,amenities,floor_area_ratio,building_coverage_ratio), property_timeline(id,move_in_date), property_unit_types(price_min,price_max,is_price_public)";
 
 function isMissingTableError(error: { code?: string | null; message?: string | null }): boolean {
   const code = error.code ?? "";
@@ -129,6 +165,33 @@ function normalizePriceToManwon(value: number): number {
   return Math.abs(value) >= 10_000_000 ? value / 10000 : value;
 }
 
+function firstRow<T>(value: T | T[] | null | undefined): T | null {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
+}
+
+function buildPropertyFields(row: PropertyFallbackRow) {
+  const specs = firstRow(row.property_specs);
+  const timeline = firstRow(row.property_timeline);
+
+  return {
+    propertyType: row.property_type ?? null,
+    rooms: null,
+    bathrooms: null,
+    exclusiveArea: null,
+    parkingPerHousehold: toFiniteNumber(specs?.parking_per_household),
+    householdTotal: toFiniteNumber(specs?.household_total),
+    heatingType: specs?.heating_type ?? null,
+    amenities: specs?.amenities ?? null,
+    floorAreaRatio: toFiniteNumber(specs?.floor_area_ratio),
+    buildingCoverageRatio: toFiniteNumber(specs?.building_coverage_ratio),
+    saleType: specs?.sale_type ?? null,
+    developer: specs?.developer ?? null,
+    builder: specs?.builder ?? null,
+    moveInDate: timeline?.move_in_date ?? null,
+  };
+}
+
 function inferRepresentativeListPrice(unitTypes: UnitPriceRow[] | null): number | null {
   const rows = unitTypes ?? [];
   const visibleRows = rows.filter((row) => row.is_price_public !== false);
@@ -148,7 +211,10 @@ function inferRepresentativeListPrice(unitTypes: UnitPriceRow[] | null): number 
   return Math.max(...candidates);
 }
 
-function buildProfileFromValidationRow(row: ValidationProfileRow): PropertyValidationProfile | null {
+function buildProfileFromValidationRow(
+  row: ValidationProfileRow,
+  propertyRow?: PropertyFallbackRow | null,
+): PropertyValidationProfile | null {
   const matchedPropertyId = toPositiveInt(row.property_id);
   const assetType = parseAssetType(String(row.asset_type));
   const regulationArea = parseRegulationArea(String(row.regulation_area));
@@ -157,14 +223,35 @@ function buildProfileFromValidationRow(row: ValidationProfileRow): PropertyValid
   if (!matchedPropertyId || !assetType || !regulationArea) return null;
   if (listPriceRaw === null || contractRatio === null) return null;
 
+  const propertyFields = propertyRow
+    ? buildPropertyFields(propertyRow)
+    : {
+        propertyType: null,
+        rooms: null,
+        bathrooms: null,
+        exclusiveArea: null,
+        parkingPerHousehold: null,
+        householdTotal: null,
+        heatingType: null,
+        amenities: null,
+        floorAreaRatio: null,
+        buildingCoverageRatio: null,
+        saleType: null,
+        developer: null,
+        builder: null,
+        moveInDate: null,
+      };
+
   return {
     propertyId: String(matchedPropertyId),
-    propertyName: null,
+    propertyName: propertyRow?.name ?? null,
     assetType,
     listPrice: normalizePriceToManwon(listPriceRaw),
     contractRatio,
     regulationArea,
     transferRestriction: Boolean(row.transfer_restriction),
+    transferRestrictionPeriod: null,
+    ...propertyFields,
     source: "validation_profile",
     matchedPropertyId,
   };
@@ -175,6 +262,7 @@ function buildProfileFromPropertyRow(row: PropertyFallbackRow): PropertyValidati
   if (listPrice === null) return null;
 
   const assetType = inferAssetType(row.property_type);
+  const propertyFields = buildPropertyFields(row);
   return {
     propertyId: String(row.id),
     propertyName: row.name,
@@ -183,6 +271,8 @@ function buildProfileFromPropertyRow(row: PropertyFallbackRow): PropertyValidati
     contractRatio: defaultContractRatio(assetType),
     regulationArea: "non_regulated",
     transferRestriction: false,
+    transferRestrictionPeriod: null,
+    ...propertyFields,
     source: "property_fallback",
     matchedPropertyId: row.id,
   };
@@ -204,6 +294,7 @@ async function loadPropertyProfileFromSource(params: {
 }): Promise<PropertyValidationProfile | null> {
   const { adminSupabase, propertyIdInput } = params;
   const candidates = getPropertyIdCandidates(propertyIdInput);
+  let validationProfileRow: ValidationProfileRow | null = null;
 
   for (const candidate of candidates) {
     const { data, error } = await adminSupabase
@@ -221,9 +312,8 @@ async function loadPropertyProfileFromSource(params: {
       break;
     }
     if (!data) continue;
-
-    const profile = buildProfileFromValidationRow(data);
-    if (profile) return profile;
+    validationProfileRow = data;
+    break;
   }
 
   const parsedId = Number(propertyIdInput);
@@ -257,6 +347,11 @@ async function loadPropertyProfileFromSource(params: {
     if (Array.isArray(fuzzyRows) && fuzzyRows.length > 0) {
       row = fuzzyRows[0] ?? null;
     }
+  }
+
+  if (validationProfileRow) {
+    const profile = buildProfileFromValidationRow(validationProfileRow, row);
+    if (profile) return profile;
   }
 
   if (!row) return null;

@@ -17,7 +17,9 @@ import {
   deriveScheduleAwareTimingMonthsDiff,
 } from "@/features/condition-validation/lib/timing-satisfaction";
 import { resolveProfileForRecommendation } from "@/features/condition-validation/server/profile-resolver";
-import { shouldShowRecommendationForCategoryGrades } from "@/features/recommendations/lib/recommendation-visibility.mjs";
+import {
+  shouldShowRecommendationForPropertyListing,
+} from "@/features/recommendations/lib/recommendation-visibility.mjs";
 import { normalizeOfferingStatusValue } from "@/features/offerings/domain/offering.constants";
 import { OFFERING_STATUS_VALUES } from "@/features/offerings/domain/offering.types";
 import type {
@@ -61,8 +63,35 @@ type PropertyRow = {
   name: string | null;
   status: string | null;
   property_type: string | null;
+  property_specs:
+    | Array<{
+        id: number;
+        sale_type: string | null;
+        developer: string | null;
+        builder: string | null;
+        household_total: number | string | null;
+        parking_per_household: number | string | null;
+        heating_type: string | null;
+        amenities: string | null;
+        floor_area_ratio: number | string | null;
+        building_coverage_ratio: number | string | null;
+      }>
+    | {
+        id: number;
+        sale_type: string | null;
+        developer: string | null;
+        builder: string | null;
+        household_total: number | string | null;
+        parking_per_household: number | string | null;
+        heating_type: string | null;
+        amenities: string | null;
+        floor_area_ratio: number | string | null;
+        building_coverage_ratio: number | string | null;
+      }
+    | null;
   property_timeline:
     | Array<{
+        id: number;
         announcement_date: string | null;
         application_start: string | null;
         application_end: string | null;
@@ -73,6 +102,7 @@ type PropertyRow = {
         move_in_text?: string | null;
       }>
     | {
+        id: number;
         announcement_date: string | null;
         application_start: string | null;
         application_end: string | null;
@@ -536,7 +566,7 @@ async function loadRecommendationProperties(
     const { data, error } = await adminSupabase
       .from("properties")
       .select(
-        "id, name, status, property_type, property_timeline(announcement_date,application_start,application_end,winner_announce,contract_start,contract_end,move_in_date,move_in_text), property_unit_types(price_min,price_max,is_price_public)",
+        "id, name, status, property_type, property_specs(id,sale_type,developer,builder,household_total,parking_per_household,heating_type,amenities,floor_area_ratio,building_coverage_ratio), property_timeline(id,announcement_date,application_start,application_end,winner_announce,contract_start,contract_end,move_in_date,move_in_text), property_unit_types(price_min,price_max,is_price_public)",
       )
       .order("id", { ascending: false })
       .range(from, from + chunkSize - 1)
@@ -749,25 +779,35 @@ async function loadUnitValidationProfilesByPropertyIds(
 
 function evaluateUnitTypes(params: {
   unitProfiles: UnitTypeValidationProfile[];
+  baseProfile: PropertyValidationProfile;
   customer: FullCustomerInput | GuestCustomerInput;
   isGuestMode: boolean;
   monthlyIncome: number;
   timeline: PropertyTimelineRow | null;
   todayStamp: number;
 }): EvaluatedUnitTypeRecommendation[] {
-  const { unitProfiles, customer, isGuestMode, monthlyIncome, timeline, todayStamp } = params;
+  const {
+    unitProfiles,
+    baseProfile,
+    customer,
+    isGuestMode,
+    monthlyIncome,
+    timeline,
+    todayStamp,
+  } = params;
 
   return unitProfiles.map((unitProfile): EvaluatedUnitTypeRecommendation => {
     const profile: PropertyValidationProfile = {
+      ...baseProfile,
       propertyId: unitProfile.propertyId,
-      propertyName: null,
+      propertyName: baseProfile.propertyName,
       assetType: unitProfile.assetType,
       listPrice: unitProfile.listPriceManwon,
       contractRatio: unitProfile.contractRatio,
       regulationArea: unitProfile.regulationArea,
       transferRestriction: unitProfile.transferRestriction,
-      source: "validation_profile",
       matchedPropertyId: toPositiveInt(unitProfile.propertyId),
+      source: baseProfile.source,
     };
 
     let result: FullEvaluationResult | GuestEvaluationResult;
@@ -912,24 +952,24 @@ function evaluateUnitTypes(params: {
 }
 
 function passesGuestCategoryVisibility(result: GuestEvaluationResult): boolean {
-  return shouldShowRecommendationForCategoryGrades([
-    result.categories.cash.grade,
-    result.categories.income.grade,
-    result.categories.credit.grade,
-    result.categories.ownership.grade,
-    result.categories.purpose.grade,
-  ]);
+  return shouldShowRecommendationForPropertyListing({
+    cash: result.categories.cash.grade,
+    income: result.categories.income.grade,
+    credit: result.categories.credit.grade,
+    ownership: result.categories.ownership.grade,
+    purpose: result.categories.purpose.grade,
+  });
 }
 
 function passesFullCategoryVisibility(result: FullEvaluationResult): boolean {
-  return shouldShowRecommendationForCategoryGrades([
-    result.categories.cash.grade,
-    result.categories.income.grade,
-    result.categories.ltvDsr.grade,
-    result.categories.ownership.grade,
-    result.categories.purpose.grade,
-    result.categories.timing.grade,
-  ]);
+  return shouldShowRecommendationForPropertyListing({
+    cash: result.categories.cash.grade,
+    income: result.categories.income.grade,
+    ltvDsr: result.categories.ltvDsr.grade,
+    ownership: result.categories.ownership.grade,
+    purpose: result.categories.purpose.grade,
+    timing: result.categories.timing.grade,
+  });
 }
 
 const GRADE_ORDER: Record<string, number> = {
@@ -1089,6 +1129,7 @@ export async function POST(request: Request) {
         const unitProfiles = unitProfilesByPropertyId.get(String(property.id)) ?? [];
         const unitTypeResults = evaluateUnitTypes({
           unitProfiles,
+          baseProfile: profile,
           customer: isGuestMode ? guestCustomer : fullCustomer,
           isGuestMode,
           monthlyIncome: isGuestMode ? guestCustomer.monthlyIncome : fullCustomer.monthlyIncome,

@@ -52,24 +52,24 @@ function fallbackText() {
 }
 
 function fmtArea(n: number | null, unit: AreaUnit) {
-  if (n === null) return fallbackText();
+  if (n === null) return null;
   if (unit === "sqm") return `${Math.round(n * 10) / 10}㎡`;
   return `${Math.round((n / 3.305785) * 10) / 10}평`;
 }
 
 function fmtCount(n: number | null, unitLabel = "개") {
-  if (n === null) return fallbackText();
+  if (n === null) return null;
   return `${n}${unitLabel}`;
 }
 
 function fmtGenCount(n: number | null, unitLabel = "세대") {
-  if (n == null) return fallbackText();
+  if (n == null) return null;
   return `${n}${unitLabel}`;
 }
 
 function fmtText(s: string | null) {
   const t = (s ?? "").trim();
-  return t ? t : fallbackText();
+  return t ? t : null;
 }
 
 function formatDetailMoney(value: number | null | undefined) {
@@ -457,8 +457,11 @@ function ImageModal({
                   alt={`${title} 평면도`}
                   fill
                   draggable={false}
-                  onLoadingComplete={(img) =>
-                    setImageNatural({ width: img.naturalWidth || 0, height: img.naturalHeight || 0 })
+                  onLoad={(event) =>
+                    setImageNatural({
+                      width: event.currentTarget.naturalWidth || 0,
+                      height: event.currentTarget.naturalHeight || 0,
+                    })
                   }
                   className="select-none object-contain"
                   sizes="(max-width: 768px) 92vw, 1000px"
@@ -480,8 +483,8 @@ function ImageModal({
 }
 
 /* --- TypeInfoTable --- */
-function TypeInfoTable({ u, areaUnit }: { u: UnitTypeRow; areaUnit: AreaUnit }) {
-  const rows = [
+function getTypeInfoRows(u: UnitTypeRow, areaUnit: AreaUnit) {
+  return [
     { label: "전용면적", value: fmtArea(u.exclusive_area, areaUnit) },
     { label: "공급면적", value: fmtArea(u.supply_area, areaUnit) },
     { label: "방", value: fmtCount(u.rooms) },
@@ -490,7 +493,11 @@ function TypeInfoTable({ u, areaUnit }: { u: UnitTypeRow; areaUnit: AreaUnit }) 
     { label: "향", value: fmtText(u.orientation) },
     { label: "세대수", value: fmtGenCount(u.unit_count) },
     { label: "공급 규모", value: fmtGenCount(u.supply_count) },
-  ];
+  ].filter((row): row is { label: string; value: string } => Boolean(row.value));
+}
+
+function TypeInfoTable({ rows }: { rows: Array<{ label: string; value: string }> }) {
+  if (rows.length === 0) return null;
 
   return (
     <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-default) p-4">
@@ -575,6 +582,7 @@ export default function UnitTypeDetailSheet({
   const formatMoneyValue = isPricePublic ? formatDetailMoneyRange : formatApproxMoneyRange;
   const formatMoneySingle = isPricePublic ? formatDetailMoney : formatApproxMoneyValue;
   const formatPercentValue = isPricePublic ? formatDetailPercent : formatApproxPercent;
+  const typeInfoRows = getTypeInfoRows(unit, areaUnit);
 
   return (
     <>
@@ -727,23 +735,25 @@ export default function UnitTypeDetailSheet({
           )}
 
           {/* 4. 타입 정보 */}
-          <section className="space-y-2">
-            <div className="flex items-center justify-between">
-              <h4 className="ob-typo-h4 text-(--oboon-text-title)">타입 정보</h4>
-              <Button
-                onClick={() => setAreaUnit((prev) => (prev === "sqm" ? "pyeong" : "sqm"))}
-                variant="secondary"
-                size="sm"
-                shape="pill"
-                className="h-5 px-1.5 text-[11px] shrink-0"
-                aria-label={areaUnit === "sqm" ? "평 단위로 보기" : "제곱미터 단위로 보기"}
-              >
-                <ArrowRightLeft className="h-3 w-3" />
-                {areaUnit === "sqm" ? "평" : "㎡"}
-              </Button>
-            </div>
-            <TypeInfoTable u={unit} areaUnit={areaUnit} />
-          </section>
+          {typeInfoRows.length > 0 ? (
+            <section className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h4 className="ob-typo-h4 text-(--oboon-text-title)">타입 정보</h4>
+                <Button
+                  onClick={() => setAreaUnit((prev) => (prev === "sqm" ? "pyeong" : "sqm"))}
+                  variant="secondary"
+                  size="sm"
+                  shape="pill"
+                  className="h-5 px-1.5 text-[11px] shrink-0"
+                  aria-label={areaUnit === "sqm" ? "평 단위로 보기" : "제곱미터 단위로 보기"}
+                >
+                  <ArrowRightLeft className="h-3 w-3" />
+                  {areaUnit === "sqm" ? "평" : "㎡"}
+                </Button>
+              </div>
+              <TypeInfoTable rows={typeInfoRows} />
+            </section>
+          ) : null}
 
           {/* 5. 평면도 */}
           <section className="space-y-2">
