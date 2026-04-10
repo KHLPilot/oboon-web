@@ -94,9 +94,10 @@ function resolveLoginNext(step: 1 | 2 | 3) {
 
 type StepFlowProps = {
   step: 1 | 2 | 3;
+  progressive?: boolean;
 };
 
-export function ConditionStepFlow({ step }: StepFlowProps) {
+export function ConditionStepFlow({ step, progressive = true }: StepFlowProps) {
   const router = useRouter();
   const [condition, setCondition] = useState<RecommendationCondition>(() => {
     const snapshot = loadConditionSession();
@@ -153,6 +154,7 @@ export function ConditionStepFlow({ step }: StepFlowProps) {
         onChange={handleChange}
         onNext={() => router.push("/recommendations/conditions/step/2")}
         onReset={handleReset}
+        progressive={progressive}
       />
     );
   }
@@ -167,6 +169,7 @@ export function ConditionStepFlow({ step }: StepFlowProps) {
         onBack={() => router.push("/recommendations/conditions/step/1")}
         onLoginAndSave={handleGoLogin}
         onReset={handleReset}
+        progressive={progressive}
       />
     );
   }
@@ -180,6 +183,7 @@ export function ConditionStepFlow({ step }: StepFlowProps) {
       onFinish={() => router.push("/recommendations/conditions/done")}
       onReset={handleReset}
       onSave={handleGoLogin}
+      progressive={progressive}
     />
   );
 }

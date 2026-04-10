@@ -1,6 +1,8 @@
 "use client";
 
 import { Lock } from "lucide-react";
+import { useEffect, useRef } from "react";
+import type { ReactNode } from "react";
 import Select from "@/components/ui/Select";
 import { calculateLtvDsrPreview } from "@/features/condition-validation/domain/ltvDsrCalculator";
 import type {
@@ -14,6 +16,7 @@ import type {
   MonthlyLoanRepayment,
 } from "@/features/condition-validation/domain/types";
 import type { RecommendationCondition } from "@/features/recommendations/hooks/useRecommendations";
+import { cn } from "@/lib/utils/cn";
 
 const LABEL = "mb-1.5 block ob-typo-caption text-(--oboon-text-muted)";
 
@@ -141,6 +144,43 @@ function isReadyForLtvScore(condition: RecommendationCondition): boolean {
   );
 }
 
+function ProgressiveSlot({
+  visible,
+  children,
+}: {
+  visible: boolean;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const prevVisible = useRef(visible);
+
+  useEffect(() => {
+    if (!prevVisible.current && visible && ref.current) {
+      const timer = setTimeout(() => {
+        ref.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+    prevVisible.current = visible;
+  }, [visible]);
+
+  return (
+    <div
+      ref={ref}
+      className={cn(
+        "grid transition-all duration-300 ease-out",
+        visible
+          ? "grid-rows-[1fr] opacity-100"
+          : "grid-rows-[0fr] opacity-0 pointer-events-none select-none",
+      )}
+    >
+      <div className="overflow-hidden">
+        <div className="pb-1">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 type Props = {
   condition: RecommendationCondition;
   isLoggedIn: boolean;
@@ -149,6 +189,7 @@ type Props = {
   onBack: () => void;
   onLoginAndSave?: () => void | Promise<void>;
   onReset: () => void;
+  progressive?: boolean;
 };
 
 export default function ConditionWizardStep2({
@@ -159,6 +200,7 @@ export default function ConditionWizardStep2({
   onBack,
   onLoginAndSave,
   onReset,
+  progressive = false,
 }: Props) {
   const hasLoan =
     condition.existingLoan !== null && condition.existingLoan !== "none";
@@ -283,6 +325,190 @@ export default function ConditionWizardStep2({
             className="h-10 flex-1 rounded-full bg-(--oboon-primary) text-white ob-typo-button"
           >
             다음
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (progressive) {
+    const showCardLoan = condition.existingLoan !== null;
+    const showDelinquency =
+      condition.cardLoanUsage !== null && hasLoan;
+    const showRejection =
+      condition.recentDelinquency !== null && hasLoan;
+    const showIncomeRange =
+      condition.cardLoanUsage !== null &&
+      (hasLoan ? condition.loanRejection !== null : true);
+    const showRepayment = condition.monthlyIncomeRange !== null;
+
+    return (
+      <div className="space-y-5">
+        <div className="space-y-0.5">
+          <div className="flex items-start justify-between gap-3">
+            <p className="ob-typo-subtitle font-semibold text-(--oboon-text-title)">
+              신용 / 대출
+            </p>
+            <button
+              type="button"
+              onClick={onReset}
+              className="shrink-0 ob-typo-caption text-(--oboon-text-muted) transition-colors hover:text-(--oboon-text-body)"
+            >
+              전체 초기화
+            </button>
+          </div>
+          <p className="ob-typo-caption text-(--oboon-text-muted)">
+            대출 가능성을 평가합니다.
+          </p>
+        </div>
+
+        <ProgressiveSlot visible={true}>
+          <div>
+            <span className={LABEL}>1. 현재 대출</span>
+            <Select<ExistingLoanAmount>
+              value={(condition.existingLoan ?? "") as ExistingLoanAmount}
+              onChange={(existingLoan) => patchLoggedIn({ existingLoan })}
+              options={LOAN_OPTIONS}
+            />
+          </div>
+        </ProgressiveSlot>
+
+        <ProgressiveSlot visible={showCardLoan}>
+          <div>
+            <span className={LABEL}>2. 카드론 / 현금서비스 사용</span>
+            <Select<CardLoanUsage>
+              value={(condition.cardLoanUsage ?? "") as CardLoanUsage}
+              onChange={(cardLoanUsage) => patchLoggedIn({ cardLoanUsage })}
+              options={CARD_LOAN_OPTIONS}
+            />
+          </div>
+        </ProgressiveSlot>
+
+        {hasLoan ? (
+          <>
+            <ProgressiveSlot visible={showDelinquency}>
+              <div>
+                <span className={LABEL}>3. 최근 1년 대출 연체</span>
+                <Select<DelinquencyCount>
+                  value={(condition.recentDelinquency ?? "") as DelinquencyCount}
+                  onChange={(recentDelinquency) =>
+                    patchLoggedIn({ recentDelinquency })
+                  }
+                  options={DELINQUENCY_OPTIONS}
+                />
+              </div>
+            </ProgressiveSlot>
+
+            <ProgressiveSlot visible={showRejection}>
+              <div>
+                <span className={LABEL}>4. 대출 심사 거절 경험</span>
+                <Select<LoanRejection>
+                  value={(condition.loanRejection ?? "") as LoanRejection}
+                  onChange={(loanRejection) => patchLoggedIn({ loanRejection })}
+                  options={LOAN_REJECTION_OPTIONS}
+                />
+              </div>
+            </ProgressiveSlot>
+          </>
+        ) : null}
+
+        <ProgressiveSlot visible={showIncomeRange}>
+          <div>
+            <span className={LABEL}>5. 월 평균 세후 소득</span>
+            <Select<MonthlyIncomeRange>
+              value={(condition.monthlyIncomeRange ?? "") as MonthlyIncomeRange}
+              onChange={(monthlyIncomeRange) =>
+                patchLoggedIn({ monthlyIncomeRange })
+              }
+              options={INCOME_RANGE_OPTIONS}
+            />
+          </div>
+        </ProgressiveSlot>
+
+        <ProgressiveSlot visible={showRepayment}>
+          <div>
+            <span className={LABEL}>6. 월 대출 상환액</span>
+            <Select<MonthlyLoanRepayment>
+              value={condition.existingMonthlyRepayment}
+              onChange={(existingMonthlyRepayment) =>
+                patchLoggedIn({ existingMonthlyRepayment })
+              }
+              options={REPAYMENT_OPTIONS}
+            />
+          </div>
+        </ProgressiveSlot>
+
+        <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-3">
+          <div className="mb-2 ob-typo-body font-semibold text-(--oboon-text-title)">
+            평가 결과 미리보기
+          </div>
+          {showPreview ? (
+            <>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                {(
+                  [
+                    {
+                      label: "LTV",
+                      value: preview.ltvPoints,
+                      max: 10,
+                      result: compactPreviewLabel(preview.ltvLabel),
+                    },
+                    {
+                      label: "DSR",
+                      value: preview.dsrPoints,
+                      max: 10,
+                      result: compactPreviewLabel(preview.dsrLabel),
+                    },
+                    {
+                      label: "합산",
+                      value: preview.totalPoints,
+                      max: 20,
+                      result: compactPreviewLabel("LTV+DSR"),
+                    },
+                  ] as const
+                ).map(({ label, value, max, result }) => (
+                  <div
+                    key={label}
+                    className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-2 py-2.5"
+                  >
+                    <div className="ob-typo-caption text-(--oboon-text-muted)">
+                      {label}
+                    </div>
+                    <div
+                      className="mt-1 ob-typo-caption font-semibold"
+                      style={{ color: gradeColor(value, max) }}
+                    >
+                      {result}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-2 ob-typo-caption text-(--oboon-text-muted) leading-tight">
+                * DSR는 현장 대출 조건 기준으로 최종 계산됩니다. 이 수치는 근사값입니다.
+              </p>
+            </>
+          ) : (
+            <div className="py-4 text-center ob-typo-caption text-(--oboon-text-muted)">
+              현재 대출과 월 소득을 선택하면 결과가 표시됩니다
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onBack}
+            className="h-10 flex-1 rounded-full border border-(--oboon-border-default) ob-typo-button text-(--oboon-text-muted)"
+          >
+            이전
+          </button>
+          <button
+            type="button"
+            disabled={!isReady}
+            onClick={onNext}
+            className="h-10 flex-1 rounded-full bg-(--oboon-primary) text-white ob-typo-button disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            다음 단계 →
           </button>
         </div>
       </div>

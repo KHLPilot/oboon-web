@@ -20,5 +20,5 @@ export default async function ConditionStepPage({
     notFound();
   }
 
-  return <ConditionStepFlow step={step} />;
+  return <ConditionStepFlow step={step} progressive />;
 }

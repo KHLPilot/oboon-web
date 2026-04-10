@@ -1,8 +1,8 @@
 "use client";
 
-"use client";
-
 import { Lock } from "lucide-react";
+import { useEffect, useRef } from "react";
+import type { ReactNode } from "react";
 import Select from "@/components/ui/Select";
 import { MultiSelect } from "@/components/ui/MultiSelect";
 import type {
@@ -16,6 +16,7 @@ import {
 } from "@/features/offerings/domain/offering.types";
 import type { RecommendationCondition } from "@/features/recommendations/hooks/useRecommendations";
 import { isStep3ReadyByAuth } from "@/features/recommendations/lib/recommendationInputPolicy";
+import { cn } from "@/lib/utils/cn";
 
 const LABEL = "mb-1.5 block ob-typo-caption text-(--oboon-text-muted)";
 
@@ -49,6 +50,43 @@ const REGION_OPTIONS = OFFERING_REGION_TABS.filter((r) => r !== "전체").map(
   (r) => ({ value: r as OfferingRegionTab, label: r }),
 );
 
+function ProgressiveSlot({
+  visible,
+  children,
+}: {
+  visible: boolean;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const prevVisible = useRef(visible);
+
+  useEffect(() => {
+    if (!prevVisible.current && visible && ref.current) {
+      const timer = setTimeout(() => {
+        ref.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+    prevVisible.current = visible;
+  }, [visible]);
+
+  return (
+    <div
+      ref={ref}
+      className={cn(
+        "grid transition-all duration-300 ease-out",
+        visible
+          ? "grid-rows-[1fr] opacity-100"
+          : "grid-rows-[0fr] opacity-0 pointer-events-none select-none",
+      )}
+    >
+      <div className="overflow-hidden">
+        <div className="pb-1">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 type Props = {
   condition: RecommendationCondition;
   isLoggedIn: boolean;
@@ -63,6 +101,7 @@ type Props = {
   isSaveDisabled?: boolean;
   isFinishing?: boolean;
   finishingLabel?: string;
+  progressive?: boolean;
 };
 
 export default function ConditionWizardStep3({
@@ -79,8 +118,147 @@ export default function ConditionWizardStep3({
   isSaveDisabled = false,
   isFinishing = false,
   finishingLabel = "처리 중...",
+  progressive = false,
 }: Props) {
   const isReady = isStep3ReadyByAuth(condition, isLoggedIn);
+
+  if (progressive) {
+    const showTiming = condition.purchasePurposeV2 !== null && isLoggedIn;
+    const showMovein = condition.purchaseTiming !== null && isLoggedIn;
+    const showRegions = condition.moveinTiming !== null && isLoggedIn;
+    const showGuestNudge =
+      condition.purchasePurposeV2 !== null && !isLoggedIn;
+
+    return (
+      <div className="space-y-5">
+        <div className="space-y-0.5">
+          <div className="flex items-start justify-between gap-3">
+            <p className="ob-typo-subtitle font-semibold text-(--oboon-text-title)">
+              라이프스타일
+            </p>
+            <button
+              type="button"
+              onClick={onReset}
+              className="shrink-0 ob-typo-caption text-(--oboon-text-muted) transition-colors hover:text-(--oboon-text-body)"
+            >
+              전체 초기화
+            </button>
+          </div>
+          <p className="ob-typo-caption text-(--oboon-text-muted)">
+            분양 목적과 희망 조건을 선택해주세요
+          </p>
+        </div>
+
+        <ProgressiveSlot visible={true}>
+          <div>
+            <span className={LABEL}>분양 목적</span>
+            <Select<FullPurchasePurpose>
+              value={(condition.purchasePurposeV2 ?? "") as FullPurchasePurpose}
+              onChange={(purchasePurposeV2) => onChange({ purchasePurposeV2 })}
+              options={PURPOSE_OPTIONS}
+            />
+          </div>
+        </ProgressiveSlot>
+
+        {isLoggedIn ? (
+          <>
+            <ProgressiveSlot visible={showTiming}>
+              <div>
+                <span className={LABEL}>분양 시점</span>
+                <Select<PurchaseTiming>
+                  value={(condition.purchaseTiming ?? "") as PurchaseTiming}
+                  onChange={(purchaseTiming) => onChange({ purchaseTiming })}
+                  options={PURCHASE_TIMING_OPTIONS}
+                />
+              </div>
+            </ProgressiveSlot>
+
+            <ProgressiveSlot visible={showMovein}>
+              <div>
+                <span className={LABEL}>희망 입주</span>
+                <Select<MoveinTiming>
+                  value={(condition.moveinTiming ?? "") as MoveinTiming}
+                  onChange={(moveinTiming) => onChange({ moveinTiming })}
+                  options={MOVEIN_OPTIONS}
+                />
+              </div>
+            </ProgressiveSlot>
+
+            <ProgressiveSlot visible={showRegions}>
+              <div>
+                <span className={LABEL}>지역</span>
+                <MultiSelect<OfferingRegionTab>
+                  values={condition.regions}
+                  onChange={(regions) => onChange({ regions })}
+                  options={REGION_OPTIONS}
+                  placeholder="전체"
+                />
+              </div>
+            </ProgressiveSlot>
+          </>
+        ) : null}
+
+        <ProgressiveSlot visible={showGuestNudge}>
+          <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-elevated)">
+                <Lock className="h-4 w-4 text-(--oboon-text-muted)" />
+              </div>
+              <div>
+                <p className="ob-typo-body font-semibold text-(--oboon-text-title)">
+                  생활 조건 반영
+                </p>
+                <p className="ob-typo-caption text-(--oboon-text-muted)">
+                  로그인하면 추천 정확도를 높이는 생활 조건을 더 입력할 수 있어요.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-3 flex flex-col items-center gap-2 text-center">
+              <button
+                type="button"
+                onClick={onSave}
+                className="inline-flex h-10 items-center justify-center rounded-full bg-(--oboon-primary) px-4 text-white ob-typo-button"
+              >
+                로그인하고 맞춤 조건 더 입력하기
+              </button>
+            </div>
+          </div>
+        </ProgressiveSlot>
+
+        <ProgressiveSlot visible={isReady}>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onBack}
+              disabled={isFinishing}
+              className="h-10 flex-1 rounded-full border border-(--oboon-border-default) ob-typo-button text-(--oboon-text-muted) disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              이전
+            </button>
+            <button
+              type="button"
+              disabled={!isReady || isFinishing}
+              onClick={onFinish}
+              className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-(--oboon-primary) text-white ob-typo-button disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {isFinishing ? (
+                <>
+                  <span
+                    aria-hidden="true"
+                    className="inline-block h-4 w-4 rounded-full border-2 border-(--oboon-spinner-ring) border-t-(--oboon-spinner-head) animate-spin"
+                  />
+                  <span>{finishingLabel}</span>
+                </>
+              ) : (
+                finishLabel
+              )}
+            </button>
+          </div>
+        </ProgressiveSlot>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

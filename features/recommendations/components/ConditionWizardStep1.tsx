@@ -1,6 +1,7 @@
 "use client";
 
-import { useId } from "react";
+import { useEffect, useId, useRef } from "react";
+import type { ReactNode } from "react";
 import { cn } from "@/lib/utils/cn";
 import Select from "@/components/ui/Select";
 import { formatManwonPreview } from "@/lib/format/currency";
@@ -76,12 +77,50 @@ function NumberField({
   );
 }
 
+function ProgressiveSlot({
+  visible,
+  children,
+}: {
+  visible: boolean;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const prevVisible = useRef(visible);
+
+  useEffect(() => {
+    if (!prevVisible.current && visible && ref.current) {
+      const timer = setTimeout(() => {
+        ref.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+    prevVisible.current = visible;
+  }, [visible]);
+
+  return (
+    <div
+      ref={ref}
+      className={cn(
+        "grid transition-all duration-300 ease-out",
+        visible
+          ? "grid-rows-[1fr] opacity-100"
+          : "grid-rows-[0fr] opacity-0 pointer-events-none select-none",
+      )}
+    >
+      <div className="overflow-hidden">
+        <div className="pb-1">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 type Props = {
   condition: RecommendationCondition;
   isLoggedIn: boolean;
   onChange: (patch: Partial<RecommendationCondition>) => void;
   onNext: () => void;
   onReset: () => void;
+  progressive?: boolean;
 };
 
 export default function ConditionWizardStep1({
@@ -90,8 +129,107 @@ export default function ConditionWizardStep1({
   onChange,
   onNext,
   onReset,
+  progressive = false,
 }: Props) {
   const isReady = isStep1ReadyByAuth(condition, isLoggedIn);
+
+  if (progressive) {
+    const showIncome = condition.availableCash > 0;
+    const showOwnership = condition.monthlyIncome > 0;
+    const showExpenses = condition.houseOwnership !== null;
+    const showEmployment = condition.monthlyExpenses > 0;
+
+    return (
+      <div className="space-y-5">
+        <div className="space-y-0.5">
+          <div className="flex items-start justify-between gap-3">
+            <p className="ob-typo-subtitle font-semibold text-(--oboon-text-title)">
+              재무 정보
+            </p>
+            <button
+              type="button"
+              onClick={onReset}
+              className="shrink-0 ob-typo-caption text-(--oboon-text-muted) transition-colors hover:text-(--oboon-text-body)"
+            >
+              전체 초기화
+            </button>
+          </div>
+          <p className="ob-typo-caption text-(--oboon-text-muted)">
+            기본 자금 조건을 입력해주세요
+          </p>
+        </div>
+
+        <ProgressiveSlot visible={true}>
+          <NumberField
+            label="가용 현금"
+            value={condition.availableCash}
+            placeholder="예: 8,000"
+            onChange={(availableCash) => onChange({ availableCash })}
+          />
+        </ProgressiveSlot>
+
+        <ProgressiveSlot visible={showIncome}>
+          <NumberField
+            label="월 소득"
+            value={condition.monthlyIncome}
+            placeholder="예: 400"
+            onChange={(monthlyIncome) => onChange({ monthlyIncome })}
+          />
+        </ProgressiveSlot>
+
+        <ProgressiveSlot visible={showOwnership}>
+          <div>
+            <span className={LABEL}>보유 주택</span>
+            <Select
+              value={
+                (condition.houseOwnership ?? "") as
+                  | "none"
+                  | "one"
+                  | "two_or_more"
+              }
+              onChange={(houseOwnership) => onChange({ houseOwnership })}
+              options={HOUSE_OPTIONS}
+            />
+          </div>
+        </ProgressiveSlot>
+
+        {isLoggedIn ? (
+          <ProgressiveSlot visible={showExpenses}>
+            <NumberField
+              label="월 지출"
+              value={condition.monthlyExpenses}
+              placeholder="예: 150"
+              onChange={(monthlyExpenses) => onChange({ monthlyExpenses })}
+            />
+          </ProgressiveSlot>
+        ) : null}
+
+        {isLoggedIn ? (
+          <ProgressiveSlot visible={showEmployment}>
+            <div>
+              <span className={LABEL}>직업</span>
+              <Select<EmploymentType>
+                value={(condition.employmentType ?? "") as EmploymentType}
+                onChange={(employmentType) => onChange({ employmentType })}
+                options={EMPLOYMENT_OPTIONS}
+              />
+            </div>
+          </ProgressiveSlot>
+        ) : null}
+
+        <ProgressiveSlot visible={isReady}>
+          <button
+            type="button"
+            disabled={!isReady}
+            onClick={onNext}
+            className="h-10 w-full rounded-full bg-(--oboon-primary) text-white ob-typo-button transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            다음 단계 →
+          </button>
+        </ProgressiveSlot>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
