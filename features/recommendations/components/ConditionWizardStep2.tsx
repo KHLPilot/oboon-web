@@ -104,8 +104,8 @@ function guestCreditGradeToScore(grade: CreditGrade): number {
 
 function guestCreditGradeFromCondition(
   condition: RecommendationCondition,
-): CreditGrade {
-  if (condition.ltvInternalScore <= 0) return "good";
+): CreditGrade | "" {
+  if (condition.ltvInternalScore <= 0) return "";
   if (condition.ltvInternalScore >= guestCreditGradeToScore("good")) return "good";
   if (condition.ltvInternalScore >= guestCreditGradeToScore("normal")) {
     return "normal";
@@ -258,7 +258,7 @@ export default function ConditionWizardStep2({
         <div className="space-y-2 rounded-xl border border-(--oboon-border-default) p-3">
           <span className={LABEL}>신용 상태</span>
           <Select<CreditGrade>
-            value={guestCreditGrade}
+            value={guestCreditGrade as CreditGrade}
             onChange={handleGuestCreditChange}
             options={CREDIT_OPTIONS}
           />
