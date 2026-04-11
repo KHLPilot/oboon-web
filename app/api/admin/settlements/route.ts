@@ -250,7 +250,7 @@ export async function GET() {
       (c) => c.status === "no_show" && !c.no_show_by,
     ).length;
 
-    const settlementRows = await Promise.all(
+    const settlementRows = (await Promise.all(
       consultationRows.map(async (c) => {
         const depositEvent = latestDepositEventByConsultation.get(c.id);
         const decisionEvent = latestDepositDecisionByConsultation.get(c.id);
@@ -404,7 +404,7 @@ export async function GET() {
           refund_amount: refundAmount,
         };
       }),
-    )
+    ))
       .filter((row) => {
         return (
           row.deposit_label !== "-" ||
