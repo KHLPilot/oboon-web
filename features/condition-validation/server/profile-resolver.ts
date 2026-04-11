@@ -535,7 +535,7 @@ export function resolveProfileForRecommendation(params: {
   profileRow: ValidationProfileRow | null | undefined;
 }): PropertyValidationProfile | null {
   const { property, profileRow } = params;
-  const fromProfile = profileRow ? buildProfileFromValidationRow(profileRow) : null;
+  const fromProfile = profileRow ? buildProfileFromValidationRow(profileRow, property) : null;
   if (fromProfile) return fromProfile;
   return buildProfileFromPropertyRow(property);
 }
