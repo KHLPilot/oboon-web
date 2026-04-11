@@ -11,7 +11,7 @@
 | CL-02 | IAM 최소 권한 | 양호 | R2 전용 Access Key 분리, Supabase 역할 분리(anon/authenticated/service_role) |
 | CL-03 | 루트 계정 사용 금지 | 부분이행 | Cloudflare 루트 계정 사용 여부 미확인. 루트 계정 MFA + 서브 토큰 사용 권고 |
 | CL-04 | 접근 키 관리 | 양호 | 환경변수로만 관리, 소스 내 하드코딩 없음 |
-| CL-05 | 스토리지 공개 접근 | 취약 | R2 퍼블릭 도메인 설정 유지. `pdf-temp/` URL 반환 제거됨(2026-04-03). **신규**: `app/api/r2/upload/route.ts:251-255` — `postId`, `boardId`, `categoryId` 숫자 검증 없이 경로에 직접 삽입 (경로 주입 가능성). 버킷 정책 콘솔 확인 필요 |
+| CL-05 | 스토리지 공개 접근 | 부분이행 | `postId`: UUID 형식 검증 추가 완료(`uuidV4Schema`). **미조치**: `boardId`, `categoryId` 정수 검증 없이 경로 삽입 — `briefing/boards/${boardId}/cover.*` 경로 조작 가능. R2 퍼블릭 버킷 정책 콘솔 확인 계속 필요 |
 | CL-06 | 스토리지 암호화 | 양호 | Cloudflare R2 기본 at-rest 암호화 적용 |
 | CL-07 | 전송 암호화 | 양호 | R2 업로드 서버 사이드 서명 URL, HTTPS 전용 |
 | CL-08 | 네트워크 접근 제어 | 양호 | Vercel Edge Network 기본 DDoS 방어, IP 기반 접근 제한 없음(서버리스) |
@@ -28,14 +28,10 @@
 
 ## 신규 발견사항 (2026-04-11)
 
-### [LOW] OAuth Callback — sessionKey URL 노출
-- **파일**: `app/api/auth/google/callback/route.ts:134`
-- **위험**: 삭제 계정 복구 플로우에서 `sessionKey`가 GET 파라미터로 URL에 노출
-  ```typescript
-  return redirectWithClearedState(siteOrigin, `/auth/restore?s=${encodeURIComponent(sessionKey)}`);
-  ```
-  - 서버 액세스 로그, 브라우저 히스토리, Referer 헤더에 토큰 잔류 가능
-- **권고**: sessionKey를 Redis에만 저장하고 짧은 TTL 적용, POST 방식으로 전달
+### ✅ OAuth Callback — sessionKey URL 노출 [조치 완료 — 2026-04-11]
+- `lib/auth/restoreSessionCookie.ts` 신규 생성 — `httpOnly: true`, `sameSite: "lax"`, 프로덕션 `secure: true` 쿠키로 전달
+- `google/callback/route.ts:140` — URL 파라미터 제거, `setRestoreSessionCookie()` 호출
+- `RestorePage.client.tsx` — 쿠키 자동 전송으로 변경, URL에 sessionKey 없음
 
 ### [LOW] R2 Upload — postId 경로 매개변수 숫자 검증 미비
 - **파일**: `app/api/r2/upload/route.ts:251-255`

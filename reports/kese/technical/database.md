@@ -41,7 +41,7 @@
 
 | 항목 | 제목 | 판정 | 근거 |
 |------|------|------|------|
-| D-19 | 민감 데이터 암호화 | **취약** | 전화번호/이메일 평문 저장. **은행 계좌번호(`profile_bank_accounts.account_number`), 예금주명 평문 저장** — 금융데이터 암호화 미적용(HIGH). Supabase at-rest 암호화는 적용되나 컬럼 레벨 암호화 없음 |
+| D-19 | 민감 데이터 암호화 | 양호 | 전화번호/이메일 평문(Supabase at-rest). **은행계좌번호·예금주명**: `lib/profileBankAccount.ts:42` AES-256-GCM + 랜덤 IV(12B) + AuthTag 무결성 검증, `migration 107` 적용 완료. 키는 `BANK_ACCOUNT_ENCRYPTION_KEY` 환경변수 |
 | D-20 | 전송 암호화 | 양호 | Supabase 연결 TLS 강제 (`ssl: true`), HTTPS API 전용 |
 | D-21 | 백업 암호화 및 정책 | 취약 | Supabase PITR(Point-in-Time Recovery) 활성화 여부 미확인. 백업 주기 및 복구 테스트 절차 미수립 |
 | D-22 | 감사 로그 암호화 | 부분이행 | Supabase 기본 감사 로그 존재, 별도 외부 저장 없음 |
@@ -60,7 +60,7 @@
 | D-28 | 쿼리 로그 | 양호 | 느린 쿼리 로그 활성화 가능 (Supabase 대시보드) |
 | D-29 | DB 에러 메시지 외부 노출 | 양호 | `lib/api/route-error.ts`에서 DB 에러 정제 후 클라이언트 전달 |
 | D-29-2 | 레이스 컨디션 (Reward Payout) | **양호** | `supabase/migrations/106_reward_payout_atomic.sql` — `pg_advisory_xact_lock` + `SELECT ... FOR UPDATE` 비관적 잠금으로 동시 중복 지급 차단. 2026-04-11 재확인 완료 |
-| D-29-3 | 레이스 컨디션 (Refund) | **취약** | `app/api/consultations/[id]/refund/route.ts:170-194` — `payout_requests.update()`와 `consultation_money_ledger.insert()` 분리 실행, 트랜잭션 없음. 동시 환급 처리 시 이중 환급 가능. **RPC 트랜잭션 처리 권고** |
+| D-29-3 | 레이스 컨디션 (Refund) | 양호 | `migration 108_atomic_deposit_refund.sql` — `pg_advisory_xact_lock` + `SELECT ... FOR UPDATE` 적용. 이중 환급 방지 로직(`already_processed` 체크), SECURITY DEFINER + search_path 고정. `refund/route.ts:79-82` RPC 호출로 변경 완료 |
 | D-30 | DDL 변경 이력 | 양호 | `supabase/migrations/` 타임스탬프 마이그레이션 파일로 이력 관리 |
 | D-31 | 불필요한 확장 기능 | 양호 | `postgis`, `uuid-ossp` 등 필요한 확장만 활성화 (마이그레이션 파일 확인) |
 | D-32 | DB 포트 노출 | 양호 | 직접 DB 포트 미노출, Supabase API/연결 풀러만 사용 |
@@ -71,8 +71,8 @@
 
 | 우선순위 | 항목 | 조치 내용 |
 |---------|------|----------|
-| **HIGH** | **D-19** | **은행 계좌번호·예금주명 컬럼 암호화 — pgcrypto 또는 Supabase Vault 적용** |
-| **MEDIUM** | **D-29-3** | **Refund API 트랜잭션 처리 — RPC 함수로 이관 또는 `payout_requests` UNIQUE constraint 추가** |
+| ✅ RESOLVED | D-19 | AES-256-GCM 암호화 적용 완료 (2026-04-11) |
+| ✅ RESOLVED | D-29-3 | migration 108 atomic RPC 적용 완료 (2026-04-11) |
 | MEDIUM | D-07 | 인벤토리 기준으로 공개/반공개 조회 라우트부터 authed client 전환 후보를 순차 검토 |
 | MEDIUM | D-21 | Supabase 대시보드에서 PITR 활성화 확인, 복구 테스트 주기 수립 |
 | LOW | D-07-2 | `pdf-parse@1.1.1` → `unpdf`(이미 설치) 또는 `pdfjs-dist` 마이그레이션 검토 |

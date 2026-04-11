@@ -1,9 +1,8 @@
 # 웹 서비스 취약점 분석 (WS-01 ~ WS-47)
 
 > 평가 대상: OBOON `oboon-web`
-> 평가 일자: 2026-04-11 (이전: 2026-04-03)
+> 평가 일자: 2026-04-11 3차 (이전: 2026-04-11 2차, 2026-04-03)
 > 방식: 저장소/라우트 코드 정적 분석
-> 비고: 이번 점검에서 `middleware.ts`의 `style-src` 무조건 `'unsafe-inline'` 허용 신규 발견.
 
 ---
 
@@ -18,7 +17,7 @@
 | WS-05 | XML Injection | 해당없음 | XML 처리 없음 |
 | WS-06 | 파일 업로드 취약점 | 양호 | `app/api/r2/upload/route.ts:67` 매직바이트 검증, MIME 화이트리스트(jpeg/png/webp/gif), 10MB 제한 (`MAX_FILE_SIZE = 10 * 1024 * 1024`) |
 | WS-07 | 경로 조작 (Path Traversal) | 양호 | 업로드 경로는 `crypto.randomUUID()` 기반, 정적 지오JSON은 `process.cwd()` + 고정 경로 |
-| WS-08 | 파일 업로드/고비용 처리 보호 | 부분이행 | `extract-pdf`: 인증+rate limit 보호 완료. **PDF 파일 매직바이트 검증 누락** (`app/api/extract-pdf/route.ts`). condition-validation 일부 경로 rate limit 미적용 |
+| WS-08 | 파일 업로드/고비용 처리 보호 | 양호 | `extract-pdf/route.ts:30-31` — `%PDF-` 5바이트 ASCII 시그니처 검증 추가. 인증+rate limit 보호 완료 |
 | WS-09 | SSRF/외부 API 프록시 | 양호 | `geo/address`, `geo/reverse`: 로그인 검증, 입력 검증, rate limit, 캐시 모두 적용 |
 | WS-10 | 안전하지 않은 역직렬화 | 양호 | 위험한 역직렬화 패턴 없음 (pickle/yaml.load 등 없음) |
 
@@ -28,7 +27,7 @@
 
 | 항목 | 제목 | 판정 | 근거 |
 |------|------|------|------|
-| WS-11 | CSP | **취약** | `middleware.ts:53` — `style-src`에 `'unsafe-inline'` 무조건 허용 (프로덕션 포함). `script-src`는 nonce 기반 올바르게 구현됨 |
+| WS-11 | CSP | 양호 | `middleware.ts:51-55` — `isDevelopment ? "'unsafe-inline'" : null` 조건 추가. 프로덕션에서 style-src unsafe-inline 제거됨. script-src nonce 기반 유지 |
 | WS-12 | 인증 메커니즘 | 양호 | Supabase SSR Auth, 모든 민감 라우트 서버 측 `auth.getUser()` 검증 |
 | WS-13 | 세션 관리 | 양호 | Supabase SSR: HttpOnly/Secure/SameSite 쿠키 자동 설정 |
 | WS-14 | 접근 제어 | 양호 | 역할별 접근 제어(admin/agent/customer) `requireAdminRoute()`, `requireAuthenticatedUser()` 전 라우트 적용 |
@@ -74,7 +73,7 @@
 | WS-42 | 디렉토리 리스팅 | 양호 | Next.js 기본값 차단 |
 | WS-43 | 불필요한 HTTP 메서드 | 양호 | 라우트별 명시적 메서드만 허용 |
 | WS-44 | 서버 배너 노출 | 양호 | Vercel 관리형, X-Powered-By 헤더 기본 제거 |
-| WS-45 | 공개 엔드포인트 최소화 | 부분이행 | `evaluate`: `guestConditionEvaluationIpLimiter` (IP당 10/min) 적용 확인. `evaluate-v2`: 로그인 필수 + 사용자당 20/min. `recommend`: rate limit 미적용 — 전체 현장 목록 반복 평가 고비용 처리 위험 |
+| WS-45 | 공개 엔드포인트 최소화 | 양호 | `recommend/route.ts:1041-1049` — `conditionRecommendationIpLimiter` (IP당 12/min) 추가. `evaluate`: 10/min, `evaluate-v2`: 로그인+20/min. 3개 엔드포인트 모두 rate limit 적용 완료 |
 | WS-46 | CORS 설정 | 부분이행 | 명시적 CORS 헤더 없음, SOP 의존 — 의도적 설계이나 문서화 필요 |
 | WS-47 | 캐시 제어 | 양호 | API 라우트 no-cache, 정적 자산 캐시 분리 |
 
@@ -82,39 +81,16 @@
 
 ## 상세 확인 결과
 
-### 신규 — style-src unsafe-inline 프로덕션 노출 [MEDIUM]
+### ✅ WS-11 style-src unsafe-inline [조치 완료 — 2026-04-11 3차]
 
-- **파일**: `middleware.ts:51-55`
-- **현재 코드**:
-  ```typescript
-  const styleSources = dedupe([
-    "'self'",
-    "'unsafe-inline'",  // isDevelopment 체크 없음
-    isReactGrabEnabled ? "https://fonts.googleapis.com" : null,
-  ]);
-  ```
-- **위험**: CSS 선택자 기반 데이터 탈취 공격 가능 (attribute selector 스니핑)
-- **권고 수정**:
-  ```typescript
-  const styleSources = dedupe([
-    "'self'",
-    isDevelopment ? "'unsafe-inline'" : null,
-    isReactGrabEnabled ? "https://fonts.googleapis.com" : null,
-    // 프로덕션에서 특정 해시 기반 스타일 허용 시 'sha256-...' 추가
-  ]);
-  ```
-- **판정**: 취약 → 조치 필요
+- `middleware.ts:53` — `isDevelopment ? "'unsafe-inline'" : null` 적용
+- 프로덕션 style-src: `'self'` 만 허용
 
-### 기존 — 조건 검증/추천 엔드포인트 호출 보호 [부분이행 — 2026-04-11 재확인]
+### ✅ WS-45 condition-validation rate limit [조치 완료 — 2026-04-11 3차]
 
-- **파일**:
-  - `app/api/condition-validation/recommend/route.ts`
-  - `app/api/condition-validation/evaluate/route.ts`
-  - `app/api/condition-validation/evaluate-v2/route.ts`
-- `evaluate`: `guestConditionEvaluationIpLimiter` (IP당 분당 10회) 적용 확인 ✅
-- `evaluate-v2`: 로그인 필수 + `conditionEvaluationUserLimiter` (사용자당 분당 20회) 적용 확인 ✅
-- `recommend`: rate limit 미적용 — 전체 현장 목록 반복 평가 고비용 처리 위험 ⚠️
-- **판정**: 부분이행 유지 (recommend만 미조치)
+- `recommend`: `conditionRecommendationIpLimiter` IP당 12/min 추가
+- `evaluate`: `guestConditionEvaluationIpLimiter` IP당 10/min
+- `evaluate-v2`: 로그인 필수 + 사용자당 20/min
 
 ### 기존 — 브리핑 HTML sanitize, PDF 분석 보호, geo 프록시 보호 [조치 완료]
 

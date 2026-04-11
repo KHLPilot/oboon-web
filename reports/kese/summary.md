@@ -16,8 +16,8 @@
 
 | 분야 | 전체 | 양호 | 부분이행 | 취약 | 해당없음 |
 |------|:----:|:----:|:--------:|:----:|:-------:|
-| 웹서비스 (WS-01~WS-47) | 47 | 40 | 4 | 1 | 2 |
-| 데이터베이스 (D-01~D-32) | 32 | 23 | 3 | 2 | 4 |
+| 웹서비스 (WS-01~WS-47) | 47 | 43 | 2 | 0 | 2 |
+| 데이터베이스 (D-01~D-32) | 32 | 25 | 3 | 0 | 4 |
 | Unix/Linux (U-01~U-68) | 68 | - | - | - | 68 |
 | Windows (W-01~W-73) | 73 | - | - | - | 73 |
 | 보안장비 (S-01~S-19) | 19 | - | - | - | 19 |
@@ -25,15 +25,29 @@
 | 제어시스템 (C-01~C-45) | 45 | - | - | - | 45 |
 | PC단말기 (PC-01~PC-18) | 18 | - | - | - | 18 |
 | 가상화 (V-01~V-36) | 36 | - | - | - | 36 |
-| 클라우드 (CL-01~CL-14) | 14 | 8 | 2 | 1 | 3 |
+| 클라우드 (CL-01~CL-14) | 14 | 8 | 3 | 0 | 3 |
 | 관리적 (A-01~A-127) | 127 | 68 | 28 | 4 | 27 |
 | 물리적 (B-01~B-09) | 9 | 1 | 2 | 0 | 6 |
 
 > 해당없음: 서버리스 SaaS 환경 — OS/네트워크 장비/가상화/제어시스템은 인프라 제공자(Vercel, Supabase) 책임 영역
 
-**평가 대상 항목 기준 보안 점수: 86.8%** *(이전: 87.4%)*
+**평가 대상 항목 기준 보안 점수: 87.7%** *(2차: 86.8% → 3차: 87.7%)*
 > (양호 + 부분이행×0.5) / 해당없음 제외 항목 수
-> D-19 취약으로 재분류, D-29-3 취약 신규 추가, D-29-2 양호 전환 반영
+> 3차: WS 3개·D 2개·CL 1개 취약→양호, CL-05 취약→부분이행 반영
+
+---
+
+## 2026-04-11 3차 재평가 — 조치 확인
+
+| 항목 | 수정 방식 | 판정 |
+|------|---------|------|
+| D-19-2 은행계좌 암호화 | AES-256-GCM + randIV + AuthTag, `lib/profileBankAccount.ts:42` | ✅ 양호 |
+| D-29-3 Refund 레이스 | `migration 108` pg_advisory_xact_lock + FOR UPDATE + already_processed 체크 | ✅ 양호 |
+| WS-11-2 style-src | `middleware.ts:53` isDevelopment 조건부 unsafe-inline | ✅ 양호 |
+| WS-08-2 PDF 매직바이트 | `extract-pdf/route.ts:30` `%PDF-` 5바이트 ASCII 검증 | ✅ 양호 |
+| WS-45 recommend rate limit | `conditionRecommendationIpLimiter` IP당 12/min | ✅ 양호 |
+| CL-API-06 sessionKey | `lib/auth/restoreSessionCookie.ts` httpOnly 쿠키 전환 | ✅ 양호 |
+| CL-05-2 postId | UUID 검증 추가. **boardId/categoryId 미검증** | ⚠️ 부분이행 |
 
 ---
 
@@ -99,17 +113,19 @@
 
 | 순위 | 심각도 | 항목 | 설명 | 조치 상태 |
 |------|--------|------|------|-----------|
-| 1 | **HIGH** | **D-19-2** | **은행 계좌번호·예금주명 평문 저장** | **미조치** |
-| 2 | MEDIUM | D-29-3 | Refund 이중 환급 레이스 컨디션 | **미조치** |
-| 3 | MEDIUM | WS-11-2 | CSP style-src 프로덕션 unsafe-inline | **미조치** |
-| 4 | LOW | WS-08-2 | PDF 매직바이트 검증 누락 | **미조치** |
-| 5 | LOW | WS-45 | condition-validation recommend 엔드포인트 rate limit 미적용 | 부분이행 |
-| 6 | LOW | D-07-2 | pdf-parse 유지보수 종료 | **미조치** |
-| 7 | LOW | CL-03 | Cloudflare 루트 계정 MFA 미확인 | 부분이행 |
-| 8 | LOW | CL-05 | R2 퍼블릭 버킷 민감 경로 차단 / postId 검증 미비 | 취약(확인필요) |
-| 9 | LOW | CL-API-06 | OAuth Callback sessionKey URL 노출 | **미조치** |
-| 10 | INFO | CL-10 | 감사 로그 중앙 집계/보존 정책 미수립 | 부분이행 |
-| ✅ | RESOLVED | D-29-2 | Reward Payout 레이스 컨디션 → migration 106 advisory lock으로 해결 | **해결** |
+| 1 | LOW | CL-05 | R2 Upload boardId/categoryId 경로 정수 검증 미비 | **미조치** |
+| 2 | LOW | D-07-2 | pdf-parse 유지보수 종료 | **미조치** |
+| 3 | LOW | CL-03 | Cloudflare 루트 계정 MFA 미확인 | 부분이행 |
+| 4 | INFO | CL-10 | 감사 로그 중앙 집계/보존 정책 미수립 | 부분이행 |
+| 5 | INFO | A-90 | 중앙 알림/모니터링 체계 미확인 | 부분이행 |
+| 6 | INFO | A-14 | 의존성 취약점 자동 스캔 CI 미통합 | 부분이행 |
+| ✅ | RESOLVED | D-19-2 | 은행계좌 AES-256-GCM 암호화 — migration 107 + lib/profileBankAccount.ts | **해결** |
+| ✅ | RESOLVED | D-29-3 | Refund 이중 환급 — migration 108 advisory lock + atomic RPC | **해결** |
+| ✅ | RESOLVED | WS-11-2 | CSP style-src unsafe-inline — isDevelopment 체크 추가 | **해결** |
+| ✅ | RESOLVED | WS-08-2 | PDF 매직바이트 — `%PDF-` 5바이트 검증 추가 | **해결** |
+| ✅ | RESOLVED | WS-45 | recommend rate limit — conditionRecommendationIpLimiter 12/min | **해결** |
+| ✅ | RESOLVED | CL-API-06 | OAuth sessionKey — httpOnly 쿠키로 변경 | **해결** |
+| ✅ | RESOLVED | D-29-2 | Reward Payout — migration 106 advisory lock | **해결** |
 
 ---
 
