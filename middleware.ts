@@ -50,7 +50,7 @@ function buildContentSecurityPolicy(nonce: string) {
 
   const styleSources = dedupe([
     "'self'",
-    "'unsafe-inline'",
+    isDevelopment ? "'unsafe-inline'" : null,
     isReactGrabEnabled ? "https://fonts.googleapis.com" : null,
   ]);
 

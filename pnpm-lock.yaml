@@ -111,9 +111,6 @@ importers:
       next:
         specifier: ^15.5.14
         version: 15.5.14(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      pdf-parse:
-        specifier: ^1.1.1
-        version: 1.1.4
       react:
         specifier: 18.3.1
         version: 18.3.1
@@ -3200,10 +3197,6 @@ packages:
 
   path-to-regexp@8.4.0:
     resolution: {integrity: sha512-PuseHIvAnz3bjrM2rGJtSgo1zjgxapTLZ7x2pjhzWwlp4SJQgK3f3iZIQwkpEnBaKz6seKBADpM4B4ySkuYypg==}
-
-  pdf-parse@1.1.4:
-    resolution: {integrity: sha512-XRIRcLgk6ZnUbsHsYXExMw+krrPE81hJ6FQPLdBNhhBefqIQKXu/WeTgNBGSwPrfU0v+UCEwn7AoAUOsVKHFvQ==}
-    engines: {node: '>=6.8.1'}
 
   picocolors@1.1.1:
     resolution: {integrity: sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA==}
@@ -7701,10 +7694,6 @@ snapshots:
   path-parse@1.0.7: {}
 
   path-to-regexp@8.4.0: {}
-
-  pdf-parse@1.1.4:
-    dependencies:
-      node-ensure: 0.0.0
 
   picocolors@1.1.1: {}
 

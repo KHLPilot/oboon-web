@@ -19,15 +19,13 @@ import {
 import { logApiError } from '@/lib/api/route-error';
 import { extractImagesFromPDF, renderPagesAsImages, convertImageToBase64 } from '@/lib/pdf-utils';
 import { DeleteObjectCommand, GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { extractText, getDocumentProxy } from 'unpdf';
 import { requireAuthenticatedUser } from '@/lib/api/route-security';
 import { checkRateLimit, extractPdfLimiter } from '@/lib/rateLimit';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
 const EXTRACTION_SOFT_TIMEOUT_MS = Number(process.env.EXTRACT_PDF_SOFT_TIMEOUT_MS ?? 95000);
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require('pdf-parse');
 
 const MAX_TEXT_LENGTH = 50000;
 const MAX_TOTAL_SIZE = 150 * 1024 * 1024; // 150MB
@@ -3038,9 +3036,10 @@ export async function POST(req: Request) {
       }
 
       // 텍스트 추출
-      const parsed = await pdfParse(buffer);
-      fileMeta.pages = Number.isFinite(parsed.numpages) ? parsed.numpages : null;
-      const parsedText = parsed.text?.trim() ?? '';
+      const pdf = await getDocumentProxy(new Uint8Array(buffer));
+      const { totalPages, text } = await extractText(pdf, { mergePages: true });
+      fileMeta.pages = Number.isFinite(totalPages) ? totalPages : null;
+      const parsedText = text.trim();
       fileMeta.textLength = parsedText.length;
       const detected = detectDocumentType(file.fileName, parsedText);
       parsedDocuments.push({

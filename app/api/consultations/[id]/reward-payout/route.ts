@@ -5,26 +5,26 @@ import { createServerClient } from "@supabase/ssr";
 
 const adminSupabase = createSupabaseAdminClient();
 
-type ConsultationRow = {
-  id: string;
-  status: "pending" | "confirmed" | "visited" | "cancelled" | "no_show" | "contracted";
-  agent_id: string;
+type RewardPayoutResult = {
+  success?: boolean;
+  already_processed?: boolean;
+  status?: number;
+  error?: string;
 };
 
-type LedgerRow = {
-  event_type: "reward_due" | "reward_paid";
-  amount: number;
-};
-
-type PayoutRow = {
-  id: string;
-  status: "pending" | "processing" | "done" | "rejected";
-};
-
-function sumAmounts(rows: LedgerRow[], eventType: LedgerRow["event_type"]) {
-  return rows
-    .filter((r) => r.event_type === eventType)
-    .reduce((acc, r) => acc + Math.abs(r.amount ?? 0), 0);
+function normalizeRpcResult(data: unknown): RewardPayoutResult | null {
+  if (!data) return null;
+  if (Array.isArray(data)) {
+    const first = data[0];
+    if (first && typeof first === "object") {
+      return first as RewardPayoutResult;
+    }
+    return null;
+  }
+  if (typeof data === "object") {
+    return data as RewardPayoutResult;
+  }
+  return null;
 }
 
 export async function POST(
@@ -74,105 +74,30 @@ export async function POST(
       return NextResponse.json({ error: "관리자 권한이 필요합니다" }, { status: 403 });
     }
 
-    const [{ data: consultation }, { data: ledgers }, { data: payoutRow }] =
-      await Promise.all([
-        adminSupabase
-          .from("consultations")
-          .select("id, status, agent_id")
-          .eq("id", id)
-          .single(),
-        adminSupabase
-          .from("consultation_money_ledger")
-          .select("event_type, amount")
-          .eq("consultation_id", id)
-          .in("event_type", ["reward_due", "reward_paid"]),
-        adminSupabase
-          .from("payout_requests")
-          .select("id, status")
-          .eq("consultation_id", id)
-          .eq("type", "reward_payout")
-          .maybeSingle(),
-      ]);
+    const { data, error } = await adminSupabase.rpc("process_reward_payout", {
+      p_consultation_id: id,
+      p_processed_by: user.id,
+    });
 
-    if (!consultation) {
-      return NextResponse.json({ error: "예약을 찾을 수 없습니다" }, { status: 404 });
-    }
-
-    const c = consultation as ConsultationRow;
-    if (c.status !== "visited" && c.status !== "contracted") {
-      return NextResponse.json({ error: "방문 완료 예약만 지급 처리할 수 있습니다" }, { status: 400 });
-    }
-
-    const ledgerRows = (ledgers || []) as LedgerRow[];
-    const rewardDueAmount = sumAmounts(ledgerRows, "reward_due");
-    const rewardPaidAmount = sumAmounts(ledgerRows, "reward_paid");
-
-    if (rewardDueAmount <= 0) {
-      return NextResponse.json({ error: "지급 대상 보상금이 없습니다" }, { status: 400 });
-    }
-
-    const remainingAmount = rewardDueAmount - rewardPaidAmount;
-    if (remainingAmount <= 0) {
-      return NextResponse.json({ success: true, already_processed: true });
-    }
-
-    const nowIso = new Date().toISOString();
-    const existingPayout = (payoutRow || null) as PayoutRow | null;
-
-    if (!existingPayout) {
-      const { error: payoutInsertError } = await adminSupabase
-        .from("payout_requests")
-        .insert({
-          consultation_id: c.id,
-          type: "reward_payout",
-          amount: remainingAmount,
-          target_profile_id: c.agent_id,
-          status: "done",
-          processed_by: user.id,
-          processed_at: nowIso,
-        });
-
-      if (payoutInsertError) {
-        console.error("지급 요청 생성 오류:", payoutInsertError);
-        return NextResponse.json({ error: "지급 처리에 실패했습니다" }, { status: 500 });
-      }
-    } else if (existingPayout.status !== "done") {
-      const { error: payoutUpdateError } = await adminSupabase
-        .from("payout_requests")
-        .update({
-          status: "done",
-          processed_by: user.id,
-          processed_at: nowIso,
-        })
-        .eq("id", existingPayout.id);
-
-      if (payoutUpdateError) {
-        console.error("지급 요청 업데이트 오류:", payoutUpdateError);
-        return NextResponse.json({ error: "지급 처리에 실패했습니다" }, { status: 500 });
-      }
-    }
-
-    const { error: ledgerInsertError } = await adminSupabase
-      .from("consultation_money_ledger")
-      .insert({
-        consultation_id: c.id,
-        event_type: "reward_paid",
-        bucket: "reward",
-        amount: remainingAmount,
-        actor_id: user.id,
-        admin_id: user.id,
-        note: "admin_reward_payout_complete",
-      });
-
-    if (ledgerInsertError) {
-      console.error("보상 지급 원장 기록 오류:", ledgerInsertError);
+    if (error) {
+      console.error("보상 지급 처리 RPC 오류:", error);
       return NextResponse.json({ error: "지급 처리에 실패했습니다" }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, already_processed: false });
+    const result = normalizeRpcResult(data);
+    if (!result?.success) {
+      return NextResponse.json(
+        { error: result?.error ?? "지급 처리에 실패했습니다" },
+        { status: result?.status ?? 500 },
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      already_processed: Boolean(result.already_processed),
+    });
   } catch (error: unknown) {
     console.error("보상 지급 처리 API 오류:", error);
     return NextResponse.json({ error: "지급 처리에 실패했습니다" }, { status: 500 });
   }
 }
-
