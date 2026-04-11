@@ -183,7 +183,7 @@ export default function Header() {
     <>
       <header
         className={[
-          "fixed top-0 left-0 right-0 z-(--oboon-z-header) border-b overflow-x-clip",
+          "sticky top-0 left-0 right-0 z-(--oboon-z-header) border-b overflow-x-clip",
           "supports-backdrop-filter:backdrop-blur-md",
         ].join(" ")}
         style={{
