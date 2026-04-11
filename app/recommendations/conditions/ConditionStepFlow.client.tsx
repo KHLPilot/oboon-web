@@ -20,7 +20,6 @@ import type { RecommendationCondition } from "@/features/recommendations/hooks/u
 import {
   createEmptyRecommendationCondition,
   creditGradeFromLtvInternalScore,
-  sanitizeGuestCondition,
 } from "@/features/condition-validation/domain/conditionState";
 
 const DEFAULT_CONDITION: RecommendationCondition =
@@ -92,6 +91,25 @@ function buildConditionSession(condition: RecommendationCondition): ConditionSes
 
 function saveCondition(nextCondition: RecommendationCondition) {
   saveConditionSession(buildConditionSession(nextCondition));
+}
+
+function sanitizeGuestCondition(condition: RecommendationCondition): RecommendationCondition {
+  return {
+    ...condition,
+    employmentType: null,
+    monthlyExpenses: 0,
+    purchaseTiming: null,
+    moveinTiming: null,
+    ltvInternalScore: condition.ltvInternalScore > 0 ? condition.ltvInternalScore : 0,
+    existingLoan: null,
+    recentDelinquency: null,
+    cardLoanUsage: null,
+    loanRejection: null,
+    monthlyIncomeRange: null,
+    existingMonthlyRepayment: null,
+    regions: [],
+    creditGrade: creditGradeFromLtvInternalScore(condition.ltvInternalScore),
+  };
 }
 
 function buildSavedConditionPreset(
@@ -173,16 +191,24 @@ export function ConditionStepFlow({ step, progressive = true }: StepFlowProps) {
     async function loadAuth() {
       const { data } = await supabase.auth.getUser();
       if (!alive) return;
-      setIsLoggedIn(Boolean(data.user));
+      const loggedIn = Boolean(data.user);
+      setIsLoggedIn(loggedIn);
       setIsAuthResolved(true);
+      if (!loggedIn) {
+        setSavedConditionPreset(null);
+      }
     }
 
     void loadAuth();
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!alive) return;
-      setIsLoggedIn(Boolean(session?.user));
+      const loggedIn = Boolean(session?.user);
+      setIsLoggedIn(loggedIn);
       setIsAuthResolved(true);
+      if (!loggedIn) {
+        setSavedConditionPreset(null);
+      }
     });
 
     return () => {
@@ -192,10 +218,7 @@ export function ConditionStepFlow({ step, progressive = true }: StepFlowProps) {
   }, []);
 
   useEffect(() => {
-    if (!isAuthResolved || !isLoggedIn) {
-      setSavedConditionPreset(null);
-      return;
-    }
+    if (!isAuthResolved || !isLoggedIn) return;
 
     const supabase = createSupabaseClient();
     let alive = true;
@@ -357,24 +380,30 @@ export function ConditionStepFlow({ step, progressive = true }: StepFlowProps) {
   );
 }
 
-type DoneFlowProps = {
-};
-
-export function ConditionDoneFlow(_props: DoneFlowProps) {
+export function ConditionDoneFlow() {
   const router = useRouter();
   const [condition, setCondition] = useState<RecommendationCondition | null>(null);
   const [hasLoadedCondition, setHasLoadedCondition] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isAuthResolved, setIsAuthResolved] = useState(false);
-  const [isFinished, setIsFinished] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const autoRedirectTimerRef = useRef<number | null>(null);
   const prefetchAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    const snapshot = loadConditionSession();
-    setCondition(snapshot ? conditionFromSession(snapshot) : null);
-    setHasLoadedCondition(true);
+    let alive = true;
+
+    async function loadCondition() {
+      const snapshot = loadConditionSession();
+      if (!alive) return;
+      setCondition(snapshot ? conditionFromSession(snapshot) : null);
+      setHasLoadedCondition(true);
+    }
+
+    void loadCondition();
+
+    return () => {
+      alive = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -410,27 +439,18 @@ export function ConditionDoneFlow(_props: DoneFlowProps) {
   }, [condition, hasLoadedCondition, router]);
 
   useEffect(() => {
-    if (!hasLoadedCondition || !isAuthResolved || isLoggedIn) return;
-    setIsFinished(true);
-  }, [hasLoadedCondition, isAuthResolved, isLoggedIn]);
-
-  useEffect(() => {
-    if (!hasLoadedCondition || !isAuthResolved || !condition || isFinished) return;
-    setIsFinished(true);
-  }, [condition, hasLoadedCondition, isAuthResolved, isFinished]);
-
-  useEffect(() => {
     if (!hasLoadedCondition || !isAuthResolved || !condition) return;
 
     prefetchAbortRef.current?.abort();
     const controller = new AbortController();
     prefetchAbortRef.current = controller;
     let alive = true;
+    const currentCondition = condition;
 
     async function prefetchRecommendations() {
       const prefetchCondition = isLoggedIn
-        ? condition
-        : sanitizeGuestCondition(condition);
+        ? currentCondition
+        : sanitizeGuestCondition(currentCondition);
       const resolvedCreditGrade =
         prefetchCondition.creditGrade ??
         creditGradeFromLtvInternalScore(prefetchCondition.ltvInternalScore);
@@ -499,7 +519,7 @@ export function ConditionDoneFlow(_props: DoneFlowProps) {
   }, [condition, hasLoadedCondition, isAuthResolved, isLoggedIn]);
 
   useEffect(() => {
-    if (!condition || !hasLoadedCondition || !isAuthResolved || !isFinished) return;
+    if (!condition || !hasLoadedCondition || !isAuthResolved) return;
 
     if (autoRedirectTimerRef.current !== null) {
       window.clearTimeout(autoRedirectTimerRef.current);
@@ -515,7 +535,7 @@ export function ConditionDoneFlow(_props: DoneFlowProps) {
         autoRedirectTimerRef.current = null;
       }
     };
-  }, [condition, hasLoadedCondition, isAuthResolved, isFinished]);
+  }, [condition, hasLoadedCondition, isAuthResolved]);
 
   if (!hasLoadedCondition || !condition) {
     return (
@@ -538,9 +558,6 @@ export function ConditionDoneFlow(_props: DoneFlowProps) {
               ? "로그인된 계정 기준으로 맞춤 조건을 반영했습니다."
               : "조건 입력은 저장됐고, 다음에도 이어서 사용할 수 있어요."}
           </p>
-          {errorMessage ? (
-            <p className="ob-typo-caption text-(--oboon-danger)">{errorMessage}</p>
-          ) : null}
         </div>
         <Button
           type="button"
