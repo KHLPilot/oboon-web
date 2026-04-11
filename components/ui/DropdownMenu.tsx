@@ -193,27 +193,32 @@ export function DropdownMenuContent({
 
       const r = el.getBoundingClientRect();
       const gap = 8;
+      const viewportWidth = window.innerWidth;
       const spaceBelow = window.innerHeight - r.bottom - gap;
       const spaceAbove = r.top - gap;
       const openUpward = spaceBelow < 160 && spaceAbove > spaceBelow;
+      const menuWidth = matchTriggerWidth ? r.width : Math.min(r.width, viewportWidth - gap * 2);
+      const clampLeft = (value: number) =>
+        Math.min(Math.max(value, gap), viewportWidth - menuWidth - gap);
 
       // align 처리: end는 우측 정렬, start는 좌측 정렬, center는 중앙
       let left = r.left;
-      if (align === "end") left = r.right;
-      else if (align === "center") left = r.left + r.width / 2;
+      if (align === "end") left = r.right - menuWidth;
+      else if (align === "center") left = r.left + r.width / 2 - menuWidth / 2;
+      left = clampLeft(left);
 
       if (openUpward) {
         setPos({
           bottom: window.innerHeight - r.top + gap,
           left,
-          width: r.width,
+          width: menuWidth,
           maxHeight: Math.min(spaceAbove, 240),
         });
       } else {
         setPos({
           top: r.bottom + gap,
           left,
-          width: r.width,
+          width: menuWidth,
           maxHeight: Math.min(spaceBelow, 240),
         });
       }
@@ -227,7 +232,7 @@ export function DropdownMenuContent({
       window.removeEventListener("resize", calc);
       window.removeEventListener("scroll", calc, true);
     };
-  }, [open, align, triggerRef]);
+  }, [open, align, matchTriggerWidth, triggerRef]);
 
   if (!open || !pos) return null;
 
@@ -240,7 +245,11 @@ export function DropdownMenuContent({
         minWidth: pos.width,
         maxWidth: pos.width,
       }
-    : {};
+    : {
+        width: pos.width,
+        minWidth: pos.width,
+        maxWidth: `calc(100vw - 16px)`,
+      };
 
   // 실제 좌표: end는 right 정렬이므로 transform으로 당김
   const verticalPos: React.CSSProperties =
@@ -255,13 +264,13 @@ export function DropdownMenuContent({
       ? {
           ...verticalPos,
           left: pos.left,
-          transform: "translateX(-50%)",
+          transform: "translateX(0)",
           ...sizeStyle,
         }
       : {
           ...verticalPos,
           left: pos.left,
-          transform: "translateX(-100%)",
+          transform: "translateX(0)",
           ...sizeStyle,
         };
 

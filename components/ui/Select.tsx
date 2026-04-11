@@ -16,7 +16,7 @@ export type SelectOption<T extends string | number = string> = {
 };
 
 export type SelectProps<T extends string | number = string> = {
-  value: T;
+  value: T | "" | null | undefined;
   onChange: (value: T) => void;
   options: readonly SelectOption<T>[];
   placeholder?: string;

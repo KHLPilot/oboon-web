@@ -11,10 +11,17 @@ export default function Footer() {
   if (pathname?.startsWith("/auth/")) return null;
   if (pathname?.startsWith("/chat")) return null;
 
+  const hideOnMobile = pathname?.startsWith("/recommendations/conditions/step/");
+
   const year = new Date().getFullYear();
 
   return (
-    <footer className="lg:mt-10 border-t border-(--oboon-border-default) bg-(--oboon-bg-surface)">
+    <footer
+      className={[
+        "lg:mt-10 border-t border-(--oboon-border-default) bg-(--oboon-bg-surface)",
+        hideOnMobile ? "hidden sm:block" : "",
+      ].join(" ")}
+    >
       <div className="mx-auto max-w-240 lg:max-w-300 px-4 sm:px-5 lg:px-8 py-8 sm:py-8">
         {/* Top grid */}
         <div className="space-y-6 md:grid md:grid-cols-3 md:gap-6 md:space-y-0">
