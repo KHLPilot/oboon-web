@@ -19,9 +19,9 @@ export default function RestorePage() {
   const restoreTokenParam = searchParams.get("restoreToken") || "";
   const emailParam = searchParams.get("email") || "";
   const legacyRestoreTokenRef = useRef(restoreTokenParam);
+  const restoreTokenRef = useRef(restoreTokenParam);
 
   const [email, setEmail] = useState(emailParam);
-  const [restoreToken, setRestoreToken] = useState(restoreTokenParam);
   const [loading, setLoading] = useState(false);
   const [resolvingToken, setResolvingToken] = useState(
     Boolean(restoreSessionKey) || (!restoreTokenParam && !emailParam),
@@ -30,8 +30,8 @@ export default function RestorePage() {
   const maskedEmail = maskEmailAddress(email);
 
   async function resolveRestoreCredentials() {
-    if (email && restoreToken) {
-      return { email, restoreToken };
+    if (email && restoreTokenRef.current) {
+      return { email, restoreToken: restoreTokenRef.current };
     }
 
     if (restoreSessionKey || (!restoreTokenParam && !emailParam)) {
@@ -57,15 +57,15 @@ export default function RestorePage() {
         throw new Error("계정 정보가 만료되었습니다. 다시 로그인해주세요.");
       }
 
+      restoreTokenRef.current = restoreToken;
       setEmail(nextEmail);
-      setRestoreToken(restoreToken);
 
       return { email: nextEmail, restoreToken };
     }
 
     if (legacyRestoreTokenRef.current && emailParam) {
+      restoreTokenRef.current = legacyRestoreTokenRef.current;
       setEmail(emailParam);
-      setRestoreToken(legacyRestoreTokenRef.current);
       return {
         email: emailParam,
         restoreToken: legacyRestoreTokenRef.current,
@@ -94,6 +94,7 @@ export default function RestorePage() {
       throw new Error("계정 정보가 만료되었습니다. 다시 로그인해주세요.");
     }
 
+    restoreTokenRef.current = restoreToken;
     return {
       email: emailParam,
       restoreToken,
@@ -127,7 +128,7 @@ export default function RestorePage() {
             const nextRestoreToken =
               typeof data?.restoreToken === "string" ? data.restoreToken : "";
             setEmail(nextEmail);
-            setRestoreToken(nextRestoreToken);
+            restoreTokenRef.current = nextRestoreToken;
           }
         } catch (err: unknown) {
           if (!ignore) {
@@ -194,7 +195,7 @@ export default function RestorePage() {
           }
 
           setEmail(emailParam);
-          setRestoreToken(data.restoreToken);
+          restoreTokenRef.current = data.restoreToken;
         }
       } catch (err: unknown) {
         if (!ignore) {

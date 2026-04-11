@@ -1,6 +1,12 @@
 import "server-only";
 
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  createSecretKey,
+  randomBytes,
+} from "crypto";
 
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 
@@ -15,12 +21,14 @@ export type ProfileBankAccount = {
 
 type BankAccountInput = Partial<ProfileBankAccount>;
 
-function getEncryptionKey(): Buffer {
+function getEncryptionKey() {
   const secret = process.env.BANK_ACCOUNT_ENCRYPTION_KEY;
   if (!secret) {
     throw new Error("BANK_ACCOUNT_ENCRYPTION_KEY is not configured");
   }
-  return createHash("sha256").update(secret).digest();
+  const digest = createHash("sha256").update(secret).digest();
+  const keyBytes = new Uint8Array(digest.buffer, digest.byteOffset, digest.byteLength);
+  return createSecretKey(keyBytes);
 }
 
 function normalizeValue(value: unknown): string | null {
@@ -38,15 +46,16 @@ function isEncryptedValue(value: string): boolean {
 
 function encryptValue(value: string): string {
   const key = getEncryptionKey();
-  const iv = randomBytes(IV_LENGTH_BYTES);
+  const ivBytes = randomBytes(IV_LENGTH_BYTES);
+  const iv = new Uint8Array(ivBytes.buffer, ivBytes.byteOffset, ivBytes.byteLength);
   const cipher = createCipheriv("aes-256-gcm", key, iv);
-  const ciphertext = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
+  const ciphertext = cipher.update(value, "utf8", "base64url") + cipher.final("base64url");
   const authTag = cipher.getAuthTag();
 
   return `${BANK_ACCOUNT_PREFIX}${[
-    iv.toString("base64url"),
-    authTag.toString("base64url"),
-    ciphertext.toString("base64url"),
+    Buffer.from(iv).toString("base64url"),
+    Buffer.from(authTag).toString("base64url"),
+    ciphertext,
   ].join(".")}`;
 }
 
@@ -59,19 +68,24 @@ function decryptValue(value: string): string {
   }
 
   const key = getEncryptionKey();
+  const ivBytes = Buffer.from(ivEncoded, "base64url");
+  const authTagBytes = Buffer.from(authTagEncoded, "base64url");
+  const ciphertextBytes = Buffer.from(ciphertextEncoded, "base64url");
+  const ciphertextView = new Uint8Array(
+    ciphertextBytes.buffer,
+    ciphertextBytes.byteOffset,
+    ciphertextBytes.byteLength,
+  );
   const decipher = createDecipheriv(
     "aes-256-gcm",
     key,
-    Buffer.from(ivEncoded, "base64url"),
+    new Uint8Array(ivBytes.buffer, ivBytes.byteOffset, ivBytes.byteLength),
   );
-  decipher.setAuthTag(Buffer.from(authTagEncoded, "base64url"));
+  decipher.setAuthTag(
+    new Uint8Array(authTagBytes.buffer, authTagBytes.byteOffset, authTagBytes.byteLength),
+  );
 
-  const plaintext = Buffer.concat([
-    decipher.update(Buffer.from(ciphertextEncoded, "base64url")),
-    decipher.final(),
-  ]);
-
-  return plaintext.toString("utf8");
+  return decipher.update(ciphertextView, undefined, "utf8") + decipher.final("utf8");
 }
 
 function readStoredValue(value: unknown): {

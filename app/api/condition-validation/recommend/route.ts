@@ -957,7 +957,6 @@ function passesGuestCategoryVisibility(result: GuestEvaluationResult): boolean {
     income: result.categories.income.grade,
     credit: result.categories.credit.grade,
     ownership: result.categories.ownership.grade,
-    purpose: result.categories.purpose.grade,
   });
 }
 
@@ -967,7 +966,6 @@ function passesFullCategoryVisibility(result: FullEvaluationResult): boolean {
     income: result.categories.income.grade,
     ltvDsr: result.categories.ltvDsr.grade,
     ownership: result.categories.ownership.grade,
-    purpose: result.categories.purpose.grade,
     timing: result.categories.timing.grade,
   });
 }

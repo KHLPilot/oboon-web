@@ -1,7 +1,7 @@
 "use client";
 
 import { Lock } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import Select from "@/components/ui/Select";
 import { calculateLtvDsrPreview } from "@/features/condition-validation/domain/ltvDsrCalculator";
@@ -222,36 +222,9 @@ export default function ConditionWizardStep2({
     ? isReadyForLtvScore(condition)
     : condition.creditGrade !== null;
   const preview = calculateLtvDsrPreview(buildPreviewInput(condition), 0);
-  const [showPreview, setShowPreview] = useState(false);
-  const [guestCreditGrade, setGuestCreditGrade] = useState<CreditGrade | null>(
-    () => condition.creditGrade ?? creditGradeFromLtvInternalScore(condition.ltvInternalScore),
-  );
-
-  useEffect(() => {
-    const ready = isStep2PreviewReady(condition);
-    setShowPreview(false);
-
-    if (!ready) return;
-
-    const timer = window.setTimeout(() => {
-      setShowPreview(true);
-    }, 120);
-
-    return () => window.clearTimeout(timer);
-  }, [
-    condition.cardLoanUsage,
-    condition.existingLoan,
-    condition.existingMonthlyRepayment,
-    condition.loanRejection,
-    condition.monthlyIncomeRange,
-    condition.recentDelinquency,
-  ]);
-
-  useEffect(() => {
-    setGuestCreditGrade(
-      condition.creditGrade ?? creditGradeFromLtvInternalScore(condition.ltvInternalScore),
-    );
-  }, [condition.creditGrade, condition.ltvInternalScore]);
+  const guestCreditGrade =
+    condition.creditGrade ?? creditGradeFromLtvInternalScore(condition.ltvInternalScore);
+  const showPreviewReady = isStep2PreviewReady(condition);
 
   const patchLoggedIn = (patch: Partial<RecommendationCondition>) => {
     const nextCondition: RecommendationCondition = {
@@ -283,7 +256,6 @@ export default function ConditionWizardStep2({
   };
 
   const handleGuestCreditChange = (creditGrade: CreditGrade) => {
-    setGuestCreditGrade(creditGrade);
     onChange({
       creditGrade,
       ltvInternalScore: ltvInternalScoreFromCreditGrade(creditGrade) ?? 0,
@@ -496,7 +468,6 @@ export default function ConditionWizardStep2({
       condition.cardLoanUsage !== null &&
       (!showLoanDetailFields || condition.loanRejection !== null);
     const showRepayment = condition.monthlyIncomeRange !== null;
-    const showPreviewReady = showPreview;
     const incomeStepLabel = showLoanDetailFields ? "5." : "3.";
     const repaymentStepLabel = showLoanDetailFields ? "6." : "4.";
 
@@ -813,7 +784,7 @@ export default function ConditionWizardStep2({
         <div className="mb-2 ob-typo-body font-semibold text-(--oboon-text-title)">
           평가 결과 미리보기
         </div>
-        {showPreview ? (
+        {showPreviewReady ? (
           <>
             <div className="grid grid-cols-3 gap-2 text-center">
               {(

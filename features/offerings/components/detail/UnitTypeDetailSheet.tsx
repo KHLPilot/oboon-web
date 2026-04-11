@@ -47,10 +47,6 @@ function cn(...classes: Array<string | undefined | false | null>) {
   return classes.filter(Boolean).join(" ");
 }
 
-function fallbackText() {
-  return (UXCopy as unknown as { checkingShort?: string }).checkingShort ?? UXCopy.checking ?? "확인중이에요";
-}
-
 function fmtArea(n: number | null, unit: AreaUnit) {
   if (n === null) return null;
   if (unit === "sqm") return `${Math.round(n * 10) / 10}㎡`;

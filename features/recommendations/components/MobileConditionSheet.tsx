@@ -1,7 +1,6 @@
 "use client";
 
 import { SlidersHorizontal } from "lucide-react";
-import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 
 import type { RecommendationCondition } from "@/features/recommendations/hooks/useRecommendations";
@@ -86,21 +85,7 @@ export default function MobileConditionSheet({
   condition,
 }: MobileConditionSheetProps) {
   const router = useRouter();
-
-  const conditionChips = useMemo(
-    () => buildConditionChips(condition),
-    [
-      condition.availableCash,
-      condition.monthlyIncome,
-      condition.monthlyExpenses,
-      condition.ltvInternalScore,
-      condition.houseOwnership,
-      condition.purchasePurposeV2,
-      condition.purchaseTiming,
-      condition.moveinTiming,
-      condition.regions,
-    ],
-  );
+  const conditionChips = buildConditionChips(condition);
 
   return (
     <div className="sm:hidden">

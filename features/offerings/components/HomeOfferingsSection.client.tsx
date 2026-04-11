@@ -352,6 +352,10 @@ function formatStoredAmount(value: number): string {
   return Math.max(0, Math.round(value)).toLocaleString("ko-KR");
 }
 
+function isCreditGrade(value: unknown): value is CreditGrade {
+  return value === "good" || value === "normal" || value === "unstable";
+}
+
 function buildCustomerPayloadFromRaw(
   raw: Record<string, unknown> | null,
 ): HomeRecommendationCustomerPayload | null {
@@ -377,7 +381,7 @@ function buildCustomerPayloadFromRaw(
       Math.max(
         0,
         toNonNegativeInt(raw.ltv_internal_score) ??
-          ltvInternalScoreFromCreditGrade(raw.credit_grade) ??
+          ltvInternalScoreFromCreditGrade(isCreditGrade(raw.credit_grade) ? raw.credit_grade : null) ??
           0,
       ),
     );
@@ -1220,14 +1224,11 @@ export default function HomeOfferingsSection() {
         : purchasePurposeV2FromLegacy(raw.purchase_purpose);
     const derivedLtvScore =
       toNonNegativeInt(raw.ltv_internal_score) ??
-      ltvInternalScoreFromCreditGrade(raw.credit_grade) ??
+      ltvInternalScoreFromCreditGrade(isCreditGrade(raw.credit_grade) ? raw.credit_grade : null) ??
       0;
-    const derivedGuestCreditGrade =
-      raw.credit_grade === "good" ||
-      raw.credit_grade === "normal" ||
-      raw.credit_grade === "unstable"
-        ? raw.credit_grade
-        : creditGradeFromLtvInternalScore(derivedLtvScore);
+    const derivedGuestCreditGrade = isCreditGrade(raw.credit_grade)
+      ? raw.credit_grade
+      : creditGradeFromLtvInternalScore(derivedLtvScore);
 
     setAvailableCash(availableCash === null ? "" : formatStoredAmount(availableCash));
     setMonthlyIncome(monthlyIncome === null ? "" : formatStoredAmount(monthlyIncome));

@@ -4,27 +4,16 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type {
-  CardLoanUsage,
   ConditionCategoryGrades,
   CreditGrade,
-  DelinquencyCount,
-  EmploymentType,
-  ExistingLoanAmount,
   FinalGrade5,
-  FullPurchasePurpose,
-  LoanRejection,
-  MoveinTiming,
-  MonthlyIncomeRange,
-  MonthlyLoanRepayment,
   PurchasePurpose,
-  PurchaseTiming,
 } from "@/features/condition-validation/domain/types";
 import {
   normalizeOfferingStatusValue,
   normalizeRegionTab,
   statusLabelOf,
 } from "@/features/offerings/domain/offering.constants";
-import type { OfferingRegionTab } from "@/features/offerings/domain/offering.types";
 import {
   mapPropertyRowToOffering,
   type PropertyRow,

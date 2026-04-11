@@ -13,7 +13,6 @@ export function shouldShowRecommendationForCategoryGrades(grades) {
  *   ltvDsr?: string | null;
  *   credit?: string | null;
  *   ownership: string;
- *   purpose?: string | null;
  *   timing?: string | null;
  * }} params
  */
@@ -23,7 +22,6 @@ export function shouldShowRecommendationForPropertyListing({
   ltvDsr,
   credit,
   ownership,
-  purpose: _purpose,
   timing,
 }) {
   return shouldShowRecommendationForCategoryGrades([
@@ -94,7 +92,6 @@ export function classifyRecommendation(grades) {
  *   ltvDsr?: string | null;
  *   credit?: string | null;
  *   ownership: string;
- *   purpose?: string | null;
  *   timing?: string | null;
  * }} params
  */
@@ -104,7 +101,6 @@ export function classifyRecommendationForPropertyListing({
   ltvDsr,
   credit,
   ownership,
-  purpose: _purpose,
   timing,
 }) {
   return classifyRecommendation([

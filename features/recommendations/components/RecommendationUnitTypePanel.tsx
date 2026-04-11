@@ -9,7 +9,6 @@ import type {
   RecommendationUnitTypeCategory,
   RecommendationUnitType,
 } from "@/features/recommendations/hooks/useRecommendations";
-import { grade5DetailLabel } from "@/features/condition-validation/lib/grade5Labels";
 import { getGrade5ToneMeta } from "@/features/condition-validation/lib/grade5Theme";
 import { formatManwonWithEok, formatPercent } from "@/lib/format/currency";
 import { cn } from "@/lib/utils/cn";

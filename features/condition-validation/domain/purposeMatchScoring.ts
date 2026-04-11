@@ -269,13 +269,6 @@ function scoreScaleAndLiquidity(params: {
   return clamp(score, 0, 15);
 }
 
-function formatFitReason(label: "residence" | "investment", reason: string): string {
-  if (label === "residence") {
-    return reason;
-  }
-  return reason;
-}
-
 export function scorePurposeMatch(input: PurposeMatchInput): PurposeMatchResult {
   const { property } = input;
 

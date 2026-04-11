@@ -343,7 +343,6 @@ export default function RecommendationsPage() {
         income: item.evalResult.categories.income.grade,
         ltvDsr: item.evalResult.categories.ltvDsr?.grade,
         ownership: item.evalResult.categories.ownership.grade,
-        purpose: item.evalResult.categories.purpose.grade,
         timing: item.evalResult.categories.timing?.grade,
       });
       if (isMatched) primary.push(item);
