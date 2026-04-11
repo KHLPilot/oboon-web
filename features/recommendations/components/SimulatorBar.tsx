@@ -11,6 +11,10 @@ import type {
   MoveinTiming,
   PurchaseTiming,
 } from "@/features/condition-validation/domain/types";
+import {
+  createEmptyRecommendationCondition,
+  ltvInternalScoreFromCreditGrade,
+} from "@/features/condition-validation/domain/conditionState";
 import LtvDsrModal from "@/features/condition-validation/components/LtvDsrModal";
 import { formatManwonPreview } from "@/lib/format/currency";
 import { cn } from "@/lib/utils/cn";
@@ -27,27 +31,8 @@ type SimulatorBarProps = {
 
 const FIELD_LABEL_CLASSNAME = "mb-2 block ob-typo-caption text-(--oboon-text-muted)";
 
-const RESET_CONDITION: RecommendationCondition = {
-  availableCash: 0,
-  monthlyIncome: 0,
-  ownedHouseCount: 0,
-  creditGrade: "good",
-  purchasePurpose: "residence",
-  employmentType: null,
-  monthlyExpenses: 0,
-  houseOwnership: null,
-  purchasePurposeV2: null,
-  purchaseTiming: null,
-  moveinTiming: null,
-  ltvInternalScore: 0,
-  existingLoan: null,
-  recentDelinquency: null,
-  cardLoanUsage: null,
-  loanRejection: null,
-  monthlyIncomeRange: null,
-  existingMonthlyRepayment: "none",
-  regions: [],
-};
+const RESET_CONDITION: RecommendationCondition =
+  createEmptyRecommendationCondition();
 
 const EMPLOYMENT_OPTIONS: Array<{ value: EmploymentType; label: string }> = [
   { value: "employee", label: "직장인" },
@@ -223,7 +208,8 @@ export default function SimulatorBar({ condition, onEvaluate, isLoading = false,
     : simCondition.availableCash > 0 &&
       simCondition.monthlyIncome > 0 &&
       simCondition.houseOwnership !== null &&
-      simCondition.purchasePurposeV2 !== null;
+      simCondition.purchasePurposeV2 !== null &&
+      simCondition.creditGrade !== null;
 
   return (
     <div className="space-y-4">
@@ -380,7 +366,12 @@ export default function SimulatorBar({ condition, onEvaluate, isLoading = false,
             <div className={FIELD_LABEL_CLASSNAME}>신용 상태</div>
             <Select<CreditGrade>
               value={simCondition.creditGrade}
-              onChange={(creditGrade) => patch({ creditGrade })}
+              onChange={(creditGrade) =>
+                patch({
+                  creditGrade,
+                  ltvInternalScore: ltvInternalScoreFromCreditGrade(creditGrade) ?? 0,
+                })
+              }
               options={CREDIT_GRADE_OPTIONS}
             />
           </div>

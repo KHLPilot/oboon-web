@@ -32,6 +32,7 @@ import type {
   MoveinTiming,
   PurchaseTiming,
 } from "@/features/condition-validation/domain/types";
+import { creditGradeFromLtvInternalScore } from "@/features/condition-validation/domain/conditionState";
 import type { ParsedCustomerInput } from "@/features/condition-validation/domain/validation";
 import { formatManwonWithEok } from "@/lib/format/currency";
 import type { RecommendationCondition } from "@/features/recommendations/hooks/useRecommendations";
@@ -174,8 +175,7 @@ function hasStoredProfileAutoFill(profileAutoFill: ProfileAutoFillData | null | 
       profileAutoFill.cardLoanUsage ||
       profileAutoFill.loanRejection ||
       profileAutoFill.monthlyIncomeRange ||
-      (profileAutoFill.existingMonthlyRepayment &&
-        profileAutoFill.existingMonthlyRepayment !== "none"),
+      profileAutoFill.existingMonthlyRepayment != null,
   );
 }
 
@@ -268,7 +268,7 @@ export default function ConditionValidationCard({
   const [moveinTiming, setMoveinTiming] = useState<MoveinTiming | null>(null);
 
   // 비로그인 전용 간이 신용 상태 (로그인 시 LTV/DSR로 대체)
-  const [guestCreditGrade, setGuestCreditGrade] = useState<CreditGrade>("good");
+  const [guestCreditGrade, setGuestCreditGrade] = useState<CreditGrade | null>(null);
 
   const [ltvInternalScore, setLtvInternalScore] = useState<number | null>(null);
   const [existingLoan, setExistingLoan] = useState<ExistingLoanAmount | null>(null);
@@ -277,7 +277,7 @@ export default function ConditionValidationCard({
   const [loanRejection, setLoanRejection] = useState<LoanRejection | null>(null);
   const [monthlyIncomeRange, setMonthlyIncomeRange] = useState<MonthlyIncomeRange | null>(null);
   const [existingMonthlyRepayment, setExistingMonthlyRepayment] =
-    useState<MonthlyLoanRepayment>("none");
+    useState<MonthlyLoanRepayment | null>(null);
 
   // 비로그인 간편 검증 결과
   const [guestResponse, setGuestResponse] = useState<GuestEvaluationResponse | null>(null);
@@ -373,23 +373,21 @@ export default function ConditionValidationCard({
   const isFullResultVisible = Boolean(result && !isInputSectionVisible);
 
   const applySessionCondition = useCallback((snapshot: ConditionSessionSnapshot) => {
-    if (snapshot.employmentType) setEmploymentType(snapshot.employmentType);
-    if (snapshot.availableCash) setAvailableCash(snapshot.availableCash);
-    if (snapshot.monthlyIncome) setMonthlyIncome(snapshot.monthlyIncome);
-    if (snapshot.monthlyExpenses) setMonthlyExpenses(snapshot.monthlyExpenses);
-    if (snapshot.houseOwnership) setHouseOwnership(snapshot.houseOwnership);
-    if (snapshot.purchasePurposeV2) setPurchasePurpose(snapshot.purchasePurposeV2);
-    if (snapshot.purchaseTiming) setPurchaseTiming(snapshot.purchaseTiming);
-    if (snapshot.moveinTiming) setMoveinTiming(snapshot.moveinTiming);
-    if (snapshot.existingLoan) setExistingLoan(snapshot.existingLoan);
-    if (snapshot.recentDelinquency) setRecentDelinquency(snapshot.recentDelinquency);
-    if (snapshot.cardLoanUsage) setCardLoanUsage(snapshot.cardLoanUsage);
-    if (snapshot.loanRejection) setLoanRejection(snapshot.loanRejection);
-    if (snapshot.monthlyIncomeRange) setMonthlyIncomeRange(snapshot.monthlyIncomeRange);
+    setEmploymentType(snapshot.employmentType);
+    setAvailableCash(snapshot.availableCash);
+    setMonthlyIncome(snapshot.monthlyIncome);
+    setMonthlyExpenses(snapshot.monthlyExpenses);
+    setHouseOwnership(snapshot.houseOwnership);
+    setPurchasePurpose(snapshot.purchasePurposeV2);
+    setPurchaseTiming(snapshot.purchaseTiming);
+    setMoveinTiming(snapshot.moveinTiming);
+    setExistingLoan(snapshot.existingLoan);
+    setRecentDelinquency(snapshot.recentDelinquency);
+    setCardLoanUsage(snapshot.cardLoanUsage);
+    setLoanRejection(snapshot.loanRejection);
+    setMonthlyIncomeRange(snapshot.monthlyIncomeRange);
     setExistingMonthlyRepayment(snapshot.existingMonthlyRepayment);
-    if (snapshot.ltvInternalScore > 0) {
-      setLtvInternalScore(snapshot.ltvInternalScore);
-    }
+    setLtvInternalScore(snapshot.ltvInternalScore);
   }, []);
 
   const validate = useCallback((): string | null => {
@@ -406,11 +404,13 @@ export default function ConditionValidationCard({
     if (purchaseTiming === null) return "분양 희망 시점을 선택해주세요.";
     if (moveinTiming === null) return "입주 가능 시점을 선택해주세요.";
     if (ltvInternalScore === null) return "신용 상태(LTV+DSR) 평가를 완료해주세요.";
+    if (existingMonthlyRepayment === null) return "월 대출 상환액을 선택해주세요.";
     return null;
   }, [
     availableCash,
     employmentType,
     houseOwnership,
+    existingMonthlyRepayment,
     ltvInternalScore,
     monthlyExpenses,
     monthlyIncome,
@@ -509,7 +509,7 @@ export default function ConditionValidationCard({
       purchase_timing: purchaseTiming ?? "by_property",
       movein_timing: moveinTiming ?? "anytime",
       ltv_internal_score: ltvInternalScore ?? 0,
-      existing_monthly_repayment: existingMonthlyRepayment,
+      existing_monthly_repayment: existingMonthlyRepayment!,
     });
     return true;
   };
@@ -532,6 +532,10 @@ export default function ConditionValidationCard({
     }
     if (houseOwnership === null || purchasePurpose === null) {
       setErrorMessage("주택 보유와 구매 목적을 선택해주세요.");
+      return false;
+    }
+    if (guestCreditGrade === null) {
+      setErrorMessage("신용 상태를 선택해주세요.");
       return false;
     }
 
@@ -689,8 +693,7 @@ export default function ConditionValidationCard({
       purchase_timing: sessionSnapshot.purchaseTiming ?? "by_property",
       movein_timing: sessionSnapshot.moveinTiming ?? "anytime",
       ltv_internal_score: sessionSnapshot.ltvInternalScore,
-      existing_monthly_repayment:
-        sessionSnapshot.existingMonthlyRepayment ?? "none",
+      existing_monthly_repayment: sessionSnapshot.existingMonthlyRepayment ?? "none",
     });
   }, [applySessionCondition, evaluateWithValues, isLoggedIn, profileAutoFill, propertyId]);
 
@@ -816,7 +819,12 @@ export default function ConditionValidationCard({
     if (patch.purchaseTiming !== undefined) setPurchaseTiming(patch.purchaseTiming);
     if (patch.moveinTiming !== undefined) setMoveinTiming(patch.moveinTiming);
     if (patch.creditGrade !== undefined) setGuestCreditGrade(patch.creditGrade);
-    if (patch.ltvInternalScore !== undefined) setLtvInternalScore(patch.ltvInternalScore);
+    if (patch.ltvInternalScore !== undefined) {
+      setLtvInternalScore(patch.ltvInternalScore);
+      if (patch.creditGrade === undefined) {
+        setGuestCreditGrade(creditGradeFromLtvInternalScore(patch.ltvInternalScore));
+      }
+    }
     if (patch.existingLoan !== undefined) setExistingLoan(patch.existingLoan);
     if (patch.recentDelinquency !== undefined) setRecentDelinquency(patch.recentDelinquency);
     if (patch.cardLoanUsage !== undefined) setCardLoanUsage(patch.cardLoanUsage);
@@ -852,22 +860,14 @@ export default function ConditionValidationCard({
     setMoveinTiming(savedConditionState.moveinTiming);
     setLtvInternalScore(savedConditionState.ltvInternalScore);
     setGuestCreditGrade(
-      savedConditionState.ltvInternalScore == null
-        ? "good"
-        : savedConditionState.ltvInternalScore >= 70
-          ? "good"
-          : savedConditionState.ltvInternalScore >= 40
-            ? "normal"
-            : "unstable",
+      creditGradeFromLtvInternalScore(savedConditionState.ltvInternalScore),
     );
     setExistingLoan(savedConditionState.existingLoan);
     setRecentDelinquency(savedConditionState.recentDelinquency);
     setCardLoanUsage(savedConditionState.cardLoanUsage);
     setLoanRejection(savedConditionState.loanRejection);
     setMonthlyIncomeRange(savedConditionState.monthlyIncomeRange);
-    setExistingMonthlyRepayment(
-      savedConditionState.existingMonthlyRepayment ?? "none",
-    );
+    setExistingMonthlyRepayment(savedConditionState.existingMonthlyRepayment);
     return true;
   }, [savedConditionState]);
 

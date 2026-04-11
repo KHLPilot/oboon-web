@@ -8,6 +8,7 @@ import ConditionWizardStep1 from "@/features/recommendations/components/Conditio
 import ConditionWizardStep2 from "@/features/recommendations/components/ConditionWizardStep2";
 import ConditionWizardStep3 from "@/features/recommendations/components/ConditionWizardStep3";
 import type { RecommendationCondition } from "@/features/recommendations/hooks/useRecommendations";
+import { createEmptyRecommendationCondition } from "@/features/condition-validation/domain/conditionState";
 
 type Props = {
   condition: RecommendationCondition;
@@ -26,27 +27,8 @@ type Props = {
 
 type Step = 0 | 1 | 2;
 
-const RESET_CONDITION: RecommendationCondition = {
-  availableCash: 0,
-  monthlyIncome: 0,
-  ownedHouseCount: 0,
-  creditGrade: "good",
-  purchasePurpose: "residence",
-  employmentType: null,
-  monthlyExpenses: 0,
-  houseOwnership: null,
-  purchasePurposeV2: null,
-  purchaseTiming: null,
-  moveinTiming: null,
-  ltvInternalScore: 0,
-  existingLoan: null,
-  recentDelinquency: null,
-  cardLoanUsage: null,
-  loanRejection: null,
-  monthlyIncomeRange: null,
-  existingMonthlyRepayment: "none",
-  regions: [],
-};
+const RESET_CONDITION: RecommendationCondition =
+  createEmptyRecommendationCondition();
 
 export default function ConditionWizard({
   condition,

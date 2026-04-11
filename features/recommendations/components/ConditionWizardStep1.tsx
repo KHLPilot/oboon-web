@@ -11,7 +11,7 @@ import { isStep1ReadyByAuth } from "@/features/recommendations/lib/recommendatio
 
 const LABEL = "mb-1.5 block ob-typo-caption text-(--oboon-text-muted)";
 const INPUT_CLS = [
-  "h-11 w-full rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)",
+  "h-10 sm:h-11 w-full rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)",
   "px-3 ob-typo-body text-(--oboon-text-body) outline-none",
   "focus-visible:ring-2 focus-visible:ring-(--oboon-primary)/30",
 ].join(" ");
@@ -28,6 +28,13 @@ const HOUSE_OPTIONS = [
   { value: "one" as const, label: "1주택" },
   { value: "two_or_more" as const, label: "2주택 이상" },
 ];
+
+const FIXED_ACTIONS = [
+  "fixed left-4 right-4 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-30",
+  "sm:static sm:left-auto sm:right-auto sm:bottom-auto sm:z-auto sm:mt-auto",
+].join(" ");
+
+const MOBILE_FIXED_ACTIONS = `${FIXED_ACTIONS} h-10`;
 
 function formatNumeric(raw: string): string {
   const digits = raw.replace(/[^\d]/g, "");
@@ -67,11 +74,15 @@ function NumberField({
           }}
           className={cn(INPUT_CLS, preview ? "pr-[4.5rem]" : "pr-3")}
         />
-        {preview && (
-          <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center ob-typo-caption text-(--oboon-text-muted)">
-            {preview}
-          </div>
-        )}
+        <div
+          aria-hidden="true"
+          className={cn(
+            "pointer-events-none absolute inset-y-0 right-3 flex items-center ob-typo-caption text-(--oboon-text-muted) transition-opacity",
+            preview ? "opacity-100" : "opacity-0",
+          )}
+        >
+          {preview || "\u00A0"}
+        </div>
       </div>
     </label>
   );
@@ -103,12 +114,12 @@ function ProgressiveSlot({
       className={cn(
         "grid transition-all duration-300 ease-out",
         visible
-          ? "grid-rows-[1fr] opacity-100"
-          : "grid-rows-[0fr] opacity-0 pointer-events-none select-none",
+          ? "grid-rows-[1fr] opacity-100 translate-y-0"
+          : "grid-rows-[0fr] opacity-0 translate-y-2 pointer-events-none select-none",
       )}
     >
       <div className="overflow-hidden">
-        <div className="pb-1">{children}</div>
+        <div className="pb-0.5">{children}</div>
       </div>
     </div>
   );
@@ -140,7 +151,7 @@ export default function ConditionWizardStep1({
     const showEmployment = condition.monthlyExpenses > 0;
 
     return (
-      <div className="space-y-5">
+      <div className="flex h-full min-h-0 flex-col gap-3">
         <div className="space-y-0.5">
           <div className="flex items-start justify-between gap-3">
             <p className="ob-typo-subtitle font-semibold text-(--oboon-text-title)">
@@ -154,7 +165,7 @@ export default function ConditionWizardStep1({
               전체 초기화
             </button>
           </div>
-          <p className="ob-typo-caption text-(--oboon-text-muted)">
+          <p className="ob-typo-caption leading-tight text-(--oboon-text-muted)">
             기본 자금 조건을 입력해주세요
           </p>
         </div>
@@ -189,6 +200,7 @@ export default function ConditionWizardStep1({
               }
               onChange={(houseOwnership) => onChange({ houseOwnership })}
               options={HOUSE_OPTIONS}
+              className="h-10"
             />
           </div>
         </ProgressiveSlot>
@@ -212,27 +224,28 @@ export default function ConditionWizardStep1({
                 value={(condition.employmentType ?? "") as EmploymentType}
                 onChange={(employmentType) => onChange({ employmentType })}
                 options={EMPLOYMENT_OPTIONS}
+                className="h-10"
               />
             </div>
           </ProgressiveSlot>
         ) : null}
 
-        <ProgressiveSlot visible={isReady}>
+        <div className={MOBILE_FIXED_ACTIONS}>
           <button
             type="button"
             disabled={!isReady}
             onClick={onNext}
-            className="h-10 w-full rounded-full bg-(--oboon-primary) text-white ob-typo-button transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+            className="h-full w-full rounded-full bg-(--oboon-primary) text-white ob-typo-button shadow-[0_12px_32px_rgba(0,0,0,0.35)] transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
           >
             다음 단계 →
           </button>
-        </ProgressiveSlot>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="space-y-0.5">
         <div className="flex items-start justify-between gap-3">
           <p className="ob-typo-subtitle font-semibold text-(--oboon-text-title)">
@@ -309,14 +322,16 @@ export default function ConditionWizardStep1({
         ) : null}
       </div>
 
-      <button
-        type="button"
-        disabled={!isReady}
-        onClick={onNext}
-        className="h-10 w-full rounded-full bg-(--oboon-primary) text-white ob-typo-button transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        다음 단계 →
-      </button>
+      <div className={`${FIXED_ACTIONS} rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-surface)/95 p-2 shadow-[0_12px_32px_rgba(0,0,0,0.35)] backdrop-blur`}>
+        <button
+          type="button"
+          disabled={!isReady}
+          onClick={onNext}
+          className="h-10 w-full rounded-full bg-(--oboon-primary) text-white ob-typo-button transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          다음 단계 →
+        </button>
+      </div>
     </div>
   );
 }

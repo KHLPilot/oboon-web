@@ -13,6 +13,9 @@ import type {
 } from "@/features/condition-validation/domain/types";
 import { loadPropertyProfile } from "@/features/condition-validation/server/profile-resolver";
 import {
+  ltvInternalScoreFromCreditGrade as sharedLtvInternalScoreFromCreditGrade,
+} from "@/features/condition-validation/domain/conditionState";
+import {
   normalizeOfferingStatusValue,
   OFFERING_STATUS_VALUES,
 } from "@/features/offerings/domain/offering.constants";
@@ -107,13 +110,6 @@ function purchasePurposeFromLegacy(value: unknown): FullPurchasePurpose {
   return "residence";
 }
 
-function ltvInternalScoreFromCreditGrade(value: unknown): number {
-  if (value === "good") return 80;
-  if (value === "normal") return 55;
-  if (value === "unstable") return 20;
-  return 0;
-}
-
 function buildCompareCustomer(profile: CompareProfileRow | null): FullCustomerInput | null {
   if (!profile) return null;
 
@@ -145,7 +141,13 @@ function buildCompareCustomer(profile: CompareProfileRow | null): FullCustomerIn
       Math.max(
         0,
         toFiniteInteger(profile.cv_ltv_internal_score) ??
-          ltvInternalScoreFromCreditGrade(profile.cv_credit_grade),
+          sharedLtvInternalScoreFromCreditGrade(
+            profile.cv_credit_grade === "good" ||
+              profile.cv_credit_grade === "normal" ||
+              profile.cv_credit_grade === "unstable"
+              ? profile.cv_credit_grade
+              : null,
+          ) ?? 0,
       ),
     ),
     existingMonthlyRepayment: isOneOf(

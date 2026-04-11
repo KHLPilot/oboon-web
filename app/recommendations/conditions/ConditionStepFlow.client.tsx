@@ -16,28 +16,13 @@ import ConditionWizardStep1 from "@/features/recommendations/components/Conditio
 import ConditionWizardStep2 from "@/features/recommendations/components/ConditionWizardStep2";
 import ConditionWizardStep3 from "@/features/recommendations/components/ConditionWizardStep3";
 import type { RecommendationCondition } from "@/features/recommendations/hooks/useRecommendations";
+import {
+  createEmptyRecommendationCondition,
+  creditGradeFromLtvInternalScore,
+} from "@/features/condition-validation/domain/conditionState";
 
-const DEFAULT_CONDITION: RecommendationCondition = {
-  availableCash: 0,
-  monthlyIncome: 0,
-  ownedHouseCount: 0,
-  creditGrade: "good",
-  purchasePurpose: "residence",
-  employmentType: null,
-  monthlyExpenses: 0,
-  houseOwnership: null,
-  purchasePurposeV2: null,
-  purchaseTiming: null,
-  moveinTiming: null,
-  ltvInternalScore: 0,
-  existingLoan: null,
-  recentDelinquency: null,
-  cardLoanUsage: null,
-  loanRejection: null,
-  monthlyIncomeRange: null,
-  existingMonthlyRepayment: "none",
-  regions: [],
-};
+const DEFAULT_CONDITION: RecommendationCondition =
+  createEmptyRecommendationCondition();
 
 function conditionFromSession(
   snapshot: ConditionSessionSnapshot,
@@ -54,6 +39,7 @@ function conditionFromSession(
     purchaseTiming: snapshot.purchaseTiming,
     moveinTiming: snapshot.moveinTiming,
     ltvInternalScore: snapshot.ltvInternalScore,
+    creditGrade: creditGradeFromLtvInternalScore(snapshot.ltvInternalScore),
     existingLoan: snapshot.existingLoan,
     recentDelinquency: snapshot.recentDelinquency,
     cardLoanUsage: snapshot.cardLoanUsage,
@@ -104,6 +90,7 @@ export function ConditionStepFlow({ step, progressive = true }: StepFlowProps) {
     return snapshot ? conditionFromSession(snapshot) : DEFAULT_CONDITION;
   });
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isAuthResolved, setIsAuthResolved] = useState(false);
 
   useEffect(() => {
     const supabase = createSupabaseClient();
@@ -113,6 +100,7 @@ export function ConditionStepFlow({ step, progressive = true }: StepFlowProps) {
       const { data } = await supabase.auth.getUser();
       if (!alive) return;
       setIsLoggedIn(Boolean(data.user));
+      setIsAuthResolved(true);
     }
 
     void loadAuth();
@@ -120,6 +108,7 @@ export function ConditionStepFlow({ step, progressive = true }: StepFlowProps) {
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!alive) return;
       setIsLoggedIn(Boolean(session?.user));
+      setIsAuthResolved(true);
     });
 
     return () => {
@@ -139,7 +128,8 @@ export function ConditionStepFlow({ step, progressive = true }: StepFlowProps) {
   const handleReset = useCallback(() => {
     setCondition(DEFAULT_CONDITION);
     clearConditionSession();
-  }, []);
+    router.push("/recommendations/conditions/step/1");
+  }, [router]);
 
   const handleGoLogin = useCallback(() => {
     saveCondition(condition);
@@ -164,6 +154,7 @@ export function ConditionStepFlow({ step, progressive = true }: StepFlowProps) {
       <ConditionWizardStep2
         condition={condition}
         isLoggedIn={isLoggedIn}
+        isAuthResolved={isAuthResolved}
         onChange={handleChange}
         onNext={() => router.push("/recommendations/conditions/step/3")}
         onBack={() => router.push("/recommendations/conditions/step/1")}
@@ -178,6 +169,7 @@ export function ConditionStepFlow({ step, progressive = true }: StepFlowProps) {
     <ConditionWizardStep3
       condition={condition}
       isLoggedIn={isLoggedIn}
+      isAuthResolved={isAuthResolved}
       onChange={handleChange}
       onBack={() => router.push("/recommendations/conditions/step/2")}
       onFinish={() => router.push("/recommendations/conditions/done")}

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 // features/offerings/detail/OfferingDetailRight.tsx
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -21,6 +21,9 @@ import { formatManwonWithEok, formatPercent } from "@/lib/format/currency";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { trackEvent } from "@/lib/analytics";
 import { pickLoggedInConditionSource } from "@/features/condition-validation/lib/conditionSourcePolicy";
+import {
+  ltvInternalScoreFromCreditGrade as sharedLtvInternalScoreFromCreditGrade,
+} from "@/features/condition-validation/domain/conditionState";
 import {
   normalizeOfferingStatusValue,
   statusLabelOf,
@@ -111,15 +114,6 @@ function purchasePurposeV2FromLegacy(
   return null;
 }
 
-function ltvInternalScoreFromCreditGrade(
-  creditGrade: "good" | "normal" | "unstable" | null | undefined,
-): number | null {
-  if (creditGrade === "good") return 80;
-  if (creditGrade === "normal") return 55;
-  if (creditGrade === "unstable") return 20;
-  return null;
-}
-
 function profileAutoFillFromRequest(
   request: ConditionValidationRequestRow | null,
 ): ProfileAutoFillData | null {
@@ -189,7 +183,7 @@ function profileAutoFillFromRequest(
     moveinTiming,
     ltvInternalScore:
       toFiniteInteger(payloadCustomer?.ltv_internal_score) ??
-      ltvInternalScoreFromCreditGrade(request.credit_grade),
+      sharedLtvInternalScoreFromCreditGrade(request.credit_grade),
     existingLoan:
       payloadCustomer?.existing_loan === "none" ||
       payloadCustomer?.existing_loan === "under_1eok" ||

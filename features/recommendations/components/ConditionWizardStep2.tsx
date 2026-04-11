@@ -1,7 +1,7 @@
 "use client";
 
 import { Lock } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import Select from "@/components/ui/Select";
 import { calculateLtvDsrPreview } from "@/features/condition-validation/domain/ltvDsrCalculator";
@@ -15,6 +15,10 @@ import type {
   MonthlyIncomeRange,
   MonthlyLoanRepayment,
 } from "@/features/condition-validation/domain/types";
+import {
+  creditGradeFromLtvInternalScore,
+  ltvInternalScoreFromCreditGrade,
+} from "@/features/condition-validation/domain/conditionState";
 import type { RecommendationCondition } from "@/features/recommendations/hooks/useRecommendations";
 import { cn } from "@/lib/utils/cn";
 
@@ -66,6 +70,13 @@ const CREDIT_OPTIONS: Array<{ value: CreditGrade; label: string }> = [
   { value: "unstable", label: "불안정" },
 ];
 
+const FIXED_ACTIONS = [
+  "fixed left-4 right-4 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-30",
+  "sm:static sm:left-auto sm:right-auto sm:bottom-auto sm:z-auto sm:mt-auto",
+].join(" ");
+
+const MOBILE_FIXED_ACTIONS = `${FIXED_ACTIONS} h-10`;
+
 function gradeColor(points: number, max: number): string {
   const pct = points / max;
   if (pct >= 0.8) return "var(--oboon-grade-green)";
@@ -96,50 +107,50 @@ function compactPreviewLabel(label: string): string {
   }
 }
 
-function guestCreditGradeToScore(grade: CreditGrade): number {
-  if (grade === "good") return 80;
-  if (grade === "normal") return 55;
-  return 20;
-}
-
-function guestCreditGradeFromCondition(
-  condition: RecommendationCondition,
-): CreditGrade | "" {
-  if (condition.ltvInternalScore <= 0) return "";
-  if (condition.ltvInternalScore >= guestCreditGradeToScore("good")) return "good";
-  if (condition.ltvInternalScore >= guestCreditGradeToScore("normal")) {
-    return "normal";
-  }
-  return "unstable";
-}
-
 function buildPreviewInput(condition: RecommendationCondition): LtvDsrInput {
-  const hasLoan =
+  const needsLoanDetailFields =
     condition.existingLoan !== null && condition.existingLoan !== "none";
 
   return {
     houseOwnership: condition.houseOwnership ?? "none",
     existingLoan: condition.existingLoan ?? "none",
-    recentDelinquency: hasLoan
+    recentDelinquency: needsLoanDetailFields
       ? (condition.recentDelinquency ?? "none")
       : "none",
     cardLoanUsage: condition.cardLoanUsage ?? "none",
-    loanRejection: hasLoan ? (condition.loanRejection ?? "none") : "none",
+    loanRejection: needsLoanDetailFields
+      ? (condition.loanRejection ?? "none")
+      : "none",
     employmentType: condition.employmentType ?? "employee",
     monthlyIncomeRange: condition.monthlyIncomeRange ?? "300to500",
-    existingMonthlyRepayment: condition.existingMonthlyRepayment,
+    existingMonthlyRepayment: condition.existingMonthlyRepayment ?? "none",
   };
 }
 
-function isReadyForLtvScore(condition: RecommendationCondition): boolean {
-  const hasLoan =
+function isStep2PreviewReady(condition: RecommendationCondition): boolean {
+  const needsLoanDetailFields =
     condition.existingLoan !== null && condition.existingLoan !== "none";
 
   return (
     condition.existingLoan !== null &&
     condition.cardLoanUsage !== null &&
     condition.monthlyIncomeRange !== null &&
-    (!hasLoan ||
+    condition.existingMonthlyRepayment !== null &&
+    (!needsLoanDetailFields ||
+      (condition.recentDelinquency !== null && condition.loanRejection !== null))
+  );
+}
+
+function isReadyForLtvScore(condition: RecommendationCondition): boolean {
+  const needsLoanDetailFields =
+    condition.existingLoan !== null && condition.existingLoan !== "none";
+
+  return (
+    condition.existingLoan !== null &&
+    condition.cardLoanUsage !== null &&
+    condition.monthlyIncomeRange !== null &&
+    condition.existingMonthlyRepayment !== null &&
+    (!needsLoanDetailFields ||
       (condition.recentDelinquency !== null && condition.loanRejection !== null))
   );
 }
@@ -170,12 +181,12 @@ function ProgressiveSlot({
       className={cn(
         "grid transition-all duration-300 ease-out",
         visible
-          ? "grid-rows-[1fr] opacity-100"
-          : "grid-rows-[0fr] opacity-0 pointer-events-none select-none",
+          ? "grid-rows-[1fr] opacity-100 translate-y-0"
+          : "grid-rows-[0fr] opacity-0 translate-y-2 pointer-events-none select-none",
       )}
     >
       <div className="overflow-hidden">
-        <div className="pb-1">{children}</div>
+        <div className="pb-0.5">{children}</div>
       </div>
     </div>
   );
@@ -184,6 +195,7 @@ function ProgressiveSlot({
 type Props = {
   condition: RecommendationCondition;
   isLoggedIn: boolean;
+  isAuthResolved?: boolean;
   onChange: (patch: Partial<RecommendationCondition>) => void;
   onNext: () => void;
   onBack: () => void;
@@ -195,6 +207,7 @@ type Props = {
 export default function ConditionWizardStep2({
   condition,
   isLoggedIn,
+  isAuthResolved = true,
   onChange,
   onNext,
   onBack,
@@ -204,25 +217,55 @@ export default function ConditionWizardStep2({
 }: Props) {
   const hasLoan =
     condition.existingLoan !== null && condition.existingLoan !== "none";
-  const isReady = isLoggedIn ? isReadyForLtvScore(condition) : true;
+  const showLoanDetailFields = hasLoan;
+  const isReady = isLoggedIn
+    ? isReadyForLtvScore(condition)
+    : condition.creditGrade !== null;
   const preview = calculateLtvDsrPreview(buildPreviewInput(condition), 0);
-  const showPreview =
-    condition.existingLoan !== null && condition.monthlyIncomeRange !== null;
-  const guestCreditGrade = guestCreditGradeFromCondition(condition);
+  const [showPreview, setShowPreview] = useState(false);
+  const [guestCreditGrade, setGuestCreditGrade] = useState<CreditGrade | null>(
+    () => condition.creditGrade ?? creditGradeFromLtvInternalScore(condition.ltvInternalScore),
+  );
+
+  useEffect(() => {
+    const ready = isStep2PreviewReady(condition);
+    setShowPreview(false);
+
+    if (!ready) return;
+
+    const timer = window.setTimeout(() => {
+      setShowPreview(true);
+    }, 120);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    condition.cardLoanUsage,
+    condition.existingLoan,
+    condition.existingMonthlyRepayment,
+    condition.loanRejection,
+    condition.monthlyIncomeRange,
+    condition.recentDelinquency,
+  ]);
+
+  useEffect(() => {
+    setGuestCreditGrade(
+      condition.creditGrade ?? creditGradeFromLtvInternalScore(condition.ltvInternalScore),
+    );
+  }, [condition.creditGrade, condition.ltvInternalScore]);
 
   const patchLoggedIn = (patch: Partial<RecommendationCondition>) => {
     const nextCondition: RecommendationCondition = {
       ...condition,
       ...patch,
     };
-    const nextHasLoan =
+    const nextNeedsLoanDetailFields =
       nextCondition.existingLoan !== null && nextCondition.existingLoan !== "none";
     const normalizedPatch: Partial<RecommendationCondition> = {
       ...patch,
-      recentDelinquency: nextHasLoan
+      recentDelinquency: nextNeedsLoanDetailFields
         ? nextCondition.recentDelinquency
         : null,
-      loanRejection: nextHasLoan ? nextCondition.loanRejection : null,
+      loanRejection: nextNeedsLoanDetailFields ? nextCondition.loanRejection : null,
     };
     const normalizedNextCondition: RecommendationCondition = {
       ...nextCondition,
@@ -240,18 +283,20 @@ export default function ConditionWizardStep2({
   };
 
   const handleGuestCreditChange = (creditGrade: CreditGrade) => {
+    setGuestCreditGrade(creditGrade);
     onChange({
       creditGrade,
-      ltvInternalScore: guestCreditGradeToScore(creditGrade),
+      ltvInternalScore: ltvInternalScoreFromCreditGrade(creditGrade) ?? 0,
     });
   };
 
   if (!isLoggedIn && progressive) {
-    const showGuestCard = guestCreditGrade !== "";
-    const showGuestActions = guestCreditGrade !== "";
+    if (!isAuthResolved) {
+      return <div className="flex h-full min-h-0 flex-col gap-3" aria-busy="true" />;
+    }
 
     return (
-      <div className="space-y-5">
+      <div className="flex h-full min-h-0 flex-col gap-3">
         <div className="space-y-0.5">
           <div className="flex items-start justify-between gap-3">
             <p className="ob-typo-subtitle font-semibold text-(--oboon-text-title)">
@@ -265,39 +310,37 @@ export default function ConditionWizardStep2({
               전체 초기화
             </button>
           </div>
-          <p className="ob-typo-caption text-(--oboon-text-muted)">
+          <p className="ob-typo-caption text-(--oboon-text-muted) leading-tight">
             대출 가능성을 평가합니다.
           </p>
         </div>
 
         <ProgressiveSlot visible={true}>
-          <div className="space-y-2 rounded-xl border border-(--oboon-border-default) p-3">
-            <span className={LABEL}>신용 상태</span>
-            <Select<CreditGrade>
-              value={guestCreditGrade as CreditGrade}
-              onChange={handleGuestCreditChange}
-              options={CREDIT_OPTIONS}
-            />
-          </div>
+          <Select<CreditGrade>
+            value={guestCreditGrade}
+            onChange={handleGuestCreditChange}
+            options={CREDIT_OPTIONS}
+            className="h-10"
+          />
         </ProgressiveSlot>
 
-        <ProgressiveSlot visible={showGuestCard}>
-          <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-4">
-            <div className="mb-3 flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-elevated)">
+        <ProgressiveSlot visible={true}>
+          <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-3">
+            <div className="mb-2.5 flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-elevated)">
                 <Lock className="h-4 w-4 text-(--oboon-text-muted)" />
               </div>
               <div>
-                <p className="ob-typo-body font-semibold text-(--oboon-text-title)">
+                <p className="ob-typo-caption font-semibold text-(--oboon-text-title)">
                   정밀 신용 평가
                 </p>
-                <p className="ob-typo-caption text-(--oboon-text-muted)">
+                <p className="ob-typo-caption text-(--oboon-text-muted) leading-tight">
                   로그인하면 실제 대출 리스크를 더 자세히 반영합니다.
                 </p>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-1.5">
               {[
                 "현재 대출",
                 "연체 이력",
@@ -306,23 +349,23 @@ export default function ConditionWizardStep2({
               ].map((item) => (
                 <div
                   key={item}
-                  className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-2"
+                  className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-2.5 py-1.5"
                 >
-                  <div className="ob-typo-caption font-medium text-(--oboon-text-title)">
+                  <div className="text-[11px] font-medium leading-tight text-(--oboon-text-title)">
                     {item}
                   </div>
                 </div>
               ))}
             </div>
 
-            <div className="mt-3 flex flex-col items-center gap-2 text-center">
+            <div className="mt-2.5 flex flex-col items-center gap-2 text-center">
               <p className="ob-typo-caption text-(--oboon-text-muted)">
                 기본 신용 상태만으로는 대략적인 판단만 가능합니다.
               </p>
               <button
                 type="button"
                 onClick={() => void onLoginAndSave?.()}
-                className="inline-flex h-10 items-center justify-center rounded-full bg-(--oboon-primary) px-4 text-white ob-typo-button"
+                className="inline-flex h-9 items-center justify-center rounded-full bg-(--oboon-primary) px-4 text-white ob-typo-button"
               >
                 로그인하고 정밀 신용 평가 열기
               </button>
@@ -330,31 +373,34 @@ export default function ConditionWizardStep2({
           </div>
         </ProgressiveSlot>
 
-        <ProgressiveSlot visible={showGuestActions}>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={onBack}
-              className="h-10 flex-1 rounded-full border border-(--oboon-border-default) ob-typo-button text-(--oboon-text-muted)"
-            >
-              이전
-            </button>
-            <button
-              type="button"
-              onClick={onNext}
-              className="h-10 flex-1 rounded-full bg-(--oboon-primary) text-white ob-typo-button"
-            >
-              다음
-            </button>
-          </div>
-        </ProgressiveSlot>
+        <div className={`${MOBILE_FIXED_ACTIONS} flex gap-2`}>
+          <button
+            type="button"
+            onClick={onBack}
+            className="h-full flex-1 rounded-full border border-(--oboon-border-default) ob-typo-button text-(--oboon-text-muted)"
+          >
+            이전
+          </button>
+          <button
+            type="button"
+            disabled={!isReady}
+            onClick={onNext}
+            className="h-full flex-1 rounded-full bg-(--oboon-primary) text-white ob-typo-button disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            다음
+          </button>
+        </div>
       </div>
     );
   }
 
   if (!isLoggedIn) {
+    if (!isAuthResolved) {
+      return <div className="flex h-full min-h-0 flex-col gap-4" aria-busy="true" />;
+    }
+
     return (
-      <div className="space-y-4">
+      <div className="flex h-full min-h-0 flex-col gap-4">
         <div>
           <p className="ob-typo-subtitle font-semibold text-(--oboon-text-title)">
             신용 / 대출
@@ -364,7 +410,7 @@ export default function ConditionWizardStep2({
         <div className="space-y-2 rounded-xl border border-(--oboon-border-default) p-3">
           <span className={LABEL}>신용 상태</span>
           <Select<CreditGrade>
-            value={guestCreditGrade as CreditGrade}
+            value={guestCreditGrade}
             onChange={handleGuestCreditChange}
             options={CREDIT_OPTIONS}
           />
@@ -417,21 +463,24 @@ export default function ConditionWizardStep2({
           </div>
         </div>
 
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={onBack}
-            className="h-10 flex-1 rounded-full border border-(--oboon-border-default) ob-typo-button text-(--oboon-text-muted)"
-          >
-            이전
-          </button>
-          <button
-            type="button"
-            onClick={onNext}
-            className="h-10 flex-1 rounded-full bg-(--oboon-primary) text-white ob-typo-button"
-          >
-            다음
-          </button>
+        <div className={MOBILE_FIXED_ACTIONS}>
+          <div className="flex h-full gap-2">
+            <button
+              type="button"
+              onClick={onBack}
+              className="h-full flex-1 rounded-full border border-(--oboon-border-default) ob-typo-button text-(--oboon-text-muted)"
+            >
+              이전
+            </button>
+            <button
+              type="button"
+              disabled={!isReady}
+              onClick={onNext}
+              className="h-full flex-1 rounded-full bg-(--oboon-primary) text-white ob-typo-button disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              다음
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -440,16 +489,19 @@ export default function ConditionWizardStep2({
   if (progressive) {
     const showCardLoan = condition.existingLoan !== null;
     const showDelinquency =
-      condition.cardLoanUsage !== null && hasLoan;
+      condition.cardLoanUsage !== null && showLoanDetailFields;
     const showRejection =
-      condition.recentDelinquency !== null && hasLoan;
+      condition.recentDelinquency !== null && showLoanDetailFields;
     const showIncomeRange =
       condition.cardLoanUsage !== null &&
-      (hasLoan ? condition.loanRejection !== null : true);
+      (!showLoanDetailFields || condition.loanRejection !== null);
     const showRepayment = condition.monthlyIncomeRange !== null;
+    const showPreviewReady = showPreview;
+    const incomeStepLabel = showLoanDetailFields ? "5." : "3.";
+    const repaymentStepLabel = showLoanDetailFields ? "6." : "4.";
 
     return (
-      <div className="space-y-5">
+      <div className="flex h-full min-h-0 flex-col gap-3">
         <div className="space-y-0.5">
           <div className="flex items-start justify-between gap-3">
             <p className="ob-typo-subtitle font-semibold text-(--oboon-text-title)">
@@ -463,7 +515,7 @@ export default function ConditionWizardStep2({
               전체 초기화
             </button>
           </div>
-          <p className="ob-typo-caption text-(--oboon-text-muted)">
+          <p className="ob-typo-caption text-(--oboon-text-muted) leading-tight">
             대출 가능성을 평가합니다.
           </p>
         </div>
@@ -475,6 +527,7 @@ export default function ConditionWizardStep2({
               value={(condition.existingLoan ?? "") as ExistingLoanAmount}
               onChange={(existingLoan) => patchLoggedIn({ existingLoan })}
               options={LOAN_OPTIONS}
+              className="h-10"
             />
           </div>
         </ProgressiveSlot>
@@ -486,11 +539,12 @@ export default function ConditionWizardStep2({
               value={(condition.cardLoanUsage ?? "") as CardLoanUsage}
               onChange={(cardLoanUsage) => patchLoggedIn({ cardLoanUsage })}
               options={CARD_LOAN_OPTIONS}
+              className="h-10"
             />
           </div>
         </ProgressiveSlot>
 
-        {hasLoan ? (
+        {showLoanDetailFields ? (
           <>
             <ProgressiveSlot visible={showDelinquency}>
               <div>
@@ -501,6 +555,7 @@ export default function ConditionWizardStep2({
                     patchLoggedIn({ recentDelinquency })
                   }
                   options={DELINQUENCY_OPTIONS}
+                  className="h-10"
                 />
               </div>
             </ProgressiveSlot>
@@ -512,6 +567,7 @@ export default function ConditionWizardStep2({
                   value={(condition.loanRejection ?? "") as LoanRejection}
                   onChange={(loanRejection) => patchLoggedIn({ loanRejection })}
                   options={LOAN_REJECTION_OPTIONS}
+                  className="h-10"
                 />
               </div>
             </ProgressiveSlot>
@@ -520,91 +576,88 @@ export default function ConditionWizardStep2({
 
         <ProgressiveSlot visible={showIncomeRange}>
           <div>
-            <span className={LABEL}>5. 월 평균 세후 소득</span>
+            <span className={LABEL}>{incomeStepLabel} 월 평균 세후 소득</span>
             <Select<MonthlyIncomeRange>
               value={(condition.monthlyIncomeRange ?? "") as MonthlyIncomeRange}
               onChange={(monthlyIncomeRange) =>
                 patchLoggedIn({ monthlyIncomeRange })
               }
               options={INCOME_RANGE_OPTIONS}
+              className="h-10"
             />
           </div>
         </ProgressiveSlot>
 
         <ProgressiveSlot visible={showRepayment}>
           <div>
-            <span className={LABEL}>6. 월 대출 상환액</span>
+            <span className={LABEL}>{repaymentStepLabel} 월 대출 상환액</span>
             <Select<MonthlyLoanRepayment>
-              value={condition.existingMonthlyRepayment}
+              value={(condition.existingMonthlyRepayment ?? "") as MonthlyLoanRepayment}
               onChange={(existingMonthlyRepayment) =>
                 patchLoggedIn({ existingMonthlyRepayment })
               }
               options={REPAYMENT_OPTIONS}
+              placeholder="선택"
+              className="h-10"
             />
           </div>
         </ProgressiveSlot>
 
-        <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-3">
-          <div className="mb-2 ob-typo-body font-semibold text-(--oboon-text-title)">
-            평가 결과 미리보기
-          </div>
-          {showPreview ? (
-            <>
-              <div className="grid grid-cols-3 gap-2 text-center">
-                {(
-                  [
-                    {
-                      label: "LTV",
-                      value: preview.ltvPoints,
-                      max: 10,
-                      result: compactPreviewLabel(preview.ltvLabel),
-                    },
-                    {
-                      label: "DSR",
-                      value: preview.dsrPoints,
-                      max: 10,
-                      result: compactPreviewLabel(preview.dsrLabel),
-                    },
-                    {
-                      label: "합산",
-                      value: preview.totalPoints,
-                      max: 20,
-                      result: compactPreviewLabel("LTV+DSR"),
-                    },
-                  ] as const
-                ).map(({ label, value, max, result }) => (
-                  <div
-                    key={label}
-                    className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-2 py-2.5"
-                  >
-                    <div className="ob-typo-caption text-(--oboon-text-muted)">
-                      {label}
-                    </div>
-                    <div
-                      className="mt-1 ob-typo-caption font-semibold"
-                      style={{ color: gradeColor(value, max) }}
-                    >
-                      {result}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <p className="mt-2 ob-typo-caption text-(--oboon-text-muted) leading-tight">
-                * DSR는 현장 대출 조건 기준으로 최종 계산됩니다. 이 수치는 근사값입니다.
-              </p>
-            </>
-          ) : (
-            <div className="py-4 text-center ob-typo-caption text-(--oboon-text-muted)">
-              현재 대출과 월 소득을 선택하면 결과가 표시됩니다
+        {showPreviewReady ? (
+          <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-2.5">
+            <div className="mb-1.5 text-[13px] font-semibold text-(--oboon-text-title)">
+              평가 결과 미리보기
             </div>
-          )}
-        </div>
+            <div className="grid grid-cols-3 gap-1.5 text-center">
+              {(
+                [
+                  {
+                    label: "LTV",
+                    value: preview.ltvPoints,
+                    max: 10,
+                    result: compactPreviewLabel(preview.ltvLabel),
+                  },
+                  {
+                    label: "DSR",
+                    value: preview.dsrPoints,
+                    max: 10,
+                    result: compactPreviewLabel(preview.dsrLabel),
+                  },
+                  {
+                    label: "합산",
+                    value: preview.totalPoints,
+                    max: 20,
+                    result: compactPreviewLabel("LTV+DSR"),
+                  },
+                ] as const
+              ).map(({ label, value, max, result }) => (
+                <div
+                  key={label}
+                  className="rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-1.5 py-2"
+                >
+                  <div className="text-[11px] text-(--oboon-text-muted)">
+                    {label}
+                  </div>
+                  <div
+                    className="mt-0.5 text-[11px] font-semibold"
+                    style={{ color: gradeColor(value, max) }}
+                  >
+                    {result}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="mt-1.5 text-[11px] leading-tight text-(--oboon-text-muted)">
+              * DSR는 현장 대출 조건 기준으로 최종 계산됩니다. 이 수치는 근사값입니다.
+            </p>
+          </div>
+        ) : null}
 
-        <div className="flex gap-2">
+        <div className={`${MOBILE_FIXED_ACTIONS} flex gap-2`}>
           <button
             type="button"
             onClick={onBack}
-            className="h-10 flex-1 rounded-full border border-(--oboon-border-default) ob-typo-button text-(--oboon-text-muted)"
+            className="h-full flex-1 rounded-full border border-(--oboon-border-default) ob-typo-button text-(--oboon-text-muted)"
           >
             이전
           </button>
@@ -612,7 +665,7 @@ export default function ConditionWizardStep2({
             type="button"
             disabled={!isReady}
             onClick={onNext}
-            className="h-10 flex-1 rounded-full bg-(--oboon-primary) text-white ob-typo-button disabled:cursor-not-allowed disabled:opacity-40"
+            className="h-full flex-1 rounded-full bg-(--oboon-primary) text-white ob-typo-button disabled:cursor-not-allowed disabled:opacity-40"
           >
             다음 단계 →
           </button>
@@ -622,7 +675,7 @@ export default function ConditionWizardStep2({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="space-y-0.5">
         <div className="flex items-start justify-between gap-3">
           <p className="ob-typo-subtitle font-semibold text-(--oboon-text-title)">
@@ -642,7 +695,7 @@ export default function ConditionWizardStep2({
       </div>
 
       <div className="space-y-3">
-        {hasLoan ? (
+        {showLoanDetailFields || hasLoan ? (
           <>
             <div>
               <span className={LABEL}>1. 현재 대출</span>
@@ -697,11 +750,12 @@ export default function ConditionWizardStep2({
               <div>
                 <span className={LABEL}>6. 월 대출 상환액</span>
                 <Select<MonthlyLoanRepayment>
-                  value={condition.existingMonthlyRepayment}
+                  value={(condition.existingMonthlyRepayment ?? "") as MonthlyLoanRepayment}
                   onChange={(existingMonthlyRepayment) =>
                     patchLoggedIn({ existingMonthlyRepayment })
                   }
                   options={REPAYMENT_OPTIONS}
+                  placeholder="선택"
                 />
               </div>
             </div>
@@ -742,11 +796,12 @@ export default function ConditionWizardStep2({
               <div>
                 <span className={LABEL}>4. 월 대출 상환액</span>
                 <Select<MonthlyLoanRepayment>
-                  value={condition.existingMonthlyRepayment}
+                  value={(condition.existingMonthlyRepayment ?? "") as MonthlyLoanRepayment}
                   onChange={(existingMonthlyRepayment) =>
                     patchLoggedIn({ existingMonthlyRepayment })
                   }
                   options={REPAYMENT_OPTIONS}
+                  placeholder="선택"
                 />
               </div>
             </div>
@@ -810,11 +865,11 @@ export default function ConditionWizardStep2({
         )}
       </div>
 
-      <div className="flex gap-2">
+      <div className={`${MOBILE_FIXED_ACTIONS} flex gap-2`}>
         <button
           type="button"
           onClick={onBack}
-          className="h-10 flex-1 rounded-full border border-(--oboon-border-default) ob-typo-button text-(--oboon-text-muted)"
+          className="h-full flex-1 rounded-full border border-(--oboon-border-default) ob-typo-button text-(--oboon-text-muted)"
         >
           이전
         </button>
@@ -822,7 +877,7 @@ export default function ConditionWizardStep2({
           type="button"
           disabled={!isReady}
           onClick={onNext}
-          className="h-10 flex-1 rounded-full bg-(--oboon-primary) text-white ob-typo-button disabled:cursor-not-allowed disabled:opacity-40"
+          className="h-full flex-1 rounded-full bg-(--oboon-primary) text-white ob-typo-button disabled:cursor-not-allowed disabled:opacity-40"
         >
           다음 단계 →
         </button>

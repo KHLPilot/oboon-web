@@ -31,6 +31,10 @@ import {
   type ConditionSessionSnapshot,
 } from "@/features/condition-validation/lib/sessionCondition";
 import {
+  creditGradeFromLtvInternalScore,
+  ltvInternalScoreFromCreditGrade,
+} from "@/features/condition-validation/domain/conditionState";
+import {
   pickLoggedInConditionSource,
   pickLoggedOutConditionSource,
 } from "@/features/condition-validation/lib/conditionSourcePolicy";
@@ -131,7 +135,7 @@ type HomeRecommendationCustomerPayload = {
   card_loan_usage: CardLoanUsage | null;
   loan_rejection: LoanRejection | null;
   monthly_income_range: MonthlyIncomeRange | null;
-  existing_monthly_repayment: MonthlyLoanRepayment;
+  existing_monthly_repayment: MonthlyLoanRepayment | null;
 };
 
 type HomeConditionDraft = {
@@ -158,7 +162,7 @@ type SavedConditionPresetState = {
   card_loan_usage: CardLoanUsage | null;
   loan_rejection: LoanRejection | null;
   monthly_income_range: MonthlyIncomeRange | null;
-  existing_monthly_repayment: MonthlyLoanRepayment;
+  existing_monthly_repayment: MonthlyLoanRepayment | null;
 };
 
 const HOME_OFFERING_LIMIT = 3;
@@ -228,7 +232,7 @@ const DEFAULT_HOUSE_OWNERSHIP: "none" | "one" | "two_or_more" = "none";
 const DEFAULT_PURCHASE_PURPOSE_V2: FullPurchasePurpose = "residence";
 const DEFAULT_PURCHASE_TIMING: PurchaseTiming = "over_1year";
 const DEFAULT_MOVEIN_TIMING: MoveinTiming = "anytime";
-const DEFAULT_EXISTING_MONTHLY_REPAYMENT: MonthlyLoanRepayment = "none";
+const DEFAULT_EXISTING_MONTHLY_REPAYMENT: MonthlyLoanRepayment | null = null;
 
 function formatConditionRegionSummary(regions: OfferingRegionTab[]): string | null {
   if (regions.length === 0) return null;
@@ -325,21 +329,6 @@ function ownedHouseCountFromHouseOwnership(
   if (value === "two_or_more") return 2;
   if (value === "one") return 1;
   return 0;
-}
-
-function creditGradeFromLtvInternalScore(
-  score: number,
-): "good" | "normal" | "unstable" {
-  if (score >= 70) return "good";
-  if (score >= 40) return "normal";
-  return "unstable";
-}
-
-function ltvInternalScoreFromCreditGrade(value: unknown): number | null {
-  if (value === "good") return 80;
-  if (value === "normal") return 55;
-  if (value === "unstable") return 20;
-  return null;
 }
 
 function purchasePurposeV2FromLegacy(value: unknown): FullPurchasePurpose | null {
@@ -761,7 +750,7 @@ export default function HomeOfferingsSection() {
   const [cardLoanUsage, setCardLoanUsage] = useState<CardLoanUsage | null>(null);
   const [loanRejection, setLoanRejection] = useState<LoanRejection | null>(null);
   const [monthlyIncomeRange, setMonthlyIncomeRange] = useState<MonthlyIncomeRange | null>(null);
-  const [existingMonthlyRepayment, setExistingMonthlyRepayment] = useState<MonthlyLoanRepayment>("none");
+  const [existingMonthlyRepayment, setExistingMonthlyRepayment] = useState<MonthlyLoanRepayment | null>(DEFAULT_EXISTING_MONTHLY_REPAYMENT);
   const [conditionError, setConditionError] = useState<string | null>(null);
   const [conditionNotice, setConditionNotice] = useState<string | null>(null);
   const [conditionApplyLoading, setConditionApplyLoading] = useState(false);
@@ -777,7 +766,7 @@ export default function HomeOfferingsSection() {
   const [showConditionSetupCard, setShowConditionSetupCard] = useState(true);
   const [homeUserId, setHomeUserId] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
-  const [guestCreditGrade, setGuestCreditGrade] = useState<CreditGrade>("good");
+  const [guestCreditGrade, setGuestCreditGrade] = useState<CreditGrade | null>(null);
   const [hasSavedConditionPreset, setHasSavedConditionPreset] = useState(false);
   const [savedConditionPreset, setSavedConditionPreset] =
     useState<SavedConditionPresetState | null>(null);
@@ -1213,9 +1202,7 @@ export default function HomeOfferingsSection() {
     setMonthlyIncomeRange(snapshot.monthlyIncomeRange);
     setExistingMonthlyRepayment(snapshot.existingMonthlyRepayment);
     setGuestCreditGrade(
-      snapshot.ltvInternalScore > 0
-        ? creditGradeFromLtvInternalScore(snapshot.ltvInternalScore)
-        : "good",
+      creditGradeFromLtvInternalScore(snapshot.ltvInternalScore),
     );
   }, []);
 
@@ -1240,9 +1227,7 @@ export default function HomeOfferingsSection() {
       raw.credit_grade === "normal" ||
       raw.credit_grade === "unstable"
         ? raw.credit_grade
-        : derivedLtvScore > 0
-          ? creditGradeFromLtvInternalScore(derivedLtvScore)
-          : "good";
+        : creditGradeFromLtvInternalScore(derivedLtvScore);
 
     setAvailableCash(availableCash === null ? "" : formatStoredAmount(availableCash));
     setMonthlyIncome(monthlyIncome === null ? "" : formatStoredAmount(monthlyIncome));
@@ -1355,7 +1340,7 @@ export default function HomeOfferingsSection() {
       options?: {
         closeModal?: boolean;
         guestMode?: boolean;
-        guestCreditGrade?: CreditGrade;
+        guestCreditGrade?: CreditGrade | null;
       },
     ): Promise<boolean> => {
       setConditionError(null);
@@ -1365,22 +1350,31 @@ export default function HomeOfferingsSection() {
         const resolvedGuestCreditGrade =
           options?.guestCreditGrade ??
           creditGradeFromLtvInternalScore(customer.ltv_internal_score);
+        if (options?.guestMode === true && resolvedGuestCreditGrade === null) {
+          setConditionError("신용 상태를 선택해주세요.");
+          return false;
+        }
+        const requestCustomer =
+          options?.guestMode === true
+            ? {
+                available_cash: customer.available_cash,
+                monthly_income: customer.monthly_income,
+                house_ownership: customer.house_ownership,
+                purchase_purpose_v2: customer.purchase_purpose_v2,
+                credit_grade: resolvedGuestCreditGrade,
+              }
+            : {
+                ...customer,
+                existing_monthly_repayment:
+                  customer.existing_monthly_repayment ?? "none",
+              };
         const response = await fetch("/api/condition-validation/recommend", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            customer:
-              options?.guestMode === true
-                ? {
-                    available_cash: customer.available_cash,
-                    monthly_income: customer.monthly_income,
-                    house_ownership: customer.house_ownership,
-                    purchase_purpose_v2: customer.purchase_purpose_v2,
-                    credit_grade: resolvedGuestCreditGrade,
-                  }
-                : customer,
+            customer: requestCustomer,
             options: {
               guest_mode: options?.guestMode === true,
               include_red: false,
@@ -1562,6 +1556,10 @@ export default function HomeOfferingsSection() {
     }
     if (houseOwnership === null || purchasePurposeV2 === null) {
       setConditionError("보유 주택과 분양 목적을 선택해주세요.");
+      return false;
+    }
+    if (guestCreditGrade === null) {
+      setConditionError("신용 상태를 선택해주세요.");
       return false;
     }
     const customer: HomeRecommendationCustomerPayload = {
@@ -1859,17 +1857,15 @@ export default function HomeOfferingsSection() {
             const guestSnapshot = sanitizeGuestConditionSnapshot(snapshot);
             applySessionCondition(guestSnapshot);
             const sessionCustomer = buildCustomerFromSessionSnapshot(guestSnapshot);
-            if (sessionCustomer) {
+            const sessionGuestCreditGrade = creditGradeFromLtvInternalScore(
+              guestSnapshot.ltvInternalScore,
+            );
+            if (sessionCustomer && sessionGuestCreditGrade !== null) {
               setShowConditionSetupCard(false);
               await applyRecommendationRef.current(sessionCustomer, {
                 closeModal: false,
                 guestMode: true,
-                guestCreditGrade:
-                  guestSnapshot.ltvInternalScore > 0
-                    ? creditGradeFromLtvInternalScore(
-                        guestSnapshot.ltvInternalScore,
-                      )
-                    : "good",
+                guestCreditGrade: sessionGuestCreditGrade,
               });
             } else {
               setShowConditionSetupCard(true);
@@ -1898,14 +1894,16 @@ export default function HomeOfferingsSection() {
               draftCustomer ??
               (draftSnapshot ? buildCustomerFromSessionSnapshot(draftSnapshot) : null);
 
-            if (guestCustomer) {
+            const draftGuestCreditGrade = creditGradeFromLtvInternalScore(
+              guestCustomer?.ltv_internal_score ?? draftSnapshot?.ltvInternalScore ?? 0,
+            );
+
+            if (guestCustomer && draftGuestCreditGrade !== null) {
               setShowConditionSetupCard(false);
               await applyRecommendationRef.current(guestCustomer, {
                 closeModal: false,
                 guestMode: true,
-                guestCreditGrade: creditGradeFromLtvInternalScore(
-                  guestCustomer.ltv_internal_score,
-                ),
+                guestCreditGrade: draftGuestCreditGrade,
               });
               clearHomeConditionDraft();
             } else {

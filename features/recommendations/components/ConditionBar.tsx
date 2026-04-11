@@ -14,6 +14,10 @@ import type {
   MoveinTiming,
   PurchaseTiming,
 } from "@/features/condition-validation/domain/types";
+import {
+  createEmptyRecommendationCondition,
+  ltvInternalScoreFromCreditGrade,
+} from "@/features/condition-validation/domain/conditionState";
 import LtvDsrModal from "@/features/condition-validation/components/LtvDsrModal";
 import { formatManwonPreview } from "@/lib/format/currency";
 import type { RecommendationCondition } from "@/features/recommendations/hooks/useRecommendations";
@@ -41,27 +45,8 @@ const INPUT_CLASSNAME = [
 ].join(" ");
 
 // 초기화: 모든 입력을 "선택" 상태로 리셋
-const RESET_CONDITION: RecommendationCondition = {
-  availableCash: 0,
-  monthlyIncome: 0,
-  ownedHouseCount: 0,
-  creditGrade: "good",
-  purchasePurpose: "residence",
-  employmentType: null,
-  monthlyExpenses: 0,
-  houseOwnership: null,
-  purchasePurposeV2: null,
-  purchaseTiming: null,
-  moveinTiming: null,
-  ltvInternalScore: 0,
-  existingLoan: null,
-  recentDelinquency: null,
-  cardLoanUsage: null,
-  loanRejection: null,
-  monthlyIncomeRange: null,
-  existingMonthlyRepayment: "none",
-  regions: [],
-};
+const RESET_CONDITION: RecommendationCondition =
+  createEmptyRecommendationCondition();
 
 const EMPLOYMENT_OPTIONS: Array<{ value: EmploymentType; label: string }> = [
   { value: "employee", label: "직장인" },
@@ -111,27 +96,6 @@ const CREDIT_GRADE_OPTIONS: Array<{ value: CreditGrade; label: string }> = [
   { value: "normal", label: "보통" },
   { value: "unstable", label: "불안정" },
 ];
-
-function guestCreditGradeToScore(grade: CreditGrade): number {
-  if (grade === "good") return 80;
-  if (grade === "normal") return 55;
-  return 20;
-}
-
-function guestCreditGradeFromCondition(
-  condition: RecommendationCondition,
-): CreditGrade {
-  if (condition.ltvInternalScore <= 0) return "good";
-  if (condition.creditGrade === "good" || condition.creditGrade === "normal") {
-    return condition.creditGrade;
-  }
-  if (condition.creditGrade === "unstable") return "unstable";
-  if (condition.ltvInternalScore >= guestCreditGradeToScore("good")) return "good";
-  if (condition.ltvInternalScore >= guestCreditGradeToScore("normal")) {
-    return "normal";
-  }
-  return "unstable";
-}
 
 function formatNumericInput(value: string): string {
   const digitsOnly = value.replace(/[^\d]/g, "");
@@ -199,7 +163,7 @@ export default function ConditionBar(props: ConditionBarProps) {
     isLoading = false,
     isSaving = false,
   } = props;
-  const guestCreditGrade = guestCreditGradeFromCondition(condition);
+  const guestCreditGrade = condition.creditGrade;
   const [ltvModalOpen, setLtvModalOpen] = useState(false);
   const toast = useToast();
 
@@ -218,7 +182,7 @@ export default function ConditionBar(props: ConditionBarProps) {
     condition.monthlyIncome > 0 &&
     condition.houseOwnership !== null &&
     condition.purchasePurposeV2 !== null &&
-    (isLoggedIn !== false ? condition.ltvInternalScore > 0 : true);
+    (isLoggedIn !== false ? condition.ltvInternalScore > 0 : condition.creditGrade !== null);
 
   return (
     <div className="space-y-4">
@@ -363,7 +327,12 @@ export default function ConditionBar(props: ConditionBarProps) {
               <div className={FIELD_LABEL_CLASSNAME}>신용 상태</div>
               <Select<CreditGrade>
                 value={guestCreditGrade}
-                onChange={(creditGrade) => onChange({ creditGrade })}
+                onChange={(creditGrade) =>
+                  onChange({
+                    creditGrade,
+                    ltvInternalScore: ltvInternalScoreFromCreditGrade(creditGrade) ?? 0,
+                  })
+                }
                 options={CREDIT_GRADE_OPTIONS}
               />
             </div>
@@ -492,15 +461,7 @@ export default function ConditionBar(props: ConditionBarProps) {
           className="h-8 px-4 shrink-0"
           loading={isLoading}
           disabled={!isReadyToEvaluate}
-          onClick={
-            isLoggedIn !== false
-              ? () => void onEvaluate()
-              : () =>
-                  void onEvaluate({
-                    ...condition,
-                    ltvInternalScore: guestCreditGradeToScore(guestCreditGrade),
-                  })
-          }
+          onClick={() => void onEvaluate()}
         >
           평가하기
         </Button>

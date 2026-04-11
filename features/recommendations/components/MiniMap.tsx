@@ -489,7 +489,7 @@ export default function MiniMap(props: MiniMapProps) {
     <div className="relative h-full overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)">
       <MapLocationStatusPill status={initialLocationStatus} />
       {(gradeCounts.GREEN > 0 || gradeCounts.LIME > 0 || gradeCounts.ALTERNATIVE > 0) ? (
-        <div className="pointer-events-none absolute left-4 top-16 z-20 sm:top-4">
+        <div className="pointer-events-none absolute left-4 top-16 z-20 hidden sm:block sm:top-4">
           <div className="pointer-events-auto rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-surface)/88 px-3 py-2 shadow-[0_12px_28px_rgba(0,0,0,0.18)] backdrop-blur-md">
             <RecommendationResultChips counts={gradeCounts} className="gap-2 sm:gap-2" />
           </div>

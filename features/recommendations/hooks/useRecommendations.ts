@@ -43,6 +43,14 @@ import {
   type RawRecommendationUnitTypeResult,
   type RecommendationUnitType,
 } from "@/features/recommendations/lib/recommendationUnitTypes";
+import type {
+  OwnedHouseCount,
+  RecommendationCondition,
+} from "@/features/recommendations/domain/recommendationCondition";
+import {
+  createEmptyRecommendationCondition,
+  creditGradeFromLtvInternalScore,
+} from "@/features/condition-validation/domain/conditionState";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { toKoreanErrorMessage } from "@/shared/errorMessage";
 import { formatPriceRange } from "@/shared/price";
@@ -50,32 +58,6 @@ import { UXCopy } from "@/shared/uxCopy";
 import type { Offering } from "@/types/index";
 
 export type RecommendationMode = "input" | "sim";
-export type OwnedHouseCount = 0 | 1 | 2;
-
-export type RecommendationCondition = {
-  // Core (kept for backward compat with API)
-  availableCash: number;
-  monthlyIncome: number;
-  ownedHouseCount: OwnedHouseCount; // derived from houseOwnership
-  creditGrade: CreditGrade; // derived from ltvInternalScore
-  purchasePurpose: PurchasePurpose; // derived from purchasePurposeV2
-
-  // New fields (nullable = "선택" placeholder 상태)
-  employmentType: EmploymentType | null;
-  monthlyExpenses: number;
-  houseOwnership: "none" | "one" | "two_or_more" | null;
-  purchasePurposeV2: FullPurchasePurpose | null;
-  purchaseTiming: PurchaseTiming | null;
-  moveinTiming: MoveinTiming | null;
-  ltvInternalScore: number; // 0–100
-  existingLoan: ExistingLoanAmount | null;
-  recentDelinquency: DelinquencyCount | null;
-  cardLoanUsage: CardLoanUsage | null;
-  loanRejection: LoanRejection | null;
-  monthlyIncomeRange: MonthlyIncomeRange | null;
-  existingMonthlyRepayment: MonthlyLoanRepayment;
-  regions: OfferingRegionTab[]; // 빈 배열 = 전체
-};
 
 export type RecommendationProperty = {
   id: number;
@@ -135,6 +117,7 @@ export type RecommendationItem = {
   bestUnitType: RecommendationUnitType | null;
 };
 
+export type { RecommendationCondition, OwnedHouseCount } from "@/features/recommendations/domain/recommendationCondition";
 export type {
   RecommendationUnitType,
   RecommendationUnitTypeCategory,
@@ -221,27 +204,8 @@ type RecommendationConditionDraft = {
   saved_at?: string;
 };
 
-const DEFAULT_CONDITION: RecommendationCondition = {
-  availableCash: 0,
-  monthlyIncome: 0,
-  ownedHouseCount: 0,
-  creditGrade: "good",
-  purchasePurpose: "residence",
-  employmentType: null,
-  monthlyExpenses: 0,
-  houseOwnership: null,
-  purchasePurposeV2: null,
-  purchaseTiming: null,
-  moveinTiming: null,
-  ltvInternalScore: 0,
-  existingLoan: null,
-  recentDelinquency: null,
-  cardLoanUsage: null,
-  loanRejection: null,
-  monthlyIncomeRange: null,
-  existingMonthlyRepayment: "none",
-  regions: [],
-};
+const DEFAULT_CONDITION: RecommendationCondition =
+  createEmptyRecommendationCondition();
 
 const CASH_MAX_SCORE = 30;
 const INCOME_MAX_SCORE = 25;
@@ -339,6 +303,7 @@ function conditionFromSession(
     purchaseTiming: snapshot.purchaseTiming,
     moveinTiming: snapshot.moveinTiming,
     ltvInternalScore: snapshot.ltvInternalScore,
+    creditGrade: creditGradeFromLtvInternalScore(snapshot.ltvInternalScore),
     existingLoan: snapshot.existingLoan,
     recentDelinquency: snapshot.recentDelinquency,
     cardLoanUsage: snapshot.cardLoanUsage,
@@ -378,14 +343,18 @@ function sanitizeGuestCondition(
     monthlyExpenses: 0,
     purchaseTiming: null,
     moveinTiming: null,
-    ltvInternalScore: clamp(Math.round(condition.ltvInternalScore), 0, 100),
+    ltvInternalScore:
+      condition.ltvInternalScore > 0
+        ? clamp(Math.round(condition.ltvInternalScore), 1, 100)
+        : 0,
     existingLoan: null,
     recentDelinquency: null,
     cardLoanUsage: null,
     loanRejection: null,
     monthlyIncomeRange: null,
-    existingMonthlyRepayment: "none",
+    existingMonthlyRepayment: null,
     regions: [],
+    creditGrade: creditGradeFromLtvInternalScore(condition.ltvInternalScore),
   };
 }
 
@@ -423,8 +392,7 @@ function hasStoredProfileCondition(profile: {
       profile.cv_card_loan_usage ||
       profile.cv_loan_rejection ||
       profile.cv_monthly_income_range ||
-      (profile.cv_existing_monthly_repayment &&
-        profile.cv_existing_monthly_repayment !== "none"),
+      profile.cv_existing_monthly_repayment != null,
   );
 }
 
@@ -464,6 +432,7 @@ function conditionFromProfile(
     monthlyIncomeRange: profile.cv_monthly_income_range ?? prev.monthlyIncomeRange,
     existingMonthlyRepayment:
       profile.cv_existing_monthly_repayment ?? prev.existingMonthlyRepayment,
+    creditGrade: creditGradeFromLtvInternalScore(profile.cv_ltv_internal_score),
     regions: prev.regions,
   });
 }
@@ -582,6 +551,9 @@ function conditionFromRequest(
       payloadCustomer?.existing_monthly_repayment === "over_200"
         ? payloadCustomer.existing_monthly_repayment
         : prev.existingMonthlyRepayment,
+    creditGrade:
+      request.credit_grade ??
+      creditGradeFromLtvInternalScore(toPositiveInt(payloadCustomer?.ltv_internal_score)),
     regions: prev.regions,
   });
 }
@@ -677,16 +649,12 @@ function snapSimulatorMonthlyIncome(value: number): number {
 
 function deriveApiCompatFields(condition: RecommendationCondition): {
   ownedHouseCount: OwnedHouseCount;
-  creditGrade: CreditGrade;
+  creditGrade: CreditGrade | null;
   purchasePurpose: PurchasePurpose;
 } {
-  // ltvInternalScore → creditGrade
-  const creditGrade: CreditGrade =
-    condition.ltvInternalScore >= 70
-      ? "good"
-      : condition.ltvInternalScore >= 40
-        ? "normal"
-        : "unstable";
+  const creditGrade =
+    condition.creditGrade ??
+    creditGradeFromLtvInternalScore(condition.ltvInternalScore);
 
   // houseOwnership → ownedHouseCount
   const ownedHouseCount: OwnedHouseCount =
@@ -739,6 +707,13 @@ function normalizeSimulatorCondition(
     creditGrade: derived.creditGrade,
     purchasePurpose: derived.purchasePurpose,
   };
+}
+
+function resolveCreditGrade(condition: RecommendationCondition): CreditGrade | null {
+  return (
+    condition.creditGrade ??
+    creditGradeFromLtvInternalScore(condition.ltvInternalScore)
+  );
 }
 
 function buildPriceLabel(args: {
@@ -1325,6 +1300,12 @@ export function useRecommendations() {
     setIsEvaluating(true);
 
     try {
+      const resolvedCreditGrade = resolveCreditGrade(nextCondition);
+      if (resolvedCreditGrade === null) {
+        setRequestError("신용 상태를 선택해주세요.");
+        return false;
+      }
+
       const response = await fetch("/api/condition-validation/recommend", {
         method: "POST",
         headers: {
@@ -1335,7 +1316,7 @@ export function useRecommendations() {
           customer: {
             available_cash: nextCondition.availableCash,
             monthly_income: nextCondition.monthlyIncome,
-            credit_grade: nextCondition.creditGrade,
+            credit_grade: resolvedCreditGrade,
             monthly_expenses: nextCondition.monthlyExpenses,
             employment_type: nextCondition.employmentType ?? "employee",
             house_ownership: nextCondition.houseOwnership ?? "none",
@@ -1343,7 +1324,8 @@ export function useRecommendations() {
             purchase_timing: nextCondition.purchaseTiming ?? "over_1year",
             movein_timing: nextCondition.moveinTiming ?? "anytime",
             ltv_internal_score: nextCondition.ltvInternalScore,
-            existing_monthly_repayment: nextCondition.existingMonthlyRepayment,
+            existing_monthly_repayment:
+              nextCondition.existingMonthlyRepayment ?? "none",
           },
           options: {
             guest_mode: isLoggedIn === false,
@@ -1399,7 +1381,7 @@ export function useRecommendations() {
     condition.monthlyIncome > 0 &&
     condition.houseOwnership !== null &&
     condition.purchasePurposeV2 !== null &&
-    condition.ltvInternalScore > 0;
+    (isLoggedIn ? condition.ltvInternalScore > 0 : condition.creditGrade !== null);
 
   useEffect(() => {
     if (!shouldAutoEvaluateRecommendations({
