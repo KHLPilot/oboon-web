@@ -1,7 +1,7 @@
 # 클라우드 보안 취약점 분석 (CL-01 ~ CL-14)
 
 > 평가 대상: Vercel + Supabase Cloud + Cloudflare R2
-> 평가 일자: 2026-03-29
+> 평가 일자: 2026-04-11 (이전: 2026-03-29)
 
 ---
 
@@ -11,7 +11,7 @@
 | CL-02 | IAM 최소 권한 | 양호 | R2 전용 Access Key 분리, Supabase 역할 분리(anon/authenticated/service_role) |
 | CL-03 | 루트 계정 사용 금지 | 부분이행 | Cloudflare 루트 계정 사용 여부 미확인. 루트 계정 MFA + 서브 토큰 사용 권고 |
 | CL-04 | 접근 키 관리 | 양호 | 환경변수로만 관리, 소스 내 하드코딩 없음 |
-| CL-05 | 스토리지 공개 접근 | 취약 | Cloudflare R2 퍼블릭 도메인 설정은 남아 있다. 다만 2026-04-03 기준 `app/api/r2/upload/sign-pdf/route.ts` 에서 `pdf-temp/` 업로드 응답의 퍼블릭 URL 반환은 제거했다. 버킷 정책과 민감 경로 차단 여부는 콘솔 확인이 계속 필요하다 |
+| CL-05 | 스토리지 공개 접근 | 취약 | R2 퍼블릭 도메인 설정 유지. `pdf-temp/` URL 반환 제거됨(2026-04-03). **신규**: `app/api/r2/upload/route.ts:251-255` — `postId`, `boardId`, `categoryId` 숫자 검증 없이 경로에 직접 삽입 (경로 주입 가능성). 버킷 정책 콘솔 확인 필요 |
 | CL-06 | 스토리지 암호화 | 양호 | Cloudflare R2 기본 at-rest 암호화 적용 |
 | CL-07 | 전송 암호화 | 양호 | R2 업로드 서버 사이드 서명 URL, HTTPS 전용 |
 | CL-08 | 네트워크 접근 제어 | 양호 | Vercel Edge Network 기본 DDoS 방어, IP 기반 접근 제한 없음(서버리스) |
@@ -24,11 +24,33 @@
 
 ---
 
+---
+
+## 신규 발견사항 (2026-04-11)
+
+### [LOW] OAuth Callback — sessionKey URL 노출
+- **파일**: `app/api/auth/google/callback/route.ts:134`
+- **위험**: 삭제 계정 복구 플로우에서 `sessionKey`가 GET 파라미터로 URL에 노출
+  ```typescript
+  return redirectWithClearedState(siteOrigin, `/auth/restore?s=${encodeURIComponent(sessionKey)}`);
+  ```
+  - 서버 액세스 로그, 브라우저 히스토리, Referer 헤더에 토큰 잔류 가능
+- **권고**: sessionKey를 Redis에만 저장하고 짧은 TTL 적용, POST 방식으로 전달
+
+### [LOW] R2 Upload — postId 경로 매개변수 숫자 검증 미비
+- **파일**: `app/api/r2/upload/route.ts:251-255`
+- **위험**: `postId`, `boardId`, `categoryId`가 숫자인지 검증 없이 경로에 삽입
+- **권고**: `!/^\d+$/.test(postId)` 검증 추가
+
+---
+
 ## 조치 필요 항목 요약
 
 | 우선순위 | 항목 | 조치 내용 |
 |---------|------|----------|
 | HIGH | CL-05 | R2 버킷 공개 접근 설정 확인, 민감 파일(`pdf-temp/`, 신분증) 버킷 정책 차단 또는 전용 비공개 버킷 분리 |
+| MEDIUM | CL-05-2 | R2 upload의 postId/boardId/categoryId 숫자 검증 추가 |
 | MEDIUM | CL-03 | Cloudflare 루트 계정 MFA 활성화 확인, 서비스 토큰 사용 |
+| LOW | OAuth sessionKey | sessionKey URL 노출 → POST 방식 또는 Redis TTL 강화 |
 | LOW | CL-10 | 중앙 로그 집계(Vercel Log Drains 등) 및 보존 정책 수립 |
 | LOW | CL-12 | 중요 비밀키(서비스 롤 키, OAuth 시크릿) 전용 Secrets Manager 이관 검토 |

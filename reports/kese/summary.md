@@ -17,7 +17,7 @@
 | 분야 | 전체 | 양호 | 부분이행 | 취약 | 해당없음 |
 |------|:----:|:----:|:--------:|:----:|:-------:|
 | 웹서비스 (WS-01~WS-47) | 47 | 40 | 4 | 1 | 2 |
-| 데이터베이스 (D-01~D-32) | 32 | 24 | 3 | 1 | 4 |
+| 데이터베이스 (D-01~D-32) | 32 | 23 | 3 | 2 | 4 |
 | Unix/Linux (U-01~U-68) | 68 | - | - | - | 68 |
 | Windows (W-01~W-73) | 73 | - | - | - | 73 |
 | 보안장비 (S-01~S-19) | 19 | - | - | - | 19 |
@@ -31,12 +31,40 @@
 
 > 해당없음: 서버리스 SaaS 환경 — OS/네트워크 장비/가상화/제어시스템은 인프라 제공자(Vercel, Supabase) 책임 영역
 
-**평가 대상 항목 기준 보안 점수: 87.4%**
+**평가 대상 항목 기준 보안 점수: 86.8%** *(이전: 87.4%)*
 > (양호 + 부분이행×0.5) / 해당없음 제외 항목 수
+> D-19 취약으로 재분류, D-29-3 취약 신규 추가, D-29-2 양호 전환 반영
 
 ---
 
-## 2026-04-11 신규 발견사항
+## 2026-04-11 2차 심층 점검 신규 발견사항
+
+### [HIGH] D-19-2 — 은행 계좌번호·예금주명 평문 저장
+- **파일**: `supabase/migrations/018_profiles_add_bank_account_number.sql`
+- **위험**: `profile_bank_accounts.account_number`, `account_holder` 컬럼이 암호화 없이 평문 저장. 금융 데이터 노출 시 금융사고 직결
+- **조치**: pgcrypto `pgp_sym_encrypt()` 또는 Supabase Vault로 컬럼 암호화
+- **조치 우선순위**: HIGH — 즉시 처리
+
+### [MEDIUM] D-29-3 — Refund 이중 환급 (레이스 컨디션)
+- **파일**: `app/api/consultations/[id]/refund/route.ts:170-194`
+- **위험**: `payout_requests UPDATE` → `consultation_money_ledger INSERT` 분리 실행, 트랜잭션 없음. 동시 요청 시 이중 환급 가능
+- **참고**: Reward Payout(`migration 106`)은 `pg_advisory_xact_lock`으로 이미 해결됨 ✅
+- **조치**: Supabase RPC 함수로 이관하여 트랜잭션 원자성 보장
+- **조치 우선순위**: MEDIUM
+
+### [LOW] CL-05-2 — R2 Upload postId/boardId 경로 검증 미비
+- **파일**: `app/api/r2/upload/route.ts:251-255`
+- **위험**: `postId`, `boardId`, `categoryId` 숫자 검증 없이 R2 경로에 직접 삽입
+- **조치**: `!/^\d+$/.test(postId)` 정규식 검증 추가
+
+### [LOW] CL-API-06 — OAuth Callback sessionKey URL 노출
+- **파일**: `app/api/auth/google/callback/route.ts:134`
+- **위험**: 삭제 계정 복구 플로우에서 sessionKey가 GET URL에 노출 → 서버 로그, 브라우저 히스토리 잔류
+- **조치**: POST 방식 전달 또는 Redis TTL 토큰으로 교체
+
+---
+
+## 2026-04-11 1차 점검 신규 발견사항
 
 ### [MEDIUM] WS-11-2 — style-src 프로덕션 unsafe-inline 허용
 - **파일**: `middleware.ts:53`
@@ -71,16 +99,17 @@
 
 | 순위 | 심각도 | 항목 | 설명 | 조치 상태 |
 |------|--------|------|------|-----------|
-| 1 | MEDIUM | WS-11-2 | CSP style-src 프로덕션 unsafe-inline | **미조치** |
-| 2 | LOW | WS-08-2 | PDF 매직바이트 검증 누락 | **미조치** |
-| 3 | LOW | WS-45 | condition-validation 일부 엔드포인트 rate limit 부족 | 부분이행 |
-| 4 | LOW | D-29 | Reward Payout 레이스 컨디션 | **미조치** |
-| 5 | LOW | D-07-2 | pdf-parse 유지보수 종료 | **미조치** |
-| 6 | LOW | CL-03 | Cloudflare 루트 계정 MFA 미확인 | 부분이행 |
-| 7 | LOW | CL-05 | R2 퍼블릭 버킷 민감 경로 차단 미확인 | 취약(확인필요) |
-| 8 | INFO | A-90 | 중앙 알림/모니터링 체계 미확인 | 부분이행 |
-| 9 | INFO | A-14 | 의존성 취약점 자동 스캔 CI 미통합 | 부분이행 |
+| 1 | **HIGH** | **D-19-2** | **은행 계좌번호·예금주명 평문 저장** | **미조치** |
+| 2 | MEDIUM | D-29-3 | Refund 이중 환급 레이스 컨디션 | **미조치** |
+| 3 | MEDIUM | WS-11-2 | CSP style-src 프로덕션 unsafe-inline | **미조치** |
+| 4 | LOW | WS-08-2 | PDF 매직바이트 검증 누락 | **미조치** |
+| 5 | LOW | WS-45 | condition-validation recommend 엔드포인트 rate limit 미적용 | 부분이행 |
+| 6 | LOW | D-07-2 | pdf-parse 유지보수 종료 | **미조치** |
+| 7 | LOW | CL-03 | Cloudflare 루트 계정 MFA 미확인 | 부분이행 |
+| 8 | LOW | CL-05 | R2 퍼블릭 버킷 민감 경로 차단 / postId 검증 미비 | 취약(확인필요) |
+| 9 | LOW | CL-API-06 | OAuth Callback sessionKey URL 노출 | **미조치** |
 | 10 | INFO | CL-10 | 감사 로그 중앙 집계/보존 정책 미수립 | 부분이행 |
+| ✅ | RESOLVED | D-29-2 | Reward Payout 레이스 컨디션 → migration 106 advisory lock으로 해결 | **해결** |
 
 ---
 

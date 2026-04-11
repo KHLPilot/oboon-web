@@ -41,7 +41,7 @@
 
 | 항목 | 제목 | 판정 | 근거 |
 |------|------|------|------|
-| D-19 | 민감 데이터 암호화 | 부분이행 | 전화번호/이메일 평문 저장 확인. Supabase 기본 암호화(at-rest) 적용됨. 애플리케이션 레벨 필드 암호화 미적용 |
+| D-19 | 민감 데이터 암호화 | **취약** | 전화번호/이메일 평문 저장. **은행 계좌번호(`profile_bank_accounts.account_number`), 예금주명 평문 저장** — 금융데이터 암호화 미적용(HIGH). Supabase at-rest 암호화는 적용되나 컬럼 레벨 암호화 없음 |
 | D-20 | 전송 암호화 | 양호 | Supabase 연결 TLS 강제 (`ssl: true`), HTTPS API 전용 |
 | D-21 | 백업 암호화 및 정책 | 취약 | Supabase PITR(Point-in-Time Recovery) 활성화 여부 미확인. 백업 주기 및 복구 테스트 절차 미수립 |
 | D-22 | 감사 로그 암호화 | 부분이행 | Supabase 기본 감사 로그 존재, 별도 외부 저장 없음 |
@@ -59,7 +59,8 @@
 | D-27 | 로그 접근 제어 | 양호 | Supabase 대시보드 역할 기반 접근 |
 | D-28 | 쿼리 로그 | 양호 | 느린 쿼리 로그 활성화 가능 (Supabase 대시보드) |
 | D-29 | DB 에러 메시지 외부 노출 | 양호 | `lib/api/route-error.ts`에서 DB 에러 정제 후 클라이언트 전달 |
-| D-29-2 | 레이스 컨디션 (Reward Payout) | **부분이행** | `app/api/consultations/[id]/reward-payout/route.ts:107-132` — 존재 확인 후 insert/update 분기. 동시 요청 시 중복 지급 가능. `upsert + onConflict` 원자적 처리 권고 |
+| D-29-2 | 레이스 컨디션 (Reward Payout) | **양호** | `supabase/migrations/106_reward_payout_atomic.sql` — `pg_advisory_xact_lock` + `SELECT ... FOR UPDATE` 비관적 잠금으로 동시 중복 지급 차단. 2026-04-11 재확인 완료 |
+| D-29-3 | 레이스 컨디션 (Refund) | **취약** | `app/api/consultations/[id]/refund/route.ts:170-194` — `payout_requests.update()`와 `consultation_money_ledger.insert()` 분리 실행, 트랜잭션 없음. 동시 환급 처리 시 이중 환급 가능. **RPC 트랜잭션 처리 권고** |
 | D-30 | DDL 변경 이력 | 양호 | `supabase/migrations/` 타임스탬프 마이그레이션 파일로 이력 관리 |
 | D-31 | 불필요한 확장 기능 | 양호 | `postgis`, `uuid-ossp` 등 필요한 확장만 활성화 (마이그레이션 파일 확인) |
 | D-32 | DB 포트 노출 | 양호 | 직접 DB 포트 미노출, Supabase API/연결 풀러만 사용 |
@@ -70,10 +71,10 @@
 
 | 우선순위 | 항목 | 조치 내용 |
 |---------|------|----------|
+| **HIGH** | **D-19** | **은행 계좌번호·예금주명 컬럼 암호화 — pgcrypto 또는 Supabase Vault 적용** |
+| **MEDIUM** | **D-29-3** | **Refund API 트랜잭션 처리 — RPC 함수로 이관 또는 `payout_requests` UNIQUE constraint 추가** |
 | MEDIUM | D-07 | 인벤토리 기준으로 공개/반공개 조회 라우트부터 authed client 전환 후보를 순차 검토 |
 | MEDIUM | D-21 | Supabase 대시보드에서 PITR 활성화 확인, 복구 테스트 주기 수립 |
-| MEDIUM | D-19 | 전화번호 등 민감 필드 암호화 필요성 검토 |
-| LOW | D-29-2 | `reward-payout` API `upsert + onConflict` 원자적 처리로 레이스 컨디션 제거 |
 | LOW | D-07-2 | `pdf-parse@1.1.1` → `unpdf`(이미 설치) 또는 `pdfjs-dist` 마이그레이션 검토 |
 | LOW | D-22 | 외부 로그 집계 도구(Datadog 등) 연동 검토 |
 | LOW | D-26 | 로그 보존 기간 정책 수립 (최소 1년 권고) |

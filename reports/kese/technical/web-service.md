@@ -16,7 +16,7 @@
 | WS-03 | Command Injection | 양호 | 사용자 입력 기반 shell 실행 없음 |
 | WS-04 | LDAP Injection | 해당없음 | LDAP 사용 없음 |
 | WS-05 | XML Injection | 해당없음 | XML 처리 없음 |
-| WS-06 | 파일 업로드 취약점 | 양호 | `app/api/r2/upload/route.ts:67` 매직바이트 검증, MIME 화이트리스트(jpeg/png/webp/gif), 5MB 제한 |
+| WS-06 | 파일 업로드 취약점 | 양호 | `app/api/r2/upload/route.ts:67` 매직바이트 검증, MIME 화이트리스트(jpeg/png/webp/gif), 10MB 제한 (`MAX_FILE_SIZE = 10 * 1024 * 1024`) |
 | WS-07 | 경로 조작 (Path Traversal) | 양호 | 업로드 경로는 `crypto.randomUUID()` 기반, 정적 지오JSON은 `process.cwd()` + 고정 경로 |
 | WS-08 | 파일 업로드/고비용 처리 보호 | 부분이행 | `extract-pdf`: 인증+rate limit 보호 완료. **PDF 파일 매직바이트 검증 누락** (`app/api/extract-pdf/route.ts`). condition-validation 일부 경로 rate limit 미적용 |
 | WS-09 | SSRF/외부 API 프록시 | 양호 | `geo/address`, `geo/reverse`: 로그인 검증, 입력 검증, rate limit, 캐시 모두 적용 |
@@ -74,7 +74,7 @@
 | WS-42 | 디렉토리 리스팅 | 양호 | Next.js 기본값 차단 |
 | WS-43 | 불필요한 HTTP 메서드 | 양호 | 라우트별 명시적 메서드만 허용 |
 | WS-44 | 서버 배너 노출 | 양호 | Vercel 관리형, X-Powered-By 헤더 기본 제거 |
-| WS-45 | 공개 엔드포인트 최소화 | 부분이행 | `condition-validation/recommend`, `condition-validation/evaluate` 공개 호출 가능, rate limit 부족 |
+| WS-45 | 공개 엔드포인트 최소화 | 부분이행 | `evaluate`: `guestConditionEvaluationIpLimiter` (IP당 10/min) 적용 확인. `evaluate-v2`: 로그인 필수 + 사용자당 20/min. `recommend`: rate limit 미적용 — 전체 현장 목록 반복 평가 고비용 처리 위험 |
 | WS-46 | CORS 설정 | 부분이행 | 명시적 CORS 헤더 없음, SOP 의존 — 의도적 설계이나 문서화 필요 |
 | WS-47 | 캐시 제어 | 양호 | API 라우트 no-cache, 정적 자산 캐시 분리 |
 
@@ -105,16 +105,16 @@
   ```
 - **판정**: 취약 → 조치 필요
 
-### 기존 — 조건 검증/추천 엔드포인트 호출 보호 미흡 [부분이행]
+### 기존 — 조건 검증/추천 엔드포인트 호출 보호 [부분이행 — 2026-04-11 재확인]
 
 - **파일**:
   - `app/api/condition-validation/recommend/route.ts`
   - `app/api/condition-validation/evaluate/route.ts`
   - `app/api/condition-validation/evaluate-v2/route.ts`
-- `evaluate-guest`: IP rate limit 적용됨
-- `recommend`, `evaluate`: limiter 없음 — 전체 현장 목록 반복 평가 고비용 처리
-- `evaluate-v2`: 인증 있으나 사용자별 호출 빈도 제한 없음
-- **판정**: 부분이행 유지
+- `evaluate`: `guestConditionEvaluationIpLimiter` (IP당 분당 10회) 적용 확인 ✅
+- `evaluate-v2`: 로그인 필수 + `conditionEvaluationUserLimiter` (사용자당 분당 20회) 적용 확인 ✅
+- `recommend`: rate limit 미적용 — 전체 현장 목록 반복 평가 고비용 처리 위험 ⚠️
+- **판정**: 부분이행 유지 (recommend만 미조치)
 
 ### 기존 — 브리핑 HTML sanitize, PDF 분석 보호, geo 프록시 보호 [조치 완료]
 
