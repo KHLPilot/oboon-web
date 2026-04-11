@@ -283,8 +283,8 @@ export async function POST(req: Request) {
     }
 
     if (mode === "briefing_board_cover") {
-      if (!boardId) {
-        return NextResponse.json({ error: "boardId required" }, { status: 400 });
+      if (!boardId || !/^\d+$/.test(boardId)) {
+        return NextResponse.json({ error: "boardId required (numeric)" }, { status: 400 });
       }
 
       const key = `briefing/boards/${boardId}/cover.${ext}`;
@@ -295,9 +295,9 @@ export async function POST(req: Request) {
     }
 
     if (mode === "briefing_category_cover") {
-      if (!categoryId) {
+      if (!categoryId || !/^\d+$/.test(categoryId)) {
         return NextResponse.json(
-          { error: "categoryId required" },
+          { error: "categoryId required (numeric)" },
           { status: 400 },
         );
       }
