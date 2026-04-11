@@ -26,14 +26,14 @@
 | PC단말기 (PC-01~PC-18) | 18 | - | - | - | 18 |
 | 가상화 (V-01~V-36) | 36 | - | - | - | 36 |
 | 클라우드 (CL-01~CL-14) | 14 | 8 | 3 | 0 | 3 |
-| 관리적 (A-01~A-127) | 127 | 68 | 28 | 4 | 27 |
+| 관리적 (A-01~A-127) | 127 | 70 | 26 | 4 | 27 |
 | 물리적 (B-01~B-09) | 9 | 1 | 2 | 0 | 6 |
 
 > 해당없음: 서버리스 SaaS 환경 — OS/네트워크 장비/가상화/제어시스템은 인프라 제공자(Vercel, Supabase) 책임 영역
 
-**평가 대상 항목 기준 보안 점수: 87.7%** *(2차: 86.8% → 3차: 87.7%)*
+**평가 대상 항목 기준 보안 점수: 88.8%** *(2차: 86.8% → 3차: 87.7% → 후속: 88.8%)*
 > (양호 + 부분이행×0.5) / 해당없음 제외 항목 수
-> 코드 수정 완료 항목: D-19-2, D-29-3, WS-11-2, WS-08-2, WS-45, CL-API-06, CL-05-2 (총 8건)
+> 코드 수정 완료 항목: A-14, D-19-2, D-29-3, WS-11-2, WS-08-2, WS-45, CL-API-06, CL-05-2 (총 9건)
 > 잔여 미조치: CL-03(MFA 확인 필요), CL-10(감사 로그) — 운영 정책 영역
 
 ---
@@ -49,6 +49,11 @@
 | WS-45 recommend rate limit | `conditionRecommendationIpLimiter` IP당 12/min | ✅ 양호 |
 | CL-API-06 sessionKey | `lib/auth/restoreSessionCookie.ts` httpOnly 쿠키 전환 | ✅ 양호 |
 | CL-05-2 postId | postId/boardId/categoryId 정수 검증 추가 | ✅ 해결 |
+
+### ✅ A-14 — 의존성 취약점 자동 스캔 [후속 조치 — 2026-04-11]
+
+- GitHub Actions `security-scans.yml` 추가: `pnpm lint`, `pnpm typecheck`, `pnpm audit --audit-level high`
+- `.github/dependabot.yml` 추가: `pnpm` / `github-actions` 주간 자동 업데이트
 
 ---
 
@@ -117,7 +122,7 @@
 | 3 | LOW | CL-03 | Cloudflare 루트 계정 MFA 미확인 | 부분이행 |
 | 4 | INFO | CL-10 | 감사 로그 중앙 집계/보존 정책 미수립 | 부분이행 |
 | 5 | INFO | A-90 | 중앙 알림/모니터링 체계 미확인 | 부분이행 |
-| 6 | INFO | A-14 | 의존성 취약점 자동 스캔 CI 미통합 | 부분이행 |
+| ✅ | RESOLVED | A-14 | 의존성 취약점 자동 스캔 CI + Dependabot 주간 업데이트 도입 | **해결** |
 | ✅ | RESOLVED | D-19-2 | 은행계좌 AES-256-GCM 암호화 — migration 107 + lib/profileBankAccount.ts | **해결** |
 | ✅ | RESOLVED | D-29-3 | Refund 이중 환급 — migration 108 advisory lock + atomic RPC | **해결** |
 | ✅ | RESOLVED | WS-11-2 | CSP style-src unsafe-inline — isDevelopment 체크 추가 | **해결** |
