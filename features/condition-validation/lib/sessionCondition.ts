@@ -43,7 +43,7 @@ export type ConditionSessionSnapshot = {
   cardLoanUsage: CardLoanUsage | null;
   loanRejection: LoanRejection | null;
   monthlyIncomeRange: MonthlyIncomeRange | null;
-  existingMonthlyRepayment: MonthlyLoanRepayment;
+  existingMonthlyRepayment: MonthlyLoanRepayment | null;
 };
 
 function toNormalizedAmountDisplay(value: unknown): string {
@@ -98,7 +98,7 @@ export function hasConditionSessionData(snapshot: ConditionSessionSnapshot | nul
       snapshot.cardLoanUsage ||
       snapshot.loanRejection ||
       snapshot.monthlyIncomeRange ||
-      snapshot.existingMonthlyRepayment !== "none",
+      snapshot.existingMonthlyRepayment !== null,
   );
 }
 
@@ -116,7 +116,7 @@ export function sanitizeGuestConditionSessionSnapshot(
     cardLoanUsage: null,
     loanRejection: null,
     monthlyIncomeRange: null,
-    existingMonthlyRepayment: "none",
+    existingMonthlyRepayment: null,
   };
 }
 
@@ -191,7 +191,7 @@ export function loadConditionSession(): ConditionSessionSnapshot | null {
         : null,
       existingMonthlyRepayment: isOneOf(MONTHLY_LOAN_REPAYMENTS, parsed.existingMonthlyRepayment)
         ? parsed.existingMonthlyRepayment
-        : "none",
+        : null,
     };
 
     return hasConditionSessionData(snapshot) ? snapshot : null;
