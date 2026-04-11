@@ -217,12 +217,12 @@ export default async function RootLayout({
           <ScrollToTopOnRouteChange />
           <ProfileChecker />
           <Header />
-          <main
+          <div
             className="flex-1 relative w-full min-w-0"
             style={{ paddingTop: "var(--oboon-header-offset)" }}
           >
             {children}
-          </main>
+          </div>
           <Footer />
         </Providers>
       </body>
