@@ -106,7 +106,6 @@ type Props = {
   onFinish: () => void;
   onReset: () => void;
   finishLabel?: string;
-  saveLabel?: string | null;
   onSave?: () => void;
   isSaving?: boolean;
   isSaveDisabled?: boolean;
@@ -127,7 +126,6 @@ export default function ConditionWizardStep3({
   onFinish,
   onReset,
   finishLabel = "완료 ✓",
-  saveLabel = null,
   onSave,
   isSaving = false,
   isSaveDisabled = false,
@@ -136,6 +134,11 @@ export default function ConditionWizardStep3({
   progressive = false,
 }: Props) {
   const isReady = isStep3ReadyByAuth(condition, isLoggedIn);
+  const saveButtonLabel = isLoggedIn
+    ? hasSavedConditionPreset && isConditionDirty
+      ? "조건 업데이트"
+      : "조건 저장"
+    : "로그인하고 조건 저장";
 
   if (progressive) {
     if (!isAuthResolved) {
@@ -264,35 +267,45 @@ export default function ConditionWizardStep3({
               </button>
             </div>
           ) : null}
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={onBack}
-            disabled={isFinishing}
-            className="h-10 flex-1 rounded-full border border-(--oboon-border-default) ob-typo-button text-(--oboon-text-muted) disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            이전
-          </button>
-          <button
-            type="button"
-            disabled={!isReady || isFinishing}
-            onClick={onFinish}
-            className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-(--oboon-primary) text-white ob-typo-button disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {isFinishing ? (
-              <>
-                <span
-                  aria-hidden="true"
-                  className="inline-block h-4 w-4 rounded-full border-2 border-(--oboon-spinner-ring) border-t-(--oboon-spinner-head) animate-spin"
-                />
-                <span>{finishingLabel}</span>
-              </>
-            ) : (
-              finishLabel
-            )}
-          </button>
+          {onSave ? (
+            <button
+              type="button"
+              disabled={isSaveDisabled || isSaving}
+              onClick={onSave}
+              className="h-10 w-full rounded-full border border-(--oboon-border-default) ob-typo-button text-(--oboon-text-body) disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {isSaving ? "저장 중..." : saveButtonLabel}
+            </button>
+          ) : null}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onBack}
+              disabled={isFinishing}
+              className="h-10 flex-1 rounded-full border border-(--oboon-border-default) ob-typo-button text-(--oboon-text-muted) disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              이전
+            </button>
+            <button
+              type="button"
+              disabled={!isReady || isFinishing}
+              onClick={onFinish}
+              className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-(--oboon-primary) text-white ob-typo-button disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {isFinishing ? (
+                <>
+                  <span
+                    aria-hidden="true"
+                    className="inline-block h-4 w-4 rounded-full border-2 border-(--oboon-spinner-ring) border-t-(--oboon-spinner-head) animate-spin"
+                  />
+                  <span>{finishingLabel}</span>
+                </>
+              ) : (
+                finishLabel
+              )}
+            </button>
+          </div>
         </div>
-      </div>
       </div>
     );
   }
@@ -426,10 +439,20 @@ export default function ConditionWizardStep3({
               type="button"
               onClick={onRestoreDefault}
               className="shrink-0 ob-typo-caption font-medium text-(--oboon-primary) underline underline-offset-4 hover:opacity-70"
-            >
-              기본 조건으로
-            </button>
-          </div>
+              >
+                기본 조건으로
+              </button>
+            </div>
+          ) : null}
+        {onSave ? (
+          <button
+            type="button"
+            disabled={isSaveDisabled || isSaving}
+            onClick={onSave}
+            className="h-10 w-full rounded-full border border-(--oboon-border-default) ob-typo-button text-(--oboon-text-body) disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {isSaving ? "저장 중..." : saveButtonLabel}
+          </button>
         ) : null}
         <div className="flex gap-2">
           <button
@@ -440,16 +463,6 @@ export default function ConditionWizardStep3({
           >
             이전
           </button>
-          {saveLabel && onSave ? (
-            <button
-              type="button"
-              disabled={isSaveDisabled || isSaving}
-              onClick={onSave}
-              className="h-10 flex-1 rounded-full border border-(--oboon-border-default) ob-typo-button text-(--oboon-text-body) disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {isSaving ? "저장 중..." : saveLabel}
-            </button>
-          ) : null}
           <button
             type="button"
             disabled={!isReady || isFinishing}

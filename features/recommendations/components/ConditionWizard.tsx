@@ -96,15 +96,6 @@ export default function ConditionWizard({
     condition.purchasePurposeV2 !== null &&
     (isLoggedIn ? condition.ltvInternalScore > 0 : true);
 
-  const saveLabel =
-    isLoggedIn === false && onLoginAndSave
-      ? "로그인하고 조건 저장"
-      : isLoggedIn && !hasSavedConditionPreset && onSave
-        ? "조건 저장"
-        : isLoggedIn && hasSavedConditionPreset && isConditionDirty && onSave
-          ? "조건 업데이트"
-          : null;
-
   const handleStepSave = () => {
     if (isLoggedIn === false && onLoginAndSave) {
       void onLoginAndSave();
@@ -168,8 +159,7 @@ export default function ConditionWizard({
               onFinish={() => void handleFinish()}
               onReset={handleReset}
               finishLabel={finishLabel}
-              saveLabel={saveLabel}
-              onSave={saveLabel ? handleStepSave : undefined}
+              onSave={onSave || onLoginAndSave ? handleStepSave : undefined}
               isSaving={isSaving}
               isSaveDisabled={!isReadyToEvaluate}
               isFinishing={isFinishing}
