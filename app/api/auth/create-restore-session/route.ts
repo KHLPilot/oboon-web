@@ -10,6 +10,7 @@ import {
   restoreSessionIpLimiter,
 } from "@/lib/rateLimit";
 import { createRestoreOAuthTempSession } from "@/lib/auth/oauthTempSession";
+import { setRestoreSessionCookie } from "@/lib/auth/restoreSessionCookie";
 
 export async function POST(req: NextRequest) {
   const rateLimitRes = await checkAuthRateLimit(
@@ -34,14 +35,16 @@ export async function POST(req: NextRequest) {
       email: user.email,
     });
 
-    return NextResponse.json(
-      { sessionKey },
+    const response = NextResponse.json(
+      { ok: true },
       {
         headers: {
           "Cache-Control": "no-store",
         },
       },
     );
+
+    return setRestoreSessionCookie(response, sessionKey);
   } catch (error) {
     return handleApiError("create-restore-session", error, {
       clientMessage: "서버 오류",

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
+import { normalizeStoredProfileBankAccount } from "@/lib/profileBankAccount";
 
 const adminSupabase = createSupabaseAdminClient();
 
@@ -101,9 +102,18 @@ export async function POST(req: Request) {
       );
     }
 
-    const bankName = customerProfile?.bank_name?.trim() ?? "";
-    const bankAccountNumber = customerProfile?.bank_account_number?.trim() ?? "";
-    const bankAccountHolder = customerProfile?.bank_account_holder?.trim() ?? "";
+    const bankAccount = await normalizeStoredProfileBankAccount(
+      user.id,
+      {
+        bank_name: customerProfile?.bank_name ?? null,
+        bank_account_number: customerProfile?.bank_account_number ?? null,
+        bank_account_holder: customerProfile?.bank_account_holder ?? null,
+      },
+      adminSupabase,
+    );
+    const bankName = bankAccount.bank_name ?? "";
+    const bankAccountNumber = bankAccount.bank_account_number ?? "";
+    const bankAccountHolder = bankAccount.bank_account_holder ?? "";
     if (!bankName || !bankAccountNumber || !bankAccountHolder) {
       return NextResponse.json(
         {

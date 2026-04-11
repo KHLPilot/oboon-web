@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { handleApiError } from "@/lib/api/route-error";
-import { parseJsonBody } from "@/lib/api/route-security";
 import {
   checkAuthRateLimit,
   getClientIp,
@@ -9,9 +8,13 @@ import {
 } from "@/lib/rateLimit";
 import { createRestoreToken } from "@/lib/auth/restoreToken";
 import { getOAuthTempSession } from "@/lib/auth/oauthTempSession";
+import {
+  clearRestoreSessionCookie,
+  RESTORE_SESSION_COOKIE_NAME,
+} from "@/lib/auth/restoreSessionCookie";
 
 const requestSchema = z.object({
-  sessionKey: z.string().uuid(),
+  sessionKey: z.string().uuid().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -22,11 +25,33 @@ export async function POST(req: NextRequest) {
   );
   if (rateLimitRes) return rateLimitRes;
 
-  const parsed = await parseJsonBody(req, requestSchema);
-  if (!parsed.ok) return parsed.response;
-
   try {
-    const session = await getOAuthTempSession(parsed.data.sessionKey);
+    let body: unknown = null;
+    try {
+      body = await req.json();
+    } catch {
+      body = null;
+    }
+
+    const parsed = requestSchema.safeParse(body ?? {});
+    if (!parsed.success && body !== null) {
+      return NextResponse.json(
+        { error: "입력값이 올바르지 않습니다." },
+        { status: 400 },
+      );
+    }
+
+    const cookieSessionKey = req.cookies.get(RESTORE_SESSION_COOKIE_NAME)?.value ?? null;
+
+    const sessionKey = parsed.success ? parsed.data.sessionKey ?? cookieSessionKey ?? null : cookieSessionKey;
+    if (!sessionKey) {
+      return NextResponse.json(
+        { error: "유효하지 않은 복구 세션입니다." },
+        { status: 403 },
+      );
+    }
+
+    const session = await getOAuthTempSession(sessionKey);
 
     if (!session || session.purpose !== "restore") {
       return NextResponse.json(
@@ -35,7 +60,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    return NextResponse.json(
+    const response = NextResponse.json(
       {
         email: session.email,
         restoreToken: createRestoreToken(session.userId),
@@ -46,6 +71,7 @@ export async function POST(req: NextRequest) {
         },
       },
     );
+    return clearRestoreSessionCookie(response);
   } catch (error) {
     return handleApiError("restore-session", error, {
       clientMessage: "서버 오류",

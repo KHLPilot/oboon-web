@@ -269,18 +269,15 @@ export default function LoginPage() {
         const restoreSessionRes = await fetch("/api/auth/create-restore-session", {
           method: "POST",
         });
-        const restoreSessionData = await restoreSessionRes.json();
         await supabase.auth.signOut();
 
-        if (!restoreSessionRes.ok || typeof restoreSessionData?.sessionKey !== "string") {
+        if (!restoreSessionRes.ok) {
           setLoading(false);
           setError("복구 정보를 확인할 수 없습니다. 다시 로그인해주세요.");
           return;
         }
 
-        router.replace(
-          `/auth/restore?s=${encodeURIComponent(restoreSessionData.sessionKey)}`
-        );
+        router.replace("/auth/restore");
         return;
       }
 

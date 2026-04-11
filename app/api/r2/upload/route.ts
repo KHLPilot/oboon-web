@@ -3,6 +3,7 @@
 import { NextResponse } from "next/server";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { handleApiError } from "@/lib/api/route-error";
+import { uuidV4Schema } from "@/lib/api/route-security";
 import { createSupabaseServer } from "@/lib/supabaseServer";
 
 export const runtime = "nodejs";
@@ -210,6 +211,16 @@ export async function POST(req: Request) {
       mode === "briefing_board_cover" ||
       mode === "briefing_category_cover"
     ) {
+      if (
+        (mode === "briefing_cover" || mode === "briefing_content") &&
+        !uuidV4Schema.safeParse(postId).success
+      ) {
+        return NextResponse.json(
+          { error: "유효하지 않은 postId" },
+          { status: 400 },
+        );
+      }
+
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("role")

@@ -32,6 +32,10 @@ import { showAlert } from "@/shared/alert";
 import { CommunityProfilePage } from "@/features/community";
 import UserActivityTab from "./UserActivityTab";
 import ProfilePageSkeleton from "./ProfilePageSkeleton";
+import {
+  fetchCurrentProfileBankAccount,
+  updateCurrentProfileBankAccount,
+} from "@/features/profile/services/profile.bank-account";
 import useAgentAffiliation from "@/features/profile/hooks/useAgentAffiliation";
 import {
   fetchAgentPropertyDashboard,
@@ -317,7 +321,7 @@ export default function ProfilePage({
       setEmail(user.email ?? "");
 
       const baseProfileSelect =
-        "name, nickname, phone_number, role, avatar_url, agent_summary, agent_bio, bank_name, bank_account_number, bank_account_holder";
+        "name, nickname, phone_number, role, avatar_url, agent_summary, agent_bio";
       const { data: loadedProfile, error: loadProfileError } = await supabase
         .from("profiles")
         .select(
@@ -341,9 +345,6 @@ export default function ProfilePage({
         setNickname(String(profile.nickname ?? ""));
         setOriginalNickname(String(profile.nickname ?? "")); // 원래 닉네임 저장
         setPhone(String(profile.phone_number ?? ""));
-        setBankName(String(profile.bank_name ?? ""));
-        setBankAccountNumber(String(profile.bank_account_number ?? ""));
-        setBankAccountHolder(String(profile.bank_account_holder ?? ""));
         setRole((profile.role as Role) ?? "user");
         setAvatarUrl(
           typeof profile.avatar_url === "string" && profile.avatar_url
@@ -438,6 +439,12 @@ export default function ProfilePage({
             ? profile.cv_monthly_income_range
             : null,
         );
+        const { data: bankAccount } = await fetchCurrentProfileBankAccount();
+        if (bankAccount) {
+          setBankName(bankAccount.bank_name ?? "");
+          setBankAccountNumber(bankAccount.bank_account_number ?? "");
+          setBankAccountHolder(bankAccount.bank_account_holder ?? "");
+        }
         if ((profile.role as Role) === "agent") {
           await fetchGalleryImages(user.id, profile.role as Role);
         } else {
@@ -979,9 +986,6 @@ export default function ProfilePage({
       name: string;
       nickname: string | null;
       phone_number: string;
-      bank_name?: string;
-      bank_account_number?: string;
-      bank_account_holder?: string;
       agent_summary?: string | null;
       agent_bio?: string | null;
     } = {
@@ -990,9 +994,6 @@ export default function ProfilePage({
       phone_number: phone.replace(/-/g, ""), // 하이픈 제거
     };
 
-    updatePayload.bank_name = bankName.trim();
-    updatePayload.bank_account_number = bankAccountNumber.trim();
-    updatePayload.bank_account_holder = bankAccountHolder.trim();
     if (showAgentProfile) {
       updatePayload.agent_summary = agentSummary.trim() || null;
       updatePayload.agent_bio = agentEtc.trim() || null;
@@ -1005,6 +1006,17 @@ export default function ProfilePage({
 
     if (error) {
       showAlert("저장 중 오류가 발생했습니다: " + error.message);
+      return;
+    }
+
+    const { error: bankError } = await updateCurrentProfileBankAccount({
+      bankName: bankName.trim(),
+      bankAccountNumber: bankAccountNumber.trim(),
+      bankAccountHolder: bankAccountHolder.trim(),
+    });
+
+    if (bankError) {
+      showAlert(bankError);
       return;
     }
 

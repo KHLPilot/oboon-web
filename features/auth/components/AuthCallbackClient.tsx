@@ -120,17 +120,14 @@ export default function AuthCallbackClient() {
         const restoreSessionRes = await fetch("/api/auth/create-restore-session", {
           method: "POST",
         });
-        const restoreSessionData = await restoreSessionRes.json();
         await supabase.auth.signOut();
 
-        if (!restoreSessionRes.ok || typeof restoreSessionData?.sessionKey !== "string") {
+        if (!restoreSessionRes.ok) {
           router.replace("/auth/login?error=auth_failed");
           return;
         }
 
-        router.replace(
-          `/auth/restore?s=${encodeURIComponent(restoreSessionData.sessionKey)}`,
-        );
+        router.replace("/auth/restore");
         return;
       }
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { adminSupabase, requireAdminRoute } from "@/lib/api/admin-route";
+import { normalizeStoredProfileBankAccount } from "@/lib/profileBankAccount";
 
 export const dynamic = "force-dynamic";
 
@@ -249,8 +250,8 @@ export async function GET() {
       (c) => c.status === "no_show" && !c.no_show_by,
     ).length;
 
-    const settlementRows = consultationRows
-      .map((c) => {
+    const settlementRows = await Promise.all(
+      consultationRows.map(async (c) => {
         const depositEvent = latestDepositEventByConsultation.get(c.id);
         const decisionEvent = latestDepositDecisionByConsultation.get(c.id);
         const rewardPayout = latestRewardPayoutByConsultation.get(c.id);
@@ -348,11 +349,24 @@ export async function GET() {
           customerFromJoin?.avatar_url ??
           customerProfile?.avatar_url ??
           null;
-        const customerBankName = customerProfile?.bank_name ?? null;
-        const customerBankAccountNumber =
-          customerProfile?.bank_account_number ?? null;
-        const customerBankAccountHolder =
-          customerProfile?.bank_account_holder ?? null;
+        const customerBankAccount = customerProfile
+          ? await normalizeStoredProfileBankAccount(
+              customerProfile.id,
+              {
+                bank_name: customerProfile.bank_name,
+                bank_account_number: customerProfile.bank_account_number,
+                bank_account_holder: customerProfile.bank_account_holder,
+              },
+              adminSupabase,
+            )
+          : {
+              bank_name: null,
+              bank_account_number: null,
+              bank_account_holder: null,
+            };
+        const customerBankName = customerBankAccount.bank_name;
+        const customerBankAccountNumber = customerBankAccount.bank_account_number;
+        const customerBankAccountHolder = customerBankAccount.bank_account_holder;
         const agentAvatar =
           agentPublic?.avatar_url ??
           agentFromJoin?.avatar_url ??
@@ -389,7 +403,8 @@ export async function GET() {
           deposit_amount: depositAmount,
           refund_amount: refundAmount,
         };
-      })
+      }),
+    )
       .filter((row) => {
         return (
           row.deposit_label !== "-" ||

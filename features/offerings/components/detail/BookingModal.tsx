@@ -27,6 +27,10 @@ import { showAlert } from "@/shared/alert";
 import { getAvatarUrlOrDefault } from "@/shared/imageUrl";
 import { toKoreanErrorMessage } from "@/shared/errorMessage";
 import { Copy } from "@/shared/copy";
+import {
+  fetchCurrentProfileBankAccount,
+  updateCurrentProfileBankAccount,
+} from "@/features/profile/services/profile.bank-account";
 
 interface Agent {
   id: string;
@@ -189,11 +193,7 @@ export default function BookingModal({
           data: { user: currentUser },
         } = await supabase.auth.getUser();
         if (currentUser) {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("bank_name, bank_account_number, bank_account_holder")
-            .eq("id", currentUser.id)
-            .maybeSingle();
+          const { data: profile } = await fetchCurrentProfileBankAccount();
           setBankName(profile?.bank_name ?? "");
           setBankAccountNumber(profile?.bank_account_number ?? "");
           setBankAccountHolder(profile?.bank_account_holder ?? "");
@@ -537,14 +537,11 @@ export default function BookingModal({
         throw new Error("로그인이 필요합니다");
       }
 
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({
-          bank_name: trimmedBankName,
-          bank_account_number: trimmedAccountNumber,
-          bank_account_holder: trimmedAccountHolder,
-        })
-        .eq("id", currentUser.id);
+      const { error: updateError } = await updateCurrentProfileBankAccount({
+        bankName: trimmedBankName,
+        bankAccountNumber: trimmedAccountNumber,
+        bankAccountHolder: trimmedAccountHolder,
+      });
 
       if (updateError) {
         throw new Error(Copy.booking.account.saveFail);

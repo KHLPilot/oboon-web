@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { createSupabaseServer } from "@/lib/supabaseServer";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { createRestoreOAuthTempSession } from "@/lib/auth/oauthTempSession";
+import { setRestoreSessionCookie } from "@/lib/auth/restoreSessionCookie";
 import {
   clearOAuthStateCookie,
   readOAuthStateCookie,
@@ -135,10 +136,8 @@ export async function GET(req: Request) {
         email: user.email,
       });
 
-      return redirectWithClearedState(
-        siteOrigin,
-        `/auth/restore?s=${encodeURIComponent(sessionKey)}`,
-      );
+      const response = redirectWithClearedState(siteOrigin, "/auth/restore");
+      return setRestoreSessionCookie(response, sessionKey);
     }
 
     const isMissingProfile =

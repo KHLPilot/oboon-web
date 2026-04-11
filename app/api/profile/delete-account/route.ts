@@ -190,6 +190,8 @@ export async function POST(req: Request) {
                 nickname: null,
                 phone_number: null,
                 email: `deleted_${userId}@deleted.com`,
+                bank_name: null,
+                bank_account_number: null,
                 bank_account_holder: null,
                 deleted_at: new Date().toISOString(),
             })

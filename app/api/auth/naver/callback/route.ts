@@ -4,6 +4,7 @@ import type { User } from "@supabase/supabase-js";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { createRestoreOAuthTempSession } from "@/lib/auth/oauthTempSession";
 import { findAuthUserByEmail } from "@/lib/supabaseAdminAuth";
+import { setRestoreSessionCookie } from "@/lib/auth/restoreSessionCookie";
 import {
   clearOAuthStateCookie,
   readOAuthStateCookie,
@@ -191,10 +192,8 @@ export async function GET(req: Request) {
         email,
       });
 
-      return redirectWithClearedState(
-        siteOrigin,
-        `/auth/restore?s=${encodeURIComponent(sessionKey)}`,
-      );
+      const response = redirectWithClearedState(siteOrigin, "/auth/restore");
+      return setRestoreSessionCookie(response, sessionKey);
     }
 
     const { data: linkData, error: linkError } =

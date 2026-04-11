@@ -1,5 +1,9 @@
 import { createSupabaseClient } from "@/lib/supabaseClient";
-import { AppError, ERR, createSupabaseServiceError } from "@/lib/errors";
+import { AppError, ERR } from "@/lib/errors";
+import {
+  fetchCurrentProfileBankAccount,
+  type ProfileBankAccount,
+} from "@/features/profile/services/profile.bank-account";
 
 export type AgentAccess = {
   userId: string | null;
@@ -26,49 +30,19 @@ export async function fetchAgentAccess(): Promise<AgentAccess> {
 }
 
 export async function fetchAgentRefundAccountProfile(): Promise<{
-  data: {
-    bank_name: string | null;
-    bank_account_number: string | null;
-    bank_account_holder: string | null;
-  } | null;
+  data: ProfileBankAccount | null;
   error: AppError | null;
 }> {
-  const supabase = createSupabaseClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return {
-      data: null,
-      error: new AppError(
-        ERR.UNAUTHORIZED,
-        "로그인이 필요합니다.",
-        401,
-        authError,
-      ),
-    };
-  }
-
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("bank_name, bank_account_number, bank_account_holder")
-    .eq("id", user.id)
-    .maybeSingle();
+  const { data, error } = await fetchCurrentProfileBankAccount();
 
   return {
-    data:
-      (data as {
-        bank_name: string | null;
-        bank_account_number: string | null;
-        bank_account_holder: string | null;
-      } | null) ?? null,
-    error: createSupabaseServiceError(error, {
-      scope: "agent.auth",
-      action: "fetchAgentRefundAccountProfile",
-      defaultMessage: "환불 계좌 조회 중 오류가 발생했습니다.",
-      context: { userId: user.id },
-    }),
+    data,
+    error: error
+      ? new AppError(
+          error.includes("로그인이 필요합니다") ? ERR.UNAUTHORIZED : ERR.DB_QUERY,
+          error,
+          error.includes("로그인이 필요합니다") ? 401 : 500,
+        )
+      : null,
   };
 }

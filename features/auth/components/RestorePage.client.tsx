@@ -21,19 +21,27 @@ export default function RestorePage() {
   const legacyRestoreTokenRef = useRef(restoreTokenParam);
 
   const [email, setEmail] = useState(emailParam);
+  const [restoreToken, setRestoreToken] = useState(restoreTokenParam);
   const [loading, setLoading] = useState(false);
   const [resolvingToken, setResolvingToken] = useState(
-    Boolean(restoreSessionKey) || (!restoreTokenParam && Boolean(emailParam)),
+    Boolean(restoreSessionKey) || (!restoreTokenParam && !emailParam),
   );
   const [error, setError] = useState<string | null>(null);
   const maskedEmail = maskEmailAddress(email);
 
   async function resolveRestoreCredentials() {
-    if (restoreSessionKey) {
+    if (email && restoreToken) {
+      return { email, restoreToken };
+    }
+
+    if (restoreSessionKey || (!restoreTokenParam && !emailParam)) {
+      const body = restoreSessionKey
+        ? JSON.stringify({ sessionKey: restoreSessionKey })
+        : undefined;
       const res = await fetch("/api/auth/restore-session", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionKey: restoreSessionKey }),
+        headers: body ? { "Content-Type": "application/json" } : undefined,
+        body,
       });
       const data = await res.json();
 
@@ -49,10 +57,15 @@ export default function RestorePage() {
         throw new Error("계정 정보가 만료되었습니다. 다시 로그인해주세요.");
       }
 
+      setEmail(nextEmail);
+      setRestoreToken(restoreToken);
+
       return { email: nextEmail, restoreToken };
     }
 
     if (legacyRestoreTokenRef.current && emailParam) {
+      setEmail(emailParam);
+      setRestoreToken(legacyRestoreTokenRef.current);
       return {
         email: emailParam,
         restoreToken: legacyRestoreTokenRef.current,
@@ -88,17 +101,20 @@ export default function RestorePage() {
   }
 
   useEffect(() => {
-    if (restoreSessionKey) {
+    if (restoreSessionKey || (!restoreTokenParam && !emailParam)) {
       let ignore = false;
 
       async function resolveRestoreSession() {
         setResolvingToken(true);
 
         try {
+          const body = restoreSessionKey
+            ? JSON.stringify({ sessionKey: restoreSessionKey })
+            : undefined;
           const res = await fetch("/api/auth/restore-session", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ sessionKey: restoreSessionKey }),
+            headers: body ? { "Content-Type": "application/json" } : undefined,
+            body,
           });
           const data = await res.json();
 
@@ -107,7 +123,11 @@ export default function RestorePage() {
           }
 
           if (!ignore) {
-            setEmail(typeof data?.email === "string" ? data.email : "");
+            const nextEmail = typeof data?.email === "string" ? data.email : "";
+            const nextRestoreToken =
+              typeof data?.restoreToken === "string" ? data.restoreToken : "";
+            setEmail(nextEmail);
+            setRestoreToken(nextRestoreToken);
           }
         } catch (err: unknown) {
           if (!ignore) {
@@ -174,6 +194,7 @@ export default function RestorePage() {
           }
 
           setEmail(emailParam);
+          setRestoreToken(data.restoreToken);
         }
       } catch (err: unknown) {
         if (!ignore) {
@@ -191,7 +212,7 @@ export default function RestorePage() {
     return () => {
       ignore = true;
     };
-  }, [restoreSessionKey, restoreTokenParam, emailParam, router]);
+    }, [restoreSessionKey, restoreTokenParam, emailParam, router]);
 
   // 계정 복구
   async function handleRestore() {
