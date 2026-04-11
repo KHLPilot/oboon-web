@@ -34,7 +34,7 @@ const FIXED_ACTIONS = [
   "sm:static sm:left-auto sm:right-auto sm:bottom-auto sm:z-auto sm:mt-auto",
 ].join(" ");
 
-const MOBILE_FIXED_ACTIONS = `${FIXED_ACTIONS} h-10`;
+const MOBILE_FIXED_ACTIONS = `${FIXED_ACTIONS} shadow-none`;
 
 function formatNumeric(raw: string): string {
   const digits = raw.replace(/[^\d]/g, "");
@@ -128,6 +128,9 @@ function ProgressiveSlot({
 type Props = {
   condition: RecommendationCondition;
   isLoggedIn: boolean;
+  hasSavedConditionPreset?: boolean;
+  isConditionDirty?: boolean;
+  onRestoreDefault?: () => boolean;
   onChange: (patch: Partial<RecommendationCondition>) => void;
   onNext: () => void;
   onReset: () => void;
@@ -137,6 +140,9 @@ type Props = {
 export default function ConditionWizardStep1({
   condition,
   isLoggedIn,
+  hasSavedConditionPreset = false,
+  isConditionDirty = false,
+  onRestoreDefault,
   onChange,
   onNext,
   onReset,
@@ -230,12 +236,26 @@ export default function ConditionWizardStep1({
           </ProgressiveSlot>
         ) : null}
 
-        <div className={MOBILE_FIXED_ACTIONS}>
+        <div className={`${MOBILE_FIXED_ACTIONS} flex flex-col gap-2`}>
+          {isLoggedIn && hasSavedConditionPreset && isConditionDirty && onRestoreDefault ? (
+            <div className="sm:hidden flex items-center justify-between gap-2 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-2">
+              <p className="ob-typo-caption text-(--oboon-text-muted)">
+                저장된 기본 조건과 다릅니다.
+              </p>
+              <button
+                type="button"
+                onClick={onRestoreDefault}
+                className="shrink-0 ob-typo-caption font-medium text-(--oboon-primary) underline underline-offset-4 hover:opacity-70"
+              >
+                기본 조건으로
+              </button>
+            </div>
+          ) : null}
           <button
             type="button"
             disabled={!isReady}
             onClick={onNext}
-            className="h-full w-full rounded-full bg-(--oboon-primary) text-white ob-typo-button shadow-[0_12px_32px_rgba(0,0,0,0.35)] transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+            className="h-10 w-full rounded-full bg-(--oboon-primary) text-white ob-typo-button transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
           >
             다음 단계 →
           </button>
@@ -322,7 +342,21 @@ export default function ConditionWizardStep1({
         ) : null}
       </div>
 
-      <div className={`${FIXED_ACTIONS} rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-surface)/95 p-2 shadow-[0_12px_32px_rgba(0,0,0,0.35)] backdrop-blur`}>
+      <div className={`${FIXED_ACTIONS} flex flex-col gap-2 rounded-full bg-(--oboon-bg-surface)/95 p-2 backdrop-blur`}>
+        {isLoggedIn && hasSavedConditionPreset && isConditionDirty && onRestoreDefault ? (
+          <div className="sm:hidden flex items-center justify-between gap-2 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-2">
+            <p className="ob-typo-caption text-(--oboon-text-muted)">
+              저장된 기본 조건과 다릅니다.
+            </p>
+            <button
+              type="button"
+              onClick={onRestoreDefault}
+              className="shrink-0 ob-typo-caption font-medium text-(--oboon-primary) underline underline-offset-4 hover:opacity-70"
+            >
+              기본 조건으로
+            </button>
+          </div>
+        ) : null}
         <button
           type="button"
           disabled={!isReady}

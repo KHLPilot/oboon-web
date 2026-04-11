@@ -75,7 +75,7 @@ const FIXED_ACTIONS = [
   "sm:static sm:left-auto sm:right-auto sm:bottom-auto sm:z-auto sm:mt-auto",
 ].join(" ");
 
-const MOBILE_FIXED_ACTIONS = `${FIXED_ACTIONS} h-10`;
+const MOBILE_FIXED_ACTIONS = `${FIXED_ACTIONS} shadow-none`;
 
 function gradeColor(points: number, max: number): string {
   const pct = points / max;
@@ -196,6 +196,9 @@ type Props = {
   condition: RecommendationCondition;
   isLoggedIn: boolean;
   isAuthResolved?: boolean;
+  hasSavedConditionPreset?: boolean;
+  isConditionDirty?: boolean;
+  onRestoreDefault?: () => boolean;
   onChange: (patch: Partial<RecommendationCondition>) => void;
   onNext: () => void;
   onBack: () => void;
@@ -208,6 +211,9 @@ export default function ConditionWizardStep2({
   condition,
   isLoggedIn,
   isAuthResolved = true,
+  hasSavedConditionPreset = false,
+  isConditionDirty = false,
+  onRestoreDefault,
   onChange,
   onNext,
   onBack,
@@ -345,11 +351,11 @@ export default function ConditionWizardStep2({
           </div>
         </ProgressiveSlot>
 
-        <div className={`${MOBILE_FIXED_ACTIONS} flex gap-2`}>
+        <div className={`${MOBILE_FIXED_ACTIONS} flex flex-col gap-2 rounded-full bg-(--oboon-bg-surface)/95 p-2 backdrop-blur`}>
           <button
             type="button"
             onClick={onBack}
-            className="h-full flex-1 rounded-full border border-(--oboon-border-default) ob-typo-button text-(--oboon-text-muted)"
+            className="h-10 flex-1 rounded-full border border-(--oboon-border-default) ob-typo-button text-(--oboon-text-muted)"
           >
             이전
           </button>
@@ -357,7 +363,7 @@ export default function ConditionWizardStep2({
             type="button"
             disabled={!isReady}
             onClick={onNext}
-            className="h-full flex-1 rounded-full bg-(--oboon-primary) text-white ob-typo-button disabled:cursor-not-allowed disabled:opacity-40"
+            className="h-10 flex-1 rounded-full bg-(--oboon-primary) text-white ob-typo-button disabled:cursor-not-allowed disabled:opacity-40"
           >
             다음
           </button>
@@ -435,7 +441,21 @@ export default function ConditionWizardStep2({
           </div>
         </div>
 
-        <div className={MOBILE_FIXED_ACTIONS}>
+        <div className={`${MOBILE_FIXED_ACTIONS} flex flex-col gap-2 rounded-full bg-(--oboon-bg-surface)/95 p-2 backdrop-blur`}>
+          {isLoggedIn && hasSavedConditionPreset && isConditionDirty && onRestoreDefault ? (
+            <div className="sm:hidden flex items-center justify-between gap-2 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-2">
+              <p className="ob-typo-caption text-(--oboon-text-muted)">
+                저장된 기본 조건과 다릅니다.
+              </p>
+              <button
+                type="button"
+                onClick={onRestoreDefault}
+                className="shrink-0 ob-typo-caption font-medium text-(--oboon-primary) underline underline-offset-4 hover:opacity-70"
+              >
+                기본 조건으로
+              </button>
+            </div>
+          ) : null}
           <div className="flex h-full gap-2">
             <button
               type="button"
@@ -624,11 +644,26 @@ export default function ConditionWizardStep2({
           </div>
         ) : null}
 
-        <div className={`${MOBILE_FIXED_ACTIONS} flex gap-2`}>
+      <div className={`${MOBILE_FIXED_ACTIONS} flex flex-col gap-2`}>
+        {isLoggedIn && hasSavedConditionPreset && isConditionDirty && onRestoreDefault ? (
+          <div className="sm:hidden flex items-center justify-between gap-2 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-2">
+            <p className="ob-typo-caption text-(--oboon-text-muted)">
+              저장된 기본 조건과 다릅니다.
+            </p>
+            <button
+              type="button"
+              onClick={onRestoreDefault}
+              className="shrink-0 ob-typo-caption font-medium text-(--oboon-primary) underline underline-offset-4 hover:opacity-70"
+            >
+              기본 조건으로
+            </button>
+          </div>
+      ) : null}
+        <div className="flex gap-2">
           <button
             type="button"
             onClick={onBack}
-            className="h-full flex-1 rounded-full border border-(--oboon-border-default) ob-typo-button text-(--oboon-text-muted)"
+            className="h-10 flex-1 rounded-full border border-(--oboon-border-default) ob-typo-button text-(--oboon-text-muted)"
           >
             이전
           </button>
@@ -636,11 +671,12 @@ export default function ConditionWizardStep2({
             type="button"
             disabled={!isReady}
             onClick={onNext}
-            className="h-full flex-1 rounded-full bg-(--oboon-primary) text-white ob-typo-button disabled:cursor-not-allowed disabled:opacity-40"
+            className="h-10 flex-1 rounded-full bg-(--oboon-primary) text-white ob-typo-button disabled:cursor-not-allowed disabled:opacity-40"
           >
             다음 단계 →
           </button>
         </div>
+      </div>
       </div>
     );
   }
@@ -836,11 +872,11 @@ export default function ConditionWizardStep2({
         )}
       </div>
 
-      <div className={`${MOBILE_FIXED_ACTIONS} flex gap-2`}>
+      <div className={`${MOBILE_FIXED_ACTIONS} flex flex-col gap-2 rounded-full bg-(--oboon-bg-surface)/95 p-2 backdrop-blur`}>
         <button
           type="button"
           onClick={onBack}
-          className="h-full flex-1 rounded-full border border-(--oboon-border-default) ob-typo-button text-(--oboon-text-muted)"
+          className="h-10 flex-1 rounded-full border border-(--oboon-border-default) ob-typo-button text-(--oboon-text-muted)"
         >
           이전
         </button>
@@ -848,7 +884,7 @@ export default function ConditionWizardStep2({
           type="button"
           disabled={!isReady}
           onClick={onNext}
-          className="h-full flex-1 rounded-full bg-(--oboon-primary) text-white ob-typo-button disabled:cursor-not-allowed disabled:opacity-40"
+          className="h-10 flex-1 rounded-full bg-(--oboon-primary) text-white ob-typo-button disabled:cursor-not-allowed disabled:opacity-40"
         >
           다음 단계 →
         </button>

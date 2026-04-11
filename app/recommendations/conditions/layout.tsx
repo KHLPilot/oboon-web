@@ -36,6 +36,7 @@ export default function ConditionsLayout({
   const pathname = usePathname();
   const router = useRouter();
   const isStepRoute = pathname.startsWith("/recommendations/conditions/step/");
+  const isDoneRoute = pathname.endsWith("/done");
   const step = resolveStep(pathname);
   const backPath = resolveBackPath(pathname);
 
@@ -83,7 +84,9 @@ export default function ConditionsLayout({
     <div
       className={cn(
         "bg-(--oboon-bg-page)",
-        isStepRoute ? "flex h-[100dvh] flex-col overflow-hidden" : "min-h-[100dvh]",
+        isStepRoute || isDoneRoute
+          ? "flex h-[100dvh] flex-col overflow-hidden"
+          : "min-h-[100dvh]",
       )}
     >
       <div className="shrink-0 bg-(--oboon-bg-surface)/95 backdrop-blur">
@@ -113,10 +116,17 @@ export default function ConditionsLayout({
         className={cn(
           isStepRoute
             ? "flex min-h-0 flex-1 !pt-4 sm:!pt-4 !pb-[calc(env(safe-area-inset-bottom)+5.5rem)] sm:!pb-4"
+            : isDoneRoute
+              ? "relative flex min-h-0 flex-1 !pt-0 !pb-0"
             : "pt-6 sm:pt-10 md:pt-10 pb-8 sm:pb-10",
         )}
       >
-        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
+        <div
+          className={cn(
+            "flex min-h-0 flex-1 flex-col gap-2 overflow-hidden",
+            isDoneRoute ? "justify-center" : "",
+          )}
+        >
           {children}
         </div>
       </PageContainer>

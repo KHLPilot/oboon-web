@@ -25,6 +25,9 @@ import {
   saveConditionSession,
   type ConditionSessionSnapshot,
 } from "@/features/condition-validation/lib/sessionCondition";
+import {
+  consumeRecommendationPrefetchCache,
+} from "@/features/recommendations/lib/recommendationPrefetchCache";
 import { pickLoggedInConditionSource } from "@/features/condition-validation/lib/conditionSourcePolicy";
 import { shouldAutoEvaluateRecommendations } from "@/features/recommendations/lib/recommendation-evaluation";
 import {
@@ -1068,8 +1071,16 @@ export function useRecommendations() {
               )
             : sanitizeGuestCondition(DEFAULT_CONDITION);
           setCondition(nextCondition);
+          const cachedRecommendations = consumeRecommendationPrefetchCache(
+            nextCondition,
+            false,
+          );
+          const hasCachedRecommendations = Boolean(cachedRecommendations);
+          if (hasCachedRecommendations) {
+            setRawRecommendations(cachedRecommendations as RawRecommendationItem[]);
+          }
           restoredConditionForAutoEvalRef.current = Boolean(sessionSnapshot);
-          autoEvaluatedOnEntryRef.current = false;
+          autoEvaluatedOnEntryRef.current = hasCachedRecommendations;
         }
       } else {
         // 저장된 조건 불러오기
@@ -1130,22 +1141,28 @@ export function useRecommendations() {
             hasSession: Boolean(sessionSnapshot),
           });
 
-          setCondition((prev) => {
-            const next =
-              source === "profile"
-                ? conditionFromProfile(p, prev)
-                : source === "request" && latestRequest
-                  ? conditionFromRequest(latestRequest, prev)
-                  : source === "draft" && draftSnapshot
-                    ? normalizeInputCondition(conditionFromSession(draftSnapshot, prev))
-                    : source === "session" && sessionSnapshot
-                      ? conditionFromSession(sessionSnapshot, prev)
-                      : prev;
-
-            return normalizeInputCondition(next);
-          });
+          const nextCondition = normalizeInputCondition(
+            source === "profile"
+              ? conditionFromProfile(p, DEFAULT_CONDITION)
+              : source === "request" && latestRequest
+                ? conditionFromRequest(latestRequest, DEFAULT_CONDITION)
+                : source === "draft" && draftSnapshot
+                  ? normalizeInputCondition(conditionFromSession(draftSnapshot, DEFAULT_CONDITION))
+                  : source === "session" && sessionSnapshot
+                    ? conditionFromSession(sessionSnapshot, DEFAULT_CONDITION)
+                    : DEFAULT_CONDITION,
+          );
+          setCondition(nextCondition);
+          const cachedRecommendations = consumeRecommendationPrefetchCache(
+            nextCondition,
+            true,
+          );
+          const hasCachedRecommendations = Boolean(cachedRecommendations);
+          if (hasCachedRecommendations) {
+            setRawRecommendations(cachedRecommendations as RawRecommendationItem[]);
+          }
           restoredConditionForAutoEvalRef.current = source !== "default";
-          autoEvaluatedOnEntryRef.current = false;
+          autoEvaluatedOnEntryRef.current = hasCachedRecommendations;
 
           if (useProfile) {
             setSavedConditionPreset((prev) =>

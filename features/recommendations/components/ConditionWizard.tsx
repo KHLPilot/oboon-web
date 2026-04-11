@@ -15,6 +15,7 @@ type Props = {
   isLoggedIn?: boolean;
   hasSavedConditionPreset?: boolean;
   isConditionDirty?: boolean;
+  onRestoreDefault?: () => boolean;
   onChange: (patch: Partial<RecommendationCondition>) => void;
   onEvaluate: (override?: RecommendationCondition) => void | Promise<boolean>;
   onSave?: () => void | Promise<boolean>;
@@ -35,6 +36,7 @@ export default function ConditionWizard({
   isLoggedIn = true,
   hasSavedConditionPreset = false,
   isConditionDirty = false,
+  onRestoreDefault,
   onChange,
   onEvaluate,
   onSave,
@@ -132,6 +134,9 @@ export default function ConditionWizard({
             <ConditionWizardStep1
               condition={condition}
               isLoggedIn={isLoggedIn}
+              hasSavedConditionPreset={hasSavedConditionPreset}
+              isConditionDirty={isConditionDirty}
+              onRestoreDefault={onRestoreDefault}
               onChange={onChange}
               onNext={() => handleNext(0)}
               onReset={handleReset}
@@ -141,6 +146,9 @@ export default function ConditionWizard({
             <ConditionWizardStep2
               condition={condition}
               isLoggedIn={isLoggedIn}
+              hasSavedConditionPreset={hasSavedConditionPreset}
+              isConditionDirty={isConditionDirty}
+              onRestoreDefault={onRestoreDefault}
               onChange={onChange}
               onNext={() => handleNext(1)}
               onBack={() => setCurrentStep(0)}
@@ -152,6 +160,9 @@ export default function ConditionWizard({
             <ConditionWizardStep3
               condition={condition}
               isLoggedIn={isLoggedIn}
+              hasSavedConditionPreset={hasSavedConditionPreset}
+              isConditionDirty={isConditionDirty}
+              onRestoreDefault={onRestoreDefault}
               onChange={onChange}
               onBack={() => setCurrentStep(1)}
               onFinish={() => void handleFinish()}

@@ -1165,6 +1165,7 @@ export default function ConditionValidationCard({
             isLoggedIn={isLoggedIn}
             hasSavedConditionPreset={hasSavedConditionPreset}
             isConditionDirty={isConditionDirty}
+            onRestoreDefault={handleRestoreDefaultCondition}
             isLoading={isLoggedIn ? loading : guestLoading}
             isSaving={saveLoading}
             onChange={handleWizardChange}

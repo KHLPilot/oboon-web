@@ -2338,6 +2338,7 @@ export default function HomeOfferingsSection() {
               isLoggedIn={isLoggedIn !== false}
               hasSavedConditionPreset={hasSavedConditionPreset}
               isConditionDirty={isConditionDirty}
+              onRestoreDefault={handleRestoreDefaultCondition}
               evaluateOnFinish
               isLoading={conditionApplyLoading}
               isSaving={conditionSaveLoading}

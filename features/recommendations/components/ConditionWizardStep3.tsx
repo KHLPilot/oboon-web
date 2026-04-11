@@ -55,7 +55,7 @@ const FIXED_ACTIONS = [
   "sm:static sm:left-auto sm:right-auto sm:bottom-auto sm:z-auto sm:mt-auto",
 ].join(" ");
 
-const MOBILE_FIXED_ACTIONS = `${FIXED_ACTIONS} h-10`;
+const MOBILE_FIXED_ACTIONS = `${FIXED_ACTIONS} shadow-none`;
 
 function ProgressiveSlot({
   visible,
@@ -98,6 +98,9 @@ type Props = {
   condition: RecommendationCondition;
   isLoggedIn: boolean;
   isAuthResolved?: boolean;
+  hasSavedConditionPreset?: boolean;
+  isConditionDirty?: boolean;
+  onRestoreDefault?: () => boolean;
   onChange: (patch: Partial<RecommendationCondition>) => void;
   onBack: () => void;
   onFinish: () => void;
@@ -116,6 +119,9 @@ export default function ConditionWizardStep3({
   condition,
   isLoggedIn,
   isAuthResolved = true,
+  hasSavedConditionPreset = false,
+  isConditionDirty = false,
+  onRestoreDefault,
   onChange,
   onBack,
   onFinish,
@@ -243,12 +249,27 @@ export default function ConditionWizardStep3({
           </div>
         </ProgressiveSlot>
 
-        <div className={`${MOBILE_FIXED_ACTIONS} flex gap-2`}>
+        <div className={`${MOBILE_FIXED_ACTIONS} flex flex-col gap-2`}>
+          {isLoggedIn && hasSavedConditionPreset && isConditionDirty && onRestoreDefault ? (
+            <div className="sm:hidden flex items-center justify-between gap-2 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-2">
+              <p className="ob-typo-caption text-(--oboon-text-muted)">
+                저장된 기본 조건과 다릅니다.
+              </p>
+              <button
+                type="button"
+                onClick={onRestoreDefault}
+                className="shrink-0 ob-typo-caption font-medium text-(--oboon-primary) underline underline-offset-4 hover:opacity-70"
+              >
+                기본 조건으로
+              </button>
+            </div>
+          ) : null}
+        <div className="flex gap-2">
           <button
             type="button"
             onClick={onBack}
             disabled={isFinishing}
-            className="h-full flex-1 rounded-full border border-(--oboon-border-default) ob-typo-button text-(--oboon-text-muted) disabled:cursor-not-allowed disabled:opacity-40"
+            className="h-10 flex-1 rounded-full border border-(--oboon-border-default) ob-typo-button text-(--oboon-text-muted) disabled:cursor-not-allowed disabled:opacity-40"
           >
             이전
           </button>
@@ -256,7 +277,7 @@ export default function ConditionWizardStep3({
             type="button"
             disabled={!isReady || isFinishing}
             onClick={onFinish}
-            className="inline-flex h-full flex-1 items-center justify-center gap-2 rounded-full bg-(--oboon-primary) text-white ob-typo-button disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-(--oboon-primary) text-white ob-typo-button disabled:cursor-not-allowed disabled:opacity-40"
           >
             {isFinishing ? (
               <>
@@ -271,6 +292,7 @@ export default function ConditionWizardStep3({
             )}
           </button>
         </div>
+      </div>
       </div>
     );
   }
@@ -394,43 +416,59 @@ export default function ConditionWizardStep3({
         </div>
       ) : null}
 
-      <div className={`${MOBILE_FIXED_ACTIONS} flex gap-2`}>
-        <button
-          type="button"
-          onClick={onBack}
-          disabled={isFinishing}
-          className="h-full flex-1 rounded-full border border-(--oboon-border-default) ob-typo-button text-(--oboon-text-muted) disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          이전
-        </button>
-        {saveLabel && onSave ? (
+      <div className={`${MOBILE_FIXED_ACTIONS} flex flex-col gap-2`}>
+        {isLoggedIn && hasSavedConditionPreset && isConditionDirty && onRestoreDefault ? (
+          <div className="sm:hidden flex items-center justify-between gap-2 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-2">
+            <p className="ob-typo-caption text-(--oboon-text-muted)">
+              저장된 기본 조건과 다릅니다.
+            </p>
+            <button
+              type="button"
+              onClick={onRestoreDefault}
+              className="shrink-0 ob-typo-caption font-medium text-(--oboon-primary) underline underline-offset-4 hover:opacity-70"
+            >
+              기본 조건으로
+            </button>
+          </div>
+        ) : null}
+        <div className="flex gap-2">
           <button
             type="button"
-            disabled={isSaveDisabled || isSaving}
-            onClick={onSave}
-            className="h-full flex-1 rounded-full border border-(--oboon-border-default) ob-typo-button text-(--oboon-text-body) disabled:cursor-not-allowed disabled:opacity-40"
+            onClick={onBack}
+            disabled={isFinishing}
+            className="h-10 flex-1 rounded-full border border-(--oboon-border-default) ob-typo-button text-(--oboon-text-muted) disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {isSaving ? "저장 중..." : saveLabel}
+            이전
           </button>
-        ) : null}
-        <button
-          type="button"
-          disabled={!isReady || isFinishing}
-          onClick={onFinish}
-          className="inline-flex h-full flex-1 items-center justify-center gap-2 rounded-full bg-(--oboon-primary) text-white ob-typo-button disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {isFinishing ? (
-            <>
-              <span
-                aria-hidden="true"
-                className="inline-block h-4 w-4 rounded-full border-2 border-(--oboon-spinner-ring) border-t-(--oboon-spinner-head) animate-spin"
-              />
-              <span>{finishingLabel}</span>
-            </>
-          ) : (
-            finishLabel
-          )}
-        </button>
+          {saveLabel && onSave ? (
+            <button
+              type="button"
+              disabled={isSaveDisabled || isSaving}
+              onClick={onSave}
+              className="h-10 flex-1 rounded-full border border-(--oboon-border-default) ob-typo-button text-(--oboon-text-body) disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {isSaving ? "저장 중..." : saveLabel}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            disabled={!isReady || isFinishing}
+            onClick={onFinish}
+            className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-(--oboon-primary) text-white ob-typo-button disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {isFinishing ? (
+              <>
+                <span
+                  aria-hidden="true"
+                  className="inline-block h-4 w-4 rounded-full border-2 border-(--oboon-spinner-ring) border-t-(--oboon-spinner-head) animate-spin"
+                />
+                <span>{finishingLabel}</span>
+              </>
+            ) : (
+              finishLabel
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );

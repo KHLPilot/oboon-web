@@ -187,7 +187,8 @@ export default function Header() {
           "supports-backdrop-filter:backdrop-blur-md",
         ].join(" ")}
         style={{
-          borderColor: "var(--oboon-border-default)",
+          borderColor:
+            "color-mix(in srgb, var(--oboon-border-default) 45%, transparent)",
           height: HEADER_HEIGHT,
           paddingTop: "env(safe-area-inset-top)",
           backgroundColor:

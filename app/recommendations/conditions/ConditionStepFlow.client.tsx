@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
 
@@ -12,6 +12,7 @@ import {
   saveConditionSession,
   type ConditionSessionSnapshot,
 } from "@/features/condition-validation/lib/sessionCondition";
+import { saveRecommendationPrefetchCache } from "@/features/recommendations/lib/recommendationPrefetchCache";
 import ConditionWizardStep1 from "@/features/recommendations/components/ConditionWizardStep1";
 import ConditionWizardStep2 from "@/features/recommendations/components/ConditionWizardStep2";
 import ConditionWizardStep3 from "@/features/recommendations/components/ConditionWizardStep3";
@@ -19,10 +20,29 @@ import type { RecommendationCondition } from "@/features/recommendations/hooks/u
 import {
   createEmptyRecommendationCondition,
   creditGradeFromLtvInternalScore,
+  sanitizeGuestCondition,
 } from "@/features/condition-validation/domain/conditionState";
 
 const DEFAULT_CONDITION: RecommendationCondition =
   createEmptyRecommendationCondition();
+
+type SavedConditionPresetState = {
+  availableCash: number | null;
+  monthlyIncome: number | null;
+  monthlyExpenses: number | null;
+  employmentType: RecommendationCondition["employmentType"];
+  houseOwnership: RecommendationCondition["houseOwnership"];
+  purchasePurposeV2: RecommendationCondition["purchasePurposeV2"];
+  purchaseTiming: RecommendationCondition["purchaseTiming"];
+  moveinTiming: RecommendationCondition["moveinTiming"];
+  ltvInternalScore: number;
+  existingLoan: RecommendationCondition["existingLoan"];
+  recentDelinquency: RecommendationCondition["recentDelinquency"];
+  cardLoanUsage: RecommendationCondition["cardLoanUsage"];
+  loanRejection: RecommendationCondition["loanRejection"];
+  monthlyIncomeRange: RecommendationCondition["monthlyIncomeRange"];
+  existingMonthlyRepayment: RecommendationCondition["existingMonthlyRepayment"];
+};
 
 function conditionFromSession(
   snapshot: ConditionSessionSnapshot,
@@ -74,6 +94,58 @@ function saveCondition(nextCondition: RecommendationCondition) {
   saveConditionSession(buildConditionSession(nextCondition));
 }
 
+function buildSavedConditionPreset(
+  profile: SavedConditionPresetState | null,
+): RecommendationCondition | null {
+  if (!profile) return null;
+
+  return {
+    ...DEFAULT_CONDITION,
+    availableCash: profile.availableCash ?? 0,
+    monthlyIncome: profile.monthlyIncome ?? 0,
+    monthlyExpenses: profile.monthlyExpenses ?? 0,
+    employmentType: profile.employmentType,
+    houseOwnership: profile.houseOwnership,
+    purchasePurposeV2: profile.purchasePurposeV2,
+    purchaseTiming: profile.purchaseTiming,
+    moveinTiming: profile.moveinTiming,
+    ltvInternalScore: profile.ltvInternalScore,
+    creditGrade: creditGradeFromLtvInternalScore(profile.ltvInternalScore),
+    existingLoan: profile.existingLoan,
+    recentDelinquency: profile.recentDelinquency,
+    cardLoanUsage: profile.cardLoanUsage,
+    loanRejection: profile.loanRejection,
+    monthlyIncomeRange: profile.monthlyIncomeRange,
+    existingMonthlyRepayment: profile.existingMonthlyRepayment,
+    regions: [],
+  };
+}
+
+function isSameSavedCondition(
+  current: RecommendationCondition,
+  saved: RecommendationCondition | null,
+): boolean {
+  if (!saved) return false;
+
+  return (
+    current.availableCash === saved.availableCash &&
+    current.monthlyIncome === saved.monthlyIncome &&
+    current.monthlyExpenses === saved.monthlyExpenses &&
+    current.employmentType === saved.employmentType &&
+    current.houseOwnership === saved.houseOwnership &&
+    current.purchasePurposeV2 === saved.purchasePurposeV2 &&
+    current.purchaseTiming === saved.purchaseTiming &&
+    current.moveinTiming === saved.moveinTiming &&
+    current.ltvInternalScore === saved.ltvInternalScore &&
+    current.existingLoan === saved.existingLoan &&
+    current.recentDelinquency === saved.recentDelinquency &&
+    current.cardLoanUsage === saved.cardLoanUsage &&
+    current.loanRejection === saved.loanRejection &&
+    current.monthlyIncomeRange === saved.monthlyIncomeRange &&
+    current.existingMonthlyRepayment === saved.existingMonthlyRepayment
+  );
+}
+
 function resolveLoginNext(step: 1 | 2 | 3) {
   return `/recommendations/conditions/step/${step}`;
 }
@@ -91,6 +163,8 @@ export function ConditionStepFlow({ step, progressive = true }: StepFlowProps) {
   });
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isAuthResolved, setIsAuthResolved] = useState(false);
+  const [savedConditionPreset, setSavedConditionPreset] =
+    useState<RecommendationCondition | null>(null);
 
   useEffect(() => {
     const supabase = createSupabaseClient();
@@ -116,6 +190,86 @@ export function ConditionStepFlow({ step, progressive = true }: StepFlowProps) {
       listener.subscription.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (!isAuthResolved || !isLoggedIn) {
+      setSavedConditionPreset(null);
+      return;
+    }
+
+    const supabase = createSupabaseClient();
+    let alive = true;
+
+    async function loadSavedPreset() {
+      const { data: authData } = await supabase.auth.getUser();
+      const user = authData.user;
+      if (!alive || !user) {
+        setSavedConditionPreset(null);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .select(
+          "cv_available_cash_manwon, cv_monthly_income_manwon, cv_monthly_expenses_manwon, cv_employment_type, cv_house_ownership, cv_purchase_purpose_v2, cv_purchase_timing, cv_movein_timing, cv_ltv_internal_score, cv_existing_loan_amount, cv_recent_delinquency, cv_card_loan_usage, cv_loan_rejection, cv_monthly_income_range, cv_existing_monthly_repayment",
+        )
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (!alive || error || !data) {
+        setSavedConditionPreset(null);
+        return;
+      }
+
+      const hasAnyPreset =
+        data.cv_available_cash_manwon != null ||
+        data.cv_monthly_income_manwon != null ||
+        data.cv_monthly_expenses_manwon != null ||
+        data.cv_employment_type != null ||
+        data.cv_house_ownership != null ||
+        data.cv_purchase_purpose_v2 != null ||
+        data.cv_purchase_timing != null ||
+        data.cv_movein_timing != null ||
+        (data.cv_ltv_internal_score ?? 0) > 0 ||
+        data.cv_existing_loan_amount != null ||
+        data.cv_recent_delinquency != null ||
+        data.cv_card_loan_usage != null ||
+        data.cv_loan_rejection != null ||
+        data.cv_monthly_income_range != null ||
+        data.cv_existing_monthly_repayment != null;
+
+      if (!hasAnyPreset) {
+        setSavedConditionPreset(null);
+        return;
+      }
+
+      setSavedConditionPreset(
+        buildSavedConditionPreset({
+          availableCash: data.cv_available_cash_manwon ?? null,
+          monthlyIncome: data.cv_monthly_income_manwon ?? null,
+          monthlyExpenses: data.cv_monthly_expenses_manwon ?? null,
+          employmentType: data.cv_employment_type ?? null,
+          houseOwnership: data.cv_house_ownership ?? null,
+          purchasePurposeV2: data.cv_purchase_purpose_v2 ?? null,
+          purchaseTiming: data.cv_purchase_timing ?? null,
+          moveinTiming: data.cv_movein_timing ?? null,
+          ltvInternalScore: data.cv_ltv_internal_score ?? 0,
+          existingLoan: data.cv_existing_loan_amount ?? null,
+          recentDelinquency: data.cv_recent_delinquency ?? null,
+          cardLoanUsage: data.cv_card_loan_usage ?? null,
+          loanRejection: data.cv_loan_rejection ?? null,
+          monthlyIncomeRange: data.cv_monthly_income_range ?? null,
+          existingMonthlyRepayment: data.cv_existing_monthly_repayment ?? null,
+        }),
+      );
+    }
+
+    void loadSavedPreset();
+
+    return () => {
+      alive = false;
+    };
+  }, [isAuthResolved, isLoggedIn]);
 
   const handleChange = useCallback((patch: Partial<RecommendationCondition>) => {
     setCondition((prev) => {
@@ -136,11 +290,28 @@ export function ConditionStepFlow({ step, progressive = true }: StepFlowProps) {
     router.push(`/auth/login?next=${encodeURIComponent(resolveLoginNext(step))}`);
   }, [condition, router, step]);
 
+  const isConditionDirty = useMemo(
+    () => !isSameSavedCondition(condition, savedConditionPreset),
+    [condition, savedConditionPreset],
+  );
+
+  const hasSavedConditionPreset = savedConditionPreset !== null;
+
+  const handleRestoreDefaultCondition = useCallback(() => {
+    if (!savedConditionPreset) return false;
+    setCondition(savedConditionPreset);
+    saveCondition(savedConditionPreset);
+    return true;
+  }, [savedConditionPreset]);
+
   if (step === 1) {
     return (
       <ConditionWizardStep1
         condition={condition}
         isLoggedIn={isLoggedIn}
+        hasSavedConditionPreset={hasSavedConditionPreset}
+        isConditionDirty={isConditionDirty}
+        onRestoreDefault={handleRestoreDefaultCondition}
         onChange={handleChange}
         onNext={() => router.push("/recommendations/conditions/step/2")}
         onReset={handleReset}
@@ -155,6 +326,9 @@ export function ConditionStepFlow({ step, progressive = true }: StepFlowProps) {
         condition={condition}
         isLoggedIn={isLoggedIn}
         isAuthResolved={isAuthResolved}
+        hasSavedConditionPreset={hasSavedConditionPreset}
+        isConditionDirty={isConditionDirty}
+        onRestoreDefault={handleRestoreDefaultCondition}
         onChange={handleChange}
         onNext={() => router.push("/recommendations/conditions/step/3")}
         onBack={() => router.push("/recommendations/conditions/step/1")}
@@ -170,6 +344,9 @@ export function ConditionStepFlow({ step, progressive = true }: StepFlowProps) {
       condition={condition}
       isLoggedIn={isLoggedIn}
       isAuthResolved={isAuthResolved}
+      hasSavedConditionPreset={hasSavedConditionPreset}
+      isConditionDirty={isConditionDirty}
+      onRestoreDefault={handleRestoreDefaultCondition}
       onChange={handleChange}
       onBack={() => router.push("/recommendations/conditions/step/2")}
       onFinish={() => router.push("/recommendations/conditions/done")}
@@ -181,41 +358,28 @@ export function ConditionStepFlow({ step, progressive = true }: StepFlowProps) {
 }
 
 type DoneFlowProps = {
-  onSaved?: () => void;
 };
 
-function buildProfilePayload(condition: RecommendationCondition) {
-  return {
-    cv_available_cash_manwon: condition.availableCash || null,
-    cv_monthly_income_manwon: condition.monthlyIncome || null,
-    cv_employment_type: condition.employmentType,
-    cv_monthly_expenses_manwon: condition.monthlyExpenses || null,
-    cv_house_ownership: condition.houseOwnership,
-    cv_purchase_purpose_v2: condition.purchasePurposeV2,
-    cv_purchase_timing: condition.purchaseTiming,
-    cv_movein_timing: condition.moveinTiming,
-    cv_ltv_internal_score: condition.ltvInternalScore > 0 ? condition.ltvInternalScore : null,
-    cv_existing_loan_amount: condition.existingLoan,
-    cv_recent_delinquency: condition.recentDelinquency,
-    cv_card_loan_usage: condition.cardLoanUsage,
-    cv_loan_rejection: condition.loanRejection,
-    cv_monthly_income_range: condition.monthlyIncomeRange,
-    cv_existing_monthly_repayment: condition.existingMonthlyRepayment,
-  };
-}
-
-export function ConditionDoneFlow({ onSaved }: DoneFlowProps) {
+export function ConditionDoneFlow(_props: DoneFlowProps) {
   const router = useRouter();
-  const [condition] = useState<RecommendationCondition | null>(() => {
-    const snapshot = loadConditionSession();
-    return snapshot ? conditionFromSession(snapshot) : null;
-  });
+  const [condition, setCondition] = useState<RecommendationCondition | null>(null);
+  const [hasLoadedCondition, setHasLoadedCondition] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const [isAuthResolved, setIsAuthResolved] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const autoRedirectTimerRef = useRef<number | null>(null);
+  const prefetchAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
+    const snapshot = loadConditionSession();
+    setCondition(snapshot ? conditionFromSession(snapshot) : null);
+    setHasLoadedCondition(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hasLoadedCondition) return;
+
     if (!condition) {
       router.replace("/recommendations/conditions/step/1");
       return;
@@ -228,6 +392,7 @@ export function ConditionDoneFlow({ onSaved }: DoneFlowProps) {
       const { data } = await supabase.auth.getUser();
       if (!alive) return;
       setIsLoggedIn(Boolean(data.user));
+      setIsAuthResolved(true);
     }
 
     void loadAuth();
@@ -235,106 +400,160 @@ export function ConditionDoneFlow({ onSaved }: DoneFlowProps) {
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!alive) return;
       setIsLoggedIn(Boolean(session?.user));
+      setIsAuthResolved(true);
     });
 
     return () => {
       alive = false;
       listener.subscription.unsubscribe();
     };
-  }, [condition, router]);
+  }, [condition, hasLoadedCondition, router]);
 
   useEffect(() => {
-    if (!condition || !isLoggedIn || isFinished || isSaving) return;
+    if (!hasLoadedCondition || !isAuthResolved || isLoggedIn) return;
+    setIsFinished(true);
+  }, [hasLoadedCondition, isAuthResolved, isLoggedIn]);
 
+  useEffect(() => {
+    if (!hasLoadedCondition || !isAuthResolved || !condition || isFinished) return;
+    setIsFinished(true);
+  }, [condition, hasLoadedCondition, isAuthResolved, isFinished]);
+
+  useEffect(() => {
+    if (!hasLoadedCondition || !isAuthResolved || !condition) return;
+
+    prefetchAbortRef.current?.abort();
+    const controller = new AbortController();
+    prefetchAbortRef.current = controller;
     let alive = true;
-    const supabase = createSupabaseClient();
-    const currentCondition = condition;
 
-    async function persistProfile() {
-      setIsSaving(true);
-      setErrorMessage(null);
+    async function prefetchRecommendations() {
+      const prefetchCondition = isLoggedIn
+        ? condition
+        : sanitizeGuestCondition(condition);
+      const resolvedCreditGrade =
+        prefetchCondition.creditGrade ??
+        creditGradeFromLtvInternalScore(prefetchCondition.ltvInternalScore);
+      if (resolvedCreditGrade === null) return;
 
       try {
-        const { data: authData } = await supabase.auth.getUser();
-        const user = authData.user;
-        if (!user) {
-          if (alive) setIsFinished(true);
+        const response = await fetch("/api/condition-validation/recommend", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          signal: controller.signal,
+          body: JSON.stringify({
+            customer: {
+              available_cash: prefetchCondition.availableCash,
+              monthly_income: prefetchCondition.monthlyIncome,
+              credit_grade: resolvedCreditGrade,
+              monthly_expenses: prefetchCondition.monthlyExpenses,
+              employment_type: prefetchCondition.employmentType ?? "employee",
+              house_ownership: prefetchCondition.houseOwnership ?? "none",
+              purchase_purpose_v2: prefetchCondition.purchasePurposeV2 ?? "residence",
+              purchase_timing: prefetchCondition.purchaseTiming ?? "over_1year",
+              movein_timing: prefetchCondition.moveinTiming ?? "anytime",
+              ltv_internal_score: prefetchCondition.ltvInternalScore,
+              existing_monthly_repayment:
+                prefetchCondition.existingMonthlyRepayment ?? "none",
+            },
+            options: {
+              guest_mode: !isLoggedIn,
+              include_red: false,
+              limit: 60,
+            },
+          }),
+        });
+
+        const payload = (await response.json().catch(() => null)) as
+          | { ok?: boolean; recommendations?: unknown[] }
+          | null;
+
+        if (
+          !alive ||
+          controller.signal.aborted ||
+          !response.ok ||
+          !payload?.ok ||
+          !Array.isArray(payload.recommendations)
+        ) {
           return;
         }
 
-        const { error } = await supabase
-          .from("profiles")
-          .update(buildProfilePayload(currentCondition))
-          .eq("id", user.id)
-          .select("id");
-
-        if (error) {
-          throw error;
-        }
-
-        if (alive) {
-          setIsFinished(true);
-          onSaved?.();
-        }
-      } catch (error) {
-        if (!alive) return;
-        setErrorMessage(
-          error instanceof Error && error.message
-            ? error.message
-            : "조건 저장에 실패했습니다.",
+        saveRecommendationPrefetchCache(
+          prefetchCondition,
+          isLoggedIn,
+          payload.recommendations,
         );
-        setIsFinished(true);
-      } finally {
-        if (alive) setIsSaving(false);
+      } catch {
+        // Prefetch is best-effort only.
       }
     }
 
-    void persistProfile();
+    void prefetchRecommendations();
 
     return () => {
       alive = false;
+      controller.abort();
     };
-  }, [condition, isFinished, isLoggedIn, isSaving, onSaved]);
+  }, [condition, hasLoadedCondition, isAuthResolved, isLoggedIn]);
 
   useEffect(() => {
-    if (!condition || isSaving) return;
-    const timer = window.setTimeout(() => {
-      router.replace("/recommendations");
-    }, 3000);
-    return () => window.clearTimeout(timer);
-  }, [condition, isSaving, router]);
+    if (!condition || !hasLoadedCondition || !isAuthResolved || !isFinished) return;
 
-  if (!condition) {
-    return null;
+    if (autoRedirectTimerRef.current !== null) {
+      window.clearTimeout(autoRedirectTimerRef.current);
+    }
+
+    autoRedirectTimerRef.current = window.setTimeout(() => {
+      window.location.replace("/recommendations");
+    }, 3000);
+
+    return () => {
+      if (autoRedirectTimerRef.current !== null) {
+        window.clearTimeout(autoRedirectTimerRef.current);
+        autoRedirectTimerRef.current = null;
+      }
+    };
+  }, [condition, hasLoadedCondition, isAuthResolved, isFinished]);
+
+  if (!hasLoadedCondition || !condition) {
+    return (
+      <div className="absolute inset-0 flex items-center justify-center px-4 text-center">
+        <div className="flex max-w-md flex-col items-center gap-4 -translate-y-6" aria-busy="true" />
+      </div>
+    );
   }
 
   return (
-    <div className="mx-auto flex max-w-md flex-col items-center justify-center gap-4 rounded-3xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-5 py-10 text-center shadow-sm">
-      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-(--oboon-primary)/10 text-(--oboon-primary)">
-        <Check className="h-7 w-7" />
-      </div>
-      <div className="space-y-1">
-        <div className="ob-typo-h2 text-(--oboon-text-title)">조건이 저장됐어요</div>
-        <p className="ob-typo-body text-(--oboon-text-muted)">
-          {isLoggedIn
-            ? "로그인된 계정 기준으로 맞춤 조건을 반영했습니다."
-            : "조건 입력은 저장됐고, 다음에도 이어서 사용할 수 있어요."}
+    <div className="absolute inset-0 flex items-center justify-center px-4 text-center">
+      <div className="flex max-w-md flex-col items-center gap-4 -translate-y-6">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-(--oboon-primary)/10 text-(--oboon-primary)">
+          <Check className="h-7 w-7" />
+        </div>
+        <div className="space-y-1">
+          <div className="ob-typo-h2 text-(--oboon-text-title)">조건이 입력되었어요</div>
+          <p className="ob-typo-body text-(--oboon-text-muted)">
+            {isLoggedIn
+              ? "로그인된 계정 기준으로 맞춤 조건을 반영했습니다."
+              : "조건 입력은 저장됐고, 다음에도 이어서 사용할 수 있어요."}
+          </p>
+          {errorMessage ? (
+            <p className="ob-typo-caption text-(--oboon-danger)">{errorMessage}</p>
+          ) : null}
+        </div>
+        <Button
+          type="button"
+          variant="primary"
+          shape="pill"
+          onClick={() => router.replace("/recommendations")}
+        >
+          추천 결과 보기
+        </Button>
+        <p className="ob-typo-caption text-(--oboon-text-muted)">
+          3초 뒤 자동으로 이동합니다.
         </p>
-        {errorMessage ? (
-          <p className="ob-typo-caption text-(--oboon-danger)">{errorMessage}</p>
-        ) : null}
       </div>
-      <Button
-        type="button"
-        variant="primary"
-        shape="pill"
-        onClick={() => router.replace("/recommendations")}
-      >
-        추천 결과 보기
-      </Button>
-      <p className="ob-typo-caption text-(--oboon-text-muted)">
-        3초 뒤 자동으로 이동합니다.
-      </p>
     </div>
   );
 }
