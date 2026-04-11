@@ -183,12 +183,12 @@ export default function Header() {
     <>
       <header
         className={[
-          "fixed top-0 left-0 right-0 z-100 border-b overflow-x-clip",
+          "fixed top-0 left-0 right-0 z-(--oboon-z-header) border-b overflow-x-clip",
           "supports-backdrop-filter:backdrop-blur-md",
         ].join(" ")}
         style={{
           borderColor: "var(--oboon-border-default)",
-          height: HEADER_HEIGHT,
+          minHeight: HEADER_HEIGHT,
           paddingTop: "env(safe-area-inset-top)",
           backgroundColor:
             "color-mix(in srgb, var(--oboon-bg-surface) 90%, transparent)",

@@ -66,7 +66,7 @@ function parseUploadMode(rawMode: FormDataEntryValue | null): UploadMode | null 
 }
 
 function isNumericId(value: string | null): value is string {
-  return Boolean(value) && /^\d+$/.test(value);
+  return typeof value === "string" && /^\d+$/.test(value);
 }
 
 function detectMimeType(bytes: Uint8Array): string | null {
