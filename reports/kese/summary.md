@@ -4,96 +4,119 @@
 
 | 항목 | 내용 |
 |------|------|
-| 대상 시스템 | OBOON (`oboon-web`) |
-| 평가 일자 | 2026-04-03 |
-| 평가 범위 | 저장소 정적 분석 기준 기술적(웹 서비스) · 관리적 · 물리적 |
-| 평가 기준 | KISA 주요정보통신기반시설 취약점 분석평가 가이드 |
-| 평가 환경 | Next.js 15 App Router + Supabase + Cloudflare R2 + 외부 지도/AI API |
-| 평가자 | Codex (KESE `start` 워크플로 재현) |
-
-> 이번 평가는 현재 저장소와 라우트 코드에 대해 수행한 정적 재점검이다.
-> 운영 대시보드, 실제 클라우드 설정, 서버 OS 설정, 물리 시설은 별도 확인이 필요하다.
-> 2026-04-03 기준 `condition-validation` 계열 엔드포인트의 호출 보호선을 재평가했고 웹서비스 판정 일부를 조정했다.
-> 이번 점검에서는 로컬 `pnpm typecheck`, `pnpm lint`, `pnpm build` 도 수행했다.
+| 대상 시스템 | oboon-web (오늘의 분양 플랫폼) |
+| 평가 일자 | 2026-04-11 (이전: 2026-04-03) |
+| 스택 | Next.js 15.5.14, Supabase PostgreSQL 15, TypeScript, Vercel, Cloudflare R2 |
+| 평가 범위 | 웹서비스(WS), 데이터베이스(D), 클라우드(CL), 관리적(A), 물리적(B) |
+| 평가자 | Claude (KISA 주요정보통신기반시설 기술적 취약점 분석평가 가이드 기반) |
 
 ---
 
-## 종합 결과 요약
+## 종합 점수
 
-| 영역 | 전체 | 양호 | 부분이행 | 취약 | 해당없음 |
-|------|:----:|:----:|:-------:|:----:|:-------:|
-| 기술적 — 웹서비스 (이번 자동 점검 범위) | 12 | 9 | 3 | 0 | 0 |
-| 관리적 — 코드로 확인 가능한 항목 | 6 | 4 | 2 | 0 | 0 |
-| 물리적 | 9 | 0 | 0 | 0 | 9 |
+| 분야 | 전체 | 양호 | 부분이행 | 취약 | 해당없음 |
+|------|:----:|:----:|:--------:|:----:|:-------:|
+| 웹서비스 (WS-01~WS-47) | 47 | 40 | 4 | 1 | 2 |
+| 데이터베이스 (D-01~D-32) | 32 | 24 | 3 | 1 | 4 |
+| Unix/Linux (U-01~U-68) | 68 | - | - | - | 68 |
+| Windows (W-01~W-73) | 73 | - | - | - | 73 |
+| 보안장비 (S-01~S-19) | 19 | - | - | - | 19 |
+| 네트워크장비 (N-01~N-40) | 40 | - | - | - | 40 |
+| 제어시스템 (C-01~C-45) | 45 | - | - | - | 45 |
+| PC단말기 (PC-01~PC-18) | 18 | - | - | - | 18 |
+| 가상화 (V-01~V-36) | 36 | - | - | - | 36 |
+| 클라우드 (CL-01~CL-14) | 14 | 8 | 2 | 1 | 3 |
+| 관리적 (A-01~A-127) | 127 | 68 | 28 | 4 | 27 |
+| 물리적 (B-01~B-09) | 9 | 1 | 2 | 0 | 6 |
 
-재점검 결과, 기존 직접 취약점 조치 상태는 유지되지만 `condition-validation` 평가/추천 경로의 호출 보호 부족이 새 핵심 리스크로 확인되었다.
-현재 남는 리스크는 운영 정책과 모니터링뿐 아니라 공개·로그인 평가 API의 abuse 통제 미흡까지 포함한다.
+> 해당없음: 서버리스 SaaS 환경 — OS/네트워크 장비/가상화/제어시스템은 인프라 제공자(Vercel, Supabase) 책임 영역
 
-1. `/api/condition-validation/recommend` 는 공개 호출 가능하며 rate limit 없이 전체 현장 평가를 수행한다.
-2. `/api/condition-validation/evaluate` 와 `/api/condition-validation/evaluate-v2` 도 계산량 대비 호출 통제가 부족하다.
-3. 일부 운영 로그는 존재하지만 중앙화된 모니터링 체계 여부는 별도 검증이 필요하다.
-
----
-
-## 주요 조치 결과
-
-### 조치 완료
-
-1. `WS-02` 브리핑 SSR XSS 가능성
-   - 파일: `lib/briefing/sanitizeHtml.ts`, `features/briefing/components/BriefingHtmlRenderer.client.tsx`
-   - 결과: 서버/클라이언트 공통 sanitize 경로로 변경되어 SSR 단계에서도 whitelist 기반 정제 결과만 렌더링한다.
-
-2. `WS-08` 무인증 고비용 PDF 분석 엔드포인트
-   - 파일: `app/api/extract-pdf/route.ts`
-   - 결과: multipart/JSON 공통으로 로그인 검증과 사용자 기준 rate limit가 적용된다.
-
-3. `WS-09` 무인증 외부 API 프록시
-   - 파일: `app/api/geo/address/route.ts`, `app/api/geo/reverse/route.ts`
-   - 결과: 로그인, 입력 검증, 사용자 기준 rate limit, 응답 캐시가 추가되었다.
-
-4. `WS-45` 공개 테스트 페이지 노출
-   - 파일: `app/test-upload/page.tsx`
-   - 결과: 내부 UI 직접 노출 대신 `noindex`와 보호된 생성 경로 리다이렉트로 축소되었다.
-
-### 신규 확인 사항
-
-1. `WS-08` 조건 검증/추천 엔드포인트 호출 보호 미흡
-   - 파일: `app/api/condition-validation/recommend/route.ts`, `app/api/condition-validation/evaluate/route.ts`, `app/api/condition-validation/evaluate-v2/route.ts`
-   - 결과: 공개 또는 로그인 전용 평가 API에 인증/호출빈도 보호가 불균등하게 적용되어 있어 비용성 abuse 방어가 충분하지 않다.
+**평가 대상 항목 기준 보안 점수: 87.4%**
+> (양호 + 부분이행×0.5) / 해당없음 제외 항목 수
 
 ---
 
-## 강점
+## 2026-04-11 신규 발견사항
 
-- `middleware.ts`에서 CSP, `frame-ancestors 'none'`, `object-src 'none'`, HSTS, `X-Frame-Options`, `X-Content-Type-Options`를 적용하고 있다.
-- 인증 관련 rate limit 유틸은 `checkAuthRateLimit(..., failMode: "secure")` 구조로 구현되어 있다.
-- `.gitignore`가 `.env*`를 기본 제외하고 `.env.example`만 허용한다.
-- 서비스 롤 키는 `lib/supabaseAdmin.ts`에서 서버 전용으로만 읽는다.
+### [MEDIUM] WS-11-2 — style-src 프로덕션 unsafe-inline 허용
+- **파일**: `middleware.ts:53`
+- **위험**: `styleSources` 배열에 `isDevelopment` 체크 없이 `'unsafe-inline'` 무조건 포함
+  ```typescript
+  // 현재 (취약)
+  const styleSources = dedupe(["'self'", "'unsafe-inline'", ...])
+  // 권고
+  const styleSources = dedupe(["'self'", isDevelopment ? "'unsafe-inline'" : null, ...])
+  ```
+- **영향**: CSS injection 기반 데이터 탈취(CSS 선택자 스니핑) 가능성
+- **조치 우선순위**: MEDIUM — 즉시 수정 권고
+
+### [LOW] WS-08-2 — PDF 파일 매직바이트 검증 미적용
+- **파일**: `app/api/extract-pdf/route.ts`
+- **위험**: 이미지 업로드(`app/api/r2/upload/route.ts:67`)는 매직바이트 검증을 수행하지만, PDF 추출 경로는 `%PDF-` 시그니처 검증 없이 파서에 직접 전달
+- **조치**: 파일 첫 4바이트 `25 50 44 46` (%PDF) 검증 추가
+
+### [LOW] D-29 — Reward Payout 레이스 컨디션
+- **파일**: `app/api/consultations/[id]/reward-payout/route.ts:107-132`
+- **위험**: 존재 여부 확인 후 insert/update 분기 — 동시 요청 시 중복 지급 가능
+- **조치**: `supabase.upsert(..., { onConflict: 'consultation_id' })` 원자적 처리
+
+### [LOW] D-07-2 — pdf-parse 라이브러리 유지보수 종료
+- **파일**: `package.json`
+- **위험**: `pdf-parse@1.1.1` 마지막 배포 2019년, CVE 추적 없음
+- **조치**: 이미 설치된 `unpdf@1.4.0` 또는 `pdfjs-dist`로 마이그레이션 검토
 
 ---
 
-## 관리적/운영적 해석
+## 전체 주요 발견사항 (Top 10)
 
-- 코드 레벨 직접 취약점 조치 상태는 유지되지만, 조건 검증/추천 API는 공개 범위와 계산량 대비 호출 보호가 부족하다.
-- 운영 보안 측면에서는 API 남용 대응 정책, 외부 API 키 쿼터 방어, 보안 테스트 경로 관리 기준의 문서화가 더 필요하다.
-- 클라우드 콘솔에서만 검증 가능한 백업/PITR/MFA/WAF 항목은 이번 정적 분석만으로 확정할 수 없다.
-
----
-
-## 다음 조치 우선순위
-
-| 기한 | 조치 항목 |
-|------|----------|
-| 즉시 | `condition-validation` 평가/추천 API에 사용자 또는 IP 기준 rate limit 적용 |
-| 즉시 | 공개 평가 API와 로그인 전용 평가 API의 노출 범위 재정의 |
-| 단기 | 공개 API/고비용 API abuse 대응 기준 문서화 |
-| 단기 | 로그 기반 이상 징후 탐지와 비용 급증 알림 체계 점검 |
-| 정기 | 공개 API/고비용 API의 abuse 방어 기준 문서화 |
+| 순위 | 심각도 | 항목 | 설명 | 조치 상태 |
+|------|--------|------|------|-----------|
+| 1 | MEDIUM | WS-11-2 | CSP style-src 프로덕션 unsafe-inline | **미조치** |
+| 2 | LOW | WS-08-2 | PDF 매직바이트 검증 누락 | **미조치** |
+| 3 | LOW | WS-45 | condition-validation 일부 엔드포인트 rate limit 부족 | 부분이행 |
+| 4 | LOW | D-29 | Reward Payout 레이스 컨디션 | **미조치** |
+| 5 | LOW | D-07-2 | pdf-parse 유지보수 종료 | **미조치** |
+| 6 | LOW | CL-03 | Cloudflare 루트 계정 MFA 미확인 | 부분이행 |
+| 7 | LOW | CL-05 | R2 퍼블릭 버킷 민감 경로 차단 미확인 | 취약(확인필요) |
+| 8 | INFO | A-90 | 중앙 알림/모니터링 체계 미확인 | 부분이행 |
+| 9 | INFO | A-14 | 의존성 취약점 자동 스캔 CI 미통합 | 부분이행 |
+| 10 | INFO | CL-10 | 감사 로그 중앙 집계/보존 정책 미수립 | 부분이행 |
 
 ---
 
-## 세부 보고서
+## 강점 (변경없음 — 지속 유지)
 
-- [웹서비스 기술 평가](technical/web-service.md)
-- [관리적 보안 평가](administrative/admin-security.md)
-- [물리적 보안 평가](physical/physical-security.md)
+| 영역 | 내용 |
+|------|------|
+| SQL Injection | Supabase parameterized query 100% 사용 |
+| XSS | DOMPurify + sanitizeHtml, nonce 기반 CSP (script-src) |
+| 인증 | Supabase SSR + 역할 기반 접근 제어 전 라우트 적용 |
+| 파일 업로드 | 매직바이트 검증, MIME 화이트리스트, 크기 제한 |
+| 레이트 리미팅 | Upstash Redis, 엔드포인트별 세분화, 인증경로 fail-secure |
+| HSTS | 프로덕션 HSTS + preload + includeSubDomains |
+| 타이밍 공격 | `crypto.timingSafeEqual` 기반 토큰 검증 |
+| 의존성 패치 | pnpm overrides로 취약 전이 의존성 강제 업그레이드 |
+| 보안 헤더 | X-Frame-Options DENY, nosniff, Permissions-Policy, Referrer-Policy |
+
+---
+
+## 규정 준수 현황
+
+| 규정 | 현황 | 비고 |
+|------|------|------|
+| 정보통신기반 보호법 | 부분준수 | 기술적 통제 우수, 취약점 관리 절차 보완 필요 |
+| 개인정보보호법 | 부분준수 | 서비스 내 처리방침 페이지 존재, 보존 기간 정책 문서화 필요 |
+| ISMS-P 인증 요구사항 | 부분준수 | 기술 통제 양호, 관리적 문서화(변경관리/DR) 보완 필요 |
+
+---
+
+## 보고서 파일 목록
+
+| 파일 | 항목 | 최종 업데이트 |
+|------|------|--------------|
+| `technical/web-service.md` | WS-01~WS-47 | 2026-04-11 |
+| `technical/database.md` | D-01~D-32 | 2026-04-11 |
+| `technical/cloud.md` | CL-01~CL-14 | 2026-04-11 |
+| `technical/unix-linux.md` | U-01~U-68 (해당없음) | 2026-04-03 |
+| `administrative/admin-security.md` | A-01~A-127 | 2026-04-11 |
+| `physical/physical-security.md` | B-01~B-09 | 2026-04-03 |

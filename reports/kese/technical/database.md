@@ -1,7 +1,7 @@
 # 데이터베이스 취약점 분석 (D-01 ~ D-32)
 
 > 평가 대상: OBOON oboon-web — Supabase Cloud (PostgreSQL 15)
-> 평가 일자: 2026-03-29
+> 평가 일자: 2026-04-11 (이전: 2026-03-29)
 
 ---
 
@@ -59,6 +59,7 @@
 | D-27 | 로그 접근 제어 | 양호 | Supabase 대시보드 역할 기반 접근 |
 | D-28 | 쿼리 로그 | 양호 | 느린 쿼리 로그 활성화 가능 (Supabase 대시보드) |
 | D-29 | DB 에러 메시지 외부 노출 | 양호 | `lib/api/route-error.ts`에서 DB 에러 정제 후 클라이언트 전달 |
+| D-29-2 | 레이스 컨디션 (Reward Payout) | **부분이행** | `app/api/consultations/[id]/reward-payout/route.ts:107-132` — 존재 확인 후 insert/update 분기. 동시 요청 시 중복 지급 가능. `upsert + onConflict` 원자적 처리 권고 |
 | D-30 | DDL 변경 이력 | 양호 | `supabase/migrations/` 타임스탬프 마이그레이션 파일로 이력 관리 |
 | D-31 | 불필요한 확장 기능 | 양호 | `postgis`, `uuid-ossp` 등 필요한 확장만 활성화 (마이그레이션 파일 확인) |
 | D-32 | DB 포트 노출 | 양호 | 직접 DB 포트 미노출, Supabase API/연결 풀러만 사용 |
@@ -72,5 +73,7 @@
 | MEDIUM | D-07 | 인벤토리 기준으로 공개/반공개 조회 라우트부터 authed client 전환 후보를 순차 검토 |
 | MEDIUM | D-21 | Supabase 대시보드에서 PITR 활성화 확인, 복구 테스트 주기 수립 |
 | MEDIUM | D-19 | 전화번호 등 민감 필드 암호화 필요성 검토 |
+| LOW | D-29-2 | `reward-payout` API `upsert + onConflict` 원자적 처리로 레이스 컨디션 제거 |
+| LOW | D-07-2 | `pdf-parse@1.1.1` → `unpdf`(이미 설치) 또는 `pdfjs-dist` 마이그레이션 검토 |
 | LOW | D-22 | 외부 로그 집계 도구(Datadog 등) 연동 검토 |
 | LOW | D-26 | 로그 보존 기간 정책 수립 (최소 1년 권고) |
