@@ -188,7 +188,7 @@ export default function Header() {
         ].join(" ")}
         style={{
           borderColor: "var(--oboon-border-default)",
-          minHeight: HEADER_HEIGHT,
+          height: HEADER_HEIGHT,
           paddingTop: "env(safe-area-inset-top)",
           backgroundColor:
             "color-mix(in srgb, var(--oboon-bg-surface) 90%, transparent)",

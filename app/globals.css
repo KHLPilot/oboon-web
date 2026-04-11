@@ -268,8 +268,10 @@ input[type="password"]::-webkit-contacts-auto-fill-button {
 
   /* Header sizing */
   --oboon-header-height: 64px;
+  --oboon-header-border-width: 1px;
   --oboon-header-offset: calc(
-    var(--oboon-header-height) + env(safe-area-inset-top)
+    var(--oboon-header-height) + env(safe-area-inset-top) +
+      var(--oboon-header-border-width)
   );
 }
 
