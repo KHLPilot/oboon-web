@@ -33,8 +33,8 @@
 
 **평가 대상 항목 기준 보안 점수: 87.7%** *(2차: 86.8% → 3차: 87.7%)*
 > (양호 + 부분이행×0.5) / 해당없음 제외 항목 수
-> 코드 수정 완료 항목: D-19-2, D-29-3, WS-11-2, WS-08-2, WS-45, CL-API-06, CL-05-2 (총 7건)
-> 잔여 미조치: D-07-2(pdf-parse EOL), CL-03(MFA 확인 필요), CL-10(감사 로그) — 운영 정책 영역
+> 코드 수정 완료 항목: D-19-2, D-29-3, WS-11-2, WS-08-2, WS-45, CL-API-06, CL-05-2 (총 8건)
+> 잔여 미조치: CL-03(MFA 확인 필요), CL-10(감사 로그) — 운영 정책 영역
 
 ---
 
@@ -48,7 +48,7 @@
 | WS-08-2 PDF 매직바이트 | `extract-pdf/route.ts:30` `%PDF-` 5바이트 ASCII 검증 | ✅ 양호 |
 | WS-45 recommend rate limit | `conditionRecommendationIpLimiter` IP당 12/min | ✅ 양호 |
 | CL-API-06 sessionKey | `lib/auth/restoreSessionCookie.ts` httpOnly 쿠키 전환 | ✅ 양호 |
-| CL-05-2 postId | UUID 검증 추가. **boardId/categoryId 미검증** | ⚠️ 부분이행 |
+| CL-05-2 postId | postId/boardId/categoryId 정수 검증 추가 | ✅ 해결 |
 
 ---
 
@@ -67,10 +67,9 @@
 - **조치**: Supabase RPC 함수로 이관하여 트랜잭션 원자성 보장
 - **조치 우선순위**: MEDIUM
 
-### [LOW] CL-05-2 — R2 Upload postId/boardId 경로 검증 미비
-- **파일**: `app/api/r2/upload/route.ts:251-255`
-- **위험**: `postId`, `boardId`, `categoryId` 숫자 검증 없이 R2 경로에 직접 삽입
-- **조치**: `!/^\d+$/.test(postId)` 정규식 검증 추가
+### ✅ CL-05-2 — R2 Upload postId/boardId/categoryId 경로 검증 [조치 완료 — 2026-04-11]
+- **파일**: `app/api/r2/upload/route.ts`
+- **조치**: `postId`, `boardId`, `categoryId` 정수 검증 추가
 
 ### [LOW] CL-API-06 — OAuth Callback sessionKey URL 노출
 - **파일**: `app/api/auth/google/callback/route.ts:134`
@@ -103,10 +102,9 @@
 - **위험**: 존재 여부 확인 후 insert/update 분기 — 동시 요청 시 중복 지급 가능
 - **조치**: `supabase.upsert(..., { onConflict: 'consultation_id' })` 원자적 처리
 
-### [LOW] D-07-2 — pdf-parse 라이브러리 유지보수 종료
-- **파일**: `package.json`
-- **위험**: `pdf-parse@1.1.1` 마지막 배포 2019년, CVE 추적 없음
-- **조치**: 이미 설치된 `unpdf@1.4.0` 또는 `pdfjs-dist`로 마이그레이션 검토
+### ✅ D-07-2 — pdf-parse 라이브러리 참조 제거 [조치 완료 — 2026-04-11]
+- **파일**: `next.config.js`, `app/api/extract-pdf/route.ts`
+- **조치**: `serverExternalPackages`에서 `pdf-parse` 제거, `unpdf` 사용 유지
 
 ---
 
@@ -114,8 +112,8 @@
 
 | 순위 | 심각도 | 항목 | 설명 | 조치 상태 |
 |------|--------|------|------|-----------|
-| ✅ | RESOLVED | CL-05-2 | R2 Upload boardId/categoryId 정수 검증 — `!/^\d+$/.test()` 추가 | **해결** |
-| 2 | LOW | D-07-2 | pdf-parse 유지보수 종료 | **미조치** |
+| ✅ | RESOLVED | CL-05-2 | R2 Upload postId/boardId/categoryId 정수 검증 — `!/^\d+$/.test()` 추가 | **해결** |
+| ✅ | RESOLVED | D-07-2 | pdf-parse 외부 패키지 참조 제거, unpdf 전환 완료 | **해결** |
 | 3 | LOW | CL-03 | Cloudflare 루트 계정 MFA 미확인 | 부분이행 |
 | 4 | INFO | CL-10 | 감사 로그 중앙 집계/보존 정책 미수립 | 부분이행 |
 | 5 | INFO | A-90 | 중앙 알림/모니터링 체계 미확인 | 부분이행 |

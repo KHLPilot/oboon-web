@@ -1137,7 +1137,7 @@ function extractDeveloperBuilderFromRawText(rawText: string): {
     }
   }
 
-  // pdf-parse가 표의 두 컬럼을 붙여버리는 케이스:
+  // PDF 파서가 표의 두 컬럼을 붙여버리는 케이스:
   // 예) "주식회사 엘앤피개발효성중공업 주식회사"
   if ((!developer || !builder) && /^주식회사\s+.+\s+주식회사$/.test(companyLine)) {
     const inner = companyLine
@@ -1349,7 +1349,7 @@ function extractUnitSupplyCountsFromRawText(
     if (rawValue == null || !Number.isFinite(rawValue)) return null;
     let value = Math.trunc(rawValue);
     if (value >= 100 && value <= 999) {
-      // pdf-parse 컬럼 병합으로 '279호'처럼 붙는 경우(=27호 + 9호) 보정
+      // 컬럼 병합으로 '279호'처럼 붙는 경우(=27호 + 9호) 보정
       value = Math.trunc(value / 10);
     }
     if (value < 1 || value > 300) return null;

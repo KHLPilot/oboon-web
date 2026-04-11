@@ -2,7 +2,7 @@
 const isProduction = process.env.NODE_ENV === "production";
 
 const nextConfig = {
-  serverExternalPackages: ['pdf-parse', '@napi-rs/canvas', 'unpdf'],
+  serverExternalPackages: ['@napi-rs/canvas', 'unpdf'],
   webpack: (config, { isServer }) => {
     if (isServer) {
       config.externals.push('@napi-rs/canvas');

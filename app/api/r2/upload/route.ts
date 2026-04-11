@@ -65,6 +65,10 @@ function parseUploadMode(rawMode: FormDataEntryValue | null): UploadMode | null 
     : null;
 }
 
+function isNumericId(value: string | null): value is string {
+  return Boolean(value) && /^\d+$/.test(value);
+}
+
 function detectMimeType(bytes: Uint8Array): string | null {
   if (bytes.length < 4) return null;
 
@@ -259,8 +263,11 @@ export async function POST(req: Request) {
     }
 
     if (mode === "briefing_cover") {
-      if (!postId) {
-        return NextResponse.json({ error: "postId required" }, { status: 400 });
+      if (!isNumericId(postId)) {
+        return NextResponse.json(
+          { error: "postId required (numeric)" },
+          { status: 400 },
+        );
       }
 
       const key = `briefing/posts/${postId}/cover.${ext}`;
@@ -271,8 +278,11 @@ export async function POST(req: Request) {
     }
 
     if (mode === "briefing_content") {
-      if (!postId) {
-        return NextResponse.json({ error: "postId required" }, { status: 400 });
+      if (!isNumericId(postId)) {
+        return NextResponse.json(
+          { error: "postId required (numeric)" },
+          { status: 400 },
+        );
       }
 
       const key = `briefing/posts/${postId}/content/${randomKeySegment()}.${ext}`;
@@ -283,7 +293,7 @@ export async function POST(req: Request) {
     }
 
     if (mode === "briefing_board_cover") {
-      if (!boardId || !/^\d+$/.test(boardId)) {
+      if (!isNumericId(boardId)) {
         return NextResponse.json({ error: "boardId required (numeric)" }, { status: 400 });
       }
 
@@ -295,7 +305,7 @@ export async function POST(req: Request) {
     }
 
     if (mode === "briefing_category_cover") {
-      if (!categoryId || !/^\d+$/.test(categoryId)) {
+      if (!isNumericId(categoryId)) {
         return NextResponse.json(
           { error: "categoryId required (numeric)" },
           { status: 400 },

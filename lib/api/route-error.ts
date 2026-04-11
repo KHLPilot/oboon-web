@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { AppError } from "@/lib/errors";
+import { redactLogContext } from "@/lib/security/redact";
 
 type Primitive = string | number | boolean | null | undefined;
 
@@ -85,7 +86,7 @@ function buildLogPayload(error: unknown, context?: SecureLogContext) {
 
   // context에는 PII, 토큰, 키를 넣지 않는다.
   if (context && Object.keys(context).length > 0) {
-    payload.context = context;
+    payload.context = redactLogContext(context);
   }
 
   return payload;

@@ -75,6 +75,6 @@
 | ✅ RESOLVED | D-29-3 | migration 108 atomic RPC 적용 완료 (2026-04-11) |
 | MEDIUM | D-07 | 인벤토리 기준으로 공개/반공개 조회 라우트부터 authed client 전환 후보를 순차 검토 |
 | MEDIUM | D-21 | Supabase 대시보드에서 PITR 활성화 확인, 복구 테스트 주기 수립 |
-| LOW | D-07-2 | `pdf-parse@1.1.1` → `unpdf`(이미 설치) 또는 `pdfjs-dist` 마이그레이션 검토 |
+| ✅ RESOLVED | D-07-2 | `pdf-parse` 외부 패키지 참조 제거, `unpdf` 사용으로 전환 완료 (2026-04-11) |
 | LOW | D-22 | 외부 로그 집계 도구(Datadog 등) 연동 검토 |
 | LOW | D-26 | 로그 보존 기간 정책 수립 (최소 1년 권고) |

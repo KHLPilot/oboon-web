@@ -143,6 +143,8 @@ if (error) {
 10. `dangerouslySetInnerHTML`이 필요한 경우 DOMPurify 또는 동등한 새니타이징을 적용한다.
 11. OAuth 토큰 교환 시 `client_secret`은 URL 쿼리에 넣지 않고 POST body로만 전송한다.
 12. `@/lib/supabaseAdmin` 을 새로 사용할 때는 `docs/reference/supabase-service-role-audit.md` 에 사용 사유를 남긴다.
+13. 새 비밀값이나 서버 전용 키를 추가할 때는 `docs/reference/secret-inventory.md` 를 갱신한다.
+14. 로그 redaction은 `lib/api/route-error.ts` / `lib/errors.ts` 공통 경로를 사용한다.
 
 ## 커밋 전 체크리스트
 
@@ -156,3 +158,5 @@ if (error) {
 - [ ] HTML 렌더링이 있다면 새니타이징이 적용됐는가?
 - [ ] OAuth secret이 URL에 포함되지 않았는가?
 - [ ] `service_role` 사용 시 audit 문서와 PR 설명에 이유를 남겼는가?
+- [ ] 새 비밀값은 `docs/reference/secret-inventory.md`에 반영했는가?
+- [ ] 민감 로그가 공통 redaction 경로를 거치도록 유지했는가?

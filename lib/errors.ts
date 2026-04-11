@@ -1,3 +1,5 @@
+import { redactLogContext } from "@/lib/security/redact";
+
 type Primitive = string | number | boolean | null | undefined;
 
 type SecureErrorContext = Record<string, Primitive>;
@@ -114,7 +116,7 @@ function buildErrorLogPayload(
   }
 
   if (context && Object.keys(context).length > 0) {
-    payload.context = context;
+    payload.context = redactLogContext(context);
   }
 
   return payload;

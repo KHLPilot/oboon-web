@@ -12,6 +12,8 @@
 - Service Role Key는 이 디렉토리에서만 사용 가능 (클라이언트 번들 노출 금지)
 - `cookies()` / `headers()` 사용 시 Next.js 빌드 충돌 가능성 항상 고려
 - 응답에 민감 정보(토큰, 개인정보, 서비스 키) 포함 금지
+- 새 서버 전용 비밀값은 `docs/reference/secret-inventory.md` 갱신 후 추가
+- 로그는 `lib/api/route-error.ts` / `lib/errors.ts` 공통 redaction 경로를 우선 사용
 
 ---
 
