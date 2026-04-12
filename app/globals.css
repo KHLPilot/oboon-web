@@ -275,6 +275,27 @@ input[type="password"]::-webkit-contacts-auto-fill-button {
   );
 }
 
+html[data-oboon-header-hidden="true"] {
+  --oboon-header-offset: 0px;
+}
+
+.oboon-header-shell {
+  border-bottom: 1px solid color-mix(
+    in srgb,
+    var(--oboon-border-default) 25%,
+    transparent
+  );
+  height: var(--oboon-header-offset);
+  padding-top: env(safe-area-inset-top);
+  background-color: color-mix(
+    in srgb,
+    var(--oboon-bg-surface) 90%,
+    transparent
+  );
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
 /* Light theme (if you use .light or data-theme="light") */
 :root[data-theme="light"],
 .light {

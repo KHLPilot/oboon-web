@@ -197,7 +197,9 @@ export function DropdownMenuContent({
       const spaceBelow = window.innerHeight - r.bottom - gap;
       const spaceAbove = r.top - gap;
       const openUpward = spaceBelow < 160 && spaceAbove > spaceBelow;
-      const menuWidth = matchTriggerWidth ? r.width : Math.min(r.width, viewportWidth - gap * 2);
+      const menuWidth = matchTriggerWidth
+        ? r.width
+        : Math.min(Math.max(r.width, 176), viewportWidth - gap * 2);
       const clampLeft = (value: number) =>
         Math.min(Math.max(value, gap), viewportWidth - menuWidth - gap);
 
@@ -305,7 +307,7 @@ export function DropdownMenuItem({
       type="button"
       role="menuitem"
       className={[
-        "w-full px-3 py-2 text-left rounded-xl ob-typo-body",
+        "w-full px-3 py-2 text-left rounded-xl ob-typo-body whitespace-nowrap",
         destructive
           ? "text-(--oboon-danger) hover:bg-(--oboon-danger-bg)"
           : "text-(--oboon-text-title) hover:bg-(--oboon-bg-subtle)/60",

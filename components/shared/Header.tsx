@@ -157,13 +157,13 @@ export default function Header() {
   useEffect(() => {
     const root = document.documentElement;
     if (isHidden) {
-      root.style.setProperty("--oboon-header-offset", "0px");
+      root.dataset.oboonHeaderHidden = "true";
     } else {
-      root.style.removeProperty("--oboon-header-offset");
+      delete root.dataset.oboonHeaderHidden;
     }
 
     return () => {
-      root.style.removeProperty("--oboon-header-offset");
+      delete root.dataset.oboonHeaderHidden;
     };
   }, [isHidden]);
 
@@ -176,42 +176,27 @@ export default function Header() {
     profileAvatarUrl ?? metadataAvatarUrl,
   );
 
-  // iOS safe-area 포함 헤더 총 높이(스페이서에 동일하게 사용)
-  const HEADER_HEIGHT = "var(--oboon-header-offset)";
-
   return (
     <>
       <header
         className={[
-          "sticky top-0 left-0 right-0 z-(--oboon-z-header) border-b overflow-x-clip",
+          "oboon-header-shell sticky top-0 left-0 right-0 z-(--oboon-z-header) overflow-x-clip",
           "supports-backdrop-filter:backdrop-blur-md",
         ].join(" ")}
-        style={{
-          borderColor:
-            "color-mix(in srgb, var(--oboon-border-default) 45%, transparent)",
-          height: HEADER_HEIGHT,
-          paddingTop: "env(safe-area-inset-top)",
-          backgroundColor:
-            "color-mix(in srgb, var(--oboon-bg-surface) 90%, transparent)",
-
-          WebkitBackdropFilter: "blur(12px)",
-          backdropFilter: "blur(12px)",
-        }}
       >
         <div className="mx-auto flex h-16 w-full max-w-240 lg:max-w-300 items-center justify-between px-4 sm:px-5 lg:px-8">
           <div className="min-w-0 flex items-center gap-6 lg:gap-10">
             {/* Logo */}
             <Link
               href="/"
-              className="shrink-0 flex items-center gap-1 ob-typo-h2"
-              style={{ color: "var(--oboon-text-title)" }}
+              className="shrink-0 flex items-center gap-1 ob-typo-h2 text-(--oboon-text-title)"
             >
               <span className="oboon-logo" aria-hidden />
               <span className="hidden xs:inline">OBOON</span>
             </Link>
 
             {/* Desktop nav */}
-            <nav className="mt-1.5 hidden min-w-0 items-center gap-6 lg:gap-8 ob-typo-nav md:flex">
+            <nav className="mt-1.5 hidden min-w-0 items-center gap-6 lg:gap-8 ob-typo-nav lg:flex">
               {NAV_ITEMS.map((item) => {
                 const active = item.exact
                   ? pathname === item.href
@@ -220,19 +205,12 @@ export default function Header() {
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`border-b-2 pb-0.5 transition-colors ${
+                    className={[
+                      "border-b-2 pb-0.5 transition-colors",
                       active
-                        ? ""
-                        : "border-transparent hover:text-oboon-text-title"
-                    }`}
-                    style={{
-                      borderColor: active
-                        ? "var(--oboon-primary)"
-                        : "transparent",
-                      color: active
-                        ? "var(--oboon-primary)"
-                        : "var(--oboon-text-muted)",
-                    }}
+                        ? "border-(--oboon-primary) text-(--oboon-primary)"
+                        : "border-transparent text-(--oboon-text-muted) hover:text-(--oboon-text-title)",
+                    ].join(" ")}
                   >
                     {item.label}
                   </Link>
@@ -312,11 +290,7 @@ export default function Header() {
                   <DropdownMenuTrigger asChild>
                     <button className="flex items-center gap-2 rounded-full transition-colors hover:bg-oboon-bg-subtle cursor-pointer">
                       <div
-                        className="h-8 w-8 rounded-full overflow-hidden border flex items-center justify-center"
-                        style={{
-                          borderColor: "var(--oboon-border-default)",
-                          backgroundColor: "var(--oboon-bg-subtle)",
-                        }}
+                        className="h-8 w-8 rounded-full overflow-hidden border border-(--oboon-border-default) bg-(--oboon-bg-subtle) flex items-center justify-center"
                       >
                         <Image
                           src={currentAvatarUrl}
@@ -328,8 +302,7 @@ export default function Header() {
                       </div>
 
                       <span
-                        className="hidden sm:inline ob-typo-body"
-                        style={{ color: "var(--oboon-text-body)" }}
+                        className="hidden sm:inline ob-typo-body text-(--oboon-text-body)"
                       >
                         {getDisplayName()}님
                       </span>
@@ -354,9 +327,8 @@ export default function Header() {
               ) : (
                 <Link
                   href="/auth/login"
-                  className="ob-typo-nav px-2 transition-colors"
+                  className="ob-typo-nav px-2 text-(--oboon-text-muted) transition-colors"
                   onClick={() => trackEvent("login_click", { method: "link" })}
-                  style={{ color: "var(--oboon-text-muted)" }}
                 >
                   로그인
                 </Link>
@@ -370,7 +342,6 @@ export default function Header() {
                     type="button"
                     aria-label="메뉴 열기"
                     className="flex h-8 w-8 items-center justify-center rounded-full border border-(--oboon-border-default) bg-white/5 text-(--oboon-text-muted) transition hover:bg-white/10"
-                    style={{ borderColor: "var(--oboon-border-default)" }}
                   >
                     <Menu className="h-4 w-4" />
                   </button>
