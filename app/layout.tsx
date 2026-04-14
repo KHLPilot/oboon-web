@@ -219,6 +219,7 @@ export default async function RootLayout({
           <Header />
           <div
             className="flex-1 relative w-full min-w-0"
+            style={{ paddingTop: "var(--oboon-header-offset)" }}
           >
             {children}
           </div>

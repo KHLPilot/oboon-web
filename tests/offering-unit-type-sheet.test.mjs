@@ -42,6 +42,14 @@ test("UnitTypeDetailSheet는 데스크톱 right panel 클래스를 갖는다", a
   assert.match(source, /lg:translate-x-full/);
 });
 
+test("UnitTypeDetailSheet는 헤더보다 위에 오는 z-index를 사용한다", async () => {
+  const source = await readFile(sheetPath, "utf8");
+  assert.match(source, /z-70/);
+  assert.match(source, /z-80/);
+  assert.doesNotMatch(source, /z-40/);
+  assert.doesNotMatch(source, /z-50/);
+});
+
 test("UnitTypeDetailSheet는 분양가·타입정보·평면도 섹션을 갖는다", async () => {
   const source = await readFile(sheetPath, "utf8");
   assert.match(source, /분양가 정보/);

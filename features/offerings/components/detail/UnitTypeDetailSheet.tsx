@@ -585,7 +585,7 @@ export default function UnitTypeDetailSheet({
       {/* Overlay */}
       <div
         className={cn(
-          "fixed inset-0 z-40 bg-black/40 transition-opacity duration-300",
+          "fixed inset-0 z-70 bg-black/40 transition-opacity duration-300",
           open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none",
         )}
         onClick={onClose}
@@ -598,7 +598,7 @@ export default function UnitTypeDetailSheet({
         aria-modal="true"
         aria-label={`${title} 상세`}
         className={cn(
-          "fixed z-50 bg-(--oboon-bg-surface) overflow-y-auto transition-transform duration-300",
+          "fixed z-80 bg-(--oboon-bg-surface) overflow-y-auto transition-transform duration-300",
           // Mobile: bottom sheet
           "bottom-0 left-0 right-0 max-h-[85dvh] rounded-t-2xl",
           // Desktop: right panel

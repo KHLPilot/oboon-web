@@ -783,10 +783,10 @@ export default function OfferingDetailLeft({
           }
         />
         <StatCard
-          label="세대 당 주차대수"
+          label="세대당 주차대수"
           value={
-            specs0?.parking_total
-              ? `${specs0.parking_total}대`
+            specs0?.parking_per_household
+              ? `${specs0.parking_per_household}대`
               : UXCopy.checking
           }
         />

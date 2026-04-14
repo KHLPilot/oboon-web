@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 import { Calendar, LayoutDashboard, Menu } from "lucide-react";
 import NotificationBell from "@/features/notifications/components/NotificationBell.client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 
 import { createSupabaseClient } from "@/lib/supabaseClient";
@@ -27,6 +27,7 @@ export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createSupabaseClient();
+  const headerRef = useRef<HTMLElement | null>(null);
 
   const [user, setUser] = useState<User | null>(null);
   const [profileName, setProfileName] = useState<string>("");
@@ -154,16 +155,42 @@ export default function Header() {
   const isHidden =
     pathname?.startsWith("/auth") || pathname?.startsWith("/chat");
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const root = document.documentElement;
     if (isHidden) {
       root.dataset.oboonHeaderHidden = "true";
+      root.style.removeProperty("--oboon-header-offset");
     } else {
       delete root.dataset.oboonHeaderHidden;
+      const syncHeaderOffset = () => {
+        const header = headerRef.current;
+        if (!header) return;
+        const measuredHeight = Math.ceil(header.getBoundingClientRect().height);
+        root.style.setProperty("--oboon-header-offset", `${measuredHeight}px`);
+      };
+
+      syncHeaderOffset();
+
+      const observer =
+        typeof ResizeObserver !== "undefined" && headerRef.current
+          ? new ResizeObserver(syncHeaderOffset)
+          : null;
+      if (headerRef.current && observer) {
+        observer.observe(headerRef.current);
+      }
+
+      window.addEventListener("resize", syncHeaderOffset);
+
+      return () => {
+        window.removeEventListener("resize", syncHeaderOffset);
+        observer?.disconnect();
+        root.style.removeProperty("--oboon-header-offset");
+      };
     }
 
     return () => {
       delete root.dataset.oboonHeaderHidden;
+      root.style.removeProperty("--oboon-header-offset");
     };
   }, [isHidden]);
 
@@ -179,8 +206,9 @@ export default function Header() {
   return (
     <>
       <header
+        ref={headerRef}
         className={[
-          "oboon-header-shell sticky top-0 left-0 right-0 z-(--oboon-z-header) overflow-x-clip",
+          "oboon-header-shell fixed top-0 left-0 right-0 z-(--oboon-z-header) overflow-x-clip",
           "supports-backdrop-filter:backdrop-blur-md",
         ].join(" ")}
       >
