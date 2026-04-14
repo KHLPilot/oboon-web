@@ -1020,6 +1020,7 @@ export function useRecommendations() {
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isSavingCondition, setIsSavingCondition] = useState(false);
   const [hasSavedConditionPreset, setHasSavedConditionPreset] = useState(false);
+  const [hasEvaluatedOnce, setHasEvaluatedOnce] = useState(false);
   const [savedConditionPreset, setSavedConditionPreset] =
     useState<RecommendationCondition | null>(null);
 
@@ -1078,6 +1079,7 @@ export function useRecommendations() {
           const hasCachedRecommendations = Boolean(cachedRecommendations);
           if (hasCachedRecommendations) {
             setRawRecommendations(cachedRecommendations as RawRecommendationItem[]);
+            setHasEvaluatedOnce(true);
           }
           restoredConditionForAutoEvalRef.current = Boolean(sessionSnapshot);
           autoEvaluatedOnEntryRef.current = hasCachedRecommendations;
@@ -1160,6 +1162,7 @@ export function useRecommendations() {
           const hasCachedRecommendations = Boolean(cachedRecommendations);
           if (hasCachedRecommendations) {
             setRawRecommendations(cachedRecommendations as RawRecommendationItem[]);
+            setHasEvaluatedOnce(true);
           }
           restoredConditionForAutoEvalRef.current = source !== "default";
           autoEvaluatedOnEntryRef.current = hasCachedRecommendations;
@@ -1204,6 +1207,7 @@ export function useRecommendations() {
           }
           restoredConditionForAutoEvalRef.current = source !== "default";
           autoEvaluatedOnEntryRef.current = false;
+          setHasEvaluatedOnce(false);
         }
       }
       setIsBootstrapping(false);
@@ -1237,6 +1241,7 @@ export function useRecommendations() {
     skipAutoEvalRef.current = false;
     restoredConditionForAutoEvalRef.current = false;
     autoEvaluatedOnEntryRef.current = false;
+    setHasEvaluatedOnce(false);
   }, [isLoggedIn]);
 
   const metadataById = useMemo(() => {
@@ -1357,6 +1362,7 @@ export function useRecommendations() {
         return false;
       }
 
+      setHasEvaluatedOnce(true);
       setRawRecommendations(
         Array.isArray(payload.recommendations) ? payload.recommendations : [],
       );
@@ -1446,6 +1452,7 @@ export function useRecommendations() {
 
     setValidationError(null);
     hasUserTriggeredEvaluationRef.current = true;
+    setHasEvaluatedOnce(true);
     if (override != null && !isSimulatorOverride) {
       skipAutoEvalRef.current = true;
       setCondition(isLoggedIn ? evalCondition : sanitizeGuestCondition(evalCondition));
@@ -1562,6 +1569,7 @@ export function useRecommendations() {
     restoreSavedCondition,
     isSavingCondition,
     hasSavedConditionPreset,
+    hasEvaluatedOnce,
     isConditionDirty,
     setSelectedId,
   };

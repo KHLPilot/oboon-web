@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import PageContainer from "@/components/shared/PageContainer";
 import HeroSection from "@/features/home/components/HeroSection";
-import HomeOfferingsSection from "@/features/offerings/components/HomeOfferingsSection.client";
+import HomeOfferingsSection from "@/features/offerings/components/HomeOfferingsSectionDeferred.client";
 import { seoDefaultOgImage } from "@/shared/seo";
 // import HomeBriefingSection from "@/features/briefing/components/HomeBriefingSection.client";
 

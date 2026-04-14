@@ -1,12 +1,11 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useRef, useState } from "react";
+import type { ComponentType } from "react";
 import Button from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import WizardStepIndicator from "@/features/recommendations/components/WizardStepIndicator";
-import ConditionWizardStep1 from "@/features/recommendations/components/ConditionWizardStep1";
-import ConditionWizardStep2 from "@/features/recommendations/components/ConditionWizardStep2";
-import ConditionWizardStep3 from "@/features/recommendations/components/ConditionWizardStep3";
 import type { RecommendationCondition } from "@/features/recommendations/hooks/useRecommendations";
 import { createEmptyRecommendationCondition } from "@/features/condition-validation/domain/conditionState";
 
@@ -30,6 +29,68 @@ type Step = 0 | 1 | 2;
 
 const RESET_CONDITION: RecommendationCondition =
   createEmptyRecommendationCondition();
+
+type Step1Props = {
+  condition: RecommendationCondition;
+  isLoggedIn: boolean;
+  hasSavedConditionPreset?: boolean;
+  isConditionDirty?: boolean;
+  onRestoreDefault?: () => boolean;
+  onChange: (patch: Partial<RecommendationCondition>) => void;
+  onNext: () => void;
+  onReset: () => void;
+  progressive?: boolean;
+};
+
+type Step2Props = {
+  condition: RecommendationCondition;
+  isLoggedIn: boolean;
+  isAuthResolved?: boolean;
+  hasSavedConditionPreset?: boolean;
+  isConditionDirty?: boolean;
+  onRestoreDefault?: () => boolean;
+  onChange: (patch: Partial<RecommendationCondition>) => void;
+  onNext: () => void;
+  onBack: () => void;
+  onLoginAndSave?: () => void | Promise<void>;
+  onReset: () => void;
+  progressive?: boolean;
+};
+
+type Step3Props = {
+  condition: RecommendationCondition;
+  isLoggedIn: boolean;
+  isAuthResolved?: boolean;
+  hasSavedConditionPreset?: boolean;
+  isConditionDirty?: boolean;
+  onRestoreDefault?: () => boolean;
+  onChange: (patch: Partial<RecommendationCondition>) => void;
+  onBack: () => void;
+  onFinish: () => void;
+  onReset: () => void;
+  finishLabel?: string;
+  onSave?: () => void;
+  isSaving?: boolean;
+  isSaveDisabled?: boolean;
+  isFinishing?: boolean;
+  finishingLabel?: string;
+  progressive?: boolean;
+};
+
+const ConditionWizardStep1 = dynamic(
+  () => import("@/features/recommendations/components/ConditionWizardStep1"),
+  { ssr: false },
+) as unknown as ComponentType<Step1Props>;
+
+const ConditionWizardStep2 = dynamic(
+  () => import("@/features/recommendations/components/ConditionWizardStep2"),
+  { ssr: false },
+) as unknown as ComponentType<Step2Props>;
+
+const ConditionWizardStep3 = dynamic(
+  () => import("@/features/recommendations/components/ConditionWizardStep3"),
+  { ssr: false },
+) as unknown as ComponentType<Step3Props>;
 
 export default function ConditionWizard({
   condition,

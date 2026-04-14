@@ -1,13 +1,35 @@
 "use client";
 
+import dynamic from "next/dynamic";
+import type { ComponentType } from "react";
 import { cn } from "@/lib/utils/cn";
 
-import ConditionWizard from "@/features/recommendations/components/ConditionWizard";
 import SimulatorBar from "@/features/recommendations/components/SimulatorBar";
 import type {
   RecommendationCondition,
   RecommendationMode,
 } from "@/features/recommendations/hooks/useRecommendations";
+
+type ConditionWizardProps = {
+  condition: RecommendationCondition;
+  isLoggedIn?: boolean;
+  hasSavedConditionPreset?: boolean;
+  isConditionDirty?: boolean;
+  onRestoreDefault?: () => boolean;
+  onChange: (patch: Partial<RecommendationCondition>) => void;
+  onEvaluate: (override?: RecommendationCondition) => void | Promise<boolean>;
+  onSave?: () => void | Promise<boolean>;
+  onLoginAndSave?: () => void | Promise<void>;
+  isLoading?: boolean;
+  isSaving?: boolean;
+  evaluateOnFinish?: boolean;
+  finishLabel?: string;
+};
+
+const ConditionWizard = dynamic(
+  () => import("@/features/recommendations/components/ConditionWizard"),
+  { ssr: false },
+) as unknown as ComponentType<ConditionWizardProps>;
 
 type RecommendationConditionPanelProps = {
   condition: RecommendationCondition;

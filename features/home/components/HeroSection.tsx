@@ -1,27 +1,24 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
   ArrowRight,
-  Building2,
-  GraduationCap,
   MapPin,
-  PawPrint,
   SlidersHorizontal,
   Sparkles,
-  TrainFront,
   UserCheck,
 } from "lucide-react";
 
 import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import { getAvatarUrlOrDefault } from "@/shared/imageUrl";
-import HeroCounselorPreview from "@/features/home/components/HeroCounselorPreview";
 import { HeroCounselorPreviewSkeleton } from "@/features/home/components/HeroCounselorPreviewSkeleton";
-import ConditionMapSvgBackground from "@/features/home/components/ConditionMapSvgBackground";
+import type { HeroConditionCard } from "@/features/home/components/HeroConditionPanel";
 import { HERO_SIDE_PANEL_HEIGHT_CLASS } from "@/features/home/components/heroPreview.constants";
 import { Copy } from "@/shared/copy";
 
@@ -59,19 +56,6 @@ type ConditionMapCardSource = {
 };
 
 type ConditionMapSlot = {
-  tone: "primary" | "surface";
-  positionClass: string;
-  sizeClass: string;
-  tailLeftClass: string;
-  emphasis?: boolean;
-};
-
-type ConditionMapCard = {
-  propertyId: number;
-  title: string;
-  district: string;
-  rate: number;
-  tags: ConditionMapTag[];
   tone: "primary" | "surface";
   positionClass: string;
   sizeClass: string;
@@ -277,7 +261,7 @@ function deriveConditionTags(categories: Set<string>): ConditionMapTag[] {
   return prioritized.slice(0, 2);
 }
 
-function buildConditionCards(sourceCards: ConditionMapCardSource[]): ConditionMapCard[] {
+function buildConditionCards(sourceCards: ConditionMapCardSource[]): HeroConditionCard[] {
   const merged = [...sourceCards];
   for (let i = merged.length; i < CONDITION_MAP_SLOTS.length; i += 1) {
     merged.push(CONDITION_MAP_FALLBACK_DATA[i]);
@@ -293,6 +277,40 @@ function buildConditionCards(sourceCards: ConditionMapCardSource[]): ConditionMa
   });
 }
 
+const HomeCounselorPreview = dynamic(
+  () => import("@/features/home/components/HeroCounselorPreview"),
+  {
+    ssr: false,
+    loading: () => <HeroCounselorPreviewSkeleton />,
+  },
+);
+
+const HomeConditionPanel = dynamic(
+  () => import("@/features/home/components/HeroConditionPanel"),
+  {
+    ssr: false,
+    loading: () => <HomeConditionPanelSkeleton />,
+  },
+);
+
+function HomeConditionPanelSkeleton() {
+  return (
+    <section className="relative h-full overflow-hidden rounded-3xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) shadow-(--oboon-shadow-card) backdrop-blur-md">
+      <div className="relative h-full p-4 sm:p-5">
+        <div className="relative z-30 mb-4 sm:mb-5 space-y-2">
+          <Skeleton className="h-3.5 w-28" />
+          <Skeleton className="h-5 w-44" />
+        </div>
+        <div className="space-y-3">
+          <Skeleton className="h-24 w-[68%] rounded-2xl" />
+          <Skeleton className="h-24 w-[56%] rounded-2xl" />
+          <Skeleton className="h-24 w-[60%] rounded-2xl" />
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function HeroSection() {
   const supabase = useMemo(() => createSupabaseClient(), []);
   const agentCardRef = useRef<HTMLDivElement | null>(null);
@@ -300,7 +318,7 @@ export default function HeroSection() {
   const [agentCount, setAgentCount] = useState(0);
   const [agentAvatars, setAgentAvatars] = useState<AgentAvatar[]>([]);
   const [previewCounselors, setPreviewCounselors] = useState<HeroCounselor[]>([]);
-  const [conditionCards, setConditionCards] = useState<ConditionMapCard[]>(() =>
+  const [conditionCards, setConditionCards] = useState<HeroConditionCard[]>(() =>
     buildConditionCards(CONDITION_MAP_FALLBACK_DATA),
   );
   const [agentsLoaded, setAgentsLoaded] = useState(false);
@@ -662,7 +680,7 @@ export default function HeroSection() {
               {!agentsLoaded ? (
                 <HeroCounselorPreviewSkeleton />
               ) : (
-                <HeroCounselorPreview
+                <HomeCounselorPreview
                   counselors={previewCounselors}
                   showFallback={agentCount === 0}
                 />
@@ -723,7 +741,7 @@ export default function HeroSection() {
             </div>
 
             <div ref={conditionCardRef} className={HERO_SIDE_PANEL_HEIGHT_CLASS}>
-              <ConditionHeroPanel cards={conditionCards} />
+              <HomeConditionPanel cards={conditionCards} />
             </div>
           </div>
         )}
@@ -765,154 +783,5 @@ export default function HeroSection() {
         }
       `}</style>
     </section>
-  );
-}
-
-function ConditionHeroPanel({ cards }: { cards: ConditionMapCard[] }) {
-  const [entered, setEntered] = useState(false);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setEntered(true), 40);
-    return () => window.clearTimeout(timer);
-  }, []);
-
-  return (
-    <section className="relative h-full overflow-hidden rounded-3xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) shadow-(--oboon-shadow-card) backdrop-blur-md">
-      <ConditionMapSvgBackground />
-
-      <div className="relative h-full p-4 sm:p-5">
-        <div className="relative z-30 mb-4 sm:mb-5">
-          <p className="ob-typo-caption text-(--oboon-text-title)">
-            {Copy.hero.aiMatch.preview.title}
-          </p>
-          <h3 className="mt-1 ob-typo-h3 text-(--oboon-text-title)">
-            {Copy.hero.aiMatch.preview.subtitle}
-          </h3>
-        </div>
-
-        {cards.map((card, index) => (
-          <article
-            key={`${card.propertyId}-${card.title}`}
-            className={[
-              "absolute rounded-2xl border px-2.5 py-2.5 shadow-(--oboon-shadow-card) sm:px-3.5 sm:py-3",
-              "transition-all duration-300",
-              "hover:-translate-y-0.5",
-              entered ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0",
-              index >= 2 ? "hidden sm:block" : "",
-              card.sizeClass,
-              card.positionClass,
-              card.emphasis ? "z-20" : "z-10",
-              card.tone === "primary"
-                ? "border-(--oboon-primary) bg-(--oboon-primary)"
-                : "border-(--oboon-border-default) bg-(--oboon-bg-surface)",
-            ].join(" ")}
-            style={{ transitionDelay: `${index * 90}ms` }}
-          >
-            <p
-              title={card.title}
-              className={[
-                "ob-typo-body2",
-                "truncate whitespace-nowrap",
-                "text-[13px] sm:text-[15px]",
-                card.tone === "primary"
-                  ? "text-(--oboon-on-primary)"
-                  : "text-(--oboon-text-title)",
-              ].join(" ")}
-            >
-              {card.title}
-            </p>
-            <p
-              className={[
-                "mt-0.5 ob-typo-caption",
-                card.tone === "primary"
-                  ? "text-(--oboon-on-primary)"
-                  : "text-(--oboon-text-muted)",
-              ].join(" ")}
-            >
-              {card.district}
-            </p>
-            <div className="mt-2 flex flex-nowrap gap-1.5">
-              {card.tags.map((tag) => (
-                <ConditionTag
-                  key={`${card.title}-${tag}`}
-                  tone={card.tone}
-                  tag={tag}
-                />
-              ))}
-            </div>
-
-            <div className="mt-2.5">
-              <div
-                className={[
-                  "h-1.5 w-full overflow-hidden rounded-full",
-                  card.tone === "primary"
-                    ? "bg-(--oboon-bg-surface)/35"
-                    : "bg-(--oboon-bg-subtle)",
-                ].join(" ")}
-              >
-                <span
-                  className={[
-                    "block h-full rounded-full",
-                    card.tone === "primary"
-                      ? "bg-(--oboon-on-primary)"
-                      : "bg-(--oboon-primary)",
-                  ].join(" ")}
-                  style={{ width: `${card.rate}%` }}
-                />
-              </div>
-              <p
-                className={[
-                  "mt-1 ob-typo-body2",
-                  card.tone === "primary"
-                    ? "text-(--oboon-on-primary)"
-                    : "text-(--oboon-primary)",
-                ].join(" ")}
-              >
-                {card.rate}% 매칭
-              </p>
-            </div>
-            <span
-              aria-hidden="true"
-              className={[
-                "absolute -bottom-2 h-4 w-4 rotate-45 border-r border-b",
-                card.tailLeftClass,
-                card.tone === "primary"
-                  ? "border-(--oboon-primary) bg-(--oboon-primary)"
-                  : "border-(--oboon-border-default) bg-(--oboon-bg-surface)",
-              ].join(" ")}
-            />
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function ConditionTag({
-  tone,
-  tag,
-}: {
-  tone: "primary" | "surface";
-  tag: ConditionMapTag;
-}) {
-  const shared =
-    tone === "primary"
-      ? "bg-(--oboon-on-primary) text-(--oboon-primary)"
-      : "bg-(--oboon-bg-subtle) text-(--oboon-primary)";
-  const iconClass = "h-3.5 w-3.5";
-
-  return (
-    <span
-      className={[
-        "inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-1 ob-typo-caption",
-        shared,
-      ].join(" ")}
-    >
-      {tag === "교통" ? <TrainFront className={iconClass} /> : null}
-      {tag === "학군" ? <GraduationCap className={iconClass} /> : null}
-      {tag === "개발" ? <Building2 className={iconClass} /> : null}
-      {tag === "반려" ? <PawPrint className={iconClass} /> : null}
-      {tag}
-    </span>
   );
 }

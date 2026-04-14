@@ -58,13 +58,16 @@ export default async function ComparePage({ searchParams }: ComparePageProps) {
   );
 
   const supabase = await createSupabaseServer();
-  const { data: { user } } = await supabase.auth.getUser();
+  const shouldLoadCompareContext = slotIds.length > 0;
+  const user = shouldLoadCompareContext
+    ? (await supabase.auth.getUser()).data.user
+    : null;
   const viewerCustomer = user ? await loadCompareViewerCustomer(user.id) : null;
 
   const [compareItems, availableItems, scrapsResult] = await Promise.all([
-    slotIds.length >= 1
+    shouldLoadCompareContext
       ? getOfferingsForCompare(slotIds, viewerCustomer)
-      : Promise.resolve([]),
+      : Promise.resolve([] as OfferingCompareItem[]),
     getAvailableOfferingsBasic(),
     user
       ? getScrapedPropertyIds(supabase, user.id)

@@ -270,7 +270,7 @@ export default function OfferingsMapView({
   const [focusedId, setFocusedId] = useState<number | null>(null);
   const [overlayOpen, setOverlayOpen] = useState(false);
   const { center: initialCenter, status: initialLocationStatus } =
-    useCurrentLocationCenter();
+    useCurrentLocationCenter(true, { startDelayMs: 1200 });
   const lastViewportKeyRef = useRef<string>("");
   const [regionBoundaryByKey, setRegionBoundaryByKey] = useState<
     Record<string, RegionBoundaryPayload>

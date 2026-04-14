@@ -1,7 +1,9 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { ComponentType } from "react";
 import { Check, ChevronDown, Search, SlidersHorizontal } from "lucide-react";
 
 import PageContainer from "@/components/shared/PageContainer";
@@ -16,17 +18,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/DropdownMenu";
 import OfferingsViewToggle from "@/features/offerings/components/OfferingsViewToggle";
-import FlippableRecommendationCard from "@/features/recommendations/components/FlippableRecommendationCard";
-import MiniMap from "@/features/recommendations/components/MiniMap";
-import MobileConditionSheet from "@/features/recommendations/components/MobileConditionSheet";
-import OfferingCard from "@/features/offerings/components/OfferingCard";
 import RecommendationCardSkeleton from "@/features/recommendations/components/RecommendationCardSkeleton";
-import RecommendationConditionPanel from "@/features/recommendations/components/RecommendationConditionPanel";
 import RecommendationResultChips from "@/features/recommendations/components/RecommendationResultChips";
-import RecommendationUnitTypeSheet from "@/features/recommendations/components/RecommendationUnitTypeSheet";
 import type {
   RecommendationCondition,
   RecommendationItem,
+  RecommendationMode,
 } from "@/features/recommendations/hooks/useRecommendations";
 import {
   useRecommendations,
@@ -37,6 +34,158 @@ import {
 } from "@/features/recommendations/lib/recommendation-visibility.mjs";
 import { cn } from "@/lib/utils/cn";
 import { Copy } from "@/shared/copy";
+import { Skeleton } from "@/components/ui/Skeleton";
+
+type RecommendationConditionPanelProps = {
+  condition: RecommendationCondition;
+  mode: RecommendationMode;
+  isLoggedIn?: boolean;
+  hasSavedConditionPreset?: boolean;
+  isConditionDirty?: boolean;
+  errorMessage?: string | null;
+  isLoading?: boolean;
+  isSaving?: boolean;
+  onChange: (patch: Partial<RecommendationCondition>) => void;
+  onEvaluate: (override?: RecommendationCondition) => void | Promise<boolean>;
+  onSave?: () => void | Promise<boolean>;
+  onLoginAndSave?: () => void | Promise<void>;
+  onRestoreDefault?: () => boolean;
+  onModeChange: (mode: RecommendationMode) => void;
+};
+
+type MobileConditionSheetProps = {
+  condition: RecommendationCondition;
+  isLoggedIn?: boolean;
+};
+
+type FlippableRecommendationCardProps = {
+  item: RecommendationItem;
+  recommendationTier?: "primary" | "alternative";
+  isSelected: boolean;
+  isFlipped: boolean;
+  disableFlip?: boolean;
+  onFlip: () => void;
+  onSelect: () => void;
+};
+
+type OfferingCardProps = {
+  offering: RecommendationItem["offering"];
+  evalResult: RecommendationItem["evalResult"];
+  recommendationTier?: "primary" | "alternative";
+  navigateOnClick: boolean;
+  isSelected: boolean;
+  onCardClick: () => void;
+  interactionMode: "link" | "button";
+};
+
+type MiniMapProps = {
+  items: RecommendationItem[];
+  gradeCounts: {
+    GREEN: number;
+    LIME: number;
+    ALTERNATIVE: number;
+  };
+  selectedId: number | null;
+  onSelect: (id: number) => void;
+};
+
+type RecommendationUnitTypeSheetProps = {
+  item: RecommendationItem | null;
+  onClose: () => void;
+};
+
+const RecommendationConditionPanel = dynamic(
+  () => import("@/features/recommendations/components/RecommendationConditionPanel"),
+  {
+    ssr: false,
+    loading: () => <RecommendationConditionPanelSkeleton />,
+  },
+) as unknown as ComponentType<RecommendationConditionPanelProps>;
+
+const MobileConditionSheet = dynamic(
+  () => import("@/features/recommendations/components/MobileConditionSheet"),
+  {
+    ssr: false,
+    loading: () => <MobileConditionSheetSkeleton />,
+  },
+) as unknown as ComponentType<MobileConditionSheetProps>;
+
+const FlippableRecommendationCard = dynamic(
+  () => import("@/features/recommendations/components/FlippableRecommendationCard"),
+  {
+    ssr: false,
+    loading: () => <RecommendationCardSkeleton size="desktop" />,
+  },
+) as unknown as ComponentType<FlippableRecommendationCardProps>;
+
+const OfferingCard = dynamic(
+  () => import("@/features/offerings/components/OfferingCard"),
+  {
+    ssr: false,
+    loading: () => <RecommendationCardSkeleton size="mobile" />,
+  },
+) as unknown as ComponentType<OfferingCardProps>;
+
+const MiniMap = dynamic(
+  () => import("@/features/recommendations/components/MiniMap"),
+  {
+    ssr: false,
+    loading: () => <MiniMapSkeleton />,
+  },
+) as unknown as ComponentType<MiniMapProps>;
+
+const RecommendationUnitTypeSheet = dynamic(
+  () => import("@/features/recommendations/components/RecommendationUnitTypeSheet"),
+  {
+    ssr: false,
+    loading: () => null,
+  },
+) as unknown as ComponentType<RecommendationUnitTypeSheetProps>;
+
+function MiniMapSkeleton() {
+  return (
+    <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-4">
+      <div className="space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="space-y-2">
+            <Skeleton className="h-5 w-24" />
+            <Skeleton className="h-4 w-40" />
+          </div>
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-10 w-10 rounded-full" />
+            <Skeleton className="h-10 w-10 rounded-full" />
+          </div>
+        </div>
+        <Skeleton className="h-[500px] w-full rounded-2xl sm:h-[520px] md:h-[620px]" />
+      </div>
+    </div>
+  );
+}
+
+function RecommendationConditionPanelSkeleton() {
+  return (
+    <div className="space-y-4 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-4">
+      <div className="flex gap-1 rounded-full bg-(--oboon-bg-subtle) p-1">
+        <Skeleton className="h-9 flex-1 rounded-full" />
+        <Skeleton className="h-9 flex-1 rounded-full" />
+      </div>
+      <Skeleton className="h-px w-full" />
+      <div className="space-y-3">
+        <Skeleton className="h-20 w-full rounded-2xl" />
+        <Skeleton className="h-20 w-full rounded-2xl" />
+        <Skeleton className="h-40 w-full rounded-2xl" />
+      </div>
+    </div>
+  );
+}
+
+function MobileConditionSheetSkeleton() {
+  return (
+    <div className="sm:hidden">
+      <Skeleton className="h-[72px] w-full rounded-2xl" />
+    </div>
+  );
+}
 
 type SortKey = "default" | "burden" | "cash";
 
@@ -141,6 +290,7 @@ export default function RecommendationsPage() {
   const [sortKey, setSortKey] = useState<SortKey>("default");
   const [desktopView, setDesktopView] = useState<"list" | "map">(resolvedDesktopView);
   const [desktopFilterOpen, setDesktopFilterOpen] = useState(true);
+  const [deferredPanelsReady, setDeferredPanelsReady] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [flipState, setFlipState] = useState<{
@@ -172,6 +322,7 @@ export default function RecommendationsPage() {
     restoreSavedCondition,
     isSavingCondition,
     hasSavedConditionPreset,
+    hasEvaluatedOnce,
     isConditionDirty,
     setSelectedId,
   } = useRecommendations();
@@ -181,8 +332,21 @@ export default function RecommendationsPage() {
   }, []);
 
   useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDeferredPanelsReady(true);
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
     setDesktopView(resolvedDesktopView);
   }, [resolvedDesktopView]);
+
+  useLayoutEffect(() => {
+    if (!hasEvaluatedOnce || isBootstrapping || isEvaluating) return;
+    setDesktopFilterOpen(false);
+  }, [hasEvaluatedOnce, isBootstrapping, isEvaluating]);
 
   const updateDesktopView = useCallback(
     (nextView: "list" | "map") => {
@@ -448,10 +612,14 @@ export default function RecommendationsPage() {
               </Button>
             </div>
 
-            <MobileConditionSheet
-              condition={condition}
-              isLoggedIn={isLoggedIn}
-            />
+            {deferredPanelsReady ? (
+              <MobileConditionSheet
+                condition={condition}
+                isLoggedIn={isLoggedIn}
+              />
+            ) : (
+              <MobileConditionSheetSkeleton />
+            )}
 
             <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
               {showResultToolbar ? (
@@ -554,21 +722,25 @@ export default function RecommendationsPage() {
 
             {desktopFilterOpen ? (
               <div className="mt-4 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-5">
-                <RecommendationConditionPanel
-                  condition={condition}
-                  mode={mode}
-                  isLoggedIn={isLoggedIn}
-                  hasSavedConditionPreset={hasSavedConditionPreset}
-                  isConditionDirty={isConditionDirty}
-                  isLoading={isEvaluating}
-                  isSaving={isSavingCondition}
-                  onChange={updateCondition}
-                  onEvaluate={handleEvaluate}
-                  onSave={saveCondition}
-                  onLoginAndSave={loginAndSaveCondition}
-                  onRestoreDefault={restoreSavedCondition}
-                  onModeChange={changeMode}
-                />
+                {!deferredPanelsReady ? (
+                  <RecommendationConditionPanelSkeleton />
+                ) : (
+                  <RecommendationConditionPanel
+                    condition={condition}
+                    mode={mode}
+                    isLoggedIn={isLoggedIn}
+                    hasSavedConditionPreset={hasSavedConditionPreset}
+                    isConditionDirty={isConditionDirty}
+                    isLoading={isEvaluating}
+                    isSaving={isSavingCondition}
+                    onChange={updateCondition}
+                    onEvaluate={handleEvaluate}
+                    onSave={saveCondition}
+                    onLoginAndSave={loginAndSaveCondition}
+                    onRestoreDefault={restoreSavedCondition}
+                    onModeChange={changeMode}
+                  />
+                )}
               </div>
             ) : null}
 
@@ -745,12 +917,16 @@ export default function RecommendationsPage() {
           ) : (
             <aside className="h-[500px] sm:h-[520px] md:h-[620px]">
               <div className="relative h-full">
-                <MiniMap
-                  items={[...primaryItems, ...alternativeItems]}
-                  gradeCounts={gradeCounts}
-                  selectedId={visibleSelectedId}
-                  onSelect={handleSelectFromMap}
-                />
+                {!deferredPanelsReady ? (
+                  <MiniMapSkeleton />
+                ) : (
+                  <MiniMap
+                    items={[...primaryItems, ...alternativeItems]}
+                    gradeCounts={gradeCounts}
+                    selectedId={visibleSelectedId}
+                    onSelect={handleSelectFromMap}
+                  />
+                )}
               </div>
             </aside>
           )}

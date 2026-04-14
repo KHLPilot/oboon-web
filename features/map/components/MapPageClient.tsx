@@ -273,7 +273,7 @@ export default function MapPageClient() {
     Record<string, RegionBoundaryPayload>
   >({});
   const { center: initialCenter, status: initialLocationStatus } =
-    useCurrentLocationCenter();
+    useCurrentLocationCenter(true, { startDelayMs: 1200 });
   const lastViewportKeyRef = useRef<string>("");
 
   const mapApiRef = useRef<NaverMapHandle | null>(null);

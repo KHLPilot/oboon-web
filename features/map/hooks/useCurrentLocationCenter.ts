@@ -28,7 +28,11 @@ type CurrentLocationState = {
 
 export function useCurrentLocationCenter(
   enabled = true,
+  options?: {
+    startDelayMs?: number;
+  },
 ): UseCurrentLocationCenterResult {
+  const startDelayMs = options?.startDelayMs ?? 0;
   const geolocationSupported =
     typeof window !== "undefined" && typeof navigator !== "undefined"
       ? "geolocation" in navigator
@@ -130,7 +134,9 @@ export function useCurrentLocationCenter(
       );
     };
 
-    startLocationRequest();
+    const startTimer = window.setTimeout(() => {
+      startLocationRequest();
+    }, startDelayMs);
 
     if (navigator.permissions?.query) {
       void navigator.permissions
@@ -164,12 +170,13 @@ export function useCurrentLocationCenter(
 
     return () => {
       active = false;
+      window.clearTimeout(startTimer);
       clearWatch();
       if (permissionStatus) {
         permissionStatus.onchange = null;
       }
     };
-  }, [enabled]);
+  }, [enabled, startDelayMs]);
 
   const effectiveStatus: GeoLocationStatus = !enabled
     ? "idle"

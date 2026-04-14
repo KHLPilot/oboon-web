@@ -1,12 +1,13 @@
 // features/offerings/components/OfferingsClientBody.tsx
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
+import type { ComponentType } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import FilterBar from "@/features/offerings/components/FilterBar";
 import OfferingCard from "@/features/offerings/components/OfferingCard";
 import { EmptyState } from "@/components/ui/EmptyState";
-import OfferingsMapView from "@/features/offerings/components/OfferingsMapView";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { createSupabaseClient } from "@/lib/supabaseClient";
 import type { Offering } from "@/types/index";
 import PageContainer from "@/components/shared/PageContainer";
@@ -34,6 +35,74 @@ import {
   type OfferingRegionTab,
   type OfferingStatusValue,
 } from "@/features/offerings/domain/offering.types";
+
+type OfferingsView = "list" | "map";
+
+type FilterBarProps = {
+  view: OfferingsView;
+  onViewChange: (next: OfferingsView) => void;
+  availableRegions: OfferingRegionTab[];
+  availableSeoulSubRegions: string[];
+  availableGyeonggiSubRegions: string[];
+};
+
+const FilterBar = dynamic(
+  () => import("@/features/offerings/components/FilterBar"),
+  {
+    ssr: false,
+    loading: () => <FilterBarSkeleton />,
+  },
+) as unknown as ComponentType<FilterBarProps>;
+
+const OfferingsMapView = dynamic(
+  () => import("@/features/offerings/components/OfferingsMapView"),
+  {
+    ssr: false,
+    loading: () => <OfferingsMapViewSkeleton />,
+  },
+);
+
+function OfferingsMapViewSkeleton() {
+  return (
+    <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-4 sm:p-5">
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="space-y-2">
+            <Skeleton className="h-5 w-28" />
+            <Skeleton className="h-4 w-44" />
+          </div>
+          <Skeleton className="h-9 w-24 rounded-full" />
+        </div>
+        <Skeleton className="h-[500px] w-full rounded-2xl sm:h-[520px] md:h-[620px]" />
+      </div>
+    </div>
+  );
+}
+
+function FilterBarSkeleton() {
+  return (
+    <div className="space-y-4 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-4 sm:p-5">
+      <div className="hidden sm:flex items-center gap-3">
+        <Skeleton className="h-10 flex-1 rounded-xl" />
+        <Skeleton className="h-10 w-10 rounded-full" />
+        <Skeleton className="h-10 w-24 rounded-xl" />
+        <Skeleton className="h-10 w-20 rounded-xl" />
+        <Skeleton className="h-10 w-10 rounded-full" />
+      </div>
+      <div className="sm:hidden space-y-3">
+        <Skeleton className="h-10 w-full rounded-xl" />
+        <Skeleton className="h-14 w-full rounded-2xl" />
+        <div className="flex items-center justify-between gap-3">
+          <Skeleton className="h-7 w-20 rounded-full" />
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-9 w-24 rounded-xl" />
+            <Skeleton className="h-9 w-9 rounded-full" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const [readyStatusValue, openStatusValue, closedStatusValue] =
   OFFERING_STATUS_VALUES;

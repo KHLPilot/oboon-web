@@ -310,7 +310,7 @@ export default function MiniMap(props: MiniMapProps) {
   const [heroInfraById, setHeroInfraById] = useState<Record<number, HeroInfraState>>({});
   const [mapZoom, setMapZoom] = useState<number>(PROVINCE_CLUSTER_ZOOM);
   const { center: initialCenter, status: initialLocationStatus } =
-    useCurrentLocationCenter();
+    useCurrentLocationCenter(true, { startDelayMs: 1200 });
   const lastViewportKeyRef = useRef<string>("");
   const hasAppliedLocationViewportRef = useRef(false);
   const activeSelectedId =

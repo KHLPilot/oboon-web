@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { CornerDownRight, Heart, Megaphone } from "lucide-react";
@@ -29,9 +30,13 @@ import type { CommunityPostViewModel } from "../../domain/community";
 import CommunityPostCard from "./CommunityPostCard";
 import { CommunityPostCardSkeleton } from "./CommunityPostCardSkeleton";
 import CommunityTabs from "./CommunityTabs";
-import CommunityWriteModal from "./CommunityWriteModal";
 import { showAlert } from "@/shared/alert";
 import { getAvatarUrlOrDefault } from "@/shared/imageUrl";
+
+const CommunityWriteModal = dynamic(() => import("./CommunityWriteModal"), {
+  ssr: false,
+  loading: () => null,
+});
 
 type CommunityEmptyProps = {
   title?: string;

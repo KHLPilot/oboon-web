@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 
 import PageContainer from "@/components/shared/PageContainer";
 import BriefingCardGrid from "@/features/briefing/components/BriefingCardGrid";
@@ -7,6 +8,7 @@ import BriefingEditorPickCard from "@/features/briefing/components/BriefingEdito
 import BriefingTopList from "@/features/briefing/components/BriefingTopList";
 import BriefingOriginalSection from "@/features/briefing/components/oboon-original/BriefingOriginalSection";
 import FeaturedHero from "@/features/briefing/components/oboon-original/FeaturedHero";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { fetchBriefingHomeData } from "@/features/briefing/services/briefing.home";
 import { fetchOboonOriginalPageData } from "@/features/briefing/services/briefing.original";
 import { briefingHubDescriptions } from "@/shared/briefing-content";
@@ -40,20 +42,10 @@ export const metadata: Metadata = {
 };
 
 export default async function BriefingPage() {
-  const [homeData, originalData] = await Promise.all([
-    fetchBriefingHomeData(),
-    fetchOboonOriginalPageData(),
-  ]);
+  const originalDataPromise = fetchOboonOriginalPageData();
+  const homeData = await fetchBriefingHomeData();
 
   const { isAdmin, topPosts, editorPicks, recentPosts, generalRecentPosts } = homeData;
-  const { series } = originalData;
-  const catData = series.map((item) => ({
-    id: item.id,
-    key: item.key,
-    name: item.name,
-    coverImageUrl: item.coverImageUrl,
-  })) as CategoryRow[];
-  const categoryCountMap = new Map(series.map((item) => [item.id, item.count]));
 
   return (
     <main className="bg-(--oboon-bg-page)">
@@ -92,7 +84,9 @@ export default async function BriefingPage() {
         </section>
       </PageContainer>
 
-      <BriefingOriginalSection categories={catData} countMap={categoryCountMap} />
+      <Suspense fallback={<BriefingOriginalSectionSkeleton />}>
+        <BriefingOriginalSectionAsync promise={originalDataPromise} />
+      </Suspense>
 
       <PageContainer className="pb-20 pt-14">
         <div className="mb-6 flex items-end justify-between gap-4">
@@ -126,5 +120,55 @@ export default async function BriefingPage() {
         />
       </PageContainer>
     </main>
+  );
+}
+
+async function BriefingOriginalSectionAsync({
+  promise,
+}: {
+  promise: ReturnType<typeof fetchOboonOriginalPageData>;
+}) {
+  const originalData = await promise;
+  const { series } = originalData;
+  const catData = series.map((item) => ({
+    id: item.id,
+    key: item.key,
+    name: item.name,
+    coverImageUrl: item.coverImageUrl,
+  })) as CategoryRow[];
+  const categoryCountMap = new Map(series.map((item) => [item.id, item.count]));
+
+  return <BriefingOriginalSection categories={catData} countMap={categoryCountMap} />;
+}
+
+function BriefingOriginalSectionSkeleton() {
+  return (
+    <section className="bg-(--oboon-bg-inverse)">
+      <div className="mx-auto w-full max-w-240 px-4 pb-10 pt-6 sm:px-5 lg:max-w-300">
+        <div>
+          <Skeleton className="h-8 w-40 rounded-lg bg-white/12" animated={false} />
+          <Skeleton className="mt-3 h-5 w-56 rounded-lg bg-white/8" animated={false} />
+        </div>
+
+        <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 md:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div
+              key={`original-skeleton-${index}`}
+              className="rounded-[16px] border border-white/10 bg-white/5 p-0 overflow-hidden"
+            >
+              <Skeleton className="aspect-[4/3] w-full rounded-none bg-white/10" animated={false} />
+              <div className="p-4 space-y-2">
+                <Skeleton className="h-5 w-4/5 rounded-lg bg-white/10" animated={false} />
+                <Skeleton className="h-4 w-16 rounded-lg bg-white/8" animated={false} />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-10 flex justify-center">
+          <Skeleton className="h-12 w-36 rounded-full bg-white/10" animated={false} />
+        </div>
+      </div>
+    </section>
   );
 }
