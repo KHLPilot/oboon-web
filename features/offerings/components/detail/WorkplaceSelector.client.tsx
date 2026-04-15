@@ -54,7 +54,7 @@ export default function WorkplaceSelector({ workplace, onSelect }: Props) {
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className="inline-flex w-full items-center gap-1.5 rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-1.5 ob-typo-caption transition-colors hover:bg-(--oboon-bg-subtle)"
+        className="inline-flex w-full min-w-[12rem] items-center gap-1.5 rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-1.5 ob-typo-caption transition-colors hover:bg-(--oboon-bg-subtle)"
       >
         <MapPin className="h-3.5 w-3.5 shrink-0 text-(--oboon-primary)" />
         <span className={workplace ? "font-medium text-(--oboon-text-title)" : "text-(--oboon-text-muted)"}>
