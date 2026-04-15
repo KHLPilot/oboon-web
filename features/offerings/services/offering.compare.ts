@@ -293,23 +293,36 @@ function mapToCompareItem(
     ? `${subwayPoi.name}${subwayPoi.distance_m != null ? ` (${Number(subwayPoi.distance_m)}m)` : ""}`
     : "정보 없음";
 
-  // School grade
-  const highSchoolDistances = pois
-    .filter((p) => p.category === "SCHOOL" && p.school_level === "HIGH")
-    .map((p) =>
-      p.distance_m == null || !Number.isFinite(Number(p.distance_m))
-        ? null
-        : Number(p.distance_m),
-    )
-    .filter((distance): distance is number => distance !== null);
-  const nearestHighSchoolDistance =
-    highSchoolDistances.length > 0 ? Math.min(...highSchoolDistances) : null;
-  const schoolGrade: "우수" | "보통" | "미흡" =
-    nearestHighSchoolDistance == null
-      ? "미흡"
-      : nearestHighSchoolDistance <= 1000
-        ? "우수"
-        : "보통";
+  // School grade — 옵션 A: 유명 학군 우선, 학원 수 보완, 고등학교 거리 fallback
+  const schoolGrade: "우수" | "보통" | "미흡" = (() => {
+    // 유명 학군 Tier 1, 2 → 무조건 우수
+    if (famousZone && famousZone.tier <= 2) return "우수";
+
+    // 유명 학군 Tier 3 → 학원 50개+ 우수, 미만 보통
+    if (famousZone && famousZone.tier === 3) {
+      return (academyCount ?? 0) >= 50 ? "우수" : "보통";
+    }
+
+    // 유명 학군 없음 → 학원 수 기반
+    if (academyCount != null) {
+      if (academyCount >= 100) return "우수";
+      if (academyCount >= 50) return "보통";
+      return "미흡";
+    }
+
+    // fallback: 고등학교 POI 거리 (좌표 없거나 카카오 API 실패 시)
+    const highSchoolDistances = pois
+      .filter((p) => p.category === "SCHOOL" && p.school_level === "HIGH")
+      .map((p) =>
+        p.distance_m == null || !Number.isFinite(Number(p.distance_m))
+          ? null
+          : Number(p.distance_m),
+      )
+      .filter((d): d is number => d !== null);
+    const nearest =
+      highSchoolDistances.length > 0 ? Math.min(...highSchoolDistances) : null;
+    return nearest == null ? "미흡" : nearest <= 1000 ? "우수" : "보통";
+  })();
 
   // Image — 대표 이미지 우선, 없으면 갤러리 첫 번째
   const galleryImages = toArray(row.property_gallery_images);
