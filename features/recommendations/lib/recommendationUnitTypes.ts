@@ -35,6 +35,7 @@ export type RecommendationUnitType = {
   exclusiveAreaLabel: string | null;
   listPriceManwon: number | null;
   isPricePublic: boolean;
+  passesCategoryVisibility: boolean;
   finalGrade: FinalGrade5;
   totalScore: number | null;
   gradeLabel: string | null;
@@ -57,6 +58,7 @@ export type RawRecommendationUnitTypeResult = {
   exclusive_area?: number | string | null;
   list_price_manwon?: number | string | null;
   is_price_public?: boolean | null;
+  passes_category_visibility?: boolean | null;
   final_grade?: FinalGrade5;
   total_score?: number | null;
   summary_message?: string | null;
@@ -259,6 +261,7 @@ export function normalizeRecommendationUnitTypes(
         exclusiveAreaLabel: formatRecommendationAreaLabel(unit.exclusive_area),
         listPriceManwon,
         isPricePublic,
+        passesCategoryVisibility: unit.passes_category_visibility === true,
         finalGrade,
         totalScore: toFiniteNumber(unit.total_score),
         gradeLabel: unit.grade_label ?? null,

@@ -24,7 +24,7 @@ type FlippableRecommendationCardProps = {
   item: RecommendationItem;
   isSelected: boolean;
   isFlipped: boolean;
-  recommendationTier?: "primary" | "alternative";
+  recommendationTier?: "primary" | "alternative" | "informational";
   size?: "desktop" | "mobile";
   disableFlip?: boolean;
   initialScrapped?: boolean;
@@ -85,17 +85,22 @@ function usePrefersReducedMotion() {
 
 function surfaceClassName(
   isSelected: boolean,
-  recommendationTier: "primary" | "alternative",
+  recommendationTier: "primary" | "alternative" | "informational",
 ) {
   return cn(
     "h-full overflow-hidden p-0 transition-[transform,box-shadow,border-color] duration-200",
     "border-(--oboon-border-strong) bg-(--oboon-bg-surface)",
     recommendationTier === "alternative" &&
       "border-(--oboon-grade-yellow-border) bg-linear-to-br from-(--oboon-grade-yellow-bg)/45 via-(--oboon-bg-surface) to-(--oboon-bg-surface)",
+    recommendationTier === "informational" &&
+      "border-(--oboon-badge-selected-border) bg-linear-to-br from-(--oboon-badge-selected-bg)/55 via-(--oboon-bg-surface) to-(--oboon-bg-surface)",
     isSelected && "border-(--oboon-primary) ring-1 ring-(--oboon-primary)",
     isSelected &&
       recommendationTier === "alternative" &&
       "border-(--oboon-grade-yellow-border) ring-(--oboon-grade-yellow-border)",
+    isSelected &&
+      recommendationTier === "informational" &&
+      "border-(--oboon-badge-selected-border) ring-(--oboon-badge-selected-border)",
   );
 }
 
@@ -104,7 +109,7 @@ function BackFaceCard(props: {
   isSelected: boolean;
   compact?: boolean;
   onFlip: () => void;
-  recommendationTier: "primary" | "alternative";
+  recommendationTier: "primary" | "alternative" | "informational";
 }) {
   const { item, isSelected, compact = false, onFlip, recommendationTier } = props;
 
@@ -175,7 +180,7 @@ function MaskedRecommendationCard(props: {
   isSelected: boolean;
   compact?: boolean;
   onSelect: () => void;
-  recommendationTier?: "primary" | "alternative";
+  recommendationTier?: "primary" | "alternative" | "informational";
 }) {
   const {
     item,

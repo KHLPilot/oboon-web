@@ -165,7 +165,7 @@ type SavedConditionPresetState = {
   existing_monthly_repayment: MonthlyLoanRepayment | null;
 };
 
-const HOME_OFFERING_LIMIT = 3;
+const HOME_OFFERING_LIMIT = 4;
 
 type ConditionValidationProfilePresetRow = {
   cv_available_cash_manwon: number | null;
@@ -2430,12 +2430,6 @@ function SectionHeader({
   );
 }
 
-function ProjectRow({ children }: { children: ReactNode }) {
-  return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{children}</div>
-  );
-}
-
 function HomeMobileRecommendationDetailSheet({
   item,
   onClose,
@@ -2532,44 +2526,81 @@ function ResponsiveOfferingRow({
     setSelectedId(null);
   }, []);
 
+  function renderMobileOrTabletItem(offering: Offering, index: number) {
+    const numericId = Number(offering.id);
+    const recommendationItem = recommendedItemsById?.get(numericId) ?? null;
+    const isConsultable = consultableOfferingIds?.has(numericId) ?? false;
+
+    if (recommendationItem) {
+      return (
+        <OfferingCard
+          offering={recommendationItem.offering}
+          evalResult={recommendationItem.evalResult}
+          isSelected={activeSelectedId === Number(recommendationItem.offering.id)}
+          navigateOnClick={false}
+          onCardClick={() => handleMobileDetailOpen(recommendationItem)}
+          interactionMode="button"
+        />
+      );
+    }
+
+    return (
+      <OfferingCard
+        offering={offering}
+        conditionCategories={recommendedCategoriesById?.get(numericId)}
+        mobileRecommendationLayout={mobileCardLayout}
+        isConsultable={isConsultable}
+        initialScrapped={scrapedPropertyIds?.has(numericId) ?? false}
+        isLoggedIn={isLoggedIn ?? false}
+        priority={index === 0}
+      />
+    );
+  }
+
+  function renderDesktopItem(offering: Offering, index: number) {
+    const numericId = Number(offering.id);
+    const recommendationItem = recommendedItemsById?.get(numericId) ?? null;
+    const isConsultable = consultableOfferingIds?.has(numericId) ?? false;
+
+    if (recommendationItem) {
+      return (
+        <FlippableRecommendationCard
+          item={recommendationItem}
+          isSelected={activeSelectedId === recommendationItem.property.id}
+          isFlipped={activeFlippedId === recommendationItem.property.id}
+          disableFlip={recommendationItem.evalResult.isMasked}
+          initialScrapped={scrapedPropertyIds?.has(numericId) ?? false}
+          isLoggedIn={isLoggedIn ?? false}
+          priority={index === 0}
+          onFlip={() => handleFlip(recommendationItem.property.id)}
+          onSelect={() => handleSelect(recommendationItem.property.id)}
+        />
+      );
+    }
+
+    return (
+      <OfferingCard
+        offering={offering}
+        conditionCategories={recommendedCategoriesById?.get(numericId)}
+        mobileRecommendationLayout={mobileCardLayout}
+        isConsultable={isConsultable}
+        initialScrapped={scrapedPropertyIds?.has(numericId) ?? false}
+        isLoggedIn={isLoggedIn ?? false}
+        priority={index === 0}
+      />
+    );
+  }
+
   return (
     <>
-      {/* Mobile */}
-      <div className="sm:hidden">
+      <div className="md:hidden">
         {mobileLayout === "stack" ? (
           <div className="space-y-3">
-            {items.map((offering, index) => {
-              const numericId = Number(offering.id);
-              const recommendationItem = recommendedItemsById?.get(numericId) ?? null;
-              const isConsultable = consultableOfferingIds?.has(numericId) ?? false;
-
-              if (recommendationItem) {
-                return (
-                  <OfferingCard
-                    key={offering.id}
-                    offering={recommendationItem.offering}
-                    evalResult={recommendationItem.evalResult}
-                    isSelected={activeSelectedId === Number(recommendationItem.offering.id)}
-                    navigateOnClick={false}
-                    onCardClick={() => handleMobileDetailOpen(recommendationItem)}
-                    interactionMode="button"
-                  />
-                );
-              }
-
-              return (
-                <OfferingCard
-                  key={offering.id}
-                  offering={offering}
-                  conditionCategories={recommendedCategoriesById?.get(numericId)}
-                  mobileRecommendationLayout={mobileCardLayout}
-                  isConsultable={isConsultable}
-                  initialScrapped={scrapedPropertyIds?.has(numericId) ?? false}
-                  isLoggedIn={isLoggedIn ?? false}
-                  priority={index === 0}
-                />
-              );
-            })}
+            {items.map((offering, index) => (
+              <div key={offering.id} className="min-w-0">
+                {renderMobileOrTabletItem(offering, index)}
+              </div>
+            ))}
           </div>
         ) : (
           <div className="-mx-4">
@@ -2583,39 +2614,14 @@ function ResponsiveOfferingRow({
                   "scroll-pl-4 scroll-pr-4",
                 ].join(" ")}
               >
-                {items.map((offering, index) => {
-                  const numericId = Number(offering.id);
-                  const recommendationItem = recommendedItemsById?.get(numericId) ?? null;
-                  const isConsultable = consultableOfferingIds?.has(numericId) ?? false;
-
-                  if (recommendationItem) {
-                    return (
-                      <div key={offering.id} className="w-[17.5rem] shrink-0 snap-start">
-                        <OfferingCard
-                          offering={recommendationItem.offering}
-                          evalResult={recommendationItem.evalResult}
-                          isSelected={activeSelectedId === Number(recommendationItem.offering.id)}
-                          onCardClick={() => handleSelect(Number(recommendationItem.offering.id))}
-                          interactionMode="button"
-                        />
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div key={offering.id} className="w-[17.5rem] shrink-0 snap-start">
-                      <OfferingCard
-                        offering={offering}
-                        conditionCategories={recommendedCategoriesById?.get(numericId)}
-                        mobileRecommendationLayout={mobileCardLayout}
-                        isConsultable={isConsultable}
-                        initialScrapped={scrapedPropertyIds?.has(numericId) ?? false}
-                        isLoggedIn={isLoggedIn ?? false}
-                        priority={index === 0}
-                      />
-                    </div>
-                  );
-                })}
+                {items.map((offering, index) => (
+                  <div
+                    key={offering.id}
+                    className="w-[17.5rem] shrink-0 snap-start"
+                  >
+                    {renderMobileOrTabletItem(offering, index)}
+                  </div>
+                ))}
 
                 <div className="shrink-0 w-4" />
               </div>
@@ -2624,54 +2630,51 @@ function ResponsiveOfferingRow({
         )}
       </div>
 
+      <div className="hidden md:block lg:hidden">
+        <div className="-mx-4 overflow-visible md:-mx-5">
+          <div
+            className={[
+              "flex gap-3 overflow-x-auto overflow-y-visible px-4 py-3 pb-8 md:gap-4 md:px-5",
+              "snap-x snap-mandatory",
+              "[-webkit-overflow-scrolling:touch]",
+              "scrollbar-none",
+              "scroll-pl-4 scroll-pr-4 scroll-pb-8 md:scroll-pl-5 md:scroll-pr-5",
+            ].join(" ")}
+          >
+            {items.map((offering, index) => (
+              <div
+                key={offering.id}
+                className="w-[calc((100%-1rem)/2)] shrink-0 snap-start"
+              >
+                {renderMobileOrTabletItem(offering, index)}
+              </div>
+            ))}
+
+            <div className="shrink-0 w-4" />
+          </div>
+        </div>
+      </div>
+
+      <div className="hidden lg:block">
+        <ProjectRow>
+          {items.slice(0, 3).map((offering, index) => (
+            <div key={offering.id} className="min-w-0">
+              {renderDesktopItem(offering, index)}
+            </div>
+          ))}
+        </ProjectRow>
+      </div>
+
       <HomeMobileRecommendationDetailSheet
         item={activeMobileDetailItem}
         onClose={handleMobileDetailClose}
       />
-
-      {/* Desktop/Tablets: grid */}
-      <div className="hidden sm:block">
-        <ProjectRow>
-          {items.map((offering, index) => {
-            const numericId = Number(offering.id);
-            const recommendationItem = recommendedItemsById?.get(numericId) ?? null;
-            const isConsultable = consultableOfferingIds?.has(numericId) ?? false;
-
-            if (recommendationItem) {
-              return (
-                <div key={offering.id} className="min-w-0">
-                  <FlippableRecommendationCard
-                    item={recommendationItem}
-                    isSelected={activeSelectedId === recommendationItem.property.id}
-                    isFlipped={activeFlippedId === recommendationItem.property.id}
-                    disableFlip={recommendationItem.evalResult.isMasked}
-                    initialScrapped={scrapedPropertyIds?.has(numericId) ?? false}
-                    isLoggedIn={isLoggedIn ?? false}
-                    priority={index === 0}
-                    onFlip={() => handleFlip(recommendationItem.property.id)}
-                    onSelect={() => handleSelect(recommendationItem.property.id)}
-                  />
-                </div>
-              );
-            }
-
-            return (
-              <OfferingCard
-                key={offering.id}
-                offering={offering}
-                conditionCategories={recommendedCategoriesById?.get(numericId)}
-                mobileRecommendationLayout={mobileCardLayout}
-                isConsultable={isConsultable}
-                initialScrapped={scrapedPropertyIds?.has(numericId) ?? false}
-                isLoggedIn={isLoggedIn ?? false}
-                priority={index === 0}
-              />
-            );
-          })}
-        </ProjectRow>
-      </div>
     </>
   );
+}
+
+function ProjectRow({ children }: { children: ReactNode }) {
+  return <div className="grid gap-4 lg:grid-cols-3">{children}</div>;
 }
 
 function RegionFilterRow({

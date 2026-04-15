@@ -192,7 +192,7 @@ export default function OfferingCard({
   hideImage?: boolean;
   navigateOnClick?: boolean;
   footerSlot?: ReactNode;
-  recommendationTier?: "primary" | "alternative";
+  recommendationTier?: "primary" | "alternative" | "informational";
 }) {
   const priceRange = formatPriceRange(
     offering.priceMin억,
@@ -257,11 +257,16 @@ export default function OfferingCard({
           "group cursor-pointer overflow-hidden rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:shadow-(--oboon-shadow-card)",
           recommendationTier === "alternative" &&
             "border-(--oboon-grade-yellow-border) bg-linear-to-br from-(--oboon-grade-yellow-bg)/45 via-(--oboon-bg-surface) to-(--oboon-bg-surface)",
+          recommendationTier === "informational" &&
+            "border-(--oboon-badge-selected-border) bg-linear-to-br from-(--oboon-badge-selected-bg)/55 via-(--oboon-bg-surface) to-(--oboon-bg-surface)",
           flushImageToEdge ? "flex items-stretch p-0" : "p-2.5 xs:p-3 lg:p-4",
           isSelected && "lg:shadow-(--oboon-shadow-card)",
           isSelected &&
             recommendationTier === "alternative" &&
             "ring-1 ring-(--oboon-grade-yellow-border)",
+          isSelected &&
+            recommendationTier === "informational" &&
+            "ring-1 ring-(--oboon-badge-selected-border)",
         )}
       >
         {flushImageToEdge ? (

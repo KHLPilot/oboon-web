@@ -1295,6 +1295,7 @@ export async function POST(request: Request) {
           exclusive_area: u.exclusiveArea,
           list_price_manwon: u.listPriceManwon,
           is_price_public: u.isPricePublic,
+          passes_category_visibility: u.passesCategoryVisibility,
           final_grade: u.finalGrade,
           total_score: u.totalScore,
           summary_message: u.summaryMessage,

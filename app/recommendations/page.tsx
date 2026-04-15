@@ -517,6 +517,24 @@ export default function RecommendationsPage() {
     return { primaryItems: primary, alternativeItems: alternative };
   }, [sortedResults]);
 
+  const visibleRecommendationIds = useMemo(
+    () =>
+      new Set(
+        [...primaryItems, ...alternativeItems].map((item) => item.property.id),
+      ),
+    [alternativeItems, primaryItems],
+  );
+
+  const typeAvailableItems = useMemo(
+    () =>
+      sortedResults.filter(
+        (item) =>
+          !visibleRecommendationIds.has(item.property.id) &&
+          item.unitTypes.some((unitType) => unitType.passesCategoryVisibility),
+      ),
+    [sortedResults, visibleRecommendationIds],
+  );
+
   const gradeCounts = useMemo(
     () => ({
       GREEN: primaryItems.filter((i) => i.evalResult.finalGrade === "GREEN").length,
@@ -886,6 +904,56 @@ export default function RecommendationsPage() {
                             <OfferingCard
                               offering={item.offering}
                               evalResult={item.evalResult}
+                              recommendationTier="informational"
+                              navigateOnClick={false}
+                              isSelected={visibleSelectedId === Number(item.offering.id)}
+                              onCardClick={() => {
+                                handleSelectFromCard(Number(item.offering.id));
+                                setMobileUnitSheetItem(item);
+                              }}
+                              interactionMode="button"
+                            />
+                          </div>
+                          <div className="hidden sm:block">
+                            <FlippableRecommendationCard
+                              item={item}
+                              recommendationTier="informational"
+                              isSelected={visibleSelectedId === item.property.id}
+                              isFlipped={flippedId === item.property.id}
+                              disableFlip={item.evalResult.isMasked}
+                              onFlip={() => handleFlipFromCard(item.property.id)}
+                              onSelect={() => handleSelectFromCard(item.property.id)}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {!showSkeleton && typeAvailableItems.length > 0 ? (
+                  <div className="space-y-4">
+                    <div className="rounded-2xl border border-(--oboon-badge-selected-border) bg-linear-to-r from-(--oboon-badge-selected-bg) to-transparent px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-(--oboon-primary)" />
+                        <p className="ob-typo-body2 font-semibold text-(--oboon-text-title)">타입 가능 현장</p>
+                        <span className="ob-typo-caption text-(--oboon-text-muted)">{typeAvailableItems.length}개</span>
+                      </div>
+                      <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+                        현장 전체 조건은 아쉽지만, 일부 타입은 조건상 확인할 수 있는 현장입니다.
+                      </p>
+                    </div>
+                    <div className="space-y-3 sm:grid sm:grid-cols-2 sm:gap-4 sm:space-y-0 lg:grid-cols-3">
+                      {typeAvailableItems.map((item) => (
+                        <div
+                          key={item.property.id}
+                          ref={(node) => registerCardRef(item.property.id, node)}
+                          className="min-w-0 space-y-3"
+                        >
+                          <div className="sm:hidden">
+                            <OfferingCard
+                              offering={item.offering}
+                              evalResult={item.evalResult}
                               recommendationTier="alternative"
                               navigateOnClick={false}
                               isSelected={visibleSelectedId === Number(item.offering.id)}
@@ -899,7 +967,7 @@ export default function RecommendationsPage() {
                           <div className="hidden sm:block">
                             <FlippableRecommendationCard
                               item={item}
-                              recommendationTier="alternative"
+                              recommendationTier="informational"
                               isSelected={visibleSelectedId === item.property.id}
                               isFlipped={flippedId === item.property.id}
                               disableFlip={item.evalResult.isMasked}
