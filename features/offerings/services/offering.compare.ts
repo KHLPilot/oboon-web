@@ -309,6 +309,8 @@ function mapToCompareItem(
     moveInDate: timeline?.move_in_date ?? null,
     moveInText: timeline?.move_in_text ?? null,
     nearestStation,
+    siteLat: loc?.lat != null ? Number(loc.lat) : null,
+    siteLng: loc?.lng != null ? Number(loc.lng) : null,
     commuteEstimate: null,
     schoolGrade,
     conditionResult: null,

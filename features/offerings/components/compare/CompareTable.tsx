@@ -375,14 +375,19 @@ export default function CompareTable({
         values={mapCompareValues(items, (item) => item.nearestStation)}
       />
       <SpecGroup
-        label="출퇴근 시간"
+        label="네이버 맵"
         colCount={colCount}
         mobileVisibleIndices={mobileVisibleIndices}
-        values={mapCompareValues(items, (item) =>
-          item.commuteEstimate
-            ? `${item.commuteEstimate.transitMin}분 · ${item.commuteEstimate.carMin}분`
-            : "근무지 선택 후 확인",
-        )}
+        values={mapCompareValues(items, (item) => (
+          <a
+            href={`https://map.naver.com/p/search/${encodeURIComponent([item.name, item.location].filter(Boolean).join(" ").trim())}`}
+            target="_blank"
+            rel="noreferrer"
+            className="text-(--oboon-primary) underline-offset-2 hover:underline"
+          >
+            네이버 맵에서 보기
+          </a>
+        ))}
       />
       <SpecGroup
         label="학군"

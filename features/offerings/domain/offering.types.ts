@@ -62,6 +62,8 @@ export interface OfferingCompareItem {
   moveInDate: string | null;
   moveInText: string | null;
   nearestStation: string;
+  siteLat: number | null;
+  siteLng: number | null;
   commuteEstimate: { transitMin: number; carMin: number } | null;
   schoolGrade: "우수" | "보통" | "미흡";
   conditionResult: FinalGrade5 | null;
