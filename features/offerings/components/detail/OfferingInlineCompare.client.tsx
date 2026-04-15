@@ -206,20 +206,39 @@ function ScheduleEmptyCell({ label, idx, isLast }: { label: string; idx: number;
 // ─── Tab content ──────────────────────────────────────────────────────────────
 
 type RowDef = { label: string; leftVal: React.ReactNode; rightVal: React.ReactNode };
+type WorkplaceValue = NonNullable<ReturnType<typeof useWorkplace>["workplace"]>;
 
 function buildNaverMapSearchHref(item: OfferingCompareItem) {
   const query = [item.name, item.location].filter(Boolean).join(" ").trim();
   return `https://map.naver.com/p/search/${encodeURIComponent(query)}`;
 }
 
+function buildNaverMapDirectionsHref(
+  workplace: WorkplaceValue,
+  item: OfferingCompareItem,
+) {
+  if (item.siteLat == null || item.siteLng == null) {
+    return buildNaverMapSearchHref(item);
+  }
+
+  const originType = workplace.type === "station" ? "SUBWAY_STATION" : "ADDRESS_POI";
+  const destinationType = "ADDRESS_POI";
+  const originName = encodeURIComponent(workplace.label);
+  const destinationName = encodeURIComponent(item.name);
+
+  return `https://map.naver.com/p/directions/${workplace.lng},${workplace.lat},${originName},-,${originType}/${item.siteLng},${item.siteLat},${destinationName},-,${destinationType}/-/transit`;
+}
+
 function TabContent({
   tab,
   left,
   right,
+  workplace,
 }: {
   tab: TabId;
   left: OfferingCompareItem;
   right: OfferingCompareItem | null;
+  workplace: WorkplaceValue | null;
 }) {
   let rows: RowDef[] = [];
 
@@ -327,11 +346,22 @@ function TabContent({
         return <EmptyCell label="네이버 맵" />;
       }
 
+      if (!workplace) {
+        return (
+          <div className="px-5 py-4">
+            <div className="ob-typo-caption mb-1 text-(--oboon-text-muted)">네이버 맵</div>
+            <div className="ob-typo-caption text-(--oboon-text-muted)">
+              근무지를 선택하면 길찾기를 열 수 있어요
+            </div>
+          </div>
+        );
+      }
+
       return (
         <div className="px-5 py-4">
           <div className="ob-typo-caption mb-1 text-(--oboon-text-muted)">네이버 맵</div>
           <a
-            href={buildNaverMapSearchHref(item)}
+            href={buildNaverMapDirectionsHref(workplace, item)}
             target="_blank"
             rel="noreferrer"
             className="ob-typo-caption text-(--oboon-primary) underline-offset-2 hover:underline"
@@ -631,7 +661,8 @@ export default function OfferingInlineCompare({ currentItem, availableItems, scr
         ) : (
           <div>
             {activeTab === "location" && (
-              <div className="hidden">
+              <div className="flex items-center gap-2 border-b border-(--oboon-border-default) bg-(--oboon-bg-subtle)/40 px-4 py-2.5">
+                <span className="shrink-0 ob-typo-caption text-(--oboon-text-muted)">근무지</span>
                 <WorkplaceSelector workplace={workplace} onSelect={setWorkplace} />
               </div>
             )}
@@ -639,6 +670,7 @@ export default function OfferingInlineCompare({ currentItem, availableItems, scr
               tab={activeTab}
               left={currentItem}
               right={compareItem}
+              workplace={workplace}
             />
           </div>
         )}
