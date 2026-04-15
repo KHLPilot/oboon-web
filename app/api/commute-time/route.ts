@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { requireAuthenticatedUser } from "@/lib/api/route-security";
-import { checkRateLimit, commuteLimiter } from "@/lib/rateLimit";
+import { createSupabaseServer } from "@/lib/supabaseServer";
+import { checkRateLimit, commuteLimiter, getClientIp } from "@/lib/rateLimit";
 
 const querySchema = z.object({
   propertyId: z.string().trim().min(1).max(20),
@@ -138,14 +138,14 @@ async function fetchNaverDirections(
 }
 
 export async function GET(req: NextRequest) {
-  const auth = await requireAuthenticatedUser();
-  if (!auth.ok) {
-    return auth.response;
-  }
+  const supabase = await createSupabaseServer();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   const rateLimitResponse = await checkRateLimit(
     commuteLimiter,
-    auth.user.id,
+    user?.id ?? getClientIp(req),
     {
       windowMs: 60 * 1000,
       message: "요청이 너무 많습니다. 잠시 후 다시 시도해주세요.",
@@ -174,7 +174,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ transit: cached.transit, car: cached.car, unit: "분" });
   }
 
-  const { data, error } = await auth.supabase
+  const { data, error } = await supabase
     .from("property_public_snapshots")
     .select("snapshot")
     .eq("property_id", Number(propertyId))
