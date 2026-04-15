@@ -63,15 +63,6 @@ export default function WorkplaceSelector({
     );
   }, [query, recentWorkplaces]);
 
-  const filteredPresetWorkplaces = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    if (!normalized) return WORKPLACE_PRESETS;
-    return WORKPLACE_PRESETS.filter((option) =>
-      option.label.toLowerCase().includes(normalized) ||
-      option.code.toLowerCase().includes(normalized),
-    );
-  }, [query]);
-
   const directInputLabel = query.trim();
   const hasDirectInput = directInputLabel.length > 0;
 
@@ -151,7 +142,12 @@ export default function WorkplaceSelector({
         className="inline-flex w-full min-w-[12rem] items-center gap-1.5 rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-1.5 ob-typo-caption transition-colors hover:bg-(--oboon-bg-subtle)"
       >
         <MapPin className="h-3.5 w-3.5 shrink-0 text-(--oboon-primary)" />
-        <span className={workplace ? "font-medium text-(--oboon-text-title)" : "text-(--oboon-text-muted)"}>
+        <span
+          className={[
+            "min-w-0 flex-1 truncate text-right",
+            workplace ? "font-medium text-(--oboon-text-title)" : "text-(--oboon-text-muted)",
+          ].join(" ")}
+        >
           {workplace ? workplace.label : "근무지 선택"}
         </span>
         <ChevronDown
@@ -217,13 +213,10 @@ export default function WorkplaceSelector({
                       type="button"
                       onClick={() => selectWorkplace(option)}
                       className={[
-                        "flex w-full items-center gap-2 px-3 py-2 text-left ob-typo-caption transition-colors hover:bg-(--oboon-bg-subtle)",
+                        "flex w-full items-center px-3 py-2 text-left ob-typo-caption transition-colors hover:bg-(--oboon-bg-subtle)",
                         selected ? "bg-(--oboon-bg-subtle) font-medium text-(--oboon-primary)" : "text-(--oboon-text-body)",
                       ].join(" ")}
                     >
-                      <span className="shrink-0 text-(--oboon-text-muted)">
-                        {option.type === "station" ? "🚇" : option.type === "district" ? "🏢" : "📍"}
-                      </span>
                       <span className="truncate">{option.label}</span>
                     </button>
                   );
@@ -231,36 +224,9 @@ export default function WorkplaceSelector({
               </div>
             ) : null}
 
-            {filteredPresetWorkplaces.length === 0 ? null : (
-              <div>
-                <div className="px-3 py-2 ob-typo-caption text-(--oboon-text-muted)">
-                  추천 근무지
-                </div>
-                {filteredPresetWorkplaces.map((option) => {
-                  const selected = workplace?.code === option.code;
-                  return (
-                    <button
-                      key={option.code}
-                      type="button"
-                      onClick={() => selectWorkplace(option)}
-                      className={[
-                        "flex w-full items-center gap-2 px-3 py-2 text-left ob-typo-caption transition-colors hover:bg-(--oboon-bg-subtle)",
-                        selected ? "bg-(--oboon-bg-subtle) font-medium text-(--oboon-primary)" : "text-(--oboon-text-body)",
-                      ].join(" ")}
-                    >
-                      <span className="shrink-0 text-(--oboon-text-muted)">
-                        {option.type === "station" ? "🚇" : "🏢"}
-                      </span>
-                      <span className="truncate">{option.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {!filteredRecentWorkplaces.length && !filteredPresetWorkplaces.length && !hasDirectInput ? (
+            {!filteredRecentWorkplaces.length && !hasDirectInput ? (
               <div className="px-3 py-4 text-center ob-typo-caption text-(--oboon-text-muted)">
-                검색 결과가 없습니다
+                최근 사용 내역이 없습니다
               </div>
             ) : null}
           </div>

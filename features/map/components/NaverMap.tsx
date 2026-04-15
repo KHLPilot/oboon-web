@@ -1325,6 +1325,7 @@ const NaverMap = forwardRef<
         const m = mapRef.current;
         const naverObj = window.naver;
         if (!m || !naverObj?.maps) return;
+        pendingClusterCenterRef.current = null;
         setMapCenter(m, new naverObj.maps.LatLng(lat, lng));
         if (typeof zoom === "number") {
           m.setZoom(zoom, true);
@@ -1334,6 +1335,7 @@ const NaverMap = forwardRef<
         const m = mapRef.current;
         const naverObj = window.naver;
         if (!m || !naverObj?.maps) return;
+        pendingClusterCenterRef.current = null;
 
         const mapSize = m.getSize();
         const paddingX = 20;

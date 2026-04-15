@@ -236,6 +236,10 @@ function computeBoundsFromMarkers(markers: MapMarker[]): MapFocusBounds | null {
   };
 }
 
+function getRegionViewport(regionKey: string) {
+  return REGION_TABS.find((tab) => tab.key === regionKey) ?? REGION_TABS[0];
+}
+
 function toMarker(m: DbOffering): MapMarker {
   return {
     id: m.id,
@@ -408,11 +412,13 @@ export default function MapPageClient() {
     () =>
       activeRegionTab === "all"
         ? null
-        :
+      :
       computeBoundsFromPolygons(activeRegionFocusPolygons) ??
       computeBoundsFromMarkers(markers),
     [activeRegionFocusPolygons, activeRegionTab, markers],
   );
+  const isDefaultScope = activeRegionTab === "all" && activeSubRegionTab === "all";
+  const mapInitialCenter = isDefaultScope ? initialCenter : null;
 
   const handleToggleLayer = (key: MarkerLayer) => {
     setFilters((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -427,17 +433,7 @@ export default function MapPageClient() {
       setFocusedId(null);
       return;
     }
-    const boundaryBounds =
-      target.key === "all"
-        ? ALL_KOREA_VIEW_BOUNDS
-        : (computeBoundsFromPolygons(regionBoundaryByKey[target.key]?.polygons ?? []) ??
-          regionBoundaryByKey[target.key]?.bounds ??
-          null);
-    if (boundaryBounds) {
-      mapApiRef.current?.fitToBounds(boundaryBounds);
-    } else {
-      mapApiRef.current?.setView(target.lat, target.lng, target.zoom);
-    }
+    mapApiRef.current?.setView(target.lat, target.lng, target.zoom);
     setFocusedId(null);
   };
 
@@ -483,9 +479,6 @@ export default function MapPageClient() {
     if (!map) return;
     let retryTimer: number | null = null;
 
-    const isDefaultScope =
-      activeRegionTab === "all" && activeSubRegionTab === "all";
-
     if (isDefaultScope) {
       if (initialLocationStatus === "granted" && initialCenter) {
         const locationKey = `${initialCenter.lat.toFixed(6)},${initialCenter.lng.toFixed(6)}`;
@@ -519,18 +512,19 @@ export default function MapPageClient() {
       };
     }
 
-    const bounds = activeRegionFocusBounds;
-    if (!bounds) return;
-    const boundsKey = `${bounds.south.toFixed(4)},${bounds.west.toFixed(4)},${bounds.north.toFixed(4)},${bounds.east.toFixed(4)}`;
-    const viewportKey = `region:${activeRegionTab}:${activeSubRegionTab}:${boundsKey}`;
+    const target =
+      activeRegionTab === "all" && activeSubRegionTab === "all"
+        ? null
+        : getRegionViewport(activeRegionTab);
+    if (!target) return;
+    const viewportKey = `region:${target.key}:${target.lat.toFixed(4)},${target.lng.toFixed(4)},${target.zoom}`;
     if (lastViewportKeyRef.current === viewportKey) return;
     lastViewportKeyRef.current = viewportKey;
-    map.fitToBounds(bounds);
+    map.setView(target.lat, target.lng, target.zoom);
     return () => {
       if (retryTimer !== null) window.clearTimeout(retryTimer);
     };
   }, [
-    activeRegionFocusBounds,
     activeRegionTab,
     activeSubRegionTab,
     initialCenter,
@@ -614,7 +608,7 @@ export default function MapPageClient() {
                 <NaverMap
                   ref={mapApiRef}
                   markers={markers}
-                  initialCenter={initialCenter}
+                  initialCenter={mapInitialCenter}
                   initialLocationStatus={initialLocationStatus}
                   initialZoom={13}
                   focusBounds={activeRegionFocusBounds}

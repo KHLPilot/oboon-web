@@ -224,8 +224,11 @@ function useIsMobileViewport() {
 }
 
 function buildNaverMapSearchHref(item: OfferingCompareItem) {
-  const query = [item.name, item.location].filter(Boolean).join(" ").trim();
-  return `https://map.naver.com/p/search/${encodeURIComponent(query)}`;
+  return `https://map.naver.com/p/search/${encodeURIComponent(item.name.trim())}`;
+}
+
+function hasWorkplaceCoordinates(workplace: WorkplaceValue) {
+  return workplace.lat != null && workplace.lng != null;
 }
 
 function buildNaverMapWebDirectionsHref(
@@ -237,11 +240,11 @@ function buildNaverMapWebDirectionsHref(
   }
 
   const originType = workplace.type === "station" ? "SUBWAY_STATION" : "ADDRESS_POI";
-  const destinationType = "ADDRESS_POI";
+  const destinationType = "PLACE_POI";
   const originName = encodeURIComponent(workplace.label);
   const destinationName = encodeURIComponent(item.name);
 
-  return `https://map.naver.com/p/directions/${workplace.lng},${workplace.lat},${originName},-,${originType}/${item.siteLng},${item.siteLat},${destinationName},-,${destinationType}/-/transit`;
+  return `https://map.naver.com/v5/directions/${workplace.lng},${workplace.lat},${originName},0,${originType}/${item.siteLng},${item.siteLat},${destinationName},0,${destinationType}/-/transit?c=${workplace.lng},${workplace.lat},15,0,0,0,dh`;
 }
 
 function buildNaverMapMobileRouteHref(
@@ -253,16 +256,16 @@ function buildNaverMapMobileRouteHref(
   }
 
   const params = new URLSearchParams({
-    menu: "route",
+    slat: String(workplace.lat),
+    slng: String(workplace.lng),
     sname: workplace.label,
-    sx: String(workplace.lng),
-    sy: String(workplace.lat),
-    ename: item.name,
-    ex: String(item.siteLng),
-    ey: String(item.siteLat),
+    dlat: String(item.siteLat),
+    dlng: String(item.siteLng),
+    dname: item.name,
+    appname: window.location.href,
   });
 
-  return `https://m.map.naver.com/route.nhn?${params.toString()}`;
+  return `nmap://route/public?${params.toString()}`;
 }
 
 function TabContent({
@@ -391,6 +394,25 @@ function TabContent({
             <div className="ob-typo-caption text-(--oboon-text-muted)">
               근무지를 선택하면 길찾기를 열 수 있어요
             </div>
+          </div>
+        );
+      }
+
+      if (!hasWorkplaceCoordinates(workplace)) {
+        return (
+          <div className="px-5 py-4">
+            <div className="ob-typo-caption mb-1 text-(--oboon-text-muted)">네이버 맵</div>
+            <div className="ob-typo-caption text-(--oboon-text-muted)">
+              좌표가 없어 길찾기를 열 수 없어요
+            </div>
+            <a
+              href={buildNaverMapSearchHref(item)}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-1 inline-block ob-typo-caption text-(--oboon-primary) underline-offset-2 hover:underline"
+            >
+              네이버 맵에서 검색
+            </a>
           </div>
         );
       }
@@ -701,7 +723,7 @@ export default function OfferingInlineCompare({ currentItem, availableItems, scr
           <div>
             {activeTab === "location" && (
               <div className="flex items-center gap-2 border-b border-(--oboon-border-default) bg-(--oboon-bg-subtle)/40 px-4 py-2.5">
-                <span className="shrink-0 ob-typo-caption text-(--oboon-text-muted)">근무지</span>
+                <span className="shrink-0 whitespace-nowrap ob-typo-caption text-(--oboon-text-muted)">근무지</span>
                 <WorkplaceSelector
                   workplace={workplace}
                   recentWorkplaces={recentWorkplaces}

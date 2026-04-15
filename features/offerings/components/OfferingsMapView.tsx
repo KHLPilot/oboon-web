@@ -44,6 +44,31 @@ const GPS_FOCUS_ZOOM = 12;
 const REGION_CLUSTER_ZOOM_THRESHOLD = 16;
 const STATUS_OPEN = OFFERING_STATUS_VALUES[1];
 
+const STATIC_REGION_VIEWPORTS = {
+  전체: { key: "nationwide", lat: 36.5, lng: 127.9, zoom: 7 },
+  서울: { key: "seoul", lat: 37.5665, lng: 126.978, zoom: 11 },
+  인천: { key: "incheon", lat: 37.4563, lng: 126.7052, zoom: 11 },
+  경기: { key: "gyeonggi", lat: 37.4138, lng: 127.5183, zoom: 10 },
+  부산: { key: "busan", lat: 35.1796, lng: 129.0756, zoom: 11 },
+  대구: { key: "daegu", lat: 35.8714, lng: 128.6014, zoom: 11 },
+  광주: { key: "gwangju", lat: 35.1595, lng: 126.8526, zoom: 11 },
+  대전: { key: "daejeon", lat: 36.3504, lng: 127.3845, zoom: 11 },
+  울산: { key: "ulsan", lat: 35.5384, lng: 129.3114, zoom: 11 },
+  세종: { key: "sejong", lat: 36.4801, lng: 127.289, zoom: 11 },
+  강원: { key: "gangwon", lat: 37.8228, lng: 128.1555, zoom: 9 },
+  충북: { key: "chungbuk", lat: 36.6357, lng: 127.4917, zoom: 10 },
+  충남: { key: "chungnam", lat: 36.5184, lng: 126.8, zoom: 10 },
+  전북: { key: "jeonbuk", lat: 35.8202, lng: 127.1089, zoom: 10 },
+  전남: { key: "jeonnam", lat: 34.8679, lng: 126.991, zoom: 9 },
+  경북: { key: "gyeongbuk", lat: 36.4919, lng: 128.8889, zoom: 9 },
+  경남: { key: "gyeongnam", lat: 35.4606, lng: 128.2132, zoom: 10 },
+  제주: { key: "jeju", lat: 33.4996, lng: 126.5312, zoom: 10 },
+} as const;
+
+function getStaticRegionViewport(region: string) {
+  return STATIC_REGION_VIEWPORTS[region as keyof typeof STATIC_REGION_VIEWPORTS] ?? null;
+}
+
 const SEOUL_BOUNDARY_KEY_BY_LABEL: Record<string, string> = {
   강남구: "seoul_gangnam",
   강동구: "seoul_gangdong",
@@ -363,6 +388,9 @@ export default function OfferingsMapView({
   const hasActiveRegionBoundary = activeBoundaryRegionKey === "all"
     ? true
     : Boolean(activeRegionBoundaryPayload);
+  const isDefaultScope = activeBoundaryRegionKey === "all" && !hasActiveListFilters;
+  const mapInitialCenter = isDefaultScope ? initialCenter : null;
+  const staticRegionViewport = getStaticRegionViewport(region);
   const activeRegionFocusBounds = useMemo(
     () => {
       if (activeBoundaryRegionKey === "all") return null;
@@ -433,35 +461,66 @@ export default function OfferingsMapView({
     if (!map) return;
     let retryTimer: number | null = null;
 
-    if (initialLocationStatus === "granted" && initialCenter) {
-      const locationKey = `${initialCenter.lat.toFixed(6)},${initialCenter.lng.toFixed(6)}`;
-      const viewportKey = `location:${locationKey}`;
+    if (isDefaultScope) {
+      if (initialLocationStatus === "granted" && initialCenter) {
+        const locationKey = `${initialCenter.lat.toFixed(6)},${initialCenter.lng.toFixed(6)}`;
+        const viewportKey = `location:${locationKey}`;
+        if (lastViewportKeyRef.current !== viewportKey) {
+          lastViewportKeyRef.current = viewportKey;
+          map.setView(initialCenter.lat, initialCenter.lng, GPS_FOCUS_ZOOM);
+          retryTimer = window.setTimeout(() => {
+            mapApiRef.current?.setView(
+              initialCenter.lat,
+              initialCenter.lng,
+              GPS_FOCUS_ZOOM,
+            );
+          }, 180);
+        }
+        return () => {
+          if (retryTimer !== null) window.clearTimeout(retryTimer);
+        };
+      }
+
+      if (
+        initialLocationStatus === "pending" ||
+        initialLocationStatus === "idle"
+      ) {
+        return;
+      }
+
+      if (lastViewportKeyRef.current !== "nationwide") {
+        lastViewportKeyRef.current = "nationwide";
+        map.fitToBounds(ALL_KOREA_VIEW_BOUNDS);
+      }
+      return;
+    }
+
+    if (staticRegionViewport) {
+      const viewportKey = `region:${staticRegionViewport.key}:${staticRegionViewport.lat.toFixed(4)},${staticRegionViewport.lng.toFixed(4)},${staticRegionViewport.zoom}`;
       if (lastViewportKeyRef.current !== viewportKey) {
         lastViewportKeyRef.current = viewportKey;
-        map.setView(initialCenter.lat, initialCenter.lng, GPS_FOCUS_ZOOM);
-        retryTimer = window.setTimeout(() => {
-          mapApiRef.current?.setView(
-            initialCenter.lat,
-            initialCenter.lng,
-            GPS_FOCUS_ZOOM,
-          );
-        }, 180);
+        map.setView(
+          staticRegionViewport.lat,
+          staticRegionViewport.lng,
+          staticRegionViewport.zoom,
+        );
       }
       return () => {
         if (retryTimer !== null) window.clearTimeout(retryTimer);
       };
     }
 
-    if (initialLocationStatus === "pending" || initialLocationStatus === "idle") {
-      return;
-    }
-
-    if (activeBoundaryRegionKey === "all" && !hasActiveListFilters) {
-      if (lastViewportKeyRef.current !== "nationwide") {
-        lastViewportKeyRef.current = "nationwide";
-        map.fitToBounds(ALL_KOREA_VIEW_BOUNDS);
+    if (hasActiveListFilters) {
+      const bounds = activeBounds;
+      const boundsKey = `${bounds.south.toFixed(4)},${bounds.west.toFixed(4)},${bounds.north.toFixed(4)},${bounds.east.toFixed(4)}`;
+      const viewportKey = `bounds:${boundsKey}`;
+      if (lastViewportKeyRef.current !== viewportKey) {
+        lastViewportKeyRef.current = viewportKey;
+        map.fitToBounds(bounds);
       }
-      return;
+      return () => {
+        if (retryTimer !== null) window.clearTimeout(retryTimer);
+      };
     }
 
     if (!hasActiveRegionBoundary) return;
@@ -511,7 +570,7 @@ export default function OfferingsMapView({
               <NaverMap
                 ref={mapApiRef}
                 markers={markers}
-                initialCenter={initialCenter}
+                initialCenter={mapInitialCenter}
                 initialLocationStatus={initialLocationStatus}
                 initialZoom={11}
                 regionClusterEnabled
@@ -573,7 +632,7 @@ export default function OfferingsMapView({
         open={overlayOpen}
         title={Copy.offerings.map.title}
         markers={markers}
-        initialCenter={initialCenter}
+        initialCenter={mapInitialCenter}
         initialLocationStatus={initialLocationStatus}
         regionClusterEnabled
         regionClusterZoomThreshold={REGION_CLUSTER_ZOOM_THRESHOLD}
