@@ -185,9 +185,12 @@ function toArray<T>(v: T | T[] | null | undefined): T[] {
   return Array.isArray(v) ? v : [v];
 }
 
+type FamousZoneInfo = { name: string; shortLabel: string; tier: number };
+
 function mapToCompareItem(
   row: PropertyRow,
   pois: RecoPoiQueryRow[],
+  famousZone: FamousZoneInfo | null = null,
 ): OfferingCompareItem {
   const loc = pickFirst(row.property_locations);
   const spec = pickFirst(row.property_specs);
@@ -313,6 +316,7 @@ function mapToCompareItem(
     siteLng: loc?.lng != null ? Number(loc.lng) : null,
     commuteEstimate: null,
     schoolGrade,
+    famousZone,
     conditionResult: null,
     conditionCategories: null,
   };
@@ -332,7 +336,7 @@ export async function getOfferingsForCompare(
   const supabase = await createSupabaseServer();
   const adminSupabase = viewerCustomer ? createAdminSupabase() : null;
 
-  const [snapshotResult, poisResult] = await Promise.all([
+  const [snapshotResult, poisResult, famousZonesResult] = await Promise.all([
     supabase
       .from("property_public_snapshots")
       .select("property_id, snapshot")
@@ -342,10 +346,20 @@ export async function getOfferingsForCompare(
       .select("property_id, category, rank, name, distance_m, school_level")
       .in("property_id", numericIds)
       .order("rank", { ascending: true }),
+    supabase
+      .from("famous_school_zones")
+      .select("name, short_label, tier, match_keys")
+      .order("tier", { ascending: true }),
   ]);
 
   const snapshots = snapshotResult.data ?? [];
   const allPois = (poisResult.data ?? []) as unknown as RecoPoiQueryRow[];
+  const allFamousZones = (famousZonesResult.data ?? []) as {
+    name: string;
+    short_label: string;
+    tier: number;
+    match_keys: string[];
+  }[];
 
   // Group pois by property_id
   const poisByPropertyId = new Map<number, RecoPoiQueryRow[]>();
@@ -354,6 +368,20 @@ export async function getOfferingsForCompare(
     const existing = poisByPropertyId.get(key) ?? [];
     existing.push(poi);
     poisByPropertyId.set(key, existing);
+  }
+
+  // Build location key → famous zone map (tier ASC already ordered)
+  const famousZoneByLocationKey = new Map<string, FamousZoneInfo>();
+  for (const zone of allFamousZones) {
+    for (const key of zone.match_keys) {
+      if (!famousZoneByLocationKey.has(key)) {
+        famousZoneByLocationKey.set(key, {
+          name: zone.name,
+          shortLabel: zone.short_label,
+          tier: zone.tier,
+        });
+      }
+    }
   }
 
   // Build snapshot map
@@ -372,7 +400,15 @@ export async function getOfferingsForCompare(
       const snapshot = snapshotMap.get(id);
       if (!snapshot) return null;
       const pois = poisByPropertyId.get(Number(id)) ?? [];
-      const item = mapToCompareItem(snapshot, pois);
+      const loc = pickFirst(snapshot.property_locations);
+      const locationKey =
+        loc?.region_2depth && loc?.region_3depth
+          ? `${loc.region_2depth}|${loc.region_3depth}`
+          : null;
+      const famousZone = locationKey
+        ? (famousZoneByLocationKey.get(locationKey) ?? null)
+        : null;
+      const item = mapToCompareItem(snapshot, pois, famousZone);
 
       if (viewerCustomer && adminSupabase) {
         const profile = await loadPropertyProfile({
