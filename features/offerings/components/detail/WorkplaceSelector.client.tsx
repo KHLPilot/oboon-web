@@ -50,11 +50,11 @@ export default function WorkplaceSelector({ workplace, onSelect }: Props) {
   }
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} className="relative inline-flex w-fit flex-col items-stretch">
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className="flex items-center gap-1.5 rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-1.5 ob-typo-caption transition-colors hover:bg-(--oboon-bg-subtle)"
+        className="inline-flex w-full items-center gap-1.5 rounded-lg border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-3 py-1.5 ob-typo-caption transition-colors hover:bg-(--oboon-bg-subtle)"
       >
         <MapPin className="h-3.5 w-3.5 shrink-0 text-(--oboon-primary)" />
         <span className={workplace ? "font-medium text-(--oboon-text-title)" : "text-(--oboon-text-muted)"}>
@@ -69,7 +69,7 @@ export default function WorkplaceSelector({ workplace, onSelect }: Props) {
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-30 mt-1 w-64 overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) shadow-lg">
+        <div className="absolute left-0 top-full z-30 mt-1 w-full min-w-full overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) shadow-lg">
           <div className="flex items-center gap-2 border-b border-(--oboon-border-default) px-3 py-2">
             <input
               ref={inputRef}
@@ -89,7 +89,7 @@ export default function WorkplaceSelector({ workplace, onSelect }: Props) {
             ) : null}
           </div>
 
-          <div className="max-h-56 overflow-y-auto">
+          <div className="max-h-[12.5rem] overflow-y-auto overscroll-contain">
             {filteredWorkplaces.length === 0 ? (
               <div className="px-3 py-4 text-center ob-typo-caption text-(--oboon-text-muted)">
                 검색 결과가 없습니다
