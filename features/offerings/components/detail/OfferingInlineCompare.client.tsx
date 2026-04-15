@@ -1,7 +1,7 @@
 "use client";
 
 // features/offerings/components/detail/OfferingInlineCompare.client.tsx
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Check, ChevronDown, Clock, GitCompareArrows, Heart } from "lucide-react";
@@ -208,12 +208,27 @@ function ScheduleEmptyCell({ label, idx, isLast }: { label: string; idx: number;
 type RowDef = { label: string; leftVal: React.ReactNode; rightVal: React.ReactNode };
 type WorkplaceValue = NonNullable<ReturnType<typeof useWorkplace>["workplace"]>;
 
+function useIsMobileViewport() {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 767px)");
+    const update = () => setIsMobile(media.matches);
+
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  return isMobile;
+}
+
 function buildNaverMapSearchHref(item: OfferingCompareItem) {
   const query = [item.name, item.location].filter(Boolean).join(" ").trim();
   return `https://map.naver.com/p/search/${encodeURIComponent(query)}`;
 }
 
-function buildNaverMapDirectionsHref(
+function buildNaverMapWebDirectionsHref(
   workplace: WorkplaceValue,
   item: OfferingCompareItem,
 ) {
@@ -229,16 +244,39 @@ function buildNaverMapDirectionsHref(
   return `https://map.naver.com/p/directions/${workplace.lng},${workplace.lat},${originName},-,${originType}/${item.siteLng},${item.siteLat},${destinationName},-,${destinationType}/-/transit`;
 }
 
+function buildNaverMapMobileRouteHref(
+  workplace: WorkplaceValue,
+  item: OfferingCompareItem,
+) {
+  if (item.siteLat == null || item.siteLng == null) {
+    return buildNaverMapSearchHref(item);
+  }
+
+  const params = new URLSearchParams({
+    menu: "route",
+    sname: workplace.label,
+    sx: String(workplace.lng),
+    sy: String(workplace.lat),
+    ename: item.name,
+    ex: String(item.siteLng),
+    ey: String(item.siteLat),
+  });
+
+  return `https://m.map.naver.com/route.nhn?${params.toString()}`;
+}
+
 function TabContent({
   tab,
   left,
   right,
   workplace,
+  isMobile,
 }: {
   tab: TabId;
   left: OfferingCompareItem;
   right: OfferingCompareItem | null;
   workplace: WorkplaceValue | null;
+  isMobile: boolean;
 }) {
   let rows: RowDef[] = [];
 
@@ -361,9 +399,9 @@ function TabContent({
         <div className="px-5 py-4">
           <div className="ob-typo-caption mb-1 text-(--oboon-text-muted)">네이버 맵</div>
           <a
-            href={buildNaverMapDirectionsHref(workplace, item)}
-            target="_blank"
-            rel="noreferrer"
+            href={isMobile ? buildNaverMapMobileRouteHref(workplace, item) : buildNaverMapWebDirectionsHref(workplace, item)}
+            target={isMobile ? undefined : "_blank"}
+            rel={isMobile ? undefined : "noreferrer"}
             className="ob-typo-caption text-(--oboon-primary) underline-offset-2 hover:underline"
           >
             네이버 맵에서 보기
@@ -555,6 +593,7 @@ export default function OfferingInlineCompare({ currentItem, availableItems, scr
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [compareItem, setCompareItem] = useState<OfferingCompareItem | null>(null);
   const [loading, setLoading] = useState(false);
+  const isMobile = useIsMobileViewport();
   const { workplace, setWorkplace } = useWorkplace();
   const [leftHeaderHeight, setLeftHeaderHeight] = useState(0);
   const leftHeaderRef = useCallback((node: HTMLDivElement | null) => {
@@ -671,6 +710,7 @@ export default function OfferingInlineCompare({ currentItem, availableItems, scr
               left={currentItem}
               right={compareItem}
               workplace={workplace}
+              isMobile={isMobile}
             />
           </div>
         )}
