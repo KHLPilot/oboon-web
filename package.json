@@ -2,13 +2,14 @@
   "name": "oboon-web",
   "version": "1.0.0",
   "private": true,
-  "packageManager": "pnpm@10.28.0",
+  "packageManager": "pnpm@10.33.0",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit --incremental false",
+    "security:audit": "node scripts/security-audit.mjs --audit-level high",
     "ssot:check": "node scripts/ssot-check.js"
   },
   "dependencies": {

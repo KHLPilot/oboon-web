@@ -14,7 +14,7 @@
 |------|------|------|------|
 | A-01 | 정보보호 정책 수립 | 부분이행 | CLAUDE.md에 보안 원칙 기술됨. 공식 정보보호 정책서 미확인 |
 | A-02 | 정보보호 조직 구성 | 부분이행 | 역할 분리(관리자/상담사/회사/고객)는 코드에 반영. 보안 담당자 공식 지정 미확인 |
-| A-14 | 취약점 관리 | 양호 | `pnpm overrides` + GitHub Actions `pnpm lint/typecheck/audit` + Dependabot 주간 자동 스캔 도입 |
+| A-14 | 취약점 관리 | 양호 | `pnpm overrides` + GitHub Actions `pnpm lint`, `pnpm typecheck`, `pnpm run security:audit` + Dependabot 주간 자동 스캔 도입 |
 | A-15 | 보안 감사 | 부분이행 | KESE 보고서 작성(이 문서). 정기적 외부 감사 절차 미확인 |
 | A-16 | 법적 요구사항 준수 | 부분이행 | 개인정보 처리방침 페이지 존재. 규정 준수 체크리스트 미확인 |
 
@@ -26,7 +26,7 @@
 |------|------|------|------|
 | A-23 | 자산 목록 | 부분이행 | `docs/reference/supabase-service-role-audit.md`에 서비스 롤 키 사용처 인벤토리 존재. 전체 자산 목록 미확인 |
 | A-27 | 위험 평가 | 부분이행 | 코드 레벨 취약점 분석(이 문서) 수행. 공식 위험평가 방법론 미확인 |
-| A-35 | 서드파티 의존성 관리 | 양호 | `pnpm overrides` 적용 + Dependabot 주간 업데이트 + 정기 `pnpm audit` 자동화 |
+| A-35 | 서드파티 의존성 관리 | 양호 | `pnpm overrides` 적용 + Dependabot 주간 업데이트 + 정기 `pnpm run security:audit` 자동화 |
 
 ---
 

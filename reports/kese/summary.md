@@ -52,7 +52,7 @@
 
 ### ✅ A-14 — 의존성 취약점 자동 스캔 [후속 조치 — 2026-04-11]
 
-- GitHub Actions `security-scans.yml` 추가: `pnpm lint`, `pnpm typecheck`, `pnpm audit --audit-level high`
+- GitHub Actions `security-scans.yml` 추가: `pnpm lint`, `pnpm typecheck`, `pnpm run security:audit`
 - `.github/dependabot.yml` 추가: `pnpm` / `github-actions` 주간 자동 업데이트
 
 ---
