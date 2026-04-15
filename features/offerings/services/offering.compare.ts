@@ -187,10 +187,37 @@ function toArray<T>(v: T | T[] | null | undefined): T[] {
 
 type FamousZoneInfo = { name: string; shortLabel: string; tier: number };
 
+async function fetchAcademyCount(lat: number, lng: number): Promise<number | null> {
+  const kakaoApiKey = process.env.KAKAO_REST_API_KEY;
+  if (!kakaoApiKey) return null;
+  try {
+    const query = new URLSearchParams({
+      category_group_code: "AC5",
+      x: String(lng),
+      y: String(lat),
+      radius: "1000",
+      size: "1",
+    });
+    const res = await fetch(
+      `https://dapi.kakao.com/v2/local/search/category.json?${query}`,
+      {
+        headers: { Authorization: `KakaoAK ${kakaoApiKey}` },
+        next: { revalidate: 60 * 60 * 24 },
+      },
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as { meta?: { total_count?: number } };
+    return data.meta?.total_count ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function mapToCompareItem(
   row: PropertyRow,
   pois: RecoPoiQueryRow[],
   famousZone: FamousZoneInfo | null = null,
+  academyCount: number | null = null,
 ): OfferingCompareItem {
   const loc = pickFirst(row.property_locations);
   const spec = pickFirst(row.property_specs);
@@ -317,6 +344,7 @@ function mapToCompareItem(
     commuteEstimate: null,
     schoolGrade,
     famousZone,
+    academyCount,
     conditionResult: null,
     conditionCategories: null,
   };
@@ -408,7 +436,11 @@ export async function getOfferingsForCompare(
       const famousZone = locationKey
         ? (famousZoneByLocationKey.get(locationKey) ?? null)
         : null;
-      const item = mapToCompareItem(snapshot, pois, famousZone);
+      const lat = loc?.lat != null ? Number(loc.lat) : null;
+      const lng = loc?.lng != null ? Number(loc.lng) : null;
+      const academyCount =
+        lat != null && lng != null ? await fetchAcademyCount(lat, lng) : null;
+      const item = mapToCompareItem(snapshot, pois, famousZone, academyCount);
 
       if (viewerCustomer && adminSupabase) {
         const profile = await loadPropertyProfile({

@@ -346,12 +346,22 @@ function TabContent({
           <div className="flex flex-col gap-1">
             <span className={`text-xl font-bold ${schoolCls(left.schoolGrade)}`}>{left.schoolGrade}</span>
             {left.famousZone && <FamousZoneBadge zone={left.famousZone} />}
+            {left.academyCount != null && (
+              <span className="ob-typo-caption text-(--oboon-text-muted)">
+                반경 1km 학원 {left.academyCount.toLocaleString("ko-KR")}개
+              </span>
+            )}
           </div>
         ),
         rightVal: right ? (
           <div className="flex flex-col gap-1">
             <span className={`text-xl font-bold ${schoolCls(right.schoolGrade)}`}>{right.schoolGrade}</span>
             {right.famousZone && <FamousZoneBadge zone={right.famousZone} />}
+            {right.academyCount != null && (
+              <span className="ob-typo-caption text-(--oboon-text-muted)">
+                반경 1km 학원 {right.academyCount.toLocaleString("ko-KR")}개
+              </span>
+            )}
           </div>
         ) : null,
       },
@@ -464,6 +474,11 @@ function TabContent({
                 <div className="flex flex-col gap-1">
                   <span className={schoolCls(left.schoolGrade)}>{left.schoolGrade}</span>
                   {left.famousZone && <FamousZoneBadge zone={left.famousZone} />}
+                  {left.academyCount != null && (
+                    <span className="ob-typo-caption text-(--oboon-text-muted)">
+                      반경 1km 학원 {left.academyCount.toLocaleString("ko-KR")}개
+                    </span>
+                  )}
                 </div>
               }
             />
@@ -476,6 +491,11 @@ function TabContent({
                   <div className="flex flex-col gap-1">
                     <span className={schoolCls(right.schoolGrade)}>{right.schoolGrade}</span>
                     {right.famousZone && <FamousZoneBadge zone={right.famousZone} />}
+                    {right.academyCount != null && (
+                      <span className="ob-typo-caption text-(--oboon-text-muted)">
+                        반경 1km 학원 {right.academyCount.toLocaleString("ko-KR")}개
+                      </span>
+                    )}
                   </div>
                 }
               />

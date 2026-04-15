@@ -67,6 +67,7 @@ export interface OfferingCompareItem {
   commuteEstimate: { transitMin: number; carMin: number } | null;
   schoolGrade: "우수" | "보통" | "미흡";
   famousZone: { name: string; shortLabel: string; tier: number } | null;
+  academyCount: number | null;
   conditionResult: FinalGrade5 | null;
   conditionCategories: OfferingCompareConditionCategories | null;
 }
