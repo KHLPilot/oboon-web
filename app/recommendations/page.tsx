@@ -60,7 +60,7 @@ type MobileConditionSheetProps = {
 
 type FlippableRecommendationCardProps = {
   item: RecommendationItem;
-  recommendationTier?: "primary" | "alternative";
+  recommendationTier?: "primary" | "alternative" | "informational";
   isSelected: boolean;
   isFlipped: boolean;
   disableFlip?: boolean;
@@ -71,7 +71,7 @@ type FlippableRecommendationCardProps = {
 type OfferingCardProps = {
   offering: RecommendationItem["offering"];
   evalResult: RecommendationItem["evalResult"];
-  recommendationTier?: "primary" | "alternative";
+  recommendationTier?: "primary" | "alternative" | "informational";
   navigateOnClick: boolean;
   isSelected: boolean;
   onCardClick: () => void;
