@@ -594,7 +594,7 @@ export default function OfferingInlineCompare({ currentItem, availableItems, scr
   const [compareItem, setCompareItem] = useState<OfferingCompareItem | null>(null);
   const [loading, setLoading] = useState(false);
   const isMobile = useIsMobileViewport();
-  const { workplace, setWorkplace } = useWorkplace();
+  const { workplace, setWorkplace, recentWorkplaces } = useWorkplace();
   const [leftHeaderHeight, setLeftHeaderHeight] = useState(0);
   const leftHeaderRef = useCallback((node: HTMLDivElement | null) => {
     if (node) setLeftHeaderHeight(node.getBoundingClientRect().height);
@@ -702,7 +702,11 @@ export default function OfferingInlineCompare({ currentItem, availableItems, scr
             {activeTab === "location" && (
               <div className="flex items-center gap-2 border-b border-(--oboon-border-default) bg-(--oboon-bg-subtle)/40 px-4 py-2.5">
                 <span className="shrink-0 ob-typo-caption text-(--oboon-text-muted)">근무지</span>
-                <WorkplaceSelector workplace={workplace} onSelect={setWorkplace} />
+                <WorkplaceSelector
+                  workplace={workplace}
+                  recentWorkplaces={recentWorkplaces}
+                  onSelect={setWorkplace}
+                />
               </div>
             )}
             <TabContent

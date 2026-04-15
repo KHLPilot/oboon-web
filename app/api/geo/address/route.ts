@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { requireAuthenticatedUser } from "@/lib/api/route-security";
-import { checkRateLimit, geoAddressLimiter } from "@/lib/rateLimit";
+import {
+  checkRateLimit,
+  geoAddressLimiter,
+  getClientIp,
+} from "@/lib/rateLimit";
 
 const addressQuerySchema = z.object({
   query: z
@@ -72,14 +75,9 @@ function jsonResponse(payload: AddressPayload, cached = false) {
 }
 
 export async function GET(req: NextRequest) {
-  const auth = await requireAuthenticatedUser();
-  if (!auth.ok) {
-    return auth.response;
-  }
-
   const rateLimitResponse = await checkRateLimit(
     geoAddressLimiter,
-    auth.user.id,
+    getClientIp(req),
     {
       windowMs: 10 * 60 * 1000,
       message: "주소 검색 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.",

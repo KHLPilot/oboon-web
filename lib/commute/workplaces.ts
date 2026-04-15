@@ -6,6 +6,39 @@ export type WorkplacePreset = {
   lng: number;
 };
 
+export type WorkplaceCustom = {
+  code: string;
+  label: string;
+  type: "address";
+  lat: number | null;
+  lng: number | null;
+};
+
+export type WorkplaceChoice = WorkplacePreset | WorkplaceCustom;
+
+export function createCustomWorkplace(
+  label: string,
+  lat: number | null,
+  lng: number | null,
+): WorkplaceCustom {
+  const normalized = label
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^0-9a-z가-힣-]/g, "");
+  const coord = [lat, lng]
+    .map((value) => (value == null ? "na" : String(value)))
+    .join("-");
+
+  return {
+    code: `custom:${normalized || "workplace"}:${coord}`,
+    label: label.trim(),
+    type: "address",
+    lat,
+    lng,
+  };
+}
+
 export const WORKPLACE_PRESETS: WorkplacePreset[] = [
   { code: "gangnam-gu", label: "강남구", type: "district", lat: 37.5172, lng: 127.0473 },
   { code: "yeouido", label: "여의도", type: "district", lat: 37.5219, lng: 126.9245 },
