@@ -1,15 +1,17 @@
 "use client";
 
 // features/offerings/components/detail/OfferingInlineCompare.client.tsx
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Check, ChevronDown, Clock, GitCompareArrows, Heart } from "lucide-react";
+import WorkplaceSelector from "@/features/offerings/components/detail/WorkplaceSelector.client";
 import {
   OFFERING_STATUS_VALUES,
   statusLabelOf,
 } from "@/features/offerings/domain/offering.constants";
 import type { OfferingCompareItem } from "@/features/offerings/domain/offering.types";
+import { useWorkplace, type WorkplaceState } from "@/features/offerings/hooks/useWorkplace";
 
 interface Props {
   currentItem: OfferingCompareItem;
@@ -205,9 +207,24 @@ function ScheduleEmptyCell({ label, idx, isLast }: { label: string; idx: number;
 
 type RowDef = { label: string; leftVal: React.ReactNode; rightVal: React.ReactNode };
 
-function TabContent({ tab, left, right }: { tab: TabId; left: OfferingCompareItem; right: OfferingCompareItem | null }) {
-  const Em = (cls: string, text: string) => <span className={cls}>{text}</span>;
-
+function TabContent({
+  tab,
+  left,
+  right,
+  workplace,
+  accurateCommute,
+  onFetchAccurate,
+}: {
+  tab: TabId;
+  left: OfferingCompareItem;
+  right: OfferingCompareItem | null;
+  workplace: WorkplaceState;
+  accurateCommute: {
+    left: { transit: number; car: number } | null;
+    right: { transit: number; car: number } | null;
+  };
+  onFetchAccurate: (side: "left" | "right") => void;
+}) {
   let rows: RowDef[] = [];
 
   if (tab === "glance") {
@@ -306,16 +323,92 @@ function TabContent({ tab, left, right }: { tab: TabId; left: OfferingCompareIte
         })}
       </div>
     );
-  } else {
-    rows = [
-      { label: "인근 지하철", leftVal: left.nearestStation, rightVal: right?.nearestStation ?? null },
-      { label: "CBD 거리",    leftVal: left.distanceToCbd,  rightVal: right?.distanceToCbd  ?? null },
-      {
-        label: "학군",
-        leftVal:  Em(schoolCls(left.schoolGrade),   left.schoolGrade),
-        rightVal: right ? Em(schoolCls(right.schoolGrade), right.schoolGrade) : null,
-      },
-    ];
+  }
+
+  if (tab === "location") {
+    const renderCommuteCell = (side: "left" | "right", item: OfferingCompareItem | null) => {
+      if (!item) {
+        return <EmptyCell label="출퇴근 시간" />;
+      }
+
+      if (!workplace) {
+        return (
+          <div className="px-5 py-4">
+            <div className="ob-typo-caption mb-1 text-(--oboon-text-muted)">출퇴근 시간</div>
+            <div className="ob-typo-caption text-(--oboon-text-muted)">
+              근무지를 설정하면 확인할 수 있어요
+            </div>
+          </div>
+        );
+      }
+
+      const commute = side === "left" ? accurateCommute.left : accurateCommute.right;
+      if (commute) {
+        return (
+          <div className="px-5 py-4">
+            <div className="ob-typo-caption mb-1 text-(--oboon-text-muted)">출퇴근 시간</div>
+            <div className="ob-typo-subtitle text-(--oboon-text-title)">
+              🚇 {commute.transit}분 · 🚗 {commute.car}분
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="px-5 py-4">
+          <div className="ob-typo-caption mb-1 text-(--oboon-text-muted)">출퇴근 시간</div>
+          <div className="ob-typo-caption mb-2 text-(--oboon-text-muted)">
+            근무지를 선택한 뒤 확인할 수 있어요
+          </div>
+          <button
+            type="button"
+            onClick={() => onFetchAccurate(side)}
+            className="ob-typo-caption text-(--oboon-primary) underline-offset-2 hover:underline"
+          >
+            정확히 알아보기
+          </button>
+        </div>
+      );
+    };
+
+    return (
+      <div>
+        <div className="grid grid-cols-2 border-t border-(--oboon-border-default)">
+          <div className="border-r border-(--oboon-border-default)">
+            <SpecCell label="인근 지하철" value={left.nearestStation} />
+          </div>
+          <div>
+            {right ? <SpecCell label="인근 지하철" value={right.nearestStation} /> : <EmptyCell label="인근 지하철" />}
+          </div>
+        </div>
+        <div className="grid grid-cols-2 border-t border-(--oboon-border-default)">
+          <div className="border-r border-(--oboon-border-default)">
+            {renderCommuteCell("left", left)}
+          </div>
+          <div>
+            {renderCommuteCell("right", right)}
+          </div>
+        </div>
+        <div className="grid grid-cols-2 border-t border-(--oboon-border-default)">
+          <div className="border-r border-(--oboon-border-default)">
+            <SpecCell
+              label="학군"
+              value={<span className={schoolCls(left.schoolGrade)}>{left.schoolGrade}</span>}
+            />
+          </div>
+          <div>
+            {right ? (
+              <SpecCell
+                label="학군"
+                value={<span className={schoolCls(right.schoolGrade)}>{right.schoolGrade}</span>}
+              />
+            ) : (
+              <EmptyCell label="학군" />
+            )}
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const isGlance = tab === "glance";
@@ -461,10 +554,23 @@ export default function OfferingInlineCompare({ currentItem, availableItems, scr
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [compareItem, setCompareItem] = useState<OfferingCompareItem | null>(null);
   const [loading, setLoading] = useState(false);
+  const { workplace, setWorkplace } = useWorkplace();
+  const [accurateCommute, setAccurateCommute] = useState<{
+    left: { transit: number; car: number } | null;
+    right: { transit: number; car: number } | null;
+  }>({ left: null, right: null });
   const [leftHeaderHeight, setLeftHeaderHeight] = useState(0);
   const leftHeaderRef = useCallback((node: HTMLDivElement | null) => {
     if (node) setLeftHeaderHeight(node.getBoundingClientRect().height);
   }, []);
+
+  useEffect(() => {
+    setAccurateCommute({ left: null, right: null });
+  }, [workplace]);
+
+  useEffect(() => {
+    setAccurateCommute((current) => ({ ...current, right: null }));
+  }, [compareItem?.id]);
 
   const handleSelect = useCallback(async (id: string) => {
     setSelectedId(id);
@@ -480,6 +586,28 @@ export default function OfferingInlineCompare({ currentItem, availableItems, scr
       setLoading(false);
     }
   }, []);
+
+  const handleFetchAccurate = useCallback(async (side: "left" | "right") => {
+    if (!workplace) return;
+
+    const item = side === "left" ? currentItem : compareItem;
+    if (!item) return;
+
+    try {
+      const res = await fetch(
+        `/api/commute-time?propertyId=${item.id}&workplaceLat=${workplace.lat}&workplaceLng=${workplace.lng}&workplaceCode=${encodeURIComponent(workplace.code)}`,
+      );
+      if (!res.ok) return;
+
+      const data = (await res.json()) as { transit: number; car: number; unit: string };
+      setAccurateCommute((current) => ({
+        ...current,
+        [side]: { transit: data.transit, car: data.car },
+      }));
+    } catch {
+      // Ignore fetch failures; the button remains available for retry.
+    }
+  }, [workplace, currentItem, compareItem]);
 
   const compareHref = compareItem
     ? `/offerings/compare?a=${currentItem.id}&b=${compareItem.id}`
@@ -564,7 +692,22 @@ export default function OfferingInlineCompare({ currentItem, availableItems, scr
             ))}
           </div>
         ) : (
-          <TabContent tab={activeTab} left={currentItem} right={compareItem} />
+          <div>
+            {activeTab === "location" && (
+              <div className="flex items-center gap-2 border-b border-(--oboon-border-default) bg-(--oboon-bg-subtle)/40 px-4 py-2.5">
+                <span className="shrink-0 ob-typo-caption text-(--oboon-text-muted)">근무지</span>
+                <WorkplaceSelector workplace={workplace} onSelect={setWorkplace} />
+              </div>
+            )}
+            <TabContent
+              tab={activeTab}
+              left={currentItem}
+              right={compareItem}
+              workplace={workplace}
+              accurateCommute={accurateCommute}
+              onFetchAccurate={handleFetchAccurate}
+            />
+          </div>
         )}
 
       </div>

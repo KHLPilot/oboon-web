@@ -263,12 +263,6 @@ function mapToCompareItem(
     ? `${subwayPoi.name}${subwayPoi.distance_m != null ? ` (${Number(subwayPoi.distance_m)}m)` : ""}`
     : "정보 없음";
 
-  // Distance to CBD (via nearest subway as proxy)
-  const distanceToCbd =
-    subwayPoi?.distance_m != null
-      ? `${(Number(subwayPoi.distance_m) / 1000).toFixed(1)}km`
-      : "정보 없음";
-
   // School grade
   const highSchoolDistances = pois
     .filter((p) => p.category === "SCHOOL" && p.school_level === "HIGH")
@@ -315,7 +309,7 @@ function mapToCompareItem(
     moveInDate: timeline?.move_in_date ?? null,
     moveInText: timeline?.move_in_text ?? null,
     nearestStation,
-    distanceToCbd,
+    commuteEstimate: null,
     schoolGrade,
     conditionResult: null,
     conditionCategories: null,

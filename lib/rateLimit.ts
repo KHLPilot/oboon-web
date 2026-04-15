@@ -143,6 +143,9 @@ export const geoAddressLimiter = createLimiter("rl:geo:address", 60, "10 m");
 /** 역지오코딩 프록시: 사용자당 10분당 120회 */
 export const geoReverseLimiter = createLimiter("rl:geo:reverse", 120, "10 m");
 
+/** 출퇴근 시간 조회: 사용자당 분당 20회 */
+export const commuteLimiter = createLimiter("rl:commute-time", 20, "1 m");
+
 /** 인증 토큰 생성: 이메일당 시간당 3회 */
 export const verificationTokenEmailLimiter = createLimiter(
   "rl:auth:create-verification-token",

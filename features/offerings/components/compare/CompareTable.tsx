@@ -375,10 +375,14 @@ export default function CompareTable({
         values={mapCompareValues(items, (item) => item.nearestStation)}
       />
       <SpecGroup
-        label="CBD 거리"
+        label="출퇴근 시간"
         colCount={colCount}
         mobileVisibleIndices={mobileVisibleIndices}
-        values={mapCompareValues(items, (item) => item.distanceToCbd)}
+        values={mapCompareValues(items, (item) =>
+          item.commuteEstimate
+            ? `${item.commuteEstimate.transitMin}분 · ${item.commuteEstimate.carMin}분`
+            : "근무지 선택 후 확인",
+        )}
       />
       <SpecGroup
         label="학군"

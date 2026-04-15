@@ -62,7 +62,7 @@ export interface OfferingCompareItem {
   moveInDate: string | null;
   moveInText: string | null;
   nearestStation: string;
-  distanceToCbd: string;
+  commuteEstimate: { transitMin: number; carMin: number } | null;
   schoolGrade: "우수" | "보통" | "미흡";
   conditionResult: FinalGrade5 | null;
   conditionCategories: OfferingCompareConditionCategories | null;
