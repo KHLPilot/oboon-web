@@ -2,23 +2,33 @@
 import { createClient } from "@supabase/supabase-js";
 import { createSupabaseServer } from "@/lib/supabaseServer";
 import { evaluateFullCondition } from "@/features/condition-validation/domain/fullCustomerEvaluator";
-import { buildScheduleAwareTimingCategory } from "@/features/condition-validation/lib/timing-satisfaction";
 import type {
   EmploymentType,
+  FullEvaluationResponse,
   FullCustomerInput,
   FullPurchasePurpose,
   MonthlyLoanRepayment,
   MoveinTiming,
   PurchaseTiming,
 } from "@/features/condition-validation/domain/types";
-import { loadPropertyProfile } from "@/features/condition-validation/server/profile-resolver";
+import {
+  loadPropertyProfile,
+  loadUnitValidationProfiles,
+} from "@/features/condition-validation/server/profile-resolver";
+import {
+  buildRawUnitTypeValidationResults,
+  buildTimingContext,
+  calculateCashThresholds,
+} from "@/features/condition-validation/server/unitTypeValidationResults";
 import {
   ltvInternalScoreFromCreditGrade as sharedLtvInternalScoreFromCreditGrade,
 } from "@/features/condition-validation/domain/conditionState";
+import { buildFullConditionCategoryDisplay } from "@/features/offerings/components/detail/conditionValidationDisplay";
 import {
   normalizeOfferingStatusValue,
   OFFERING_STATUS_VALUES,
 } from "@/features/offerings/domain/offering.constants";
+import { normalizeRecommendationUnitTypes } from "@/features/recommendations/lib/recommendationUnitTypes";
 import type { OfferingCompareItem } from "../domain/offering.types";
 import type { PropertyRow } from "../domain/offeringDetail.types";
 import { formatPriceRange } from "@/shared/price";
@@ -360,6 +370,7 @@ function mapToCompareItem(
     academyCount,
     conditionResult: null,
     conditionCategories: null,
+    unitTypeResults: null,
   };
 }
 
@@ -462,33 +473,144 @@ export async function getOfferingsForCompare(
         });
         if (profile) {
           const timeline = pickFirst(snapshot.property_timeline);
+          const timingContext = buildTimingContext({
+            customer: viewerCustomer,
+            timeline: timeline
+              ? {
+                  announcementDate: timeline.announcement_date,
+                  applicationStart: timeline.application_start,
+                  applicationEnd: timeline.application_end,
+                  contractStart: timeline.contract_start,
+                  contractEnd: timeline.contract_end,
+                  moveInDate: timeline.move_in_date,
+                }
+              : null,
+          });
+          const { timingOverride, timingMonthsDiff } = timingContext;
           const evaluation = evaluateFullCondition({
             profile,
             customer: viewerCustomer,
-            timingOverride: buildScheduleAwareTimingCategory({
-              purchaseTiming: viewerCustomer.purchaseTiming,
-              moveinTiming: viewerCustomer.moveinTiming,
-              timeline: timeline
-                ? {
-                    announcementDate: timeline.announcement_date,
-                    applicationStart: timeline.application_start,
-                    applicationEnd: timeline.application_end,
-                    contractStart: timeline.contract_start,
-                    contractEnd: timeline.contract_end,
-                    moveInDate: timeline.move_in_date,
-                  }
-                : null,
-            }),
+            timingOverride,
           });
           item.conditionResult = evaluation.finalGrade;
+          const cashThresholds = calculateCashThresholds({
+            assetType: profile.assetType,
+            listPrice: profile.listPrice,
+            contractRatio: profile.contractRatio,
+          });
+          const monthlyBurdenPercent =
+            viewerCustomer.monthlyIncome > 0
+              ? Math.round((evaluation.metrics.monthlyPaymentEst / viewerCustomer.monthlyIncome) * 100)
+              : null;
+          const unitTypes = toArray(snapshot.property_unit_types);
+          const isPricePublic = unitTypes.some(
+            (unit) => unit.is_price_public !== false && unit.is_public !== false,
+          );
+          const displayItems = buildFullConditionCategoryDisplay({
+            categories: {
+              cash: {
+                grade: evaluation.categories.cash.grade,
+                score: evaluation.categories.cash.score,
+                max_score: evaluation.categories.cash.maxScore,
+                reason: evaluation.categories.cash.reasonMessage,
+              },
+              income: {
+                grade: evaluation.categories.income.grade,
+                score: evaluation.categories.income.score,
+                max_score: evaluation.categories.income.maxScore,
+                reason: evaluation.categories.income.reasonMessage,
+              },
+              ltv_dsr: {
+                grade: evaluation.categories.ltvDsr.grade,
+                score: evaluation.categories.ltvDsr.score,
+                max_score: evaluation.categories.ltvDsr.maxScore,
+                reason: evaluation.categories.ltvDsr.reasonMessage,
+              },
+              ownership: {
+                grade: evaluation.categories.ownership.grade,
+                score: evaluation.categories.ownership.score,
+                max_score: evaluation.categories.ownership.maxScore,
+                reason: evaluation.categories.ownership.reasonMessage,
+              },
+              purpose: {
+                grade: evaluation.categories.purpose.grade,
+                score: evaluation.categories.purpose.score,
+                max_score: evaluation.categories.purpose.maxScore,
+                reason: evaluation.categories.purpose.reasonMessage,
+              },
+              timing: {
+                grade: evaluation.categories.timing.grade,
+                score: evaluation.categories.timing.score,
+                max_score: evaluation.categories.timing.maxScore,
+                reason: evaluation.categories.timing.reasonMessage,
+              },
+            } satisfies FullEvaluationResponse["categories"],
+            metrics: {
+              contract_amount: Math.round(cashThresholds.contractAmount),
+              min_cash: Math.round(cashThresholds.minCash),
+              recommended_cash: Math.round(cashThresholds.recommendedCash),
+              loan_amount: Math.round(evaluation.metrics.loanAmount),
+              monthly_payment_est: Math.round(evaluation.metrics.monthlyPaymentEst),
+              monthly_surplus: viewerCustomer.monthlyIncome - viewerCustomer.monthlyExpenses,
+              monthly_burden_percent: monthlyBurdenPercent,
+              dsr_percent: evaluation.metrics.dsrPercent,
+              timing_months_diff: timingMonthsDiff,
+            } satisfies FullEvaluationResponse["metrics"],
+            inputs: {
+              availableCash: viewerCustomer.availableCash,
+              monthlyIncome: viewerCustomer.monthlyIncome,
+              employmentType: viewerCustomer.employmentType,
+              houseOwnership: viewerCustomer.houseOwnership,
+              purchasePurpose: viewerCustomer.purchasePurpose,
+            },
+            isPricePublic,
+          });
+          const reasonByKey = new Map(displayItems.map((item) => [item.key, item.reason]));
+
           item.conditionCategories = {
-            cash: evaluation.categories.cash.grade,
-            income: evaluation.categories.income.grade,
-            ltvDsr: evaluation.categories.ltvDsr.grade,
-            ownership: evaluation.categories.ownership.grade,
-            purpose: evaluation.categories.purpose.grade,
-            timing: evaluation.categories.timing.grade,
+            cash: {
+              grade: evaluation.categories.cash.grade,
+              reasonMessage: reasonByKey.get("cash") ?? evaluation.categories.cash.reasonMessage,
+            },
+            income: {
+              grade: evaluation.categories.income.grade,
+              reasonMessage: reasonByKey.get("income") ?? evaluation.categories.income.reasonMessage,
+            },
+            ltvDsr: {
+              grade: evaluation.categories.ltvDsr.grade,
+              reasonMessage: reasonByKey.get("ltv_dsr") ?? evaluation.categories.ltvDsr.reasonMessage,
+            },
+            ownership: {
+              grade: evaluation.categories.ownership.grade,
+              reasonMessage: reasonByKey.get("ownership") ?? evaluation.categories.ownership.reasonMessage,
+            },
+            purpose: {
+              grade: evaluation.categories.purpose.grade,
+              reasonMessage: reasonByKey.get("purpose") ?? evaluation.categories.purpose.reasonMessage,
+            },
+            timing: {
+              grade: evaluation.categories.timing.grade,
+              reasonMessage: reasonByKey.get("timing") ?? evaluation.categories.timing.reasonMessage,
+            },
           };
+
+          const resolvedPropertyId =
+            profile.matchedPropertyId != null
+              ? String(profile.matchedPropertyId)
+              : id;
+          const unitProfiles = await loadUnitValidationProfiles({
+            adminSupabase,
+            propertyId: resolvedPropertyId,
+          });
+          item.unitTypeResults = normalizeRecommendationUnitTypes({
+            unit_type_results: buildRawUnitTypeValidationResults({
+              profile,
+              customer: viewerCustomer,
+              unitProfiles,
+              timingOverride,
+              timingMonthsDiff,
+            }),
+          });
         }
       }
 

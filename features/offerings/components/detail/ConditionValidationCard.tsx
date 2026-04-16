@@ -43,6 +43,7 @@ import {
   buildGuestConditionCategoryDisplay,
   normalizeDetailUnitTypeResults,
 } from "./conditionValidationDisplay";
+import { getAvailableUnitTypes } from "@/features/recommendations/lib/unitTypeAvailability";
 import type { RecommendationUnitType } from "@/features/recommendations/lib/recommendationUnitTypes";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -115,20 +116,10 @@ type UnitTypeSummary = {
   note: string;
 };
 
-function isPositiveGrade(grade: FinalGrade5) {
-  return grade === "GREEN" || grade === "LIME";
-}
-
-function isAvailableUnit(unit: RecommendationUnitType) {
-  if (!isPositiveGrade(unit.finalGrade)) return false;
-  if (unit.categories.length === 0) return true;
-  return unit.categories.every((category) => isPositiveGrade(category.grade));
-}
-
 function buildUnitTypeSummary(units: RecommendationUnitType[]): UnitTypeSummary | null {
   if (units.length === 0) return null;
 
-  const availableUnits = units.filter(isAvailableUnit);
+  const availableUnits = getAvailableUnitTypes(units);
   const sourceUnits = availableUnits.length > 0 ? availableUnits : units;
   const topUnits = sourceUnits.slice(0, 2);
   const leadUnit = topUnits[0] ?? null;

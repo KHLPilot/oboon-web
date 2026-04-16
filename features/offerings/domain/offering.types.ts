@@ -1,5 +1,7 @@
 // features/offerings/domain/offering.types.ts
 
+import type { RecommendationUnitType } from "@/features/recommendations/lib/recommendationUnitTypes";
+
 export const OFFERING_STATUS_VALUES = ["READY", "OPEN", "CLOSED"] as const;
 export type OfferingStatusValue = (typeof OFFERING_STATUS_VALUES)[number];
 
@@ -32,13 +34,18 @@ export type OfferingRegionTab = (typeof OFFERING_REGION_TABS)[number];
 
 export type FinalGrade5 = "GREEN" | "LIME" | "YELLOW" | "ORANGE" | "RED";
 
+export interface OfferingCompareConditionCategoryResult {
+  grade: FinalGrade5;
+  reasonMessage: string;
+}
+
 export interface OfferingCompareConditionCategories {
-  cash: FinalGrade5;
-  income: FinalGrade5;
-  ltvDsr: FinalGrade5;
-  ownership: FinalGrade5;
-  purpose: FinalGrade5;
-  timing: FinalGrade5;
+  cash: OfferingCompareConditionCategoryResult;
+  income: OfferingCompareConditionCategoryResult;
+  ltvDsr: OfferingCompareConditionCategoryResult;
+  ownership: OfferingCompareConditionCategoryResult;
+  purpose: OfferingCompareConditionCategoryResult;
+  timing: OfferingCompareConditionCategoryResult;
 }
 
 export interface OfferingCompareItem {
@@ -70,6 +77,7 @@ export interface OfferingCompareItem {
   academyCount: number | null;
   conditionResult: FinalGrade5 | null;
   conditionCategories: OfferingCompareConditionCategories | null;
+  unitTypeResults: RecommendationUnitType[] | null;
 }
 
 export const COMPARE_SLOTS = ["a", "b", "c"] as const;

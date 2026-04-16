@@ -11,6 +11,9 @@ import type {
   OfferingCompareConditionCategories,
   OfferingCompareItem,
 } from "@/features/offerings/domain/offering.types";
+import type { RecommendationUnitType } from "@/features/recommendations/lib/recommendationUnitTypes";
+import RecommendationUnitTypePanel from "@/features/recommendations/components/RecommendationUnitTypePanel";
+import { getAvailableUnitTypes } from "@/features/recommendations/lib/unitTypeAvailability";
 
 interface CompareTableProps {
   items: Array<OfferingCompareItem | null>;
@@ -121,6 +124,85 @@ function ConditionCategoryCard({
           {reason}
         </p>
       </div>
+    </div>
+  );
+}
+
+function UnitTypeResultsCard({
+  units,
+  emptyText,
+}: {
+  units: RecommendationUnitType[] | null;
+  emptyText: string;
+}) {
+  if (units === null) {
+    return (
+      <span className="ob-typo-body text-(--oboon-text-muted)">
+        {emptyText}
+      </span>
+    );
+  }
+
+  if (units.length === 0) {
+    return (
+      <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle)/40 px-3 py-3">
+        <p className="ob-typo-caption text-(--oboon-text-muted)">
+          가능한 타입 결과가 아직 없습니다.
+        </p>
+      </div>
+    );
+  }
+
+  const availableUnits = getAvailableUnitTypes(units);
+  const hasAvailableUnits = availableUnits.length > 0;
+  const showAllToggle = !hasAvailableUnits || availableUnits.length < units.length;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="ob-typo-caption text-(--oboon-text-muted)">
+          {hasAvailableUnits
+            ? `가능한 타입 ${availableUnits.length}개`
+            : "가능한 타입 없음"}
+        </div>
+        <div className="ob-typo-caption text-(--oboon-text-muted)">
+          전체 {units.length}개
+        </div>
+      </div>
+
+      {hasAvailableUnits ? (
+        <RecommendationUnitTypePanel
+          units={availableUnits}
+          embedded
+          heading={null}
+          showPropertyName={false}
+          footerNote={null}
+        />
+      ) : (
+        <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle)/40 px-3 py-3">
+          <p className="ob-typo-caption text-(--oboon-text-muted)">
+            현재 조건에 맞는 타입이 없습니다. 전체 타입을 펼쳐서 확인할 수 있습니다.
+          </p>
+        </div>
+      )}
+
+      {showAllToggle ? (
+        <details className="group rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle)/40 px-3 py-2">
+          <summary className="cursor-pointer list-none ob-typo-caption font-medium text-(--oboon-primary)">
+            전체 타입 보기
+            <span className="ml-1 text-(--oboon-text-muted)">({units.length}개)</span>
+          </summary>
+          <div className="mt-3">
+            <RecommendationUnitTypePanel
+              units={units}
+              embedded
+              heading={null}
+              showPropertyName={false}
+              footerNote={null}
+            />
+          </div>
+        </details>
+      ) : null}
     </div>
   );
 }
@@ -509,6 +591,35 @@ export default function CompareTable({
                 );
               })}
             </div>
+          );
+        })}
+      />
+
+      <SectionRow label="타입별 검증 결과" />
+      <SpecGroup
+        label="가능한 타입"
+        colCount={colCount}
+        mobileVisibleIndices={mobileVisibleIndices}
+        topBorder={false}
+        values={items.map((item, index) => {
+          const unitKey = item?.id ?? `unit-type-${index}`;
+          if (!item) {
+            return (
+              <span
+                key={unitKey}
+                className="text-(--oboon-text-muted)"
+              >
+                —
+              </span>
+            );
+          }
+
+          return (
+            <UnitTypeResultsCard
+              key={unitKey}
+              units={item.unitTypeResults}
+              emptyText={emptyConditionText}
+            />
           );
         })}
       />
