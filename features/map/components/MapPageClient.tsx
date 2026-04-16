@@ -527,6 +527,7 @@ export default function MapPageClient() {
   }, [
     activeRegionTab,
     activeSubRegionTab,
+    isDefaultScope,
     initialCenter,
     initialLocationStatus,
     mapReady,

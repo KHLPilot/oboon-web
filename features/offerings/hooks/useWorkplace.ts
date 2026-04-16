@@ -77,13 +77,8 @@ function upsertRecentWorkplace(
 }
 
 export function useWorkplace() {
-  const [workplace, setWorkplaceState] = useState<WorkplaceState>(null);
-  const [recentWorkplaces, setRecentWorkplaces] = useState<WorkplaceChoice[]>([]);
-
-  useEffect(() => {
-    setWorkplaceState(readWorkplace());
-    setRecentWorkplaces(readRecentWorkplaces());
-  }, []);
+  const [workplace, setWorkplaceState] = useState<WorkplaceState>(() => readWorkplace());
+  const [recentWorkplaces, setRecentWorkplaces] = useState<WorkplaceChoice[]>(() => readRecentWorkplaces());
 
   useEffect(() => {
     function handleStorage(event: StorageEvent) {

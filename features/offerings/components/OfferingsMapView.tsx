@@ -541,11 +541,13 @@ export default function OfferingsMapView({
     activeBoundaryRegionKey,
     activeBounds,
     activeRegionFocusBounds,
+    isDefaultScope,
     initialCenter,
     initialLocationStatus,
     hasActiveListFilters,
     hasActiveRegionBoundary,
     mapReady,
+    staticRegionViewport,
   ]);
 
   if (mappableOfferings.length === 0) {
