@@ -2,23 +2,33 @@
 import { createClient } from "@supabase/supabase-js";
 import { createSupabaseServer } from "@/lib/supabaseServer";
 import { evaluateFullCondition } from "@/features/condition-validation/domain/fullCustomerEvaluator";
-import { buildScheduleAwareTimingCategory } from "@/features/condition-validation/lib/timing-satisfaction";
 import type {
   EmploymentType,
+  FullEvaluationResponse,
   FullCustomerInput,
   FullPurchasePurpose,
   MonthlyLoanRepayment,
   MoveinTiming,
   PurchaseTiming,
 } from "@/features/condition-validation/domain/types";
-import { loadPropertyProfile } from "@/features/condition-validation/server/profile-resolver";
+import {
+  loadPropertyProfile,
+  loadUnitValidationProfiles,
+} from "@/features/condition-validation/server/profile-resolver";
+import {
+  buildRawUnitTypeValidationResults,
+  buildTimingContext,
+  calculateCashThresholds,
+} from "@/features/condition-validation/server/unitTypeValidationResults";
 import {
   ltvInternalScoreFromCreditGrade as sharedLtvInternalScoreFromCreditGrade,
 } from "@/features/condition-validation/domain/conditionState";
+import { buildFullConditionCategoryDisplay } from "@/features/offerings/components/detail/conditionValidationDisplay";
 import {
   normalizeOfferingStatusValue,
   OFFERING_STATUS_VALUES,
 } from "@/features/offerings/domain/offering.constants";
+import { normalizeRecommendationUnitTypes } from "@/features/recommendations/lib/recommendationUnitTypes";
 import type { OfferingCompareItem } from "../domain/offering.types";
 import type { PropertyRow } from "../domain/offeringDetail.types";
 import { formatPriceRange } from "@/shared/price";
@@ -185,9 +195,39 @@ function toArray<T>(v: T | T[] | null | undefined): T[] {
   return Array.isArray(v) ? v : [v];
 }
 
+type FamousZoneInfo = { name: string; shortLabel: string; tier: number };
+
+async function fetchAcademyCount(lat: number, lng: number): Promise<number | null> {
+  const kakaoApiKey = process.env.KAKAO_REST_API_KEY;
+  if (!kakaoApiKey) return null;
+  try {
+    const query = new URLSearchParams({
+      category_group_code: "AC5",
+      x: String(lng),
+      y: String(lat),
+      radius: "1000",
+      size: "1",
+    });
+    const res = await fetch(
+      `https://dapi.kakao.com/v2/local/search/category.json?${query}`,
+      {
+        headers: { Authorization: `KakaoAK ${kakaoApiKey}` },
+        next: { revalidate: 60 * 60 * 24 },
+      },
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as { meta?: { total_count?: number } };
+    return data.meta?.total_count ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function mapToCompareItem(
   row: PropertyRow,
   pois: RecoPoiQueryRow[],
+  famousZone: FamousZoneInfo | null = null,
+  academyCount: number | null = null,
 ): OfferingCompareItem {
   const loc = pickFirst(row.property_locations);
   const spec = pickFirst(row.property_specs);
@@ -263,23 +303,36 @@ function mapToCompareItem(
     ? `${subwayPoi.name}${subwayPoi.distance_m != null ? ` (${Number(subwayPoi.distance_m)}m)` : ""}`
     : "정보 없음";
 
-  // School grade
-  const highSchoolDistances = pois
-    .filter((p) => p.category === "SCHOOL" && p.school_level === "HIGH")
-    .map((p) =>
-      p.distance_m == null || !Number.isFinite(Number(p.distance_m))
-        ? null
-        : Number(p.distance_m),
-    )
-    .filter((distance): distance is number => distance !== null);
-  const nearestHighSchoolDistance =
-    highSchoolDistances.length > 0 ? Math.min(...highSchoolDistances) : null;
-  const schoolGrade: "우수" | "보통" | "미흡" =
-    nearestHighSchoolDistance == null
-      ? "미흡"
-      : nearestHighSchoolDistance <= 1000
-        ? "우수"
-        : "보통";
+  // School grade — 옵션 A: 유명 학군 우선, 학원 수 보완, 고등학교 거리 fallback
+  const schoolGrade: "우수" | "보통" | "미흡" = (() => {
+    // 유명 학군 Tier 1, 2 → 무조건 우수
+    if (famousZone && famousZone.tier <= 2) return "우수";
+
+    // 유명 학군 Tier 3 → 학원 50개+ 우수, 미만 보통
+    if (famousZone && famousZone.tier === 3) {
+      return (academyCount ?? 0) >= 50 ? "우수" : "보통";
+    }
+
+    // 유명 학군 없음 → 학원 수 기반
+    if (academyCount != null) {
+      if (academyCount >= 100) return "우수";
+      if (academyCount >= 50) return "보통";
+      return "미흡";
+    }
+
+    // fallback: 고등학교 POI 거리 (좌표 없거나 카카오 API 실패 시)
+    const highSchoolDistances = pois
+      .filter((p) => p.category === "SCHOOL" && p.school_level === "HIGH")
+      .map((p) =>
+        p.distance_m == null || !Number.isFinite(Number(p.distance_m))
+          ? null
+          : Number(p.distance_m),
+      )
+      .filter((d): d is number => d !== null);
+    const nearest =
+      highSchoolDistances.length > 0 ? Math.min(...highSchoolDistances) : null;
+    return nearest == null ? "미흡" : nearest <= 1000 ? "우수" : "보통";
+  })();
 
   // Image — 대표 이미지 우선, 없으면 갤러리 첫 번째
   const galleryImages = toArray(row.property_gallery_images);
@@ -313,8 +366,11 @@ function mapToCompareItem(
     siteLng: loc?.lng != null ? Number(loc.lng) : null,
     commuteEstimate: null,
     schoolGrade,
+    famousZone,
+    academyCount,
     conditionResult: null,
     conditionCategories: null,
+    unitTypeResults: null,
   };
 }
 
@@ -332,7 +388,7 @@ export async function getOfferingsForCompare(
   const supabase = await createSupabaseServer();
   const adminSupabase = viewerCustomer ? createAdminSupabase() : null;
 
-  const [snapshotResult, poisResult] = await Promise.all([
+  const [snapshotResult, poisResult, famousZonesResult] = await Promise.all([
     supabase
       .from("property_public_snapshots")
       .select("property_id, snapshot")
@@ -342,10 +398,20 @@ export async function getOfferingsForCompare(
       .select("property_id, category, rank, name, distance_m, school_level")
       .in("property_id", numericIds)
       .order("rank", { ascending: true }),
+    supabase
+      .from("famous_school_zones")
+      .select("name, short_label, tier, match_keys")
+      .order("tier", { ascending: true }),
   ]);
 
   const snapshots = snapshotResult.data ?? [];
   const allPois = (poisResult.data ?? []) as unknown as RecoPoiQueryRow[];
+  const allFamousZones = (famousZonesResult.data ?? []) as {
+    name: string;
+    short_label: string;
+    tier: number;
+    match_keys: string[];
+  }[];
 
   // Group pois by property_id
   const poisByPropertyId = new Map<number, RecoPoiQueryRow[]>();
@@ -354,6 +420,20 @@ export async function getOfferingsForCompare(
     const existing = poisByPropertyId.get(key) ?? [];
     existing.push(poi);
     poisByPropertyId.set(key, existing);
+  }
+
+  // Build location key → famous zone map (tier ASC already ordered)
+  const famousZoneByLocationKey = new Map<string, FamousZoneInfo>();
+  for (const zone of allFamousZones) {
+    for (const key of zone.match_keys) {
+      if (!famousZoneByLocationKey.has(key)) {
+        famousZoneByLocationKey.set(key, {
+          name: zone.name,
+          shortLabel: zone.short_label,
+          tier: zone.tier,
+        });
+      }
+    }
   }
 
   // Build snapshot map
@@ -372,7 +452,19 @@ export async function getOfferingsForCompare(
       const snapshot = snapshotMap.get(id);
       if (!snapshot) return null;
       const pois = poisByPropertyId.get(Number(id)) ?? [];
-      const item = mapToCompareItem(snapshot, pois);
+      const loc = pickFirst(snapshot.property_locations);
+      const locationKey =
+        loc?.region_2depth && loc?.region_3depth
+          ? `${loc.region_2depth}|${loc.region_3depth}`
+          : null;
+      const famousZone = locationKey
+        ? (famousZoneByLocationKey.get(locationKey) ?? null)
+        : null;
+      const lat = loc?.lat != null ? Number(loc.lat) : null;
+      const lng = loc?.lng != null ? Number(loc.lng) : null;
+      const academyCount =
+        lat != null && lng != null ? await fetchAcademyCount(lat, lng) : null;
+      const item = mapToCompareItem(snapshot, pois, famousZone, academyCount);
 
       if (viewerCustomer && adminSupabase) {
         const profile = await loadPropertyProfile({
@@ -381,33 +473,144 @@ export async function getOfferingsForCompare(
         });
         if (profile) {
           const timeline = pickFirst(snapshot.property_timeline);
+          const timingContext = buildTimingContext({
+            customer: viewerCustomer,
+            timeline: timeline
+              ? {
+                  announcementDate: timeline.announcement_date,
+                  applicationStart: timeline.application_start,
+                  applicationEnd: timeline.application_end,
+                  contractStart: timeline.contract_start,
+                  contractEnd: timeline.contract_end,
+                  moveInDate: timeline.move_in_date,
+                }
+              : null,
+          });
+          const { timingOverride, timingMonthsDiff } = timingContext;
           const evaluation = evaluateFullCondition({
             profile,
             customer: viewerCustomer,
-            timingOverride: buildScheduleAwareTimingCategory({
-              purchaseTiming: viewerCustomer.purchaseTiming,
-              moveinTiming: viewerCustomer.moveinTiming,
-              timeline: timeline
-                ? {
-                    announcementDate: timeline.announcement_date,
-                    applicationStart: timeline.application_start,
-                    applicationEnd: timeline.application_end,
-                    contractStart: timeline.contract_start,
-                    contractEnd: timeline.contract_end,
-                    moveInDate: timeline.move_in_date,
-                  }
-                : null,
-            }),
+            timingOverride,
           });
           item.conditionResult = evaluation.finalGrade;
+          const cashThresholds = calculateCashThresholds({
+            assetType: profile.assetType,
+            listPrice: profile.listPrice,
+            contractRatio: profile.contractRatio,
+          });
+          const monthlyBurdenPercent =
+            viewerCustomer.monthlyIncome > 0
+              ? Math.round((evaluation.metrics.monthlyPaymentEst / viewerCustomer.monthlyIncome) * 100)
+              : null;
+          const unitTypes = toArray(snapshot.property_unit_types);
+          const isPricePublic = unitTypes.some(
+            (unit) => unit.is_price_public !== false && unit.is_public !== false,
+          );
+          const displayItems = buildFullConditionCategoryDisplay({
+            categories: {
+              cash: {
+                grade: evaluation.categories.cash.grade,
+                score: evaluation.categories.cash.score,
+                max_score: evaluation.categories.cash.maxScore,
+                reason: evaluation.categories.cash.reasonMessage,
+              },
+              income: {
+                grade: evaluation.categories.income.grade,
+                score: evaluation.categories.income.score,
+                max_score: evaluation.categories.income.maxScore,
+                reason: evaluation.categories.income.reasonMessage,
+              },
+              ltv_dsr: {
+                grade: evaluation.categories.ltvDsr.grade,
+                score: evaluation.categories.ltvDsr.score,
+                max_score: evaluation.categories.ltvDsr.maxScore,
+                reason: evaluation.categories.ltvDsr.reasonMessage,
+              },
+              ownership: {
+                grade: evaluation.categories.ownership.grade,
+                score: evaluation.categories.ownership.score,
+                max_score: evaluation.categories.ownership.maxScore,
+                reason: evaluation.categories.ownership.reasonMessage,
+              },
+              purpose: {
+                grade: evaluation.categories.purpose.grade,
+                score: evaluation.categories.purpose.score,
+                max_score: evaluation.categories.purpose.maxScore,
+                reason: evaluation.categories.purpose.reasonMessage,
+              },
+              timing: {
+                grade: evaluation.categories.timing.grade,
+                score: evaluation.categories.timing.score,
+                max_score: evaluation.categories.timing.maxScore,
+                reason: evaluation.categories.timing.reasonMessage,
+              },
+            } satisfies FullEvaluationResponse["categories"],
+            metrics: {
+              contract_amount: Math.round(cashThresholds.contractAmount),
+              min_cash: Math.round(cashThresholds.minCash),
+              recommended_cash: Math.round(cashThresholds.recommendedCash),
+              loan_amount: Math.round(evaluation.metrics.loanAmount),
+              monthly_payment_est: Math.round(evaluation.metrics.monthlyPaymentEst),
+              monthly_surplus: viewerCustomer.monthlyIncome - viewerCustomer.monthlyExpenses,
+              monthly_burden_percent: monthlyBurdenPercent,
+              dsr_percent: evaluation.metrics.dsrPercent,
+              timing_months_diff: timingMonthsDiff,
+            } satisfies FullEvaluationResponse["metrics"],
+            inputs: {
+              availableCash: viewerCustomer.availableCash,
+              monthlyIncome: viewerCustomer.monthlyIncome,
+              employmentType: viewerCustomer.employmentType,
+              houseOwnership: viewerCustomer.houseOwnership,
+              purchasePurpose: viewerCustomer.purchasePurpose,
+            },
+            isPricePublic,
+          });
+          const reasonByKey = new Map(displayItems.map((item) => [item.key, item.reason]));
+
           item.conditionCategories = {
-            cash: evaluation.categories.cash.grade,
-            income: evaluation.categories.income.grade,
-            ltvDsr: evaluation.categories.ltvDsr.grade,
-            ownership: evaluation.categories.ownership.grade,
-            purpose: evaluation.categories.purpose.grade,
-            timing: evaluation.categories.timing.grade,
+            cash: {
+              grade: evaluation.categories.cash.grade,
+              reasonMessage: reasonByKey.get("cash") ?? evaluation.categories.cash.reasonMessage,
+            },
+            income: {
+              grade: evaluation.categories.income.grade,
+              reasonMessage: reasonByKey.get("income") ?? evaluation.categories.income.reasonMessage,
+            },
+            ltvDsr: {
+              grade: evaluation.categories.ltvDsr.grade,
+              reasonMessage: reasonByKey.get("ltv_dsr") ?? evaluation.categories.ltvDsr.reasonMessage,
+            },
+            ownership: {
+              grade: evaluation.categories.ownership.grade,
+              reasonMessage: reasonByKey.get("ownership") ?? evaluation.categories.ownership.reasonMessage,
+            },
+            purpose: {
+              grade: evaluation.categories.purpose.grade,
+              reasonMessage: reasonByKey.get("purpose") ?? evaluation.categories.purpose.reasonMessage,
+            },
+            timing: {
+              grade: evaluation.categories.timing.grade,
+              reasonMessage: reasonByKey.get("timing") ?? evaluation.categories.timing.reasonMessage,
+            },
           };
+
+          const resolvedPropertyId =
+            profile.matchedPropertyId != null
+              ? String(profile.matchedPropertyId)
+              : id;
+          const unitProfiles = await loadUnitValidationProfiles({
+            adminSupabase,
+            propertyId: resolvedPropertyId,
+          });
+          item.unitTypeResults = normalizeRecommendationUnitTypes({
+            unit_type_results: buildRawUnitTypeValidationResults({
+              profile,
+              customer: viewerCustomer,
+              unitProfiles,
+              timingOverride,
+              timingMonthsDiff,
+            }),
+          });
         }
       }
 

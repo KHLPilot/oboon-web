@@ -1,5 +1,6 @@
 // features/offerings/components/compare/CompareTable.tsx
 import { grade5DetailLabel } from "@/features/condition-validation/lib/grade5Labels";
+import { Badge } from "@/components/ui/Badge";
 import { cn } from "@/lib/utils/cn";
 import {
   OFFERING_STATUS_VALUES,
@@ -10,6 +11,9 @@ import type {
   OfferingCompareConditionCategories,
   OfferingCompareItem,
 } from "@/features/offerings/domain/offering.types";
+import type { RecommendationUnitType } from "@/features/recommendations/lib/recommendationUnitTypes";
+import RecommendationUnitTypePanel from "@/features/recommendations/components/RecommendationUnitTypePanel";
+import { getAvailableUnitTypes } from "@/features/recommendations/lib/unitTypeAvailability";
 
 interface CompareTableProps {
   items: Array<OfferingCompareItem | null>;
@@ -29,6 +33,8 @@ const CONDITION_CATEGORY_ROWS: Array<{
   { key: "income", label: "소득" },
   { key: "ltvDsr", label: "LTV · DSR" },
   { key: "ownership", label: "주택 보유" },
+  { key: "purpose", label: "구매 목적" },
+  { key: "timing", label: "시점" },
 ];
 
 function grade5Meta(grade: FinalGrade5): GradeMeta {
@@ -62,55 +68,141 @@ function schoolCls(g: OfferingCompareItem["schoolGrade"]): string {
   return "text-(--oboon-text-muted)";
 }
 
-function grade5MetricToneMeta(grade: FinalGrade5): {
-  dotClassName: string;
-  textClassName: string;
-} {
-  switch (grade) {
-    case "GREEN":
-      return {
-        dotClassName: "bg-(--oboon-grade-green)",
-        textClassName: "text-(--oboon-grade-green-text)",
-      };
-    case "LIME":
-      return {
-        dotClassName: "bg-(--oboon-grade-lime)",
-        textClassName: "text-(--oboon-grade-lime-text)",
-      };
-    case "YELLOW":
-      return {
-        dotClassName: "bg-(--oboon-grade-yellow)",
-        textClassName: "text-(--oboon-grade-yellow-text)",
-      };
-    case "ORANGE":
-      return {
-        dotClassName: "bg-(--oboon-grade-orange)",
-        textClassName: "text-(--oboon-grade-orange-text)",
-      };
-    case "RED":
-      return {
-        dotClassName: "bg-(--oboon-grade-red)",
-        textClassName: "text-(--oboon-grade-red-text)",
-      };
-  }
+function FamousZoneBadge({ zone }: { zone: NonNullable<OfferingCompareItem["famousZone"]> }) {
+  const style =
+    zone.tier === 1
+      ? { backgroundColor: "color-mix(in srgb, var(--oboon-warning) 18%, transparent)", color: "var(--oboon-warning)" }
+      : zone.tier === 2
+        ? { backgroundColor: "color-mix(in srgb, var(--oboon-primary) 14%, transparent)", color: "var(--oboon-primary)" }
+        : { backgroundColor: "var(--oboon-bg-subtle)", color: "var(--oboon-text-muted)" };
+  return (
+    <span
+      className="inline-flex w-fit items-center rounded-full px-2 py-0.5 ob-typo-caption font-semibold"
+      style={style}
+      title={zone.name}
+    >
+      {zone.shortLabel}
+    </span>
+  );
 }
 
-function ConditionMetricDot({
+function ConditionCategoryCard({
   label,
   grade,
+  reason,
 }: {
   label: string;
   grade: FinalGrade5;
+  reason: string;
 }) {
-  const meta = grade5MetricToneMeta(grade);
+  const meta = grade5Meta(grade);
 
   return (
-    <div className="inline-flex items-center gap-1.5">
-      <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", meta.dotClassName)} />
-      <span className="ob-typo-caption text-(--oboon-text-muted)">{label}</span>
-      <span className={cn("ob-typo-caption", meta.textClassName)}>
-        {grade5DetailLabel(grade)}
+    <div className="relative overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)">
+      <div
+        className="absolute inset-y-0 left-0 w-[3px]"
+        style={{ backgroundColor: meta.border }}
+      />
+      <div className="space-y-1.5 px-3 py-2.5">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="ob-typo-caption font-medium text-(--oboon-text-title)">
+              {label}
+            </div>
+          </div>
+          <Badge
+            className="bg-transparent shrink-0"
+            style={{
+              borderColor: meta.border,
+              color: meta.color,
+            }}
+          >
+            {grade5DetailLabel(grade)}
+          </Badge>
+        </div>
+        <p className="line-clamp-2 ob-typo-caption leading-5 text-(--oboon-text-muted)">
+          {reason}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function UnitTypeResultsCard({
+  units,
+  emptyText,
+}: {
+  units: RecommendationUnitType[] | null;
+  emptyText: string;
+}) {
+  if (units === null) {
+    return (
+      <span className="ob-typo-body text-(--oboon-text-muted)">
+        {emptyText}
       </span>
+    );
+  }
+
+  if (units.length === 0) {
+    return (
+      <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle)/40 px-3 py-3">
+        <p className="ob-typo-caption text-(--oboon-text-muted)">
+          가능한 타입 결과가 아직 없습니다.
+        </p>
+      </div>
+    );
+  }
+
+  const availableUnits = getAvailableUnitTypes(units);
+  const hasAvailableUnits = availableUnits.length > 0;
+  const showAllToggle = !hasAvailableUnits || availableUnits.length < units.length;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="ob-typo-caption text-(--oboon-text-muted)">
+          {hasAvailableUnits
+            ? `가능한 타입 ${availableUnits.length}개`
+            : "가능한 타입 없음"}
+        </div>
+        <div className="ob-typo-caption text-(--oboon-text-muted)">
+          전체 {units.length}개
+        </div>
+      </div>
+
+      {hasAvailableUnits ? (
+        <RecommendationUnitTypePanel
+          units={availableUnits}
+          embedded
+          heading={null}
+          showPropertyName={false}
+          footerNote={null}
+        />
+      ) : (
+        <div className="rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle)/40 px-3 py-3">
+          <p className="ob-typo-caption text-(--oboon-text-muted)">
+            현재 조건에 맞는 타입이 없습니다. 전체 타입을 펼쳐서 확인할 수 있습니다.
+          </p>
+        </div>
+      )}
+
+      {showAllToggle ? (
+        <details className="group rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle)/40 px-3 py-2">
+          <summary className="cursor-pointer list-none ob-typo-caption font-medium text-(--oboon-primary)">
+            전체 타입 보기
+            <span className="ml-1 text-(--oboon-text-muted)">({units.length}개)</span>
+          </summary>
+          <div className="mt-3">
+            <RecommendationUnitTypePanel
+              units={units}
+              embedded
+              heading={null}
+              showPropertyName={false}
+              footerNote={null}
+            />
+          </div>
+        </details>
+      ) : null}
     </div>
   );
 }
@@ -286,10 +378,18 @@ export default function CompareTable({
         mobileVisibleIndices={mobileVisibleIndices}
         cells={mapCompareCells(items, (item) => ({
           value: (
-            <span className={cn("text-2xl font-bold leading-tight md:text-3xl", schoolCls(item.schoolGrade))}>
-              {item.schoolGrade}
-            </span>
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={cn("text-2xl font-bold leading-tight md:text-3xl", schoolCls(item.schoolGrade))}>
+                  {item.schoolGrade}
+                </span>
+                {item.famousZone && <FamousZoneBadge zone={item.famousZone} />}
+              </div>
+            </div>
           ),
+          sub: item.academyCount != null
+            ? `반경 1km 학원 ${item.academyCount.toLocaleString("ko-KR")}개`
+            : undefined,
         }))}
       />
 
@@ -394,9 +494,19 @@ export default function CompareTable({
         colCount={colCount}
         mobileVisibleIndices={mobileVisibleIndices}
         values={mapCompareValues(items, (item) => (
-          <span className={cn("font-semibold", schoolCls(item.schoolGrade))}>
-            {item.schoolGrade}
-          </span>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={cn("font-semibold", schoolCls(item.schoolGrade))}>
+                {item.schoolGrade}
+              </span>
+              {item.famousZone && <FamousZoneBadge zone={item.famousZone} />}
+            </div>
+            {item.academyCount != null && (
+              <span className="ob-typo-caption text-(--oboon-text-muted)">
+                반경 1km 학원 {item.academyCount.toLocaleString("ko-KR")}개
+              </span>
+            )}
+          </div>
         ))}
       />
 
@@ -441,7 +551,7 @@ export default function CompareTable({
         })}
       />
       <SpecGroup
-        label="카테고리별 결과"
+        label="카테고리별 결과 · 사유"
         colCount={colCount}
         mobileVisibleIndices={mobileVisibleIndices}
         values={items.map((item, index) => {
@@ -469,17 +579,47 @@ export default function CompareTable({
           return (
             <div key={categoryKey} className="flex flex-col gap-2">
               {CONDITION_CATEGORY_ROWS.map(({ key, label }) => {
-                const grade = item.conditionCategories?.[key];
-                if (!grade) return null;
+                const category = item.conditionCategories?.[key];
+                if (!category) return null;
                 return (
-                  <ConditionMetricDot
+                  <ConditionCategoryCard
                     key={`${item.id}-${key}`}
                     label={label}
-                    grade={grade}
+                    grade={category.grade}
+                    reason={category.reasonMessage}
                   />
                 );
               })}
             </div>
+          );
+        })}
+      />
+
+      <SectionRow label="타입별 검증 결과" />
+      <SpecGroup
+        label="가능한 타입"
+        colCount={colCount}
+        mobileVisibleIndices={mobileVisibleIndices}
+        topBorder={false}
+        values={items.map((item, index) => {
+          const unitKey = item?.id ?? `unit-type-${index}`;
+          if (!item) {
+            return (
+              <span
+                key={unitKey}
+                className="text-(--oboon-text-muted)"
+              >
+                —
+              </span>
+            );
+          }
+
+          return (
+            <UnitTypeResultsCard
+              key={unitKey}
+              units={item.unitTypeResults}
+              emptyText={emptyConditionText}
+            />
           );
         })}
       />

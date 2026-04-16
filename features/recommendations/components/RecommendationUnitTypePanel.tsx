@@ -20,7 +20,7 @@ type RecommendationUnitTypePanelProps = {
   mobile?: boolean;
   embedded?: boolean;
   maxItems?: number;
-  heading?: string;
+  heading?: string | null;
   showPropertyName?: boolean;
   footerNote?: string | null;
 };
@@ -176,9 +176,11 @@ export default function RecommendationUnitTypePanel(
       }}
     >
       <div className={cn(!mobile && "mb-2")}>
-        <p className="ob-typo-caption text-(--oboon-text-muted)">
-          {heading}
-        </p>
+        {heading && heading.trim() ? (
+          <p className="ob-typo-caption text-(--oboon-text-muted)">
+            {heading}
+          </p>
+        ) : null}
         {showPropertyName && resolvedPropertyName ? (
           <h3 className="mt-1 ob-typo-subtitle text-(--oboon-text-title)">
             {resolvedPropertyName}

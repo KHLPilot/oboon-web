@@ -51,6 +51,24 @@ function schoolCls(g: OfferingCompareItem["schoolGrade"]) {
   return "text-(--oboon-text-muted)";
 }
 
+function FamousZoneBadge({ zone }: { zone: NonNullable<OfferingCompareItem["famousZone"]> }) {
+  const style =
+    zone.tier === 1
+      ? { backgroundColor: "color-mix(in srgb, var(--oboon-warning) 18%, transparent)", color: "var(--oboon-warning)" }
+      : zone.tier === 2
+        ? { backgroundColor: "color-mix(in srgb, var(--oboon-primary) 14%, transparent)", color: "var(--oboon-primary)" }
+        : { backgroundColor: "var(--oboon-bg-subtle)", color: "var(--oboon-text-muted)" };
+  return (
+    <span
+      className="inline-flex w-fit items-center rounded-full px-2 py-0.5 ob-typo-caption font-semibold"
+      style={style}
+      title={zone.name}
+    >
+      {zone.shortLabel}
+    </span>
+  );
+}
+
 // ─── Shared cell primitives ───────────────────────────────────────────────────
 
 /** 큰 값 셀 (한눈에 보기 탭) */
@@ -327,8 +345,32 @@ function TabContent({
       },
       {
         label: "학군",
-        leftVal:  <span className={`text-xl font-bold ${schoolCls(left.schoolGrade)}`}>{left.schoolGrade}</span>,
-        rightVal: right ? <span className={`text-xl font-bold ${schoolCls(right.schoolGrade)}`}>{right.schoolGrade}</span> : null,
+        leftVal: (
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className={`text-xl font-bold ${schoolCls(left.schoolGrade)}`}>{left.schoolGrade}</span>
+              {left.famousZone && <FamousZoneBadge zone={left.famousZone} />}
+            </div>
+            {left.academyCount != null && (
+              <span className="ob-typo-caption text-(--oboon-text-muted)">
+                반경 1km 학원 {left.academyCount.toLocaleString("ko-KR")}개
+              </span>
+            )}
+          </div>
+        ),
+        rightVal: right ? (
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className={`text-xl font-bold ${schoolCls(right.schoolGrade)}`}>{right.schoolGrade}</span>
+              {right.famousZone && <FamousZoneBadge zone={right.famousZone} />}
+            </div>
+            {right.academyCount != null && (
+              <span className="ob-typo-caption text-(--oboon-text-muted)">
+                반경 1km 학원 {right.academyCount.toLocaleString("ko-KR")}개
+              </span>
+            )}
+          </div>
+        ) : null,
       },
     ];
   } else if (tab === "price") {
@@ -454,14 +496,38 @@ function TabContent({
           <div className="border-r border-(--oboon-border-default)">
             <SpecCell
               label="학군"
-              value={<span className={schoolCls(left.schoolGrade)}>{left.schoolGrade}</span>}
+              value={
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className={schoolCls(left.schoolGrade)}>{left.schoolGrade}</span>
+                    {left.famousZone && <FamousZoneBadge zone={left.famousZone} />}
+                  </div>
+                  {left.academyCount != null && (
+                    <span className="ob-typo-caption text-(--oboon-text-muted)">
+                      반경 1km 학원 {left.academyCount.toLocaleString("ko-KR")}개
+                    </span>
+                  )}
+                </div>
+              }
             />
           </div>
           <div>
             {right ? (
               <SpecCell
                 label="학군"
-                value={<span className={schoolCls(right.schoolGrade)}>{right.schoolGrade}</span>}
+                value={
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className={schoolCls(right.schoolGrade)}>{right.schoolGrade}</span>
+                      {right.famousZone && <FamousZoneBadge zone={right.famousZone} />}
+                    </div>
+                    {right.academyCount != null && (
+                      <span className="ob-typo-caption text-(--oboon-text-muted)">
+                        반경 1km 학원 {right.academyCount.toLocaleString("ko-KR")}개
+                      </span>
+                    )}
+                  </div>
+                }
               />
             ) : (
               <EmptyCell label="학군" />
