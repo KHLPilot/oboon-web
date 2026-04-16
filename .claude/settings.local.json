@@ -43,7 +43,8 @@
       "Bash(PATH=\"/opt/homebrew/opt/node@21/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin\" pnpm build)",
       "Bash(PATH=\"/opt/homebrew/opt/node@21/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin\" pnpm typecheck)",
       "WebFetch(domain:oboon.co.kr)",
-      "Bash(PATH=\"/opt/homebrew/opt/node@21/bin:/opt/homebrew/bin:/usr/bin:/bin\" npx getdesign@latest --help)"
+      "Bash(PATH=\"/opt/homebrew/opt/node@21/bin:/opt/homebrew/bin:/usr/bin:/bin\" npx getdesign@latest --help)",
+      "Bash(PATH=\"/opt/homebrew/opt/node@21/bin:/opt/homebrew/bin:/usr/bin:/bin\" pnpm typecheck)"
     ]
   }
 }
