@@ -62,6 +62,24 @@ function schoolCls(g: OfferingCompareItem["schoolGrade"]): string {
   return "text-(--oboon-text-muted)";
 }
 
+function FamousZoneBadge({ zone }: { zone: NonNullable<OfferingCompareItem["famousZone"]> }) {
+  const style =
+    zone.tier === 1
+      ? { backgroundColor: "color-mix(in srgb, var(--oboon-warning) 18%, transparent)", color: "var(--oboon-warning)" }
+      : zone.tier === 2
+        ? { backgroundColor: "color-mix(in srgb, var(--oboon-primary) 14%, transparent)", color: "var(--oboon-primary)" }
+        : { backgroundColor: "var(--oboon-bg-subtle)", color: "var(--oboon-text-muted)" };
+  return (
+    <span
+      className="inline-flex w-fit items-center rounded-full px-2 py-0.5 ob-typo-caption font-semibold"
+      style={style}
+      title={zone.name}
+    >
+      {zone.shortLabel}
+    </span>
+  );
+}
+
 function grade5MetricToneMeta(grade: FinalGrade5): {
   dotClassName: string;
   textClassName: string;
@@ -286,10 +304,16 @@ export default function CompareTable({
         mobileVisibleIndices={mobileVisibleIndices}
         cells={mapCompareCells(items, (item) => ({
           value: (
-            <span className={cn("text-2xl font-bold leading-tight md:text-3xl", schoolCls(item.schoolGrade))}>
-              {item.schoolGrade}
-            </span>
+            <div className="flex flex-col gap-1">
+              <span className={cn("text-2xl font-bold leading-tight md:text-3xl", schoolCls(item.schoolGrade))}>
+                {item.schoolGrade}
+              </span>
+              {item.famousZone && <FamousZoneBadge zone={item.famousZone} />}
+            </div>
           ),
+          sub: item.academyCount != null
+            ? `반경 1km 학원 ${item.academyCount.toLocaleString("ko-KR")}개`
+            : undefined,
         }))}
       />
 
@@ -394,9 +418,17 @@ export default function CompareTable({
         colCount={colCount}
         mobileVisibleIndices={mobileVisibleIndices}
         values={mapCompareValues(items, (item) => (
-          <span className={cn("font-semibold", schoolCls(item.schoolGrade))}>
-            {item.schoolGrade}
-          </span>
+          <div className="flex flex-col gap-1">
+            <span className={cn("font-semibold", schoolCls(item.schoolGrade))}>
+              {item.schoolGrade}
+            </span>
+            {item.famousZone && <FamousZoneBadge zone={item.famousZone} />}
+            {item.academyCount != null && (
+              <span className="ob-typo-caption text-(--oboon-text-muted)">
+                반경 1km 학원 {item.academyCount.toLocaleString("ko-KR")}개
+              </span>
+            )}
+          </div>
         ))}
       />
 
