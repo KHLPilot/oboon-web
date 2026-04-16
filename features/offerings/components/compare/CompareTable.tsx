@@ -1,5 +1,6 @@
 // features/offerings/components/compare/CompareTable.tsx
 import { grade5DetailLabel } from "@/features/condition-validation/lib/grade5Labels";
+import { Badge } from "@/components/ui/Badge";
 import { cn } from "@/lib/utils/cn";
 import {
   OFFERING_STATUS_VALUES,
@@ -29,6 +30,8 @@ const CONDITION_CATEGORY_ROWS: Array<{
   { key: "income", label: "소득" },
   { key: "ltvDsr", label: "LTV · DSR" },
   { key: "ownership", label: "주택 보유" },
+  { key: "purpose", label: "구매 목적" },
+  { key: "timing", label: "시점" },
 ];
 
 function grade5Meta(grade: FinalGrade5): GradeMeta {
@@ -80,55 +83,44 @@ function FamousZoneBadge({ zone }: { zone: NonNullable<OfferingCompareItem["famo
   );
 }
 
-function grade5MetricToneMeta(grade: FinalGrade5): {
-  dotClassName: string;
-  textClassName: string;
-} {
-  switch (grade) {
-    case "GREEN":
-      return {
-        dotClassName: "bg-(--oboon-grade-green)",
-        textClassName: "text-(--oboon-grade-green-text)",
-      };
-    case "LIME":
-      return {
-        dotClassName: "bg-(--oboon-grade-lime)",
-        textClassName: "text-(--oboon-grade-lime-text)",
-      };
-    case "YELLOW":
-      return {
-        dotClassName: "bg-(--oboon-grade-yellow)",
-        textClassName: "text-(--oboon-grade-yellow-text)",
-      };
-    case "ORANGE":
-      return {
-        dotClassName: "bg-(--oboon-grade-orange)",
-        textClassName: "text-(--oboon-grade-orange-text)",
-      };
-    case "RED":
-      return {
-        dotClassName: "bg-(--oboon-grade-red)",
-        textClassName: "text-(--oboon-grade-red-text)",
-      };
-  }
-}
-
-function ConditionMetricDot({
+function ConditionCategoryCard({
   label,
   grade,
+  reason,
 }: {
   label: string;
   grade: FinalGrade5;
+  reason: string;
 }) {
-  const meta = grade5MetricToneMeta(grade);
+  const meta = grade5Meta(grade);
 
   return (
-    <div className="inline-flex items-center gap-1.5">
-      <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", meta.dotClassName)} />
-      <span className="ob-typo-caption text-(--oboon-text-muted)">{label}</span>
-      <span className={cn("ob-typo-caption", meta.textClassName)}>
-        {grade5DetailLabel(grade)}
-      </span>
+    <div className="relative overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)">
+      <div
+        className="absolute inset-y-0 left-0 w-[3px]"
+        style={{ backgroundColor: meta.border }}
+      />
+      <div className="space-y-1.5 px-3 py-2.5">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="ob-typo-caption font-medium text-(--oboon-text-title)">
+              {label}
+            </div>
+          </div>
+          <Badge
+            className="bg-transparent shrink-0"
+            style={{
+              borderColor: meta.border,
+              color: meta.color,
+            }}
+          >
+            {grade5DetailLabel(grade)}
+          </Badge>
+        </div>
+        <p className="line-clamp-2 ob-typo-caption leading-5 text-(--oboon-text-muted)">
+          {reason}
+        </p>
+      </div>
     </div>
   );
 }
@@ -304,11 +296,13 @@ export default function CompareTable({
         mobileVisibleIndices={mobileVisibleIndices}
         cells={mapCompareCells(items, (item) => ({
           value: (
-            <div className="flex flex-col gap-1">
-              <span className={cn("text-2xl font-bold leading-tight md:text-3xl", schoolCls(item.schoolGrade))}>
-                {item.schoolGrade}
-              </span>
-              {item.famousZone && <FamousZoneBadge zone={item.famousZone} />}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={cn("text-2xl font-bold leading-tight md:text-3xl", schoolCls(item.schoolGrade))}>
+                  {item.schoolGrade}
+                </span>
+                {item.famousZone && <FamousZoneBadge zone={item.famousZone} />}
+              </div>
             </div>
           ),
           sub: item.academyCount != null
@@ -419,10 +413,12 @@ export default function CompareTable({
         mobileVisibleIndices={mobileVisibleIndices}
         values={mapCompareValues(items, (item) => (
           <div className="flex flex-col gap-1">
-            <span className={cn("font-semibold", schoolCls(item.schoolGrade))}>
-              {item.schoolGrade}
-            </span>
-            {item.famousZone && <FamousZoneBadge zone={item.famousZone} />}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={cn("font-semibold", schoolCls(item.schoolGrade))}>
+                {item.schoolGrade}
+              </span>
+              {item.famousZone && <FamousZoneBadge zone={item.famousZone} />}
+            </div>
             {item.academyCount != null && (
               <span className="ob-typo-caption text-(--oboon-text-muted)">
                 반경 1km 학원 {item.academyCount.toLocaleString("ko-KR")}개
@@ -473,7 +469,7 @@ export default function CompareTable({
         })}
       />
       <SpecGroup
-        label="카테고리별 결과"
+        label="카테고리별 결과 · 사유"
         colCount={colCount}
         mobileVisibleIndices={mobileVisibleIndices}
         values={items.map((item, index) => {
@@ -501,13 +497,14 @@ export default function CompareTable({
           return (
             <div key={categoryKey} className="flex flex-col gap-2">
               {CONDITION_CATEGORY_ROWS.map(({ key, label }) => {
-                const grade = item.conditionCategories?.[key];
-                if (!grade) return null;
+                const category = item.conditionCategories?.[key];
+                if (!category) return null;
                 return (
-                  <ConditionMetricDot
+                  <ConditionCategoryCard
                     key={`${item.id}-${key}`}
                     label={label}
-                    grade={grade}
+                    grade={category.grade}
+                    reason={category.reasonMessage}
                   />
                 );
               })}

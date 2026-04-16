@@ -344,8 +344,10 @@ function TabContent({
         label: "학군",
         leftVal: (
           <div className="flex flex-col gap-1">
-            <span className={`text-xl font-bold ${schoolCls(left.schoolGrade)}`}>{left.schoolGrade}</span>
-            {left.famousZone && <FamousZoneBadge zone={left.famousZone} />}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className={`text-xl font-bold ${schoolCls(left.schoolGrade)}`}>{left.schoolGrade}</span>
+              {left.famousZone && <FamousZoneBadge zone={left.famousZone} />}
+            </div>
             {left.academyCount != null && (
               <span className="ob-typo-caption text-(--oboon-text-muted)">
                 반경 1km 학원 {left.academyCount.toLocaleString("ko-KR")}개
@@ -355,8 +357,10 @@ function TabContent({
         ),
         rightVal: right ? (
           <div className="flex flex-col gap-1">
-            <span className={`text-xl font-bold ${schoolCls(right.schoolGrade)}`}>{right.schoolGrade}</span>
-            {right.famousZone && <FamousZoneBadge zone={right.famousZone} />}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className={`text-xl font-bold ${schoolCls(right.schoolGrade)}`}>{right.schoolGrade}</span>
+              {right.famousZone && <FamousZoneBadge zone={right.famousZone} />}
+            </div>
             {right.academyCount != null && (
               <span className="ob-typo-caption text-(--oboon-text-muted)">
                 반경 1km 학원 {right.academyCount.toLocaleString("ko-KR")}개
@@ -472,8 +476,10 @@ function TabContent({
               label="학군"
               value={
                 <div className="flex flex-col gap-1">
-                  <span className={schoolCls(left.schoolGrade)}>{left.schoolGrade}</span>
-                  {left.famousZone && <FamousZoneBadge zone={left.famousZone} />}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className={schoolCls(left.schoolGrade)}>{left.schoolGrade}</span>
+                    {left.famousZone && <FamousZoneBadge zone={left.famousZone} />}
+                  </div>
                   {left.academyCount != null && (
                     <span className="ob-typo-caption text-(--oboon-text-muted)">
                       반경 1km 학원 {left.academyCount.toLocaleString("ko-KR")}개
@@ -489,8 +495,10 @@ function TabContent({
                 label="학군"
                 value={
                   <div className="flex flex-col gap-1">
-                    <span className={schoolCls(right.schoolGrade)}>{right.schoolGrade}</span>
-                    {right.famousZone && <FamousZoneBadge zone={right.famousZone} />}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className={schoolCls(right.schoolGrade)}>{right.schoolGrade}</span>
+                      {right.famousZone && <FamousZoneBadge zone={right.famousZone} />}
+                    </div>
                     {right.academyCount != null && (
                       <span className="ob-typo-caption text-(--oboon-text-muted)">
                         반경 1km 학원 {right.academyCount.toLocaleString("ko-KR")}개
