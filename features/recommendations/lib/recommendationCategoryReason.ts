@@ -43,7 +43,8 @@ export function buildRecommendationCategoryReason(args: {
   inputs?: RecommendationReasonInputs;
   rawReason?: string | null;
 }): string {
-  const rawReason = args.rawReason?.trim();
+  const rawReason =
+    typeof args.rawReason === "string" ? args.rawReason.trim() : null;
   const metrics = args.metrics ?? {};
   const inputs = args.inputs ?? {};
 
@@ -409,7 +410,7 @@ function buildTimingReason(args: {
     return `희망 시점과 실제 일정 차이가 약 ${months}개월 있어 시점 적합도가 낮아졌어요.`;
   }
 
-  if (args.rawReason) {
+  if (typeof args.rawReason === "string" && args.rawReason.trim()) {
     const segments = args.rawReason
       .split("·")
       .map((segment) => segment.trim())

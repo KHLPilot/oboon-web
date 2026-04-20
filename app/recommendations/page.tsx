@@ -7,7 +7,7 @@ import type { ComponentType } from "react";
 import { Check, ChevronDown, Search, SlidersHorizontal } from "lucide-react";
 
 import PageContainer from "@/components/shared/PageContainer";
-import Button from "@/components/ui/Button";
+import IconButton from "@/components/ui/IconButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import Input from "@/components/ui/Input";
 import Label from "@/components/ui/Label";
@@ -617,17 +617,14 @@ export default function RecommendationsPage() {
                 />
               </div>
 
-              <Button
-                type="button"
-                variant="secondary"
-                shape="pill"
-                size="md"
-                className="h-10 w-10 rounded-full p-0"
-                onClick={applySearchQuery}
+              <IconButton
+                icon={<Search className="h-4 w-4" />}
                 aria-label="검색"
-              >
-                <Search className="h-4 w-4" />
-              </Button>
+                variant="fill"
+                size="md"
+                shape="circle"
+                onClick={applySearchQuery}
+              />
             </div>
 
             {deferredPanelsReady ? (
@@ -692,17 +689,14 @@ export default function RecommendationsPage() {
                 />
               </div>
 
-              <Button
-                type="button"
-                variant="secondary"
-                shape="pill"
-                size="md"
-                className="h-10 w-10 rounded-full p-0"
-                onClick={applySearchQuery}
+              <IconButton
+                icon={<Search className="h-4 w-4" />}
                 aria-label="검색"
-              >
-                <Search className="h-4 w-4" />
-              </Button>
+                variant="fill"
+                size="md"
+                shape="circle"
+                onClick={applySearchQuery}
+              />
 
               <SortDropdown
                 value={sortKey}
@@ -717,25 +711,24 @@ export default function RecommendationsPage() {
                 onChange={updateDesktopView}
               />
 
-              <Button
-                type="button"
-                variant={desktopFilterOpen ? "primary" : "secondary"}
-                shape="pill"
-                size="md"
-                className="h-10 w-10 rounded-full p-0"
-                onClick={() => setDesktopFilterOpen((prev) => !prev)}
-                aria-expanded={desktopFilterOpen}
+              <IconButton
+                icon={
+                  <SlidersHorizontal
+                    className={cn(
+                      "h-5 w-5 transition-colors",
+                      desktopFilterOpen
+                        ? "text-(--oboon-on-primary)"
+                        : "text-(--oboon-text-muted)",
+                    )}
+                  />
+                }
                 aria-label="필터"
-              >
-                <SlidersHorizontal
-                  className={cn(
-                    "h-4 w-4 transition-colors",
-                    desktopFilterOpen
-                      ? "text-(--oboon-on-primary)"
-                      : "text-(--oboon-text-muted)",
-                  )}
-                />
-              </Button>
+                variant="fill"
+                size="md"
+                shape="circle"
+                aria-expanded={desktopFilterOpen}
+                onClick={() => setDesktopFilterOpen((prev) => !prev)}
+              />
             </div>
 
             {desktopFilterOpen ? (

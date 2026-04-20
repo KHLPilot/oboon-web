@@ -265,3 +265,23 @@ test("timing reason avoids raw score-style copy when only raw reason is availabl
   assert.doesNotMatch(timingReason, /3\/5|2\/5|8\/10/);
   assert.match(timingReason, /희망 시점|실제 일정|보수적으로 반영/);
 });
+
+test("timing reason falls back when malformed rawReason payloads arrive", () => {
+  const timingReason = buildRecommendationCategoryReason({
+    key: "timing",
+    grade: "YELLOW",
+    isPricePublic: true,
+    rawReason: {
+      trim: () => ({
+        split: undefined,
+      }),
+    },
+    metrics: {},
+    inputs: {
+      houseOwnership: "none",
+      purchasePurpose: "residence",
+    },
+  });
+
+  assert.match(timingReason, /시점 적합도가/);
+});

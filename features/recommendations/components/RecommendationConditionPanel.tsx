@@ -2,8 +2,8 @@
 
 import dynamic from "next/dynamic";
 import type { ComponentType } from "react";
-import { cn } from "@/lib/utils/cn";
 
+import SegmentedControl from "@/components/ui/SegmentedControl";
 import SimulatorBar from "@/features/recommendations/components/SimulatorBar";
 import type {
   RecommendationCondition,
@@ -70,53 +70,21 @@ export default function RecommendationConditionPanel(
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-1 rounded-full bg-(--oboon-bg-subtle) p-1">
-        <button
-          type="button"
-          onClick={() => onModeChange("input")}
-          className={cn(
-            "flex-1 h-9 rounded-full ob-typo-body transition-colors",
-            mode === "input"
-              ? "bg-(--oboon-primary) text-(--oboon-on-primary) font-medium shadow-sm"
-              : "text-(--oboon-text-muted) hover:text-(--oboon-text-body)",
-          )}
-        >
-          직접 입력
-        </button>
-        <button
-          type="button"
-          onClick={() => onModeChange("sim")}
-          className={cn(
-            "flex-1 h-9 rounded-full ob-typo-body transition-colors flex items-center justify-center gap-1.5",
-            mode === "sim"
-              ? "bg-(--oboon-primary) text-(--oboon-on-primary) font-medium shadow-sm"
-              : "text-(--oboon-text-muted) hover:text-(--oboon-text-body)",
-          )}
-        >
-          시뮬레이터
-        </button>
-      </div>
+      <SegmentedControl
+        fullWidth
+        value={mode}
+        onChange={(v) => onModeChange(v as RecommendationMode)}
+        options={[
+          { value: "input", label: "직접 입력" },
+          { value: "sim", label: "시뮬레이터" },
+        ]}
+      />
 
       <div className="border-t border-(--oboon-border-default)" />
 
       {errorMessage ? (
         <div className="rounded-2xl border border-(--oboon-danger-border) bg-(--oboon-danger-bg) px-4 py-3">
           <p className="ob-typo-body text-(--oboon-danger-text)">{errorMessage}</p>
-        </div>
-      ) : null}
-
-      {isLoggedIn && hasSavedConditionPreset && isConditionDirty && onRestoreDefault ? (
-        <div className="flex items-center justify-between gap-2 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-2">
-          <p className="ob-typo-caption text-(--oboon-text-muted)">
-            저장된 기본 조건과 다릅니다.
-          </p>
-          <button
-            type="button"
-            onClick={onRestoreDefault}
-            className="shrink-0 ob-typo-caption font-medium text-(--oboon-primary) underline underline-offset-4 hover:opacity-70"
-          >
-            기본 조건으로
-          </button>
         </div>
       ) : null}
 
@@ -130,8 +98,8 @@ export default function RecommendationConditionPanel(
           evaluateOnFinish
           onChange={onChange}
           onEvaluate={onEvaluate}
-          onSave={isLoggedIn ? onSave : undefined}
-          onLoginAndSave={isLoggedIn ? undefined : onLoginAndSave}
+          onSave={onSave}
+          onLoginAndSave={onLoginAndSave}
           isLoading={isLoading}
           isSaving={isSaving}
         />

@@ -1039,7 +1039,7 @@ export function useRecommendations() {
 
       const [{ data, error }, authResult] = await Promise.all([
         fetchPropertiesForOfferings(supabase, { limit: 200 }),
-        supabase.auth.getUser(),
+        supabase.auth.getSession(),
       ]);
 
       if (!active) return;
@@ -1057,7 +1057,7 @@ export function useRecommendations() {
         setRows(((data ?? []) as PropertyRow[]).filter(Boolean));
       }
 
-      const loggedIn = Boolean(authResult.data.user);
+      const loggedIn = Boolean(authResult.data.session?.user);
       setIsLoggedIn(loggedIn);
       if (!loggedIn) {
         setHasSavedConditionPreset(false);
@@ -1086,7 +1086,7 @@ export function useRecommendations() {
         }
       } else {
         // 저장된 조건 불러오기
-        const userId = authResult.data.user!.id;
+        const userId = authResult.data.session!.user.id;
         const [{ data: profile, error: profileError }, { data: requests, error: requestError }] =
           await Promise.all([
             supabase
@@ -1475,10 +1475,10 @@ export function useRecommendations() {
   }, []);
 
   const saveCondition = useCallback(async (): Promise<boolean> => {
-    if (!isLoggedIn) return false;
     setIsSavingCondition(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       if (!user) return false;
 
       const { error, data: updated } = await supabase
@@ -1519,26 +1519,34 @@ export function useRecommendations() {
     } finally {
       setIsSavingCondition(false);
     }
-  }, [condition, isLoggedIn, supabase]);
+  }, [condition, supabase]);
 
   const loginAndSaveCondition = useCallback(() => {
-    const snapshot = buildConditionSession(condition);
-    saveConditionSession(snapshot);
+    void (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        void saveCondition();
+        return;
+      }
 
-    try {
-      window.localStorage.setItem(
-        RECOMMENDATION_CONDITION_DRAFT_STORAGE_KEY,
-        JSON.stringify({
-          snapshot,
-          saved_at: new Date().toISOString(),
-        } satisfies RecommendationConditionDraft),
-      );
-    } catch {
-      // ignore storage failure
-    }
+      const snapshot = buildConditionSession(condition);
+      saveConditionSession(snapshot);
 
-    router.push("/auth/login?next=/recommendations");
-  }, [condition, router]);
+      try {
+        window.localStorage.setItem(
+          RECOMMENDATION_CONDITION_DRAFT_STORAGE_KEY,
+          JSON.stringify({
+            snapshot,
+            saved_at: new Date().toISOString(),
+          } satisfies RecommendationConditionDraft),
+        );
+      } catch {
+        // ignore storage failure
+      }
+
+      router.push("/auth/login?next=/recommendations");
+    })();
+  }, [condition, router, saveCondition, supabase]);
 
   const restoreSavedCondition = useCallback(() => {
     if (!savedConditionPreset) return false;

@@ -3,6 +3,7 @@
 import { SlidersHorizontal } from "lucide-react";
 import { useRouter } from "next/navigation";
 
+import ConditionBar, { type ConditionChip } from "@/components/ui/ConditionBar";
 import type { RecommendationCondition } from "@/features/recommendations/hooks/useRecommendations";
 import { formatManwonPreview } from "@/lib/format/currency";
 
@@ -11,20 +12,36 @@ type MobileConditionSheetProps = {
   isLoggedIn?: boolean;
 };
 
-function buildConditionChips(condition: RecommendationCondition): string[] {
-  const chips: string[] = [];
+function buildConditionChips(condition: RecommendationCondition): ConditionChip[] {
+  const chips: ConditionChip[] = [];
 
   if (condition.availableCash > 0) {
-    chips.push(`현금 ${formatManwonPreview(condition.availableCash)}`);
+    chips.push({
+      key: "cash",
+      label: "현금",
+      value: formatManwonPreview(condition.availableCash),
+    });
   }
   if (condition.monthlyIncome > 0) {
-    chips.push(`소득 ${formatManwonPreview(condition.monthlyIncome)}`);
+    chips.push({
+      key: "income",
+      label: "소득",
+      value: formatManwonPreview(condition.monthlyIncome),
+    });
   }
   if (condition.monthlyExpenses > 0) {
-    chips.push(`지출 ${formatManwonPreview(condition.monthlyExpenses)}`);
+    chips.push({
+      key: "expenses",
+      label: "지출",
+      value: formatManwonPreview(condition.monthlyExpenses),
+    });
   }
   if (condition.ltvInternalScore > 0) {
-    chips.push(`신용 ${condition.ltvInternalScore}점`);
+    chips.push({
+      key: "credit",
+      label: "신용",
+      value: `${condition.ltvInternalScore}점`,
+    });
   }
 
   const ownershipMap = {
@@ -33,7 +50,11 @@ function buildConditionChips(condition: RecommendationCondition): string[] {
     two_or_more: "2주택+",
   } as const;
   if (condition.houseOwnership) {
-    chips.push(ownershipMap[condition.houseOwnership]);
+    chips.push({
+      key: "house",
+      label: "",
+      value: ownershipMap[condition.houseOwnership],
+    });
   }
 
   const purposeMap: Record<string, string> = {
@@ -43,9 +64,11 @@ function buildConditionChips(condition: RecommendationCondition): string[] {
     long_term: "실거주+투자",
   };
   if (condition.purchasePurposeV2) {
-    chips.push(
-      purposeMap[condition.purchasePurposeV2] ?? condition.purchasePurposeV2,
-    );
+    chips.push({
+      key: "purpose",
+      label: "",
+      value: purposeMap[condition.purchasePurposeV2] ?? condition.purchasePurposeV2,
+    });
   }
 
   const timingMap: Record<string, string> = {
@@ -56,9 +79,11 @@ function buildConditionChips(condition: RecommendationCondition): string[] {
     by_property: "현장따라",
   };
   if (condition.purchaseTiming) {
-    chips.push(
-      timingMap[condition.purchaseTiming] ?? condition.purchaseTiming,
-    );
+    chips.push({
+      key: "timing",
+      label: "",
+      value: timingMap[condition.purchaseTiming] ?? condition.purchaseTiming,
+    });
   }
 
   const moveinMap: Record<string, string> = {
@@ -69,13 +94,25 @@ function buildConditionChips(condition: RecommendationCondition): string[] {
     anytime: "언제든지",
   };
   if (condition.moveinTiming) {
-    chips.push(moveinMap[condition.moveinTiming] ?? condition.moveinTiming);
+    chips.push({
+      key: "movein",
+      label: "",
+      value: moveinMap[condition.moveinTiming] ?? condition.moveinTiming,
+    });
   }
 
   if (condition.regions.length === 1) {
-    chips.push(condition.regions[0]);
+    chips.push({
+      key: "region",
+      label: "지역",
+      value: condition.regions[0],
+    });
   } else if (condition.regions.length > 1) {
-    chips.push(`${condition.regions[0]} 외 ${condition.regions.length - 1}개`);
+    chips.push({
+      key: "region",
+      label: "지역",
+      value: `${condition.regions[0]} 외 ${condition.regions.length - 1}개`,
+    });
   }
 
   return chips;
@@ -100,11 +137,13 @@ export default function MobileConditionSheet({
               추천 조건
             </span>
           </div>
-          <p className="mt-1 line-clamp-2 ob-typo-caption text-(--oboon-text-muted)">
-            {conditionChips.length > 0
-              ? conditionChips.join(" · ")
-              : "조건을 설정해주세요"}
-          </p>
+          {conditionChips.length > 0 ? (
+            <ConditionBar chips={conditionChips} className="mt-1" />
+          ) : (
+            <p className="mt-1 ob-typo-caption text-(--oboon-text-muted)">
+              조건을 설정해주세요
+            </p>
+          )}
         </div>
         <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-page)">
           <SlidersHorizontal className="h-4 w-4 text-(--oboon-text-muted)" />

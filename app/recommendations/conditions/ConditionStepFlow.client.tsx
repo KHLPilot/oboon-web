@@ -24,6 +24,8 @@ import {
 
 const DEFAULT_CONDITION: RecommendationCondition =
   createEmptyRecommendationCondition();
+const RECOMMENDATION_CONDITION_DRAFT_STORAGE_KEY =
+  "oboon:recommendations-condition-draft";
 
 type SavedConditionPresetState = {
   availableCash: number | null;
@@ -91,6 +93,16 @@ function buildConditionSession(condition: RecommendationCondition): ConditionSes
 
 function saveCondition(nextCondition: RecommendationCondition) {
   saveConditionSession(buildConditionSession(nextCondition));
+}
+
+function clearRecommendationConditionDraft() {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.removeItem(RECOMMENDATION_CONDITION_DRAFT_STORAGE_KEY);
+  } catch {
+    // ignore storage cleanup failure
+  }
 }
 
 function sanitizeGuestCondition(condition: RecommendationCondition): RecommendationCondition {
@@ -175,23 +187,27 @@ type StepFlowProps = {
 
 export function ConditionStepFlow({ step, progressive = true }: StepFlowProps) {
   const router = useRouter();
-  const [condition, setCondition] = useState<RecommendationCondition>(() => {
-    const snapshot = loadConditionSession();
-    return snapshot ? conditionFromSession(snapshot) : DEFAULT_CONDITION;
-  });
+  const [condition, setCondition] = useState<RecommendationCondition>(DEFAULT_CONDITION);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isAuthResolved, setIsAuthResolved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [savedConditionPreset, setSavedConditionPreset] =
     useState<RecommendationCondition | null>(null);
+
+  useEffect(() => {
+    const snapshot = loadConditionSession();
+    if (!snapshot) return;
+    setCondition(conditionFromSession(snapshot));
+  }, []);
 
   useEffect(() => {
     const supabase = createSupabaseClient();
     let alive = true;
 
     async function loadAuth() {
-      const { data } = await supabase.auth.getUser();
+      const { data } = await supabase.auth.getSession();
       if (!alive) return;
-      const loggedIn = Boolean(data.user);
+      const loggedIn = Boolean(data.session?.user);
       setIsLoggedIn(loggedIn);
       setIsAuthResolved(true);
       if (!loggedIn) {
@@ -224,8 +240,8 @@ export function ConditionStepFlow({ step, progressive = true }: StepFlowProps) {
     let alive = true;
 
     async function loadSavedPreset() {
-      const { data: authData } = await supabase.auth.getUser();
-      const user = authData.user;
+      const { data: authData } = await supabase.auth.getSession();
+      const user = authData.session?.user;
       if (!alive || !user) {
         setSavedConditionPreset(null);
         return;
@@ -308,9 +324,70 @@ export function ConditionStepFlow({ step, progressive = true }: StepFlowProps) {
     router.push("/recommendations/conditions/step/1");
   }, [router]);
 
-  const handleGoLogin = useCallback(() => {
+  const handleSaveCondition = useCallback(async (): Promise<boolean> => {
+    const supabase = createSupabaseClient();
+    const { data } = await supabase.auth.getSession();
+    const user = data.session?.user ?? null;
+
     saveCondition(condition);
-    router.push(`/auth/login?next=${encodeURIComponent(resolveLoginNext(step))}`);
+
+    if (!user) {
+      router.push(`/auth/login?next=${encodeURIComponent(resolveLoginNext(step))}`);
+      return false;
+    }
+
+    setIsSaving(true);
+    try {
+      const { error, data: updated } = await supabase
+        .from("profiles")
+        .update({
+          cv_available_cash_manwon: condition.availableCash || null,
+          cv_monthly_income_manwon: condition.monthlyIncome || null,
+          cv_monthly_expenses_manwon: condition.monthlyExpenses || null,
+          cv_employment_type: condition.employmentType,
+          cv_house_ownership: condition.houseOwnership,
+          cv_purchase_purpose_v2: condition.purchasePurposeV2,
+          cv_purchase_timing: condition.purchaseTiming,
+          cv_movein_timing: condition.moveinTiming,
+          cv_ltv_internal_score: condition.ltvInternalScore > 0 ? condition.ltvInternalScore : null,
+          cv_existing_loan_amount: condition.existingLoan,
+          cv_recent_delinquency: condition.recentDelinquency,
+          cv_card_loan_usage: condition.cardLoanUsage,
+          cv_loan_rejection: condition.loanRejection,
+          cv_monthly_income_range: condition.monthlyIncomeRange,
+          cv_existing_monthly_repayment: condition.existingMonthlyRepayment,
+        })
+        .eq("id", user.id)
+        .select("id");
+
+      if (error || !updated || updated.length === 0) {
+        return false;
+      }
+
+      setSavedConditionPreset(
+        buildSavedConditionPreset({
+          availableCash: condition.availableCash,
+          monthlyIncome: condition.monthlyIncome,
+          monthlyExpenses: condition.monthlyExpenses,
+          employmentType: condition.employmentType,
+          houseOwnership: condition.houseOwnership,
+          purchasePurposeV2: condition.purchasePurposeV2,
+          purchaseTiming: condition.purchaseTiming,
+          moveinTiming: condition.moveinTiming,
+          ltvInternalScore: condition.ltvInternalScore,
+          existingLoan: condition.existingLoan,
+          recentDelinquency: condition.recentDelinquency,
+          cardLoanUsage: condition.cardLoanUsage,
+          loanRejection: condition.loanRejection,
+          monthlyIncomeRange: condition.monthlyIncomeRange,
+          existingMonthlyRepayment: condition.existingMonthlyRepayment,
+        }),
+      );
+      clearRecommendationConditionDraft();
+      return true;
+    } finally {
+      setIsSaving(false);
+    }
   }, [condition, router, step]);
 
   const isConditionDirty = useMemo(
@@ -335,11 +412,11 @@ export function ConditionStepFlow({ step, progressive = true }: StepFlowProps) {
         hasSavedConditionPreset={hasSavedConditionPreset}
         isConditionDirty={isConditionDirty}
         onRestoreDefault={handleRestoreDefaultCondition}
-        onChange={handleChange}
-        onNext={() => router.push("/recommendations/conditions/step/2")}
-        onReset={handleReset}
-        progressive={progressive}
-      />
+      onChange={handleChange}
+      onNext={() => router.push("/recommendations/conditions/step/2")}
+      onReset={handleReset}
+      progressive={progressive}
+    />
     );
   }
 
@@ -355,7 +432,9 @@ export function ConditionStepFlow({ step, progressive = true }: StepFlowProps) {
         onChange={handleChange}
         onNext={() => router.push("/recommendations/conditions/step/3")}
         onBack={() => router.push("/recommendations/conditions/step/1")}
-        onLoginAndSave={handleGoLogin}
+        onLoginAndSave={async () => {
+          await handleSaveCondition();
+        }}
         onReset={handleReset}
         progressive={progressive}
       />
@@ -374,7 +453,10 @@ export function ConditionStepFlow({ step, progressive = true }: StepFlowProps) {
       onBack={() => router.push("/recommendations/conditions/step/2")}
       onFinish={() => router.push("/recommendations/conditions/done")}
       onReset={handleReset}
-      onSave={handleGoLogin}
+      onSave={async () => {
+        await handleSaveCondition();
+      }}
+      isSaving={isSaving}
       progressive={progressive}
     />
   );
@@ -418,9 +500,9 @@ export function ConditionDoneFlow() {
     let alive = true;
 
     async function loadAuth() {
-      const { data } = await supabase.auth.getUser();
+      const { data } = await supabase.auth.getSession();
       if (!alive) return;
-      setIsLoggedIn(Boolean(data.user));
+      setIsLoggedIn(Boolean(data.session?.user));
       setIsAuthResolved(true);
     }
 

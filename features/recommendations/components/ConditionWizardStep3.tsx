@@ -3,6 +3,8 @@
 import { Lock } from "lucide-react";
 import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
+import BottomCTA from "@/components/ui/BottomCTA";
+import ConditionDirtyBanner from "@/features/condition-validation/components/ConditionDirtyBanner";
 import Select from "@/components/ui/Select";
 import { MultiSelect } from "@/components/ui/MultiSelect";
 import type {
@@ -49,13 +51,6 @@ const MOVEIN_OPTIONS: Array<{ value: MoveinTiming; label: string }> = [
 const REGION_OPTIONS = OFFERING_REGION_TABS.filter((r) => r !== "전체").map(
   (r) => ({ value: r as OfferingRegionTab, label: r }),
 );
-
-const FIXED_ACTIONS = [
-  "fixed left-4 right-4 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-30",
-  "sm:static sm:left-auto sm:right-auto sm:bottom-auto sm:z-auto sm:mt-auto",
-].join(" ");
-
-const MOBILE_FIXED_ACTIONS = `${FIXED_ACTIONS} shadow-none`;
 
 function ProgressiveSlot({
   visible,
@@ -252,20 +247,9 @@ export default function ConditionWizardStep3({
           </div>
         </ProgressiveSlot>
 
-        <div className={`${MOBILE_FIXED_ACTIONS} flex flex-col gap-2`}>
-          {isLoggedIn && hasSavedConditionPreset && isConditionDirty && onRestoreDefault ? (
-            <div className="sm:hidden flex items-center justify-between gap-2 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-2">
-              <p className="ob-typo-caption text-(--oboon-text-muted)">
-                저장된 기본 조건과 다릅니다.
-              </p>
-              <button
-                type="button"
-                onClick={onRestoreDefault}
-                className="shrink-0 ob-typo-caption font-medium text-(--oboon-primary) underline underline-offset-4 hover:opacity-70"
-              >
-                기본 조건으로
-              </button>
-            </div>
+        <div className="hidden lg:flex flex-col gap-2 pt-4">
+          {isLoggedIn && hasSavedConditionPreset && isConditionDirty ? (
+            <ConditionDirtyBanner onRestoreDefault={onRestoreDefault} />
           ) : null}
           {onSave ? (
             <button
@@ -306,6 +290,56 @@ export default function ConditionWizardStep3({
             </button>
           </div>
         </div>
+
+        <BottomCTA
+          variant="single"
+          className="lg:hidden"
+          primaryButton={
+            <div className="flex flex-col gap-2 w-full">
+              {isLoggedIn && hasSavedConditionPreset && isConditionDirty ? (
+                <ConditionDirtyBanner onRestoreDefault={onRestoreDefault} />
+              ) : null}
+              {onSave ? (
+                <button
+                  type="button"
+                  disabled={isSaveDisabled || isSaving}
+                  onClick={onSave}
+                  className="h-10 w-full rounded-full border border-(--oboon-border-default) ob-typo-button text-(--oboon-text-body) disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {isSaving ? "저장 중..." : saveButtonLabel}
+                </button>
+              ) : null}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={onBack}
+                  disabled={isFinishing}
+                  className="h-10 flex-1 rounded-full border border-(--oboon-border-default) ob-typo-button text-(--oboon-text-muted) disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  이전
+                </button>
+                <button
+                  type="button"
+                  disabled={!isReady || isFinishing}
+                  onClick={onFinish}
+                  className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-(--oboon-primary) text-white ob-typo-button disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {isFinishing ? (
+                    <>
+                      <span
+                        aria-hidden="true"
+                        className="inline-block h-4 w-4 rounded-full border-2 border-(--oboon-spinner-ring) border-t-(--oboon-spinner-head) animate-spin"
+                      />
+                      <span>{finishingLabel}</span>
+                    </>
+                  ) : (
+                    finishLabel
+                  )}
+                </button>
+              </div>
+            </div>
+          }
+        />
       </div>
     );
   }
@@ -429,21 +463,10 @@ export default function ConditionWizardStep3({
         </div>
       ) : null}
 
-      <div className={`${MOBILE_FIXED_ACTIONS} flex flex-col gap-2`}>
-        {isLoggedIn && hasSavedConditionPreset && isConditionDirty && onRestoreDefault ? (
-          <div className="sm:hidden flex items-center justify-between gap-2 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-2">
-            <p className="ob-typo-caption text-(--oboon-text-muted)">
-              저장된 기본 조건과 다릅니다.
-            </p>
-            <button
-              type="button"
-              onClick={onRestoreDefault}
-              className="shrink-0 ob-typo-caption font-medium text-(--oboon-primary) underline underline-offset-4 hover:opacity-70"
-              >
-                기본 조건으로
-              </button>
-            </div>
-          ) : null}
+      <div className="hidden lg:flex flex-col gap-2 pt-4">
+        {isLoggedIn && hasSavedConditionPreset && isConditionDirty ? (
+          <ConditionDirtyBanner onRestoreDefault={onRestoreDefault} />
+        ) : null}
         {onSave ? (
           <button
             type="button"
@@ -483,6 +506,56 @@ export default function ConditionWizardStep3({
           </button>
         </div>
       </div>
+
+      <BottomCTA
+        variant="single"
+        className="lg:hidden"
+        primaryButton={
+          <div className="flex flex-col gap-2 w-full">
+            {isLoggedIn && hasSavedConditionPreset && isConditionDirty ? (
+              <ConditionDirtyBanner onRestoreDefault={onRestoreDefault} />
+            ) : null}
+            {onSave ? (
+              <button
+                type="button"
+                disabled={isSaveDisabled || isSaving}
+                onClick={onSave}
+                className="h-10 w-full rounded-full border border-(--oboon-border-default) ob-typo-button text-(--oboon-text-body) disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {isSaving ? "저장 중..." : saveButtonLabel}
+              </button>
+            ) : null}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={onBack}
+                disabled={isFinishing}
+                className="h-10 flex-1 rounded-full border border-(--oboon-border-default) ob-typo-button text-(--oboon-text-muted) disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                이전
+              </button>
+              <button
+                type="button"
+                disabled={!isReady || isFinishing}
+                onClick={onFinish}
+                className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-(--oboon-primary) text-white ob-typo-button disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {isFinishing ? (
+                  <>
+                    <span
+                      aria-hidden="true"
+                      className="inline-block h-4 w-4 rounded-full border-2 border-(--oboon-spinner-ring) border-t-(--oboon-spinner-head) animate-spin"
+                    />
+                    <span>{finishingLabel}</span>
+                  </>
+                ) : (
+                  finishLabel
+                )}
+              </button>
+            </div>
+          </div>
+        }
+      />
     </div>
   );
 }

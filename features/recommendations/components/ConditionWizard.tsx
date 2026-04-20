@@ -3,7 +3,9 @@
 import dynamic from "next/dynamic";
 import { useRef, useState } from "react";
 import type { ComponentType } from "react";
+import { CheckCircle2 } from "lucide-react";
 import Button from "@/components/ui/Button";
+import Result from "@/components/ui/Result";
 import { useToast } from "@/components/ui/Toast";
 import WizardStepIndicator from "@/features/recommendations/components/WizardStepIndicator";
 import type { RecommendationCondition } from "@/features/recommendations/hooks/useRecommendations";
@@ -231,11 +233,11 @@ export default function ConditionWizard({
       )}
 
       {showFinalActions && (
-        <div className="space-y-3 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) p-4">
-          <p className="ob-typo-body font-semibold text-(--oboon-text-title)">
-            입력한 조건으로 맞춤 현장을 평가할 준비가 됐어요
-          </p>
-          <div>
+        <Result
+          figure={<CheckCircle2 className="h-10 w-10 text-(--oboon-primary)" />}
+          title="조건 입력 완료"
+          description="입력한 조건으로 맞춤 현장을 평가할 준비가 됐어요"
+          button={
             <Button
               variant="primary"
               shape="pill"
@@ -245,8 +247,8 @@ export default function ConditionWizard({
             >
               평가하기
             </Button>
-          </div>
-        </div>
+          }
+        />
       )}
     </div>
   );

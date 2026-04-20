@@ -1,15 +1,18 @@
 "use client";
 
-import { Minus, Plus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import Button from "@/components/ui/Button";
+import MapFloatingControls from "@/components/ui/MapFloatingControls";
 import NaverMap, {
   type MapMarker,
   type NaverMapHandle,
 } from "@/features/map/components/NaverMap";
+import FullscreenMapOverlay from "@/features/map/components/FullscreenMapOverlay";
 import MapLocationStatusPill from "@/features/map/components/MapLocationStatusPill";
-import { useCurrentLocationCenter } from "@/features/map/hooks/useCurrentLocationCenter";
+import type {
+  GeoLocationCenter,
+  GeoLocationStatus,
+} from "@/features/map/hooks/useCurrentLocationCenter";
 import { grade5DetailLabel } from "@/features/condition-validation/lib/grade5Labels";
 import RecommendationResultChips from "@/features/recommendations/components/RecommendationResultChips";
 import type { RecommendationItem } from "@/features/recommendations/hooks/useRecommendations";
@@ -306,11 +309,14 @@ export default function MiniMap(props: MiniMapProps) {
   const { items, gradeCounts, selectedId, onSelect } = props;
   const mapApiRef = useRef<NaverMapHandle | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const [overlayOpen, setOverlayOpen] = useState(false);
+  const [locationStatus, setLocationStatus] =
+    useState<GeoLocationStatus>("idle");
+  const [currentLocationCenter, setCurrentLocationCenter] =
+    useState<GeoLocationCenter | null>(null);
   const heroInfraCacheRef = useRef<Record<number, HeroInfraState>>({});
   const [heroInfraById, setHeroInfraById] = useState<Record<number, HeroInfraState>>({});
   const [mapZoom, setMapZoom] = useState<number>(PROVINCE_CLUSTER_ZOOM);
-  const { center: initialCenter, status: initialLocationStatus } =
-    useCurrentLocationCenter(true, { startDelayMs: 1200 });
   const lastViewportKeyRef = useRef<string>("");
   const hasAppliedLocationViewportRef = useRef(false);
   const activeSelectedId =
@@ -323,6 +329,38 @@ export default function MiniMap(props: MiniMapProps) {
   }, [mapZoom]);
 
   const visibleItems = useMemo(() => items, [items]);
+
+  const requestCurrentLocation = () => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setLocationStatus("unsupported");
+      return;
+    }
+
+    setLocationStatus("pending");
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const nextCenter = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        };
+        setCurrentLocationCenter(nextCenter);
+        setLocationStatus("granted");
+        mapApiRef.current?.setView(
+          nextCenter.lat,
+          nextCenter.lng,
+          GPS_FOCUS_ZOOM,
+        );
+      },
+      (error) => {
+        setLocationStatus(error.code === 1 ? "denied" : "unavailable");
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 10_000,
+      },
+    );
+  };
 
   useEffect(() => {
     if (activeSelectedId === null) return;
@@ -383,17 +421,21 @@ export default function MiniMap(props: MiniMapProps) {
     if (!map) return;
     let retryTimer: number | null = null;
 
-    if (initialLocationStatus === "granted" && initialCenter) {
-      const locationKey = `${initialCenter.lat.toFixed(6)},${initialCenter.lng.toFixed(6)}`;
+    if (locationStatus === "granted" && currentLocationCenter) {
+      const locationKey = `${currentLocationCenter.lat.toFixed(6)},${currentLocationCenter.lng.toFixed(6)}`;
       const viewportKey = `location:${locationKey}`;
       if (lastViewportKeyRef.current !== viewportKey) {
         lastViewportKeyRef.current = viewportKey;
         hasAppliedLocationViewportRef.current = true;
-        map.setView(initialCenter.lat, initialCenter.lng, GPS_FOCUS_ZOOM);
+        map.setView(
+          currentLocationCenter.lat,
+          currentLocationCenter.lng,
+          GPS_FOCUS_ZOOM,
+        );
         retryTimer = window.setTimeout(() => {
           mapApiRef.current?.setView(
-            initialCenter.lat,
-            initialCenter.lng,
+            currentLocationCenter.lat,
+            currentLocationCenter.lng,
             GPS_FOCUS_ZOOM,
           );
         }, 180);
@@ -403,11 +445,7 @@ export default function MiniMap(props: MiniMapProps) {
       };
     }
 
-    if (
-      initialLocationStatus === "pending" ||
-      initialLocationStatus === "idle" ||
-      hasAppliedLocationViewportRef.current
-    ) {
+    if (locationStatus === "pending" || locationStatus === "idle" || hasAppliedLocationViewportRef.current) {
       return;
     }
 
@@ -418,8 +456,8 @@ export default function MiniMap(props: MiniMapProps) {
     };
   }, [
     activeSelectedId,
-    initialCenter,
-    initialLocationStatus,
+    currentLocationCenter,
+    locationStatus,
     mapReady,
   ]);
 
@@ -487,7 +525,7 @@ export default function MiniMap(props: MiniMapProps) {
 
   return (
     <div className="relative h-full overflow-hidden rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-surface)">
-      <MapLocationStatusPill status={initialLocationStatus} />
+      <MapLocationStatusPill status={locationStatus} />
       {(gradeCounts.GREEN > 0 || gradeCounts.LIME > 0 || gradeCounts.ALTERNATIVE > 0) ? (
         <div className="pointer-events-none absolute left-4 top-16 z-20 hidden sm:block sm:top-4">
           <div className="pointer-events-auto rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-surface)/88 px-3 py-2 shadow-[0_12px_28px_rgba(0,0,0,0.18)] backdrop-blur-md">
@@ -500,8 +538,8 @@ export default function MiniMap(props: MiniMapProps) {
           <NaverMap
             ref={mapApiRef}
             markers={markers}
-            initialCenter={initialCenter}
-            initialLocationStatus={initialLocationStatus}
+            initialCenter={null}
+            initialLocationStatus={locationStatus}
             hoveredId={activeSelectedId}
             focusedId={activeSelectedId}
             initialZoom={PROVINCE_CLUSTER_ZOOM}
@@ -518,28 +556,13 @@ export default function MiniMap(props: MiniMapProps) {
             onZoomChange={setMapZoom}
           />
 
-          <div className="pointer-events-none absolute right-4 top-4 z-10 flex flex-col gap-2">
-            <Button
-              type="button"
-              shape="pill"
-              size="sm"
-              variant="secondary"
-              className="pointer-events-auto h-10 w-10 bg-(--oboon-bg-surface)/50"
-              onClick={() => mapApiRef.current?.zoomIn()}
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              shape="pill"
-              size="sm"
-              variant="secondary"
-              className="pointer-events-auto h-10 w-10 bg-(--oboon-bg-surface)/50"
-              onClick={() => mapApiRef.current?.zoomOut()}
-            >
-              <Minus className="h-4 w-4" />
-            </Button>
-          </div>
+          <MapFloatingControls
+            onZoomIn={() => mapApiRef.current?.zoomIn()}
+            onZoomOut={() => mapApiRef.current?.zoomOut()}
+            onUseCurrentLocation={requestCurrentLocation}
+            onExpand={() => setOverlayOpen(true)}
+            className="pointer-events-none absolute right-4 top-4 z-10 flex flex-col gap-2"
+          />
         </>
       ) : (
         <div className="flex h-full items-center justify-center px-8 text-center">
@@ -553,6 +576,21 @@ export default function MiniMap(props: MiniMapProps) {
           </div>
         </div>
       )}
+
+      <FullscreenMapOverlay
+        open={overlayOpen}
+        markers={markers}
+        initialCenter={currentLocationCenter}
+        initialLocationStatus={locationStatus}
+        regionClusterEnabled
+        regionClusterZoomThreshold={16}
+        clusterZoomDelta={1}
+        hoveredId={null}
+        focusedId={activeSelectedId}
+        onHoverChange={() => {}}
+        onSelect={onSelect}
+        onClose={() => setOverlayOpen(false)}
+      />
     </div>
   );
 }

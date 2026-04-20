@@ -179,6 +179,7 @@ function MaskedRecommendationCard(props: {
   item: RecommendationItem;
   isSelected: boolean;
   compact?: boolean;
+  isLoggedIn?: boolean;
   onSelect: () => void;
   recommendationTier?: "primary" | "alternative" | "informational";
 }) {
@@ -186,6 +187,7 @@ function MaskedRecommendationCard(props: {
     item,
     isSelected,
     compact = false,
+    isLoggedIn = false,
     onSelect,
     recommendationTier = "primary",
   } = props;
@@ -276,19 +278,21 @@ function MaskedRecommendationCard(props: {
               </p>
             </div>
 
-            <div
-              className={cn(
-                "rounded-xl border border-(--oboon-warning-border) bg-(--oboon-warning-bg-subtle)",
-                compact ? "px-3 py-2.5" : "px-3 py-3",
-              )}
-            >
-              <div className="flex items-start gap-2">
-                <Lock className="mt-0.5 h-4 w-4 shrink-0 text-(--oboon-warning-text)" />
-                <p className="ob-typo-caption leading-5 text-(--oboon-warning-text)">
-                  로그인하면 현금 여력, 부담률, 리스크와 매칭률을 자세히 확인할 수 있어요.
-                </p>
+            {!isLoggedIn && (
+              <div
+                className={cn(
+                  "rounded-xl border border-(--oboon-warning-border) bg-(--oboon-warning-bg-subtle)",
+                  compact ? "px-3 py-2.5" : "px-3 py-3",
+                )}
+              >
+                <div className="flex items-start gap-2">
+                  <Lock className="mt-0.5 h-4 w-4 shrink-0 text-(--oboon-warning-text)" />
+                  <p className="ob-typo-caption leading-5 text-(--oboon-warning-text)">
+                    로그인하면 현금 여력, 부담률, 리스크와 매칭률을 자세히 확인할 수 있어요.
+                  </p>
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="mt-auto">
               <Button
@@ -355,17 +359,24 @@ export default function FlippableRecommendationCard(
   );
 
   if (isFlipDisabled) {
-    return (
-      <div className={cardHeightClass}>
-        <MaskedRecommendationCard
-          item={item}
-          isSelected={isSelected}
-          compact={compact}
-          onSelect={onSelect}
-          recommendationTier={recommendationTier}
-        />
-      </div>
-    );
+    // disableFlip prop이 명시적으로 true일 때(isMasked)만 MaskedCard 사용
+    // unitTypes가 없어서 flip만 막힌 경우엔 앞면(OfferingCard) 그대로 표시
+    if (disableFlip) {
+      return (
+        <div className={cardHeightClass}>
+          <MaskedRecommendationCard
+            item={item}
+            isSelected={isSelected}
+            compact={compact}
+            isLoggedIn={isLoggedIn}
+            onSelect={onSelect}
+            recommendationTier={recommendationTier}
+          />
+        </div>
+      );
+    }
+
+    return <div className={cardHeightClass}>{frontFace}</div>;
   }
 
   const backFace = (

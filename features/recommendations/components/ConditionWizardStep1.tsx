@@ -2,6 +2,8 @@
 
 import { useEffect, useId, useRef } from "react";
 import type { ReactNode } from "react";
+import BottomCTA from "@/components/ui/BottomCTA";
+import ConditionDirtyBanner from "@/features/condition-validation/components/ConditionDirtyBanner";
 import { cn } from "@/lib/utils/cn";
 import Select from "@/components/ui/Select";
 import { formatManwonPreview } from "@/lib/format/currency";
@@ -28,13 +30,6 @@ const HOUSE_OPTIONS = [
   { value: "one" as const, label: "1주택" },
   { value: "two_or_more" as const, label: "2주택 이상" },
 ];
-
-const FIXED_ACTIONS = [
-  "fixed left-4 right-4 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-30",
-  "sm:static sm:left-auto sm:right-auto sm:bottom-auto sm:z-auto sm:mt-auto",
-].join(" ");
-
-const MOBILE_FIXED_ACTIONS = `${FIXED_ACTIONS} shadow-none`;
 
 function formatNumeric(raw: string): string {
   const digits = raw.replace(/[^\d]/g, "");
@@ -236,20 +231,9 @@ export default function ConditionWizardStep1({
           </ProgressiveSlot>
         ) : null}
 
-        <div className={`${MOBILE_FIXED_ACTIONS} flex flex-col gap-2`}>
-          {isLoggedIn && hasSavedConditionPreset && isConditionDirty && onRestoreDefault ? (
-            <div className="sm:hidden flex items-center justify-between gap-2 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-2">
-              <p className="ob-typo-caption text-(--oboon-text-muted)">
-                저장된 기본 조건과 다릅니다.
-              </p>
-              <button
-                type="button"
-                onClick={onRestoreDefault}
-                className="shrink-0 ob-typo-caption font-medium text-(--oboon-primary) underline underline-offset-4 hover:opacity-70"
-              >
-                기본 조건으로
-              </button>
-            </div>
+        <div className="hidden lg:flex flex-col gap-2 pt-4">
+          {isLoggedIn && hasSavedConditionPreset && isConditionDirty ? (
+            <ConditionDirtyBanner onRestoreDefault={onRestoreDefault} />
           ) : null}
           <button
             type="button"
@@ -260,6 +244,26 @@ export default function ConditionWizardStep1({
             다음 단계 →
           </button>
         </div>
+
+      <BottomCTA
+        variant="single"
+        className="lg:hidden"
+        primaryButton={
+          <div className="flex flex-col gap-2 w-full">
+            {isLoggedIn && hasSavedConditionPreset && isConditionDirty ? (
+              <ConditionDirtyBanner onRestoreDefault={onRestoreDefault} />
+            ) : null}
+              <button
+                type="button"
+                disabled={!isReady}
+                onClick={onNext}
+                className="h-10 w-full rounded-full bg-(--oboon-primary) text-white ob-typo-button transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                다음 단계 →
+              </button>
+            </div>
+          }
+        />
       </div>
     );
   }
@@ -342,20 +346,9 @@ export default function ConditionWizardStep1({
         ) : null}
       </div>
 
-      <div className={`${FIXED_ACTIONS} flex flex-col gap-2 rounded-full bg-(--oboon-bg-surface)/95 p-2 backdrop-blur`}>
-        {isLoggedIn && hasSavedConditionPreset && isConditionDirty && onRestoreDefault ? (
-          <div className="sm:hidden flex items-center justify-between gap-2 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-2">
-            <p className="ob-typo-caption text-(--oboon-text-muted)">
-              저장된 기본 조건과 다릅니다.
-            </p>
-            <button
-              type="button"
-              onClick={onRestoreDefault}
-              className="shrink-0 ob-typo-caption font-medium text-(--oboon-primary) underline underline-offset-4 hover:opacity-70"
-            >
-              기본 조건으로
-            </button>
-          </div>
+      <div className="hidden lg:flex flex-col gap-2 pt-4">
+        {isLoggedIn && hasSavedConditionPreset && isConditionDirty ? (
+          <ConditionDirtyBanner onRestoreDefault={onRestoreDefault} />
         ) : null}
         <button
           type="button"
@@ -366,6 +359,26 @@ export default function ConditionWizardStep1({
           다음 단계 →
         </button>
       </div>
+
+      <BottomCTA
+        variant="single"
+        className="lg:hidden"
+        primaryButton={
+          <div className="flex flex-col gap-2 w-full">
+            {isLoggedIn && hasSavedConditionPreset && isConditionDirty ? (
+              <ConditionDirtyBanner onRestoreDefault={onRestoreDefault} />
+            ) : null}
+            <button
+              type="button"
+              disabled={!isReady}
+              onClick={onNext}
+              className="h-10 w-full rounded-full bg-(--oboon-primary) text-white ob-typo-button transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              다음 단계 →
+            </button>
+          </div>
+        }
+      />
     </div>
   );
 }

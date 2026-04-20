@@ -100,7 +100,9 @@ export default function ConditionsLayout({
             >
               <ChevronLeft className="h-5 w-5" />
             </button>
-            <WizardStepIndicator currentStep={step} />
+            <div className="flex-1 min-w-0">
+              <WizardStepIndicator currentStep={step} />
+            </div>
             <div className="h-8 w-8" aria-hidden="true" />
           </div>
         </PageContainer>
