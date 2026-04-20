@@ -44,7 +44,12 @@
       "Bash(PATH=\"/opt/homebrew/opt/node@21/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin\" pnpm typecheck)",
       "WebFetch(domain:oboon.co.kr)",
       "Bash(PATH=\"/opt/homebrew/opt/node@21/bin:/opt/homebrew/bin:/usr/bin:/bin\" npx getdesign@latest --help)",
-      "Bash(gh pr create --title 'feat\\(db\\): 전국 유명 학군 테이블 및 offerings FK 추가' --body ':*)"
+      "Bash(gh pr create --title 'feat\\(db\\): 전국 유명 학군 테이블 및 offerings FK 추가' --body ':*)",
+      "WebFetch(domain:toss.tech)",
+      "Bash(node --test tests/toggle.test.mjs)",
+      "Bash(PATH=\"/opt/homebrew/opt/node@21/bin:/opt/homebrew/bin:/usr/bin:/bin\" pnpm typecheck)",
+      "Bash(sed -n '20,80p' features/profile/components/ConsultationsShortcutCard.tsx)",
+      "Bash(sed -n '20,80p' features/notifications/components/NotificationItem.client.tsx)"
     ]
   }
 }
