@@ -17,15 +17,13 @@ import PageContainer from "@/components/shared/PageContainer";
 import SafeMarkdown from "@/components/shared/SafeMarkdown";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
+import Checkbox from "@/components/ui/Checkbox";
+import FormInput from "@/components/ui/FormInput";
 import Input from "@/components/ui/Input";
 import Label from "@/components/ui/Label";
 import Modal from "@/components/ui/Modal";
-import FieldErrorBubble, {
-  FieldErrorState,
-} from "@/components/ui/FieldErrorBubble";
 import { Copy } from "@/shared/copy";
 
-type FieldKey = "name" | "nickname" | "phone" | "generic";
 type FieldErrors = { name?: string; nickname?: string; phone?: string };
 
 function cx(...cls: Array<string | false | null | undefined>) {
@@ -108,31 +106,9 @@ export default function OnboardingPage() {
   } | null>(null);
   const [termLoading, setTermLoading] = useState(false);
 
-  // FieldErrorBubble
-  const cardWrapRef = useRef<HTMLDivElement | null>(null);
-  const nameRef = useRef<HTMLInputElement | null>(null);
-  const nicknameRef = useRef<HTMLInputElement | null>(null);
-  const phoneRef = useRef<HTMLInputElement | null>(null);
-  const [fieldError, setFieldError] = useState<FieldErrorState<FieldKey>>(null);
-
-  const bubbleId = "onboarding-field-error";
-
-  const clearFieldError = () => setFieldError(null);
-
-  function openFieldError(field: FieldKey, message: string) {
-    const anchorEl =
-      field === "name"
-        ? nameRef.current
-        : field === "nickname"
-          ? nicknameRef.current
-          : field === "phone"
-            ? phoneRef.current
-            : null;
-
-    if (!anchorEl) return;
-    setFieldError({ field, message, anchorEl });
-    anchorEl.focus?.();
-  }
+  const clearAllErrors = () => {
+    setErrors({});
+  };
 
   const setSanitized =
     (field: "name" | "nickname" | "phone") =>
@@ -151,12 +127,6 @@ export default function OnboardingPage() {
         ...prev,
         [field === "phone" ? "phone" : field]: undefined,
       }));
-
-      setFieldError((prev) => {
-        if (!prev) return prev;
-        const mapped = field === "phone" ? "phone" : field;
-        return prev.field === mapped ? null : prev;
-      });
     };
 
   // 유저 로드 + 기존 프로필 확인
@@ -233,7 +203,7 @@ export default function OnboardingPage() {
 
   // 닉네임 중복 체크
   const checkNickname = async () => {
-    clearFieldError();
+    clearAllErrors();
     setNicknameFormatError(null);
 
     if (!validateRequiredOrShowModal(nickname, "닉네임")) {
@@ -274,7 +244,7 @@ export default function OnboardingPage() {
 
     setLoading(true);
     setFatalError(null);
-    clearFieldError();
+    clearAllErrors();
 
     try {
       const nextErrors: FieldErrors = {};
@@ -295,12 +265,6 @@ export default function OnboardingPage() {
 
       if (Object.keys(nextErrors).length) {
         setErrors(nextErrors);
-
-        if (nextErrors.name) openFieldError("name", nextErrors.name);
-        else if (nextErrors.nickname)
-          openFieldError("nickname", nextErrors.nickname);
-        else if (nextErrors.phone) openFieldError("phone", nextErrors.phone);
-
         return;
       }
 
@@ -311,15 +275,24 @@ export default function OnboardingPage() {
 
       // 닉네임 중복확인 필수
       if (nicknameAvailable === null) {
-        openFieldError("nickname", "닉네임 중복 확인을 먼저 해주세요.");
+        setErrors((prev) => ({
+          ...prev,
+          nickname: "닉네임 중복 확인을 먼저 해주세요.",
+        }));
         return;
       }
       if (nicknameAvailable === false) {
-        openFieldError("nickname", "이미 사용 중인 닉네임입니다.");
+        setErrors((prev) => ({
+          ...prev,
+          nickname: "이미 사용 중인 닉네임입니다.",
+        }));
         return;
       }
       if (nicknameFormatError) {
-        openFieldError("nickname", nicknameFormatError);
+        setErrors((prev) => ({
+          ...prev,
+          nickname: nicknameFormatError,
+        }));
         return;
       }
 
@@ -409,13 +382,13 @@ export default function OnboardingPage() {
           </div>
 
           {/* Card */}
-          <div ref={cardWrapRef} className="relative">
+          <div className="relative">
             <Card className="p-5 border border-(--oboon-border-default)">
               <form onSubmit={handleSubmit} className="space-y-4">
                 {/* 이메일 (읽기 전용) */}
                 <div>
-                  <Label>이메일 주소</Label>
-                  <Input
+                  <FormInput
+                    label="이메일 주소"
                     value={maskedEmail}
                     disabled
                     className="bg-(--oboon-bg-subtle) text-(--oboon-text-muted)"
@@ -424,9 +397,8 @@ export default function OnboardingPage() {
 
                 {/* 이름 */}
                 <div>
-                  <Label>이름 (실명) *</Label>
-                  <Input
-                    ref={nameRef}
+                  <FormInput
+                    label="이름 (실명) *"
                     value={name}
                     onChange={(e) =>
                       setSanitized("name")(
@@ -434,27 +406,27 @@ export default function OnboardingPage() {
                         (e.nativeEvent as InputEvent).isComposing ?? false,
                       )
                     }
-                    onFocus={clearFieldError}
+                    onFocus={clearAllErrors}
                     placeholder={Copy.auth.placeholder.name}
                     maxLength={20}
                     disabled={!canSubmit || loading}
-                    className={cx(
-                      errors.name ? "border-(--oboon-border-danger)" : "",
-                    )}
-                    aria-invalid={errors.name ? "true" : undefined}
-                    aria-describedby={
-                      fieldError?.field === "name" ? bubbleId : undefined
-                    }
+                    error={errors.name}
                   />
+                  {errors.name && (
+                    <p className="mt-1 text-xs text-(--oboon-danger)">
+                      {errors.name}
+                    </p>
+                  )}
                 </div>
 
                 {/* 닉네임 + 중복확인 */}
                 <div>
-                  <Label>닉네임 *</Label>
+                  <label className="ob-typo-label text-(--oboon-text-muted) mb-1 block">
+                    닉네임 *
+                  </label>
 
                   <div className="flex gap-2">
                     <Input
-                      ref={nicknameRef}
                       value={nickname}
                       onChange={(e) =>
                         setSanitized("nickname")(
@@ -462,7 +434,7 @@ export default function OnboardingPage() {
                           (e.nativeEvent as InputEvent).isComposing ?? false,
                         )
                       }
-                      onFocus={clearFieldError}
+                      onFocus={clearAllErrors}
                       placeholder={Copy.auth.placeholder.nickname}
                       maxLength={15}
                       disabled={!canSubmit || loading}
@@ -470,10 +442,6 @@ export default function OnboardingPage() {
                         "flex-1",
                         errors.nickname ? "border-(--oboon-border-danger)" : "",
                       )}
-                      aria-invalid={errors.nickname ? "true" : undefined}
-                      aria-describedby={
-                        fieldError?.field === "nickname" ? bubbleId : undefined
-                      }
                     />
 
                     <Button
@@ -490,7 +458,7 @@ export default function OnboardingPage() {
                     </Button>
                   </div>
 
-                  {nickname ? (
+                      {nickname ? (
                     <div
                       className={cx(
                         "mt-2 ob-typo-caption",
@@ -510,13 +478,18 @@ export default function OnboardingPage() {
                             : "닉네임 중복 확인을 진행해주세요."}
                     </div>
                   ) : null}
+
+                  {errors.nickname && (
+                    <p className="mt-1 text-xs text-(--oboon-danger)">
+                      {errors.nickname}
+                    </p>
+                  )}
                 </div>
 
                 {/* 휴대폰 */}
                 <div>
-                  <Label>휴대폰 번호 *</Label>
-                  <Input
-                    ref={phoneRef}
+                  <FormInput
+                    label="휴대폰 번호 *"
                     value={phoneNumber}
                     onChange={(e) =>
                       setSanitized("phone")(
@@ -524,18 +497,18 @@ export default function OnboardingPage() {
                         (e.nativeEvent as InputEvent).isComposing ?? false,
                       )
                     }
-                    onFocus={clearFieldError}
+                    onFocus={clearAllErrors}
                     placeholder={Copy.auth.placeholder.phone}
+                    inputMode="tel"
                     maxLength={13}
                     disabled={!canSubmit || loading}
-                    className={cx(
-                      errors.phone ? "border-(--oboon-border-danger)" : "",
-                    )}
-                    aria-invalid={errors.phone ? "true" : undefined}
-                    aria-describedby={
-                      fieldError?.field === "phone" ? bubbleId : undefined
-                    }
+                    error={errors.phone}
                   />
+                  {errors.phone && (
+                    <p className="mt-1 text-xs text-(--oboon-danger)">
+                      {errors.phone}
+                    </p>
+                  )}
                 </div>
 
                 {/* 회원 유형 선택 */}
@@ -582,50 +555,32 @@ export default function OnboardingPage() {
                 <div className="space-y-2 pt-1">
                   <Label>이용약관 동의</Label>
 
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={agreedAll}
-                      onChange={handleToggleAll}
-                      disabled={!canSubmit || loading}
-                      className="h-4 w-4 rounded border-(--oboon-border-default) accent-(--oboon-primary)"
-                    />
-                    <span className="ob-typo-body text-(--oboon-text-title) font-medium">
-                      전체 동의
-                    </span>
-                  </label>
+                  <Checkbox
+                    checked={agreedAll}
+                    onChange={() => handleToggleAll()}
+                    label="전체 동의"
+                    disabled={!canSubmit || loading}
+                  />
 
                   <div className="ml-6 space-y-1.5">
                     {/* 1. 만14세 이상 확인 */}
                     <div className="flex items-center justify-between">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={agreements.ageCheck}
-                          onChange={() => handleToggle("ageCheck")}
-                          disabled={!canSubmit || loading}
-                          className="h-4 w-4 rounded border-(--oboon-border-default) accent-(--oboon-primary)"
-                        />
-                        <span className="ob-typo-caption text-(--oboon-text-muted)">
-                          [필수] 만 14세 이상입니다
-                        </span>
-                      </label>
+                      <Checkbox
+                        checked={agreements.ageCheck}
+                        onChange={() => handleToggle("ageCheck")}
+                        label="[필수] 만 14세 이상입니다"
+                        disabled={!canSubmit || loading}
+                      />
                     </div>
 
                     {/* 2. 서비스 이용약관 */}
                     <div className="flex items-center justify-between">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={agreements.terms}
-                          onChange={() => handleToggle("terms")}
-                          disabled={!canSubmit || loading}
-                          className="h-4 w-4 rounded border-(--oboon-border-default) accent-(--oboon-primary)"
-                        />
-                        <span className="ob-typo-caption text-(--oboon-text-muted)">
-                          [필수] 서비스 이용약관 동의
-                        </span>
-                      </label>
+                      <Checkbox
+                        checked={agreements.terms}
+                        onChange={() => handleToggle("terms")}
+                        label="[필수] 서비스 이용약관 동의"
+                        disabled={!canSubmit || loading}
+                      />
                       <button
                         type="button"
                         className="ob-typo-caption text-(--oboon-text-muted) underline underline-offset-2 hover:text-(--oboon-primary) transition-colors"
@@ -640,18 +595,12 @@ export default function OnboardingPage() {
 
                     {/* 3. 개인정보 수집·이용 */}
                     <div className="flex items-center justify-between">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={agreements.privacy}
-                          onChange={() => handleToggle("privacy")}
-                          disabled={!canSubmit || loading}
-                          className="h-4 w-4 rounded border-(--oboon-border-default) accent-(--oboon-primary)"
-                        />
-                        <span className="ob-typo-caption text-(--oboon-text-muted)">
-                          [필수] 개인정보 수집·이용 동의
-                        </span>
-                      </label>
+                      <Checkbox
+                        checked={agreements.privacy}
+                        onChange={() => handleToggle("privacy")}
+                        label="[필수] 개인정보 수집·이용 동의"
+                        disabled={!canSubmit || loading}
+                      />
                       <button
                         type="button"
                         className="ob-typo-caption text-(--oboon-text-muted) underline underline-offset-2 hover:text-(--oboon-primary) transition-colors"
@@ -669,18 +618,12 @@ export default function OnboardingPage() {
 
                     {/* 4. 개인정보 제3자 제공 */}
                     <div className="flex items-center justify-between">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={agreements.privacyThirdParty}
-                          onChange={() => handleToggle("privacyThirdParty")}
-                          disabled={!canSubmit || loading}
-                          className="h-4 w-4 rounded border-(--oboon-border-default) accent-(--oboon-primary)"
-                        />
-                        <span className="ob-typo-caption text-(--oboon-text-muted)">
-                          [필수] 개인정보 제3자 제공 동의
-                        </span>
-                      </label>
+                      <Checkbox
+                        checked={agreements.privacyThirdParty}
+                        onChange={() => handleToggle("privacyThirdParty")}
+                        label="[필수] 개인정보 제3자 제공 동의"
+                        disabled={!canSubmit || loading}
+                      />
                       <button
                         type="button"
                         className="ob-typo-caption text-(--oboon-text-muted) underline underline-offset-2 hover:text-(--oboon-primary) transition-colors"
@@ -698,18 +641,12 @@ export default function OnboardingPage() {
 
                     {/* 5. 위치정보 이용 */}
                     <div className="flex items-center justify-between">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={agreements.location}
-                          onChange={() => handleToggle("location")}
-                          disabled={!canSubmit || loading}
-                          className="h-4 w-4 rounded border-(--oboon-border-default) accent-(--oboon-primary)"
-                        />
-                        <span className="ob-typo-caption text-(--oboon-text-muted)">
-                          [필수] 위치정보 이용 동의
-                        </span>
-                      </label>
+                      <Checkbox
+                        checked={agreements.location}
+                        onChange={() => handleToggle("location")}
+                        label="[필수] 위치정보 이용 동의"
+                        disabled={!canSubmit || loading}
+                      />
                       <button
                         type="button"
                         className="ob-typo-caption text-(--oboon-text-muted) underline underline-offset-2 hover:text-(--oboon-primary) transition-colors"
@@ -724,18 +661,12 @@ export default function OnboardingPage() {
 
                     {/* 6. 마케팅 수신 (선택) */}
                     <div className="flex items-center justify-between">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={agreements.marketing}
-                          onChange={() => handleToggle("marketing")}
-                          disabled={!canSubmit || loading}
-                          className="h-4 w-4 rounded border-(--oboon-border-default) accent-(--oboon-primary)"
-                        />
-                        <span className="ob-typo-caption text-(--oboon-text-muted)">
-                          [선택] 마케팅 정보 수신 동의
-                        </span>
-                      </label>
+                      <Checkbox
+                        checked={agreements.marketing}
+                        onChange={() => handleToggle("marketing")}
+                        label="[선택] 마케팅 정보 수신 동의"
+                        disabled={!canSubmit || loading}
+                      />
                       <button
                         type="button"
                         className="ob-typo-caption text-(--oboon-text-muted) underline underline-offset-2 hover:text-(--oboon-primary) transition-colors"
@@ -774,15 +705,6 @@ export default function OnboardingPage() {
               </form>
             </Card>
 
-            <FieldErrorBubble
-              open={Boolean(fieldError)}
-              containerEl={cardWrapRef.current}
-              anchorEl={fieldError?.anchorEl ?? null}
-              id={bubbleId}
-              title="입력 오류"
-              message={fieldError?.message ?? ""}
-              onClose={clearFieldError}
-            />
           </div>
 
           <Modal

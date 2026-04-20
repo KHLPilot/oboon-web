@@ -13,19 +13,14 @@ import { toKoreanErrorMessage } from "@/shared/errorMessage";
 import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
+import FormInput from "@/components/ui/FormInput";
 import Input from "@/components/ui/Input";
-import Label from "@/components/ui/Label";
 import Modal from "@/components/ui/Modal";
-import FieldErrorBubble, {
-  FieldErrorState,
-} from "@/components/ui/FieldErrorBubble";
 import { Copy } from "@/shared/copy";
 
 type VerificationState = {
   isEmailSent: boolean;
 };
-
-type Step1Field = "email" | "password" | "passwordConfirm" | "generic";
 
 function cx(...cls: Array<string | false | null | undefined>) {
   return cls.filter(Boolean).join(" ");
@@ -48,9 +43,6 @@ export default function SignupPage() {
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
   const [capsLockOn, setCapsLockOn] = useState(false);
 
-  // password validation (inline helper만 유지)
-  const [passwordError, setPasswordError] = useState<string | null>(null);
-
   // verification
   const [verification, setVerification] = useState<VerificationState>({
     isEmailSent: false,
@@ -59,57 +51,19 @@ export default function SignupPage() {
 
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // FieldErrorBubble
-  const cardWrapRef = useRef<HTMLDivElement | null>(null);
   const emailRef = useRef<HTMLInputElement | null>(null);
   const passwordRef = useRef<HTMLInputElement | null>(null);
   const passwordConfirmRef = useRef<HTMLInputElement | null>(null);
 
-  const [fieldError, setFieldError] =
-    useState<FieldErrorState<Step1Field>>(null);
-  const fieldErrorTimerRef = useRef<number | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [pwError, setPwError] = useState<string | null>(null);
+  const [pwConfirmError, setPwConfirmError] = useState<string | null>(null);
 
-  const clearFieldError = () => {
-    setFieldError(null);
-    if (fieldErrorTimerRef.current) {
-      window.clearTimeout(fieldErrorTimerRef.current);
-      fieldErrorTimerRef.current = null;
-    }
+  const clearAllErrors = () => {
+    setEmailError(null);
+    setPwError(null);
+    setPwConfirmError(null);
   };
-
-  const openFieldError = (field: Step1Field, message: string) => {
-    const anchorEl =
-      field === "email"
-        ? emailRef.current
-        : field === "password"
-          ? passwordRef.current
-          : field === "passwordConfirm"
-            ? passwordConfirmRef.current
-            : null;
-
-    if (!anchorEl) return;
-
-    setFieldError({ field, message, anchorEl });
-
-    // 자동 dismiss (기존 toast 성격을 bubble로 흡수)
-    if (fieldErrorTimerRef.current)
-      window.clearTimeout(fieldErrorTimerRef.current);
-    fieldErrorTimerRef.current = window.setTimeout(() => {
-      setFieldError(null);
-      fieldErrorTimerRef.current = null;
-    }, 2600);
-
-    anchorEl.focus?.();
-  };
-
-  useEffect(() => {
-    return () => {
-      if (fieldErrorTimerRef.current) {
-        window.clearTimeout(fieldErrorTimerRef.current);
-        fieldErrorTimerRef.current = null;
-      }
-    };
-  }, []);
 
   const stopPolling = () => {
     if (pollingIntervalRef.current) {
@@ -190,13 +144,12 @@ export default function SignupPage() {
     const passwordValue = passwordRef.current?.value ?? "";
     const passwordConfirmValue = passwordConfirmRef.current?.value ?? "";
 
-    // 입력 검증은 "필드 에러(bubble)" 우선, 시스템 오류(fatalError modal)는 최후에 사용
     if (!validateRequiredOrShowModal(email, "이메일")) return false;
 
     // 이메일 형식 검증
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      openFieldError("email", "이메일 형식이 올바르지 않습니다.");
+      setEmailError("이메일 형식이 올바르지 않습니다.");
       return false;
     }
 
@@ -204,8 +157,7 @@ export default function SignupPage() {
 
     const pwErr = validatePassword(passwordValue);
     if (pwErr) {
-      setPasswordError(pwErr);
-      openFieldError("password", pwErr);
+      setPwError(pwErr);
       return false;
     }
 
@@ -213,7 +165,7 @@ export default function SignupPage() {
       return false;
 
     if (passwordValue !== passwordConfirmValue) {
-      openFieldError("passwordConfirm", "비밀번호가 일치하지 않습니다.");
+      setPwConfirmError("비밀번호가 일치하지 않습니다.");
       return false;
     }
 
@@ -222,8 +174,7 @@ export default function SignupPage() {
 
   async function handleSendVerification() {
     setFatalError(null);
-    setPasswordError(null);
-    clearFieldError();
+    clearAllErrors();
 
     if (!validateStep1Inputs()) return;
 
@@ -241,8 +192,7 @@ export default function SignupPage() {
       const { exists, confirmed } = await checkResponse.json();
 
       if (exists && confirmed) {
-        // 이 케이스는 UX상 modal로도 괜찮지만, 입력필드 관련 안내라 bubble 우선
-        openFieldError("email", "이미 가입된 이메일입니다. 로그인해주세요.");
+        setEmailError("이미 가입된 이메일입니다. 로그인해주세요.");
         setTimeout(() => router.push("/auth/login"), 800);
         return;
       }
@@ -319,7 +269,7 @@ export default function SignupPage() {
 
     setLoading(true);
     setFatalError(null);
-    clearFieldError();
+    clearAllErrors();
 
     try {
       const res = await fetch(`/api/auth/check-verification`, {
@@ -330,11 +280,7 @@ export default function SignupPage() {
       const json = await res.json();
 
       if (!json?.verified) {
-        // 진행 안내는 modal보다 bubble이 자연스러움(필드가 없으니 generic)
-        openFieldError(
-          "generic",
-          "아직 인증이 완료되지 않았습니다. 메일함을 확인해주세요.",
-        );
+        setEmailError("아직 인증이 완료되지 않았습니다. 메일함을 확인해주세요.");
         return;
       }
 
@@ -348,7 +294,6 @@ export default function SignupPage() {
   }
 
   const lockInputs = loading || verification.isEmailSent;
-  const bubbleId = "signup-step1-field-error";
 
   return (
     <main className="min-h-dvh overflow-x-hidden bg-(--oboon-bg-page) text-(--oboon-text-title)">
@@ -391,41 +336,36 @@ export default function SignupPage() {
             </div>
           </div>
 
-          {/* Card wrapper (FieldErrorBubble positioning container) */}
-          <div ref={cardWrapRef} className="relative">
+          <div>
             <Card className="p-6 border border-(--oboon-border-default)">
               <div className="space-y-3">
-                {/* Email */}
-                <div>
-                  <Label>이메일 주소</Label>
-                  <Input
-                    ref={emailRef}
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    onFocus={clearFieldError}
-                    placeholder={Copy.auth.placeholder.emailSignup}
-                    autoComplete="email"
-                    disabled={lockInputs}
-                    
-                    aria-invalid={
-                      fieldError?.field === "email" ? "true" : undefined
-                    }
-                    aria-describedby={
-                      fieldError?.field === "email" ? bubbleId : undefined
-                    }
-                  />
-                </div>
+                <FormInput
+                  ref={emailRef}
+                  label="이메일 주소"
+                  error={emailError ?? undefined}
+                  autoFocus
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setEmailError(null);
+                  }}
+                  onFocus={clearAllErrors}
+                  placeholder={Copy.auth.placeholder.emailSignup}
+                  autoComplete="email"
+                  disabled={lockInputs}
+                />
 
-                {/* Password */}
                 <div>
-                  <Label>비밀번호 설정</Label>
+                  <label className="ob-typo-label text-(--oboon-text-muted) mb-1 block">
+                    비밀번호 설정
+                  </label>
                   <div className="relative">
                     <Input
                       ref={passwordRef}
                       type={showPassword ? "text" : "password"}
                       onChange={(e) => {
                         const nextPassword = e.target.value;
-                        setPasswordError(validatePassword(nextPassword));
+                        setPwError(null);
                         const passwordConfirmValue =
                           passwordConfirmRef.current?.value ?? "";
                         setPasswordMatch(
@@ -435,17 +375,14 @@ export default function SignupPage() {
                       }}
                       onKeyDown={handleKeyEvent}
                       onKeyUp={handleKeyEvent}
-                      onFocus={clearFieldError}
+                      onFocus={clearAllErrors}
                       placeholder={Copy.auth.placeholder.password}
                       autoComplete="new-password"
                       disabled={lockInputs}
-                      
-                      aria-invalid={
-                        fieldError?.field === "password" ? "true" : undefined
-                      }
-                      aria-describedby={
-                        fieldError?.field === "password" ? bubbleId : undefined
-                      }
+                      className={cx(
+                        "h-11",
+                        pwError ? "border-(--oboon-danger)" : "",
+                      )}
                     />
                     <button
                       type="button"
@@ -464,13 +401,11 @@ export default function SignupPage() {
                     </button>
                   </div>
 
-                  {/* inline helper (정책상 bubble로도 충분하지만, 가이드성 텍스트는 유지) */}
-                  {passwordError ? (
-                    <div className="mt-1 flex items-center gap-2 ob-typo-caption leading-4 text-(--oboon-danger)">
-                      <span className="h-2 w-2 rounded-full bg-(--oboon-danger)" />
-                      {passwordError}
-                    </div>
-                  ) : null}
+                  {pwError && (
+                    <p className="mt-1 text-xs text-(--oboon-danger)">
+                      {pwError}
+                    </p>
+                  )}
 
                   {capsLockOn ? (
                     <div className="mt-1 flex items-center gap-2 ob-typo-caption leading-4 text-(--oboon-danger)">
@@ -482,22 +417,24 @@ export default function SignupPage() {
                   ) : null}
                 </div>
 
-                {/* Password confirm */}
                 <div>
-                  <Label>비밀번호 확인</Label>
+                  <label className="ob-typo-label text-(--oboon-text-muted) mb-1 block">
+                    비밀번호 확인
+                  </label>
                   <div className="relative">
                     <Input
                       ref={passwordConfirmRef}
                       type={showPasswordConfirm ? "text" : "password"}
                       onChange={(e) => {
                         setPasswordConfirmDirty(Boolean(e.target.value));
+                        setPwConfirmError(null);
                         setPasswordMatch(
                           (passwordRef.current?.value ?? "") === e.target.value,
                         );
                       }}
                       onKeyDown={handleKeyEvent}
                       onKeyUp={handleKeyEvent}
-                      onFocus={clearFieldError}
+                      onFocus={clearAllErrors}
                       placeholder={Copy.auth.placeholder.passwordConfirm}
                       autoComplete="new-password"
                       disabled={lockInputs}
@@ -507,16 +444,6 @@ export default function SignupPage() {
                           ? "border-(--oboon-danger)"
                           : "",
                       )}
-                      aria-invalid={
-                        fieldError?.field === "passwordConfirm"
-                          ? "true"
-                          : undefined
-                      }
-                      aria-describedby={
-                        fieldError?.field === "passwordConfirm"
-                          ? bubbleId
-                          : undefined
-                      }
                     />
                     <button
                       type="button"
@@ -537,7 +464,12 @@ export default function SignupPage() {
                     </button>
                   </div>
 
-                  {passwordConfirmDirty ? (
+                  {pwConfirmError && (
+                    <p className="mt-1 text-xs text-(--oboon-danger)">
+                      {pwConfirmError}
+                    </p>
+                  )}
+                  {passwordConfirmDirty && !pwConfirmError ? (
                     <p
                       className={cx(
                         "text-[11px] leading-4",
@@ -591,16 +523,6 @@ export default function SignupPage() {
                 ) : null}
               </div>
             </Card>
-
-            <FieldErrorBubble
-              open={Boolean(fieldError)}
-              containerEl={cardWrapRef.current}
-              anchorEl={fieldError?.anchorEl ?? null}
-              id="signup-step1-field-error"
-              title="입력 오류"
-              message={fieldError?.message ?? ""}
-              onClose={clearFieldError}
-            />
           </div>
 
           <Modal open={Boolean(fatalError)} onClose={() => setFatalError(null)}>

@@ -10,12 +10,10 @@ import { trackEvent } from "@/lib/analytics";
 import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
+import FormInput from "@/components/ui/FormInput";
 import Input from "@/components/ui/Input";
 import Label from "@/components/ui/Label";
 import Modal from "@/components/ui/Modal";
-import FieldErrorBubble, {
-  FieldErrorState,
-} from "@/components/ui/FieldErrorBubble";
 import { validationMessageFor } from "@/shared/validationMessage";
 import { AlertCircle, ExternalLink } from "lucide-react";
 import { showAlert } from "@/shared/alert";
@@ -41,17 +39,14 @@ export default function LoginPage() {
   const lastInvalidToastAtRef = useRef(0);
   const errorConfirmButtonRef = useRef<HTMLButtonElement | null>(null);
 
-  const cardWrapRef = useRef<HTMLDivElement | null>(null);
-  const [fieldError, setFieldError] =
-    useState<FieldErrorState<LoginField>>(null);
-
-  const fieldErrorTimerRef = useRef<number | null>(null);
   const passwordInputRef = useRef<HTMLInputElement | null>(null);
 
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [inAppInfo, setInAppInfo] = useState<InAppBrowserInfo | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
 
   // 탈퇴 계정 복구 모달 상태
   const [restoreModalOpen, setRestoreModalOpen] = useState(false);
@@ -140,37 +135,10 @@ export default function LoginPage() {
     }
   }
 
-  const clearFieldError = () => {
-    setFieldError(null);
-    if (fieldErrorTimerRef.current) {
-      window.clearTimeout(fieldErrorTimerRef.current);
-      fieldErrorTimerRef.current = null;
-    }
+  const clearAllErrors = () => {
+    setEmailError(null);
+    setPasswordError(null);
   };
-
-  const showFieldErrorUnder = (
-    el: HTMLElement,
-    message: string,
-    field: LoginField,
-  ) => {
-    setFieldError({ field, message, anchorEl: el });
-
-    if (fieldErrorTimerRef.current)
-      window.clearTimeout(fieldErrorTimerRef.current);
-    fieldErrorTimerRef.current = window.setTimeout(() => {
-      setFieldError(null);
-      fieldErrorTimerRef.current = null;
-    }, 2600);
-  };
-
-  useEffect(() => {
-    return () => {
-      if (fieldErrorTimerRef.current) {
-        window.clearTimeout(fieldErrorTimerRef.current);
-        fieldErrorTimerRef.current = null;
-      }
-    };
-  }, []);
 
   const isAbortLikeError = (input: unknown) => {
     if (!input) return false;
@@ -199,7 +167,7 @@ export default function LoginPage() {
     trackEvent("login_click", { method: "email" });
     setLoading(true);
     setError(null);
-    clearFieldError();
+    clearAllErrors();
 
     try {
       const passwordValue = passwordInputRef.current?.value ?? "";
@@ -318,7 +286,7 @@ export default function LoginPage() {
     try {
       setLoading(true);
       setError(null);
-      clearFieldError();
+      clearAllErrors();
       trackEvent("login_click", { method: provider });
       window.location.assign("/api/auth/google/login");
     } catch (err) {
@@ -336,7 +304,7 @@ export default function LoginPage() {
   // function handleNaverLogin() {
   //   setLoading(true);
   //   setError(null);
-  //   clearFieldError();
+  //   clearAllErrors();
   //   trackEvent("login_click", { method: "naver" });
   //   window.location.href = "/api/auth/naver/login";
   // }
@@ -412,8 +380,6 @@ export default function LoginPage() {
     }
   }
 
-  const bubbleId = "login-field-error";
-
   useEffect(() => {
     if (!error) return;
 
@@ -453,8 +419,7 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {/* Card wrapper: FieldErrorBubble positioning container */}
-          <div ref={cardWrapRef} className="relative">
+          <div className="relative">
             <Card className="p-6 border border-(--oboon-border-default) relative">
               <form
                 onSubmit={handleLogin}
@@ -478,52 +443,45 @@ export default function LoginPage() {
                         ? "password"
                         : "generic";
 
+                  el.focus?.();
                   const msg = validationMessageFor(el, field);
 
-                  el.focus?.();
-                  showFieldErrorUnder(el, msg, field);
+                  if (field === "email") {
+                    setEmailError(msg);
+                  } else if (field === "password") {
+                    setPasswordError(msg);
+                  }
                 }}
               >
-                <div>
-                  <Label>이메일</Label>
-                  <Input
-                    name="email"
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder={Copy.auth.placeholder.email}
-                    autoComplete="email"
-                    onFocus={clearFieldError}
-                    
-                    aria-invalid={
-                      fieldError?.field === "email" ? "true" : undefined
-                    }
-                    aria-describedby={
-                      fieldError?.field === "email" ? bubbleId : undefined
-                    }
-                  />
-                </div>
+                <FormInput
+                  name="email"
+                  type="email"
+                  autoFocus
+                  required
+                  label="이메일"
+                  error={emailError ?? undefined}
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setEmailError(null);
+                  }}
+                  onFocus={() => setEmailError(null)}
+                  placeholder={Copy.auth.placeholder.email}
+                  autoComplete="email"
+                />
 
-                <div>
-                  <Label>비밀번호</Label>
-                  <Input
-                    ref={passwordInputRef}
-                    name="password"
-                    type="password"
-                    required
-                    placeholder={Copy.auth.placeholder.passwordConfirm}
-                    autoComplete="current-password"
-                    onFocus={clearFieldError}
-                    
-                    aria-invalid={
-                      fieldError?.field === "password" ? "true" : undefined
-                    }
-                    aria-describedby={
-                      fieldError?.field === "password" ? bubbleId : undefined
-                    }
-                  />
-                </div>
+                <FormInput
+                  ref={passwordInputRef}
+                  name="password"
+                  type="password"
+                  required
+                  label="비밀번호"
+                  error={passwordError ?? undefined}
+                  onChange={() => setPasswordError(null)}
+                  onFocus={() => setPasswordError(null)}
+                  placeholder={Copy.auth.placeholder.passwordConfirm}
+                  autoComplete="current-password"
+                />
                 <Button
                   type="submit"
                   variant="primary"
@@ -623,16 +581,6 @@ export default function LoginPage() {
               </p>
             </Card>
 
-            {/* FieldErrorBubble */}
-            <FieldErrorBubble
-              open={Boolean(fieldError)}
-              containerEl={cardWrapRef.current}
-              anchorEl={fieldError?.anchorEl ?? null}
-              id={bubbleId}
-              title="입력 오류"
-              message={fieldError?.message ?? ""}
-              onClose={clearFieldError}
-            />
           </div>
 
           <div className="mt-4 text-center ob-typo-body text-(--oboon-text-muted)">

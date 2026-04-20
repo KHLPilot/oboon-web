@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import SafeMarkdown from "@/components/shared/SafeMarkdown";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
+import Checkbox from "@/components/ui/Checkbox";
 import { Loader2 } from "lucide-react";
 
 type Term = {
@@ -171,17 +172,13 @@ export default function TermsConsentModal({
           ) : (
             <div className="space-y-3">
               {/* 전체 동의 */}
-              <label className="flex items-center gap-3 p-3 rounded-lg bg-(--oboon-bg-subtle) cursor-pointer">
-                <input
-                  type="checkbox"
+              <div className="flex items-center p-3 rounded-lg bg-(--oboon-bg-subtle)">
+                <Checkbox
                   checked={allAgreed}
-                  onChange={handleToggleAll}
-                  className="h-5 w-5 accent-(--oboon-primary)"
+                  onChange={() => handleToggleAll()}
+                  label="전체 동의"
                 />
-                <span className="ob-typo-body-bold text-(--oboon-text-title)">
-                  전체 동의
-                </span>
-              </label>
+              </div>
 
               <div className="border-t border-(--oboon-border-default) my-2" />
 
@@ -191,22 +188,12 @@ export default function TermsConsentModal({
                   key={term.id}
                   className="flex items-center justify-between py-2"
                 >
-                  <label className="flex items-center gap-3 cursor-pointer flex-1">
-                    <input
-                      type="checkbox"
-                      checked={agreements[term.type] || false}
-                      onChange={() => handleToggle(term.type)}
-                      className="h-4 w-4 accent-(--oboon-primary)"
-                    />
-                    <span className="ob-typo-body text-(--oboon-text-body)">
-                      {getTermLabel(term.type)}
-                      {term.is_required ? (
-                        <span className="text-(--oboon-error) ml-1">(필수)</span>
-                      ) : (
-                        <span className="text-(--oboon-text-muted) ml-1">(선택)</span>
-                      )}
-                    </span>
-                  </label>
+                  <Checkbox
+                    checked={agreements[term.type] || false}
+                    onChange={() => handleToggle(term.type)}
+                    label={`${getTermLabel(term.type)}${term.is_required ? " (필수)" : " (선택)"}`}
+                    className="flex-1"
+                  />
                   {/* 만14세 약관은 전문 보기 버튼 없음 */}
                   {term.type !== "signup_age_check" && (
                     <button
