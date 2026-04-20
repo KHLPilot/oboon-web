@@ -963,7 +963,6 @@ export default function ConditionValidationCard({
   }, [
     currentConditionState,
     hasSavedConditionPreset,
-    isLoggedIn,
     onLoginRequest,
     supabase,
     toast,

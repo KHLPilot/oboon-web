@@ -5,7 +5,6 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
-import Button from "@/components/ui/Button";
 import MapFloatingControls from "@/components/ui/MapFloatingControls";
 import NaverMap, {
   type MapMarker,

@@ -186,20 +186,26 @@ function TabRoot({
         }}
       />
 
-      {items.map((item, index) => {
-        const selected = Boolean(item.props.selected);
-        return React.cloneElement(item, {
-          ref: (node: HTMLButtonElement | null) => {
+      {items.map((item, index) => (
+        <TabItem
+          key={item.key ?? index}
+          ref={(node: HTMLButtonElement | null) => {
             tabRefs.current[index] = node;
-          },
-          onClick: () => onChange(index),
-          className: cn(
+          }}
+          selected={Boolean(item.props.selected)}
+          redBean={item.props.redBean}
+          onClick={() => onChange(index)}
+          className={cn(
             getSizeClass(size),
-            selected ? "text-(--oboon-text-default) font-semibold" : "text-(--oboon-text-muted)",
+            Boolean(item.props.selected)
+              ? "text-(--oboon-text-default) font-semibold"
+              : "text-(--oboon-text-muted)",
             item.props.className,
-          ),
-        } as Partial<TabItemProps>);
-      })}
+          )}
+        >
+          {item.props.children}
+        </TabItem>
+      ))}
     </div>
   );
 }

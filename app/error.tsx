@@ -10,7 +10,7 @@ type AppErrorProps = {
   reset: () => void;
 };
 
-export default function AppError({ error: _error, reset }: AppErrorProps) {
+export default function AppError({ reset }: AppErrorProps) {
   return (
     <main className="flex min-h-dvh items-center justify-center bg-(--oboon-bg-page) px-4">
       <Result

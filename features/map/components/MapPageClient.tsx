@@ -194,77 +194,6 @@ type RegionBoundaryPayload = {
   polygons: Array<Array<{ lat: number; lng: number }>>;
 };
 
-const FOCUS_TOP_POLYGON_COUNT = 3;
-const FOCUS_MIN_AREA_RATIO_FROM_LARGEST = 0.08;
-
-function polygonArea(path: Array<{ lat: number; lng: number }>) {
-  if (path.length < 3) return 0;
-  let sum = 0;
-  for (let i = 0; i < path.length; i += 1) {
-    const p1 = path[i];
-    const p2 = path[(i + 1) % path.length];
-    sum += p1.lng * p2.lat - p2.lng * p1.lat;
-  }
-  return Math.abs(sum) / 2;
-}
-
-function pickTopAreaPolygons(
-  polygons: Array<Array<{ lat: number; lng: number }>>,
-  topN: number,
-) {
-  const ranked = polygons
-    .map((path) => ({ path, area: polygonArea(path) }))
-    .filter((item) => item.area > 0)
-    .sort((a, b) => b.area - a.area);
-  if (ranked.length === 0) return [];
-
-  const largestArea = ranked[0].area;
-  const filtered = ranked
-    .filter((item) => item.area >= largestArea * FOCUS_MIN_AREA_RATIO_FROM_LARGEST)
-    .slice(0, Math.max(1, topN))
-    .map((item) => item.path);
-
-  return filtered.length > 0 ? filtered : [ranked[0].path];
-}
-
-function computeBoundsFromPolygons(
-  polygons: Array<Array<{ lat: number; lng: number }>>,
-): MapFocusBounds | null {
-  const focusPolygons = pickTopAreaPolygons(polygons, FOCUS_TOP_POLYGON_COUNT);
-  const points = focusPolygons.flat();
-  if (points.length === 0) return null;
-  const lats = points.map((p) => p.lat);
-  const lngs = points.map((p) => p.lng);
-  return {
-    south: Math.min(...lats),
-    west: Math.min(...lngs),
-    north: Math.max(...lats),
-    east: Math.max(...lngs),
-  };
-}
-
-function computeBoundsFromMarkers(markers: MapMarker[]): MapFocusBounds | null {
-  if (markers.length === 0) return null;
-  const lats = markers.map((m) => m.lat);
-  const lngs = markers.map((m) => m.lng);
-  const south = Math.min(...lats);
-  const north = Math.max(...lats);
-  const west = Math.min(...lngs);
-  const east = Math.max(...lngs);
-  const latPad = Math.max((north - south) * 0.12, 0.01);
-  const lngPad = Math.max((east - west) * 0.12, 0.01);
-  return {
-    south: south - latPad,
-    west: west - lngPad,
-    north: north + latPad,
-    east: east + lngPad,
-  };
-}
-
-function getRegionViewport(regionKey: string) {
-  return REGION_TABS.find((tab) => tab.key === regionKey) ?? REGION_TABS[0];
-}
-
 function getStaticRegionViewport(regionKey: string) {
   return (
     STATIC_REGION_VIEWPORTS[
@@ -445,7 +374,6 @@ export default function MapPageClient() {
     [activeBoundaryRegionKey, activeRegionTab, regionBoundaryByKey],
   );
   const isDefaultScope = activeRegionTab === "all" && activeSubRegionTab === "all";
-  const canUseCurrentLocation = mapReady;
 
   const handleToggleLayer = (key: MarkerLayer) => {
     setFilters((prev) => ({ ...prev, [key]: !prev[key] }));

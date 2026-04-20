@@ -43,8 +43,8 @@ export default function BottomSheet({
         closeTimerRef.current = null;
       }
 
-      setShouldRender(true);
       const rafId = window.requestAnimationFrame(() => {
+        setShouldRender(true);
         setIsVisible(true);
       });
 
@@ -53,13 +53,18 @@ export default function BottomSheet({
       };
     }
 
-    setIsVisible(false);
-
     if (shouldRender) {
+      const rafId = window.requestAnimationFrame(() => {
+        setIsVisible(false);
+      });
       closeTimerRef.current = window.setTimeout(() => {
         setShouldRender(false);
         closeTimerRef.current = null;
       }, EXIT_DURATION_MS);
+
+      return () => {
+        window.cancelAnimationFrame(rafId);
+      };
     }
   }, [isOpen, portalEl, shouldRender]);
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import React, { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { createSupabaseClient } from "@/lib/supabaseClient";

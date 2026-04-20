@@ -181,7 +181,7 @@ function ProgressStepperRoot({
 }
 
 // Compound 호환 유지
-function ProgressStepperStep(_props: ProgressStepperStepProps) {
+function ProgressStepperStep() {
   return null;
 }
 
