@@ -6,6 +6,7 @@ import OfferingDetailScrollReset from "@/features/offerings/components/detail/Of
 import OfferingViewTracker from "@/features/offerings/components/detail/OfferingViewTracker.client";
 import {
   fetchOfferingDetail,
+  fetchOfferingConsultationAgents,
   hasApprovedAgent,
 } from "@/features/offerings/services/offeringDetail.service";
 import {
@@ -31,9 +32,10 @@ export default async function OfferingDetailPage({ id }: { id: number }) {
     isAdmin = me?.role === "admin";
   }
 
-  const [initialProperty, hasAgent, availableOfferingsForCompare] = await Promise.all([
+  const [initialProperty, hasAgent, consultationAgents, availableOfferingsForCompare] = await Promise.all([
     fetchOfferingDetail(id),
     hasApprovedAgent(id),
+    fetchOfferingConsultationAgents(id),
     getAvailableOfferingsBasic(),
   ]);
   let property = initialProperty;
@@ -88,6 +90,7 @@ export default async function OfferingDetailPage({ id }: { id: number }) {
             propertyName={property.name}
             propertyImageUrl={property.image_url ?? undefined}
             hasApprovedAgent={hasAgent}
+            consultationAgents={consultationAgents.data ?? []}
             propertyTimeline={property.property_timeline}
           />
         </div>

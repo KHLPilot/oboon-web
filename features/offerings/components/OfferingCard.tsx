@@ -11,6 +11,7 @@ import { ROUTES } from "@/types/index";
 
 import Card from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import IconButton from "@/components/ui/IconButton";
 import type {
   ConditionCategoryGrades,
 } from "@/features/condition-validation/domain/types";
@@ -640,14 +641,15 @@ export default function OfferingCard({
                       {offering.title}
                     </h3>
                     {onHistoryDelete ? (
-                      <button
-                        type="button"
-                        onClick={(e) => { e.preventDefault(); onHistoryDelete(); }}
+                      <IconButton
+                        icon={<X size={13} />}
                         aria-label="히스토리에서 삭제"
-                        className="shrink-0 self-start flex h-6 w-6 items-center justify-center rounded-full bg-(--oboon-bg-subtle) text-(--oboon-text-muted) hover:text-rose-500 transition-colors"
-                      >
-                        <X size={13} />
-                      </button>
+                        variant="fill"
+                        size="sm"
+                        shape="circle"
+                        className="shrink-0 self-start hover:text-rose-500"
+                        onClick={(e) => { e.preventDefault(); onHistoryDelete(); }}
+                      />
                     ) : (
                       <OfferingBadge
                         type="status"

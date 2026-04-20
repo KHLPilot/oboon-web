@@ -31,11 +31,12 @@ import {
   fetchCurrentProfileBankAccount,
   updateCurrentProfileBankAccount,
 } from "@/features/profile/services/profile.bank-account";
+import type { OfferingConsultationAgent } from "@/features/offerings/services/offeringDetail.service";
 
 interface Agent {
   id: string;
   name: string;
-  email: string;
+  email?: string | null;
   avatar_url?: string | null;
   phone_number?: string | null;
   agent_summary?: string | null;
@@ -75,6 +76,7 @@ interface BookingModalProps {
   propertyName?: string;
   propertyImageUrl?: string;
   defaultAgentId?: string;
+  initialAgents?: OfferingConsultationAgent[];
 }
 
 export default function BookingModal({
@@ -84,6 +86,7 @@ export default function BookingModal({
   propertyName,
   propertyImageUrl,
   defaultAgentId,
+  initialAgents,
 }: BookingModalProps) {
   const router = useRouter();
   const supabase = createSupabaseClient();
@@ -236,6 +239,26 @@ export default function BookingModal({
           }
         }
 
+        if (initialAgents && initialAgents.length > 0) {
+          const agentList = initialAgents.filter(
+            (agent): agent is Agent => agent.id !== currentUser?.id,
+          );
+
+          setAgents(agentList);
+          if (defaultAgentId) {
+            const preselected = agentList.find(
+              (agent) => agent.id === defaultAgentId,
+            );
+            setSelectedAgent(preselected ?? null);
+          } else {
+            setSelectedAgent(null);
+          }
+
+          setAgentGalleryMap({});
+          setLoading(false);
+          return;
+        }
+
         const { data: propertyAgents, error: agentError } = await supabase
           .from("property_agents")
           .select(
@@ -354,7 +377,7 @@ export default function BookingModal({
     }
 
     fetchData();
-  }, [isOpen, supabase, propertyId, defaultAgentId]);
+  }, [isOpen, supabase, propertyId, defaultAgentId, initialAgents]);
 
   // confirm 단계 진입 시 약관 로드
   useEffect(() => {

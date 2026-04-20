@@ -243,7 +243,9 @@ function optimizePolygons(region: string, polygons: RegionPolygonPath[]) {
   return simplified;
 }
 
-async function loadFeatureCollection() {
+async function loadFeatureCollection(): Promise<
+  RegionFeatureCollection | NextResponse
+> {
   if (cachedFeatureCollection) return cachedFeatureCollection;
   const filePath = join(
     process.cwd(),
@@ -252,9 +254,16 @@ async function loadFeatureCollection() {
     "skorea-provinces-2018-geo.json",
   );
   const raw = await readFile(filePath, "utf8");
-  const parsed = JSON.parse(raw) as RegionFeatureCollection;
-  cachedFeatureCollection = parsed;
-  return parsed;
+  try {
+    const parsed = JSON.parse(raw) as RegionFeatureCollection;
+    cachedFeatureCollection = parsed;
+    return parsed;
+  } catch {
+    return NextResponse.json(
+      { error: "지역 경계 데이터 파싱 실패" },
+      { status: 500 },
+    );
+  }
 }
 
 function findFeaturesForRegion(
@@ -285,7 +294,11 @@ export async function GET(req: Request) {
   }
 
   try {
-    const featureCollection = await loadFeatureCollection();
+    const loadedFeatureCollection = await loadFeatureCollection();
+    if (loadedFeatureCollection instanceof Response) {
+      return loadedFeatureCollection;
+    }
+    const featureCollection = loadedFeatureCollection;
     const features = regionName
       ? (featureCollection.features ?? []).filter(
           (item) => item?.properties?.name?.trim() === regionName,

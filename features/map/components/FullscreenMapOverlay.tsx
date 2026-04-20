@@ -3,9 +3,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Plus, Minus } from "lucide-react";
+import { X } from "lucide-react";
 
 import Button from "@/components/ui/Button";
+import MapFloatingControls from "@/components/ui/MapFloatingControls";
 import NaverMap, {
   type MapMarker,
   type NaverMapHandle,
@@ -67,6 +68,10 @@ export default function FullscreenMapOverlay({
   const mapRef = useRef<NaverMapHandle | null>(null);
   const [mapReadyVersion, setMapReadyVersion] = useState(0);
   const lastViewportKeyRef = useRef<string>("");
+  const canUseCurrentLocation =
+    mapReadyVersion > 0 &&
+    initialLocationStatus === "granted" &&
+    initialCenter !== null;
 
   useEffect(() => {
     if (!open) {
@@ -75,43 +80,23 @@ export default function FullscreenMapOverlay({
     }
   }, [open]);
 
+  const handleUseCurrentLocation = () => {
+    if (!canUseCurrentLocation || !initialCenter) return;
+    const locationKey = `${initialCenter.lat.toFixed(6)},${initialCenter.lng.toFixed(6)}`;
+    lastViewportKeyRef.current = `location:${locationKey}`;
+    mapRef.current?.setView(initialCenter.lat, initialCenter.lng, GPS_FOCUS_ZOOM);
+  };
+
   useEffect(() => {
     if (!open || mapReadyVersion === 0) return;
     const map = mapRef.current;
     if (!map) return;
-    let retryTimer: number | null = null;
-
-    if (initialLocationStatus === "granted" && initialCenter) {
-      const locationKey = `${initialCenter.lat.toFixed(6)},${initialCenter.lng.toFixed(6)}`;
-      const viewportKey = `location:${locationKey}`;
-      if (lastViewportKeyRef.current !== viewportKey) {
-        lastViewportKeyRef.current = viewportKey;
-        map.setView(initialCenter.lat, initialCenter.lng, GPS_FOCUS_ZOOM);
-        retryTimer = window.setTimeout(() => {
-          mapRef.current?.setView(
-            initialCenter.lat,
-            initialCenter.lng,
-            GPS_FOCUS_ZOOM,
-          );
-        }, 180);
-      }
-      return () => {
-        if (retryTimer !== null) window.clearTimeout(retryTimer);
-      };
-    }
-
-    if (initialLocationStatus === "pending" || initialLocationStatus === "idle") {
-      return;
-    }
 
     if (lastViewportKeyRef.current !== "nationwide") {
       lastViewportKeyRef.current = "nationwide";
       map.fitToBounds(ALL_KOREA_VIEW_BOUNDS);
     }
-    return () => {
-      if (retryTimer !== null) window.clearTimeout(retryTimer);
-    };
-  }, [initialCenter, initialLocationStatus, mapReadyVersion, open]);
+  }, [mapReadyVersion, open]);
 
   useEffect(() => {
     if (!open || !portalEl) return;
@@ -175,7 +160,7 @@ export default function FullscreenMapOverlay({
               }}
               mode="expanded"
               markers={markers}
-              initialCenter={initialCenter}
+              initialCenter={null}
               initialLocationStatus={initialLocationStatus}
               regionClusterEnabled={regionClusterEnabled}
               regionClusterZoomThreshold={regionClusterZoomThreshold}
@@ -196,31 +181,12 @@ export default function FullscreenMapOverlay({
             <div className="absolute left-4 top-4">{filtersSlot}</div>
           ) : null}
 
-          {/* zoom controls */}
-          <div className="absolute right-4 top-4 flex flex-col gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              shape="pill"
-              onClick={() => mapRef.current?.zoomIn()}
-              aria-label="확대"
-              className="w-10 h-10 justify-center"
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              shape="pill"
-              onClick={() => mapRef.current?.zoomOut()}
-              aria-label="축소"
-              className="w-10 h-10 justify-center"
-            >
-              <Minus className="h-4 w-4" />
-            </Button>
-          </div>
+          <MapFloatingControls
+            onZoomIn={() => mapRef.current?.zoomIn()}
+            onZoomOut={() => mapRef.current?.zoomOut()}
+            onUseCurrentLocation={handleUseCurrentLocation}
+            className="pointer-events-none absolute right-4 top-4 z-10 flex flex-col gap-2"
+          />
         </div>
       </div>
     </div>,

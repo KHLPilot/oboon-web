@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Expand, Minus, Plus } from "lucide-react";
+import { Navigation, Expand, Minus, Plus } from "lucide-react";
 
 import Button from "@/components/ui/Button";
 import { type Offering } from "@/types/index";
@@ -13,6 +13,7 @@ import { getGyeonggiSubRegionConfig } from "@/features/offerings/domain/offering
 import {
   normalizeOfferingStatusValue,
   OFFERING_STATUS_VALUES,
+  normalizeRegionTab,
 } from "@/features/offerings/domain/offering.constants";
 import NaverMap, {
   type MapFocusBounds,
@@ -300,7 +301,7 @@ export default function OfferingsMapView({
   const [regionBoundaryByKey, setRegionBoundaryByKey] = useState<
     Record<string, RegionBoundaryPayload>
   >({});
-  const region = sp.get("region") ?? "전체";
+  const region = normalizeRegionTab(sp.get("region"));
   const subRegion = sp.get("subRegion") ?? "";
   const hasActiveListFilters = useMemo(
     () =>
@@ -389,8 +390,11 @@ export default function OfferingsMapView({
     ? true
     : Boolean(activeRegionBoundaryPayload);
   const isDefaultScope = activeBoundaryRegionKey === "all" && !hasActiveListFilters;
-  const mapInitialCenter = isDefaultScope ? initialCenter : null;
   const staticRegionViewport = getStaticRegionViewport(region);
+  const canUseCurrentLocation =
+    mapReady &&
+    initialLocationStatus === "granted" &&
+    initialCenter !== null;
   const activeRegionFocusBounds = useMemo(
     () => {
       if (activeBoundaryRegionKey === "all") return null;
@@ -413,6 +417,12 @@ export default function OfferingsMapView({
     }
     setFocusedId(id);
   }, [activeFocusedId, router]);
+  const handleUseCurrentLocation = () => {
+    if (!canUseCurrentLocation || !initialCenter) return;
+    const locationKey = `${initialCenter.lat.toFixed(6)},${initialCenter.lng.toFixed(6)}`;
+    lastViewportKeyRef.current = `location:${locationKey}`;
+    mapApiRef.current?.setView(initialCenter.lat, initialCenter.lng, GPS_FOCUS_ZOOM);
+  };
   const handleOverlaySelect = useCallback((id: number) => {
     if (id <= 0) {
       setFocusedId(null);
@@ -459,35 +469,8 @@ export default function OfferingsMapView({
     if (!mapReady) return;
     const map = mapApiRef.current;
     if (!map) return;
-    let retryTimer: number | null = null;
 
     if (isDefaultScope) {
-      if (initialLocationStatus === "granted" && initialCenter) {
-        const locationKey = `${initialCenter.lat.toFixed(6)},${initialCenter.lng.toFixed(6)}`;
-        const viewportKey = `location:${locationKey}`;
-        if (lastViewportKeyRef.current !== viewportKey) {
-          lastViewportKeyRef.current = viewportKey;
-          map.setView(initialCenter.lat, initialCenter.lng, GPS_FOCUS_ZOOM);
-          retryTimer = window.setTimeout(() => {
-            mapApiRef.current?.setView(
-              initialCenter.lat,
-              initialCenter.lng,
-              GPS_FOCUS_ZOOM,
-            );
-          }, 180);
-        }
-        return () => {
-          if (retryTimer !== null) window.clearTimeout(retryTimer);
-        };
-      }
-
-      if (
-        initialLocationStatus === "pending" ||
-        initialLocationStatus === "idle"
-      ) {
-        return;
-      }
-
       if (lastViewportKeyRef.current !== "nationwide") {
         lastViewportKeyRef.current = "nationwide";
         map.fitToBounds(ALL_KOREA_VIEW_BOUNDS);
@@ -505,9 +488,7 @@ export default function OfferingsMapView({
           staticRegionViewport.zoom,
         );
       }
-      return () => {
-        if (retryTimer !== null) window.clearTimeout(retryTimer);
-      };
+      return;
     }
 
     if (hasActiveListFilters) {
@@ -518,9 +499,7 @@ export default function OfferingsMapView({
         lastViewportKeyRef.current = viewportKey;
         map.fitToBounds(bounds);
       }
-      return () => {
-        if (retryTimer !== null) window.clearTimeout(retryTimer);
-      };
+      return;
     }
 
     if (!hasActiveRegionBoundary) return;
@@ -534,16 +513,11 @@ export default function OfferingsMapView({
     if (lastViewportKeyRef.current === viewportKey) return;
     lastViewportKeyRef.current = viewportKey;
     map.fitToBounds(bounds);
-    return () => {
-      if (retryTimer !== null) window.clearTimeout(retryTimer);
-    };
   }, [
     activeBoundaryRegionKey,
     activeBounds,
     activeRegionFocusBounds,
     isDefaultScope,
-    initialCenter,
-    initialLocationStatus,
     hasActiveListFilters,
     hasActiveRegionBoundary,
     mapReady,
@@ -572,7 +546,7 @@ export default function OfferingsMapView({
               <NaverMap
                 ref={mapApiRef}
                 markers={markers}
-                initialCenter={mapInitialCenter}
+                initialCenter={null}
                 initialLocationStatus={initialLocationStatus}
                 initialZoom={11}
                 regionClusterEnabled
@@ -619,6 +593,19 @@ export default function OfferingsMapView({
                 shape="pill"
                 size="sm"
                 variant="secondary"
+                className="pointer-events-auto h-10 w-10 bg-(--oboon-bg-surface)/50"
+                onClick={handleUseCurrentLocation}
+                disabled={!canUseCurrentLocation}
+                aria-label="내 위치로 이동"
+                title="내 위치"
+              >
+                <Navigation className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                shape="pill"
+                size="sm"
+                variant="secondary"
                 className="pointer-events-auto h-10 w-10 bg-(--oboon-bg-surface)/50 md:hidden"
                 onClick={() => setOverlayOpen(true)}
               >
@@ -634,7 +621,7 @@ export default function OfferingsMapView({
         open={overlayOpen}
         title={Copy.offerings.map.title}
         markers={markers}
-        initialCenter={mapInitialCenter}
+        initialCenter={initialCenter}
         initialLocationStatus={initialLocationStatus}
         regionClusterEnabled
         regionClusterZoomThreshold={REGION_CLUSTER_ZOOM_THRESHOLD}

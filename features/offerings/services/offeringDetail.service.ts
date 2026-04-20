@@ -243,6 +243,68 @@ export async function hasApprovedAgent(propertyId: number): Promise<boolean> {
   return (count ?? 0) > 0;
 }
 
+export type OfferingConsultationAgent = {
+  id: string;
+  name: string;
+  email?: string | null;
+  avatar_url?: string | null;
+  phone_number?: string | null;
+  agent_summary?: string | null;
+  agent_bio?: string | null;
+  avg_response_rate?: number | null;
+  avg_response_minutes?: number | null;
+};
+
+type PropertyAgentProfileRow = {
+  profiles: OfferingConsultationAgent | OfferingConsultationAgent[] | null;
+};
+
+function pickFirst<T>(value: T | T[] | null | undefined): T | null {
+  if (!value) return null;
+  return Array.isArray(value) ? (value[0] ?? null) : value;
+}
+
+export async function fetchOfferingConsultationAgents(
+  propertyId: number,
+): Promise<ServiceResult<OfferingConsultationAgent[]>> {
+  const supabase = createServiceAdminClient();
+  const { data, error } = await supabase
+    .from("property_agents")
+    .select(
+      `
+      profiles:agent_id (
+        id,
+        name,
+        email,
+        avatar_url,
+        phone_number,
+        agent_summary,
+        agent_bio
+      )
+    `,
+    )
+    .eq("property_id", propertyId)
+    .eq("status", "approved");
+
+  if (error) {
+    return {
+      data: [],
+      error: createSupabaseServiceError(error, {
+        scope: "offeringDetail.service",
+        action: "fetchOfferingConsultationAgents",
+        defaultMessage: "상담사 목록 조회 중 오류가 발생했습니다.",
+        context: { propertyId },
+      }),
+    };
+  }
+
+  const agents = (data ?? [])
+    .map((row) => pickFirst((row as PropertyAgentProfileRow).profiles))
+    .filter((agent): agent is OfferingConsultationAgent => agent !== null);
+
+  return { data: agents, error: null };
+}
+
 export async function fetchOfferingViewSnapshot(
   propertyId: number,
 ): Promise<ServiceResult<{ property_id: number }>> {

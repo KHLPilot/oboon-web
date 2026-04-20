@@ -1256,18 +1256,20 @@ const NaverMap = forwardRef<
               event.domEvent.preventDefault();
               event.domEvent.stopPropagation();
             }
-            if (m.isCluster) {
+            // 클러스터 마커는 zoom 변경 시 재사용되므로 최신 데이터를 참조
+            const current = markerDataByIdRef.current.get(m.id) ?? m;
+            if (current.isCluster) {
               const regionLabel =
-                m.clusterGroupLabel ?? m.clusterRegion ?? m.topLabel;
+                current.clusterGroupLabel ?? current.clusterRegion ?? current.topLabel;
               if (regionLabel && callbacksRef.current.onClusterRegionSelect) {
                 callbacksRef.current.onClusterRegionSelect(regionLabel);
               }
-              pendingClusterCenterRef.current = { lat: m.lat, lng: m.lng };
-              setMapCenter(map, new naverObj.maps.LatLng(m.lat, m.lng));
+              pendingClusterCenterRef.current = { lat: current.lat, lng: current.lng };
+              setMapCenter(map, new naverObj.maps.LatLng(current.lat, current.lng));
               map.setZoom(map.getZoom() + clusterZoomDeltaRef.current, true);
               return;
             }
-            callbacksRef.current.onMarkerSelect?.(m.id);
+            callbacksRef.current.onMarkerSelect?.(current.id);
           });
           naverObj.maps.Event.addListener(mk, "mouseover", () =>
             callbacksRef.current.onHoverChange?.(m.id),

@@ -7,6 +7,7 @@ import Image from "next/image";
 import { createPortal } from "react-dom";
 import { CalendarDays, Check, Clock } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
+import ActionBar from "@/components/ui/ActionBar";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
@@ -30,21 +31,15 @@ import {
 } from "@/features/offerings/domain/offering.constants";
 import ScrapButton from "@/features/offerings/components/ScrapButton";
 import type { PropertyTimelineRow } from "@/features/offerings/domain/offeringDetail.types";
+import type { OfferingConsultationAgent } from "@/features/offerings/services/offeringDetail.service";
 
 interface OfferingDetailRightProps {
   propertyId?: number;
   propertyName?: string;
   propertyImageUrl?: string;
   hasApprovedAgent?: boolean;
+  consultationAgents?: OfferingConsultationAgent[];
   propertyTimeline?: PropertyTimelineRow[] | PropertyTimelineRow | null;
-}
-
-interface AgentInfo {
-  id: string;
-  name: string;
-  email?: string | null;
-  phone_number?: string | null;
-  agent_bio?: string | null;
 }
 
 type ConditionValidationPreset = {
@@ -298,12 +293,13 @@ export default function OfferingDetailRight({
   propertyName,
   propertyImageUrl,
   hasApprovedAgent = false,
+  consultationAgents,
   propertyTimeline = null,
 }: OfferingDetailRightProps) {
   const router = useRouter();
   const supabase = createSupabaseClient();
   const [isBookingOpen, setIsBookingOpen] = useState(false);
-  const [agents, setAgents] = useState<AgentInfo[]>([]);
+  const [agents, setAgents] = useState<OfferingConsultationAgent[]>([]);
   const [loadingAgents, setLoadingAgents] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -316,7 +312,9 @@ export default function OfferingDetailRight({
   const [initialScrapped, setInitialScrapped] = useState(false);
   const isLoggedIn = Boolean(user);
   const isBookingBlockedRole = userRole === "agent" || userRole === "admin";
-  const hasBookableAgent = hasApprovedAgent && agents.length > 0;
+  // 부모가 서버에서 가져온 상담사 목록을 우선 사용하고, 없을 때만 클라이언트 보조 조회를 본다.
+  const consultationAgentList = consultationAgents ?? agents;
+  const hasBookableAgent = hasApprovedAgent && consultationAgentList.length > 0;
   const timeline = firstRow(propertyTimeline);
 
   const resolvedConditionPreset = useMemo(() => {
@@ -391,8 +389,9 @@ export default function OfferingDetailRight({
       setLoadingAgents(true);
       try {
         const {
-          data: { user: currentUser },
-        } = await supabase.auth.getUser();
+          data: { session },
+        } = await supabase.auth.getSession();
+        const currentUser = session?.user ?? null;
         if (!isMounted) return;
         setUser(currentUser);
 
@@ -596,10 +595,12 @@ export default function OfferingDetailRight({
         if (!isMounted) return;
         const agentList = (propertyAgents || [])
           .map((pa) => {
-            const row = pa as { profiles: AgentInfo | AgentInfo[] | null };
+            const row = pa as { profiles: OfferingConsultationAgent | OfferingConsultationAgent[] | null };
             return pickFirst(row.profiles);
           })
-          .filter((profile): profile is AgentInfo => profile !== null);
+          .filter(
+            (profile): profile is OfferingConsultationAgent => profile !== null,
+          );
         setAgents(agentList);
       } catch (err) {
         console.error("상담사 목록 조회 오류:", err);
@@ -743,9 +744,9 @@ export default function OfferingDetailRight({
               <div className="mt-3 h-9 w-full rounded-full bg-(--oboon-bg-subtle)" />
             </div>
           ) : hasBookableAgent ? (
-            <div className="mt-2 space-y-1">
+          <div className="mt-2 space-y-1">
               <div className="ob-typo-body text-(--oboon-primary)">
-                상담 가능 상담사 {agents.length}명
+                상담 가능 상담사 {consultationAgentList.length}명
               </div>
               <div className="ob-typo-body text-(--oboon-text-title)">
                 예약 버튼을 누른 뒤 상담사와 시간을 선택해주세요.
@@ -891,55 +892,43 @@ export default function OfferingDetailRight({
         ? createPortal(conditionValidationCard, conditionValidationSlot)
         : null}
 
-      {/* =========================
-          Mobile bottom fixed CTA
-         ========================= */}
-      <div className="lg:hidden">
-        <div
-          className={[
-            "fixed inset-x-0 bottom-0 z-50",
-            "border-t border-(--oboon-border-default)",
-            "bg-(--oboon-bg-surface)/90 backdrop-blur",
-            "pb-[env(safe-area-inset-bottom)]",
-          ].join(" ")}
-        >
-          <div className="mx-auto w-full max-w-300 px-5 py-3">
-            <div className="flex items-center gap-2">
-              {propertyId ? (
-                <ScrapButton
-                  propertyId={propertyId}
-                  initialScrapped={initialScrapped}
-                  isLoggedIn={isLoggedIn}
-                  variant="icon"
-                />
-              ) : null}
-              {hasBookableAgent ? (
-                <Button
-                  className="flex-1"
-                  variant="primary"
-                  disabled={isBookingBlockedRole}
-                  onClick={openConsultationFlow}
-                >
-                  {!isLoggedIn
-                    ? "로그인 후 상담 신청"
-                    : isBookingBlockedRole
-                      ? "일반 회원만 예약 가능"
-                      : "상담 신청"}
-                </Button>
-              ) : (
-                <div className="flex-1 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-2.5 text-center ob-typo-caption text-(--oboon-text-muted)">
-                  상담 가능 상담사 없음
-                </div>
-              )}
-            </div>
-            {hasBookableAgent && isBookingBlockedRole ? (
-              <div className="mt-2 text-center ob-typo-caption text-(--oboon-text-muted)">
-                관리자/상담사 계정은 예약할 수 없습니다.
-              </div>
+      <ActionBar hideAbove="lg">
+        <div className="mx-auto w-full max-w-300 px-5">
+          <div className="flex items-center gap-2">
+            {propertyId ? (
+              <ScrapButton
+                propertyId={propertyId}
+                initialScrapped={initialScrapped}
+                isLoggedIn={isLoggedIn}
+                variant="icon"
+              />
             ) : null}
+            {hasBookableAgent ? (
+              <Button
+                className="flex-1"
+                variant="primary"
+                disabled={isBookingBlockedRole}
+                onClick={openConsultationFlow}
+              >
+                {!isLoggedIn
+                  ? "로그인 후 상담 신청"
+                  : isBookingBlockedRole
+                    ? "일반 회원만 예약 가능"
+                    : "상담 신청"}
+              </Button>
+            ) : (
+              <div className="flex-1 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-2.5 text-center ob-typo-caption text-(--oboon-text-muted)">
+                상담 가능 상담사 없음
+              </div>
+            )}
           </div>
+          {hasBookableAgent && isBookingBlockedRole ? (
+            <div className="mt-2 text-center ob-typo-caption text-(--oboon-text-muted)">
+              관리자/상담사 계정은 예약할 수 없습니다.
+            </div>
+          ) : null}
         </div>
-      </div>
+      </ActionBar>
 
       {/* 상담 신청 모달 */}
       <BookingModal
@@ -950,6 +939,7 @@ export default function OfferingDetailRight({
         propertyId={propertyId}
         propertyName={propertyName}
         propertyImageUrl={propertyImageUrl}
+        initialAgents={consultationAgentList}
       />
 
       <Modal

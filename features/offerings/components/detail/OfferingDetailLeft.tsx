@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 
 import Card from "@/components/ui/Card";
+import TextButton from "@/components/ui/TextButton";
 import OfferingDetailTabs from "@/features/offerings/components/detail/OfferingDetailTabs.client";
 import OfferingUnitTypesAccordion from "./offeringTypesAccordion.client";
 import PropertyImageGallery from "./PropertyImageGallery.client";
@@ -461,15 +462,7 @@ export default function OfferingDetailLeft({
           isBookingBlockedRole = role === "agent" || role === "admin";
         }
 
-        const { count } = await supabase
-          .from("property_agents")
-          .select("property_id", { count: "exact", head: true })
-          .eq("property_id", p.id)
-          .eq("status", "approved");
-        if (!mounted) return;
-
-        const hasBookableAgent = hasApprovedAgent && (count ?? 0) > 0;
-        setIsModelhouseConsultEnabled(hasBookableAgent && !isBookingBlockedRole);
+        setIsModelhouseConsultEnabled(hasApprovedAgent && !isBookingBlockedRole);
       } catch {
         if (mounted) setIsModelhouseConsultEnabled(false);
       }
@@ -819,13 +812,14 @@ export default function OfferingDetailLeft({
               {propertyDescription}
             </div>
             {shouldCollapseDescription ? (
-              <button
-                type="button"
-                className="mt-2 ob-typo-caption font-medium text-(--oboon-primary)"
+              <TextButton
+                color="primary"
+                size="sm"
+                className="mt-2"
                 onClick={() => setShowFullDescription((value) => !value)}
               >
                 {showFullDescription ? "접기" : "더보기"}
-              </button>
+              </TextButton>
             ) : null}
           </Card>
         </div>

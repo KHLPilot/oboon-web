@@ -3,18 +3,24 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Check, ChevronDown, Search, SlidersHorizontal, X } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  Search,
+  SlidersHorizontal,
+} from "lucide-react";
 import type {
   OfferingRegionTab,
   OfferingStatusValue,
 } from "@/features/offerings/domain/offering.types";
-import Button from "@/components/ui/Button";
+import BottomSheet from "@/components/ui/BottomSheet";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/DropdownMenu";
+import IconButton from "@/components/ui/IconButton";
 import Input from "@/components/ui/Input";
 import Label from "@/components/ui/Label";
 import {
@@ -23,6 +29,7 @@ import {
   OFFERING_STATUS_LABEL,
   OFFERING_STATUS_VALUES,
   isOfferingStatusValue,
+  normalizeRegionTab,
 } from "@/features/offerings/domain/offering.constants";
 import { formatEokPreview, parseEok } from "@/lib/format/currency";
 import { cn } from "@/lib/utils/cn";
@@ -65,10 +72,6 @@ const FilterBarBudgetSection = dynamic(
     ssr: false,
   },
 ) as unknown as ComponentType<FilterBarBudgetSectionProps>;
-
-function isRegionTab(v: string): v is OfferingRegionTab {
-  return (OFFERING_REGION_TABS as readonly string[]).includes(v);
-}
 
 type ToggleSetter = (value: boolean | ((prev: boolean) => boolean)) => void;
 type OfferingsView = "list" | "map";
@@ -239,6 +242,7 @@ type FilterBarBodyProps = {
   availableRegions: OfferingRegionTab[];
   availableSeoulSubRegions: string[];
   availableGyeonggiSubRegions: string[];
+  visibleCount?: number | null;
 };
 
 function FilterBarBody({
@@ -253,18 +257,29 @@ function FilterBarBody({
   availableRegions,
   availableSeoulSubRegions,
   availableGyeonggiSubRegions,
+  visibleCount,
 }: FilterBarBodyProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    const update = () => setIsMobileViewport(mq.matches);
+
+    update();
+    mq.addEventListener?.("change", update);
+    return () => {
+      mq.removeEventListener?.("change", update);
+    };
+  }, []);
 
   const rawRegion = sp.get("region");
   const regionBaseOptions = availableRegions.length > 0 ? availableRegions : REGIONS;
-  const region: OfferingRegionTab =
-    rawRegion &&
-    isRegionTab(rawRegion) &&
-    regionBaseOptions.includes(rawRegion)
-      ? rawRegion
-      : "전체";
+  const normalizedRegion = normalizeRegionTab(rawRegion);
+  const region: OfferingRegionTab = regionBaseOptions.includes(normalizedRegion)
+    ? normalizedRegion
+    : "전체";
 
   const rawStatus = sp.get("status");
   const status: OfferingStatusValue | "전체" =
@@ -467,17 +482,14 @@ function FilterBarBody({
               />
             </div>
 
-            <Button
-              type="button"
-              variant="secondary"
-              shape="pill"
-              size="md"
-              className="h-10 w-10 rounded-full p-0"
-              onClick={() => pushParams({ q })}
+            <IconButton
+              icon={<Search className="h-4 w-4" />}
               aria-label="검색"
-            >
-              <Search className="h-4 w-4" />
-            </Button>
+              variant="fill"
+              size="md"
+              shape="circle"
+              onClick={() => pushParams({ q })}
+            />
           </div>
 
           <button
@@ -499,7 +511,12 @@ function FilterBarBody({
           </button>
 
           <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
+            <div className="min-w-0 flex items-center gap-2">
+              {typeof visibleCount === "number" ? (
+                <span className="shrink-0 whitespace-nowrap ob-typo-caption font-medium text-(--oboon-text-muted)">
+                  현장 {visibleCount.toLocaleString("ko-KR")}개
+                </span>
+              ) : null}
               {activeCount > 0 ? (
                 <MobileSummaryChip
                   label={`필터 ${activeCount}개`}
@@ -546,17 +563,14 @@ function FilterBarBody({
             />
           </div>
 
-          <Button
-            type="button"
-            variant="secondary"
-            shape="pill"
-            size="md"
-            className="h-10 w-10 rounded-full p-0"
-            onClick={() => pushParams({ q })}
+          <IconButton
+            icon={<Search className="h-4 w-4" />}
             aria-label="검색"
-          >
-            <Search className="h-4 w-4" />
-          </Button>
+            variant="fill"
+            size="md"
+            shape="circle"
+            onClick={() => pushParams({ q })}
+          />
 
           <SortDropdown
             value={sortKey}
@@ -567,53 +581,34 @@ function FilterBarBody({
 
           <OfferingsViewToggle value={view} onChange={onViewChange} />
 
-          <Button
-            type="button"
-            variant={open ? "primary" : "secondary"}
-            shape="pill"
-            size="md"
-            className="h-10 w-10 rounded-full p-0"
-            onClick={() => setOpen((v) => !v)}
-            aria-expanded={open}
+          <IconButton
+            icon={
+              <SlidersHorizontal
+                className={cn(
+                  "h-4 w-4 transition-colors",
+                  open
+                    ? "text-(--oboon-on-primary)"
+                    : activeCount > 0
+                    ? "text-(--oboon-primary)"
+                    : "text-(--oboon-text-muted)"
+                )}
+              />
+            }
             aria-label="필터"
-          >
-            <SlidersHorizontal
-              className={cn(
-                "h-4 w-4 transition-colors",
-                open
-                  ? "text-(--oboon-on-primary)"
-                  : activeCount > 0
-                  ? "text-(--oboon-primary)"
-                  : "text-(--oboon-text-muted)"
-              )}
-            />
-          </Button>
+            variant="fill"
+            size="md"
+            shape="circle"
+            aria-expanded={open}
+            onClick={() => setOpen((v) => !v)}
+          />
         </div>
       </div>
 
       {/* ---------------- Mobile Filter Drawer ---------------- */}
-      {open ? (
-        <div className="sm:hidden">
-          <div
-            className="fixed inset-0 z-(--oboon-z-modal) bg-(--oboon-overlay) backdrop-blur-sm"
-            onClick={() => setOpen(false)}
-            aria-hidden="true"
-          />
-          <div className="fixed inset-x-0 bottom-0 z-(--oboon-z-modal) max-h-[88dvh] overflow-y-auto rounded-t-xl border border-b-0 border-(--oboon-border-default) bg-(--oboon-bg-surface) p-5 shadow-(--oboon-shadow-card) pb-[calc(env(safe-area-inset-bottom)+1.25rem)]">
-            <div className="mb-4 flex items-center justify-between">
-              <div className="ob-typo-h3 text-(--oboon-text-title)">필터</div>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-(--oboon-border-default) bg-(--oboon-bg-surface)"
-                aria-label="필터 닫기"
-              >
-                <X className="h-4 w-4 text-(--oboon-text-muted)" />
-              </button>
-            </div>
+      {open && isMobileViewport ? (
+        <BottomSheet isOpen={open} onClose={() => setOpen(false)} title="필터">
             {filterPanelContent}
-          </div>
-        </div>
+        </BottomSheet>
       ) : null}
 
       {/* ---------------- Desktop Filter Panel ---------------- */}
@@ -636,12 +631,14 @@ export default function FilterBar({
   availableRegions,
   availableSeoulSubRegions,
   availableGyeonggiSubRegions,
+  visibleCount,
 }: {
   view: OfferingsView;
   onViewChange: (next: OfferingsView) => void;
   availableRegions: OfferingRegionTab[];
   availableSeoulSubRegions: string[];
   availableGyeonggiSubRegions: string[];
+  visibleCount?: number | null;
 }) {
   const sp = useSearchParams();
   // 하이드레이션 일치: 최초 렌더는 항상 닫힘으로 시작하고,
@@ -694,6 +691,7 @@ export default function FilterBar({
       availableRegions={availableRegions}
       availableSeoulSubRegions={availableSeoulSubRegions}
       availableGyeonggiSubRegions={availableGyeonggiSubRegions}
+      visibleCount={visibleCount}
     />
   );
 }

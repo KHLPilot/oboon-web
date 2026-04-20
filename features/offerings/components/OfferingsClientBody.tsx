@@ -44,6 +44,7 @@ type FilterBarProps = {
   availableRegions: OfferingRegionTab[];
   availableSeoulSubRegions: string[];
   availableGyeonggiSubRegions: string[];
+  visibleCount?: number | null;
 };
 
 const FilterBar = dynamic(
@@ -303,7 +304,7 @@ function passesRegion(
 ): boolean {
   if (region !== "전체") {
     const r = pickOfferingRegion(o);
-    if (!r || !r.includes(region)) return false;
+    if (!r || normalizeRegionTab(r) !== region) return false;
   }
 
   if (!subRegion) return true;
@@ -605,11 +606,10 @@ export default function OfferingsClientBody() {
     [regionCandidateOfferings],
   );
 
+  const normalizedRegionCandidate = normalizeRegionTab(searchParams.region);
   const normalizedRegion =
-    searchParams.region &&
-    isRegionTab(searchParams.region) &&
-    availableRegions.includes(searchParams.region)
-      ? searchParams.region
+    availableRegions.includes(normalizedRegionCandidate)
+      ? normalizedRegionCandidate
       : undefined;
 
   const seoulSubRegionCandidateOfferings = useMemo<Offering[]>(
@@ -684,6 +684,7 @@ export default function OfferingsClientBody() {
     () => sortOfferings(filtered, sortKey),
     [filtered, sortKey],
   );
+  const visibleCount = rowsLoaded && !loadError ? sortedOfferings.length : null;
   const isRecommendedMode = searchParams.recommended === "1";
   const view = searchParams.view === "list" ? "list" : "map";
 
@@ -716,6 +717,7 @@ export default function OfferingsClientBody() {
             availableRegions={availableRegions}
             availableSeoulSubRegions={availableSeoulSubRegions}
             availableGyeonggiSubRegions={availableGyeonggiSubRegions}
+            visibleCount={visibleCount}
           />
 
           {loadError ? (

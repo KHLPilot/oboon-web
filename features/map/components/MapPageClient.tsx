@@ -2,9 +2,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Minus, Expand } from "lucide-react";
 
 import Button from "@/components/ui/Button";
+import MapFloatingControls from "@/components/ui/MapFloatingControls";
 import PageContainer from "@/components/shared/PageContainer";
 import { UXCopy } from "@/shared/uxCopy";
 import { formatPriceRange } from "@/shared/price";
@@ -15,7 +15,10 @@ import NaverMap, {
   type MapFocusBounds,
   type MapMarker,
 } from "@/features/map/components/NaverMap";
-import { useCurrentLocationCenter } from "@/features/map/hooks/useCurrentLocationCenter";
+import type {
+  GeoLocationCenter,
+  GeoLocationStatus,
+} from "@/features/map/hooks/useCurrentLocationCenter";
 import type {
   MarkerLayer,
 } from "@/features/map/domain/marker/marker.type";
@@ -57,6 +60,27 @@ const REGION_TABS = [
   { key: "jeju", label: "제주", lat: 33.4996, lng: 126.5312, zoom: 10 },
 ] as const;
 
+const STATIC_REGION_VIEWPORTS = {
+  all: REGION_TABS[0],
+  seoul: REGION_TABS[1],
+  incheon: REGION_TABS[2],
+  gyeonggi: REGION_TABS[3],
+  busan: REGION_TABS[4],
+  daegu: REGION_TABS[5],
+  gwangju: REGION_TABS[6],
+  daejeon: REGION_TABS[7],
+  ulsan: REGION_TABS[8],
+  sejong: REGION_TABS[9],
+  gangwon: REGION_TABS[10],
+  chungbuk: REGION_TABS[11],
+  chungnam: REGION_TABS[12],
+  jeonbuk: REGION_TABS[13],
+  jeonnam: REGION_TABS[14],
+  gyeongbuk: REGION_TABS[15],
+  gyeongnam: REGION_TABS[16],
+  jeju: REGION_TABS[17],
+} as const;
+
 const ALL_KOREA_VIEW_BOUNDS: MapFocusBounds = {
   south: 33.0,
   west: 125.8,
@@ -64,6 +88,7 @@ const ALL_KOREA_VIEW_BOUNDS: MapFocusBounds = {
   east: 130.95,
 };
 const GPS_FOCUS_ZOOM = 12;
+const REGION_CLUSTER_ZOOM_THRESHOLD = 16;
 
 const REGION_NAME_MATCHERS: Record<string, string[]> = {
   seoul: ["서울특별시", "서울"],
@@ -240,6 +265,14 @@ function getRegionViewport(regionKey: string) {
   return REGION_TABS.find((tab) => tab.key === regionKey) ?? REGION_TABS[0];
 }
 
+function getStaticRegionViewport(regionKey: string) {
+  return (
+    STATIC_REGION_VIEWPORTS[
+      regionKey as keyof typeof STATIC_REGION_VIEWPORTS
+    ] ?? null
+  );
+}
+
 function toMarker(m: DbOffering): MapMarker {
   return {
     id: m.id,
@@ -276,9 +309,12 @@ export default function MapPageClient() {
   const [regionBoundaryByKey, setRegionBoundaryByKey] = useState<
     Record<string, RegionBoundaryPayload>
   >({});
-  const { center: initialCenter, status: initialLocationStatus } =
-    useCurrentLocationCenter(true, { startDelayMs: 1200 });
+  const [locationStatus, setLocationStatus] =
+    useState<GeoLocationStatus>("idle");
+  const [currentLocationCenter, setCurrentLocationCenter] =
+    useState<GeoLocationCenter | null>(null);
   const lastViewportKeyRef = useRef<string>("");
+  const suppressNextViewportSyncRef = useRef(false);
 
   const mapApiRef = useRef<NaverMapHandle | null>(null);
   const router = useRouter();
@@ -408,20 +444,50 @@ export default function MapPageClient() {
         : (regionBoundaryByKey[activeBoundaryRegionKey]?.polygons ?? []),
     [activeBoundaryRegionKey, activeRegionTab, regionBoundaryByKey],
   );
-  const activeRegionFocusBounds = useMemo(
-    () =>
-      activeRegionTab === "all"
-        ? null
-      :
-      computeBoundsFromPolygons(activeRegionFocusPolygons) ??
-      computeBoundsFromMarkers(markers),
-    [activeRegionFocusPolygons, activeRegionTab, markers],
-  );
   const isDefaultScope = activeRegionTab === "all" && activeSubRegionTab === "all";
-  const mapInitialCenter = isDefaultScope ? initialCenter : null;
+  const canUseCurrentLocation = mapReady;
 
   const handleToggleLayer = (key: MarkerLayer) => {
     setFilters((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const handleRequestCurrentLocation = () => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setLocationStatus("unsupported");
+      return;
+    }
+
+    setLocationStatus("pending");
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const nextCenter = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        };
+        setCurrentLocationCenter(nextCenter);
+        setLocationStatus("granted");
+        mapApiRef.current?.setView(nextCenter.lat, nextCenter.lng, GPS_FOCUS_ZOOM);
+      },
+      (error) => {
+        setLocationStatus(error.code === 1 ? "denied" : "unavailable");
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 10_000,
+      },
+    );
+  };
+
+  const handleUseCurrentLocation = () => {
+    if (!mapReady) return;
+    if (!currentLocationCenter) {
+      handleRequestCurrentLocation();
+      return;
+    }
+    const locationKey = `${currentLocationCenter.lat.toFixed(6)},${currentLocationCenter.lng.toFixed(6)}`;
+    lastViewportKeyRef.current = `location:${locationKey}`;
+    mapApiRef.current?.setView(currentLocationCenter.lat, currentLocationCenter.lng, GPS_FOCUS_ZOOM);
   };
 
   const handleMoveRegion = (regionKey: string) => {
@@ -429,11 +495,6 @@ export default function MapPageClient() {
     if (!target) return;
     setActiveRegionTab(target.key);
     setActiveSubRegionTab("all");
-    if (!mapReady) {
-      setFocusedId(null);
-      return;
-    }
-    mapApiRef.current?.setView(target.lat, target.lng, target.zoom);
     setFocusedId(null);
   };
 
@@ -477,61 +538,32 @@ export default function MapPageClient() {
     if (!mapReady) return;
     const map = mapApiRef.current;
     if (!map) return;
-    let retryTimer: number | null = null;
+
+    if (suppressNextViewportSyncRef.current) {
+      suppressNextViewportSyncRef.current = false;
+      return;
+    }
 
     if (isDefaultScope) {
-      if (initialLocationStatus === "granted" && initialCenter) {
-        const locationKey = `${initialCenter.lat.toFixed(6)},${initialCenter.lng.toFixed(6)}`;
-        const viewportKey = `location:${locationKey}`;
-        if (lastViewportKeyRef.current !== viewportKey) {
-          lastViewportKeyRef.current = viewportKey;
-          map.setView(initialCenter.lat, initialCenter.lng, GPS_FOCUS_ZOOM);
-          retryTimer = window.setTimeout(() => {
-            mapApiRef.current?.setView(
-              initialCenter.lat,
-              initialCenter.lng,
-              GPS_FOCUS_ZOOM,
-            );
-          }, 180);
-        }
-        return () => {
-          if (retryTimer !== null) window.clearTimeout(retryTimer);
-        };
-      }
-
-      if (initialLocationStatus === "pending" || initialLocationStatus === "idle") {
-        return;
-      }
-
       if (lastViewportKeyRef.current !== "nationwide") {
         lastViewportKeyRef.current = "nationwide";
         map.fitToBounds(ALL_KOREA_VIEW_BOUNDS);
       }
-      return () => {
-        if (retryTimer !== null) window.clearTimeout(retryTimer);
-      };
+      return;
     }
 
-    const target =
-      activeRegionTab === "all" && activeSubRegionTab === "all"
-        ? null
-        : getRegionViewport(activeRegionTab);
-    if (!target) return;
-    const viewportKey = `region:${target.key}:${target.lat.toFixed(4)},${target.lng.toFixed(4)},${target.zoom}`;
+    const staticViewport = getStaticRegionViewport(activeRegionTab);
+    if (!staticViewport) return;
+
+    const viewportKey = `region:${staticViewport.key}:${staticViewport.lat.toFixed(4)},${staticViewport.lng.toFixed(4)},${staticViewport.zoom}`;
     if (lastViewportKeyRef.current === viewportKey) return;
     lastViewportKeyRef.current = viewportKey;
-    map.setView(target.lat, target.lng, target.zoom);
-    return () => {
-      if (retryTimer !== null) window.clearTimeout(retryTimer);
-    };
-  }, [
-    activeRegionTab,
-    activeSubRegionTab,
-    isDefaultScope,
-    initialCenter,
-    initialLocationStatus,
-    mapReady,
-  ]);
+    map.setView(
+      staticViewport.lat,
+      staticViewport.lng,
+      staticViewport.zoom,
+    );
+  }, [activeRegionTab, activeSubRegionTab, isDefaultScope, mapReady]);
 
   return (
     <main className="bg-(--oboon-bg-page)">
@@ -609,16 +641,19 @@ export default function MapPageClient() {
                 <NaverMap
                   ref={mapApiRef}
                   markers={markers}
-                  initialCenter={mapInitialCenter}
-                  initialLocationStatus={initialLocationStatus}
+                  initialCenter={null}
+                  initialLocationStatus={locationStatus}
                   initialZoom={13}
-                  focusBounds={activeRegionFocusBounds}
+                  focusBounds={null}
                   focusPolygons={activeRegionFocusPolygons}
                   regionClusterEnabled={activeRegionTab === "all"}
                   onClusterRegionSelect={(regionLabel) => {
                     const regionKey = resolveRegionTabKeyFromClusterLabel(regionLabel);
                     if (!regionKey) return;
-                    handleMoveRegion(regionKey);
+                    suppressNextViewportSyncRef.current = true;
+                    setActiveRegionTab(regionKey);
+                    setActiveSubRegionTab("all");
+                    setFocusedId(null);
                   }}
                   onMapReady={() => setMapReady(true)}
                   hoveredId={hoveredId}
@@ -643,46 +678,24 @@ export default function MapPageClient() {
                 onToggle={handleToggleLayer}
               />
 
-              <div className="pointer-events-none absolute right-4 top-4 flex flex-col gap-2">
-                <Button
-                  type="button"
-                  shape="pill"
-                  size="sm"
-                  variant="secondary"
-                  className="pointer-events-auto h-10 w-10 bg-(--oboon-bg-surface)/50"
-                  onClick={() => mapApiRef.current?.zoomIn()}
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-                <Button
-                  type="button"
-                  shape="pill"
-                  size="sm"
-                  variant="secondary"
-                  className="pointer-events-auto h-10 w-10 bg-(--oboon-bg-surface)/50"
-                  onClick={() => mapApiRef.current?.zoomOut()}
-                >
-                  <Minus className="h-4 w-4" />
-                </Button>
-                <Button
-                  type="button"
-                  shape="pill"
-                  size="sm"
-                  variant="secondary"
-                  className="pointer-events-auto h-10 w-10 bg-(--oboon-bg-surface)/50 md:hidden"
-                  onClick={() => setOverlayOpen(true)}
-                >
-                  <Expand className="h-4 w-4" />
-                </Button>
-              </div>
+              <MapFloatingControls
+                onZoomIn={() => mapApiRef.current?.zoomIn()}
+                onZoomOut={() => mapApiRef.current?.zoomOut()}
+                onUseCurrentLocation={handleUseCurrentLocation}
+                onExpand={() => setOverlayOpen(true)}
+                className="pointer-events-none absolute right-4 top-4 flex flex-col gap-2"
+              />
             </div>
           </div>
 
           <FullscreenMapOverlay
             open={overlayOpen}
             markers={markers}
-            initialCenter={initialCenter}
-            initialLocationStatus={initialLocationStatus}
+            initialCenter={currentLocationCenter}
+            initialLocationStatus={locationStatus}
+            regionClusterEnabled={activeRegionTab === "all"}
+            regionClusterZoomThreshold={REGION_CLUSTER_ZOOM_THRESHOLD}
+            clusterZoomDelta={1}
             hoveredId={hoveredId}
             focusedId={focusedId}
             onHoverChange={setHoveredId}

@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AlertTriangle, ShieldCheck } from "lucide-react";
 
 import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import Card from "@/components/ui/Card";
 import { useToast } from "@/components/ui/Toast";
+import ConditionDirtyBanner from "@/features/condition-validation/components/ConditionDirtyBanner";
 import ConditionWizard from "@/features/recommendations/components/ConditionWizard";
 import { shouldAutoEvaluateDetailValidation } from "@/features/offerings/components/detail/conditionValidationAutoEvaluate";
 import { grade5DetailLabel } from "@/features/condition-validation/lib/grade5Labels";
@@ -248,6 +250,7 @@ export default function ConditionValidationCard({
 }: ConditionValidationCardProps) {
   const supabase = createSupabaseClient();
   const toast = useToast();
+  const router = useRouter();
   // Form state
   const [employmentType, setEmploymentType] = useState<EmploymentType | null>(null);
   const [availableCash, setAvailableCash] = useState("");
@@ -901,11 +904,6 @@ export default function ConditionValidationCard({
   ]);
 
   const handleSaveCondition = useCallback(async (): Promise<boolean> => {
-    if (!isLoggedIn) {
-      onLoginRequest();
-      return false;
-    }
-
     const validationError = validate();
     if (validationError) {
       setErrorMessage(validationError);
@@ -913,11 +911,12 @@ export default function ConditionValidationCard({
     }
 
     const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+    const user = session?.user ?? null;
 
-    if (userError || !user) {
+    if (sessionError || !user) {
       onLoginRequest();
       return false;
     }
@@ -1138,38 +1137,38 @@ export default function ConditionValidationCard({
       {isInputSectionVisible ? (
         <Card className="p-3.5">
           {isLoggedIn && hasSavedConditionPreset && isConditionDirty ? (
-            <div className="flex items-center justify-between gap-2 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-2">
-              <p className="ob-typo-caption text-(--oboon-text-muted)">
-                저장된 기본 조건과 다릅니다.
-              </p>
-              <button
-                type="button"
-                onClick={handleRestoreDefaultCondition}
-                className="shrink-0 ob-typo-caption font-medium text-(--oboon-primary) underline underline-offset-4 hover:opacity-70"
-              >
-                기본 조건으로
-              </button>
-            </div>
+            <ConditionDirtyBanner onRestoreDefault={handleRestoreDefaultCondition} />
           ) : null}
-          <ConditionWizard
-            condition={wizardCondition}
-            isLoggedIn={isLoggedIn}
-            hasSavedConditionPreset={hasSavedConditionPreset}
-            isConditionDirty={isConditionDirty}
-            onRestoreDefault={handleRestoreDefaultCondition}
-            isLoading={isLoggedIn ? loading : guestLoading}
-            isSaving={saveLoading}
-            onChange={handleWizardChange}
-            evaluateOnFinish
-            finishLabel="평가하기"
-            onSave={isLoggedIn ? handleSaveCondition : undefined}
-            onEvaluate={() =>
-              isLoggedIn ? handleEvaluate() : handleGuestEvaluate()
-            }
-            onLoginAndSave={async () => {
-              onLoginRequest();
-            }}
-          />
+          <div className="lg:hidden">
+            <button
+              type="button"
+              onClick={() => router.push("/recommendations/conditions/step/1")}
+              className="w-full h-11 rounded-full bg-(--oboon-primary) text-white ob-typo-button"
+            >
+              조건 입력하러 가기
+            </button>
+          </div>
+          <div className="hidden lg:block">
+            <ConditionWizard
+              condition={wizardCondition}
+              isLoggedIn={isLoggedIn}
+              hasSavedConditionPreset={hasSavedConditionPreset}
+              isConditionDirty={isConditionDirty}
+              onRestoreDefault={handleRestoreDefaultCondition}
+              isLoading={isLoggedIn ? loading : guestLoading}
+              isSaving={saveLoading}
+              onChange={handleWizardChange}
+              evaluateOnFinish
+              finishLabel="평가하기"
+              onSave={handleSaveCondition}
+              onEvaluate={() =>
+                isLoggedIn ? handleEvaluate() : handleGuestEvaluate()
+              }
+              onLoginAndSave={async () => {
+                await handleSaveCondition();
+              }}
+            />
+          </div>
         </Card>
       ) : null}
 

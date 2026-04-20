@@ -4,11 +4,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
+import ConditionBar, { type ConditionChip } from "@/components/ui/ConditionBar";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import { type SelectOption } from "@/components/ui/Select";
 import { ArrowRight, BusFront, GraduationCap, PawPrint, Pickaxe, SlidersHorizontal } from "lucide-react";
+import ConditionDirtyBanner from "@/features/condition-validation/components/ConditionDirtyBanner";
 import type {
   CardLoanUsage,
   CreditGrade,
@@ -55,8 +57,10 @@ import type {
   RecommendationCondition,
   RecommendationItem,
 } from "@/features/recommendations/hooks/useRecommendations";
+import { normalizeRecommendationUnitTypes } from "@/features/recommendations/lib/recommendationUnitTypes";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { createSupabaseClient } from "@/lib/supabaseClient";
+import { formatManwonPreview } from "@/lib/format/currency";
 import { formatPriceRange } from "@/shared/price";
 import { Copy } from "@/shared/copy";
 import { toKoreanErrorMessage } from "@/shared/errorMessage";
@@ -218,6 +222,7 @@ type HomeRawRecommendation = {
     monthly_payment_est?: number | null;
     monthly_burden_percent?: number | null;
   } | null;
+  unit_type_results?: unknown[] | null;
 };
 
 const HOME_CASH_MAX_SCORE = 30;
@@ -238,6 +243,137 @@ function formatConditionRegionSummary(regions: OfferingRegionTab[]): string | nu
   if (regions.length === 0) return null;
   if (regions.length === 1) return regions[0];
   return `${regions[0]} 외 ${regions.length - 1}개`;
+}
+
+function buildAppliedConditionChips(args: {
+  customer: {
+    available_cash: number;
+    monthly_income: number;
+    monthly_expenses: number;
+    house_ownership: "none" | "one" | "two_or_more" | null;
+    purchase_purpose_v2: FullPurchasePurpose | null;
+    employment_type: EmploymentType | null;
+    ltv_internal_score: number;
+    purchase_timing: PurchaseTiming | null;
+    movein_timing: MoveinTiming | null;
+  };
+  guestMode: boolean;
+  resolvedGuestCreditGrade: CreditGrade | null;
+  conditionRegions: OfferingRegionTab[];
+}): ConditionChip[] {
+  const { customer, guestMode, resolvedGuestCreditGrade, conditionRegions } = args;
+  const chips: ConditionChip[] = [];
+
+  if (customer.available_cash > 0) {
+    chips.push({
+      key: "cash",
+      label: "현금",
+      value: formatManwonPreview(customer.available_cash),
+    });
+  }
+
+  if (customer.monthly_income > 0) {
+    chips.push({
+      key: "income",
+      label: "소득",
+      value: formatManwonPreview(customer.monthly_income),
+    });
+  }
+
+  const houseOpt = HOUSE_OWNERSHIP_OPTIONS.find(
+    (option) => option.value === customer.house_ownership,
+  );
+  if (houseOpt) {
+    chips.push({
+      key: "house",
+      label: "",
+      value: houseOpt.label,
+    });
+  }
+
+  const purposeOpt = PURPOSE_V2_OPTIONS.find(
+    (option) => option.value === customer.purchase_purpose_v2,
+  );
+  if (purposeOpt) {
+    chips.push({
+      key: "purpose",
+      label: "",
+      value: purposeOpt.label,
+    });
+  }
+
+  if (guestMode) {
+    const creditOpt = CREDIT_GRADE_OPTIONS.find(
+      (option) => option.value === resolvedGuestCreditGrade,
+    );
+    if (creditOpt) {
+      chips.push({
+        key: "credit_guest",
+        label: "신용",
+        value: creditOpt.label,
+      });
+    }
+  } else {
+    const empOpt = EMPLOYMENT_TYPE_OPTIONS.find(
+      (option) => option.value === customer.employment_type,
+    );
+    if (empOpt) {
+      chips.push({
+        key: "employment",
+        label: "",
+        value: empOpt.label,
+      });
+    }
+
+    if (customer.monthly_expenses > 0) {
+      chips.push({
+        key: "expenses",
+        label: "지출",
+        value: formatManwonPreview(customer.monthly_expenses),
+      });
+    }
+
+    if (customer.ltv_internal_score > 0) {
+      chips.push({
+        key: "credit",
+        label: "신용",
+        value: `${customer.ltv_internal_score}점`,
+      });
+    }
+
+    const timingOpt = PURCHASE_TIMING_OPTIONS.find(
+      (option) => option.value === customer.purchase_timing,
+    );
+    if (timingOpt) {
+      chips.push({
+        key: "timing",
+        label: "",
+        value: timingOpt.label,
+      });
+    }
+
+    const moveinOpt = MOVEIN_TIMING_OPTIONS.find(
+      (option) => option.value === customer.movein_timing,
+    );
+    if (moveinOpt) {
+      chips.push({
+        key: "movein",
+        label: "",
+        value: moveinOpt.label,
+      });
+    }
+
+    const regionSummary = formatConditionRegionSummary(conditionRegions);
+    if (regionSummary) {
+      chips.push({
+        key: "region",
+        label: "지역",
+        value: regionSummary,
+      });
+    }
+  }
+
+  return chips;
 }
 
 function parseNullableNumericInput(value: string): number | null {
@@ -720,7 +856,7 @@ function buildHomeRecommendationItem(
         monthlyBurdenPercent,
       },
     },
-    unitTypes: [],
+    unitTypes: normalizeRecommendationUnitTypes({ unit_type_results: raw.unit_type_results as never }),
     bestUnitType: null,
   };
 }
@@ -766,7 +902,7 @@ export default function HomeOfferingsSection() {
   const [recommendedRawById, setRecommendedRawById] = useState<
     Map<number, HomeRawRecommendation>
   >(new Map());
-  const [appliedCustomerSummary, setAppliedCustomerSummary] = useState<string | null>(null);
+  const [appliedConditionChips, setAppliedConditionChips] = useState<ConditionChip[]>([]);
   const [showConditionSetupCard, setShowConditionSetupCard] = useState(true);
   const [homeUserId, setHomeUserId] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
@@ -1437,49 +1573,14 @@ export default function HomeOfferingsSection() {
         setRecommendedCategoriesById(nextCategories);
         setRecommendedRawById(nextRaw);
         setShowConditionSetupCard(false);
-        const summaryParts: string[] = [];
-        if (customer.available_cash > 0) {
-          summaryParts.push(`현금 ${customer.available_cash.toLocaleString("ko-KR")}만원`);
-        }
-        if (customer.monthly_income > 0) {
-          summaryParts.push(`소득 ${customer.monthly_income.toLocaleString("ko-KR")}만원`);
-        }
-        const houseOpt = HOUSE_OWNERSHIP_OPTIONS.find(
-          (option) => option.value === customer.house_ownership,
+        setAppliedConditionChips(
+          buildAppliedConditionChips({
+            customer,
+            guestMode: options?.guestMode === true,
+            resolvedGuestCreditGrade,
+            conditionRegions,
+          }),
         );
-        if (houseOpt) summaryParts.push(houseOpt.label);
-        const purposeOpt = PURPOSE_V2_OPTIONS.find(
-          (option) => option.value === customer.purchase_purpose_v2,
-        );
-        if (purposeOpt) summaryParts.push(purposeOpt.label);
-        if (options?.guestMode === true) {
-          const creditOpt = CREDIT_GRADE_OPTIONS.find(
-            (option) => option.value === resolvedGuestCreditGrade,
-          );
-          if (creditOpt) summaryParts.push(`신용 ${creditOpt.label}`);
-        } else {
-          const empOpt = EMPLOYMENT_TYPE_OPTIONS.find(
-            (option) => option.value === customer.employment_type,
-          );
-          if (empOpt) summaryParts.push(empOpt.label);
-          if (customer.monthly_expenses > 0) {
-            summaryParts.push(`지출 ${customer.monthly_expenses.toLocaleString("ko-KR")}만원`);
-          }
-          if (customer.ltv_internal_score > 0) {
-            summaryParts.push(`신용 ${customer.ltv_internal_score}점`);
-          }
-          const timingOpt = PURCHASE_TIMING_OPTIONS.find(
-            (option) => option.value === customer.purchase_timing,
-          );
-          if (timingOpt) summaryParts.push(timingOpt.label);
-          const moveinOpt = MOVEIN_TIMING_OPTIONS.find(
-            (option) => option.value === customer.movein_timing,
-          );
-          if (moveinOpt) summaryParts.push(moveinOpt.label);
-          const regionSummary = formatConditionRegionSummary(conditionRegions);
-          if (regionSummary) summaryParts.push(`지역 ${regionSummary}`);
-        }
-        setAppliedCustomerSummary(summaryParts.length > 0 ? summaryParts.join(" · ") : null);
 
         if (homeUserId && ids.length > 0) {
           const { error: requestInsertError } = await supabase
@@ -2213,7 +2314,13 @@ export default function HomeOfferingsSection() {
                       size="lg"
                       variant="primary"
                       className="mt-5 h-11 px-5 shadow-(--oboon-shadow-card)"
-                      onClick={() => setConditionModalOpen(true)}
+                      onClick={() => {
+                        if (window.innerWidth < 1024) {
+                          router.push("/recommendations/conditions/step/1");
+                        } else {
+                          setConditionModalOpen(true);
+                        }
+                      }}
                     >
                       {Copy.home.customMatch.cta}
                       <ArrowRight className="h-4 w-4" />
@@ -2258,7 +2365,13 @@ export default function HomeOfferingsSection() {
                   <div className="flex shrink-0 items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => setConditionModalOpen(true)}
+                      onClick={() => {
+                        if (window.innerWidth < 1024) {
+                          router.push("/recommendations/conditions/step/1");
+                        } else {
+                          setConditionModalOpen(true);
+                        }
+                      }}
                       className="inline-flex h-8 items-center gap-1.5 rounded-full border border-(--oboon-border-default) px-3 ob-typo-caption text-(--oboon-text-muted) transition-colors hover:border-(--oboon-primary)/60 hover:text-(--oboon-primary)"
                     >
                       <SlidersHorizontal className="h-3 w-3" />
@@ -2272,10 +2385,8 @@ export default function HomeOfferingsSection() {
                     </Link>
                   </div>
                 </div>
-                {appliedCustomerSummary ? (
-                  <p className="ob-typo-caption text-(--oboon-text-muted)">
-                    {appliedCustomerSummary}
-                  </p>
+                {appliedConditionChips.length > 0 ? (
+                  <ConditionBar chips={appliedConditionChips} />
                 ) : (
                   <p className="ob-typo-caption text-(--oboon-text-muted)">
                     {Copy.home.customMatch.listSubtitle}
@@ -2320,18 +2431,7 @@ export default function HomeOfferingsSection() {
           </p>
           <div className="mt-4 space-y-3">
             {isLoggedIn !== false && hasSavedConditionPreset && isConditionDirty ? (
-              <div className="flex items-center justify-between gap-2 rounded-xl border border-(--oboon-border-default) bg-(--oboon-bg-subtle) px-3 py-2">
-                <p className="ob-typo-caption text-(--oboon-text-muted)">
-                  저장된 기본 조건과 다릅니다.
-                </p>
-                <button
-                  type="button"
-                  onClick={handleRestoreDefaultCondition}
-                  className="shrink-0 ob-typo-caption font-medium text-(--oboon-primary) underline underline-offset-4 hover:opacity-70"
-                >
-                  기본 조건으로
-                </button>
-              </div>
+              <ConditionDirtyBanner onRestoreDefault={handleRestoreDefaultCondition} />
             ) : null}
             <ConditionWizard
               condition={wizardCondition}
@@ -2493,6 +2593,7 @@ function ResponsiveOfferingRow({
 }) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [flippedId, setFlippedId] = useState<number | null>(null);
+
   const [mobileDetailItem, setMobileDetailItem] = useState<RecommendationItem | null>(null);
   const itemIds = useMemo(
     () => new Set(items.map((item) => Number(item.id))),
@@ -2502,6 +2603,7 @@ function ResponsiveOfferingRow({
     selectedId !== null && itemIds.has(selectedId) ? selectedId : null;
   const activeFlippedId =
     flippedId !== null && itemIds.has(flippedId) ? flippedId : null;
+
   const activeMobileDetailItem =
     mobileDetailItem && itemIds.has(mobileDetailItem.property.id)
       ? mobileDetailItem
@@ -2536,10 +2638,14 @@ function ResponsiveOfferingRow({
         <OfferingCard
           offering={recommendationItem.offering}
           evalResult={recommendationItem.evalResult}
+          recommendationTier="primary"
           isSelected={activeSelectedId === Number(recommendationItem.offering.id)}
           navigateOnClick={false}
           onCardClick={() => handleMobileDetailOpen(recommendationItem)}
           interactionMode="button"
+          isLoggedIn={isLoggedIn ?? false}
+          initialScrapped={scrapedPropertyIds?.has(numericId) ?? false}
+          priority={index === 0}
         />
       );
     }
