@@ -26,7 +26,6 @@ Last reviewed: 2026-04-03
 - `app/api/agent/slots/route.ts`
 - `app/api/agent/holidays/route.ts`
 - `app/api/agent/working-hours/route.ts`
-- `app/api/notifications/route.ts`
 - `app/api/auth/create-verification-token/route.ts`
 - `app/api/auth/cleanup-temp-user/route.ts`
 - `app/api/auth/delete-and-recreate/route.ts`
@@ -51,10 +50,7 @@ Last reviewed: 2026-04-03
 - `app/api/briefing/[postId]/like/route.ts`
 - `app/api/briefing/[postId]/comments/route.ts`
 - `app/api/briefing/[postId]/comments/[commentId]/route.ts`
-- `app/api/offerings/[id]/view/route.ts`
 - `app/api/offerings/[id]/scrap/route.ts`
-- `app/api/offerings/history/route.ts`
-- `app/api/offerings/history/[id]/route.ts`
 - `app/api/consultations/route.ts`
 - `app/api/consultations/[id]/route.ts`
 - `app/api/consultations/[id]/refund/route.ts`

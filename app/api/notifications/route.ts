@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
-import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
-
-const supabaseAdmin = createSupabaseAdminClient();
 
 function isMissingSchemaError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
@@ -50,9 +47,7 @@ export async function GET() {
       );
     }
 
-    const db = supabaseAdmin;
-
-    const { data: notifications, error } = await db
+    const { data: notifications, error } = await supabase
       .from("notifications")
       .select("*")
       .eq("recipient_id", user.id)
@@ -122,11 +117,10 @@ export async function PATCH(req: Request) {
 
     const body = await req.json();
     const { notificationId, markAllRead, consultationId, type } = body;
-    const db = supabaseAdmin;
 
     // 전체 읽음 처리
     if (markAllRead) {
-      const { error } = await db
+      const { error } = await supabase
         .from("notifications")
         .update({ read_at: new Date().toISOString() })
         .eq("recipient_id", user.id)
@@ -145,7 +139,7 @@ export async function PATCH(req: Request) {
 
     // 특정 상담의 특정 타입 알림 일괄 읽음 처리
     if (consultationId && type) {
-      const { error } = await db
+      const { error } = await supabase
         .from("notifications")
         .update({ read_at: new Date().toISOString() })
         .eq("recipient_id", user.id)
@@ -172,7 +166,7 @@ export async function PATCH(req: Request) {
       );
     }
 
-    const { error } = await db
+    const { error } = await supabase
       .from("notifications")
       .update({ read_at: new Date().toISOString() })
       .eq("id", notificationId)
@@ -238,11 +232,10 @@ export async function DELETE(req: Request) {
 
     const body = await req.json();
     const { notificationId, deleteAll } = body;
-    const db = supabaseAdmin;
 
     // 전체 삭제
     if (deleteAll) {
-      const { error } = await db
+      const { error } = await supabase
         .from("notifications")
         .delete()
         .eq("recipient_id", user.id);
@@ -266,7 +259,7 @@ export async function DELETE(req: Request) {
       );
     }
 
-    const { error } = await db
+    const { error } = await supabase
       .from("notifications")
       .delete()
       .eq("id", notificationId)

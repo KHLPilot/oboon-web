@@ -1,10 +1,7 @@
 // DELETE /api/offerings/history — 전체 열람 히스토리 삭제
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { cookies } from "next/headers";
-
-const adminSupabase = createSupabaseAdminClient();
 
 export async function DELETE() {
   try {
@@ -38,7 +35,7 @@ export async function DELETE() {
       return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
     }
 
-    const { error } = await adminSupabase
+    const { error } = await supabase
       .from("offering_view_history")
       .delete()
       .eq("profile_id", user.id);

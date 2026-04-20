@@ -1,14 +1,11 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { cookies } from "next/headers";
 import { handleServiceError } from "@/lib/api/route-error";
 import {
   fetchOfferingViewSnapshot,
   incrementOfferingViewCount,
 } from "@/features/offerings/services/offeringDetail.service";
-
-const adminSupabase = createSupabaseAdminClient();
 
 function parsePropertyId(raw: string): number | null {
   const parsed = Number(raw);
@@ -73,7 +70,7 @@ export async function POST(
     } = await supabase.auth.getUser();
 
     if (user) {
-      await adminSupabase.rpc("upsert_offering_view_history", {
+      await supabase.rpc("upsert_offering_view_history", {
         p_profile_id: user.id,
         p_property_id: propertyId,
       });
