@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useState } from "react";
 import Button from "@/components/ui/Button";
+import TextButton from "@/components/ui/TextButton";
 import { getAvatarUrlOrDefault } from "@/shared/imageUrl";
 
 type Comment = {
@@ -236,13 +237,14 @@ export default function BriefingCommentSection({
                     {comment.nickname}
                   </div>
                   {currentUserId && currentUserId === comment.profile_id ? (
-                    <button
-                      type="button"
+                    <TextButton
+                      color="danger"
+                      size="sm"
+                      className="shrink-0"
                       onClick={() => handleDelete(comment.id)}
-                      className="shrink-0 ob-typo-caption text-(--oboon-text-muted) hover:text-(--oboon-danger)"
                     >
                       삭제
-                    </button>
+                    </TextButton>
                   ) : null}
                 </div>
                 <p className="mt-0.5 whitespace-pre-wrap break-words ob-typo-caption text-(--oboon-text-body)">
@@ -253,14 +255,17 @@ export default function BriefingCommentSection({
           ))}
 
           {nextCursor ? (
-            <button
-              type="button"
-              onClick={loadMore}
-              disabled={loadingMore}
-              className="w-full py-2 ob-typo-caption text-(--oboon-text-muted) transition-colors hover:text-(--oboon-text-subtle) disabled:opacity-50"
-            >
-              {loadingMore ? "불러오는 중..." : "더보기"}
-            </button>
+            <div className="w-full flex justify-center py-2">
+              <TextButton
+                color="muted"
+                size="sm"
+                onClick={loadMore}
+                disabled={loadingMore}
+                loading={loadingMore}
+              >
+                더보기
+              </TextButton>
+            </div>
           ) : null}
         </div>
       )}

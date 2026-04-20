@@ -10,9 +10,11 @@ import Button from "@/components/ui/Button";
 export default function BriefingSearchInput({
   initialQuery = "",
   className,
+  autoFocus,
 }: {
   initialQuery?: string;
   className?: string;
+  autoFocus?: boolean;
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -30,6 +32,7 @@ export default function BriefingSearchInput({
           ref={inputRef}
           type="search"
           defaultValue={initialQuery}
+          autoFocus={autoFocus ?? false}
           placeholder="브리핑 글 검색 (제목·내용)"
           className="h-10 w-full rounded-xl px-5 ob-typo-body outline-none focus:ring-2 focus:ring-(--oboon-primary)/30"
           onKeyDown={(e) => {

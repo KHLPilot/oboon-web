@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
+import Loader from "@/components/ui/Loader";
 import Button from "@/components/ui/Button";
 import { FormField } from "@/components/shared/FormField";
 import {
@@ -140,7 +141,9 @@ export default function SpecsEditorCard({
   if (loading) {
     return (
       <Card className="p-6">
-        <div className="ob-typo-body text-(--oboon-text-muted)">불러오는 중..</div>
+        <div className="flex justify-center py-12">
+          <Loader size="medium" type="primary" />
+        </div>
       </Card>
     );
   }

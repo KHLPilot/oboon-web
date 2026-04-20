@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import PageContainer from "@/components/shared/PageContainer";
 
 import { searchBriefingPosts } from "@/features/briefing/services/briefing.search";
-import BriefingSearchInput from "@/features/briefing/components/BriefingSearchInput";
+import BriefingSearchField from "@/features/briefing/components/BriefingSearchField.client";
 import BriefingCardGrid from "@/features/briefing/components/BriefingCardGrid";
 import { buildBriefingSearchMetadata } from "@/shared/briefing-seo";
 import { seoDefaultOgImage } from "@/shared/seo";
@@ -72,7 +72,7 @@ export default async function BriefingSearchPage({
       <PageContainer className="pb-20">
         {/* 검색 입력 */}
         <div className="mb-6 mt-2">
-          <BriefingSearchInput initialQuery={query} />
+          <BriefingSearchField initialQuery={query} autoFocus />
         </div>
 
         {/* 결과 헤더 */}

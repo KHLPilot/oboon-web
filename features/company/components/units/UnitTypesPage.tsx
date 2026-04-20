@@ -8,6 +8,7 @@ import { X } from "lucide-react";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Modal from "@/components/ui/Modal";
+import Loader from "@/components/ui/Loader";
 
 import type { UnitDraft, UnitRow } from "@/features/company/domain/unit.types";
 import { useUnitTypes } from "./useUnitTypes";
@@ -882,7 +883,9 @@ export default function UnitTypesPage({
           </div>
 
           {loading ? (
-            <div className="ob-typo-body text-(--oboon-text-muted)">불러오는 중...</div>
+            <div className="flex justify-center py-12">
+              <Loader size="medium" type="primary" />
+            </div>
           ) : null}
 
           <Modal

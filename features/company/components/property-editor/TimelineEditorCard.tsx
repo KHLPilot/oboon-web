@@ -6,6 +6,7 @@ import { CalendarDays } from "lucide-react";
 import Button, { type ButtonProps } from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
+import Loader from "@/components/ui/Loader";
 import OboonDatePicker from "@/components/ui/DatePicker";
 import { fetchPropertyTimeline, savePropertyTimeline } from "@/features/company/services/property.timeline";
 import { showAlert } from "@/shared/alert";
@@ -161,7 +162,9 @@ export default function TimelineEditorCard({
   if (loading) {
     return (
       <Card className="p-6">
-        <div className="ob-typo-body text-(--oboon-text-muted)">불러오는 중..</div>
+        <div className="flex justify-center py-12">
+          <Loader size="medium" type="primary" />
+        </div>
       </Card>
     );
   }

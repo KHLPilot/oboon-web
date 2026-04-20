@@ -5,6 +5,7 @@ import { Sun } from "lucide-react";
 
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
+import Toggle from "@/components/ui/Toggle";
 import Select from "@/components/ui/Select";
 import OboonDatePicker from "@/components/ui/DatePicker";
 import { showAlert } from "@/shared/alert";
@@ -40,37 +41,6 @@ function formatDateKey(date: Date) {
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
-}
-
-function ToggleSwitch({
-  checked,
-  onChange,
-  label,
-}: {
-  checked: boolean;
-  onChange: (next: boolean) => void;
-  label: string;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      onClick={() => onChange(!checked)}
-      className={[
-        "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
-        checked ? "bg-(--oboon-primary)" : "bg-(--oboon-bg-subtle)",
-      ].join(" ")}
-    >
-      <span
-        className={[
-          "inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform",
-          checked ? "translate-x-5" : "translate-x-1",
-        ].join(" ")}
-      />
-    </button>
-  );
 }
 
 export default function AgentBaseScheduleModal({
@@ -229,7 +199,7 @@ export default function AgentBaseScheduleModal({
               <Sun className="h-5 w-5 text-(--oboon-warning)" />
               영업일
             </div>
-            <ToggleSwitch
+            <Toggle
               checked={weekdayEnabled}
               onChange={handleWeekdayToggle}
               label="영업일"

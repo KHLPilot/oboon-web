@@ -236,7 +236,7 @@ export default function UnitTypeCreateForm({
           <Label>가격 상한 (원)</Label>
           <div className="mt-2">
             <Input
-              placeholder="?? 1198191000"
+              placeholder="예: 1198191000"
               value={value.price_max ?? ""}
               inputMode="numeric"
               onChange={(e) =>
@@ -384,7 +384,7 @@ export default function UnitTypeCreateForm({
           disabled={disabled}
           className="min-w-[160px]"
         >
-          ???
+          타입 등록
         </Button>
       </div>
 

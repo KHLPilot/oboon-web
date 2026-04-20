@@ -198,7 +198,7 @@ export default function HeroCounselorPreview({
       <div className="flex items-center justify-center gap-2">
         {previewItems.map((counselor, i) => (
           <button
-            key={counselor.name}
+            key={`${counselor.name}-${i}`}
             type="button"
             onClick={() => goTo(i)}
             aria-label={`${counselor.name} 보기`}
