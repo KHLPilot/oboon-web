@@ -47,6 +47,9 @@ const SIZE_CLASS: Record<ModalSize, string> = {
   lg: "w-[min(100%-2rem,560px)]",
 };
 
+const FOCUSABLE_SELECTOR =
+  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 export default function Modal({
   open,
   onClose,
@@ -57,6 +60,8 @@ export default function Modal({
   zIndexOffset,
 }: ModalProps) {
   const onCloseRef = useRef(onClose);
+  const panelRef = React.useRef<HTMLDivElement>(null);
+  const previousActiveElementRef = useRef<HTMLElement | null>(null);
   const [portalEl] = useState<HTMLDivElement | null>(() => {
     if (typeof document === "undefined") return null;
     const el = document.createElement("div");
@@ -71,6 +76,11 @@ export default function Modal({
   useEffect(() => {
     if (!open || !portalEl) return;
 
+    previousActiveElementRef.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+
     document.body.appendChild(portalEl);
 
     const prevOverflow = document.body.style.overflow;
@@ -84,14 +94,66 @@ export default function Modal({
         target.tagName === "TEXTAREA" ||
         target.isContentEditable;
 
+      if (e.key === "Tab") {
+        const panel = panelRef.current;
+        if (!panel) return;
+
+        const focusableElements = Array.from(
+          panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+        );
+
+        e.preventDefault();
+
+        if (focusableElements.length === 0) {
+          panel.focus();
+          return;
+        }
+
+        const currentElement =
+          document.activeElement instanceof HTMLElement
+            ? document.activeElement
+            : null;
+        const currentIndex = currentElement
+          ? focusableElements.indexOf(currentElement)
+          : -1;
+        const lastIndex = focusableElements.length - 1;
+
+        if (e.shiftKey) {
+          if (currentIndex <= 0) {
+            focusableElements[lastIndex]?.focus();
+            return;
+          }
+          focusableElements[currentIndex - 1]?.focus();
+          return;
+        }
+
+        if (currentIndex === -1 || currentIndex >= lastIndex) {
+          focusableElements[0]?.focus();
+          return;
+        }
+
+        focusableElements[currentIndex + 1]?.focus();
+        return;
+      }
+
       if (e.key === "Escape" && !isInputElement) onCloseRef.current();
     };
     window.addEventListener("keydown", onKeyDown);
+
+    const focusableElements = Array.from(
+      panelRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR) ?? [],
+    );
+    if (focusableElements.length > 0) {
+      focusableElements[0]?.focus();
+    } else {
+      panelRef.current?.focus();
+    }
 
     return () => {
       window.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = prevOverflow;
       if (portalEl.parentNode) portalEl.parentNode.removeChild(portalEl);
+      previousActiveElementRef.current?.focus();
     };
   }, [open, portalEl]);
 
@@ -113,6 +175,8 @@ export default function Modal({
       }}
     >
       <div
+        ref={panelRef}
+        tabIndex={-1}
         className={[
           "relative rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) px-4 pb-4 pt-6 sm:p-6 shadow-(--oboon-shadow-card) my-auto max-h-[calc(100dvh-2rem)] overflow-y-auto",
           panelSizeClass,

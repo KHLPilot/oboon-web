@@ -12,6 +12,8 @@ export type SegmentedControlProps = {
   options: SegmentedControlOption[];
   value: string;
   onChange: (value: string) => void;
+  fullWidth?: boolean;
+  className?: string;
 };
 
 type IndicatorState = {
@@ -31,6 +33,8 @@ export default function SegmentedControl({
   options,
   value,
   onChange,
+  fullWidth = false,
+  className,
 }: SegmentedControlProps) {
   const trackRef = React.useRef<HTMLDivElement>(null);
   const itemRefs = React.useRef<(HTMLButtonElement | null)[]>([]);
@@ -82,14 +86,21 @@ export default function SegmentedControl({
   }, [options, value]);
 
   return (
-    <div className="inline-flex w-fit max-w-full overflow-x-auto scrollbar-none rounded-full bg-(--oboon-bg-subtle) p-1.5 [-webkit-overflow-scrolling:touch]">
+    <div className={cn(
+      "rounded-full bg-(--oboon-bg-subtle) p-1.5",
+      fullWidth ? "flex w-full" : "inline-flex w-fit max-w-full overflow-x-auto scrollbar-none [-webkit-overflow-scrolling:touch]",
+      className,
+    )}>
       <div
         ref={trackRef}
-        className="relative inline-flex w-max flex-nowrap items-stretch gap-1 whitespace-nowrap"
+        className={cn(
+          "relative flex-nowrap items-stretch gap-1 whitespace-nowrap",
+          fullWidth ? "flex w-full" : "inline-flex w-max",
+        )}
       >
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 left-0 rounded-full bg-(--oboon-bg-surface) shadow-sm transition-transform duration-200 ease-out"
+          className="pointer-events-none absolute inset-y-0 left-0 rounded-full bg-(--oboon-primary) shadow-sm transition-transform duration-200 ease-out"
           style={{
             width: indicator.width,
             transform: `translateX(${indicator.left}px)`,
@@ -108,11 +119,13 @@ export default function SegmentedControl({
               }}
               type="button"
               onClick={() => onChange(option.value)}
+              aria-label={option.label}
               aria-pressed={isActive}
               className={cn(
-                "relative z-10 inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full px-3.5 py-2 ob-typo-button transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--oboon-accent)/30",
+                "relative z-10 inline-flex items-center justify-center gap-1.5 rounded-full px-3.5 py-2 ob-typo-button transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--oboon-accent)/30",
+                fullWidth ? "flex-1" : "shrink-0",
                 isActive
-                  ? "text-(--oboon-text-title) font-medium"
+                  ? "text-(--oboon-on-primary) font-medium"
                   : "text-(--oboon-text-muted) hover:text-(--oboon-text-title)"
               )}
             >
@@ -121,7 +134,9 @@ export default function SegmentedControl({
                   {option.icon}
                 </span>
               ) : null}
-              <span>{option.label}</span>
+              <span className={option.icon ? "hidden sm:inline" : "inline"}>
+                {option.label}
+              </span>
             </button>
           );
         })}
