@@ -117,6 +117,18 @@ function applySecurityHeaders(
   return response;
 }
 
+function isAuthBypassPath(pathname: string): boolean {
+  return pathname.startsWith("/auth/") || pathname.startsWith("/api/auth/");
+}
+
+function buildDeletedAccountResponse(request: NextRequest): NextResponse {
+  if (request.nextUrl.pathname.startsWith("/api/")) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  return NextResponse.redirect(new URL("/auth/login?error=deleted", request.url));
+}
+
 export async function middleware(request: NextRequest) {
   const nonce = btoa(crypto.randomUUID());
   const contentSecurityPolicy = buildContentSecurityPolicy(nonce);
@@ -163,7 +175,39 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (user && !isAuthBypassPath(request.nextUrl.pathname)) {
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("deleted_at")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error("[middleware] deleted account lookup failed", {
+        status: 500,
+        message: "profile lookup failed",
+      });
+    } else if (profile?.deleted_at) {
+      await supabase.auth.signOut();
+      const signOutResponse = response;
+      const deletedAccountResponse = buildDeletedAccountResponse(request);
+
+      signOutResponse.cookies.getAll().forEach((cookie) => {
+        const { name, value, ...cookieOptions } = cookie;
+        deletedAccountResponse.cookies.set({ name, value, ...cookieOptions });
+      });
+
+      return applySecurityHeaders(
+        deletedAccountResponse,
+        nonce,
+        contentSecurityPolicy,
+      );
+    }
+  }
 
   return response;
 }

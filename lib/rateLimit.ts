@@ -153,6 +153,20 @@ export const verificationTokenEmailLimiter = createLimiter(
   "1 h",
 );
 
+/** 상담 정리 작업: IP당 시간당 10회 */
+export const consultationCleanupIpLimiter = createLimiter(
+  "rl:consultation:cleanup",
+  10,
+  "1 h",
+);
+
+/** 관리자 최근 접속 조회: IP당 분당 10회 */
+export const adminAgentLastSeenIpLimiter = createLimiter(
+  "rl:admin:agent-last-seen",
+  10,
+  "1 m",
+);
+
 function parseSingleIp(value: string | null): string | null {
   if (!value) return null;
   const trimmed = value.trim();

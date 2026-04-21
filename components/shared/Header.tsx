@@ -68,7 +68,8 @@ export default function Header() {
     [],
   );
 
-  // nickname 우선 표시
+  // UI state only: this syncs the visible header with the current client session.
+  // Authorization decisions must still happen on the server.
   const loadUserData = async (currentUser: User | null) => {
     try {
       setUser(currentUser);
@@ -101,14 +102,14 @@ export default function Header() {
   };
 
   useEffect(() => {
-    const initAuth = async () => {
+    const syncHeaderFromClientSession = async () => {
       const {
         data: { session },
       } = await supabase.auth.getSession();
       await loadUserData(session?.user ?? null);
     };
 
-    void initAuth().catch((err) => {
+    void syncHeaderFromClientSession().catch((err) => {
       if (isAbortLikeError(err)) return;
       console.error("헤더 인증 초기화 오류:", err);
     });

@@ -14,6 +14,41 @@ const eslintConfig = defineConfig([
     },
   },
   {
+    files: [
+      "components/**/*.{ts,tsx,js,jsx,mjs,cjs}",
+      "features/**/*.{ts,tsx,js,jsx,mjs,cjs}",
+      "shared/**/*.{ts,tsx,js,jsx,mjs,cjs}",
+      "app/components/**/*.{ts,tsx,js,jsx,mjs,cjs}",
+      "**/*.client.{ts,tsx,js,jsx,mjs,cjs}",
+    ],
+    ignores: [
+      "**/*.server.{ts,tsx,js,jsx,mjs,cjs}",
+      "**/*.serverActions.{ts,tsx,js,jsx,mjs,cjs}",
+      "app/api/**",
+      "features/**/services/**",
+      "features/**/server/**",
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@/lib/supabaseAdmin",
+              message:
+                "Import this module only from server-only route handlers or server actions.",
+            },
+            {
+              name: "@/lib/services/supabase-admin",
+              message:
+                "Import this module only from server-only route handlers or server actions.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ["scripts/**/*.js"],
     rules: {
       "@typescript-eslint/no-require-imports": "off",
