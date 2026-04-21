@@ -12,12 +12,6 @@ const R2_BUCKET_NAME = process.env.CLOUDFLARE_R2_BUCKET_NAME!;
 const R2_ACCOUNT_HOST = `${process.env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`;
 const R2_BUCKET_HOST = `${R2_BUCKET_NAME}.${R2_ACCOUNT_HOST}`;
 
-type SignPdfBody = {
-  fileName?: unknown;
-  fileSize?: unknown;
-  contentType?: unknown;
-};
-
 function safeBaseName(fileName: string) {
   const raw = fileName.trim().split("/").pop()?.split("\\").pop() ?? "upload.pdf";
   const name = raw.replace(/\.[^.]+$/, "");
@@ -56,10 +50,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
     }
 
-    const body = (await req.json()) as SignPdfBody;
-    const fileName = String(body.fileName ?? "").trim();
-    const fileSize = Number(body.fileSize ?? 0);
-    const contentType = String(body.contentType ?? "").trim().toLowerCase();
+    const formData = await req.formData();
+    const fileName = String(formData.get("fileName") ?? "").trim();
+    const fileSize = Number(formData.get("fileSize") ?? 0);
+    const contentType = String(formData.get("contentType") ?? "").trim().toLowerCase();
+    const fileHeader = formData.get("fileHeader");
 
     if (!fileName) {
       return NextResponse.json({ error: "fileName이 필요합니다." }, { status: 400 });
@@ -74,9 +69,28 @@ export async function POST(req: Request) {
       );
     }
 
-    const lowerName = fileName.toLowerCase();
-    const isPdfType = contentType === "application/pdf" || lowerName.endsWith(".pdf");
-    if (!isPdfType) {
+    if (!(fileHeader instanceof File)) {
+      return NextResponse.json({ error: "파일 헤더가 필요합니다." }, { status: 400 });
+    }
+
+    if (!fileName.toLowerCase().endsWith(".pdf")) {
+      return NextResponse.json({ error: "PDF 파일만 업로드할 수 있습니다." }, { status: 400 });
+    }
+
+    if (contentType !== "application/pdf") {
+      return NextResponse.json({ error: "PDF 파일만 업로드할 수 있습니다." }, { status: 400 });
+    }
+
+    const headerBytes = new Uint8Array(await fileHeader.slice(0, 5).arrayBuffer());
+    const isPdf =
+      headerBytes.length === 5 &&
+      headerBytes[0] === 0x25 &&
+      headerBytes[1] === 0x50 &&
+      headerBytes[2] === 0x44 &&
+      headerBytes[3] === 0x46 &&
+      headerBytes[4] === 0x2d;
+
+    if (!isPdf) {
       return NextResponse.json({ error: "PDF 파일만 업로드할 수 있습니다." }, { status: 400 });
     }
 

@@ -2726,14 +2726,16 @@ export default function TestUploadPage() {
       const file = targetFiles[i];
       setStatus(`PDF 업로드 중... (${i + 1}/${targetFiles.length})`);
 
+      const headerBlob = file.slice(0, 5, "application/octet-stream");
+      const signFormData = new FormData();
+      signFormData.append("fileName", file.name);
+      signFormData.append("fileSize", String(file.size));
+      signFormData.append("contentType", file.type || "application/pdf");
+      signFormData.append("fileHeader", headerBlob, "pdf-header.bin");
+
       const signRes = await fetch("/api/r2/upload/sign-pdf", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileName: file.name,
-          fileSize: file.size,
-          contentType: file.type || "application/pdf",
-        }),
+        body: signFormData,
       });
       const signPayload = await signRes.json().catch(() => null);
       if (!signRes.ok || !signPayload?.uploadUrl || !signPayload?.key) {
