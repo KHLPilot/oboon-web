@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { authLimiter, getClientIp, checkRateLimit } from "@/lib/rateLimit";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { findProfileByEmail } from "@/lib/supabaseAdminAuth";
+import { parseJsonBody } from "@/lib/api/route-security";
+import { checkEmailRequestSchema } from "@/lib/auth/auth-request-schemas";
 
 const supabaseAdmin = createSupabaseAdminClient();
 
@@ -10,12 +12,14 @@ export async function POST(req: Request) {
     if (rateLimitRes) return rateLimitRes;
 
     try {
-        const body = await req.json();
-        const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : null;
-
-        if (!email) {
-            return NextResponse.json({ error: "이메일 누락" }, { status: 400 });
+        const parsed = await parseJsonBody(req, checkEmailRequestSchema, {
+            invalidInputMessage: "이메일 누락",
+        });
+        if (!parsed.ok) {
+            return parsed.response;
         }
+
+        const email = parsed.data.email.trim().toLowerCase();
 
         const profile = await findProfileByEmail(supabaseAdmin, email);
 

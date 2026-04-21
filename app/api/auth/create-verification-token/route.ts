@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { randomBytes } from "crypto";
+import { parseJsonBody } from "@/lib/api/route-security";
 import {
     handleApiError,
     handleSupabaseError,
@@ -12,6 +13,7 @@ import {
     getEmailRateLimitIdentifier,
     verificationTokenEmailLimiter,
 } from "@/lib/rateLimit";
+import { createVerificationTokenRequestSchema } from "@/lib/auth/auth-request-schemas";
 
 const supabaseAdmin = createSupabaseAdminClient();
 
@@ -19,13 +21,19 @@ export async function POST(req: Request) {
     let maskedRequestEmail: string | undefined;
 
     try {
-        const { userId, email } = await req.json();
-        const normalizedEmail =
-            typeof email === "string" ? email.trim().toLowerCase() : "";
-
-        if (!userId || !normalizedEmail) {
-            return NextResponse.json({ error: "필수 값 누락" }, { status: 400 });
+        const parsed = await parseJsonBody(
+            req,
+            createVerificationTokenRequestSchema,
+            {
+                invalidInputMessage: "필수 값 누락",
+            },
+        );
+        if (!parsed.ok) {
+            return parsed.response;
         }
+
+        const { userId, email } = parsed.data;
+        const normalizedEmail = email.trim().toLowerCase();
 
         maskedRequestEmail = maskEmail(normalizedEmail);
 

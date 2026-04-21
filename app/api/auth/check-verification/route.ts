@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { verificationLimiter, getClientIp, checkRateLimit } from "@/lib/rateLimit";
+import { parseJsonBody } from "@/lib/api/route-security";
+import { checkVerificationRequestSchema } from "@/lib/auth/auth-request-schemas";
 
 const supabaseAdmin = createSupabaseAdminClient();
 
@@ -9,17 +11,19 @@ export async function POST(req: Request) {
     if (rateLimitRes) return rateLimitRes;
 
     try {
-        const body = await req.json();
-        const token = body.token;
-
-        if (!token) {
-            return NextResponse.json({ verified: false }, { status: 400 });
+        const parsed = await parseJsonBody(req, checkVerificationRequestSchema, {
+            invalidInputMessage: "토큰이 필요합니다.",
+        });
+        if (!parsed.ok) {
+            return parsed.response;
         }
+
+        const { token } = parsed.data;
 
         // 1. 토큰으로 레코드 조회
         const { data: tokenData, error: tokenError } = await supabaseAdmin
             .from("verification_tokens")
-            .select("*")
+            .select("token, user_id, expires_at, verified")
             .eq("token", token)
             .single();
 

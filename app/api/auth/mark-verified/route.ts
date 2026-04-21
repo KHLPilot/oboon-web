@@ -9,6 +9,8 @@ import {
   handleApiError,
   handleSupabaseError,
 } from "@/lib/api/route-error";
+import { parseJsonBody } from "@/lib/api/route-security";
+import { markVerifiedRequestSchema } from "@/lib/auth/auth-request-schemas";
 import { createSupabaseServer } from "@/lib/supabaseServer";
 
 const supabaseAdmin = createSupabaseAdminClient();
@@ -26,15 +28,19 @@ export async function POST(req: Request) {
         const {
             data: { user },
         } = await supabase.auth.getUser();
-        const { userId } = await req.json();
-
-        if (!userId) {
-            return NextResponse.json({ error: "필수 값 누락" }, { status: 400 });
-        }
 
         if (!user) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
+
+        const parsed = await parseJsonBody(req, markVerifiedRequestSchema, {
+            invalidInputMessage: "필수 값 누락",
+        });
+        if (!parsed.ok) {
+            return parsed.response;
+        }
+
+        const { userId } = parsed.data;
 
         if (user.id !== userId) {
             return NextResponse.json({ error: "Forbidden" }, { status: 403 });

@@ -14,6 +14,8 @@ import {
   logApiError,
   maskEmail,
 } from "@/lib/api/route-error";
+import { parseJsonBody } from "@/lib/api/route-security";
+import { restoreAccountRequestSchema } from "@/lib/auth/auth-request-schemas";
 import { verifyRestoreToken } from "@/lib/auth/restoreToken";
 
 const supabaseAdmin = createSupabaseAdminClient();
@@ -29,18 +31,16 @@ export async function POST(req: Request) {
   let maskedRequestEmail: string | undefined;
 
   try {
-    const { restoreToken, email } = await req.json();
-    const normalizedEmail =
-      typeof email === "string" ? email.trim().toLowerCase() : "";
-    const userId =
-      typeof restoreToken === "string" ? verifyRestoreToken(restoreToken) : null;
-
-    if (!normalizedEmail || typeof restoreToken !== "string") {
-      return NextResponse.json(
-        { error: "restoreToken과 email이 필요합니다." },
-        { status: 400 }
-      );
+    const parsed = await parseJsonBody(req, restoreAccountRequestSchema, {
+      invalidInputMessage: "restoreToken과 email이 필요합니다.",
+    });
+    if (!parsed.ok) {
+      return parsed.response;
     }
+
+    const { restoreToken, email } = parsed.data;
+    const normalizedEmail = email.trim().toLowerCase();
+    const userId = verifyRestoreToken(restoreToken);
 
     maskedRequestEmail = maskEmail(normalizedEmail);
 

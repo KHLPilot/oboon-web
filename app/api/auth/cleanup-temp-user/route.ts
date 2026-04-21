@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { verifyBearerToken } from "@/lib/api/internal-auth";
 import { handleApiError } from "@/lib/api/route-error";
+import { parseJsonBody } from "@/lib/api/route-security";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { findAuthUserByEmail } from "@/lib/supabaseAdminAuth";
+import { cleanupTempUserRequestSchema } from "@/lib/auth/auth-request-schemas";
 
 const supabaseAdmin = createSupabaseAdminClient();
 
@@ -15,13 +17,14 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const { email } = await req.json();
-        const normalizedEmail =
-            typeof email === "string" ? email.trim().toLowerCase() : "";
-
-        if (!normalizedEmail) {
-            return NextResponse.json({ error: "이메일 누락" }, { status: 400 });
+        const parsed = await parseJsonBody(req, cleanupTempUserRequestSchema, {
+            invalidInputMessage: "이메일 누락",
+        });
+        if (!parsed.ok) {
+            return parsed.response;
         }
+
+        const normalizedEmail = parsed.data.email.trim().toLowerCase();
 
         const targetUser = await findAuthUserByEmail(supabaseAdmin, normalizedEmail);
 

@@ -16,6 +16,8 @@ import {
   findAuthUserByEmail,
   findProfileByEmail,
 } from "@/lib/supabaseAdminAuth";
+import { parseJsonBody } from "@/lib/api/route-security";
+import { checkDeletedAccountRequestSchema } from "@/lib/auth/auth-request-schemas";
 
 const supabaseAdmin = createSupabaseAdminClient();
 
@@ -23,17 +25,14 @@ export async function POST(req: Request) {
   let maskedRequestEmail: string | undefined;
 
   try {
-    const { email, needBanCheck } = await req.json();
-    const normalizedEmail =
-      typeof email === "string" ? email.trim().toLowerCase() : "";
-
-    if (!normalizedEmail) {
-      return NextResponse.json(
-        { error: "이메일이 필요합니다." },
-        { status: 400 }
-      );
+    const parsed = await parseJsonBody(req, checkDeletedAccountRequestSchema, {
+      invalidInputMessage: "이메일이 필요합니다.",
+    });
+    if (!parsed.ok) {
+      return parsed.response;
     }
 
+    const { email: normalizedEmail, needBanCheck } = parsed.data;
     maskedRequestEmail = maskEmail(normalizedEmail);
 
     const rateLimitRes = await checkAuthRateLimit(

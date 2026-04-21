@@ -4,19 +4,40 @@ import {
   handleApiError,
   handleSupabaseError,
 } from "@/lib/api/route-error";
+import { parseJsonBody } from "@/lib/api/route-security";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import {
+  checkAuthRateLimit,
+  getClientIp,
+  restoreAccountIpLimiter,
+} from "@/lib/rateLimit";
+import { deleteAndRecreateRequestSchema } from "@/lib/auth/auth-request-schemas";
 import { verifyRestoreToken } from "@/lib/auth/restoreToken";
 
 const supabaseAdmin = createSupabaseAdminClient();
 
 export async function POST(req: Request) {
-  try {
-    const { restoreToken } = await req.json();
-    const userId =
-      typeof restoreToken === "string" ? verifyRestoreToken(restoreToken) : null;
+  const rateLimitRes = await checkAuthRateLimit(
+    restoreAccountIpLimiter,
+    getClientIp(req),
+    { windowMs: 60 * 1000 },
+  );
+  if (rateLimitRes) return rateLimitRes;
 
+  try {
+    const parsed = await parseJsonBody(req, deleteAndRecreateRequestSchema, {
+      invalidInputMessage: "유효하지 않은 복구 요청입니다.",
+    });
+    if (!parsed.ok) {
+      return parsed.response;
+    }
+
+    const userId = verifyRestoreToken(parsed.data.restoreToken);
     if (!userId) {
-      return NextResponse.json({ error: "유효하지 않은 복구 요청입니다." }, { status: 403 });
+      return NextResponse.json(
+        { error: "유효하지 않은 복구 요청입니다." },
+        { status: 403 },
+      );
     }
 
     // 1. profiles를 참조하는 테이블들 정리

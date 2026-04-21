@@ -9,6 +9,7 @@ import {
   readOAuthStateCookie,
   resolveMatchingOAuthState,
 } from "@/lib/auth/oauthState";
+import { oauthCallbackQuerySchema } from "@/lib/auth/auth-request-schemas";
 import {
   checkAuthRateLimit,
   getClientIp,
@@ -54,15 +55,25 @@ export async function GET(req: Request) {
     .getAll("state")
     .map((value) => value.trim())
     .filter(Boolean);
-  const matchedState = resolveMatchingOAuthState(storedState, stateCandidates);
-  const code = url.searchParams.get("code")?.trim();
-
-  if (!matchedState) {
-    return invalidStateResponse();
-  }
+  const code = url.searchParams.get("code")?.trim() ?? "";
 
   if (!code) {
     return redirectWithClearedState(siteOrigin, "/auth/login?error=no_code");
+  }
+
+  const parsed = oauthCallbackQuerySchema.safeParse({
+    code,
+    state: stateCandidates,
+  });
+
+  if (!parsed.success) {
+    return invalidStateResponse();
+  }
+
+  const matchedState = resolveMatchingOAuthState(storedState, parsed.data.state);
+
+  if (!matchedState) {
+    return invalidStateResponse();
   }
 
   try {

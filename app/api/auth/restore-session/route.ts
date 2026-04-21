@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import { handleApiError } from "@/lib/api/route-error";
+import { restoreSessionRequestSchema } from "@/lib/auth/auth-request-schemas";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import {
   checkAuthRateLimit,
   getClientIp,
@@ -13,9 +14,7 @@ import {
   RESTORE_SESSION_COOKIE_NAME,
 } from "@/lib/auth/restoreSessionCookie";
 
-const requestSchema = z.object({
-  sessionKey: z.string().uuid().optional(),
-});
+const supabaseAdmin = createSupabaseAdminClient();
 
 export async function POST(req: NextRequest) {
   const rateLimitRes = await checkAuthRateLimit(
@@ -33,7 +32,7 @@ export async function POST(req: NextRequest) {
       body = null;
     }
 
-    const parsed = requestSchema.safeParse(body ?? {});
+    const parsed = restoreSessionRequestSchema.safeParse(body ?? {});
     if (!parsed.success && body !== null) {
       return NextResponse.json(
         { error: "입력값이 올바르지 않습니다." },
@@ -58,6 +57,26 @@ export async function POST(req: NextRequest) {
         { error: "유효하지 않은 복구 세션입니다." },
         { status: 403 },
       );
+    }
+
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .select("deleted_at")
+      .eq("id", session.userId)
+      .maybeSingle();
+
+    if (profileError) {
+      return handleApiError("restore-session", profileError, {
+        clientMessage: "서버 오류",
+      });
+    }
+
+    if (!profile?.deleted_at) {
+      const response = NextResponse.json(
+        { error: "유효하지 않은 복구 세션입니다." },
+        { status: 403 },
+      );
+      return clearRestoreSessionCookie(response);
     }
 
     const response = NextResponse.json(
