@@ -20,12 +20,17 @@ type SettlementRow = {
   customer_name: string | null;
   customer_avatar_url: string | null;
   customer_bank_name: string | null;
-  customer_bank_account_number: string | null;
   customer_bank_account_holder: string | null;
   agent_name: string | null;
   agent_avatar_url: string | null;
   deposit_amount: number;
   refund_amount: number;
+};
+
+type SettlementBankAccount = {
+  bank_name: string | null;
+  bank_account_number: string | null;
+  bank_account_holder: string | null;
 };
 
 type Props = {
@@ -89,6 +94,7 @@ export default function SettlementDetailModal({
 }: Props) {
   const toast = useToast();
   const [summary, setSummary] = useState<SettlementSummary | null>(null);
+  const [bankAccount, setBankAccount] = useState<SettlementBankAccount | null>(null);
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
 
@@ -109,17 +115,39 @@ export default function SettlementDetailModal({
     }
   }, [row?.id]);
 
+  const loadBankAccount = useCallback(async () => {
+    if (!row?.id) return;
+    try {
+      const response = await fetch(`/api/admin/settlements/${row.id}/bank-account`);
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "계좌 정보 조회 실패");
+      }
+      setBankAccount({
+        bank_name: typeof data?.bank_name === "string" ? data.bank_name : null,
+        bank_account_number:
+          typeof data?.bank_account_number === "string" ? data.bank_account_number : null,
+        bank_account_holder:
+          typeof data?.bank_account_holder === "string" ? data.bank_account_holder : null,
+      });
+    } catch {
+      setBankAccount(null);
+    }
+  }, [row?.id]);
+
   useEffect(() => {
     if (!open || !row?.id) return;
     let cancelled = false;
+    setSummary(null);
+    setBankAccount(null);
     void (async () => {
       if (cancelled) return;
-      await loadSummary();
+      await Promise.all([loadSummary(), loadBankAccount()]);
     })();
     return () => {
       cancelled = true;
     };
-  }, [open, row?.id, loadSummary]);
+  }, [open, row?.id, loadBankAccount, loadSummary]);
 
   const handleRefundComplete = useCallback(async () => {
     if (!row?.id || !summary?.is_refund_pending) return;
@@ -348,7 +376,7 @@ export default function SettlementDetailModal({
                   은행
                 </div>
                 <div className="mt-1 ob-typo-subtitle text-(--oboon-text-title)">
-                  {row.customer_bank_name?.trim() || "미등록"}
+                  {bankAccount?.bank_name?.trim() || row.customer_bank_name?.trim() || "미등록"}
                 </div>
               </div>
               <div className="min-w-0">
@@ -356,7 +384,7 @@ export default function SettlementDetailModal({
                   계좌번호
                 </div>
                 <div className="mt-1 ob-typo-subtitle text-(--oboon-text-title)">
-                  {row.customer_bank_account_number?.trim() || "미등록"}
+                  {bankAccount?.bank_account_number?.trim() || "미등록"}
                 </div>
               </div>
               <div className="min-w-0">
@@ -364,7 +392,7 @@ export default function SettlementDetailModal({
                   입금자명
                 </div>
                 <div className="mt-1 ob-typo-subtitle text-(--oboon-text-title)">
-                  {row.customer_bank_account_holder?.trim() || "미등록"}
+                  {bankAccount?.bank_account_holder?.trim() || row.customer_bank_account_holder?.trim() || "미등록"}
                 </div>
               </div>
             </div>

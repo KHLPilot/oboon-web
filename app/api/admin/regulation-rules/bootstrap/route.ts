@@ -10,7 +10,7 @@ export async function POST(request: Request) {
 
   try {
     const { searchParams, origin } = new URL(request.url);
-    const dryRun = searchParams.get("dryRun") !== "false";
+    const dryRun = searchParams.get("dryRun") === "true";
     const cronSecret = process.env.CRON_SECRET;
     const response = await fetch(
       `${origin}/api/cron/regulation-rules-bootstrap?dryRun=${dryRun ? "true" : "false"}`,

@@ -1,13 +1,7 @@
 import { NextResponse } from "next/server";
+import { adminRecoPoisRunQuerySchema } from "../../_schemas";
 import { requireAdminRoute } from "@/lib/api/admin-route";
 import { handleApiError } from "@/lib/api/route-error";
-
-function toPositiveInt(value: string | null, fallback: number): number {
-  if (!value) return fallback;
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
-  return Math.floor(parsed);
-}
 
 export async function POST(request: Request) {
   const auth = await requireAdminRoute();
@@ -17,10 +11,22 @@ export async function POST(request: Request) {
 
   try {
     const { searchParams, origin } = new URL(request.url);
-    const chunk = toPositiveInt(searchParams.get("chunk"), 100);
-    const topN = toPositiveInt(searchParams.get("topN"), 3);
-    const radius = toPositiveInt(searchParams.get("radius"), 2000);
-    const concurrency = toPositiveInt(searchParams.get("concurrency"), 4);
+    const parsed = adminRecoPoisRunQuerySchema.safeParse({
+      chunk: searchParams.get("chunk") ?? undefined,
+      topN: searchParams.get("topN") ?? undefined,
+      radius: searchParams.get("radius") ?? undefined,
+      concurrency: searchParams.get("concurrency") ?? undefined,
+    });
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "유효하지 않은 요청입니다." },
+        { status: 400 },
+      );
+    }
+    const chunk = parsed.data.chunk ?? 100;
+    const topN = parsed.data.topN ?? 3;
+    const radius = parsed.data.radius ?? 2000;
+    const concurrency = parsed.data.concurrency ?? 4;
 
     const cronSecret = process.env.CRON_SECRET;
     const response = await fetch(

@@ -41,7 +41,6 @@ export type SettlementRow = {
   customer_name: string | null;
   customer_avatar_url: string | null;
   customer_bank_name: string | null;
-  customer_bank_account_number: string | null;
   customer_bank_account_holder: string | null;
   agent_name: string | null;
   agent_avatar_url: string | null;

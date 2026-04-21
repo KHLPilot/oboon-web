@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { adminSupabase, requireAdminRoute } from "@/lib/api/admin-route";
 import { handleApiError } from "@/lib/api/route-error";
+import { adminAppraisalsNearbyQuerySchema } from "../../_schemas";
 
 type HousingKind = "apartment" | "officetel";
 
@@ -248,18 +249,6 @@ function parseKinds(raw: string | null): HousingKind[] {
     .filter((v): v is HousingKind => v === "apartment" || v === "officetel");
   if (values.length === 0) return ["apartment", "officetel"];
   return Array.from(new Set(values));
-}
-
-function parseRadius(raw: string | null): number {
-  const n = Number(raw ?? 1000);
-  if (!Number.isFinite(n)) return 1000;
-  return Math.min(20_000, Math.max(50, Math.floor(n)));
-}
-
-function parseLimit(raw: string | null): number {
-  const n = Number(raw ?? 30);
-  if (!Number.isFinite(n)) return 30;
-  return Math.min(60, Math.max(1, Math.floor(n)));
 }
 
 function parseDateIso(value: string | null | undefined): string | null {
@@ -537,18 +526,26 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const lat = toFiniteNumber(searchParams.get("lat"));
-  const lng = toFiniteNumber(searchParams.get("lng"));
-  const radiusM = parseRadius(searchParams.get("radius"));
-  const limit = parseLimit(searchParams.get("limit"));
-  const kinds = parseKinds(searchParams.get("types"));
+  const parsed = adminAppraisalsNearbyQuerySchema.safeParse({
+    lat: searchParams.get("lat") ?? undefined,
+    lng: searchParams.get("lng") ?? undefined,
+    radius: searchParams.get("radius") ?? undefined,
+    limit: searchParams.get("limit") ?? undefined,
+    types: searchParams.get("types") ?? undefined,
+  });
 
-  if (lat === null || lng === null) {
+  if (!parsed.success) {
     return NextResponse.json(
       { error: "lat, lng 파라미터가 필요합니다." },
       { status: 400 },
     );
   }
+
+    const lat = parsed.data.lat;
+    const lng = parsed.data.lng;
+    const radiusM = parsed.data.radius ?? 1000;
+    const limit = parsed.data.limit ?? 30;
+    const kinds = parseKinds(parsed.data.types ?? null);
 
   try {
     const { items: kakaoItems, warnings } = await fetchKakaoCandidates({

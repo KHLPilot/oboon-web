@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { adminSupabase, requireAdminRoute } from "@/lib/api/admin-route";
-import { normalizeStoredProfileBankAccount } from "@/lib/profileBankAccount";
 
 export const dynamic = "force-dynamic";
 
@@ -72,7 +71,6 @@ type ProfileRow = {
   nickname: string | null;
   avatar_url: string | null;
   bank_name: string | null;
-  bank_account_number: string | null;
   bank_account_holder: string | null;
 };
 
@@ -161,7 +159,7 @@ export async function GET() {
       profileIds.length
         ? adminSupabase
             .from("profiles")
-            .select("id, name, nickname, avatar_url, bank_name, bank_account_number, bank_account_holder")
+            .select("id, name, nickname, avatar_url, bank_name, bank_account_holder")
             .in("id", profileIds)
         : Promise.resolve({ data: [] as ProfileRow[] }),
     ]);
@@ -349,24 +347,8 @@ export async function GET() {
           customerFromJoin?.avatar_url ??
           customerProfile?.avatar_url ??
           null;
-        const customerBankAccount = customerProfile
-          ? await normalizeStoredProfileBankAccount(
-              customerProfile.id,
-              {
-                bank_name: customerProfile.bank_name,
-                bank_account_number: customerProfile.bank_account_number,
-                bank_account_holder: customerProfile.bank_account_holder,
-              },
-              adminSupabase,
-            )
-          : {
-              bank_name: null,
-              bank_account_number: null,
-              bank_account_holder: null,
-            };
-        const customerBankName = customerBankAccount.bank_name;
-        const customerBankAccountNumber = customerBankAccount.bank_account_number;
-        const customerBankAccountHolder = customerBankAccount.bank_account_holder;
+        const customerBankName = customerProfile?.bank_name ?? null;
+        const customerBankAccountHolder = customerProfile?.bank_account_holder ?? null;
         const agentAvatar =
           agentPublic?.avatar_url ??
           agentFromJoin?.avatar_url ??
@@ -396,7 +378,6 @@ export async function GET() {
           customer_name: customerName,
           customer_avatar_url: customerAvatar,
           customer_bank_name: customerBankName,
-          customer_bank_account_number: customerBankAccountNumber,
           customer_bank_account_holder: customerBankAccountHolder,
           agent_name: agentName,
           agent_avatar_url: agentAvatar,

@@ -1,18 +1,11 @@
 import { NextResponse } from "next/server";
 import { adminSupabase, requireAdminRoute } from "@/lib/api/admin-route";
 import { handleSupabaseError } from "@/lib/api/route-error";
-
-type NoticePayload = {
-  id?: number;
-  title?: string;
-  summary?: string;
-  content?: string;
-  category?: "update" | "service" | "event" | "maintenance";
-  isPinned?: boolean;
-  isMaintenance?: boolean;
-  isPublished?: boolean;
-  publishedAt?: string;
-};
+import {
+  adminNoticeCreateSchema,
+  adminNoticeDeleteQuerySchema,
+  adminNoticeUpdateSchema,
+} from "../_schemas";
 
 async function generateNextNumericSlug() {
   const { data } = await adminSupabase
@@ -65,14 +58,11 @@ export async function POST(request: Request) {
     return auth.response;
   }
 
-  const body = (await request.json()) as NoticePayload;
-  const title = String(body.title ?? "").trim();
-  const content = String(body.content ?? "").trim();
-  const category = body.category;
-
-  if (!title || !content || !category) {
+  const parsed = adminNoticeCreateSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
     return NextResponse.json({ error: "필수 항목이 누락되었습니다." }, { status: 400 });
   }
+  const body = parsed.data;
 
   const slug = await generateNextNumericSlug();
 
@@ -80,10 +70,10 @@ export async function POST(request: Request) {
     .from("notices")
     .insert({
       slug,
-      title,
-      summary: String(body.summary ?? "").trim(),
-      content,
-      category,
+      title: body.title,
+      summary: body.summary,
+      content: body.content,
+      category: body.category,
       is_pinned: body.isPinned === true,
       is_maintenance: body.isMaintenance === true,
       is_published: body.isPublished !== false,
@@ -111,26 +101,19 @@ export async function PUT(request: Request) {
     return auth.response;
   }
 
-  const body = (await request.json()) as NoticePayload;
-  const id = Number(body.id);
-  if (!Number.isFinite(id)) {
-    return NextResponse.json({ error: "공지 ID가 필요합니다." }, { status: 400 });
-  }
-
-  const title = String(body.title ?? "").trim();
-  const content = String(body.content ?? "").trim();
-  const category = body.category;
-  if (!title || !content || !category) {
+  const parsed = adminNoticeUpdateSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
     return NextResponse.json({ error: "필수 항목이 누락되었습니다." }, { status: 400 });
   }
+  const body = parsed.data;
 
   const { data, error } = await adminSupabase
     .from("notices")
     .update({
-      title,
-      summary: String(body.summary ?? "").trim(),
-      content,
-      category,
+      title: body.title,
+      summary: body.summary,
+      content: body.content,
+      category: body.category,
       is_pinned: body.isPinned === true,
       is_maintenance: body.isMaintenance === true,
       is_published: body.isPublished !== false,
@@ -138,7 +121,7 @@ export async function PUT(request: Request) {
       updated_by: auth.user.id,
       updated_at: new Date().toISOString(),
     })
-    .eq("id", id)
+    .eq("id", body.id)
     .select(
       "id, slug, title, summary, content, category, is_pinned, is_maintenance, is_published, published_at, created_at, updated_at",
     )
@@ -160,12 +143,14 @@ export async function DELETE(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const id = Number(searchParams.get("id"));
-  if (!Number.isFinite(id)) {
+  const parsed = adminNoticeDeleteQuerySchema.safeParse({
+    id: searchParams.get("id") ?? undefined,
+  });
+  if (!parsed.success) {
     return NextResponse.json({ error: "공지 ID가 필요합니다." }, { status: 400 });
   }
 
-  const { error } = await adminSupabase.from("notices").delete().eq("id", id);
+  const { error } = await adminSupabase.from("notices").delete().eq("id", parsed.data.id);
   if (error) {
     return handleSupabaseError("admin/notices 삭제", error, {
       defaultMessage: "공지 삭제에 실패했습니다.",

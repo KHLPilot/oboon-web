@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { adminSupabase, requireAdminRoute } from "@/lib/api/admin-route";
 import { handleSupabaseError } from "@/lib/api/route-error";
 
@@ -7,19 +8,30 @@ type RegulationArea =
   | "adjustment_target"
   | "speculative_overheated";
 
-type RegulationRulePayload = {
-  id?: number;
-  region1?: string;
-  region2?: string | null;
-  region3?: string | null;
-  regulationArea?: RegulationArea;
-  regulationAreas?: RegulationArea[];
-  replaceAreas?: boolean;
-  isActive?: boolean;
-  effectiveFrom?: string | null;
-  effectiveTo?: string | null;
-  note?: string | null;
-};
+const regulationAreaSchema = z.enum([
+  "non_regulated",
+  "adjustment_target",
+  "speculative_overheated",
+]);
+
+const regulationRuleBaseSchema = z.object({
+  region1: z.string().trim().min(1).max(100).optional(),
+  region2: z.string().trim().min(1).max(100).nullable().optional(),
+  region3: z.string().trim().min(1).max(100).nullable().optional(),
+  regulationArea: regulationAreaSchema.optional(),
+  regulationAreas: z.array(regulationAreaSchema).max(20).optional(),
+  replaceAreas: z.boolean().optional(),
+  isActive: z.boolean().optional(),
+  effectiveFrom: z.string().trim().max(32).nullable().optional(),
+  effectiveTo: z.string().trim().max(32).nullable().optional(),
+  note: z.string().trim().max(500).nullable().optional(),
+});
+
+const regulationRulePostSchema = regulationRuleBaseSchema;
+
+const regulationRulePutSchema = regulationRuleBaseSchema.extend({
+  id: z.number().int().positive(),
+});
 
 type RegulationRuleRow = {
   id: number;
@@ -134,7 +146,15 @@ export async function POST(request: Request) {
     return auth.response;
   }
 
-  const body = (await request.json()) as RegulationRulePayload;
+  const parsed = regulationRulePostSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "유효하지 않은 규제 룰 요청입니다." },
+      { status: 400 },
+    );
+  }
+
+  const body = parsed.data;
   const region1 = normalizeSegment(body.region1);
   const region2 = normalizeSegment(body.region2);
   const region3 = normalizeSegment(body.region3);
@@ -222,11 +242,16 @@ export async function PUT(request: Request) {
     return auth.response;
   }
 
-  const body = (await request.json()) as RegulationRulePayload;
-  const id = Number(body.id);
-  if (!Number.isFinite(id)) {
-    return NextResponse.json({ error: "ID가 필요합니다." }, { status: 400 });
+  const parsed = regulationRulePutSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "유효하지 않은 규제 룰 요청입니다." },
+      { status: 400 },
+    );
   }
+
+  const body = parsed.data;
+  const id = body.id;
 
   const { data: existing, error: existingError } = await adminSupabase
     .from("regulation_rules")

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminSupabase, requireAdminRoute } from "@/lib/api/admin-route";
-
-type ApproveAgentBody = {
-  userId?: unknown;
-};
+import { recordAdminAuditLog } from "@/lib/adminAudit";
+import { parseJsonBody } from "@/lib/api/route-security";
+import { getClientIp } from "@/lib/rateLimit";
+import { adminApproveAgentRequestSchema } from "../_schemas";
 
 export async function POST(req: NextRequest) {
   const auth = await requireAdminRoute();
@@ -11,17 +11,13 @@ export async function POST(req: NextRequest) {
     return auth.response;
   }
 
-  let body: ApproveAgentBody;
-  try {
-    body = (await req.json()) as ApproveAgentBody;
-  } catch {
-    return NextResponse.json({ error: "유효하지 않은 입력" }, { status: 400 });
+  const parsed = await parseJsonBody(req, adminApproveAgentRequestSchema, {
+    invalidInputMessage: "유효하지 않은 입력",
+  });
+  if (!parsed.ok) {
+    return parsed.response;
   }
-
-  const userId = typeof body.userId === "string" ? body.userId.trim() : "";
-  if (!userId) {
-    return NextResponse.json({ error: "유효하지 않은 입력" }, { status: 400 });
-  }
+  const { userId } = parsed.data;
 
   const { data: target, error: targetError } = await adminSupabase
     .from("profiles")
@@ -48,6 +44,18 @@ export async function POST(req: NextRequest) {
       { status: 409 },
     );
   }
+
+  await recordAdminAuditLog(adminSupabase, {
+    adminId: auth.user.id,
+    action: "approve_agent",
+    targetType: "profile",
+    targetId: userId,
+    metadata: {
+      ip: getClientIp(req),
+      userAgent: req.headers.get("user-agent"),
+      previousRole: target.role,
+    },
+  });
 
   const { data: updatedTarget, error: updateError } = await adminSupabase
     .from("profiles")

@@ -1,7 +1,17 @@
 import { NextResponse } from "next/server";
 import { adminSupabase, requireAdminRoute } from "@/lib/api/admin-route";
+import { parseJsonBody, uuidV4Schema } from "@/lib/api/route-security";
+import {
+  adminAgentLastSeenIpLimiter,
+  checkAuthRateLimit,
+  getClientIp,
+} from "@/lib/rateLimit";
+import { z } from "zod";
 
 const GET_USER_BATCH_SIZE = 20;
+const agentLastSeenRequestSchema = z.object({
+  userIds: z.array(uuidV4Schema).max(100).default([]),
+});
 
 export async function POST(req: Request) {
   const auth = await requireAdminRoute();
@@ -10,18 +20,21 @@ export async function POST(req: Request) {
   }
 
   try {
-    const body = (await req.json().catch(() => ({}))) as { userIds?: unknown };
-    const userIds = Array.from(
-      new Set(
-        (Array.isArray(body.userIds) ? body.userIds : [])
-          .map((id) => String(id ?? "").trim())
-          .filter((id) => id.length > 0),
-      ),
+    const rateLimitRes = await checkAuthRateLimit(
+      adminAgentLastSeenIpLimiter,
+      getClientIp(req),
+      { windowMs: 60 * 1000 },
     );
+    if (rateLimitRes) return rateLimitRes;
 
-    if (userIds.length === 0) {
-      return NextResponse.json({ lastSignInAtByUserId: {} as Record<string, string | null> });
+    const parsed = await parseJsonBody(req, agentLastSeenRequestSchema, {
+      invalidInputMessage: "userIds가 필요합니다.",
+    });
+    if (!parsed.ok) {
+      return parsed.response;
     }
+
+    const userIds = Array.from(new Set(parsed.data.userIds));
 
     const lastSignInAtByUserId: Record<string, string | null> = {};
 
