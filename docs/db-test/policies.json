@@ -851,6 +851,26 @@
   },
   {
     "schemaname": "public",
+    "tablename": "famous_school_zones",
+    "policyname": "famous_school_zones_select_public",
+    "permissive": "PERMISSIVE",
+    "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "famous_school_zones",
+    "policyname": "famous_school_zones_write_service_role",
+    "permissive": "PERMISSIVE",
+    "roles": "{service_role}",
+    "cmd": "ALL",
+    "using_expression": "true",
+    "with_check_expression": "true"
+  },
+  {
+    "schemaname": "public",
     "tablename": "faq_categories",
     "policyname": "faq_categories_admin_all",
     "permissive": "PERMISSIVE",
@@ -1078,6 +1098,16 @@
     "cmd": "SELECT",
     "using_expression": "((auth.uid() = id) OR ((auth.jwt() ->> 'role'::text) = 'admin'::text))",
     "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "profiles",
+    "policyname": "profiles_update_own_cv_fields",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
+    "cmd": "UPDATE",
+    "using_expression": "((auth.uid() IS NOT NULL) AND (auth.uid() = id) AND (deleted_at IS NULL))",
+    "with_check_expression": "((auth.uid() IS NOT NULL) AND (auth.uid() = id) AND (deleted_at IS NULL) AND (NOT (role IS DISTINCT FROM ( SELECT p.role\n   FROM profiles p\n  WHERE (p.id = auth.uid())))) AND (NOT (email IS DISTINCT FROM ( SELECT p.email\n   FROM profiles p\n  WHERE (p.id = auth.uid())))))"
   },
   {
     "schemaname": "public",
@@ -1625,6 +1655,16 @@
     "policyname": "property_unit_types_select_all",
     "permissive": "PERMISSIVE",
     "roles": "{public}",
+    "cmd": "SELECT",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "property_unit_validation_profiles",
+    "policyname": "authenticated can read unit validation profiles",
+    "permissive": "PERMISSIVE",
+    "roles": "{authenticated}",
     "cmd": "SELECT",
     "using_expression": "true",
     "with_check_expression": null

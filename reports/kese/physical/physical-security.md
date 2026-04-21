@@ -1,25 +1,8 @@
-# 물리적 보안 취약점 분석 — B-01 ~ B-09
+# Physical Security Assessment
 
-**대상**: `oboon-web` 물리 인프라
-**평가 일자**: 2026-03-31
+## Status
+- Status: N/A
+- Reason: No physical-site, server-room, badge, CCTV, or asset-control evidence was available in the repository.
 
-이 프로젝트는 Vercel, Supabase Cloud, Cloudflare R2 중심의 클라우드 서비스 위에서 운영된다.
-현재 저장소만으로는 물리 시설, 출입 통제, CCTV, 장비 반출입 절차를 직접 검증할 수 없다.
-따라서 물리 항목은 모두 클라우드 제공사 통제로 이전되며, 자체 서버실 기준으로는 `N/A`로 평가한다.
-
-| 항목 | 제목 | 판정 | 근거 |
-|------|------|------|------|
-| B-01 | 보호구역 지정 | N/A | 자체 서버실/IDC 운영 정보 없음 |
-| B-02 | 출입 통제 절차 | N/A | 클라우드 제공사 통제 영역 |
-| B-03 | 출입 기록 보관 | N/A | 클라우드 제공사 통제 영역 |
-| B-04 | CCTV 설치 및 운영 | N/A | 클라우드 제공사 통제 영역 |
-| B-05 | 방문자 통제 | N/A | 클라우드 제공사 통제 영역 |
-| B-06 | 자산 반출입 통제 | N/A | 클라우드 제공사 통제 영역 |
-| B-07 | 환경 보호 장비 | N/A | 클라우드 제공사 통제 영역 |
-| B-08 | 케이블 보안 | N/A | 클라우드 제공사 통제 영역 |
-| B-09 | 문서 보안 | 부분이행 | 소스코드는 저장소에서 관리되지만 물리 문서 보관 절차는 본 평가 범위 밖 |
-
-## 추가 확인 권고
-
-- Vercel / Supabase / Cloudflare의 최신 SOC 2, ISO 27001 등 보안 인증서 확인
-- 운영 조직 차원의 기기 분실·반출 정책, 인쇄 문서 폐기 정책 문서화
+## Conclusion
+- Physical security must be validated through onsite or facilities records, not code review.

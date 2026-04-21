@@ -1,21 +1,17 @@
-# Unix/Linux 취약점 분석 — U-01 ~ U-68
+# Unix/Linux Technical Assessment
 
-**대상**: OBOON-WEB 서버 환경
-**분석 일자**: 2026-03-28
+## Status
+- Status: N/A
+- Reason: No host-level shell or filesystem access outside the repository was available.
 
-> ⚠️ 본 프로젝트는 **서버리스 환경**(Vercel Edge Functions / Serverless Functions)에서 운영됩니다.
-> 직접 접근 가능한 Unix/Linux 서버가 없으므로 **전 항목 N/A**입니다.
-> Vercel 플랫폼이 OS 레벨 보안을 완전히 관리합니다.
+## What Was Checked
+- Repository-only evidence for server-side environment handling
+- Secret management conventions in `.env.example`
+- Server-only usage patterns in `lib/**` and `app/api/**`
 
----
+## Observations
+- The project documents server-only secrets and prevents client-side exposure in `docs/reference/secret-inventory.md`.
+- Service-role usage is intentionally limited to server routes, admin operations, and batch jobs.
 
-| 범주 | 항목 | 판정 |
-|------|------|------|
-| 계정 관리 | U-01 ~ U-09 (9개) | N/A |
-| 파일/디렉토리 | U-10 ~ U-24 (15개) | N/A |
-| 서비스 관리 | U-25 ~ U-43 (19개) | N/A |
-| 패치 관리 | U-44 ~ U-45 (2개) | N/A |
-| 로그 관리 | U-46 ~ U-49 (4개) | N/A |
-| 기타 | U-50 ~ U-68 (19개) | N/A |
-
-**전체 68개 항목 N/A** — 서버리스/관리형 클라우드 환경으로 해당 없음
+## Conclusion
+- Host OS hardening, account controls, file permissions, patch state, and logging retention cannot be assessed from this repository snapshot.

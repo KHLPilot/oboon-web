@@ -11,6 +11,7 @@ Last reviewed: 2026-04-03
 - 원칙: 새 사용처를 추가할 때는 이 문서와 PR 설명에 사유를 남긴다.
 - 원칙: 사용자 요청 처리 경로는 가능하면 authed server client를 먼저 검토한다.
 - 원칙: 배치, 정리 작업, 권한 상승이 필요한 시스템 작업만 `service_role`을 허용한다.
+- 원칙: 민감 관리자 조회는 `admin_audit_logs`에 적재해 서버 로그 소실에 대비한다.
 - 원칙: 관련 비밀값은 `docs/reference/secret-inventory.md`와 함께 관리한다.
 - 원칙: `service_role` 경로의 오류 로그는 PII/토큰/키 redaction 규칙을 따라야 한다.
 
@@ -37,6 +38,7 @@ Last reviewed: 2026-04-03
 - `app/api/auth/google/callback/route.ts`
 - `app/api/auth/naver/callback/route.ts`
 - `app/api/terms/route.ts`
+- `app/api/admin/settlements/[id]/bank-account/route.ts`
 - `app/api/chat/[consultationId]/route.ts`
 - `app/api/community/follows/[profileId]/route.ts`
 - `app/api/community/posts/[postId]/route.ts`

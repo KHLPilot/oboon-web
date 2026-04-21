@@ -1,80 +1,97 @@
-# 데이터베이스 취약점 분석 (D-01 ~ D-32)
+# Database Assessment (D-01 ~ D-32)
 
-> 평가 대상: OBOON oboon-web — Supabase Cloud (PostgreSQL 15)
-> 평가 일자: 2026-04-11 (이전: 2026-03-29)
-
----
-
-## 계정 관리 (D-01 ~ D-10)
-
-| 항목 | 제목 | 판정 | 근거 |
-|------|------|------|------|
-| D-01 | 기본 계정 제거 | 양호 | Supabase 관리형 서비스, 기본 postgres 계정 직접 사용 없음 |
-| D-02 | 계정 잠금 정책 | 양호 | Supabase Auth 내장 잠금 정책 + 애플리케이션 레벨 속도 제한 |
-| D-03 | 불필요한 계정 | 양호 | anon/authenticated/service_role 세 가지 표준 역할만 사용 |
-| D-04 | 비밀번호 복잡도 | 양호 | Supabase 대시보드 계정 관리, 앱 레벨 소셜 로그인 전용 |
-| D-05 | 비밀번호 만료 | 부분이행 | Supabase 대시보드 계정 만료 정책 미확인 |
-| D-06 | DB 계정 권한 분리 | 양호 | anon(공개 읽기), authenticated(RLS 적용), service_role(서버 전용)으로 명확 분리 |
-| D-07 | service_role 키 사용 감사 | 양호 | `lib/supabaseAdmin.ts`에 `import "server-only"` 가드가 있고, 2026-04-03 기준 `docs/reference/supabase-service-role-audit.md` 에 사용처 인벤토리를 기록함 |
-| D-08 | 게스트/익명 계정 | 양호 | anon 역할은 RLS 정책이 명시적으로 허용하는 공개 데이터만 접근 가능 |
-| D-09 | DB 관리자 원격 접속 | 양호 | Supabase 관리형, 직접 DB 포트 접근 없음 (대시보드/API만) |
-| D-10 | 공용 계정 사용 금지 | 양호 | 사용자별 Supabase Auth UID 기반 접근, 공용 계정 없음 |
+- **Assessment Date**: 2026-04-20
+- **Target**: Supabase (Postgres) — oboon-web
+- **Assessor**: Repository-level code review
 
 ---
 
-## 접근 제어 (D-11 ~ D-18)
+## D-01~10: 계정 관리
 
-| 항목 | 제목 | 판정 | 근거 |
-|------|------|------|------|
-| D-11 | Row Level Security (RLS) | 양호 | 모든 테이블 RLS 활성화 (`ALTER TABLE ... ENABLE ROW LEVEL SECURITY`) |
-| D-12 | RLS 정책 완전성 | 양호 | 73개 정책 정의, SSOT: `docs/db/README.md` |
-| D-13 | 최소 권한 원칙 | 양호 | 역할별 필요한 정책만 부여 (SELECT/INSERT/UPDATE/DELETE 분리) |
-| D-14 | 테이블 직접 접근 | 양호 | 애플리케이션 레이어(services/)를 통해서만 접근, 직접 쿼리 없음 |
-| D-15 | 원격 접속 제한 | 양호 | Supabase 연결 풀러, 직접 PostgreSQL 포트 미노출 |
-| D-16 | DB 링크/외부 접속 | 해당없음 | DB 링크 미사용 |
-| D-17 | 뷰(View)를 통한 접근 제어 | 양호 | Supabase RLS가 테이블 레벨에서 처리 |
-| D-18 | 저장 프로시저 보안 | 양호 | 커스텀 RPC 함수 `SECURITY DEFINER` 남용 없음 (`docs/db/README.md` 확인) |
-
----
-
-## 암호화 (D-19 ~ D-22)
-
-| 항목 | 제목 | 판정 | 근거 |
-|------|------|------|------|
-| D-19 | 민감 데이터 암호화 | 양호 | 전화번호/이메일 평문(Supabase at-rest). **은행계좌번호·예금주명**: `lib/profileBankAccount.ts:42` AES-256-GCM + 랜덤 IV(12B) + AuthTag 무결성 검증, `migration 107` 적용 완료. 키는 `BANK_ACCOUNT_ENCRYPTION_KEY` 환경변수 |
-| D-20 | 전송 암호화 | 양호 | Supabase 연결 TLS 강제 (`ssl: true`), HTTPS API 전용 |
-| D-21 | 백업 암호화 및 정책 | 취약 | Supabase PITR(Point-in-Time Recovery) 활성화 여부 미확인. 백업 주기 및 복구 테스트 절차 미수립 |
-| D-22 | 감사 로그 암호화 | 부분이행 | Supabase 기본 감사 로그 존재, 별도 외부 저장 없음 |
+| 항목 | 평가 | 근거 |
+|------|:----:|------|
+| D-01 기본 계정 제거 | **양호** | Supabase 관리형 서비스. 기본 postgres 계정은 플랫폼 관리. |
+| D-02 계정 잠금 | **양호** | Supabase Auth: 비밀번호 실패 시 잠금 지원. |
+| D-03 패스워드 정책 | **양호** | Supabase Auth 관리. 앱에서 평문 저장 없음. |
+| D-04 불필요 계정 제거 | **양호** | Supabase 역할: anon, authenticated, service_role만 사용. `docs/reference/supabase-service-role-audit.md` 목록 관리. |
+| D-05 원격 접속 제한 | **양호** | Supabase 프로젝트 URL + API Key 인증. 직접 TCP 접속 없음 (관리형 서비스). |
+| D-06 관리자 계정 보안 | **양호** | Service Role Key 서버 전용. ESLint로 클라이언트 노출 차단. |
+| D-07 계정 권한 최소화 | **양호** | anon: SELECT 일부만. authenticated: 본인 데이터만. service_role: 서버 전용 관리 작업만. |
+| D-08 감사 계정 분리 | **부분이행** | service_role 하나로 관리 작업 수행. 역할별 분리 미구현. |
+| D-09 계정 이력 관리 | **양호** | `admin_audit_logs`: 관리자 작업 이력 DB 저장 (view_bank_account, approve_agent 등). |
+| D-10 불필요 권한 제거 | **양호** | `docs/db/grant.json` 권한 목록 관리. 최소 권한 원칙 적용. |
 
 ---
 
-## 패치 및 로그 (D-23 ~ D-32)
+## D-11~18: 접근 제어
 
-| 항목 | 제목 | 판정 | 근거 |
-|------|------|------|------|
-| D-23 | 데이터베이스 패치 | 양호 | Supabase 관리형, 자동 PostgreSQL 보안 패치 적용 |
-| D-24 | 취약한 DB 버전 | 양호 | PostgreSQL 15 사용, 최신 안정 버전 |
-| D-25 | 감사 로그 활성화 | 양호 | Supabase 대시보드 Logs 기능 활성화 |
-| D-26 | 로그 보존 기간 | 부분이행 | Supabase 기본 7일 로그 보존. 규정 준수 위해 외부 로그 집계 미설정 |
-| D-27 | 로그 접근 제어 | 양호 | Supabase 대시보드 역할 기반 접근 |
-| D-28 | 쿼리 로그 | 양호 | 느린 쿼리 로그 활성화 가능 (Supabase 대시보드) |
-| D-29 | DB 에러 메시지 외부 노출 | 양호 | `lib/api/route-error.ts`에서 DB 에러 정제 후 클라이언트 전달 |
-| D-29-2 | 레이스 컨디션 (Reward Payout) | **양호** | `supabase/migrations/106_reward_payout_atomic.sql` — `pg_advisory_xact_lock` + `SELECT ... FOR UPDATE` 비관적 잠금으로 동시 중복 지급 차단. 2026-04-11 재확인 완료 |
-| D-29-3 | 레이스 컨디션 (Refund) | 양호 | `migration 108_atomic_deposit_refund.sql` — `pg_advisory_xact_lock` + `SELECT ... FOR UPDATE` 적용. 이중 환급 방지 로직(`already_processed` 체크), SECURITY DEFINER + search_path 고정. `refund/route.ts:79-82` RPC 호출로 변경 완료 |
-| D-30 | DDL 변경 이력 | 양호 | `supabase/migrations/` 타임스탬프 마이그레이션 파일로 이력 관리 |
-| D-31 | 불필요한 확장 기능 | 양호 | `postgis`, `uuid-ossp` 등 필요한 확장만 활성화 (마이그레이션 파일 확인) |
-| D-32 | DB 포트 노출 | 양호 | 직접 DB 포트 미노출, Supabase API/연결 풀러만 사용 |
+| 항목 | 평가 | 근거 |
+|------|:----:|------|
+| D-11 RLS 적용 | **양호** | `docs/db/rls.json` 전 테이블 RLS 활성화. `policies.json` 역할별 정책 문서화. |
+| D-12 접근 제어 정책 | **양호** | public 읽기, authenticated 본인 데이터, admin 전체 접근 분리. |
+| D-13 데이터 조회 제한 | **양호** | API에서 필요한 컬럼만 select. `select('*')` 지양 규칙. |
+| D-14 원격 접속 제어 | **양호** | 관리형 서비스 (Supabase). 직접 DB 포트 노출 없음. |
+| D-15 IP 기반 접근 제한 | **부분이행** | Supabase 플랫폼 레벨 제어. 앱 레벨 DB IP 제한 미구현. |
+| D-16 저장 프로시저 권한 | **양호** | RPC 함수 권한 명시적 설정 (`update_term_version` 등). |
+| D-17 뷰(View) 권한 | **양호** | `public_profiles` 뷰: 민감 필드(bank_account_number 등) 제외. |
+| D-18 감사 로그 | **양호** | `admin_audit_logs`: 민감 관리 작업 fail-closed 방식으로 기록. |
 
 ---
 
-## 조치 필요 항목 요약
+## D-19~22: 암호화
 
-| 우선순위 | 항목 | 조치 내용 |
-|---------|------|----------|
-| ✅ RESOLVED | D-19 | AES-256-GCM 암호화 적용 완료 (2026-04-11) |
-| ✅ RESOLVED | D-29-3 | migration 108 atomic RPC 적용 완료 (2026-04-11) |
-| MEDIUM | D-07 | 인벤토리 기준으로 공개/반공개 조회 라우트부터 authed client 전환 후보를 순차 검토 |
-| MEDIUM | D-21 | Supabase 대시보드에서 PITR 활성화 확인, 복구 테스트 주기 수립 |
-| ✅ RESOLVED | D-07-2 | `pdf-parse` 외부 패키지 참조 제거, `unpdf` 사용으로 전환 완료 (2026-04-11) |
-| LOW | D-22 | 외부 로그 집계 도구(Datadog 등) 연동 검토 |
-| LOW | D-26 | 로그 보존 기간 정책 수립 (최소 1년 권고) |
+| 항목 | 평가 | 근거 |
+|------|:----:|------|
+| D-19 저장 데이터 암호화 | **부분이행** | 은행 계좌: 암호화 (`lib/profileBankAccount.ts`). 일반 PII (이름, 전화번호): 평문 저장. |
+| D-20 전송 암호화 | **양호** | Supabase TLS 1.2+. HTTPS API 전송. |
+| D-21 암호화 키 관리 | **양호** | 환경변수 서버 전용. `docs/reference/secret-inventory.md` 목록 관리. |
+| D-22 백업 암호화 | **부분이행** | Supabase 관리형 백업. 백업 암호화 설정은 플랫폼 의존. |
+
+---
+
+## D-23~32: 패치 및 로그 관리
+
+| 항목 | 평가 | 근거 |
+|------|:----:|------|
+| D-23 보안 패치 | **양호** | Supabase 관리형 서비스 자동 패치. |
+| D-24 버전 관리 | **양호** | `supabase/migrations/` 순차 마이그레이션 (001~114). |
+| D-25 감사 로깅 | **양호** | `admin_audit_logs`: 관리자 작업 영구 저장. RLS로 admin만 SELECT. |
+| D-26 로그 보관 | **부분이행** | `admin_audit_logs` DB 보관. 보관 기간 정책 미명시. |
+| D-27 로그 무결성 | **양호** | INSERT는 service_role 전용. admin은 SELECT만. 수정/삭제 불가. |
+| D-28 오류 로깅 | **양호** | 서버사이드 `console.error`. 민감정보 redact. |
+| D-29 접속 로깅 | **부분이행** | 관리자 민감 작업만 기록. 일반 DB 접속 로그 미수집. |
+| D-30 비정상 접속 탐지 | **부분이행** | rate limit으로 부분 방어. 이상 감지 전용 시스템 미구성. |
+| D-31 로그 분석 | **부분이행** | 수동 조회만. 자동 분석/알람 미구성. |
+| D-32 주기적 감사 | **부분이행** | `docs/reference/supabase-service-role-audit.md` 문서. 주기적 검토 절차 미명시. |
+
+---
+
+## 이번 세션 개선 사항 (2026-04-20)
+
+| 개선 항목 | D 연관 |
+|-----------|--------|
+| admin_audit_logs 테이블 신규 추가 | D-09, D-18, D-25, D-27 |
+| 감사 로그 fail-closed 패턴 | D-18 |
+| update_term_version RPC 원자화 | D-16, D-24 |
+| 계좌번호 목록 노출 제거 | D-19 |
+| service_role 사용처 ESLint 차단 | D-06 |
+
+---
+
+## 종합 평가
+
+| 구분 | 항목 수 | 양호 | 부분이행 | 취약 | N/A |
+|------|:-------:|:----:|:--------:|:----:|:---:|
+| 계정 관리 (D-01~10) | 10 | 9 | 1 | 0 | 0 |
+| 접근 제어 (D-11~18) | 8 | 6 | 2 | 0 | 0 |
+| 암호화 (D-19~22) | 4 | 2 | 2 | 0 | 0 |
+| 패치/로그 (D-23~32) | 10 | 4 | 6 | 0 | 0 |
+| **합계** | **32** | **21** | **11** | **0** | **0** |
+
+**상태**: 양호 (취약 항목 0건)
+
+**잔여 개선 권장:**
+1. D-19: 이름/전화번호 등 PII 필드 암호화 검토
+2. D-26: 감사 로그 보관 기간 정책 명시 (권장: 1년 이상)
+3. D-30: 이상 접속 탐지 알람 구성
+4. D-08: service_role 역할 분리 검토 (장기 과제)

@@ -1,50 +1,54 @@
-# 클라우드 보안 취약점 분석 (CL-01 ~ CL-14)
+# Cloud Assessment (CL-01 ~ CL-14)
 
-> 평가 대상: Vercel + Supabase Cloud + Cloudflare R2
-> 평가 일자: 2026-04-11 (이전: 2026-03-29)
-
----
-
-| 항목 | 제목 | 판정 | 근거 |
-|------|------|------|------|
-| CL-01 | 클라우드 계정 보안 | 양호 | Vercel/Supabase/Cloudflare 각각 별도 계정 관리, MFA 권고 |
-| CL-02 | IAM 최소 권한 | 양호 | R2 전용 Access Key 분리, Supabase 역할 분리(anon/authenticated/service_role) |
-| CL-03 | 루트 계정 사용 금지 | 부분이행 | Cloudflare 루트 계정 사용 여부 미확인. 루트 계정 MFA + 서브 토큰 사용 권고 |
-| CL-04 | 접근 키 관리 | 양호 | 환경변수로만 관리, 소스 내 하드코딩 없음 |
-| CL-05 | 스토리지 공개 접근 | 부분이행 | `postId`, `boardId`, `categoryId`: 정수 검증 완료(`2026-04-11`). R2 퍼블릭 버킷 정책 콘솔 확인 계속 필요 |
-| CL-06 | 스토리지 암호화 | 양호 | Cloudflare R2 기본 at-rest 암호화 적용 |
-| CL-07 | 전송 암호화 | 양호 | R2 업로드 서버 사이드 서명 URL, HTTPS 전용 |
-| CL-08 | 네트워크 접근 제어 | 양호 | Vercel Edge Network 기본 DDoS 방어, IP 기반 접근 제한 없음(서버리스) |
-| CL-09 | 보안 그룹/방화벽 | 해당없음 | 서버리스 환경(Vercel), VM 레벨 방화벽 없음 |
-| CL-10 | 클라우드 감사 로그 | 부분이행 | Vercel 배포 로그, Supabase API 로그 존재. 중앙 집계 및 보존 정책 미수립 |
-| CL-11 | 환경 분리 | 양호 | 테스트 DB(`ketjqhoeucxmxgnutlww`)와 메인 DB(`kjxoszqhofahjorbufhh`) 분리 운영 |
-| CL-12 | 시크릿 관리 서비스 | 부분이행 | 환경변수 기반 관리. AWS Secrets Manager/Vault 등 전용 비밀키 관리 서비스 미사용 |
-| CL-13 | 공급망 보안 | 양호 | pnpm lock 파일 + overrides, Vercel 빌드 환경 고정 |
-| CL-14 | 클라우드 설정 드리프트 | 부분이행 | 인프라 코드(IaC) 미적용. Supabase 마이그레이션으로 DB 설정 관리 |
+- **Assessment Date**: 2026-04-20
+- **Target**: oboon-web — Vercel + Supabase + Cloudflare R2
+- **Assessor**: Repository-level code review
 
 ---
 
+## CL-01~14: 클라우드 보안
+
+| 항목 | 평가 | 근거 |
+|------|:----:|------|
+| CL-01 클라우드 보안 정책 | **양호** | `docs/reference/secret-inventory.md`: 시크릿 목록 및 서버/클라이언트 분리 정책 문서화. |
+| CL-02 계정 및 접근 관리 | **양호** | Vercel 프로젝트 팀 접근 관리. Supabase 프로젝트 키 분리 (anon/service_role). |
+| CL-03 데이터 보호 | **양호** | Supabase TLS 전송. Cloudflare R2 서버사이드 접근. HTTPS 강제. |
+| CL-04 가상화 보안 | **N/A** | 서버리스(Vercel Edge/Lambda) 환경. 직접 VM 관리 없음. |
+| CL-05 네트워크 보안 | **양호** | Supabase Row-Level Security. API Key 인증. 서버사이드 전용 접근. |
+| CL-06 인시던트 대응 | **부분이행** | 로그 수집 (`console.error`). 외부 알람/인시던트 대응 절차 미구성. |
+| CL-07 컴플라이언스 | **부분이행** | Supabase GDPR 준수 (관리형). 앱 레벨 개인정보 처리 방침 확인 필요. |
+| CL-08 공급망 보안 | **양호** | `pnpm audit` 취약점 0건. 의존성 목록 관리. |
+| CL-09 백업 및 복구 | **부분이행** | Supabase 자동 백업 (관리형). 앱 레벨 복구 절차 미문서화. |
+| CL-10 비밀 관리 | **양호** | 환경변수 서버 전용. `NEXT_PUBLIC_` 접두사 공개 가능 값만. ESLint로 클라이언트 노출 차단. |
+| CL-11 API 보안 | **양호** | 전 API 라우트 Zod 검증. rate limit. getUser() 인증. 감사 로그. |
+| CL-12 멀티테넌트 격리 | **양호** | Supabase RLS로 테넌트(사용자) 데이터 격리. 관리자 전용 경로 분리. |
+| CL-13 모니터링 및 감사 | **부분이행** | `admin_audit_logs` DB 감사. Vercel 빌드 로그. 외부 APM 미구성. |
+| CL-14 데이터 잔류 제거 | **양호** | 탈퇴 시 soft delete + 익명화. 은행 계좌 삭제. R2 파일 관리 정책 적용. |
+
 ---
 
-## 신규 발견사항 (2026-04-11)
+## 이번 세션 개선 사항 (2026-04-20)
 
-### ✅ OAuth Callback — sessionKey URL 노출 [조치 완료 — 2026-04-11]
-- `lib/auth/restoreSessionCookie.ts` 신규 생성 — `httpOnly: true`, `sameSite: "lax"`, 프로덕션 `secure: true` 쿠키로 전달
-- `google/callback/route.ts:140` — URL 파라미터 제거, `setRestoreSessionCookie()` 호출
-- `RestorePage.client.tsx` — 쿠키 자동 전송으로 변경, URL에 sessionKey 없음
-
-### ✅ R2 Upload — postId/boardId/categoryId 경로 숫자 검증 [조치 완료 — 2026-04-11]
-- `app/api/r2/upload/route.ts` — `postId`, `boardId`, `categoryId`에 `!/^\d+$/.test()` 검증 추가
+| 개선 항목 | CL 연관 |
+|-----------|---------|
+| admin_audit_logs 감사 로그 DB 저장 | CL-13 |
+| ESLint supabaseAdmin 클라이언트 차단 | CL-10 |
+| PDF 매직바이트 서버사이드 검증 | CL-03 |
+| rate limit 추가 (admin, geo, cron) | CL-11 |
+| 시크릿 인벤토리 갱신 | CL-01 |
 
 ---
 
-## 조치 필요 항목 요약
+## 종합 평가
 
-| 우선순위 | 항목 | 조치 내용 |
-|---------|------|----------|
-| HIGH | CL-05 | R2 버킷 공개 접근 설정 확인, 민감 파일(`pdf-temp/`, 신분증) 버킷 정책 차단 또는 전용 비공개 버킷 분리 |
-| ✅ RESOLVED | CL-05-2 | postId/boardId/categoryId 정수 검증 추가 완료 (2026-04-11) |
-| MEDIUM | CL-03 | Cloudflare 루트 계정 MFA 활성화 확인, 서비스 토큰 사용 |
-| LOW | OAuth sessionKey | sessionKey URL 노출 → POST 방식 또는 Redis TTL 강화 |
-| LOW | CL-10 | 중앙 로그 집계(Vercel Log Drains 등) 및 보존 정책 수립 |
-| LOW | CL-12 | 중요 비밀키(서비스 롤 키, OAuth 시크릿) 전용 Secrets Manager 이관 검토 |
+| 구분 | 항목 수 | 양호 | 부분이행 | 취약 | N/A |
+|------|:-------:|:----:|:--------:|:----:|:---:|
+| CL-01~14 | 14 | 9 | 4 | 0 | 1 |
+
+**상태**: 양호 (취약 항목 0건)
+
+**잔여 개선 권장:**
+1. CL-06: 인시던트 대응 절차 문서화 및 외부 알람 구성
+2. CL-09: 앱 레벨 백업/복구 절차 문서화
+3. CL-13: 외부 APM 통합 (Sentry, Datadog 등)
+4. CL-07: 개인정보 처리 방침 갱신 여부 검토

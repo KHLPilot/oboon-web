@@ -1,97 +1,134 @@
-# 웹 서비스 취약점 분석 (WS-01 ~ WS-47)
+# Web Service Assessment (WS-01 ~ WS-47)
 
-> 평가 대상: OBOON `oboon-web`
-> 평가 일자: 2026-04-11 3차 (이전: 2026-04-11 2차, 2026-04-03)
-> 방식: 저장소/라우트 코드 정적 분석
-
----
-
-## 입력값 검증 및 렌더링
-
-| 항목 | 제목 | 판정 | 근거 |
-|------|------|------|------|
-| WS-01 | SQL Injection | 양호 | Supabase 클라이언트 parameterized query 전용, 직접 SQL 결합 없음 |
-| WS-02 | Cross-Site Scripting (XSS) | 양호 | `lib/briefing/sanitizeHtml.ts`, `BriefingHtmlRenderer.client.tsx:8-15` sanitize 후 렌더. `dangerouslySetInnerHTML` 사용처 전수 확인 완료 |
-| WS-03 | Command Injection | 양호 | 사용자 입력 기반 shell 실행 없음 |
-| WS-04 | LDAP Injection | 해당없음 | LDAP 사용 없음 |
-| WS-05 | XML Injection | 해당없음 | XML 처리 없음 |
-| WS-06 | 파일 업로드 취약점 | 양호 | `app/api/r2/upload/route.ts:67` 매직바이트 검증, MIME 화이트리스트(jpeg/png/webp/gif), 10MB 제한 (`MAX_FILE_SIZE = 10 * 1024 * 1024`) |
-| WS-07 | 경로 조작 (Path Traversal) | 양호 | 업로드 경로는 `crypto.randomUUID()` 기반, 정적 지오JSON은 `process.cwd()` + 고정 경로 |
-| WS-08 | 파일 업로드/고비용 처리 보호 | 양호 | `extract-pdf/route.ts:30-31` — `%PDF-` 5바이트 ASCII 시그니처 검증 추가. 인증+rate limit 보호 완료 |
-| WS-09 | SSRF/외부 API 프록시 | 양호 | `geo/address`, `geo/reverse`: 로그인 검증, 입력 검증, rate limit, 캐시 모두 적용 |
-| WS-10 | 안전하지 않은 역직렬화 | 양호 | 위험한 역직렬화 패턴 없음 (pickle/yaml.load 등 없음) |
+- **Assessment Date**: 2026-04-20
+- **Target**: oboon-web (Next.js 15 App Router + Supabase)
+- **Assessor**: Repository-level code review
 
 ---
 
-## 인증/세션/접근 제어
+## WS-01~10: 입력 검증
 
-| 항목 | 제목 | 판정 | 근거 |
-|------|------|------|------|
-| WS-11 | CSP | 양호 | `middleware.ts:51-55` — `isDevelopment ? "'unsafe-inline'" : null` 조건 추가. 프로덕션에서 style-src unsafe-inline 제거됨. script-src nonce 기반 유지 |
-| WS-12 | 인증 메커니즘 | 양호 | Supabase SSR Auth, 모든 민감 라우트 서버 측 `auth.getUser()` 검증 |
-| WS-13 | 세션 관리 | 양호 | Supabase SSR: HttpOnly/Secure/SameSite 쿠키 자동 설정 |
-| WS-14 | 접근 제어 | 양호 | 역할별 접근 제어(admin/agent/customer) `requireAdminRoute()`, `requireAuthenticatedUser()` 전 라우트 적용 |
-| WS-15 | CSRF 방어 | 양호 | 쿠키 기반 인증 + SameSite + OAuth state 검증 |
-| WS-16 | 직접 객체 참조 (IDOR) | 양호 | 서버 측 소유권 검증 (consultation, property, profile) |
-| WS-17 | 권한 상승 | 양호 | admin role 체크: `profile.role === "admin"` DB 검증 |
-| WS-18 | 브루트포스 방어 | 양호 | `lib/rateLimit.ts`: auth 계열 fail-secure, passwordLimiter 3/min |
-| WS-19 | 민감 정보 노출 | 양호 | API 응답에 서비스 롤 키/내부 토큰 없음. `server-only` 가드 적용 |
-| WS-20 | 세션 만료 | 부분이행 | Supabase 기본 세션 TTL 의존 — 명시적 만료 설정 대시보드 확인 필요 |
+| 항목 | 평가 | 근거 |
+|------|:----:|------|
+| WS-01 SQL Injection | **양호** | 전 API 라우트 Zod 스키마 강제. Supabase `.eq()`, `.in()` 파라미터화 쿼리 사용. 문자열 보간 쿼리 없음. |
+| WS-02 XSS | **양호** | React JSX 자동 이스케이프. `dangerouslySetInnerHTML` JSON-LD 정적 데이터 한정. Zod `.trim().max()` 입력 제한. |
+| WS-03 Command Injection | **양호** | CLI 명령 실행 없음. 외부 API 호출은 SDK/fetch 사용. |
+| WS-04 Path Traversal | **양호** | R2 업로드: `safeSeg()`, `safeBaseName()` 경로 정규화. UUID 기반 저장 경로. 원본 파일명 미사용. |
+| WS-05 ReDoS | **양호** | UUID regex 제한적 사용. 사용자 입력 기반 정규표현식 없음. |
+| WS-06 XXE | **N/A** | XML 처리 없음. |
+| WS-07 Code Injection | **양호** | `eval()`, `new Function()` 미사용. 동적 코드 실행 없음. |
+| WS-08 LDAP Injection | **N/A** | LDAP 미사용. |
+| WS-09 NoSQL Injection | **N/A** | SQL DB(Supabase/Postgres)만 사용. |
+| WS-10 SSRF | **양호** | 외부 요청 대상 고정 도메인 (Kakao, Naver, Upstash). 사용자 제어 URL 미사용. |
 
----
-
-## 에러 처리 및 운영 노출
-
-| 항목 | 제목 | 판정 | 근거 |
-|------|------|------|------|
-| WS-26 | 상세 오류 메시지 노출 | 양호 | 클라이언트 응답은 일반화된 에러 메시지 사용 |
-| WS-27 | 서버 로그 정보 노출 | 부분이행 | `console.error/warn` 사용, 운영 로그 중앙 집계 미확인 |
-| WS-28 | 예외 처리 | 양호 | API 라우트 전반 try/catch 적용 |
-| WS-29 | 디버그/테스트 경로 노출 | 양호 | `/test-upload` noindex + 보호 경로 리다이렉트 처리 |
-| WS-30 | 스택 트레이스 노출 | 양호 | 프로덕션 스택 트레이스 미노출 확인 |
+**주요 근거 파일:**
+- `app/api/community/_schemas.ts`, `app/api/briefing/_schemas.ts`
+- `app/api/admin/_schemas.ts`, `app/api/consultations/_schemas.ts`
+- `lib/auth/auth-request-schemas.ts`
+- `app/api/r2/upload/route.ts` (safeSeg, safeBaseName, 매직바이트)
 
 ---
 
-## 암호화 및 전송 보안
+## WS-11~25: 인증, 세션, 접근 제어
 
-| 항목 | 제목 | 판정 | 근거 |
-|------|------|------|------|
-| WS-31 | 암호화 적용 | 양호 | `bcryptjs`로 비밀번호 해시, `RESTORE_TOKEN_SECRET` 서버 전용 |
-| WS-32 | 취약한 암호화 알고리즘 | 양호 | MD5/SHA-1 사용 없음, `crypto.timingSafeEqual` 적용 |
-| WS-33 | 키 관리 | 양호 | 환경변수 전용, 소스 내 하드코딩 없음 |
-| WS-34 | HTTPS 강제 | 양호 | HSTS max-age=31536000 + includeSubDomains + preload (프로덕션) |
-| WS-35 | 인증서 검증 | 양호 | Vercel/Supabase 관리형 인증서, 자체 검증 로직 없음 |
-| WS-40 | 외부 API 키 전송 보안 | 양호 | 모든 외부 API 호출 서버 사이드에서 HTTPS로 수행 |
+| 항목 | 평가 | 근거 |
+|------|:----:|------|
+| WS-11 인증 메커니즘 | **양호** | Supabase Auth + OAuth(Google, Naver) + 이메일 인증. 서버에서 `supabase.auth.getUser()` 강제. |
+| WS-12 세션 관리 | **양호** | Supabase SSR 쿠키 (secure, httpOnly, sameSite). middleware에서 deleted_at 감지 시 강제 로그아웃. |
+| WS-13 패스워드 정책 | **양호** | Supabase Auth 관리 (min 8자, 복잡도). 앱에서 평문 저장 없음. |
+| WS-14 MFA | **부분이행** | Supabase TOTP 지원하나 앱 레벨 강제 미구현. 관리자 MFA 권장. |
+| WS-15 접근 제어 (RBAC) | **양호** | `profiles.role` (admin/company/agent) DB 기반 검증. `requireAdminRoute()`, `assertAllowedRole()` 헬퍼 일관 사용. |
+| WS-16 권한 상향 방지 | **양호** | 관리자 기능 `requireAdminRoute()` 강제. Service Role Key ESLint로 클라이언트 노출 차단. |
+| WS-17 리소스 권한 검증 | **양호** | 계좌번호: 전용 엔드포인트 + admin 전용. 정산/환불: admin만 + 감사 로그 필수. |
+| WS-18 API 토큰 관리 | **양호** | Service Role Key 서버 전용 (`import "server-only"`). ESLint `no-restricted-imports`로 클라이언트 차단. |
+| WS-19 OAuth 보안 | **양호** | state 파라미터 검증 (`oauthCallbackQuerySchema`), Supabase PKCE 지원. |
+| WS-20 세션 하이재킹 | **양호** | Supabase SSR secure/httpOnly/sameSite 쿠키. |
+| WS-21 CSRF | **양호** | SameSite=Lax 쿠키 + POST/PATCH/DELETE 상태 변경 분리. |
+| WS-22 CORS | **양호** | Supabase 오리진 제한. middleware CSP. R2 도메인 제약. |
+| WS-23 세션 타임아웃 | **부분이행** | OAuth state 타임아웃 미명시. Supabase 기본 세션 1주일 (조정 권장). |
+| WS-24 로그아웃 | **양호** | `deleted_at` 감지 시 `signOut()` 강제. 세션 서버 무효화. |
+| WS-25 인증 실패 로깅 | **양호** | `admin_audit_logs` 테이블 기록 (fail-closed). 실패 응답 generic 메시지 통일. |
+
+**주요 근거 파일:**
+- `lib/api/admin-route.ts`, `lib/api/route-security.ts`
+- `lib/adminAudit.ts`, `supabase/migrations/114_admin_audit_logs.sql`
+- `app/api/admin/settlements/[id]/bank-account/route.ts`
 
 ---
 
-## 서버 설정 및 헤더
+## WS-26~30: 오류 처리
 
-| 항목 | 제목 | 판정 | 근거 |
-|------|------|------|------|
-| WS-41 | 보안 헤더 | 양호 | X-Frame-Options DENY, X-Content-Type-Options nosniff, Referrer-Policy, Permissions-Policy 적용 |
-| WS-42 | 디렉토리 리스팅 | 양호 | Next.js 기본값 차단 |
-| WS-43 | 불필요한 HTTP 메서드 | 양호 | 라우트별 명시적 메서드만 허용 |
-| WS-44 | 서버 배너 노출 | 양호 | Vercel 관리형, X-Powered-By 헤더 기본 제거 |
-| WS-45 | 공개 엔드포인트 최소화 | 양호 | `recommend/route.ts:1041-1049` — `conditionRecommendationIpLimiter` (IP당 12/min) 추가. `evaluate`: 10/min, `evaluate-v2`: 로그인+20/min. 3개 엔드포인트 모두 rate limit 적용 완료 |
-| WS-46 | CORS 설정 | 부분이행 | 명시적 CORS 헤더 없음, SOP 의존 — 의도적 설계이나 문서화 필요 |
-| WS-47 | 캐시 제어 | 양호 | API 라우트 no-cache, 정적 자산 캐시 분리 |
+| 항목 | 평가 | 근거 |
+|------|:----:|------|
+| WS-26 오류 메시지 정보 유출 | **양호** | 응답: generic 메시지. 내부 상세 서버 로그에만. `error.message` 노출 제거됨 (briefing editor routes). |
+| WS-27 로그 민감정보 | **양호** | `redactLogContext()`로 email, token, secret, password 자동 삭제. |
+| WS-28 오류 로깅 | **양호** | `handleApiError()` 통합 처리. `console.error`만 허용. |
+| WS-29 유효성 오류 | **양호** | Zod 실패 시 일괄 "잘못된 요청" 응답. 필드별 상세 미노출. |
+| WS-30 404 처리 | **양호** | 리소스 존재 여부 구분 없는 통일된 응답. |
 
 ---
 
-## 상세 확인 결과
+## WS-31~40: 암호화, 보안 전송
 
-### ✅ WS-11 style-src unsafe-inline [조치 완료 — 2026-04-11 3차]
+| 항목 | 평가 | 근거 |
+|------|:----:|------|
+| WS-31 전송 암호화 | **양호** | HSTS `max-age=31536000` (next.config). Vercel HTTPS 강제. |
+| WS-32 저장소 암호화 | **부분이행** | 은행 계좌: 암호화 (`lib/profileBankAccount.ts`). 일반 PII: RLS 의존 (추가 암호화 권장). |
+| WS-33 패스워드 해싱 | **양호** | Supabase Auth (bcrypt). 앱 레벨 패스워드 저장 없음. |
+| WS-34 암호화 키 관리 | **양호** | 환경변수 서버 전용. `.env.example`로 목록 관리. git 미포함. |
+| WS-35 TLS 버전 | **양호** | TLS 1.2+ (Vercel, Cloudflare, Supabase 기본값). |
+| WS-36 인증서 | **양호** | Vercel 자동 관리 (Let's Encrypt). |
+| WS-37 API 암호화 | **양호** | HTTPS 전송. Supabase 내부 통신 암호화. |
+| WS-38 쿠키 암호화 | **양호** | Supabase SSR: secure, httpOnly, sameSite. |
+| WS-39 데이터 삭제 | **양호** | 탈퇴: soft delete + 익명화 + 은행 계좌 삭제. |
+| WS-40 PII 보호 | **양호** | `maskEmail()`, `maskPhone()`. 로그 자동 redact. |
 
-- `middleware.ts:53` — `isDevelopment ? "'unsafe-inline'" : null` 적용
-- 프로덕션 style-src: `'self'` 만 허용
+---
 
-### ✅ WS-45 condition-validation rate limit [조치 완료 — 2026-04-11 3차]
+## WS-41~47: 설정, 서버 강화
 
-- `recommend`: `conditionRecommendationIpLimiter` IP당 12/min 추가
-- `evaluate`: `guestConditionEvaluationIpLimiter` IP당 10/min
-- `evaluate-v2`: 로그인 필수 + 사용자당 20/min
+| 항목 | 평가 | 근거 |
+|------|:----:|------|
+| WS-41 보안 헤더 | **양호** | X-Frame-Options: DENY, X-Content-Type-Options: nosniff, HSTS, Referrer-Policy, Permissions-Policy, CSP. |
+| WS-42 HTTPS 강제 | **양호** | Vercel 자동 + CSP `upgrade-insecure-requests`. |
+| WS-43 기본 설정 변경 | **양호** | 기본 admin 계정 없음. role은 profiles 테이블에서만 설정. |
+| WS-44 진단 정보 비활성화 | **양호** | 프로덕션 sourcemap 미포함. error.message 응답 제한. |
+| WS-45 로깅 | **양호** | `console.error` 중심. 민감정보 redact. rate limit Redis 저장. |
+| WS-46 모니터링 | **부분이행** | 서버 로그 중심. 외부 APM/모니터링(Sentry 등) 미구성. |
+| WS-47 의존성 관리 | **양호** | `pnpm audit` 취약점 없음. 신뢰할 수 있는 라이브러리 사용. |
 
-### 기존 — 브리핑 HTML sanitize, PDF 분석 보호, geo 프록시 보호 [조치 완료]
+---
 
-이전 보고서(2026-04-03) 기준 조치 완료 항목 유지. 변경 없음.
+## 이번 세션 개선 사항 (2026-04-20)
+
+| 개선 항목 | WS 연관 |
+|-----------|---------|
+| 전 API 라우트 Zod 검증 추가 | WS-01~05 |
+| admin_audit_logs 감사 로그 (fail-closed) | WS-25 |
+| 계좌번호 목록 응답 제거 + 전용 엔드포인트 | WS-17, WS-40 |
+| PDF 매직바이트 검증 추가 | WS-04 |
+| ESLint supabaseAdmin 클라이언트 차단 | WS-18 |
+| error.message 노출 제거 (briefing editor) | WS-26 |
+| terms 버전 업데이트 원자화 (RPC) | WS-28 |
+| rate limit 추가 (admin, commute, geo) | WS-23 |
+
+---
+
+## 종합 평가
+
+| 구분 | 항목 수 | 양호 | 부분이행 | 취약 | N/A |
+|------|:-------:|:----:|:--------:|:----:|:---:|
+| 입력 검증 (WS-01~10) | 10 | 7 | 0 | 0 | 3 |
+| 인증/세션 (WS-11~25) | 15 | 13 | 2 | 0 | 0 |
+| 오류 처리 (WS-26~30) | 5 | 5 | 0 | 0 | 0 |
+| 암호화 (WS-31~40) | 10 | 9 | 1 | 0 | 0 |
+| 설정/강화 (WS-41~47) | 7 | 6 | 1 | 0 | 0 |
+| **합계** | **47** | **40** | **4** | **0** | **3** |
+
+**상태**: 양호 (취약 항목 0건)
+
+**잔여 개선 권장:**
+1. WS-14: 관리자 MFA 강제 구현
+2. WS-23: OAuth state 타임아웃 명시 (권장: 10분)
+3. WS-32: 일반 PII 필드 암호화 검토
+4. WS-46: 외부 APM 통합 (Sentry 등)

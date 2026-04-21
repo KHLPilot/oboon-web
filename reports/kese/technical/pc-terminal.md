@@ -1,7 +1,8 @@
-# PC/단말 취약점 분석 — PC-01 ~ PC-18
+# PC Terminal Assessment
 
-**분석 일자**: 2026-03-28
+## Status
+- Status: N/A
+- Reason: No desktop-terminal fleet or endpoint-management evidence is present in the repository.
 
-> 개발자 PC 보안은 조직 정책에 의존. 코드 분석 범위 외. **전 항목 N/A** (별도 엔드포인트 보안 정책 수립 권장).
-
-**전체 18개 항목 N/A**
+## Conclusion
+- Endpoint policy, disk encryption, and local anti-malware posture require host or MDM validation.

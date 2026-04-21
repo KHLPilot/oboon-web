@@ -624,6 +624,24 @@
     "definition": "PRIMARY KEY (id)"
   },
   {
+    "table_name": "famous_school_zones",
+    "constraint_name": "famous_school_zones_tier_check",
+    "constraint_type": "c",
+    "definition": "CHECK ((tier = ANY (ARRAY[1, 2, 3])))"
+  },
+  {
+    "table_name": "famous_school_zones",
+    "constraint_name": "famous_school_zones_pkey",
+    "constraint_type": "p",
+    "definition": "PRIMARY KEY (id)"
+  },
+  {
+    "table_name": "famous_school_zones",
+    "constraint_name": "famous_school_zones_name_key",
+    "constraint_type": "u",
+    "definition": "UNIQUE (name)"
+  },
+  {
     "table_name": "faq_categories",
     "constraint_name": "faq_categories_pkey",
     "constraint_type": "p",
@@ -931,6 +949,12 @@
   },
   {
     "table_name": "profiles",
+    "constraint_name": "profiles_workplace_type_check",
+    "constraint_type": "c",
+    "definition": "CHECK ((workplace_type = ANY (ARRAY['station'::text, 'district'::text])))"
+  },
+  {
+    "table_name": "profiles",
     "constraint_name": "profiles_id_fkey",
     "constraint_type": "f",
     "definition": "FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE"
@@ -952,6 +976,12 @@
     "constraint_name": "properties_created_by_fkey",
     "constraint_type": "f",
     "definition": "FOREIGN KEY (created_by) REFERENCES profiles(id)"
+  },
+  {
+    "table_name": "properties",
+    "constraint_name": "properties_famous_zone_id_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (famous_zone_id) REFERENCES famous_school_zones(id) ON DELETE SET NULL"
   },
   {
     "table_name": "properties",
@@ -1238,6 +1268,30 @@
   {
     "table_name": "property_unit_types",
     "constraint_name": "property_unit_types_pkey",
+    "constraint_type": "p",
+    "definition": "PRIMARY KEY (id)"
+  },
+  {
+    "table_name": "property_unit_validation_profiles",
+    "constraint_name": "property_unit_validation_profiles_asset_type_check",
+    "constraint_type": "c",
+    "definition": "CHECK ((asset_type = ANY (ARRAY['apartment'::text, 'officetel'::text, 'commercial'::text, 'knowledge_industry'::text])))"
+  },
+  {
+    "table_name": "property_unit_validation_profiles",
+    "constraint_name": "property_unit_validation_profiles_regulation_area_check",
+    "constraint_type": "c",
+    "definition": "CHECK ((regulation_area = ANY (ARRAY['non_regulated'::text, 'adjustment_target'::text, 'speculative_overheated'::text])))"
+  },
+  {
+    "table_name": "property_unit_validation_profiles",
+    "constraint_name": "property_unit_validation_profiles_unit_type_id_fkey",
+    "constraint_type": "f",
+    "definition": "FOREIGN KEY (unit_type_id) REFERENCES property_unit_types(id) ON DELETE CASCADE"
+  },
+  {
+    "table_name": "property_unit_validation_profiles",
+    "constraint_name": "property_unit_validation_profiles_pkey",
     "constraint_type": "p",
     "definition": "PRIMARY KEY (id)"
   },

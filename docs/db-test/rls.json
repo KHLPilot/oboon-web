@@ -130,6 +130,11 @@
     "rls_forced": false
   },
   {
+    "table_name": "famous_school_zones",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
     "table_name": "faq_categories",
     "rls_enabled": true,
     "rls_forced": false
@@ -231,6 +236,11 @@
   },
   {
     "table_name": "property_unit_types",
+    "rls_enabled": true,
+    "rls_forced": false
+  },
+  {
+    "table_name": "property_unit_validation_profiles",
     "rls_enabled": true,
     "rls_forced": false
   },

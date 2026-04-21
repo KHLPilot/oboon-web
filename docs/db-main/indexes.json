@@ -430,6 +430,21 @@
     "definition": "CREATE INDEX idx_contracts_status ON public.contracts USING btree (status)"
   },
   {
+    "table_name": "famous_school_zones",
+    "index_name": "famous_school_zones_match_keys_idx",
+    "definition": "CREATE INDEX famous_school_zones_match_keys_idx ON public.famous_school_zones USING gin (match_keys)"
+  },
+  {
+    "table_name": "famous_school_zones",
+    "index_name": "famous_school_zones_name_key",
+    "definition": "CREATE UNIQUE INDEX famous_school_zones_name_key ON public.famous_school_zones USING btree (name)"
+  },
+  {
+    "table_name": "famous_school_zones",
+    "index_name": "famous_school_zones_pkey",
+    "definition": "CREATE UNIQUE INDEX famous_school_zones_pkey ON public.famous_school_zones USING btree (id)"
+  },
+  {
     "table_name": "faq_categories",
     "index_name": "faq_categories_key_key",
     "definition": "CREATE UNIQUE INDEX faq_categories_key_key ON public.faq_categories USING btree (key)"
@@ -593,6 +608,11 @@
     "table_name": "profiles",
     "index_name": "unique_nickname_idx",
     "definition": "CREATE UNIQUE INDEX unique_nickname_idx ON public.profiles USING btree (nickname) WHERE (nickname IS NOT NULL)"
+  },
+  {
+    "table_name": "properties",
+    "index_name": "idx_properties_famous_zone_id",
+    "definition": "CREATE INDEX idx_properties_famous_zone_id ON public.properties USING btree (famous_zone_id)"
   },
   {
     "table_name": "properties",
@@ -788,6 +808,21 @@
     "table_name": "property_unit_types",
     "index_name": "property_unit_types_pkey",
     "definition": "CREATE UNIQUE INDEX property_unit_types_pkey ON public.property_unit_types USING btree (id)"
+  },
+  {
+    "table_name": "property_unit_validation_profiles",
+    "index_name": "idx_property_unit_validation_profiles_property_id",
+    "definition": "CREATE INDEX idx_property_unit_validation_profiles_property_id ON public.property_unit_validation_profiles USING btree (property_id)"
+  },
+  {
+    "table_name": "property_unit_validation_profiles",
+    "index_name": "idx_property_unit_validation_profiles_property_unit",
+    "definition": "CREATE UNIQUE INDEX idx_property_unit_validation_profiles_property_unit ON public.property_unit_validation_profiles USING btree (property_id, unit_type_id)"
+  },
+  {
+    "table_name": "property_unit_validation_profiles",
+    "index_name": "property_unit_validation_profiles_pkey",
+    "definition": "CREATE UNIQUE INDEX property_unit_validation_profiles_pkey ON public.property_unit_validation_profiles USING btree (id)"
   },
   {
     "table_name": "property_validation_profiles",

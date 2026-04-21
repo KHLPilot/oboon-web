@@ -139,7 +139,6 @@
   - `lib/utils.ts`
   - `lib/supabaseClient.ts`
   - `lib/supabaseServer.ts`
-  - `lib/r2.ts`
   - `lib/validators/profileValidation.ts`
   - `lib/validators/banndedWords.ts`
 - `shared/` : 공통 데이터
