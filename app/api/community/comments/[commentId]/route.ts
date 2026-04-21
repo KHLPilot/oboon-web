@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { cookies } from "next/headers";
+import { commentPatchSchema } from "@/app/api/community/_schemas";
 
 const adminSupabase = createSupabaseAdminClient();
 
@@ -60,11 +61,12 @@ export async function PATCH(
       return NextResponse.json({ error: "본인 댓글만 수정할 수 있습니다." }, { status: 403 });
     }
 
-    const body = await req.json();
-    const content = typeof body?.body === "string" ? body.body.trim() : "";
-    if (!content) {
+    const rawBody = await req.json();
+    const parsed = commentPatchSchema.safeParse(rawBody);
+    if (!parsed.success) {
       return NextResponse.json({ error: "댓글 내용을 입력해주세요." }, { status: 400 });
     }
+    const content = parsed.data.body;
 
     const { error: updateError } = await adminSupabase
       .from("community_comments")

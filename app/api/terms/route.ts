@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { handleApiError, handleSupabaseError } from "@/lib/api/route-error";
 
 export const dynamic = "force-dynamic";
 
 const adminSupabase = createSupabaseAdminClient();
+
+const termsQuerySchema = z.object({
+  type: z.string().trim().min(1).max(50).optional(),
+});
 
 /**
  * GET /api/terms?type=customer_reservation
@@ -13,15 +18,20 @@ const adminSupabase = createSupabaseAdminClient();
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const type = searchParams.get("type");
+    const parsed = termsQuerySchema.safeParse({
+      type: searchParams.get("type") ?? undefined,
+    });
+    if (!parsed.success) {
+      return NextResponse.json({ error: "유효하지 않은 요청입니다." }, { status: 400 });
+    }
 
     let query = adminSupabase
       .from("terms")
       .select("id, type, version, title, content, is_required, display_order, updated_at")
       .eq("is_active", true);
 
-    if (type) {
-      query = query.eq("type", type);
+    if (parsed.data.type) {
+      query = query.eq("type", parsed.data.type);
     }
 
     // display_order로 정렬 (0은 맨 뒤로)

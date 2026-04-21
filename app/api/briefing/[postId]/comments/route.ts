@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabaseServer";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import { briefingCommentCreateSchema } from "@/app/api/briefing/_schemas";
 
 const adminSupabase = createSupabaseAdminClient();
 
@@ -170,27 +171,20 @@ export async function POST(
     return NextResponse.json({ error: "게시글 ID가 필요합니다." }, { status: 400 });
   }
 
-  const body = (await req.json().catch(() => null)) as
-    | {
-        nickname?: string;
-        content?: string;
-        isAnonymous?: boolean;
-      }
-    | null;
-
-  const content = typeof body?.content === "string" ? body.content.trim() : "";
-  if (!content) {
+  const rawBody = await req.json().catch(() => null);
+  const parsed = briefingCommentCreateSchema.safeParse(rawBody);
+  if (!parsed.success) {
     return NextResponse.json({ error: "내용을 입력해주세요." }, { status: 400 });
   }
+  const { content, nickname: rawNickname, isAnonymous = false } = parsed.data;
 
   const supabase = await createSupabaseServer();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   const userId = user?.id ?? null;
-  const isAnonymous = body?.isAnonymous === true;
 
-  let nickname = typeof body?.nickname === "string" ? body.nickname.trim() : "";
+  let nickname = rawNickname ?? "";
   let avatarUrl: string | null = null;
   if (userId) {
     const { data: profile } = await adminSupabase
@@ -264,7 +258,7 @@ export async function POST(
       {
         error: isBriefingCommentsSchemaError(insertError ?? {})
           ? "댓글 기능을 아직 사용할 수 없습니다. 마이그레이션을 먼저 적용해주세요."
-          : (insertError?.message ?? "댓글 등록에 실패했습니다."),
+          : "댓글 등록에 실패했습니다.",
       },
       { status: 500 },
     );

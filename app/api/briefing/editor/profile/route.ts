@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { createSupabaseServer } from "@/lib/supabaseServer";
+import { editorProfilePatchSchema } from "@/app/api/briefing/_schemas";
 
 export async function PATCH(req: NextRequest) {
   const supabase = await createSupabaseServer();
@@ -21,25 +22,16 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const body = (await req.json()) as {
-    nickname?: string;
-    bio?: string;
-    avatar_url?: string;
-  };
+  const rawBody = await req.json();
+  const parsed = editorProfilePatchSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+  }
 
   const updates: Record<string, string | null> = {};
-
-  if (body.nickname !== undefined) {
-    updates.nickname = body.nickname.trim() || null;
-  }
-
-  if (body.bio !== undefined) {
-    updates.bio = body.bio.trim() || null;
-  }
-
-  if (body.avatar_url !== undefined) {
-    updates.avatar_url = body.avatar_url.trim() || null;
-  }
+  if (parsed.data.nickname !== undefined) updates.nickname = parsed.data.nickname || null;
+  if (parsed.data.bio !== undefined) updates.bio = parsed.data.bio || null;
+  if (parsed.data.avatar_url !== undefined) updates.avatar_url = parsed.data.avatar_url || null;
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "변경 내용이 없습니다." }, { status: 400 });
@@ -47,7 +39,8 @@ export async function PATCH(req: NextRequest) {
 
   const { error } = await supabase.from("profiles").update(updates).eq("id", userId);
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[PATCH /api/briefing/editor/profile]", { userId });
+    return NextResponse.json({ error: "처리 중 오류가 발생했습니다." }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });

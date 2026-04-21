@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { cookies } from "next/headers";
+import { commentCreateSchema } from "@/app/api/community/_schemas";
 
 const adminSupabase = createSupabaseAdminClient();
 
@@ -266,21 +267,13 @@ export async function POST(
       }
     }
 
-    const body = await req.json();
-    const content = typeof body?.body === "string" ? body.body.trim() : "";
-    const isAnonymous = body?.isAnonymous === true;
-    const anonymousNickname =
-      typeof body?.anonymousNickname === "string"
-        ? body.anonymousNickname.trim()
-        : "";
-    const parentCommentId =
-      typeof body?.parentCommentId === "string" && body.parentCommentId.trim().length > 0
-        ? body.parentCommentId.trim()
-        : null;
-
-    if (!content) {
+    const rawBody = await req.json();
+    const parsed = commentCreateSchema.safeParse(rawBody);
+    if (!parsed.success) {
       return NextResponse.json({ error: "댓글 내용을 입력해주세요." }, { status: 400 });
     }
+    const { body: content, isAnonymous = false, anonymousNickname = "", parentCommentId: rawParentId } = parsed.data;
+    const parentCommentId = rawParentId?.trim() || null;
 
     if (parentCommentId) {
       const { data: parentComment, error: parentError } = await adminSupabase

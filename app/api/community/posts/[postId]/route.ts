@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { cookies } from "next/headers";
+import { postPatchSchema } from "@/app/api/community/_schemas";
 
 const adminSupabase = createSupabaseAdminClient();
 
@@ -142,16 +143,12 @@ export async function PATCH(req: Request, { params }: RouteParams) {
       );
     }
 
-    const body = await req.json();
-    const title = typeof body?.title === "string" ? body.title.trim() : "";
-    const content = typeof body?.body === "string" ? body.body.trim() : "";
-
-    if (!title || !content) {
-      return NextResponse.json(
-        { error: "제목과 내용을 입력해주세요." },
-        { status: 400 },
-      );
+    const rawBody = await req.json();
+    const parsed = postPatchSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return NextResponse.json({ error: "제목과 내용을 입력해주세요." }, { status: 400 });
     }
+    const { title, body: content } = parsed.data;
 
     const { error: updateError } = await adminSupabase
       .from("community_posts")

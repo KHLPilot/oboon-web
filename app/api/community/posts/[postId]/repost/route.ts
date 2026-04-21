@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { cookies } from "next/headers";
+import { repostSchema } from "@/app/api/community/_schemas";
 
 const adminSupabase = createSupabaseAdminClient();
 
@@ -101,11 +102,11 @@ export async function POST(
       return NextResponse.json({ error: "이미 리포스트한 글입니다." }, { status: 409 });
     }
 
-    // 요청 바디 파싱
     let body: string | null = null;
     try {
-      const json = await req.json() as { body?: string };
-      body = (json.body ?? "").trim() || null;
+      const json = await req.json();
+      const parsed = repostSchema.safeParse(json);
+      body = parsed.success ? (parsed.data.body?.trim() || null) : null;
     } catch {
       // body 없음 허용
     }

@@ -2,10 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { isMissingCoverImageUrlError } from "@/features/briefing/services/briefing.schema";
 import { createSupabaseServer } from "@/lib/supabaseServer";
-
-type CoverUpdateBody =
-  | { type: "board"; id: string; cover_image_url: string }
-  | { type: "category"; id: string; cover_image_url: string };
+import { editorCoverPatchSchema } from "@/app/api/briefing/_schemas";
 
 export async function PATCH(req: NextRequest) {
   const supabase = await createSupabaseServer();
@@ -27,15 +24,12 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const body = (await req.json()) as Partial<CoverUpdateBody>;
-  const type = body.type;
-  const id = typeof body.id === "string" ? body.id.trim() : "";
-  const coverImageUrl =
-    typeof body.cover_image_url === "string" ? body.cover_image_url.trim() : "";
-
-  if ((type !== "board" && type !== "category") || !id || !coverImageUrl) {
+  const rawBody = await req.json();
+  const parsed = editorCoverPatchSchema.safeParse(rawBody);
+  if (!parsed.success) {
     return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
   }
+  const { type, id, cover_image_url: coverImageUrl } = parsed.data;
 
   const { error } =
     type === "board"
@@ -55,8 +49,8 @@ export async function PATCH(req: NextRequest) {
         { status: 400 },
       );
     }
-
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[PATCH /api/briefing/editor/covers]", { type, id });
+    return NextResponse.json({ error: "처리 중 오류가 발생했습니다." }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });
