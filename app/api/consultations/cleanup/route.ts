@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { verifyBearerToken } from "@/lib/api/internal-auth";
+import {
+  checkRateLimit,
+  consultationCleanupIpLimiter,
+  getClientIp,
+} from "@/lib/rateLimit";
 
 const adminSupabase = createSupabaseAdminClient();
 
@@ -11,6 +16,20 @@ const adminSupabase = createSupabaseAdminClient();
  */
 export async function POST(req: Request) {
   try {
+    const cleanupRateLimit = await checkRateLimit(
+      consultationCleanupIpLimiter,
+      getClientIp(req),
+      {
+        failMode: "secure",
+        windowMs: 60 * 60 * 1000,
+        message: "요청이 너무 많습니다. 잠시 후 다시 시도해주세요.",
+      }
+    );
+
+    if (cleanupRateLimit) {
+      return cleanupRateLimit;
+    }
+
     const authHeader = req.headers.get("authorization");
     const expectedKey = process.env.CLEANUP_API_KEY;
 

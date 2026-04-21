@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
+import { parseJsonBody } from "@/lib/api/route-security";
+import {
+  consultationIdSchema,
+  consultationPatchRequestSchema,
+} from "../_schemas";
 
 const adminSupabase = createSupabaseAdminClient();
 
@@ -18,6 +23,13 @@ export async function GET(
 ) {
     try {
         const { id } = await params;
+        const parsedId = consultationIdSchema.safeParse(id);
+        if (!parsedId.success) {
+            return NextResponse.json(
+                { error: "유효하지 않은 예약 ID입니다" },
+                { status: 400 }
+            );
+        }
 
         const cookieStore = await cookies();
         const supabase = createServerClient(
@@ -59,7 +71,7 @@ export async function GET(
                 property:properties(id, name, property_type, property_facilities(id, lat, lng, road_address, type, is_active)),
                 chat_rooms(id)
             `)
-            .eq("id", id)
+            .eq("id", parsedId.data)
             .single();
 
         if (error) {
@@ -110,6 +122,13 @@ export async function PATCH(
 ) {
     try {
         const { id } = await params;
+        const parsedId = consultationIdSchema.safeParse(id);
+        if (!parsedId.success) {
+            return NextResponse.json(
+                { error: "유효하지 않은 예약 ID입니다" },
+                { status: 400 }
+            );
+        }
 
         const cookieStore = await cookies();
         const supabase = createServerClient(
@@ -142,23 +161,20 @@ export async function PATCH(
             );
         }
 
-        const body = await req.json();
-        const { status, agreed_to_terms, no_show_by, rejection_reason } = body;
-
-        // 유효한 상태값 검증
-        const validStatuses = ["pending", "confirmed", "visited", "contracted", "cancelled", "no_show"];
-        if (!validStatuses.includes(status)) {
-            return NextResponse.json(
-                { error: "유효하지 않은 상태입니다" },
-                { status: 400 }
-            );
+        const parsedBody = await parseJsonBody(req, consultationPatchRequestSchema, {
+            invalidInputMessage: "유효하지 않은 상태입니다",
+        });
+        if (!parsedBody.ok) {
+            return parsedBody.response;
         }
+
+        const { status, agreed_to_terms, no_show_by, rejection_reason } = parsedBody.data;
 
         // 기존 예약 조회
         const { data: existingConsultation, error: fetchError } = await adminSupabase
             .from("consultations")
             .select("*")
-            .eq("id", id)
+            .eq("id", parsedId.data)
             .single();
 
         if (fetchError || !existingConsultation) {

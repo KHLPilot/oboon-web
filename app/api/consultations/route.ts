@@ -3,6 +3,11 @@ import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { normalizeStoredProfileBankAccount } from "@/lib/profileBankAccount";
+import { parseJsonBody } from "@/lib/api/route-security";
+import {
+  consultationCreateRequestSchema,
+  consultationListQuerySchema,
+} from "./_schemas";
 
 const adminSupabase = createSupabaseAdminClient();
 
@@ -50,20 +55,14 @@ export async function POST(req: Request) {
       );
     }
 
-    const body = await req.json();
-    const { agent_id, property_id, scheduled_at, agreed_to_terms } = body;
-    const isPointReservation =
-      body?.payment_method === "point" ||
-      body?.use_points === true ||
-      body?.is_point_booking === true;
-
-    // 필수 필드 검증
-    if (!agent_id || !property_id || !scheduled_at) {
-      return NextResponse.json(
-        { error: "필수 정보가 누락되었습니다" },
-        { status: 400 },
-      );
+    const parsed = await parseJsonBody(req, consultationCreateRequestSchema, {
+      invalidInputMessage: "필수 정보가 누락되었습니다",
+    });
+    if (!parsed.ok) {
+      return parsed.response;
     }
+
+    const { agent_id, property_id, scheduled_at, agreed_to_terms } = parsed.data;
 
     if (agent_id === user.id) {
       return NextResponse.json(
@@ -152,8 +151,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 포인트 예약은 관리자 승인 없이 즉시 상담사에게 배정한다.
-    const initialStatus = isPointReservation ? "pending" : "requested";
+    const initialStatus = "requested";
 
     // 예약 생성
     const { data: consultation, error } = await adminSupabase
@@ -188,13 +186,11 @@ export async function POST(req: Request) {
       .insert({
         consultation_id: consultation.id,
         event_type: "deposit_paid",
-        bucket: isPointReservation ? "point" : "deposit",
+        bucket: "deposit",
         amount: DEPOSIT_AMOUNT,
         actor_id: user.id,
         admin_id: null,
-        note: isPointReservation
-          ? "reservation_created_with_point"
-          : "reservation_created",
+        note: "reservation_created",
       });
 
     if (ledgerError) {
@@ -284,59 +280,30 @@ export async function POST(req: Request) {
       }
     }
 
-    // 포인트 예약은 즉시 배정 처리: 상담사 알림
-    if (isPointReservation) {
-
-      const { data: property } = await adminSupabase
+    const [{ data: admins }, { data: property }] = await Promise.all([
+      adminSupabase.from("profiles").select("id").eq("role", "admin"),
+      adminSupabase
         .from("properties")
         .select("id, name")
         .eq("id", property_id)
-        .single();
+        .single(),
+    ]);
 
-      await adminSupabase.from("notifications").insert({
-        recipient_id: agent_id,
-        type: "consultation_request",
-        title: "상담 예약이 배정되었어요",
-        message: `${property?.name ?? "현장"} 예약이 포인트 결제로 즉시 확정되어 배정되었어요.`,
+    if (admins && admins.length > 0) {
+      const notifications = admins.map((admin) => ({
+        recipient_id: admin.id,
+        type: "admin_new_reservation",
+        title: "새 예약 요청이 들어왔어요",
+        message: `${property?.name ?? "현장"} 예약 요청이 접수되었어요. 예약 관리에서 확인해 주세요.`,
         consultation_id: consultation.id,
         metadata: {
-          tab: "consultations",
+          tab: "reservations",
           reservation_id: consultation.id,
           property_id,
           deposit_amount: DEPOSIT_AMOUNT,
-          payment_method: "point",
         },
-      });
-    }
-
-    // 현금 예약은 관리자 승인 대상: 관리자 알림 발송
-    if (!isPointReservation) {
-      const [{ data: admins }, { data: property }] = await Promise.all([
-        adminSupabase.from("profiles").select("id").eq("role", "admin"),
-        adminSupabase
-          .from("properties")
-          .select("id, name")
-          .eq("id", property_id)
-          .single(),
-      ]);
-
-      if (admins && admins.length > 0) {
-        const notifications = admins.map((admin) => ({
-          recipient_id: admin.id,
-          type: "admin_new_reservation",
-          title: "새 예약 요청이 들어왔어요",
-          message: `${property?.name ?? "현장"} 예약 요청이 접수되었어요. 예약 관리에서 확인해 주세요.`,
-          consultation_id: consultation.id,
-          metadata: {
-            tab: "reservations",
-            reservation_id: consultation.id,
-            property_id,
-            deposit_amount: DEPOSIT_AMOUNT,
-          },
-        }));
-        await adminSupabase.from("notifications").insert(notifications);
-      }
-
+      }));
+      await adminSupabase.from("notifications").insert(notifications);
     }
 
     return NextResponse.json({
@@ -396,12 +363,20 @@ export async function GET(req: Request) {
       .single();
 
     const { searchParams } = new URL(req.url);
-    const status = searchParams.get("status");
-    const roleParam = searchParams.get("role");
+    const parsedQuery = consultationListQuerySchema.safeParse({
+      status: searchParams.get("status") ?? undefined,
+      role: searchParams.get("role") ?? undefined,
+    });
+    if (!parsedQuery.success) {
+      return NextResponse.json(
+        { error: "필터 값이 올바르지 않습니다" },
+        { status: 400 },
+      );
+    }
+    const { status, role: roleParam } = parsedQuery.data;
     // 기본값은 항상 "내 예약(customer)" 조회로 둔다.
     // 관리자 전체 조회는 ?role=admin을 명시적으로 전달한 경우에만 허용한다.
-    const role =
-      roleParam === "admin" || roleParam === "agent" ? roleParam : "customer";
+    const role = roleParam ?? "customer";
 
     let query = adminSupabase
       .from("consultations")

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
+import { consultationIdSchema } from "../../_schemas";
 
 const adminSupabase = createSupabaseAdminClient();
 
@@ -56,6 +57,13 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    const parsedId = consultationIdSchema.safeParse(id);
+    if (!parsedId.success) {
+      return NextResponse.json(
+        { error: "유효하지 않은 예약 ID입니다" },
+        { status: 400 },
+      );
+    }
 
     const cookieStore = await cookies();
     const supabase = createServerClient(
@@ -93,7 +101,7 @@ export async function GET(
         .select(
           "id, customer_id, agent_id, status, scheduled_at, cancelled_at, cancelled_by, no_show_by",
         )
-        .eq("id", id)
+        .eq("id", parsedId.data)
         .single(),
       adminSupabase.from("profiles").select("role").eq("id", user.id).single(),
     ]);
@@ -104,8 +112,7 @@ export async function GET(
 
     const c = consultation as ConsultationRow;
     const isAdmin = me?.role === "admin";
-    const isOwner = c.customer_id === user.id || c.agent_id === user.id;
-    if (!isAdmin && !isOwner) {
+    if (!isAdmin) {
       return NextResponse.json({ error: "접근 권한이 없습니다" }, { status: 403 });
     }
 
