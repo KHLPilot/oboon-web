@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 
+import { parseJsonBody } from "@/lib/api/route-security";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import {
   encryptProfileBankAccountInput,
   normalizeStoredProfileBankAccount,
 } from "@/lib/profileBankAccount";
+import { bankAccountRequestSchema } from "../_schemas";
 
 const adminSupabase = createSupabaseAdminClient();
 
@@ -88,24 +90,14 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "로그인이 필요합니다" }, { status: 401 });
     }
 
-    const body = (await req.json()) as {
-      bank_name?: string;
-      bank_account_number?: string;
-      bank_account_holder?: string;
-    };
-
-    const bankName = typeof body.bank_name === "string" ? body.bank_name.trim() : "";
-    const bankAccountNumber =
-      typeof body.bank_account_number === "string" ? body.bank_account_number.trim() : "";
-    const bankAccountHolder =
-      typeof body.bank_account_holder === "string" ? body.bank_account_holder.trim() : "";
-
-    if (!bankName || !bankAccountNumber || !bankAccountHolder) {
-      return NextResponse.json(
-        { error: "은행, 계좌번호, 입금자명을 모두 입력해주세요" },
-        { status: 400 },
-      );
+    const parsed = await parseJsonBody(req, bankAccountRequestSchema, {
+      invalidInputMessage: "은행, 계좌번호, 입금자명을 모두 입력해주세요",
+    });
+    if (!parsed.ok) {
+      return parsed.response;
     }
+
+    const { bank_name: bankName, bank_account_number: bankAccountNumber, bank_account_holder: bankAccountHolder } = parsed.data;
 
     const encrypted = encryptProfileBankAccountInput({
       bank_name: bankName,

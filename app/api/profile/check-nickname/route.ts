@@ -3,6 +3,8 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { createSupabaseServer } from "@/lib/supabaseServer";
+import { parseJsonBody } from "@/lib/api/route-security";
+import { checkNicknameRequestSchema } from "../_schemas";
 
 const supabaseAdmin = createSupabaseAdminClient();
 
@@ -11,16 +13,23 @@ export async function POST(req: Request) {
         const supabase = await createSupabaseServer();
         const { data: { user } } = await supabase.auth.getUser();
 
-        if (!user) {
-            return NextResponse.json({ error: "로그인이 필요합니다" }, { status: 401 });
-        }
+    if (!user) {
+        return NextResponse.json({ error: "로그인이 필요합니다" }, { status: 401 });
+    }
 
-        const { nickname } = await req.json();
+    const parsed = await parseJsonBody(req, checkNicknameRequestSchema, {
+        invalidInputMessage: "닉네임이 필요합니다",
+    });
+    if (!parsed.ok) {
+        return parsed.response;
+    }
 
-        // 닉네임이 없으면 사용 가능
-        if (!nickname || nickname.trim() === "") {
-            return NextResponse.json({ available: true });
-        }
+    const { nickname } = parsed.data;
+
+    // 닉네임이 없으면 사용 가능
+    if (!nickname) {
+        return NextResponse.json({ available: true });
+    }
 
         // 닉네임 중복 체크 (본인 제외 — 서버에서 검증된 user.id 사용)
         const { data, error } = await supabaseAdmin

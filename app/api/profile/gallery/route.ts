@@ -15,12 +15,17 @@ import {
   insertProfileGalleryRows,
   updateProfileGalleryRow,
 } from "@/features/profile/services/profile.gallery";
+import { parseJsonBody } from "@/lib/api/route-security";
 import { handleServiceError } from "@/lib/api/route-error";
 import { unwrapErrorCause } from "@/lib/errors";
+import {
+  galleryDeleteRequestSchema,
+  galleryGetRequestSchema,
+  galleryUpdateRequestSchema,
+  galleryUploadRequestSchema,
+} from "../_schemas";
 
 const MAX_IMAGES = 5;
-const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
-const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const R2_BUCKET_NAME = process.env.CLOUDFLARE_R2_BUCKET_NAME!;
 const R2_PUBLIC_BASE_URL = process.env.CLOUDFLARE_R2_PUBLIC_URL!;
 
@@ -34,12 +39,6 @@ const r2 = new S3Client({
     secretAccessKey: process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY!,
   },
 });
-
-type GalleryUpdateItem = {
-  id: string;
-  sort_order: number;
-  caption?: string | null;
-};
 
 function isMissingSchemaError(error: unknown): boolean {
   const source = unwrapErrorCause(error);
@@ -58,6 +57,23 @@ function extFromMimeType(mimeType: string) {
   if (mimeType === "image/jpeg") return "jpg";
   if (mimeType === "image/png") return "png";
   if (mimeType === "image/webp") return "webp";
+  return null;
+}
+
+function detectImageMime(bytes: Uint8Array): string | null {
+  if (bytes.length < 4) return null;
+  const h = Array.from(bytes.slice(0, 4))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  if (h.startsWith("ffd8ff")) return "image/jpeg";
+  if (h === "89504e47") return "image/png";
+  // RIFF....WEBP
+  if (
+    h === "52494646" &&
+    bytes.length >= 12 &&
+    String.fromCharCode(...Array.from(bytes.slice(8, 12))) === "WEBP"
+  )
+    return "image/webp";
   return null;
 }
 
@@ -94,8 +110,18 @@ export async function GET(req: Request) {
     const supabase = await createAuthedClient();
     const { searchParams } = new URL(req.url);
     const requestedUserId = searchParams.get("userId");
+    const parsed = galleryGetRequestSchema.safeParse({
+      userId: requestedUserId ?? undefined,
+    });
 
-    let targetUserId = requestedUserId;
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "userId가 올바르지 않습니다" },
+        { status: 400 },
+      );
+    }
+
+    let targetUserId = parsed.data.userId ?? null;
     if (!targetUserId) {
       const {
         data: { user },
@@ -154,19 +180,19 @@ export async function POST(req: Request) {
       );
     }
 
-    for (const file of files) {
-      if (!ALLOWED_MIME_TYPES.has(file.type)) {
-        return NextResponse.json(
-          { error: "jpg, png, webp 파일만 업로드할 수 있습니다" },
-          { status: 400 },
-        );
-      }
-      if (file.size > MAX_FILE_SIZE_BYTES) {
-        return NextResponse.json(
-          { error: "파일당 5MB 이하만 업로드할 수 있습니다" },
-          { status: 400 },
-        );
-      }
+    const uploadParsed = galleryUploadRequestSchema.safeParse({
+      files: files.map((file) => ({
+        name: file.name,
+        type: file.type,
+        size: file.size,
+      })),
+    });
+
+    if (!uploadParsed.success) {
+      return NextResponse.json(
+        { error: "jpg, png, webp 파일만 업로드할 수 있습니다" },
+        { status: 400 },
+      );
     }
 
     const { data: existingRows, error: countError } =
@@ -209,8 +235,16 @@ export async function POST(req: Request) {
         );
       }
 
-      const storagePath = `agent/${user.id}/${crypto.randomUUID()}.${ext}`;
       const buffer = Buffer.from(await file.arrayBuffer());
+      const detectedMime = detectImageMime(new Uint8Array(buffer));
+      if (!detectedMime) {
+        return NextResponse.json(
+          { error: "허용되지 않는 파일 형식입니다" },
+          { status: 400 },
+        );
+      }
+      const verifiedExt = extFromMimeType(detectedMime) ?? ext;
+      const storagePath = `agent/${user.id}/${crypto.randomUUID()}.${verifiedExt}`;
 
       try {
         await r2.send(
@@ -218,7 +252,7 @@ export async function POST(req: Request) {
             Bucket: R2_BUCKET_NAME,
             Key: storagePath,
             Body: buffer,
-            ContentType: file.type || "application/octet-stream",
+            ContentType: detectedMime,
           }),
         );
       } catch {
@@ -291,9 +325,15 @@ export async function PATCH(req: Request) {
       );
     }
 
-    const body = await req.json();
-    const updates = (body?.updates || []) as GalleryUpdateItem[];
-    if (!Array.isArray(updates) || updates.length === 0) {
+    const parsed = await parseJsonBody(req, galleryUpdateRequestSchema, {
+      invalidInputMessage: "수정할 항목이 없습니다",
+    });
+    if (!parsed.ok) {
+      return parsed.response;
+    }
+
+    const updates = parsed.data.updates;
+    if (updates.length === 0) {
       return NextResponse.json(
         { error: "수정할 항목이 없습니다" },
         { status: 400 },
@@ -358,19 +398,31 @@ export async function DELETE(req: Request) {
       );
     }
 
-    const body = await req.json();
-    const ids = Array.isArray(body?.ids)
-      ? (body.ids as string[])
-      : body?.id
-        ? [body.id as string]
-        : [];
+    let body: unknown = null;
+    try {
+      body = await req.json();
+    } catch {
+      body = null;
+    }
 
-    if (ids.length === 0) {
+    const normalizedBody =
+      body && typeof body === "object"
+        ? "ids" in body && Array.isArray((body as { ids?: unknown }).ids)
+          ? { ids: (body as { ids: string[] }).ids }
+          : "id" in body && typeof (body as { id?: unknown }).id === "string"
+            ? { ids: [(body as { id: string }).id] }
+            : body
+        : body;
+
+    const parsed = galleryDeleteRequestSchema.safeParse(normalizedBody);
+    if (!parsed.success) {
       return NextResponse.json(
         { error: "삭제할 이미지 ID가 필요합니다" },
         { status: 400 },
       );
     }
+
+    const { ids } = parsed.data;
 
     const { data: rows, error: fetchError } = await fetchProfileGalleryDeleteRows(
       user.id,

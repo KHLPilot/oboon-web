@@ -4,6 +4,10 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
+import { parseJsonBody } from "@/lib/api/route-security";
+import { deleteAccountRequestSchema } from "../_schemas";
+import { recordAdminAuditLog } from "@/lib/adminAudit";
+import { getClientIp } from "@/lib/rateLimit";
 
 const supabaseAdmin = createSupabaseAdminClient();
 
@@ -59,14 +63,14 @@ export async function POST(req: Request) {
             );
         }
 
-        const { userId } = await req.json();
-
-        if (!userId) {
-            return NextResponse.json(
-                { error: "userId가 필요합니다." },
-                { status: 400 }
-            );
+        const parsed = await parseJsonBody(req, deleteAccountRequestSchema, {
+            invalidInputMessage: "userId가 필요합니다.",
+        });
+        if (!parsed.ok) {
+            return parsed.response;
         }
+
+        const { userId } = parsed.data;
 
         if (authUser.id !== userId) {
             return NextResponse.json(
@@ -122,6 +126,18 @@ export async function POST(req: Request) {
                 { status: 409 }
             );
         }
+
+        await recordAdminAuditLog(supabaseAdmin, {
+            adminId: authUser.id,
+            action: "delete_account",
+            targetType: "profile",
+            targetId: userId,
+            metadata: {
+                ip: getClientIp(req),
+                userAgent: req.headers.get("user-agent"),
+                activeConsultationCount,
+            },
+        });
 
         // 3. 상담사 소속 자동 해제
         const { data: affiliatedRows, error: affiliatedLoadError } = await supabaseAdmin
@@ -205,8 +221,8 @@ export async function POST(req: Request) {
             );
         }
 
-        // 5. auth.users는 그대로 유지 (ban 하지 않음)
-        // 로그인 시 deleted_at 체크로 탈퇴 계정 판별
+        // 5. 현재 세션 즉시 무효화 (middleware deleted_at 체크와 이중 방어)
+        await supabase.auth.signOut();
 
         return NextResponse.json({
             success: true,
