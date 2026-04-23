@@ -114,6 +114,10 @@ const MOVEIN_TIMING_OPTIONS: Array<SelectOption<MoveinTiming>> = [
 
 type HomeOfferingView = "consult" | "condition";
 
+type HomeOfferingsSectionProps = {
+  initialRows?: PropertyRow[];
+};
+
 type ConditionValidationRequestRow = {
   id: string | number;
   available_cash_manwon: number;
@@ -861,12 +865,15 @@ function buildHomeRecommendationItem(
   };
 }
 
-export default function HomeOfferingsSection() {
+export default function HomeOfferingsSection({
+  initialRows,
+}: HomeOfferingsSectionProps) {
   const router = useRouter();
   const supabase = useMemo(() => createSupabaseClient(), []);
+  const hasHydratedInitialRef = useRef(Boolean(initialRows?.length));
 
-  const [rows, setRows] = useState<PropertyRow[]>([]);
-  const [rowsLoaded, setRowsLoaded] = useState(false);
+  const [rows, setRows] = useState<PropertyRow[]>(initialRows ?? []);
+  const [rowsLoaded, setRowsLoaded] = useState(Boolean(initialRows?.length));
   const [loadError, setLoadError] = useState<string | null>(null);
   const [consultablePropertyIds, setConsultablePropertyIds] = useState<number[]>(
     [],
@@ -1077,21 +1084,28 @@ export default function HomeOfferingsSection() {
     let mounted = true;
 
     (async () => {
-      const { data, error } = await fetchPropertiesForOfferings(supabase, {
-        limit: 120,
-      });
+      const shouldUseInitialRows = hasHydratedInitialRef.current;
+      if (shouldUseInitialRows) {
+        hasHydratedInitialRef.current = false;
+      }
+
+      const fetchedRows = shouldUseInitialRows
+        ? { data: initialRows, error: null }
+        : await fetchPropertiesForOfferings(supabase, { limit: 120 });
 
       if (!mounted) return;
 
-      if (error) {
-        setLoadError(toKoreanErrorMessage(error, "데이터를 불러오지 못했어요."));
+      if (fetchedRows.error) {
+        setLoadError(
+          toKoreanErrorMessage(fetchedRows.error, "데이터를 불러오지 못했어요."),
+        );
         setRows([]);
         setRowsLoaded(true);
         return;
       }
 
       setLoadError(null);
-      const nextRows = (data ?? []) as PropertyRow[];
+      const nextRows = (fetchedRows.data ?? []) as PropertyRow[];
       setRows(nextRows);
       setRowsLoaded(true);
 
@@ -1128,7 +1142,7 @@ export default function HomeOfferingsSection() {
     return () => {
       mounted = false;
     };
-  }, [supabase]);
+  }, [initialRows, supabase]);
 
   const fallback = useMemo(
     () => ({

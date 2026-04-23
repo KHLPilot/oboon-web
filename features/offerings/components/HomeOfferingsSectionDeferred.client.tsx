@@ -3,14 +3,23 @@
 import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { OfferingCardSkeleton } from "@/features/offerings/components/OfferingCardSkeleton";
+import type { PropertyRow } from "@/features/offerings/mappers/offering.mapper";
 
-const HomeOfferingsSection = dynamic(
+type Props = {
+  initialRows?: PropertyRow[];
+};
+
+const HomeOfferingsSectionDynamic = dynamic<Props>(
   () => import("@/features/offerings/components/HomeOfferingsSection.client"),
   {
     ssr: false,
     loading: () => <HomeOfferingsSectionSkeleton />,
   },
 );
+
+function HomeOfferingsSectionWrapper(props: Props) {
+  return <HomeOfferingsSectionDynamic {...props} />;
+}
 
 function HomeOfferingsSectionSkeleton() {
   return (
@@ -66,4 +75,4 @@ function HomeOfferingsSectionSkeleton() {
   );
 }
 
-export default HomeOfferingsSection;
+export { HomeOfferingsSectionWrapper as default };
