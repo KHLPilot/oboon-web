@@ -1,11 +1,8 @@
 import PageContainer from "@/components/shared/PageContainer";
-import Card from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { CommunityPostCardSkeleton } from "@/features/community/components/CommunityFeed/CommunityPostCardSkeleton";
+import { cn } from "@/lib/utils/cn";
 import { HeroCounselorPreviewSkeleton } from "@/features/home/components/HeroCounselorPreviewSkeleton";
-import { FAQListSkeleton } from "@/features/support/components/faq/FAQListSkeleton";
-import { QnAListSkeleton } from "@/features/support/components/qna/QnAListSkeleton";
 import { OfferingCardSkeleton } from "@/features/offerings/components/OfferingCardSkeleton";
 
 function HomeHeroSkeleton() {
@@ -44,7 +41,7 @@ function HomeHeroSkeleton() {
         <div className="lg:pr-4">
           <Badge
             variant="status"
-            className="mb-4 inline-flex items-center gap-2 px-3 py-1.5 bg-(--oboon-bg-surface)"
+            className="mb-4 inline-flex items-center gap-2 bg-(--oboon-bg-surface) px-3 py-1.5"
           >
             <Skeleton className="h-4 w-4 rounded-full" />
             <Skeleton className="h-4 w-24 rounded-lg" />
@@ -191,13 +188,12 @@ function HomeLatestSectionSkeleton() {
       <div className="hidden md:block lg:hidden">
         <div className="-mx-4 overflow-visible md:-mx-5">
           <div
-            className={[
-              "flex gap-3 overflow-x-auto overflow-y-visible px-4 py-3 pb-8 md:gap-4 md:px-5",
+            className={cn(
+              "scrollbar-none flex gap-3 overflow-x-auto overflow-y-visible px-4 py-3 pb-8 md:gap-4 md:px-5",
               "snap-x snap-mandatory",
               "[-webkit-overflow-scrolling:touch]",
-              "scrollbar-none",
               "scroll-pl-4 scroll-pr-4 scroll-pb-8 md:scroll-pl-5 md:scroll-pr-5",
-            ].join(" ")}
+            )}
           >
             {Array.from({ length: 4 }).map((_, index) => (
               <div
@@ -208,7 +204,7 @@ function HomeLatestSectionSkeleton() {
               </div>
             ))}
 
-            <div className="shrink-0 w-4" />
+            <div className="w-4 shrink-0" />
           </div>
         </div>
       </div>
@@ -240,256 +236,5 @@ export function HomePageSkeleton() {
         <HomeLatestSectionSkeleton />
       </PageContainer>
     </main>
-  );
-}
-
-function OfferingListHeaderSkeleton() {
-  return (
-    <div className="space-y-2">
-      <Skeleton className="h-9 w-44 rounded-lg" />
-      <Skeleton className="h-4 w-64 rounded-lg" />
-    </div>
-  );
-}
-
-function OfferingFilterSkeleton() {
-  return (
-    <div className="space-y-4 rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-4 sm:p-5">
-      <div className="hidden sm:flex items-center gap-3">
-        <Skeleton className="h-10 flex-1 rounded-xl" />
-        <Skeleton className="h-10 w-10 rounded-full" />
-        <Skeleton className="h-10 w-24 rounded-xl" />
-        <Skeleton className="h-10 w-20 rounded-xl" />
-        <Skeleton className="h-10 w-10 rounded-full" />
-      </div>
-      <div className="sm:hidden space-y-3">
-        <Skeleton className="h-10 w-full rounded-xl" />
-        <Skeleton className="h-14 w-full rounded-2xl" />
-        <div className="flex items-center justify-between gap-3">
-          <Skeleton className="h-7 w-20 rounded-full" />
-          <div className="flex items-center gap-2">
-            <Skeleton className="h-9 w-24 rounded-xl" />
-            <Skeleton className="h-9 w-9 rounded-full" />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export function OfferingsPageSkeleton() {
-  return (
-    <main className="bg-(--oboon-bg-page)">
-      <PageContainer>
-        <div className="flex items-center gap-3 mb-1">
-          <OfferingListHeaderSkeleton />
-        </div>
-        <div className="mb-4">
-          <Skeleton className="h-4 w-72 max-w-full rounded-lg" />
-        </div>
-        <div className="space-y-4">
-          <OfferingFilterSkeleton />
-          <div className="space-y-3 sm:grid sm:grid-cols-2 sm:gap-4 sm:space-y-0 lg:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, index) => (
-              <OfferingCardSkeleton
-                key={`offering-${index}`}
-                mobileRecommendationLayout
-                seed={index}
-              />
-            ))}
-          </div>
-        </div>
-      </PageContainer>
-    </main>
-  );
-}
-
-function CommunitySidebarSkeleton({ rows = 3 }: { rows?: number }) {
-  return (
-    <Card className="p-4">
-      <Skeleton className="h-5 w-24 rounded-lg" />
-      <div className="mt-4 space-y-3">
-        {Array.from({ length: rows }).map((_, index) => (
-          <div key={`sidebar-${index}`} className="space-y-2">
-            <Skeleton className="h-4 w-full rounded-lg" />
-            <Skeleton className="h-4 w-2/3 rounded-lg" />
-          </div>
-        ))}
-      </div>
-    </Card>
-  );
-}
-
-function CommunityTabsSkeleton() {
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      {Array.from({ length: 6 }).map((_, index) => (
-        <Skeleton
-          key={`tab-${index}`}
-          className={[
-            "h-9 rounded-full",
-            index === 0 ? "w-16" : index % 2 === 0 ? "w-20" : "w-24",
-          ].join(" ")}
-        />
-      ))}
-    </div>
-  );
-}
-
-export function CommunityPageSkeleton() {
-  return (
-    <main className="bg-(--oboon-bg-page)">
-      <PageContainer className="pb-10">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_260px] lg:grid-cols-[260px_minmax(0,1fr)_260px]">
-          <aside className="hidden lg:block lg:sticky lg:top-[calc(var(--oboon-header-offset)+1rem)] lg:self-start">
-            <CommunitySidebarSkeleton rows={4} />
-          </aside>
-
-          <section className="order-1 min-w-0 lg:order-2">
-            <div className="space-y-4">
-              <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-4">
-                <CommunityTabsSkeleton />
-              </div>
-              <div className="space-y-3">
-                {Array.from({ length: 4 }).map((_, index) => (
-                  <CommunityPostCardSkeleton key={`community-post-${index}`} />
-                ))}
-              </div>
-            </div>
-          </section>
-
-          <aside className="hidden md:block md:sticky md:top-[calc(var(--oboon-header-offset)+1rem)] md:self-start">
-            <CommunitySidebarSkeleton rows={4} />
-          </aside>
-        </div>
-      </PageContainer>
-    </main>
-  );
-}
-
-export function CommunityProfilePageSkeleton() {
-  return (
-    <main className="bg-(--oboon-bg-page)">
-      <PageContainer className="pb-10">
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-          <section className="min-w-0 space-y-3">
-            <div className="flex items-start gap-4">
-              <Skeleton className="h-16 w-16 rounded-full flex-shrink-0" />
-              <div className="flex-1 space-y-2 pt-1">
-                <Skeleton className="h-5 w-32" />
-                <Skeleton className="h-4 w-20" />
-                <Skeleton className="h-4 w-48" />
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-4">
-              <CommunityTabsSkeleton />
-            </div>
-
-            <div className="space-y-3">
-              {Array.from({ length: 3 }).map((_, index) => (
-                <CommunityPostCardSkeleton key={`profile-post-${index}`} />
-              ))}
-            </div>
-          </section>
-
-          <aside className="space-y-4 lg:sticky lg:top-[calc(var(--oboon-header-offset)+1rem)] lg:self-start">
-            <CommunitySidebarSkeleton rows={4} />
-            <CommunitySidebarSkeleton rows={3} />
-          </aside>
-        </div>
-      </PageContainer>
-    </main>
-  );
-}
-
-export function OtherCommunityProfilePageSkeleton() {
-  return (
-    <main className="bg-(--oboon-bg-page)">
-      <PageContainer className="pb-10">
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-          <section className="min-w-0 space-y-3">
-            <div className="flex items-start gap-4">
-              <Skeleton className="h-16 w-16 rounded-full flex-shrink-0" />
-              <div className="flex-1 space-y-2 pt-1">
-                <Skeleton className="h-5 w-32" />
-                <Skeleton className="h-4 w-20" />
-                <Skeleton className="h-4 w-48" />
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-(--oboon-border-default) bg-(--oboon-bg-surface) p-4">
-              <CommunityTabsSkeleton />
-            </div>
-
-            <div className="space-y-3">
-              {Array.from({ length: 3 }).map((_, index) => (
-                <CommunityPostCardSkeleton key={`other-profile-post-${index}`} />
-              ))}
-            </div>
-          </section>
-
-          <aside className="space-y-4 lg:sticky lg:top-[calc(var(--oboon-header-offset)+1rem)] lg:self-start">
-            <CommunitySidebarSkeleton rows={3} />
-            <CommunitySidebarSkeleton rows={3} />
-          </aside>
-        </div>
-      </PageContainer>
-    </main>
-  );
-}
-
-function SupportHeaderSkeleton() {
-  return (
-    <div className="space-y-2">
-      <Skeleton className="h-8 w-40 rounded-lg" />
-      <Skeleton className="h-4 w-72 rounded-lg" />
-    </div>
-  );
-}
-
-function SupportTabsSkeleton() {
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      {Array.from({ length: 6 }).map((_, index) => (
-        <Skeleton
-          key={`support-tab-${index}`}
-          className={[
-            "h-9 rounded-full",
-            index === 0 ? "w-16" : index % 2 === 0 ? "w-20" : "w-24",
-          ].join(" ")}
-        />
-      ))}
-    </div>
-  );
-}
-
-export function SupportPageSkeleton() {
-  return (
-    <div className="space-y-6">
-      <div className="space-y-3">
-        <SupportHeaderSkeleton />
-        <SupportTabsSkeleton />
-      </div>
-      <FAQListSkeleton />
-    </div>
-  );
-}
-
-export function SupportQnAListPageSkeleton() {
-  return (
-    <div className="space-y-6">
-      <SupportHeaderSkeleton />
-      <QnAListSkeleton />
-    </div>
-  );
-}
-
-export function SupportQnADetailPageSkeleton() {
-  return (
-    <div className="space-y-6">
-      <SupportHeaderSkeleton />
-      <QnAListSkeleton count={1} />
-    </div>
   );
 }

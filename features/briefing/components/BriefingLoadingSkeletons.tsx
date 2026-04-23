@@ -88,7 +88,7 @@ function BriefingEditorPickSkeleton() {
   );
 }
 
-export default function BriefingPostCardSkeleton() {
+export function BriefingPostCardSkeleton() {
   return (
     <div className="group block">
       <div className="overflow-hidden p-0 shadow-none">

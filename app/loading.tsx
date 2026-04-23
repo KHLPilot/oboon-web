@@ -1,4 +1,4 @@
-import { HomePageSkeleton } from "@/features/public/components/PublicPageSkeletons";
+import { HomePageSkeleton } from "@/features/home/components/HomePageSkeleton";
 
 export default function Loading() {
   return <HomePageSkeleton />;

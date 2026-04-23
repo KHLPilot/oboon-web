@@ -1,1 +1,1 @@
-export { default } from "./BriefingLoadingSkeletons";
+export { BriefingPostCardSkeleton } from "./BriefingLoadingSkeletons";

@@ -31,7 +31,7 @@ import { type UserMenuTabItem } from "./UserMenuTabs";
 import { showAlert } from "@/shared/alert";
 import { CommunityProfilePage } from "@/features/community";
 import UserActivityTab from "./UserActivityTab";
-import ProfilePageSkeleton from "./ProfilePageSkeleton";
+import { ProfilePageSkeleton } from "./ProfilePageSkeleton";
 import {
   fetchCurrentProfileBankAccount,
   updateCurrentProfileBankAccount,

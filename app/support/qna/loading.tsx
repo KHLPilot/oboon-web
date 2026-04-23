@@ -1,4 +1,4 @@
-import { SupportQnAListPageSkeleton } from "@/features/public/components/PublicPageSkeletons";
+import { SupportQnAListPageSkeleton } from "@/features/support/components/SupportPageSkeletons";
 
 export default function SupportQnALoading() {
   return <SupportQnAListPageSkeleton />;

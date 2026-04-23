@@ -1,4 +1,4 @@
-import { CommunityProfilePageSkeleton } from "@/features/public/components/PublicPageSkeletons";
+import { CommunityProfilePageSkeleton } from "@/features/community/components/CommunityPageSkeletons";
 
 export default function CommunityProfileLoading() {
   return <CommunityProfilePageSkeleton />;

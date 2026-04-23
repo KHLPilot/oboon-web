@@ -44,7 +44,7 @@ import ReservationDetailModal from "@/features/admin/components/ReservationDetai
 import { type MapMarker } from "@/features/map/components/NaverMap";
 import { toKoreanErrorMessage } from "@/shared/errorMessage";
 import { deletePropertyById } from "@/features/company/services/property.list";
-import AdminPageSkeleton from "@/features/admin/components/AdminPageSkeleton";
+import { AdminPageSkeleton } from "@/features/admin/components/AdminPageSkeleton";
 import ProfilePageShell from "@/features/profile/components/ProfilePageShell";
 
 function getErrorMessage(error: unknown, fallback: string) {

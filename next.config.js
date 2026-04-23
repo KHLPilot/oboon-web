@@ -10,7 +10,7 @@ const nextConfig = {
     return config;
   },
   images: {
-    unoptimized: true,
+    unoptimized: false,
     remotePatterns: [
       // Supabase Storage
       { protocol: "https", hostname: "*.supabase.co", pathname: "/**" },

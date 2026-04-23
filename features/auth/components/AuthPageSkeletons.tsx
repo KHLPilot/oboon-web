@@ -1,6 +1,7 @@
 import PageContainer from "@/components/shared/PageContainer";
 import Card from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { cn } from "@/lib/utils/cn";
 import type { ReactNode } from "react";
 
 function AuthShell({
@@ -35,8 +36,8 @@ function AuthTitleSkeleton({
 }) {
   return (
     <div className="mb-4 sm:mb-5 text-center space-y-2">
-      <Skeleton className={`mx-auto h-10 ${titleWidth} rounded-xl`} />
-      <Skeleton className={`mx-auto h-5 ${subtitleWidth} max-w-full rounded-lg`} />
+      <Skeleton className={cn("mx-auto h-10 rounded-xl", titleWidth)} />
+      <Skeleton className={cn("mx-auto h-5 max-w-full rounded-lg", subtitleWidth)} />
     </div>
   );
 }
@@ -44,14 +45,14 @@ function AuthTitleSkeleton({
 function AuthFieldSkeleton({ labelWidth = "w-14" }: { labelWidth?: string }) {
   return (
     <div className="space-y-2">
-      <Skeleton className={`h-4 ${labelWidth}`} />
+      <Skeleton className={cn("h-4", labelWidth)} />
       <Skeleton className="h-11 w-full rounded-xl" />
     </div>
   );
 }
 
 function AuthButtonSkeleton({ widthClass = "w-full" }: { widthClass?: string }) {
-  return <Skeleton className={`h-11 rounded-full ${widthClass}`} />;
+  return <Skeleton className={cn("h-11 rounded-full", widthClass)} />;
 }
 
 export function LoginPageSkeleton() {

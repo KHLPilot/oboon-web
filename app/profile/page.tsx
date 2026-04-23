@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import ProfilePage from "@/features/profile/components/ProfilePage.client";
-import ProfilePageSkeleton from "@/features/profile/components/ProfilePageSkeleton";
+import { ProfilePageSkeleton } from "@/features/profile/components/ProfilePageSkeleton";
 
 export const metadata: Metadata = {
   robots: {

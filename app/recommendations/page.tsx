@@ -18,7 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/DropdownMenu";
 import OfferingsViewToggle from "@/features/offerings/components/OfferingsViewToggle";
-import RecommendationCardSkeleton from "@/features/recommendations/components/RecommendationCardSkeleton";
+import { RecommendationCardSkeleton } from "@/features/recommendations/components/RecommendationCardSkeleton";
 import RecommendationResultChips from "@/features/recommendations/components/RecommendationResultChips";
 import type {
   RecommendationCondition,

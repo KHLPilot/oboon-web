@@ -1,13 +1,14 @@
 import { Skeleton } from "@/components/ui/Skeleton";
+import { cn } from "@/lib/utils/cn";
 
 export function HeroCounselorPreviewSkeleton() {
   return (
     <div
-      className={[
+      className={cn(
         "relative flex h-full w-full flex-col overflow-hidden rounded-3xl",
         "border border-(--oboon-border-default) bg-(--oboon-bg-surface)",
-        "p-4 sm:p-5 shadow-(--oboon-shadow-card)",
-      ].join(" ")}
+        "p-4 shadow-(--oboon-shadow-card) sm:p-5",
+      )}
     >
       {/* Header */}
       <div className="mb-3 shrink-0 space-y-1.5">

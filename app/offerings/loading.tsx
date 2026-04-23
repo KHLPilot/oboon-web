@@ -1,4 +1,4 @@
-import { OfferingsPageSkeleton } from "@/features/public/components/PublicPageSkeletons";
+import { OfferingsPageSkeleton } from "@/features/offerings/components/OfferingsPageSkeleton";
 
 export default function OfferingsLoading() {
   return <OfferingsPageSkeleton />;

@@ -1,5 +1,5 @@
-import { QnADetailSkeleton } from "@/features/support/components/qna/QnADetailSkeleton";
+import { SupportQnADetailPageSkeleton } from "@/features/support/components/SupportPageSkeletons";
 
 export default function SupportQnADetailLoading() {
-  return <QnADetailSkeleton />;
+  return <SupportQnADetailPageSkeleton />;
 }

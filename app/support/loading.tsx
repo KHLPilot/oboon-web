@@ -1,4 +1,4 @@
-import { SupportPageSkeleton } from "@/features/public/components/PublicPageSkeletons";
+import { SupportPageSkeleton } from "@/features/support/components/SupportPageSkeletons";
 
 export default function SupportLoading() {
   return <SupportPageSkeleton />;

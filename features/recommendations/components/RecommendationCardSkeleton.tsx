@@ -11,7 +11,7 @@ function pick<T>(values: readonly T[], seed: number, offset = 0): T {
   return values[(seed + offset) % values.length];
 }
 
-export default function RecommendationCardSkeleton({
+export function RecommendationCardSkeleton({
   size,
   seed = 0,
 }: {
