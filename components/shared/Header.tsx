@@ -23,6 +23,65 @@ import {
   DropdownMenuItem,
 } from "../ui/DropdownMenu";
 
+const HEADER_PROFILE_CACHE_KEY = "oboon.header.profile.v1";
+
+type CachedHeaderProfile = {
+  userId: string;
+  profileName: string;
+  profileAvatarUrl: string | null;
+  userRole: string | null;
+};
+
+function readCachedHeaderProfile(): CachedHeaderProfile | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = window.sessionStorage.getItem(HEADER_PROFILE_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<CachedHeaderProfile> | null;
+
+    if (
+      !parsed ||
+      typeof parsed.userId !== "string" ||
+      typeof parsed.profileName !== "string" ||
+      !("profileAvatarUrl" in parsed) ||
+      !("userRole" in parsed)
+    ) {
+      return null;
+    }
+
+    return {
+      userId: parsed.userId,
+      profileName: parsed.profileName,
+      profileAvatarUrl:
+        typeof parsed.profileAvatarUrl === "string"
+          ? parsed.profileAvatarUrl
+          : null,
+      userRole: typeof parsed.userRole === "string" ? parsed.userRole : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedHeaderProfile(value: CachedHeaderProfile | null) {
+  if (typeof window === "undefined") return;
+
+  try {
+    if (!value) {
+      window.sessionStorage.removeItem(HEADER_PROFILE_CACHE_KEY);
+      return;
+    }
+
+    window.sessionStorage.setItem(
+      HEADER_PROFILE_CACHE_KEY,
+      JSON.stringify(value),
+    );
+  } catch {
+    // 세션 저장소가 막혀도 헤더는 계속 동작해야 한다.
+  }
+}
+
 export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
@@ -78,7 +137,16 @@ export default function Header() {
         setProfileName("");
         setProfileAvatarUrl(null);
         setUserRole(null);
+        writeCachedHeaderProfile(null);
         return;
+      }
+
+      const cached = readCachedHeaderProfile();
+      if (cached && cached.userId !== currentUser.id) {
+        setProfileName("");
+        setProfileAvatarUrl(null);
+        setUserRole(null);
+        writeCachedHeaderProfile(null);
       }
 
       const { data: profile } = await supabase
@@ -94,6 +162,12 @@ export default function Header() {
         setProfileName(realName);
         setProfileAvatarUrl(normalizeImageUrl(profile.avatar_url));
         setUserRole(profile.role || "user");
+        writeCachedHeaderProfile({
+          userId: currentUser.id,
+          profileName: realName,
+          profileAvatarUrl: normalizeImageUrl(profile.avatar_url),
+          userRole: profile.role || "user",
+        });
       }
     } catch (err) {
       if (isAbortLikeError(err)) return;
@@ -102,6 +176,13 @@ export default function Header() {
   };
 
   useEffect(() => {
+    const cached = readCachedHeaderProfile();
+    if (cached) {
+      setProfileName(cached.profileName);
+      setProfileAvatarUrl(cached.profileAvatarUrl);
+      setUserRole(cached.userRole);
+    }
+
     const syncHeaderFromClientSession = async () => {
       const {
         data: { session },
