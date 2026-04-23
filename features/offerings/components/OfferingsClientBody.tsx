@@ -2,7 +2,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentType } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import OfferingCard from "@/features/offerings/components/OfferingCard";
@@ -37,6 +37,10 @@ import {
 } from "@/features/offerings/domain/offering.types";
 
 type OfferingsView = "list" | "map";
+
+type OfferingsClientBodyProps = {
+  initialOfferings?: Offering[];
+};
 
 type FilterBarProps = {
   view: OfferingsView;
@@ -473,7 +477,12 @@ function sortOfferings(items: Offering[], sortKey: OfferingsSortKey) {
  * Page
  * ================================ */
 
-export default function OfferingsClientBody() {
+export default function OfferingsClientBody({
+  initialOfferings,
+}: OfferingsClientBodyProps) {
+  const hasHydratedInitialOfferingsRef = useRef(
+    Boolean(initialOfferings && initialOfferings.length > 0),
+  );
   const sp = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -497,41 +506,43 @@ export default function OfferingsClientBody() {
   }, [sp]);
 
   const supabase = useMemo(() => createSupabaseClient(), []);
-  const [rows, setRows] = useState<PropertyRow[]>([]);
-  const [rowsLoaded, setRowsLoaded] = useState(false);
+  const [offerings, setOfferings] = useState<Offering[]>(initialOfferings ?? []);
+  const [rowsLoaded, setRowsLoaded] = useState(
+    Boolean(initialOfferings && initialOfferings.length > 0),
+  );
   const [approvedAgentPropertyIds, setApprovedAgentPropertyIds] = useState<
     Set<string>
   >(new Set());
   const [loadError, setLoadError] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
-  const [scrapedPropertyIds, setScrapedPropertyIds] = useState<Set<number>>(new Set());
+  const [scrapedPropertyIds, setScrapedPropertyIds] = useState<Set<number>>(
+    new Set(),
+  );
 
-  /* ---------- fetch ---------- */
+  const fallback = useMemo(
+    () => ({
+      addressShort: UXCopy.addressShort,
+      regionShort: UXCopy.regionShort,
+    }),
+    [],
+  );
+
   useEffect(() => {
     let mounted = true;
 
     (async () => {
       const [
-        { data, error },
         { data: propertyAgents, error: agentError },
-        { data: { user } },
+        { data: sessionData },
       ] = await Promise.all([
-        fetchPropertiesForOfferings(supabase, { limit: 200 }),
         supabase
           .from("property_agents")
           .select("property_id")
           .eq("status", "approved"),
-        supabase.auth.getUser(),
+        supabase.auth.getSession(),
       ]);
 
       if (!mounted) return;
-
-      if (error) {
-        setLoadError(toKoreanErrorMessage(error, "데이터를 불러오지 못했어요."));
-        setRows([]);
-        setRowsLoaded(true);
-        return;
-      }
 
       if (agentError) {
         console.error("상담사 필터 데이터 조회 실패:", agentError);
@@ -542,32 +553,31 @@ export default function OfferingsClientBody() {
             .map((row) => row.property_id)
             .filter(
               (id): id is number | string =>
-                typeof id === "number" || typeof id === "string"
+                typeof id === "number" || typeof id === "string",
             )
-            .map((id) => String(id))
+            .map((id) => String(id)),
         );
         setApprovedAgentPropertyIds(ids);
       }
 
-      // 로그인 사용자라면 찜한 현장 ID 목록 조회
-      if (user) {
-        setUserId(user.id);
-        const { data: scraps } = await supabase
-          .from("offering_scraps")
-          .select("property_id")
-          .eq("profile_id", user.id);
-        if (mounted && scraps) {
-          setScrapedPropertyIds(
-            new Set(
-              scraps.map((r: { property_id: number }) => r.property_id)
-            )
-          );
-        }
+      const user = sessionData.session?.user ?? null;
+      if (!user) {
+        setUserId(null);
+        setScrapedPropertyIds(new Set());
+        return;
       }
 
-      setLoadError(null);
-      setRows((data ?? []) as PropertyRow[]);
-      setRowsLoaded(true);
+      setUserId(user.id);
+      const { data: scraps } = await supabase
+        .from("offering_scraps")
+        .select("property_id")
+        .eq("profile_id", user.id);
+
+      if (mounted && scraps) {
+        setScrapedPropertyIds(
+          new Set(scraps.map((r: { property_id: number }) => r.property_id)),
+        );
+      }
     })();
 
     return () => {
@@ -575,17 +585,41 @@ export default function OfferingsClientBody() {
     };
   }, [supabase]);
 
-  const fallback = useMemo(
-    () => ({
-      addressShort: UXCopy.addressShort,
-      regionShort: UXCopy.regionShort,
-    }),
-    [],
-  );
+  useEffect(() => {
+    if (hasHydratedInitialOfferingsRef.current) {
+      hasHydratedInitialOfferingsRef.current = false;
+      return;
+    }
 
-  const offerings = useMemo<Offering[]>(() => {
-    return rows.map((row) => mapPropertyRowToOffering(row, fallback));
-  }, [rows, fallback]);
+    let mounted = true;
+
+    (async () => {
+      const { data, error } = await fetchPropertiesForOfferings(supabase, {
+        limit: 200,
+      });
+
+      if (!mounted) return;
+
+      if (error) {
+        setLoadError(toKoreanErrorMessage(error, "데이터를 불러오지 못했어요."));
+        setOfferings([]);
+        setRowsLoaded(true);
+        return;
+      }
+
+      setLoadError(null);
+      setOfferings(
+        ((data ?? []) as PropertyRow[]).map((row) =>
+          mapPropertyRowToOffering(row, fallback),
+        ),
+      );
+      setRowsLoaded(true);
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [fallback, supabase]);
 
   const searchParamsWithoutRegion = useMemo<SearchParams>(
     () => ({
