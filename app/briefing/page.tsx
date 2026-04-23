@@ -42,8 +42,11 @@ export const metadata: Metadata = {
 };
 
 export default async function BriefingPage() {
-  const originalDataPromise = fetchOboonOriginalPageData();
-  const homeData = await fetchBriefingHomeData();
+  const [homeData, originalData] = await Promise.all([
+    fetchBriefingHomeData(),
+    fetchOboonOriginalPageData(),
+  ]);
+  const originalDataPromise = Promise.resolve(originalData);
 
   const { isAdmin, topPosts, editorPicks, recentPosts, generalRecentPosts } = homeData;
 
