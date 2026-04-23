@@ -73,6 +73,9 @@ export default function LoginPage() {
       setBannedEmailModalOpen(true);
       // URL 파라미터 정리
       router.replace("/auth/login");
+    } else if (errorParam === "deleted") {
+      setError(Copy.auth.error.deactivated);
+      router.replace("/auth/login");
     }
   }, [searchParams, router]);
 
@@ -234,18 +237,9 @@ export default function LoginPage() {
 
       // 탈퇴한 계정인지 확인 (deleted_at이 설정된 경우)
       if (profile.deleted_at) {
-        const restoreSessionRes = await fetch("/api/auth/create-restore-session", {
-          method: "POST",
-        });
-        await supabase.auth.signOut();
-
-        if (!restoreSessionRes.ok) {
-          setLoading(false);
-          setError("복구 정보를 확인할 수 없습니다. 다시 로그인해주세요.");
-          return;
-        }
-
-        router.replace("/auth/restore");
+        await supabase.auth.signOut().catch(() => null);
+        setLoading(false);
+        router.replace("/auth/login?error=deleted");
         return;
       }
 

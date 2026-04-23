@@ -3,6 +3,16 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const isDevelopment = process.env.NODE_ENV === "development";
 const isReactGrabEnabled = isDevelopment;
+const PUBLIC_PATHS = [
+  "/",
+  "/offerings",
+  "/briefing",
+  "/notice",
+  "/support",
+  "/visit",
+  "/map",
+  "/auth",
+] as const;
 
 function dedupe(values: Array<string | null | undefined>) {
   return Array.from(new Set(values.filter(Boolean))) as string[];
@@ -117,16 +127,26 @@ function applySecurityHeaders(
   return response;
 }
 
-function isAuthBypassPath(pathname: string): boolean {
-  return pathname.startsWith("/auth/") || pathname.startsWith("/api/auth/");
+function isPublicPath(pathname: string): boolean {
+  return PUBLIC_PATHS.some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`),
+  );
 }
 
-function buildDeletedAccountResponse(request: NextRequest): NextResponse {
-  if (request.nextUrl.pathname.startsWith("/api/")) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  return NextResponse.redirect(new URL("/auth/login?error=deleted", request.url));
+function buildResponse(
+  requestHeaders: Headers,
+  nonce: string,
+  contentSecurityPolicy: string,
+) {
+  return applySecurityHeaders(
+    NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    }),
+    nonce,
+    contentSecurityPolicy,
+  );
 }
 
 export async function middleware(request: NextRequest) {
@@ -141,11 +161,11 @@ export async function middleware(request: NextRequest) {
   }
   requestHeaders.set("Content-Security-Policy", contentSecurityPolicy);
 
-  let response = applySecurityHeaders(NextResponse.next({
-    request: {
-      headers: requestHeaders,
-    },
-  }), nonce, contentSecurityPolicy);
+  if (isPublicPath(request.nextUrl.pathname)) {
+    return buildResponse(requestHeaders, nonce, contentSecurityPolicy);
+  }
+
+  let response = buildResponse(requestHeaders, nonce, contentSecurityPolicy);
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -175,39 +195,7 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (user && !isAuthBypassPath(request.nextUrl.pathname)) {
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("deleted_at")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (profileError) {
-      console.error("[middleware] deleted account lookup failed", {
-        status: 500,
-        message: "profile lookup failed",
-      });
-    } else if (profile?.deleted_at) {
-      await supabase.auth.signOut();
-      const signOutResponse = response;
-      const deletedAccountResponse = buildDeletedAccountResponse(request);
-
-      signOutResponse.cookies.getAll().forEach((cookie) => {
-        const { name, value, ...cookieOptions } = cookie;
-        deletedAccountResponse.cookies.set({ name, value, ...cookieOptions });
-      });
-
-      return applySecurityHeaders(
-        deletedAccountResponse,
-        nonce,
-        contentSecurityPolicy,
-      );
-    }
-  }
+  await supabase.auth.getUser();
 
   return response;
 }
